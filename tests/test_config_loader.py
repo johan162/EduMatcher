@@ -14,6 +14,7 @@ from edumatcher.engine.config_loader import (
     ScheduleConfig,
     load_engine_config,
 )
+from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 from edumatcher.models.quote import QuoteRefreshPolicy
 
@@ -131,6 +132,7 @@ class TestConfigLoaderHappyPath:
               enforce_mm_obligation: true
               mm_max_spread_ticks: 8
               mm_min_qty: 50
+              smp_action: CANCEL_RESTING
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         gw = cfg.fix_gateways["MM01"]
@@ -140,6 +142,30 @@ class TestConfigLoaderHappyPath:
         assert gw.enforce_mm_obligation is True
         assert gw.mm_max_spread_ticks == 8
         assert gw.mm_min_qty == 50
+        assert gw.smp_action == SmpAction.CANCEL_RESTING
+
+    def test_gateway_smp_action_defaults_to_none(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          alf:
+            - id: GW01
+        """
+        cfg = load_engine_config(_write_yaml(tmp_path, yaml))
+        assert cfg.fix_gateways["GW01"].smp_action == SmpAction.NONE
+
+    def test_gateway_smp_action_case_insensitive(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          alf:
+            - id: GW01
+              smp_action: cancel_both
+        """
+        cfg = load_engine_config(_write_yaml(tmp_path, yaml))
+        assert cfg.fix_gateways["GW01"].smp_action == SmpAction.CANCEL_BOTH
 
     def test_gateway_id_uppercased(self, tmp_path: Path) -> None:
         yaml = """
@@ -668,6 +694,18 @@ class TestConfigLoaderGatewayErrors:
               quote_refresh_policy: SOMETIMES
         """
         with pytest.raises(ValueError, match="quote_refresh_policy is invalid"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_gateway_invalid_smp_action_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          alf:
+            - id: GW01
+              smp_action: SOMETIMES
+        """
+        with pytest.raises(ValueError, match="smp_action is invalid"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
     def test_gateway_invalid_enforce_mm_obligation_type_raises(

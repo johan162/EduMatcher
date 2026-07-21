@@ -976,7 +976,11 @@ class Gateway:
             price = float(kv["PRICE"]) if "PRICE" in kv else None
             stop_price = float(kv["STOP"]) if "STOP" in kv else None
             visible = int(kv["VISIBLE"]) if "VISIBLE" in kv else None
-            smp_action = SmpAction(kv.get("SMP", SmpAction.NONE))
+            # SMP omitted entirely means "let the engine apply this
+            # gateway's configured smp_action default" -- distinct from an
+            # explicit SMP=NONE. See SmpAction's docstring in
+            # models/order.py.
+            smp_action = SmpAction(kv["SMP"]) if "SMP" in kv else None
         except (KeyError, ValueError) as exc:
             log.warning(
                 "NEW parse error gateway_id=%s input=%s error=%s",
@@ -1169,7 +1173,10 @@ class Gateway:
         combo_id = kv.get("COMBO_ID", "")
         combo_type = kv.get("COMBO_TYPE", "AON")
         tif_str = kv.get("TIF", "DAY")
-        smp_str = kv.get("SMP", "NONE")
+        # SMP omitted entirely means "let the engine apply this gateway's
+        # configured smp_action default" to every leg -- distinct from an
+        # explicit SMP=NONE. See SmpAction's docstring in models/order.py.
+        smp_str = kv.get("SMP")
 
         if not combo_id:
             log.warning(
@@ -1235,7 +1242,7 @@ class Gateway:
                     order_type=OrderType(leg_type),
                     quantity=int(qty),
                     price=to_ticks(float(price), sym) if price else None,
-                    smp_action=SmpAction(smp_str),
+                    smp_action=SmpAction(smp_str) if smp_str is not None else None,
                 )
             except (ValueError, KeyError) as exc:
                 log.warning(

@@ -705,7 +705,10 @@ class OrderBook:
         if available < order.quantity:
             # The FOK cannot fully fill.  Resolve SMP the same way a sweep
             # would, then finalise a terminal status WITHOUT any partial fill.
-            smp = order.smp_action
+            # smp_action is None only if the engine boundary failed to
+            # resolve it (should not happen — see SmpAction's docstring);
+            # treat that defensively as "no SMP" rather than raising.
+            smp = order.smp_action or SmpAction.NONE
             price_limit = order.price
             same_gw_conflicts = [
                 e.order
@@ -787,7 +790,9 @@ class OrderBook:
         """
         price_limit = order.price
         side = order.side
-        smp = order.smp_action
+        # See _process_fok's comment: None should never reach here, but treat
+        # it as "no SMP" rather than raising if it somehow does.
+        smp = order.smp_action or SmpAction.NONE
         gw = order.gateway_id
         total = 0
         for entry in heap:
@@ -944,7 +949,9 @@ class OrderBook:
         # Cache immutable aggressor attributes / bound methods as locals for the
         # tight sweep loop (see docs-design/perf-notes.md).
         _side = aggressor.side
-        _smp_action = aggressor.smp_action
+        # None should never reach here (see SmpAction's docstring) but treat
+        # it as "no SMP" defensively rather than raising.
+        _smp_action = aggressor.smp_action or SmpAction.NONE
         _gw_id = aggressor.gateway_id
         _peek = self._peek  # method lookup once
         _apply_fill = self._apply_fill
@@ -1006,6 +1013,9 @@ class OrderBook:
         """
         Sweep visible slice of iceberg; replenish peak if exhausted and hidden qty remains.
         """
+        # None should never reach here (see SmpAction's docstring) but treat
+        # it as "no SMP" defensively rather than raising.
+        _smp_action = iceberg.smp_action or SmpAction.NONE
         while iceberg.remaining_qty > 0 and opposite_heap:
             best = self._peek(opposite_heap)
             if best is None:
@@ -1020,18 +1030,15 @@ class OrderBook:
                 break
 
             # Self-match prevention
-            if (
-                iceberg.smp_action != SmpAction.NONE
-                and iceberg.gateway_id == best.gateway_id
-            ):
-                if iceberg.smp_action == SmpAction.CANCEL_AGGRESSOR:
+            if _smp_action != SmpAction.NONE and iceberg.gateway_id == best.gateway_id:
+                if _smp_action == SmpAction.CANCEL_AGGRESSOR:
                     iceberg.status = OrderStatus.CANCELLED
                     events.append(iceberg)
                     return
-                elif iceberg.smp_action == SmpAction.CANCEL_RESTING:
+                elif _smp_action == SmpAction.CANCEL_RESTING:
                     self._smp_cancel_resting(best, events)
                     continue
-                elif iceberg.smp_action == SmpAction.CANCEL_BOTH:
+                elif _smp_action == SmpAction.CANCEL_BOTH:
                     self._smp_cancel_resting(best, events)
                     iceberg.status = OrderStatus.CANCELLED
                     events.append(iceberg)

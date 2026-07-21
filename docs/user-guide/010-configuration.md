@@ -1693,6 +1693,28 @@ gateways:
 | `mm_max_spread_ticks`   |       No | Positive integer                                                        | Global MM default, then `10`  |
 | `mm_min_qty`            |       No | Positive integer                                                        | Global MM default, then `100` |
 | `mm_obligations`        |       No | Per-symbol mapping                                                      | Empty mapping                 |
+| `smp_action`            |       No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`             | `NONE`                        |
+
+!!! note "`smp_action` is a fallback default, not an override"
+    `gateways.alf[].smp_action` is the self-match-prevention action the
+    engine applies to this gateway's orders **when the order itself doesn't
+    specify one**:
+
+    - `QUOTE` legs (the bid/ask orders a `QUOTE` command generates via
+      `pm-alf-gwy` or the ALF console) have no per-request SMP concept of
+      their own, so they **always** use this gateway default.
+    - `NEW` orders and combo orders/legs submitted through `pm-alf-gwy`, the
+      ALF console, or the REST API gateway each carry their own optional
+      per-order `SMP=` field (see the `NEW` command in
+      [ALF Protocol](900-app-alf-protocol.md)). If the client sends an
+      explicit `SMP=` — including `SMP=NONE`, a deliberate request to allow
+      self-trades — that value is always honoured as-is. Only when the
+      client omits `SMP=` entirely does the engine fall back to this
+      gateway's `smp_action`, and finally to `NONE` if the gateway has none
+      configured.
+
+    In short: an explicit per-order `SMP=` always wins; `gateways.alf[].smp_action`
+    only fills the gap when the client didn't say anything.
 
 Nested `mm_obligations.<SYMBOL>` entries support these fields:
 
@@ -2140,12 +2162,13 @@ Leg fields:
 | `quantity`   |         Yes | Integer quantity                                                                  |
 | `price`      | Conditional | Integer tick price for priced order types                                         |
 | `stop_price` | Conditional | Integer tick stop price for stop order types                                      |
-| `smp_action` |          No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`; defaults to `NONE`   |
+| `smp_action` |          No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`; if omitted, falls back to the seeding gateway's `gateways.alf[].smp_action` (§below), then `NONE` |
 
 Combo leg values are passed to `ComboLeg.from_dict()`, so these are the only leg
 fields used by current config parsing. Unlike quote seeds, combo legs do not
 include a `gateway_id`; startup combo ownership is assigned by the engine's combo
-seed path.
+seed path — that combo-level `gateway_id` is what an omitted `smp_action` falls
+back through.
 
 Prefer `tif: DAY` for repeatable demo seeds. `GTC` combo seeds can interact with
 restored `gtc_combos.json` state and duplicate intended startup liquidity if you
@@ -2337,6 +2360,7 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 | `mm_max_spread_ticks`   | int         |       No | From `mm_obligation_defaults.mm_max_spread_ticks`, else `10`      | Integer                                                                 | Must be `> 0`                              |
 | `mm_min_qty`            | int         |       No | From `mm_obligation_defaults.mm_min_qty`, else `100`              | Integer                                                                 | Must be `> 0`                              |
 | `mm_obligations`        | mapping     |       No | `{}`                                                              | Mapping of symbol → obligation entry                                    | Symbol keys are uppercased                 |
+| `smp_action`            | Enum        |       No | `NONE`                                                            | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`             | Case-insensitive; fallback default used when an order (`NEW`, combo, or `QUOTE`) doesn't specify its own `SMP=` |
 
 ### `gateways.alf[].mm_obligations.<SYMBOL>` fields
 
@@ -2466,7 +2490,7 @@ symbol has no breaker):
 | `quantity` | int | Yes | — | Positive integer | — |
 | `price` | int | Conditional | `null` | Integer tick price | Required for `LIMIT`, `STOP_LIMIT`, `FOK`, `ICEBERG` (not enforced for `IOC`) |
 | `stop_price` | int | Optional | `null` | Integer tick price | Not currently validated as required for any order type, including `STOP`/`STOP_LIMIT`/`TRAILING_STOP` |
-| `smp_action` | Enum | No | `NONE` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | Case-insensitive |
+| `smp_action` | Enum | No | Seeding gateway's `gateways.alf[].smp_action`, else `NONE` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | Case-insensitive |
 
 !!! note "Combo leg prices are integer ticks"
     All combo leg price fields (`price`, `stop_price`) are integer tick values,

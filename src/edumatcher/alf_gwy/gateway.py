@@ -524,7 +524,11 @@ class AlfGateway:
         order_type = self._parse_order_type(self._required_str(fields, "TYPE"))
         quantity = safe_int(self._required_str(fields, "QTY"), "QTY", min_value=1)
         tif = self._parse_tif(fields.get("TIF", "DAY"))
-        smp = self._parse_smp(fields.get("SMP", "NONE"))
+        # SMP omitted entirely means "let the engine apply this gateway's
+        # configured smp_action default" -- distinct from an explicit
+        # SMP=NONE, which means the client deliberately allows self-trades.
+        # See SmpAction's docstring in models/order.py.
+        smp = self._parse_smp(fields["SMP"]) if "SMP" in fields else None
 
         price = safe_float(fields["PRICE"], "PRICE") if "PRICE" in fields else None
         stop_price = safe_float(fields["STOP"], "STOP") if "STOP" in fields else None
@@ -642,7 +646,10 @@ class AlfGateway:
             self._required_str(fields, "COMBO_TYPE", default="AON")
         )
         tif = self._parse_tif(fields.get("TIF", "DAY"))
-        smp_action = self._parse_smp(fields.get("SMP", "NONE"))
+        # SMP omitted entirely means "let the engine apply this gateway's
+        # configured smp_action default" to every leg -- distinct from an
+        # explicit SMP=NONE. See SmpAction's docstring in models/order.py.
+        smp_action = self._parse_smp(fields["SMP"]) if "SMP" in fields else None
 
         leg_count = safe_int(
             self._required_str(fields, "LEG_COUNT"), "LEG_COUNT", min_value=2

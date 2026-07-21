@@ -319,6 +319,7 @@ gateways:
       enforce_mm_obligation: true
       mm_max_spread_ticks: 10
       mm_min_qty: 100
+      smp_action: CANCEL_RESTING
 
     - id: MM_AAPL_02
       description: "AAPL market-maker bot instance 2"
@@ -333,6 +334,19 @@ gateways:
   removed if the bot crashes or restarts
 - **`quote_refresh_policy: INACTIVATE_ON_ANY_FILL`** — the engine cancels the
   remaining leg when either side fills, triggering an immediate reissue
+- **`smp_action`** — self-match-prevention default for this gateway (`NONE`
+  if unset). Since `mm_bot` only ever submits `QUOTE`s (no plain `NEW`/combo
+  orders), this is the *only* SMP control it has — quote legs have no
+  per-request `SMP=` field of their own, so a bid/ask leg sweeping into a
+  resting order from the *same* gateway id (e.g. a stale leg left over from
+  a prior quote) is always handled per this gateway-level setting instead of
+  self-trading. See
+  [Configuration Spec §5.2](990-app-config-spec.md#52-gatewaysalf-required)
+  for the full `SmpAction` value list and how this default also applies to
+  `NEW`/combo orders from other gateway roles when they omit `SMP=`. See
+  [Risk Controls — Self-Match Prevention](120-risk-controls.md#self-match-prevention-smp)
+  for the full conceptual explanation, including a worked example of exactly
+  this stale-quote-leg scenario
 
 ### Gap validation
 

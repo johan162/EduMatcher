@@ -90,7 +90,7 @@ load. Producers MAY write any case; consumers compare upper-case.
 | `ComboType` | `AON` | `market_maker_combos[].combo_type` |
 | `Side` | `BUY`, `SELL` | combo legs |
 | `OrderType` | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | combo legs |
-| `SmpAction` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | combo legs |
+| `SmpAction` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | combo legs, `gateways.alf[].smp_action` |
 | `ResumptionMode` | `AUCTION`, `CONTINUOUS` | circuit-breaker levels |
 | `DuplicateSessionPolicy` | `REJECT_NEW`, `EVICT_OLD` | `balf_gateway.duplicate_session_policy` |
 
@@ -147,6 +147,7 @@ AlfGatewaySpec:                              # one entry of gateways.alf
   mm_max_spread_ticks:     ? Ticks = <mm_obligation_defaults.mm_max_spread_ticks | 10>
   mm_min_qty:              ? Qty   = <mm_obligation_defaults.mm_min_qty | 100>
   mm_obligations:          ? Map<Symbol, MMObligationSpec>
+  smp_action:              ? Enum<SmpAction> = NONE
 ```
 
 ---
@@ -203,7 +204,7 @@ A per-symbol `collar` is merged over the symbol's resolved `level` collar
 | `quantity` | `Qty` | ✔ | — | |
 | `price` | `Int` | – | `null` | tick price; required by `LIMIT`, `FOK`, `STOP_LIMIT`, `ICEBERG` legs (not enforced for `IOC` despite carrying a limit price); positivity is **not** validated anywhere in code, unlike other `Ticks`-typed fields |
 | `stop_price` | `Int` | – | `null` | tick stop price; currently unvalidated for any order type, including `STOP`/`STOP_LIMIT`/`TRAILING_STOP` |
-| `smp_action` | `Enum<SmpAction>` | – | `NONE` | |
+| `smp_action` | `Enum<SmpAction>` | – | seeding gateway's `gateways.alf[].smp_action`, else `NONE` | |
 
 ### 4.5 `IndexSpec` — `indices[]`
 
@@ -242,6 +243,17 @@ is a valid empty spec. Symbol fields: see the schema tree (§3, `SymbolSpec`);
 `List<AlfGatewaySpec>` with **at least one** entry (§3, `AlfGatewaySpec`). Gateway
 ids MUST be unique after upper-casing. This list is the participant allowlist and
 is **also** consumed by `pm-alf-gwy` and `pm-balf-gwy` for identity and role.
+
+`smp_action` sets the self-match-prevention action the engine applies to this
+gateway's orders **when the order itself doesn't specify one**:
+
+- Live `QUOTE` legs (the bid/ask orders generated from a `quote.new` request —
+  see [Market-Maker Bot](100-mm-bot.md) and the ALF `QUOTE` command) have no
+  per-request SMP concept of their own, so they always use this default.
+- `NEW`/combo order entry carries its own optional per-order `SMP=` field
+  (§4.4, `ComboLegSpec.smp_action`; ALF protocol `NEW|SMP=`). An explicit
+  `SMP=` from the client — including `SMP=NONE` — always takes precedence
+  over this gateway default; only an *omitted* `SMP=` falls back to it.
 
 ### 5.3 Engine behaviour flags
 

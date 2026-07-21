@@ -291,7 +291,7 @@ NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSF
 | `LEG<i>.QTY`        | Quantity for leg *i*                                                           |
 | `LEG<i>.PRICE`      | Limit price for leg *i* — required for legs typed `LIMIT`, `IOC`, or `FOK`     |
 | `LEG<i>.STOP`       | Stop price for leg *i* — required for legs typed `STOP` or `STOP_LIMIT`        |
-| `SMP=`              | Optional self-match-prevention action applied to all legs — `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, or `CANCEL_BOTH` (default `NONE`) |
+| `SMP=`              | Optional self-match-prevention action — `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, or `CANCEL_BOTH`. One value for the *whole combo*, applied identically to every leg (there is no per-leg `LEG<i>.SMP` on this protocol). If omitted, falls back to the gateway's configured `gateways.alf[].smp_action` (else `NONE`) — see [Risk Controls — Self-Match Prevention](120-risk-controls.md#self-match-prevention-smp) for the full mechanics and precedence rules |
 
 !!! note "Price/stop requirements are enforced differently at different points"
     The exact set of leg order types that require `LEG<i>.PRICE` vs `LEG<i>.STOP`

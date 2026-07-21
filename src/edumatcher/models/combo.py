@@ -51,7 +51,11 @@ class ComboLeg:
     quantity: int
     price: Optional[int] = None
     stop_price: Optional[int] = None
-    smp_action: SmpAction = SmpAction.NONE
+    # None means "not specified" (client/config omitted smp_action), distinct
+    # from an explicit NONE. See SmpAction's docstring in models/order.py —
+    # the engine resolves this to a concrete value (gateway default, else
+    # SmpAction.NONE) before building the leg's child Order.
+    smp_action: Optional[SmpAction] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -61,11 +65,12 @@ class ComboLeg:
             "quantity": self.quantity,
             "price": self.price,
             "stop_price": self.stop_price,
-            "smp_action": self.smp_action.value,
+            "smp_action": self.smp_action.value if self.smp_action is not None else None,
         }
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "ComboLeg":
+        _smp_raw = d.get("smp_action")
         return cls(
             symbol=d["symbol"],
             side=Side(d["side"]),
@@ -73,7 +78,7 @@ class ComboLeg:
             quantity=d["quantity"],
             price=d.get("price"),
             stop_price=d.get("stop_price"),
-            smp_action=SmpAction(d.get("smp_action", SmpAction.NONE)),
+            smp_action=SmpAction(_smp_raw) if _smp_raw is not None else None,
         )
 
 

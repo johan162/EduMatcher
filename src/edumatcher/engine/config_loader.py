@@ -25,7 +25,7 @@ import yaml
 from edumatcher.models.combo import ComboLeg, ComboType
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 from edumatcher.models.quote import QuoteRefreshPolicy
-from edumatcher.models.order import TIF
+from edumatcher.models.order import TIF, SmpAction
 from edumatcher.models.mm_obligation import MarketMakerObligation
 
 if TYPE_CHECKING:
@@ -111,6 +111,11 @@ class FixGatewayConfig:
     enforce_mm_obligation: bool = False
     mm_max_spread_ticks: int = _DEFAULT_MM_MAX_SPREAD_TICKS
     mm_min_qty: int = _DEFAULT_MM_MIN_QTY
+    # Self-match-prevention action applied by default to this gateway's live
+    # MM quote legs (QUOTE -> quote.new bid/ask orders). Does not affect
+    # NEW/combo order entry, which already carries its own explicit
+    # per-order SMP= field.
+    smp_action: SmpAction = SmpAction.NONE
     # Per-symbol MM obligations — supersede the flat fields above when present.
     # Populated from the ``mm_obligations`` mapping in gateway config.
     mm_obligations: dict[str, MarketMakerObligation] = field(default_factory=dict)
@@ -838,6 +843,9 @@ def load_engine_config(path: Path) -> EngineConfig:
                 QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL.value,
             )
         ).upper()
+        smp_action_raw = str(
+            item.get("smp_action", SmpAction.NONE.value)
+        ).upper()
         enforce_mm_obligation = item.get(
             "enforce_mm_obligation", mm_global_policy.enforce_mm_obligation
         )
@@ -885,6 +893,11 @@ def load_engine_config(path: Path) -> EngineConfig:
             raise ValueError(
                 f"gateways.alf[{i}].quote_refresh_policy is invalid"
             ) from exc
+
+        try:
+            smp_action = SmpAction(smp_action_raw)
+        except ValueError as exc:
+            raise ValueError(f"gateways.alf[{i}].smp_action is invalid") from exc
 
         # --- Optional per-symbol mm_obligations mapping -----------------------
         mm_obligations: dict[str, MarketMakerObligation] = {}
@@ -935,6 +948,7 @@ def load_engine_config(path: Path) -> EngineConfig:
             enforce_mm_obligation=enforce_mm_obligation,
             mm_max_spread_ticks=mm_max_spread_ticks,
             mm_min_qty=mm_min_qty,
+            smp_action=smp_action,
             mm_obligations=mm_obligations,
             mm_obligation_policies=mm_obligation_policies,
         )

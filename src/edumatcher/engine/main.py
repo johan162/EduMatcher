@@ -107,6 +107,7 @@ from edumatcher.models.order import (
     OrderStatus,
     OrderType,
     Side,
+    SmpAction,
     TIF,
 )
 from edumatcher.models.price import from_ticks, to_ticks
@@ -352,6 +353,29 @@ class Engine:
         if not connected:
             return False, f"Gateway not connected: {gw_id}"
         return True, ""
+
+    def _resolve_smp_action(
+        self, gateway_id: str, smp_action: SmpAction | None
+    ) -> SmpAction:
+        """Resolve a possibly-unspecified SMP action to a concrete value.
+
+        ``smp_action=None`` means the client omitted ``SMP=`` (or the JSON
+        equivalent) entirely -- distinct from an *explicit* ``SMP=NONE``,
+        which is a deliberate request to allow self-trades and must be
+        respected as-is. When omitted, fall back to the order's gateway's
+        configured ``gateways.alf[].smp_action`` default, or ``SmpAction.NONE``
+        if the gateway has none configured (unconfigured/unknown gateway,
+        or the engine is running without a loaded config). See SmpAction's
+        docstring in models/order.py for the full rationale.
+        """
+        if smp_action is not None:
+            return smp_action
+        cfg = (
+            self._engine_config.fix_gateways.get(gateway_id.upper())
+            if self._engine_config
+            else None
+        )
+        return cfg.smp_action if cfg is not None else SmpAction.NONE
 
     def _session_for_gateway(self, gateway_id: str) -> ParticipantSession:
         gw_id = gateway_id.upper()
@@ -737,6 +761,13 @@ class Engine:
             order.stop_price = to_ticks(order.stop_price, order.symbol)
         if order.trail_offset is not None and isinstance(order.trail_offset, float):
             order.trail_offset = to_ticks(order.trail_offset, order.symbol)
+
+        # SMP=None means the client omitted it -- fall back to the gateway's
+        # configured default (gateways.alf[].smp_action). An explicit value
+        # (including SmpAction.NONE) from the client is always respected.
+        order.smp_action = self._resolve_smp_action(
+            order.gateway_id, order.smp_action
+        )
 
         # FIX gateway allowlist + connect/auth check
         # Fast-path: if gateway_id is already in _connected_fix_gateways it is
@@ -2045,6 +2076,9 @@ class Engine:
         enforce_mm = False
         mm_max_spread_ticks = 0
         mm_min_qty = 0
+        # Quote legs have no per-request SMP concept of their own -- always
+        # resolve from the gateway's configured default (or SmpAction.NONE).
+        smp_action = self._resolve_smp_action(gateway_id, None)
         if cfg:
             enforce_mm = cfg.enforce_mm_obligation
             mm_max_spread_ticks = cfg.mm_max_spread_ticks
@@ -2112,6 +2146,7 @@ class Engine:
             gateway_id=gateway_id,
             tif=tif,
             price=bid_price,
+            smp_action=smp_action,
         )
         ask = Order.create(
             symbol=symbol,
@@ -2121,6 +2156,7 @@ class Engine:
             gateway_id=gateway_id,
             tif=tif,
             price=ask_price,
+            smp_action=smp_action,
         )
         bid.origin = OrderOrigin.QUOTE
         ask.origin = OrderOrigin.QUOTE
@@ -2701,6 +2737,12 @@ class Engine:
 
         # Create child orders and post to books
         for i, leg in enumerate(combo.legs):
+            # SMP=None on a leg means it was omitted (either by the client on
+            # a live combo, or by an unset market_maker_combos[].legs[]
+            # config seed) -- fall back to the gateway's configured default.
+            leg_smp_action = self._resolve_smp_action(
+                combo.gateway_id, leg.smp_action
+            )
             child = Order.create(
                 symbol=leg.symbol,
                 side=leg.side,
@@ -2711,7 +2753,7 @@ class Engine:
                 price=leg.price,
                 stop_price=leg.stop_price,
                 visible_qty=None,
-                smp_action=leg.smp_action,
+                smp_action=leg_smp_action,
             )
             child.combo_parent_id = combo.id
             child.leg_index = i

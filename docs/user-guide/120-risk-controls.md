@@ -7,7 +7,11 @@
     - How price collars reject orders that stray too far from a reference or last-traded price
     - How circuit breakers detect violent price moves and automatically halt and resume a symbol
     - How the kill switch lets any gateway instantly cancel all its own resting orders
-    - How all four mechanisms interact with the order types described in [Order Types](060-order-types.md)
+    - How Self-Match Prevention (SMP) stops a gateway from trading against its own resting orders,
+      and the four actions (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`) it can take
+    - Why SMP is resolved per order, not fixed per gateway, and how a gateway-level default fills in
+      when an order or quote doesn't specify one
+    - How all five mechanisms interact with the order types described in [Order Types](060-order-types.md)
     - How to configure each feature in `engine_config.yaml`
 
     **Prerequisite**: [Concepts — Order Book](../concepts/01-concepts-order-book.md) explains the
@@ -18,7 +22,7 @@
 ## Overview
 
 Real exchanges operate several layers of protection against runaway prices and
-disorderly markets.  EduMatcher implements four complementary mechanisms:
+disorderly markets.  EduMatcher implements five complementary mechanisms:
 
 | Mechanism | Who sets it | What it checks | How it resolves |
 |---|---|---|---|
@@ -26,11 +30,15 @@ disorderly markets.  EduMatcher implements four complementary mechanisms:
 | **Price collar** | Config per symbol | Incoming order price vs. reference band | Order is rejected |
 | **Circuit breaker** | Config per symbol | Last trade price vs. rolling reference | Automatic halt + scheduled resume |
 | **Kill switch** | Any authenticated gateway | — | Cancels all resting orders for that gateway |
+| **Self-Match Prevention (SMP)** | Per order/quote, or a gateway-level default | Incoming order would trade against a resting order from the *same* gateway | Cancel aggressor, resting order, both, or allow the trade |
 
-All four operate at the engine level. The first three — instrument halt, price
-collar, and circuit breaker — act on the **order admission path**, *before* an
-order enters the book. The kill switch is different: it acts on orders that are
-**already resting**, cancelling a gateway's own exposure on demand.
+The first three — instrument halt, price collar, and circuit breaker — act on
+the **order admission path**, *before* an order enters the book. The kill
+switch is different: it acts on orders that are **already resting**,
+cancelling a gateway's own exposure on demand. SMP is different again: it acts
+**during matching**, at the instant a specific incoming order would otherwise
+cross against a specific resting order — see
+[Self-Match Prevention (SMP)](#self-match-prevention-smp) below.
 
 The following diagram shows the order admission path through those three
 admission-path controls:
@@ -949,6 +957,350 @@ payload: {
 
 
 
+##  Self-Match Prevention (SMP)
+
+### Motivation
+
+A single trading firm often runs several independent strategies or bots
+against the same market, each connected through its own gateway session — or
+sometimes several sessions sharing one `gateway_id`. Without a safeguard,
+one of that firm's aggressive orders can cross against another resting order
+from the *same* firm. The trade prints, generates real fees and settlement
+obligations, and often serves no economic purpose: the firm has simply
+traded with itself. Self-Match Prevention (SMP) is the engine-level control
+that detects this situation at the moment of matching and takes a
+configurable, deliberate action instead of silently allowing the self-trade.
+
+SMP is scoped to the **gateway identity** (`gateway_id`), not to individual
+order IDs or symbols. Two resting orders from `TRADER01` on `AAPL` are a
+self-match risk; a `TRADER01` order against a `TRADER02` order is not, no
+matter how similar the strategies behind them are.
+
+### The four actions
+
+`SmpAction` is a four-value enum shared by every order-entry path in the
+system (`NEW`, `COMBO`, and the REST API carry it explicitly per request;
+`QUOTE` always inherits it from the gateway default — see
+[Which paths carry an explicit per-request `SMP=`](#which-paths-carry-an-explicit-per-request-smp-and-which-only-have-the-gateway-default)
+below):
+
+| Value | Aggressor (incoming order) | Resting order | Net effect |
+|---|---|---|---|
+| `NONE` | Trades normally | Trades normally | Self-trade is **allowed** — this is "SMP off" |
+| `CANCEL_AGGRESSOR` | Cancelled, no fill against this resting order | Untouched, stays on the book | The incoming order backs off; existing resting interest is preserved |
+| `CANCEL_RESTING` | Continues matching against the next eligible resting order | Cancelled | The older resting order is cleared out of the way; the aggressor's intent to trade is honoured against other participants |
+| `CANCEL_BOTH` | Cancelled | Cancelled | Both sides of the would-be self-match are pulled from the book |
+
+`SmpAction` is evaluated **per potential match**, not once per order. A single
+aggressor sweeping several price levels can encounter same-gateway resting
+liquidity at one level and other-participant liquidity at another; SMP only
+engages at the levels where the gateway IDs actually collide.
+
+### Where SMP is checked — the matching-engine mechanics
+
+SMP is enforced inside the order book's price-time sweep, immediately after
+the price-limit check and before a fill is generated. This applies uniformly
+to every order type that sweeps the book: `MARKET`, `LIMIT`, `IOC`, `FOK`,
+and `ICEBERG` (both as aggressor and, for iceberg-vs-iceberg matches, on the
+resting side too).
+
+```mermaid
+flowchart TD
+    A([Aggressor reaches best\nopposite-side price level]) --> B{Price still\nwithin limit?}
+    B -- No --> STOP([Stop sweep\n— price exhausted])
+    B -- Yes --> C{Same gateway_id\nas resting order?}
+    C -- No --> FILL([Generate fill\nadvance to next level])
+    C -- Yes --> D{smp_action?}
+    D -- NONE --> FILL
+    D -- CANCEL_AGGRESSOR --> E([Cancel aggressor\nstop sweep immediately])
+    D -- CANCEL_RESTING --> F([Cancel resting order\ncontinue sweep at same level])
+    D -- CANCEL_BOTH --> G([Cancel resting order\ncancel aggressor\nstop sweep immediately])
+    F --> B
+```
+
+Three consequences follow directly from this being a per-level, in-sweep
+check rather than a pre-trade validation:
+
+- **`CANCEL_AGGRESSOR` and `CANCEL_BOTH` stop the sweep outright.** If the
+  aggressor had already filled against other participants at better price
+  levels before reaching the self-match, those earlier fills stand — only the
+  remainder is cancelled. The order can therefore end up `PARTIAL` +
+  `CANCELLED`, exactly like a normal IOC/FOK partial-then-cancel outcome.
+- **`CANCEL_RESTING` lets the sweep continue.** The resting order that would
+  have caused the self-match is removed from the book, and the aggressor
+  keeps walking the book — it may still fill fully against other
+  participants deeper in the book.
+- **A resting `ICEBERG`'s SMP is evaluated against its currently displayed
+  slice**, the same price-time unit any other order competes with — hidden
+  reserve quantity behind a cancelled iceberg peak is not separately
+  protected; if the peak is cancelled by SMP, replenishment behaves like any
+  other iceberg peak exhaustion.
+
+### `FOK` — self-match liquidity is excluded before the pre-check
+
+`FOK` (Fill-Or-Kill) is the one order type that resolves SMP *before* the
+sweep starts, because it needs to know up front whether the book has enough
+**eligible** liquidity to fill the whole order — same-gateway resting
+quantity that SMP would skip or cancel does not count as eligible liquidity:
+
+1. The engine walks the opposite side and sums `remaining_qty` **excluding**
+   any resting order belonging to the same `gateway_id`, when `smp_action`
+   is anything other than `NONE`.
+2. If that filtered total is still less than the FOK's quantity, the order
+   cannot fill completely. SMP is then resolved the same way a sweep would
+   have resolved it — `CANCEL_RESTING`/`CANCEL_BOTH` cancel the conflicting
+   resting orders; `CANCEL_AGGRESSOR`/`CANCEL_BOTH` cancel the FOK itself —
+   and the order is finalised as `CANCELLED` if a same-gateway conflict was
+   the cause, or plainly `REJECTED` if the shortfall is genuine (no
+   same-gateway liquidity involved).
+3. Only if eligible liquidity is sufficient does the FOK proceed into the
+   normal sweep, which then also enforces SMP level by level as above (a
+   defensive safety net; the pre-check should already guarantee the sweep
+   completes cleanly).
+
+This keeps FOK's all-or-nothing guarantee intact: a self-match candidate can
+never cause a partial fill.
+
+### Cancellation is visible, not silent
+
+When SMP cancels a resting order, that order transitions to `CANCELLED` like
+any other cancellation and the owning gateway receives a normal
+`order.cancelled.{GW_ID}` message — there is no separate SMP-specific wire
+message. On the binary BALF protocol, a system-cancelled order additionally
+carries `cancel_reason = 1` ("SMP") in the `EXECUTION_REPORT` so a
+programmatic client can distinguish an SMP cancel from a plain client cancel
+or a session-end/expiry cancel without needing to correlate against its own
+`NEW` history — see
+[BALF Protocol Reference — `EXECUTION_REPORT`](910-app-balf-protocol.md#execution_report-0x20-server-client).
+ALF (text) and REST clients only see the resulting `order.cancelled` /
+`CANCELLED` event and infer the cause from context (a same-gateway order that
+was resting a moment earlier is now gone).
+
+### Two ways to specify `smp_action`
+
+SMP can be set in two places, and they serve different purposes:
+
+1. **Per order or per combo leg** — the `SMP=` field on a `NEW`/`COMBO`
+   command (ALF, BALF), the `smp_action` field on the REST `OrderRequest` /
+   `ComboRequest` payload (API Gateway), or the `smp_action` key on a
+   `market_maker_combos[].legs[]` seed entry in `engine_config.yaml`. This is
+   the client expressing "for *this* order, do X on self-match."
+2. **`gateways.alf[].smp_action`** — a per-gateway default in
+   `engine_config.yaml`, applied by the engine when an order or leg does
+   **not** specify `SMP=` at all. This is the operator expressing "for
+   *this gateway*, when nobody says otherwise, do X."
+
+```yaml
+gateways:
+  alf:
+    - id: TRADER01
+      description: "Prop desk algo 1"
+      smp_action: CANCEL_RESTING   # gateway-level default
+```
+
+| Field | Location | Required | Values | Default |
+|---|---|---|---|---|
+| `SMP=` | `NEW`/`COMBO` command (ALF), `smp` byte (BALF), `smp_action` (REST) | No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | *(unspecified — falls back, see below)* |
+| `gateways.alf[].smp_action` | `engine_config.yaml` | No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | `NONE` |
+
+### Precedence: why "omitted" and "explicit `NONE`" are not the same thing
+
+This is the subtlety that makes SMP worth documenting carefully. `SMP=NONE`
+sent by a client is a **deliberate instruction**: "I know this might
+self-match, and I want the trade to happen anyway." An **omitted** `SMP=`
+means the client simply didn't think about it. Collapsing those two cases
+together would either force every client to think about SMP on every order
+(bad ergonomics) or silently let an operator's safety default be overridden
+by clients who never intended to override anything (a real safety gap). So
+the engine treats them as genuinely different values:
+
+- Internally, `smp_action` on an `Order` or `ComboLeg` is typed as
+  *optional* — `None` means "not specified," and is distinct from the
+  concrete enum member `SmpAction.NONE`, which means "specified as off."
+- Client-facing processes (`pm-alf-gwy`, `pm-alf-console`, the API Gateway)
+  preserve that distinction all the way from the wire request into the
+  internal order object — an omitted field parses to `None`, not to
+  `SmpAction.NONE`.
+- The engine resolves the final, concrete `smp_action` exactly once, at the
+  point an order or combo leg is accepted (`Engine._handle_new_order`,
+  `Engine._accept_combo`), using this precedence:
+
+```
+1. Order/leg specified SMP= explicitly (including explicit SMP=NONE)
+      → use that value, always. The gateway default is never consulted.
+2. Order/leg omitted SMP= entirely
+      → use gateways.alf[<this gateway>].smp_action
+3. Gateway has no smp_action configured (or is unknown to the engine)
+      → use SmpAction.NONE
+```
+
+By the time an order reaches the order book's matching logic, `smp_action`
+is always a concrete value — the book itself never sees the "unspecified"
+state and needs no special-casing for it.
+
+```mermaid
+flowchart TD
+    A([Order or combo leg\narrives at the engine]) --> B{SMP=\nspecified?}
+    B -- "Yes, incl. explicit NONE" --> C([Use the specified value\nas-is])
+    B -- No --> D{Gateway has\nsmp_action configured?}
+    D -- Yes --> E([Use gateways.alf[].smp_action])
+    D -- No --> F([Use SmpAction.NONE])
+    C --> G([Concrete smp_action\nreaches the order book])
+    E --> G
+    F --> G
+```
+
+### Which paths carry an explicit per-request `SMP=`, and which only have the gateway default
+
+Not every order-entry path exposes its own `SMP=` field:
+
+| Path | Explicit per-request `SMP=`? | Effective SMP source |
+|---|---|---|
+| ALF `NEW` (single order) | Yes | Explicit value, else gateway default, else `NONE` |
+| ALF `NEW\|TYPE=COMBO` | Yes — but **one `SMP=` value for the whole combo**, applied identically to every leg (no `LEG<i>.SMP`) | Explicit value applied to all legs, else gateway default applied to all legs, else `NONE` |
+| BALF `NEW_ORDER` | Yes (`smp` byte is mandatory in the fixed frame — see note below) | Always the value on the wire — see [BALF Protocol Reference — `NEW_ORDER`](910-app-balf-protocol.md#new_order-0x10-client-server) |
+| REST `OrderRequest` / `ComboRequest` | Yes (JSON field, optional; `ComboRequest.legs[]` allows a **different value per leg**) | Explicit value, else gateway default, else `NONE` — resolved independently per leg for combos |
+| Market-maker `QUOTE` (both `pm-mm-bot` and the REST quoting endpoint) | **No** — quotes have no per-request SMP field | Always `gateways.alf[].smp_action`, else `NONE` |
+| `market_maker_combos[].legs[]` config-seeded combo | Optional `smp_action` key, settable **per leg** | Explicit per-leg value, else gateway default, else `NONE` — resolved independently per leg |
+
+!!! note "BALF's `smp` byte is mandatory, not omittable"
+    BALF is a fixed-width binary protocol — the `smp` byte at offset 51 of
+    `NEW_ORDER` is always present on the wire (`0x00`–`0x03`; see
+    [BALF Protocol Reference — `NEW_ORDER`](910-app-balf-protocol.md#new_order-0x10-client-server)).
+    There is no wire representation of "the client didn't send this field."
+    A BALF client that wants the gateway default to apply must send `0x00`
+    and rely on `gateways.alf[].smp_action` being configured to something
+    other than `NONE` — sending `0x00` is indistinguishable from an
+    explicit `SMP=NONE` and does **not** fall back to the gateway default.
+    This is a deliberate scope decision: extending the None/omitted
+    distinction into the binary frame would require a wire format change
+    (e.g. a presence bitmap), which BALF does not currently have.
+
+Market makers are the clearest illustration of why the gateway-level default
+exists at all: a `QUOTE` submits two legs (bid and ask) in one call with no
+room for a per-leg `SMP=`, yet a market maker's own stale bid and fresh ask
+can easily cross each other after a quote refresh. Configuring
+`gateways.alf[<mm-gateway>].smp_action: CANCEL_RESTING` is the *only* way to
+protect a quoting gateway from this — see
+[Market-Maker Bot — Recommended settings](100-mm-bot.md#recommended-settings)
+for the concrete example.
+
+### Worked examples
+
+**Example 1 — omitted `SMP=`, gateway has a configured default.**
+
+```yaml
+gateways:
+  alf:
+    - id: TRADER01
+      smp_action: CANCEL_RESTING
+```
+
+```text
+TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+```
+
+No `SMP=` on the wire → resolves to `CANCEL_RESTING` (the gateway default).
+If `TRADER01` already has a resting `SELL 100 @ 150.00`, that resting order
+is cancelled and the incoming buy continues matching against other
+participants (or rests itself, if none remain).
+
+**Example 2 — explicit `SMP=NONE` overrides a non-`NONE` gateway default.**
+
+```text
+TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|SMP=NONE
+```
+
+Even though `TRADER01`'s gateway default is `CANCEL_RESTING`, the explicit
+`SMP=NONE` wins: the order is allowed to trade against `TRADER01`'s own
+resting sell, producing a genuine self-trade. This is the "I meant it"
+escape hatch — useful for, e.g., internal cross facilitation the firm has
+separately reconciled for.
+
+**Example 3 — quote leg, no gateway default configured.**
+
+```yaml
+gateways:
+  alf:
+    - id: MM_AAPL_02
+      role: MARKET_MAKER
+      # no smp_action set
+```
+
+A `QUOTE` from `MM_AAPL_02` has no `SMP=` field to omit or specify — it
+always falls back to the gateway default, which here is unset, so it
+resolves to `SmpAction.NONE`. A stale leg from a prior quote can self-trade
+against the fresh replacement leg. This is the exact gap
+`gateways.alf[].smp_action` closes when configured — see Example 1's
+pattern applied to a market maker.
+
+**Example 4 — combo on the ALF text protocol: one `SMP=` value for every leg.**
+
+```text
+TRADER01> NEW|TYPE=COMBO|COMBO_ID=spread-1|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|
+  LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|
+  LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=400.00|SMP=CANCEL_BOTH
+```
+
+On the ALF text protocol there is a single combo-level `SMP=` field, not a
+per-leg `LEG<i>.SMP` — the parsed value (or, if `SMP=` is omitted entirely,
+the `None` sentinel) is applied identically to every leg's `ComboLeg`. Here
+`CANCEL_BOTH` applies to both `LEG0` and `LEG1`.
+
+**Example 5 — combo submitted via REST: per-leg override.**
+
+The REST `ComboRequest` schema and the `market_maker_combos[].legs[]` config
+seed path are less restrictive: each leg carries its own optional
+`smp_action`, resolved independently.
+
+```json
+{
+  "combo_id": "spread-1",
+  "combo_type": "AON",
+  "tif": "DAY",
+  "legs": [
+    {"symbol": "AAPL", "side": "BUY",  "quantity": 100, "price": 150.00, "smp_action": "NONE"},
+    {"symbol": "MSFT", "side": "SELL", "quantity": 50,  "price": 400.00}
+  ]
+}
+```
+
+`AAPL`'s leg explicitly sets `smp_action: "NONE"` and keeps it, regardless
+of `TRADER01`'s gateway default. `MSFT`'s leg omits `smp_action` entirely
+and falls back to `TRADER01`'s `gateways.alf[].smp_action` independently —
+each leg resolves on its own in this path, unlike the single combo-wide
+value on the ALF text protocol.
+
+### SMP and the other risk controls
+
+SMP is orthogonal to the four admission-path/exposure controls described
+above: it does not reject orders at admission time, does not halt a symbol,
+and is not something any gateway can trigger against another gateway. It
+only ever inspects and acts on orders belonging to the *same* `gateway_id`
+that are about to trade against each other during matching. An instrument
+halt, price collar, or circuit-breaker rejection all happen *before* SMP
+would ever be reached, since none of those orders get as far as the sweep.
+
+| Property | SMP | Kill switch |
+|---|---|---|
+| Trigger | Automatic, at match time, when both sides share a `gateway_id` | Explicit command from the gateway |
+| Scope | One aggressor vs. one resting order at a time | All of a gateway's resting orders (optionally one symbol) |
+| Configurable outcome | Yes — 4 actions | No — always cancels |
+| Can a gateway opt out | Yes — `SMP=NONE` (explicit) or an unconfigured/`NONE` gateway default | No |
+
+### Configuration reference
+
+See [Configuration — Gateway Fields](010-configuration.md#gateway-fields)
+for the full `gateways.alf[].smp_action` field definition and
+[Configuration Spec §5.2](990-app-config-spec.md#52-gatewaysalf-required)
+for the normative schema entry, including how the same default extends to
+`market_maker_combos[].legs[]` config-seeded combos. Per-request field
+definitions live alongside each protocol's `NEW`/`COMBO`/`QUOTE` command
+reference: [Gateway Reference — `NEW`](050-gateway.md#new-submit-an-order),
+[Gateway Reference — `NEW (Combo)`](050-gateway.md#new-combo-submit-a-multi-leg-order),
+[Combos — `SMP=`](070-combos.md), and
+[API Gateway](260-api-gateway.md) for the REST field.
+
 ##  Market-maker interaction
 
 When any halt fires — whether triggered by a circuit breaker, a per-symbol operator halt, or the exchange-wide ADMIN halt — **all outstanding market-maker quote legs for the affected symbols are cancelled immediately**. This protects market makers from having stale quotes executed against them during a disorderly market. The cancellation reason included in the `order.cancelled` message distinguishes the halt source:
@@ -965,8 +1317,11 @@ When a symbol resumes, market makers are expected to submit fresh quotes at upda
 
 ## See also
 
-- [Configuration](010-configuration.md) — full `engine_config.yaml` reference including collar and CB ladder config
-- [Order Types](060-order-types.md) — how different order types behave under halt
+- [Configuration](010-configuration.md) — full `engine_config.yaml` reference including collar, CB ladder, and `smp_action` config
+- [Order Types](060-order-types.md) — how different order types behave under halt, and how SMP interacts with each type's sweep
 - [Drop Copy](200-drop-copy.md) — how fill events are forwarded to risk systems
 - [Auctions & Session Scheduling](080-auctions-scheduling.md) — the equilibrium-price uncross algorithm that circuit-breaker resumption always runs
-- [Gateway Reference](050-gateway.md) — `KILL` command for triggering the kill switch via the ALF terminal
+- [Gateway Reference](050-gateway.md) — `KILL` command for triggering the kill switch via the ALF terminal, and the `NEW`/`COMBO` `SMP=` field
+- [Combos](070-combos.md) — per-leg `SMP=` on multi-leg orders
+- [Market-Maker Bot](100-mm-bot.md) — why quoting gateways rely entirely on the `smp_action` gateway default
+- [Configuration Spec](990-app-config-spec.md) — normative schema for `gateways.alf[].smp_action` and `ComboLegSpec.smp_action`

@@ -251,6 +251,13 @@ not part of the documented protocol and should be avoided.
 | `CANCEL_RESTING`   | Cancel the resting order and continue matching   |
 | `CANCEL_BOTH`      | Cancel both the incoming and resting order       |
 
+If `SMP` is omitted entirely, the engine falls back to the submitting
+gateway's configured `gateways.alf[].smp_action` (or `NONE` if the gateway
+has none configured) — see
+[Configuration — Gateway Fields](010-configuration.md#gateway-fields). This
+is different from sending `SMP=NONE` explicitly, which is always honoured
+as-is even if the gateway has a non-`NONE` default configured.
+
 
 
 ## Command families
@@ -682,7 +689,10 @@ NEW
 | `LEGi.*`         | Per-leg fields, using zero-based numbering     |
 
 If `COMBO_TYPE` is omitted, the gateway defaults it to `AON`. If `TIF` is
-omitted, it defaults to `DAY`.
+omitted, it defaults to `DAY`. If `SMP` is omitted, every leg falls back to
+the submitting gateway's configured `gateways.alf[].smp_action` (see
+[Supported `SMP` values](#supported-smp-values) above) rather than a fixed
+`NONE`.
 
 ### Combo leg expressibility
 

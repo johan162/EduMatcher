@@ -559,8 +559,16 @@ KILL|SYM=<symbol>
 NEW|SYM=<symbol>|SIDE=<BUY|SELL>|TYPE=<order-type>|QTY=<quantity>[|PRICE=<price>][|STOP=<price>][|TRAIL=<offset>][|TIF=<DAY|GTC>][|VISIBLE=<n>][|SMP=<action>]
 ```
 
-**SMP** (Self Match Prevention) values: `NONE` (default), `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`.
-SMP prevents you from accidentally trading against your own resting orders.
+**SMP** (Self Match Prevention) values: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`.
+SMP prevents you from accidentally trading against your own resting orders. If
+`SMP` is omitted, the engine falls back to the gateway's configured
+`gateways.alf[].smp_action` (or `NONE` if none is configured) rather than a
+fixed default — see
+[Configuration — Gateway Fields](010-configuration.md#gateway-fields) for the
+config field, and
+[Risk Controls — Self-Match Prevention](120-risk-controls.md#self-match-prevention-smp)
+for a full explanation of how SMP is enforced during matching and how the
+per-order value and the gateway default interact.
 
 !!! note "ATO / ATC orders"
     The `ATO` (At-The-Open) and `ATC` (At-The-Close) TIF values are accepted by
@@ -619,7 +627,7 @@ NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=<DAY|GTC>|LEG_COUNT=<n>|LEG0.
 | `LEG<i>.QTY`       | Yes      | Quantity                                         |
 | `LEG<i>.PRICE`     | Yes*     | Limit price (*required for LIMIT type)           |
 | `LEG<i>.TYPE`      | No       | Order type (default LIMIT)                       |
-| `SMP=<action>`     | No       | Self-match prevention, applied to every leg (default `NONE`); same values as `NEW`'s `SMP` |
+| `SMP=<action>`     | No       | Self-match prevention, applied to every leg; same values as `NEW`'s `SMP`. If omitted, falls back to the gateway's configured `gateways.alf[].smp_action` (else `NONE`) — see [Configuration — Gateway Fields](010-configuration.md#gateway-fields) |
 
 #### Examples
 

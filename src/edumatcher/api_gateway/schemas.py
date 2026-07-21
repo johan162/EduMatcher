@@ -37,7 +37,11 @@ class OrderRequest(StrictModel):
     stop_price: float | None = None
     visible_qty: int | None = Field(default=None, gt=0)
     trail_offset: float | None = None
-    smp_action: SmpAction = SmpAction.NONE
+    # None means the client omitted smp_action -- the engine applies this
+    # gateway's configured smp_action default in that case, distinct from an
+    # explicit "smp_action": "NONE" (deliberately allow self-trades). See
+    # SmpAction's docstring in models/order.py.
+    smp_action: SmpAction | None = None
     client_order_id: str | None = None
 
     @field_validator("symbol")
@@ -150,7 +154,8 @@ class ComboRequest(StrictModel):
     combo_id: str = Field(min_length=1)
     combo_type: ComboType = ComboType.AON
     tif: TIF = TIF.DAY
-    smp_action: SmpAction = SmpAction.NONE
+    # None means the client omitted smp_action -- see OrderRequest.smp_action.
+    smp_action: SmpAction | None = None
     legs: list[ComboLegRequest] = Field(min_length=2, max_length=10)
 
 

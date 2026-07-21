@@ -193,7 +193,7 @@ reporting scripts.
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
-### Layer 2 — Schema (`S001`–`S085`)
+### Layer 2 — Schema (`S001`–`S086`)
 
 **Top-level structure**
 
@@ -248,6 +248,7 @@ these codes cover the per-symbol equivalents.
 | `S022` | `role` is not a recognised value                 |
 | `S023` | `disconnect_behaviour` is not a recognised value |
 | `S024` | `quote_refresh_policy` is not a recognised value |
+| `S086` | `smp_action` is not a recognised value            |
 | `S025` | `enforce_mm_obligation` is not a boolean         |
 | `S026` | `mm_max_spread_ticks` or `mm_min_qty` invalid    |
 | `S027` | `mm_obligations` is present but not a mapping    |

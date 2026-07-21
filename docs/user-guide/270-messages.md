@@ -303,7 +303,7 @@ Sent by a gateway to submit a new order for matching.
 | `visible_qty` | integer \| null | Peak size for ICEBERG orders |
 | `displayed_qty` | integer \| null | Current visible slice (ICEBERG) |
 | `trail_offset` | float \| null | Offset from best price for `TRAILING_STOP` orders |
-| `smp_action` | string | Self-match prevention: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` |
+| `smp_action` | string \| null | Self-match prevention: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`. `null` when the client omitted `SMP=`, in which case the engine resolves it to the gateway's configured `gateways.alf[].smp_action` default (else `"NONE"`) before the order reaches the book — see [Configuration — Gateway Fields](010-configuration.md#gateway-fields) |
 | `client_tag` | string \| absent | Optional client-supplied tag echoed back on every lifecycle event for this order (ack, fill, cancelled, expired). When present, subscribers can map events back to their submission without a FIFO scheme. |
 | `arrival_seq` | integer | Engine-assigned monotonic arrival sequence that determines time priority within a price level. Not supplied by the client (`0` on submission); populated by the engine and echoed in outbound order snapshots (see `order.orders.{GW_ID}`). |
 | `oco_group_id` | string \| null | Set once this order is linked into an OCO pair via `order.oco`; `null` on a plain submission |
@@ -799,7 +799,7 @@ Sent by a gateway to submit a combo (multi-leg) order.
 | `gateway_id` | string | Originating gateway identifier |
 | `combo_type` | `"AON"` | Combo semantics (all-or-none) |
 | `tif` | `"DAY"` \| `"GTC"` | Time-in-force for all legs |
-| `legs` | array of leg objects | Each leg: `{symbol, side, order_type, quantity, price, stop_price, smp_action}` — `stop_price` is `null` for non-stop leg types; `smp_action` defaults to `"NONE"` |
+| `legs` | array of leg objects | Each leg: `{symbol, side, order_type, quantity, price, stop_price, smp_action}` — `stop_price` is `null` for non-stop leg types; `smp_action` is `null` when the client omitted `SMP=`, in which case the engine resolves it to the gateway's configured `gateways.alf[].smp_action` default (else `"NONE"`) when building each leg's child order — see [Configuration — Gateway Fields](010-configuration.md#gateway-fields) |
 | `timestamp` | float | Unix epoch (seconds) |
 | `status` | string | Initial status (`"PENDING"`) |
 | `child_order_ids` | array of string | Always empty at submission — populated by the engine once child orders are created |

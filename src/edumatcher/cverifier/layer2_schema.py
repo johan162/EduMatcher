@@ -23,6 +23,12 @@ _VALID_QUOTE_REFRESH = {
     "INACTIVATE_ON_FULL_FILL",
     "NEVER_INACTIVATE",
 }
+_VALID_SMP_ACTIONS = {
+    "NONE",
+    "CANCEL_AGGRESSOR",
+    "CANCEL_RESTING",
+    "CANCEL_BOTH",
+}
 
 
 def _is_positive_int(val: Any) -> bool:
@@ -704,6 +710,22 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                         + "."
                     ),
                     path=f"gateways.alf[{n}].quote_refresh_policy",
+                )
+            )
+
+        smp_action = gw.get("smp_action")
+        if smp_action is not None and str(smp_action).upper() not in _VALID_SMP_ACTIONS:
+            results.append(
+                CheckResult(
+                    code="S086",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Gateway '{gw_id}': smp_action '{smp_action}' is not valid."
+                    ),
+                    suggestion=(
+                        f"Accepted values: {', '.join(sorted(_VALID_SMP_ACTIONS))}."
+                    ),
+                    path=f"gateways.alf[{n}].smp_action",
                 )
             )
 
