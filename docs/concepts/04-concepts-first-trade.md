@@ -336,9 +336,9 @@ You have completed a full basic trading session:
 
 ## What next?
 
-- [Order Types](../user-guide/04-order-types.md) — all ten order types with detailed mechanics
+- [Order Types](../user-guide/060-order-types.md) — all ten order types with detailed mechanics
 - [A Full Trading Day](05-concepts-trading-day.md) — auctions, session phases, and daily lifecycle
-- [P&L & Clearing](../user-guide/07-pnl-clearing.md) — full explanation of VWAP cost basis and realized vs. unrealized
+- [P&L & Clearing](../user-guide/130-pnl-clearing.md) — full explanation of VWAP cost basis and realized vs. unrealized
 
 
 [Glossary →](../glossary.md)

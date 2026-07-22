@@ -109,19 +109,7 @@ def _parse_gateway_roles(raw: Any) -> tuple[tuple[str, str], ...]:
 # ---------------------------------------------------------------------------
 
 
-def load_balf_gateway_config(path: Path) -> BalfGatewayConfig:
-    """Load the ``balf_gateway`` section from an engine config YAML.
-
-    Falls back to defaults for any missing field.
-    Raises ``ValueError`` for invalid values.
-    """
-    if not path.exists():
-        return BalfGatewayConfig()
-
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        return BalfGatewayConfig()
-
+def _load_balf_gateway_config_from_raw(raw: dict[str, Any]) -> BalfGatewayConfig:
     gw_roles = _parse_gateway_roles(raw)
 
     section = raw.get("balf_gateway")
@@ -197,6 +185,27 @@ def load_balf_gateway_config(path: Path) -> BalfGatewayConfig:
         duplicate_session_policy=dup_policy_raw,
         gateway_roles=gw_roles,
     )
+
+
+def load_balf_gateway_config(path: Path) -> BalfGatewayConfig:
+    """Load the ``balf_gateway`` section from an engine config YAML.
+
+    Falls back to defaults for any missing field.
+    Raises ``ValueError`` for invalid values.
+    """
+    if not path.exists():
+        return BalfGatewayConfig()
+
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        return BalfGatewayConfig()
+
+    return _load_balf_gateway_config_from_raw(raw)
+
+
+def validate_balf_gateway_section(raw: dict[str, Any]) -> None:
+    """Validate the ``balf_gateway`` section using runtime loader semantics."""
+    _load_balf_gateway_config_from_raw(raw)
 
 
 def load_default_balf_gateway_config() -> BalfGatewayConfig:

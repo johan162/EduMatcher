@@ -55,34 +55,40 @@ In this chapter, the most important operational ideas are:
 
 ## Exercise 1: Generate a Config That Enables pm-alf-gwy
 
-Generate `engine_config.yaml` with the `alf_gateway:` section enabled:
+Unlike `post_trade_gateway`, `market_data_gateway`, `api_gateways`, and
+`balf_gateway`, `pm-config-gen` has **no `--alf-gateway*` flags** — there is
+no CLI generator support for the `alf_gateway:` section. Generate the base
+config, then add `alf_gateway:` by hand:
 
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
   --gateways TRADER01 TRADER02 MM01:MARKET_MAKER \
-  --alf-gateway \
-  --alf-gateway-port 5565 \
-  --alf-gateway-bind-address 127.0.0.1 \
   --output engine_config.yaml
 ```
 
-Inspect the generated section:
-
-```bash
-grep -A15 '^alf_gateway:' engine_config.yaml
-```
-
-Expected output includes:
+Append the `alf_gateway:` section yourself:
 
 ```yaml
 alf_gateway:
   enabled: true
+  name: "alf-gwy01"
+  bind_address: "127.0.0.1"
   port: 5565
-  bind_address: 127.0.0.1
   heartbeat_interval_sec: 5
+  handshake_timeout_sec: 10
   idle_timeout_sec: 30
 ```
+
+Inspect the section:
+
+```bash
+grep -A10 '^alf_gateway:' engine_config.yaml
+```
+
+See [ALF TCP Gateway → Configuration](../user-guide/220-alf-gateway.md#configuration)
+for the full field reference and defaults (the section is optional — omitting
+it entirely still works, using every default shown there).
 
 Start processes with that config:
 
@@ -553,8 +559,8 @@ chapter.
 
 ## Further Reading
 
-- [ALF TCP Gateway](../user-guide/24-alf-gateway.md) — configuration, session lifecycle, command reference, and troubleshooting
-- [ALF Protocol Reference](../user-guide/90-app-alf-protocol.md) — formal wire syntax and full field/enum definitions
-- [Gateway Commands](../user-guide/08-gateway.md) — interactive command reference for `pm-alf-console`
-- [Protocol Support Library Examples](../user-guide/80-examples.md)
-- [Processes](../user-guide/10-processes.md)
+- [ALF TCP Gateway](../user-guide/220-alf-gateway.md) — configuration, session lifecycle, command reference, and troubleshooting
+- [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md) — formal wire syntax and full field/enum definitions
+- [Gateway Commands](../user-guide/050-gateway.md) — interactive command reference for `pm-alf-console`
+- [Protocol Support Library Examples](../user-guide/800-examples.md)
+- [Processes](../user-guide/170-processes.md)

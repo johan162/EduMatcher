@@ -16,15 +16,27 @@ The flush transaction atomically writes:
 
 On startup the process prunes trade_events rows older than 90 days and logs
 the count of deleted rows.
+
+Timestamp semantics
+-------------------
+Session/gateway lifecycle rows written by this process (EOD markers and
+gateway connect/disconnect events) are stamped with local ``now_ns()`` at
+ingest time.  They represent clearing-observed timing, not exchange-event
+timestamps.
 """
 
 from __future__ import annotations
 
+import copy
 import errno
+import json
+import logging
 import signal
 import sys
 import threading
 import time
+from collections import OrderedDict
+from datetime import timezone, tzinfo
 from pathlib import Path
 from typing import Any
 
@@ -32,32 +44,46 @@ import zmq
 from rich.console import Console
 from rich.table import Table
 
-from edumatcher.clearing.ledger import Ledger, trade_date_utc
+from edumatcher.clearing.ledger import Ledger, trade_date
 from edumatcher.clearing.store import (
     TradeEventRow,
+    close_latest_gateway_session,
+    fetch_all_positions,
     flush_batch,
     open_writer_connection,
     prune_old_events,
     record_gateway_connect,
-    record_gateway_disconnect,
     record_session_event,
 )
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.clock import now_ns  # used in _flush
+from edumatcher.models.feed_schema import (
+    GatewayAuthPayload,
+    GatewayByePayload,
+    SessionStatePayload,
+    SystemEodPayload,
+    TradeExecutedPayload,
+)
 from edumatcher.models.message import decode
+from edumatcher.models.price import to_ticks
 from edumatcher.models.trade import Trade
 
 FLUSH_SIZE: int = 100
 FLUSH_INTERVAL_SEC: float = 5.0
 _TIMER_POLL_SEC: float = 0.5
 _RETENTION_DAYS: int = 90
-# Unix epoch 2001-09-09T01:46:40Z expressed in nanoseconds.
-# Any timestamp value above this is already in nanoseconds; any value below
-# is treated as seconds and multiplied by 1e9.  Seconds-based timestamps
-# cannot plausibly exceed this value for ~30 billion years.
-_NS_THRESHOLD: int = 1_000_000_000_000_000_000  # 1e18 ns
+_DEBUG_SUMMARY_INTERVAL_SEC: float = 5.0
+# The documented trade.executed contract (docs/user-guide/09-messages.md) is:
+#   timestamp = Unix epoch SECONDS (float);  price = display float.
+# Clearing parses to the declared units rather than guessing (finding CL-M6).
+# These magnitude bounds are only a defensive guard: an out-of-contract producer
+# sending milliseconds or nanoseconds is detected, warned about, and converted
+# best-effort — instead of silently projecting a ms value to the year ~55,000.
+_SECONDS_MAX: int = 100_000_000_000  # ~ year 5138 in epoch seconds
+_MILLIS_MAX: int = _SECONDS_MAX * 1000
 
 console = Console()
+log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -65,12 +91,14 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 
-def _to_trade_event_row(trade: Trade, ingest_ts_ns: int) -> TradeEventRow:
+def _to_trade_event_row(
+    trade: Trade, ingest_ts_ns: int, tz: tzinfo = timezone.utc
+) -> TradeEventRow:
     """Convert a Trade model to the DB row type, deriving trade_date from ts_ns."""
     return TradeEventRow(
         id=trade.id,
         ts_ns=trade.timestamp,
-        trade_date=trade_date_utc(trade.timestamp),
+        trade_date=trade_date(trade.timestamp, tz),
         symbol=trade.symbol,
         quantity=trade.quantity,
         price=trade.price,
@@ -94,28 +122,49 @@ def _parse_tick_decimals(payload: dict[str, Any]) -> int:
 
 
 def _to_timestamp_ns(raw: Any) -> int:
-    if isinstance(raw, float):
-        if raw > _NS_THRESHOLD:
-            return int(raw)
-        return int(raw * 1_000_000_000)
-    ts = int(raw)
-    if ts > _NS_THRESHOLD:
-        return ts
-    return ts * 1_000_000_000
+    """
+    Convert a ``trade.executed`` timestamp to integer nanoseconds.
+
+    The declared contract is Unix epoch **seconds** (float), so that is the
+    primary interpretation.  A value whose magnitude is implausible for seconds
+    (already milliseconds or nanoseconds) is converted best-effort with a loud
+    warning rather than silently mis-scaled (finding CL-M6).
+    """
+    try:
+        val = float(raw)
+    except (TypeError, ValueError):
+        return 0
+    if val < _SECONDS_MAX:
+        return int(round(val * 1_000_000_000))
+    if val < _MILLIS_MAX:
+        console.print(
+            "[CLEARING] WARNING: trade timestamp looks like milliseconds, not the"
+            " documented seconds — converting best-effort.",
+            style="yellow",
+        )
+        return int(round(val * 1_000_000))
+    console.print(
+        "[CLEARING] WARNING: trade timestamp looks like nanoseconds, not the"
+        " documented seconds — converting best-effort.",
+        style="yellow",
+    )
+    return int(val)
 
 
 def _trade_from_payload(payload: dict[str, Any]) -> Trade:
-    normalized = dict(payload)
+    typed = TradeExecutedPayload.from_dict(payload)
+
+    normalized = typed.to_dict()
     tick_decimals = _parse_tick_decimals(normalized)
     scale = 10**tick_decimals
 
-    price_raw = normalized.get("price", 0)
-    if isinstance(price_raw, float):
-        normalized["price"] = int(round(price_raw * scale))
-    else:
-        normalized["price"] = int(price_raw)
+    # trade.executed.price is a DISPLAY value by contract; convert to ticks
+    # unconditionally rather than treating an integer as if it were already ticks
+    # (finding CL-M6).
+    price_raw = typed.price
+    normalized["price"] = int(round(float(price_raw) * scale))
 
-    normalized["timestamp"] = _to_timestamp_ns(normalized.get("timestamp", 0))
+    normalized["timestamp"] = _to_timestamp_ns(typed.timestamp)
     normalized["tick_decimals"] = tick_decimals
     return Trade.from_dict(normalized)
 
@@ -154,6 +203,8 @@ class ClearingProcess:
         flush_interval_sec: float = FLUSH_INTERVAL_SEC,
         print_every: int = 100,
         retention_days: int = _RETENTION_DAYS,
+        session_tz: tzinfo = timezone.utc,
+        sql_trace: bool = False,
     ) -> None:
         self._pub_addr = pub_addr
         self._db_path = Path(db_path)
@@ -161,10 +212,34 @@ class ClearingProcess:
         self._flush_interval_sec = flush_interval_sec
         self._print_every = print_every
         self._retention_days = retention_days
+        self._sql_trace = bool(sql_trace)
+        # Exchange session timezone used to bucket trades into a trading day
+        # (finding CL-M3); defaults to UTC.
+        self._tz = session_tz
 
         self._buffer: list[Trade] = []
-        self._ledger = Ledger()
+        self._ledger = Ledger(tz=session_tz)
         self._trade_count = 0
+
+        # Idempotency, decided ONCE for both the ledger and the archive
+        # (finding CL-M1).  A trade is keyed by (id, ts_ns) — the same key the
+        # archive dedups on — so a duplicate delivery (retransmit / replay) is
+        # dropped before it can double-count a position.  Bounded LRU of recent
+        # keys; the archive's UNIQUE(id, ts_ns) constraint is the durable
+        # backstop for anything evicted.
+        self._seen_keys: OrderedDict[tuple[str, int], None] = OrderedDict()
+        self._seen_cap = 200_000
+        self._dup_count = 0
+
+        # Gap detection (finding CL-H1).  trade.executed carries no sequence
+        # number, but the engine's trade id is a per-run monotonic counter, so
+        # a forward jump in it means the lossy PUB/SUB transport dropped one or
+        # more trades.  We can't recover them without a replay feed, but we can
+        # raise a durable, queryable alarm instead of silently carrying a wrong
+        # position.  Reset (not alarmed) on a backward move — that is an engine
+        # restart, not a gap.
+        self._last_seq: int | None = None
+        self._gap_count = 0
 
         self._running = False
         self._lock = threading.RLock()
@@ -173,16 +248,72 @@ class ClearingProcess:
         # Track the latest connect_at_ns per gateway so we can match the
         # corresponding row when a disconnect message arrives.
         self._gw_connect_ts: dict[str, int] = {}
+        self._debug_counts: OrderedDict[str, int] = OrderedDict()
+        self._debug_last_summary = time.monotonic()
 
-        self._conn = open_writer_connection(self._db_path)
+        self._conn = open_writer_connection(self._db_path, sql_trace=self._sql_trace)
+        log.info("opened clearing DB connection path=%s", self._db_path.resolve())
+        if self._sql_trace:
+            log.info("SQLite SQL trace enabled for clearing writer connection")
+
+        # Warm start: rebuild the ledger from durable position state before any
+        # trades arrive, so a restart accumulates onto the persisted positions
+        # rather than overwriting them from flat (finding CL-C4).
+        self._hydrate_ledger()
+
+    def _dbg_count(self, key: str, amount: int = 1) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        self._debug_counts[key] = self._debug_counts.get(key, 0) + amount
+        self._flush_debug_summary()
+
+    def _flush_debug_summary(self, force: bool = False) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        now = time.monotonic()
+        if not force and now - self._debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
+            return
+        if not self._debug_counts:
+            self._debug_last_summary = now
+            return
+        summary = ", ".join(
+            f"{key}={value}" for key, value in self._debug_counts.items()
+        )
+        log.debug("clearing flow summary: %s", summary)
+        self._debug_counts.clear()
+        self._debug_last_summary = now
 
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
 
+    def _hydrate_ledger(self) -> None:
+        """Restore in-memory positions from ``gateway_symbol_positions``."""
+        try:
+            rows = fetch_all_positions(self._conn)
+            self._ledger.restore(rows)
+            if rows:
+                console.print(
+                    f"[CLEARING] Warm start: restored {len(rows)} position(s)"
+                    " from the database."
+                )
+            log.debug("warm start restored positions=%d", len(rows))
+        except Exception as exc:
+            console.print(
+                f"[CLEARING] WARNING: warm-start hydration failed: {exc}",
+                style="yellow",
+            )
+
     def run(self) -> None:
         """Start the clearing process; blocks until stop() is called."""
         pruned = prune_old_events(self._conn, retention_days=self._retention_days)
+        log.info(
+            "starting clearing runtime db=%s flush_size=%d flush_interval=%ss retention_days=%d",
+            self._db_path,
+            self._flush_size,
+            self._flush_interval_sec,
+            self._retention_days,
+        )
         if pruned:
             console.print(
                 f"[CLEARING] Pruned {pruned} trade_events rows older than"
@@ -202,6 +333,7 @@ class ClearingProcess:
             signal.signal(signal.SIGTERM, lambda *_: self.stop())
 
         self._running = True
+        log.debug("clearing receive/timer loops enabled")
 
         timer = threading.Thread(
             target=self._timer_loop, daemon=True, name="clearing-timer"
@@ -212,6 +344,22 @@ class ClearingProcess:
             self._pub_addr,
             "trade.executed",
             "system.eod",
+            # Session-phase transitions — recorded as PHASE rows in
+            # session_events (finding CL-M7) so operators can bucket activity by
+            # session phase and the advertised PHASE filter is real.
+            "session.state",
+            # The engine broadcasts gateway lifecycle on PUB as
+            # ``system.gateway_auth.{id}`` (models/message.py make_gateway_auth_msg,
+            # engine/main.py _handle_gateway_connect).  ``system.gateway_connect``
+            # / ``system.gateway_disconnect`` are gateway→engine PULL topics that
+            # never reach this subscriber (finding CL-C3), so subscribe to the
+            # auth-broadcast prefix as the real "gateway connected" signal.
+            "system.gateway_auth.",
+            # Disconnect broadcast — the PUB counterpart to gateway_auth
+            # (engine/main.py _handle_gateway_disconnect → make_gateway_bye_msg).
+            "system.gateway_bye.",
+            # Kept for the test harness's readiness/ordering probe and any
+            # direct-injection clients; harmless in production where it is silent.
             "system.gateway_connect",
             "system.gateway_disconnect",
         )
@@ -220,11 +368,14 @@ class ClearingProcess:
         finally:
             sub.close()
             self._force_flush()
+            self._flush_debug_summary(force=True)
             self._conn.close()
+            log.info("clearing DB connection closed")
             console.print("[CLEARING] Shutdown complete.")
 
     def stop(self) -> None:
         """Signal the receive loop to exit cleanly."""
+        log.info("stop requested")
         self._running = False
 
     def flush_now(self) -> int:
@@ -264,6 +415,8 @@ class ClearingProcess:
                 )
                 continue
 
+            self._dbg_count("messages_received")
+
             if topic == "trade.executed":
                 try:
                     trade = _trade_from_payload(payload)
@@ -275,21 +428,48 @@ class ClearingProcess:
                     continue
 
                 with self._lock:
-                    self._buffer.append(trade)
+                    # Count every observed trade message (used for progress /
+                    # print cadence), then dedup before buffering so a replay
+                    # is neither re-applied to the ledger nor re-archived.
                     self._trade_count += 1
-                    if len(self._buffer) >= self._flush_size:
-                        self._flush()
+                    if self._is_duplicate(trade):
+                        self._dup_count += 1
+                        self._dbg_count("duplicates")
+                    else:
+                        self._check_sequence_gap(trade)
+                        self._buffer.append(trade)
+                        self._dbg_count("trades_buffered")
+                        if len(self._buffer) >= self._flush_size:
+                            self._flush()
 
+                # CL-L6: read _trade_count outside the lock intentionally.
+                # Worst-case effect is a skipped or duplicated print cadence,
+                # never a data-integrity issue.
                 if self._print_every > 0 and self._trade_count % self._print_every == 0:
                     self._print_pnl_table()
 
             elif topic == "system.eod":
+                self._dbg_count("eod_topics")
                 self._handle_eod(payload)
 
+            elif topic == "session.state":
+                self._dbg_count("phase_topics")
+                self._handle_session_state(payload)
+
+            elif topic.startswith("system.gateway_auth."):
+                self._dbg_count("gateway_auth_topics")
+                self._handle_gateway_auth(payload)
+
+            elif topic.startswith("system.gateway_bye."):
+                self._dbg_count("gateway_bye_topics")
+                self._handle_gateway_bye(payload)
+
             elif topic == "system.gateway_connect":
+                self._dbg_count("gateway_connect_topics")
                 self._handle_gateway_connect(payload)
 
             elif topic == "system.gateway_disconnect":
+                self._dbg_count("gateway_disconnect_topics")
                 self._handle_gateway_disconnect(payload)
 
     # ------------------------------------------------------------------
@@ -302,20 +482,86 @@ class ClearingProcess:
             with self._lock:
                 elapsed = time.monotonic() - self._last_flush_mono
                 if elapsed >= self._flush_interval_sec and self._buffer:
+                    self._dbg_count("timer_flushes")
                     self._flush()
 
     # ------------------------------------------------------------------
     # Flush (must be called with self._lock held)
     # ------------------------------------------------------------------
 
+    def _is_duplicate(self, trade: Trade) -> bool:
+        """
+        Return True if this (id, ts_ns) has already been seen (must be called
+        with ``self._lock`` held).  First sightings are recorded in a bounded
+        LRU; the oldest key is evicted once the cap is reached.
+        """
+        key = (trade.id, trade.timestamp)
+        if key in self._seen_keys:
+            self._seen_keys.move_to_end(key)
+            return True
+        self._seen_keys[key] = None
+        if len(self._seen_keys) > self._seen_cap:
+            self._seen_keys.popitem(last=False)
+        return False
+
+    def _check_sequence_gap(self, trade: Trade) -> None:
+        """
+        Detect a dropped-trade gap from the engine's monotonic trade id and
+        record a durable ``GAP`` alarm in ``session_events`` (must be called
+        with ``self._lock`` held).
+
+        Non-numeric ids (e.g. a future UUID scheme) disable sequencing rather
+        than false-alarm.  A backward move resets the tracker without alarming —
+        that is an engine restart (counter reset), not a transport gap.
+        """
+        try:
+            seq = int(trade.id)
+        except (TypeError, ValueError):
+            self._last_seq = None
+            return
+
+        last = self._last_seq
+        if last is not None and seq > last + 1:
+            missing = seq - last - 1
+            self._gap_count += 1
+            try:
+                record_session_event(
+                    self._conn,
+                    event_type="GAP",
+                    ts_ns=trade.timestamp,
+                    trade_date=trade_date(trade.timestamp, self._tz),
+                    payload_json=json.dumps(
+                        {
+                            "last_seq": last,
+                            "next_seq": seq,
+                            "missing_trades": missing,
+                        }
+                    ),
+                )
+                console.print(
+                    f"[CLEARING] WARNING: trade feed gap — {missing} trade(s)"
+                    f" missing between id {last} and {seq}.",
+                    style="yellow",
+                )
+            except Exception as exc:
+                console.print(
+                    f"[CLEARING] WARNING: failed to record feed gap: {exc}",
+                    style="yellow",
+                )
+        self._last_seq = seq
+
     def _flush(self) -> int:
         """Flush the buffer to SQLite. Returns the number of trades written."""
         if not self._buffer:
             return 0
 
+        self._dbg_count("flush_calls")
+
         updated_ts = now_ns()
 
-        trade_rows = [_to_trade_event_row(t, updated_ts) for t in self._buffer]
+        trade_rows = [
+            _to_trade_event_row(t, updated_ts, self._tz) for t in self._buffer
+        ]
 
         for trade in self._buffer:
             self._ledger.apply_trade(
@@ -340,6 +586,10 @@ class ClearingProcess:
         self._ledger.clear_batch()
         self._last_flush_mono = time.monotonic()
 
+        self._dbg_count("flushed_trades", count)
+        self._dbg_count("position_rows_written", len(position_rows))
+        self._dbg_count("daily_rows_written", len(daily_rows))
+
         return count
 
     def _force_flush(self) -> None:
@@ -363,23 +613,38 @@ class ClearingProcess:
            can report exact session close times.
         """
         try:
-            import json
-
             ts_ns = now_ns()
-            trade_date = trade_date_utc(ts_ns)
+            eod_trade_date = trade_date(ts_ns, self._tz)
 
             # Parse EOD marks before acquiring the lock.
+            #
+            # The engine sends ``book.snapshot()`` dicts (models/message.py
+            # make_eod_msg, engine/order_book.py snapshot): the keys are
+            # ``last_price`` (a DISPLAY float) and ``bids`` / ``asks`` (lists of
+            # {price, qty, count} with display-float prices) — NOT the old
+            # ``last_trade_price`` / ``best_bid`` / ``best_ask`` this handler used
+            # to look for (finding CL-C2, which left eod_marks permanently empty).
+            # Everything downstream stores marks in integer ticks, so convert at
+            # this ingress boundary via to_ticks (CL-M4: keeps mark and avg_cost
+            # in the same unit).
             eod_marks: dict[str, int] = {}
-            books = payload.get("books") or []
-            for book in books:
-                sym = book.get("symbol", "")
-                ltp = book.get("last_trade_price")
-                best_bid = book.get("best_bid")
-                best_ask = book.get("best_ask")
-                if sym and ltp is not None:
-                    eod_marks[sym] = int(ltp)
-                elif sym and best_bid is not None and best_ask is not None:
-                    eod_marks[sym] = (int(best_bid) + int(best_ask)) // 2
+            eod_payload = SystemEodPayload.from_dict(payload)
+            for book in eod_payload.books:
+                sym = book.symbol
+                if not sym:
+                    continue
+                last_price = book.last_price
+                bids = book.bids
+                asks = book.asks
+                if last_price is not None:
+                    eod_marks[sym] = to_ticks(last_price, sym)
+                elif bids and asks:
+                    best_bid = bids[0].price
+                    best_ask = asks[0].price
+                    if best_bid is not None and best_ask is not None:
+                        eod_marks[sym] = (
+                            to_ticks(best_bid, sym) + to_ticks(best_ask, sym)
+                        ) // 2
 
             with self._lock:
                 # 1. Flush all buffered trades first.
@@ -387,6 +652,7 @@ class ClearingProcess:
 
                 # 2. EOD mark-to-market: update mark_price from EOD snapshot.
                 if eod_marks:
+                    marked_keys: set[tuple[str, str]] = set()
                     for pos in self._ledger.all_positions():
                         mark = eod_marks.get(pos.symbol)
                         if mark is not None:
@@ -394,11 +660,19 @@ class ClearingProcess:
                             pos.unrealized_pnl = pos.net_qty * (
                                 float(mark) - pos.avg_cost
                             )
-                    # Flush updated position snapshots to DB.
-                    position_rows, daily_rows = self._ledger.get_flush_rows(
-                        updated_ts_ns=ts_ns
-                    )
-                    flush_batch(self._conn, [], position_rows, daily_rows)
+                            marked_keys.add((pos.gateway_id, pos.symbol))
+                    # Flush only the re-marked position snapshots (CL-M9); the
+                    # mark pass runs outside the batch-delta accumulator, so pass
+                    # the touched keys explicitly.
+                    if marked_keys:
+                        position_rows, _ = self._ledger.get_flush_rows(
+                            updated_ts_ns=ts_ns, position_keys=marked_keys
+                        )
+                        flush_batch(self._conn, [], position_rows, [])
+                        log.debug(
+                            "EOD mark-to-market applied position_rows=%d",
+                            len(position_rows),
+                        )
                     self._ledger.clear_batch()
 
                 # 3. Write EOD sentinel row.
@@ -406,7 +680,7 @@ class ClearingProcess:
                     self._conn,
                     event_type="EOD",
                     ts_ns=ts_ns,
-                    trade_date=trade_date,
+                    trade_date=eod_trade_date,
                     payload_json=json.dumps(
                         {
                             "eod_marks": eod_marks,
@@ -414,15 +688,83 @@ class ClearingProcess:
                         }
                     ),
                 )
+
+                # CL-L7: also prune retention-window raw rows on EOD so a
+                # long-running process does not only prune at startup.
+                pruned = prune_old_events(
+                    self._conn, retention_days=self._retention_days
+                )
             console.print(
                 f"[CLEARING] EOD received — {len(eod_marks)} symbol mark(s) applied,"
-                f" session_events row written for {trade_date}."
+                f" session_events row written for {eod_trade_date}."
             )
+            if pruned:
+                console.print(
+                    f"[CLEARING] EOD prune removed {pruned} trade_events row(s)"
+                    f" older than {self._retention_days} days."
+                )
         except Exception as exc:
             console.print(
                 f"[CLEARING] WARNING: error handling system.eod: {exc}",
                 style="yellow",
             )
+
+    def _handle_session_state(self, payload: dict[str, Any]) -> None:
+        """
+        Handle session.state — record a PHASE row in session_events (CL-M7).
+
+        The engine broadcasts session-phase transitions on PUB
+        (``{state, prev_state}``).  Recording them makes the advertised
+        ``event_type='PHASE'`` filter real and lets operators align trade
+        activity with the session phase it occurred in.
+        """
+        try:
+            typed = SessionStatePayload.from_dict(payload)
+            state = typed.state.upper()
+            if not state:
+                return
+            ts_ns = now_ns()
+            with self._lock:
+                record_session_event(
+                    self._conn,
+                    event_type="PHASE",
+                    ts_ns=ts_ns,
+                    trade_date=trade_date(ts_ns, self._tz),
+                    payload_json=json.dumps(
+                        {
+                            "state": state,
+                            "prev_state": typed.prev_state,
+                        }
+                    ),
+                )
+        except Exception as exc:
+            console.print(
+                f"[CLEARING] WARNING: error handling session.state: {exc}",
+                style="yellow",
+            )
+
+    def _handle_gateway_auth(self, payload: dict[str, Any]) -> None:
+        """
+        Handle system.gateway_auth.{id} — the engine's PUB broadcast emitted when
+        a gateway completes (or is refused) the connect handshake.
+
+        An *accepted* auth is the observable "gateway connected" event on the
+        public feed, so record it exactly as a connect.  A refused auth carries
+        ``accepted=False`` and is ignored (no session opened).
+        """
+        typed = GatewayAuthPayload.from_dict(payload)
+        if not typed.accepted:
+            return
+        self._handle_gateway_connect(typed.to_dict())
+
+    def _handle_gateway_bye(self, payload: dict[str, Any]) -> None:
+        """
+        Handle system.gateway_bye.{id} — the engine's PUB broadcast emitted when
+        a gateway disconnects.  Record it exactly as a disconnect (the inbound
+        system.gateway_disconnect topic is PULL-only and never reaches here).
+        """
+        typed = GatewayByePayload.from_dict(payload)
+        self._handle_gateway_disconnect(typed.to_dict())
 
     def _handle_gateway_connect(self, payload: dict[str, Any]) -> None:
         """
@@ -440,6 +782,7 @@ class ClearingProcess:
                     gateway_id=gateway_id,
                     connected_at_ns=ts_ns,
                 )
+            log.info("gateway connected gateway_id=%s", gateway_id)
         except Exception as exc:
             console.print(
                 f"[CLEARING] WARNING: error handling gateway_connect: {exc}",
@@ -459,20 +802,28 @@ class ClearingProcess:
 
             ts_ns = now_ns()
             reason = payload.get("reason") or payload.get("disconnect_reason")
-            connect_ts = self._gw_connect_ts.pop(gateway_id, 0)
+            # Drop the in-memory connect timestamp (housekeeping only); the DB
+            # is the source of truth for matching the open session (CL-M5).
+            self._gw_connect_ts.pop(gateway_id, None)
 
             with self._lock:
                 # Force flush so any buffered fills for this gateway are persisted
                 # before the engine-side order cancellations arrive.
                 self._flush()
-                if connect_ts:
-                    record_gateway_disconnect(
-                        self._conn,
-                        gateway_id=gateway_id,
-                        connected_at_ns=connect_ts,
-                        disconnected_at_ns=ts_ns,
-                        reason=str(reason) if reason else None,
-                    )
+                # Close the latest open session in SQL (MAX open connected_at_ns)
+                # rather than relying on the in-memory dict — so a clearing
+                # restart does not orphan a session opened before the restart.
+                close_latest_gateway_session(
+                    self._conn,
+                    gateway_id=gateway_id,
+                    disconnected_at_ns=ts_ns,
+                    reason=str(reason) if reason else None,
+                )
+            log.info(
+                "gateway disconnected gateway_id=%s reason=%s",
+                gateway_id,
+                reason,
+            )
         except Exception as exc:
             console.print(
                 f"[CLEARING] WARNING: error handling gateway_disconnect: {exc}",
@@ -484,7 +835,13 @@ class ClearingProcess:
     # ------------------------------------------------------------------
 
     def _print_pnl_table(self) -> None:
-        positions = self._ledger.all_positions()
+        # CL-M2: this runs on the receive thread while the timer thread mutates
+        # _positions inside _flush.  Snapshot the positions under the lock (each
+        # a shallow copy, so field values are captured atomically) before
+        # iterating/printing — otherwise the read can tear a row or raise
+        # "dictionary changed size during iteration" and kill the receive loop.
+        with self._lock:
+            positions = [copy.copy(p) for p in self._ledger.all_positions()]
         if not positions:
             return
 
@@ -531,6 +888,39 @@ class ClearingProcess:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
+
+def _resolve_timezone(name: str) -> tzinfo | None:
+    """
+    Resolve a timezone name to a ``tzinfo``, or ``None`` if it is unknown.
+
+    ``UTC`` maps to the builtin ``timezone.utc`` (no tzdata dependency); any
+    other name is looked up via ``zoneinfo`` and falls back to ``None`` when the
+    IANA database is missing or the name is invalid.
+    """
+    if name.upper() == "UTC":
+        return timezone.utc
+    try:
+        from zoneinfo import ZoneInfo
+
+        return ZoneInfo(name)
+    except Exception:
+        return None
+
+
+def _enable_sql_trace_logging() -> None:
+    """Install a dedicated handler for verbose SQLite statement tracing."""
+    sql_logger = logging.getLogger("edumatcher.clearing.sql")
+    sql_logger.setLevel(logging.DEBUG)
+    sql_logger.propagate = False
+    if sql_logger.handlers:
+        return
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
+    )
+    sql_logger.addHandler(handler)
 
 
 def main() -> None:
@@ -589,18 +979,72 @@ def main() -> None:
             f" (default: {_RETENTION_DAYS}; 0 = disable pruning)"
         ),
     )
+    parser.add_argument(
+        "--timezone",
+        metavar="TZ",
+        default="UTC",
+        help=(
+            "Exchange session timezone used to bucket trades into a trading day"
+            " (IANA name, e.g. America/New_York; default: UTC)"
+        ),
+    )
+    parser.add_argument(
+        "--sql-trace",
+        action="store_true",
+        help="Log executed SQLite statements from the clearing writer connection",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase log verbosity (-v: INFO, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce log output to warnings/errors",
+    )
 
     args = parser.parse_args()
 
+    if args.log_level:
+        level_name = str(args.log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif args.verbose >= 2:
+        level = logging.DEBUG
+    elif args.verbose == 1:
+        level = logging.INFO
+    elif args.quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
+    )
+    if args.sql_trace:
+        _enable_sql_trace_logging()
+    log.info("starting pm-clearing with log level %s", logging.getLevelName(level))
+
     if not (1 <= args.flush_size <= 100):
-        print("[ERROR] --flush-size must be 1..100", file=sys.stderr)
-        raise SystemExit(2)
+        parser.error("--flush-size must be 1..100")
     if args.flush_interval < 0.1:
-        print("[ERROR] --flush-interval must be >= 0.1", file=sys.stderr)
-        raise SystemExit(2)
+        parser.error("--flush-interval must be >= 0.1")
     if args.retention_days < 0:
-        print("[ERROR] --retention-days must be >= 0", file=sys.stderr)
-        raise SystemExit(2)
+        parser.error("--retention-days must be >= 0")
+
+    session_tz = _resolve_timezone(args.timezone)
+    if session_tz is None:
+        parser.error(f"--timezone: unknown timezone {args.timezone!r}")
 
     if args.datapath is not None:
         dp = Path(args.datapath).expanduser()
@@ -616,9 +1060,11 @@ def main() -> None:
             flush_interval_sec=args.flush_interval,
             print_every=args.print_every,
             retention_days=args.retention_days,
+            session_tz=session_tz,
+            sql_trace=args.sql_trace,
         )
     except Exception as exc:
-        print(f"[CLEARING] FATAL: {exc}", file=sys.stderr)
+        log.error("fatal startup error: %s", exc)
         raise SystemExit(1) from exc
 
     process.run()

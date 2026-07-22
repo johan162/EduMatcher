@@ -12,6 +12,7 @@ from edumatcher.engine.config_loader import (
 from edumatcher.engine.main import Engine
 from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderType, Side
+from edumatcher.models.participant import ParticipantRole
 
 
 @dataclass
@@ -115,6 +116,36 @@ def test_new_order_rejected_when_symbol_not_allowed(engine_with_allowlists) -> N
     assert topic == "order.ack.TRADER01"
     assert msg["accepted"] is False
     assert msg["reason"] == "Symbol not configured: MSFT"
+    assert "MSFT" not in engine.books
+
+
+def test_quote_rejected_when_symbol_not_allowed_and_no_book_created(
+    engine_with_allowlists,
+) -> None:
+    engine, pub_sock = engine_with_allowlists
+
+    engine._handle_gateway_connect({"gateway_id": "TRADER01"})
+    engine._session_for_gateway("TRADER01").role = ParticipantRole.MARKET_MAKER
+    pub_sock.sent.clear()
+
+    engine._handle_quote_new(
+        {
+            "gateway_id": "TRADER01",
+            "symbol": "MSFT",
+            "quote_id": "Q-1",
+            "bid_price": 100.0,
+            "ask_price": 101.0,
+            "bid_qty": 10,
+            "ask_qty": 10,
+            "tif": "DAY",
+        }
+    )
+
+    topic, msg = decode(pub_sock.sent[-1])
+    assert topic == "quote.ack.TRADER01"
+    assert msg["accepted"] is False
+    assert msg["reason"] == "Symbol not configured: MSFT"
+    assert "MSFT" not in engine.books
 
 
 def test_new_order_accepted_for_connected_allowed_gateway(

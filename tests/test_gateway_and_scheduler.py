@@ -805,8 +805,15 @@ class TestGatewaySendCombo:
 
 
 class TestSchedulerRunScheduled:
-    def test_all_past_times_skips_all(self) -> None:
+    def test_all_past_times_catch_engine_up_to_last_state(self) -> None:
+        # Regression for scheduler review finding H1
+        # (docs-design/EduMatcher-scheduler-review.md): engine session
+        # transitions are sequential and dependent, so a scheduler that starts
+        # after every scheduled time has passed must still drive the engine to
+        # the most-recent-past state instead of silently skipping every entry
+        # (which would leave the engine stuck in its startup state).
         from datetime import datetime as _dt
+        from edumatcher.models.message import decode
         from edumatcher.scheduler.main import _run_scheduled
 
         fake_sock = MagicMock()
@@ -819,8 +826,18 @@ class TestSchedulerRunScheduled:
         ):
             mock_dt.now.return_value = fixed_now
             _run_scheduled(fake_sock, schedule)
-        # Since all times are past, no messages should be sent
-        fake_sock.send_multipart.assert_not_called()
+
+        # The engine must be caught up to the most-recent-past state rather
+        # than left untouched.
+        assert fake_sock.send_multipart.called, (
+            "scheduler skipped all past transitions and sent nothing — "
+            "engine would be stuck in its startup state"
+        )
+        sent_states = [
+            decode(call.args[0])[1]["to_state"]
+            for call in fake_sock.send_multipart.call_args_list
+        ]
+        assert sent_states[-1] == "OPENING_AUCTION"
 
     def test_run_now_sends_all_transitions(self) -> None:
         from edumatcher.scheduler.main import _run_now
@@ -844,6 +861,7 @@ class TestAuditProcess:
         with patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub):
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
         assert proc.logger is not None
+        assert proc._to_terminal is False
 
     def test_init_with_terminal_flag(self, tmp_path: Path) -> None:
         from edumatcher.audit.main import AuditProcess
@@ -852,6 +870,7 @@ class TestAuditProcess:
         with patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub):
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=True)
         assert proc.logger is not None
+        assert proc._to_terminal is True
 
     def test_stop_sets_running_false(self, tmp_path: Path) -> None:
         from edumatcher.audit.main import AuditProcess
@@ -861,6 +880,38 @@ class TestAuditProcess:
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
         proc._stop()
         assert proc._running is False
+
+    def test_build_parser_logging_flags(self) -> None:
+        from edumatcher.audit.main import _build_parser
+
+        parser = _build_parser()
+        args = parser.parse_args(["-vv", "--quiet", "--log-level", "ERROR"])
+        assert args.verbose == 2
+        assert args.quiet is True
+        assert args.log_level == "ERROR"
+
+
+class TestAlfConsoleMain:
+    def test_build_parser_logging_flags(self) -> None:
+        from edumatcher.alf_console.main import _build_parser
+
+        parser = _build_parser()
+        args = parser.parse_args(
+            ["--id", "GW01", "-vv", "--quiet", "--log-level", "ERROR"]
+        )
+        assert args.id == "GW01"
+        assert args.verbose == 2
+        assert args.quiet is True
+        assert args.log_level == "ERROR"
+
+    def test_configure_logging_defaults_to_warning(self) -> None:
+        from argparse import Namespace
+        import logging
+
+        from edumatcher.alf_console.main import _configure_logging
+
+        args = Namespace(log_level=None, verbose=0, quiet=False)
+        assert _configure_logging(args) == logging.WARNING
 
 
 # ---------------------------------------------------------------------------
@@ -1021,31 +1072,6 @@ class TestGatewayCompleterEdgeCases:
             partial_key="",
         )
         assert isinstance(result, list)
-
-
-# ---------------------------------------------------------------------------
-# clearing/main.py — _stop
-# ---------------------------------------------------------------------------
-
-
-class TestClearingStop:
-    def test_stop_sets_running_false(self, tmp_path: Path) -> None:
-        from edumatcher.clearing_v1.main import ClearingProcess
-
-        fake_sock = MagicMock()
-        with (
-            patch(
-                "edumatcher.clearing_v1.main.make_subscriber", return_value=fake_sock
-            ),
-            patch("edumatcher.clearing_v1.main.DATA_DIR", tmp_path),
-            patch(
-                "edumatcher.clearing_v1.main.CLEARING_REPORT_FILE",
-                tmp_path / "report.csv",
-            ),
-        ):
-            proc = ClearingProcess()
-        proc._stop()
-        assert proc._running is False
 
 
 # ---------------------------------------------------------------------------
@@ -1585,16 +1611,19 @@ class TestIndexDisplay:
             {
                 "records": [
                     {
-                        "type": "LEVEL",
+                        "type": "INIT",
                         "timestamp": _time.time(),
-                        "level": 1025.5,
-                        "session_state": "CONTINUOUS",
+                        "level": 1000.0,
+                        "base_value": 1000.0,
+                        "constituents": ["AAPL", "MSFT"],
                     },
                     {
-                        "type": "EOD",
+                        "type": "CORP_ACTION",
                         "timestamp": _time.time(),
                         "level": 1030.0,
-                        "session_state": "CLOSED",
+                        "symbol": "AAPL",
+                        "action": "SPLIT",
+                        "detail": "2:1",
                     },
                 ]
             },
@@ -1953,11 +1982,7 @@ class TestIndexDisplayEdgeCases:
         # Record with no timestamp → ts_txt = "?"
         gw._handle_event(
             "index.history.GW01",
-            {
-                "records": [
-                    {"type": "LEVEL", "level": 1000.0, "session_state": "CONTINUOUS"}
-                ]
-            },
+            {"records": [{"type": "CORP_ACTION", "level": 1000.0, "symbol": "AAPL"}]},
         )
 
     def test_index_history_record_no_level(self) -> None:
@@ -1970,9 +1995,9 @@ class TestIndexDisplayEdgeCases:
             {
                 "records": [
                     {
-                        "type": "LEVEL",
+                        "type": "CORP_ACTION",
                         "timestamp": _time.time(),
-                        "session_state": "CONTINUOUS",
+                        "symbol": "AAPL",
                         # no 'level'
                     }
                 ]

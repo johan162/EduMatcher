@@ -583,8 +583,19 @@ static void process_socket_data(void)
     while ((nl = strchr(start, '\n')) != NULL) {
         *nl = '\0';
 
+        /* Bound-copy the line into a fixed buffer for alf_parse_line() (it
+         * tokenizes in place with strtok_r). g_recvbuf can hold more than
+         * ALF_MAX_LINE_LEN bytes between newlines if a peer sends an
+         * oversized line, so this copy is deliberately truncating -- do it
+         * with an explicit length rather than a "%s" snprintf so the
+         * compiler can see the bound statically instead of guessing from
+         * strlen() (-Wformat-truncation). */
         char line_copy[ALF_MAX_LINE_LEN];
-        snprintf(line_copy, sizeof(line_copy), "%s", start);
+        size_t seg_len = (size_t)(nl - start);
+        if (seg_len >= sizeof(line_copy))
+            seg_len = sizeof(line_copy) - 1;
+        memcpy(line_copy, start, seg_len);
+        line_copy[seg_len] = '\0';
 
         alf_message_t msg;
         if (alf_parse_line(line_copy, &msg) != 0) {
@@ -955,42 +966,48 @@ static int do_handshake(int fd, const char *gateway_id, const char *client_name)
         return -1;
     }
 
-    /* Read WELCOME (or ERR) */
-    char line[ALF_MAX_LINE_LEN];
-    int  n = 0;
-    for (;;) {
-        char c;
-        if (read(fd, &c, 1) <= 0) return -1;
-        if (c == '\n') break;
-        if (n + 1 < (int)sizeof(line)) line[n++] = c;
-    }
-    line[n] = '\0';
+    /* Read until WELCOME (or ERR), skipping benign pre-WELCOME lines. */
+    for (int i = 0; i < 50; i++) {
+        char line[ALF_MAX_LINE_LEN];
+        int n = 0;
+        for (;;) {
+            char c;
+            if (read(fd, &c, 1) <= 0) return -1;
+            if (c == '\n') break;
+            if (n + 1 < (int)sizeof(line)) line[n++] = c;
+        }
+        line[n] = '\0';
 
-    alf_message_t msg;
-    char copy[ALF_MAX_LINE_LEN];
-    snprintf(copy, sizeof(copy), "%s", line);
-    if (alf_parse_line(copy, &msg) != 0) {
-        fprintf(stderr, "Failed to parse handshake response: %s\n", line);
-        return -1;
+        alf_message_t msg;
+        char copy[ALF_MAX_LINE_LEN];
+        snprintf(copy, sizeof(copy), "%s", line);
+        if (alf_parse_line(copy, &msg) != 0) {
+            continue;
+        }
+
+        if (strcmp(msg.msg_type, "WELCOME") == 0) {
+            const char *gw   = alf_get_field(&msg, "GW");
+            const char *hb   = alf_get_field(&msg, "HBINT");
+            const char *idle = alf_get_field(&msg, "IDLE");
+            printf("%sGateway %s connected.%s  gw=%s  hb=%ss  idle=%ss\n",
+                   COL_GREEN, gateway_id, COL_RESET,
+                   gw   ? gw   : "alf-gwy",
+                   hb   ? hb   : "5",
+                   idle ? idle : "30");
+            return 0;
+        }
+        if (strcmp(msg.msg_type, "ERR") == 0) {
+            fprintf(stderr, "Authentication failed [%s]: %s\n",
+                    alf_get_field(&msg, "CODE")   ? alf_get_field(&msg, "CODE")   : "?",
+                    alf_get_field(&msg, "DETAIL") ? alf_get_field(&msg, "DETAIL") : "");
+            return -1;
+        }
+        if (strcmp(msg.msg_type, "HB") == 0) {
+            continue;
+        }
     }
-    if (strcmp(msg.msg_type, "WELCOME") == 0) {
-        const char *gw   = alf_get_field(&msg, "GW");
-        const char *hb   = alf_get_field(&msg, "HBINT");
-        const char *idle = alf_get_field(&msg, "IDLE");
-        printf("%sGateway %s connected.%s  gw=%s  hb=%ss  idle=%ss\n",
-               COL_GREEN, gateway_id, COL_RESET,
-               gw   ? gw   : "alf-gwy",
-               hb   ? hb   : "5",
-               idle ? idle : "30");
-        return 0;
-    }
-    if (strcmp(msg.msg_type, "ERR") == 0) {
-        fprintf(stderr, "Authentication failed [%s]: %s\n",
-                alf_get_field(&msg, "CODE")   ? alf_get_field(&msg, "CODE")   : "?",
-                alf_get_field(&msg, "DETAIL") ? alf_get_field(&msg, "DETAIL") : "");
-        return -1;
-    }
-    fprintf(stderr, "Unexpected handshake response: %s\n", msg.msg_type);
+
+    fprintf(stderr, "WELCOME not received within handshake window\n");
     return -1;
 }
 

@@ -136,8 +136,12 @@ Check the observer terminals and run:
 
 ```bash
 pm-stats-cli trades --symbol AAPL --limit 10
-pm-stats-cli summary
+pm-stats-cli daily
 ```
+
+(`daily` with no `--symbol` filter gives one OHLCV summary row per symbol —
+see [15 — Statistics & Reporting](15-statistics-reporting.md) for the full
+`pm-stats-cli` verb reference; there is no separate `summary` verb.)
 
 Explain what each observer showed:
 
@@ -185,19 +189,19 @@ Answer these without looking at earlier chapters:
 Review map:
 
 - Q1: [Architecture Overview](../architecture/01-architecture.md)
-- Q2: [Gateway Commands](../user-guide/08-gateway.md)
+- Q2: [Gateway Commands](../user-guide/050-gateway.md)
 - Q3: [MM Quotes Concept](../concepts/03-concepts-mm-quotes.md)
-- Q4: [Drop Copy](../user-guide/13-drop-copy.md)
-- Q5: [Order Types](../user-guide/04-order-types.md)
-- Q6: [Time-in-Force & Session Lifecycle](../user-guide/06-auctions-scheduling.md)
-- Q7: [Controlling the Exchange](../user-guide/02-commands.md)
+- Q4: [Drop Copy](../user-guide/200-drop-copy.md)
+- Q5: [Order Types](../user-guide/060-order-types.md)
+- Q6: [Time-in-Force & Session Lifecycle](../user-guide/080-auctions-scheduling.md)
+- Q7: [Controlling the Exchange](../user-guide/160-commands.md)
 
  
 
 ## Further Reading
 
 - [How an Exchange Works](../how-exchange-works.md)
-- [User Guide](../user-guide/00-getting-started.md)
+- [User Guide](../user-guide/000-getting-started.md)
 - [Architecture Overview](../architecture/01-architecture.md)
 - [Glossary](../glossary.md)
 - [Exchange Observer Processes](18-exchange-observer-processes.md)

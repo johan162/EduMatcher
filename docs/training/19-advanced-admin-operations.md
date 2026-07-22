@@ -189,8 +189,8 @@ choice available?
 
 ## Further Reading
 
-- [Controlling the Exchange](../user-guide/02-commands.md)
-- [Processes](../user-guide/10-processes.md)
-- [Risk Controls](../user-guide/12-risk-controls.md)
+- [Controlling the Exchange](../user-guide/160-commands.md)
+- [Processes](../user-guide/170-processes.md)
+- [Risk Controls](../user-guide/120-risk-controls.md)
 
 **Next:** [20 - Drop-Copy Replay & Recovery Patterns](20-drop-copy-replay-recovery.md)

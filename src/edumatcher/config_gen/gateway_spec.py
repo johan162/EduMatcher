@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 
 
@@ -13,6 +14,13 @@ class GatewaySpec:
     role: ParticipantRole
     disconnect_behaviour: DisconnectBehaviour
     description: str = ""
+    # Gateway-level self-match-prevention default, applied by the engine to
+    # any order/quote from this gateway that doesn't specify its own SMP=
+    # (see gateways.alf[].smp_action in docs/user-guide/120-risk-controls.md).
+    # Not part of the colon-delimited --gateways spec syntax (would collide
+    # with the free-text DESCRIPTION slot) -- set via the separate,
+    # repeatable --gateway-smp GW_ID:SMP_ACTION flag instead.
+    smp_action: SmpAction = SmpAction.NONE
 
 
 _ROLE_DEFAULT_DISCONNECT: dict[ParticipantRole, DisconnectBehaviour] = {

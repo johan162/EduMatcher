@@ -203,6 +203,60 @@ class TestAITraderRuntime:
 
 
 class TestMainEntryPoint:
+    def test_parse_args_logging_flags(self) -> None:
+        args = bot_main._parse_args(
+            [
+                "--id",
+                "AI01",
+                "-vv",
+                "--quiet",
+                "--log-level",
+                "ERROR",
+            ]
+        )
+        assert args.id == "AI01"
+        assert args.verbose == 2
+        assert args.quiet is True
+        assert args.log_level == "ERROR"
+
+    def test_main_passes_verbose_to_bot(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        seen: dict[str, object] = {}
+
+        class _FakeBot:
+            def __init__(self, **kwargs: object) -> None:
+                seen.update(kwargs)
+
+            def run(self, duration_sec: float) -> int:
+                _ = duration_sec
+                return 0
+
+        monkeypatch.setattr(bot_main, "AITraderBot", _FakeBot)
+        monkeypatch.setattr(
+            bot_main,
+            "_parse_args",
+            lambda: argparse.Namespace(
+                id="AI01",
+                profile="cautious",
+                symbols="AAPL",
+                seed=1,
+                duration=1.0,
+                run_id="run-1",
+                max_position=100,
+                max_rejects=2,
+                reject_window=10.0,
+                reject_cooldown=1.0,
+                stale_data=4.0,
+                log_level=None,
+                verbose=1,
+                quiet=False,
+            ),
+        )
+
+        with pytest.raises(SystemExit) as exc:
+            bot_main.main()
+        assert exc.value.code == 0
+        assert seen["verbose"] is True
+
     def test_main_returns_bot_exit_code(self, monkeypatch: pytest.MonkeyPatch) -> None:
         class _FakeBot:
             def __init__(self, **_kwargs: object) -> None:

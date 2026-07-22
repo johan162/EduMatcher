@@ -212,7 +212,7 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
 ```
 
 STOP and TRAILING_STOP orders activate here when `last_trade_price` crosses
-their trigger levels. See [Stop Trigger Logic](../user-guide/04-order-types.md#stop-trigger-logic)
+their trigger levels. See [Stop Trigger Logic](../user-guide/060-order-types.md#stop-trigger-logic)
 for details.
 
 

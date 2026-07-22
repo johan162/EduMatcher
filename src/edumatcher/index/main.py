@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import errno
 import json
+import logging
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,7 +24,7 @@ from edumatcher.index.config_loader import (
     IndexRuntimeConfig,
     load_index_runtime_configs,
 )
-from edumatcher.index.history import IndexHistory
+from edumatcher.index.history import STRUCTURAL_RECORD_TYPES, IndexHistory
 from edumatcher.messaging.bus import make_publisher, make_puller, make_subscriber
 from edumatcher.models.message import (
     decode,
@@ -31,6 +34,9 @@ from edumatcher.models.message import (
     make_index_history_msg,
     make_index_update_msg,
 )
+
+log = logging.getLogger(__name__)
+_DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 
 @dataclass
@@ -64,6 +70,38 @@ class IndexProcess:
         )
         self._pull_sock = make_puller(INDEX_PULL_ADDR)
         self._pub_sock = make_publisher(INDEX_PUB_ADDR)
+        self._debug_counts: defaultdict[str, int] = defaultdict(int)
+        self._debug_last_summary = time.monotonic()
+        log.debug(
+            "index process initialized config=%s reset=%s sub=%s pull=%s pub=%s",
+            self._config_path,
+            self._reset,
+            ENGINE_PUB_ADDR,
+            INDEX_PULL_ADDR,
+            INDEX_PUB_ADDR,
+        )
+
+    def _dbg_count(self, key: str, amount: int = 1) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        self._debug_counts[key] += amount
+        self._flush_debug_summary()
+
+    def _flush_debug_summary(self, force: bool = False) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        now = time.monotonic()
+        if not force and now - self._debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
+            return
+        if not self._debug_counts:
+            self._debug_last_summary = now
+            return
+        summary = ", ".join(
+            f"{key}={value}" for key, value in sorted(self._debug_counts.items())
+        )
+        log.debug("index flow summary: %s", summary)
+        self._debug_counts.clear()
+        self._debug_last_summary = now
 
     def _state_path(self, cfg: IndexRuntimeConfig) -> Path:
         return Path(cfg.state_file)
@@ -72,8 +110,14 @@ class IndexProcess:
         self, cfg: IndexRuntimeConfig
     ) -> tuple[float | None, dict[str, float]]:
         state_path = self._state_path(cfg)
+        log.debug("loading index state index_id=%s path=%s", cfg.id, state_path)
         if self._reset and state_path.exists():
             state_path.unlink()
+            log.info(
+                "removed state file due to --reset index_id=%s path=%s",
+                cfg.id,
+                state_path,
+            )
             return None, {}
 
         if not state_path.exists():
@@ -124,9 +168,16 @@ class IndexProcess:
             "last_updated": time.time(),
         }
         state_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        log.debug(
+            "persisted index state index_id=%s level=%s path=%s",
+            idx.cfg.id,
+            last_level,
+            state_path,
+        )
 
     def _initialise(self) -> None:
         configs = load_index_runtime_configs(self._config_path)
+        log.info("loaded %d index runtime config(s)", len(configs))
         for cfg in configs:
             divisor, last_prices = self._load_state(cfg)
             is_fresh_start = divisor is None
@@ -163,7 +214,14 @@ class IndexProcess:
                         "level": level,
                     }
                 )
+                log.debug("initialized fresh index history index_id=%s", cfg.id)
             self._persist_state(managed, level)
+            log.info(
+                "index ready index_id=%s constituents=%d level=%s",
+                cfg.id,
+                len(cfg.constituents),
+                level,
+            )
 
     def _update_day_ohlc(self, idx: _ManagedIndex, level: float) -> None:
         if idx.day_open is None:
@@ -193,20 +251,11 @@ class IndexProcess:
             day_low=idx.day_low,
         )
         self._pub_sock.send_multipart(frames)
-        idx.history.append(
-            {
-                "type": "LEVEL",
-                "timestamp": time.time(),
-                "index_id": idx.cfg.id,
-                "level": level,
-                "session_state": idx.session_state,
-                "aggregate_cap": aggregate_cap,
-                "divisor": idx.calc.divisor,
-            }
-        )
         idx.last_publish_time = now
+        self._dbg_count("index_updates_published")
 
     def _finalize_eod(self) -> None:
+        log.info("finalizing EOD for %d index(es)", len(self._indices))
         for idx in self._indices.values():
             if idx.eod_finalized_for_session:
                 continue
@@ -215,21 +264,10 @@ class IndexProcess:
             self._update_day_ohlc(idx, level)
             idx.session_state = "CLOSED"
 
-            idx.history.append(
-                {
-                    "type": "EOD",
-                    "timestamp": time.time(),
-                    "index_id": idx.cfg.id,
-                    "level": level,
-                    "session_state": "CLOSED",
-                    "aggregate_cap": idx.calc.aggregate_cap(),
-                    "divisor": idx.calc.divisor,
-                    "open": idx.day_open,
-                    "high": idx.day_high,
-                    "low": idx.day_low,
-                    "close": idx.day_close,
-                }
-            )
+            # The EOD close is just another level update — it is published
+            # live (below) and picked up by pm-stats' index_level_snapshots /
+            # index_daily_stats tables like every other tick. It is not
+            # written to the structural JSONL audit log.
             self._publish_level(idx, level, force=True)
             self._persist_state(idx, level)
             idx.eod_finalized_for_session = True
@@ -248,10 +286,24 @@ class IndexProcess:
             return
         symbol = symbol_raw.upper()
         target_indices = self._constituent_to_indices.get(symbol, set())
+        if not target_indices:
+            self._dbg_count("trade_symbol_not_indexed")
+            log.debug("trade symbol=%s not used by any configured index", symbol)
+            return
+        self._dbg_count("trade_updates")
         for index_id in target_indices:
             idx = self._indices[index_id]
             idx.calc.update_price(symbol, price)
             level = idx.calc.recalculate()
+            log.debug(
+                "trade applied index_id=%s symbol=%s price=%.6f level=%.6f divisor=%.6f cap=%.6f",
+                index_id,
+                symbol,
+                price,
+                level,
+                idx.calc.divisor,
+                idx.calc.aggregate_cap(),
+            )
             self._update_day_ohlc(idx, level)
             self._publish_level(idx, level)
 
@@ -265,6 +317,7 @@ class IndexProcess:
 
     def _handle_session_state(self, payload: dict[str, Any]) -> None:
         state = str(payload.get("state", "")).upper()
+        log.info("received session.state=%s", state)
         for idx in self._indices.values():
             idx.session_state = state or idx.session_state
         if state in {"OPENING_AUCTION", "CONTINUOUS"}:
@@ -276,6 +329,7 @@ class IndexProcess:
         gateway_id = str(payload.get("gateway_id", "")).upper()
         if not gateway_id:
             return
+        log.debug("handling history request gateway_id=%s", gateway_id)
 
         index_id = str(payload.get("index_id", "")).upper()
         idx = self._indices.get(index_id)
@@ -294,9 +348,10 @@ class IndexProcess:
             )
             return
 
-        types_raw = payload.get("types", ["LEVEL", "EOD"])
+        default_types = sorted(STRUCTURAL_RECORD_TYPES)
+        types_raw = payload.get("types", default_types)
         if not isinstance(types_raw, list):
-            types_raw = ["LEVEL", "EOD"]
+            types_raw = default_types
         record_types = {str(t).upper() for t in types_raw}
         max_records = int(payload.get("max_records", 10_000))
 
@@ -311,12 +366,26 @@ class IndexProcess:
         self._pub_sock.send_multipart(
             make_index_history_msg(gateway_id, index_id, records, warnings=warnings)
         )
+        log.debug(
+            "history response gateway_id=%s index_id=%s records=%d warnings=%d",
+            gateway_id,
+            index_id,
+            len(records),
+            len(warnings),
+        )
 
     def _handle_corp_action(self, payload: dict[str, Any]) -> None:
         gateway_id = str(payload.get("gateway_id", "")).upper()
         index_id = str(payload.get("index_id", "")).upper()
         action = str(payload.get("action", "")).upper()
         symbol = str(payload.get("symbol", "")).upper()
+        log.info(
+            "received corp action gateway_id=%s index_id=%s action=%s symbol=%s",
+            gateway_id,
+            index_id,
+            action,
+            symbol,
+        )
 
         idx = self._indices.get(index_id)
         if not gateway_id or idx is None:
@@ -396,6 +465,13 @@ class IndexProcess:
         index_id = str(payload.get("index_id", "")).upper()
         change_type = str(payload.get("change_type", "")).upper()
         symbol = str(payload.get("symbol", "")).upper()
+        log.info(
+            "received constituent change gateway_id=%s index_id=%s change=%s symbol=%s",
+            gateway_id,
+            index_id,
+            change_type,
+            symbol,
+        )
 
         idx = self._indices.get(index_id)
         if not gateway_id or idx is None:
@@ -468,6 +544,7 @@ class IndexProcess:
 
     def run(self) -> None:
         self._initialise()
+        log.info("index process entering main poll loop")
 
         poller = zmq.Poller()
         poller.register(self._sub_sock, zmq.POLLIN)
@@ -486,8 +563,9 @@ class IndexProcess:
                 try:
                     topic, payload = decode(frames)
                 except Exception as exc:
-                    print(f"[INDEX] WARNING: malformed sub frame: {exc}", flush=True)
+                    log.warning("malformed sub frame: %s", exc)
                 else:
+                    self._dbg_count("sub_messages")
                     if topic == "trade.executed":
                         self._handle_trade(payload)
                     elif topic == "session.state":
@@ -500,8 +578,9 @@ class IndexProcess:
                 try:
                     topic, payload = decode(frames)
                 except Exception as exc:
-                    print(f"[INDEX] WARNING: malformed pull frame: {exc}", flush=True)
+                    log.warning("malformed pull frame: %s", exc)
                 else:
+                    self._dbg_count("pull_messages")
                     if topic == "index.history_request":
                         self._handle_history_request(payload)
                     elif topic == "index.corp_action":
@@ -513,6 +592,8 @@ class IndexProcess:
                 idx.history.flush()
 
     def close(self) -> None:
+        self._flush_debug_summary(force=True)
+        log.info("closing index process")
         for idx in self._indices.values():
             idx.history.flush()
             idx.history.close()
@@ -537,15 +618,63 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Ignore/delete persisted index state and initialise from config",
     )
+    parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase log verbosity (-v: INFO, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce log output to warnings/errors",
+    )
     return parser
+
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    if args.log_level:
+        level_name = str(args.log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif args.verbose >= 2:
+        level = logging.DEBUG
+    elif args.verbose == 1:
+        level = logging.INFO
+    elif args.quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+    )
+    return int(level)
 
 
 def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
-    proc = IndexProcess(config_path=Path(str(args.config)), reset=bool(args.reset))
+    log_level = _configure_logging(args)
+    log.info("starting pm-index with log level %s", logging.getLevelName(log_level))
+    log.debug("resolved index config path=%s reset=%s", args.config, bool(args.reset))
+    try:
+        proc = IndexProcess(config_path=Path(str(args.config)), reset=bool(args.reset))
+    except Exception as exc:
+        log.error("fatal startup error: %s", exc)
+        sys.exit(1)
     try:
         proc.run()
+    except Exception as exc:
+        log.error("fatal runtime error: %s", exc)
+        raise
     finally:
         proc.close()
 

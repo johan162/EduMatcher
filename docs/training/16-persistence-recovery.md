@@ -169,9 +169,9 @@ GTC orders after a config change removed a market maker?
 
 ## Further Reading
 
-- [Persistence](../user-guide/11-persistence.md)
-- [Statistics and Reporting](../user-guide/16-statistics-and-reporting.md)
-- [Processes](../user-guide/10-processes.md)
+- [Persistence](../user-guide/180-persistence.md)
+- [Statistics and Reporting](../user-guide/140-statistics-and-reporting.md)
+- [Processes](../user-guide/170-processes.md)
 - [A Full Trading Day](../concepts/05-concepts-trading-day.md)
 
 **Next:** [17 — Capstone Scenario](17-capstone-scenario.md)

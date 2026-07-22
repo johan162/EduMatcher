@@ -1,0 +1,32 @@
+{
+  "name": "edumatcher-config-gui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Browser-based builder for EduMatcher engine_config.yaml (companion to pm-config-gen).",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @edumatcher/server & npm run dev --workspace @edumatcher/web",
+    "dev:web": "npm run dev --workspace @edumatcher/web",
+    "dev:server": "npm run dev --workspace @edumatcher/server",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "verify:python": "bash scripts/verify-python.sh",
+    "lint": "npm run typecheck",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "prettier": "^3.9.5",
+    "tsx": "^4.23.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

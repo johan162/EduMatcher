@@ -6,10 +6,14 @@ import argparse
 import math
 import sys
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+from dataclasses import replace
+
 from edumatcher.engine.config_loader import load_engine_config
+from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import ParticipantRole
 
 from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
@@ -46,6 +50,7 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_INDEX_BASE_VALUE,
     DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
+    DEFAULT_MARKET_DATA_GATEWAY_DEPTH_LEVELS,
     DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE,
@@ -77,6 +82,14 @@ from edumatcher.config_gen.cli_comments import build_default_engine_field_commen
 def _validate_basic_args(args: argparse.Namespace) -> None:
     if args.snapshot_interval <= 0:
         raise ValueError("--snapshot-interval must be > 0")
+    if args.quote_history_maxlen <= 0:
+        raise ValueError("--quote-history-maxlen must be > 0")
+    if args.drop_copy_buffer_size <= 0:
+        raise ValueError("--drop-copy-buffer-size must be > 0")
+    if args.recent_trades_maxlen <= 0:
+        raise ValueError("--recent-trades-maxlen must be > 0")
+    if args.depth_snapshot_tolerance_ticks <= 0:
+        raise ValueError("--depth-snapshot-tolerance-ticks must be > 0")
     if not (0 <= args.tick_decimals <= 8):
         raise ValueError("--tick-decimals must be in range 0..8")
     if args.mm_spread_ticks <= 0:
@@ -134,6 +147,8 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         and args.market_data_max_client_queue <= 0
     ):
         raise ValueError("--market-data-max-client-queue must be > 0")
+    if args.market_data_depth_levels is not None and args.market_data_depth_levels <= 0:
+        raise ValueError("--market-data-depth-levels must be > 0")
     if args.api_gateway_port is not None and args.api_gateway_port <= 0:
         raise ValueError("--api-gateway-port must be > 0")
     if (
@@ -213,6 +228,52 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
 
     if args.seed_last_prices_from_mm and args.seed_mm_mid_range is None:
         raise ValueError("--seed-last-prices-from-mm requires --seed-mm-mid-range")
+
+    _validate_schedule_order(args)
+
+
+def _parse_hhmm_to_minutes(value: str, flag_name: str) -> int:
+    text = value.strip()
+    parts = text.split(":", 1)
+    if len(parts) != 2:
+        raise ValueError(f"{flag_name} must be in HH:MM format, got '{value}'")
+    try:
+        hours = int(parts[0])
+        minutes = int(parts[1])
+    except ValueError as exc:
+        raise ValueError(f"{flag_name} must be in HH:MM format, got '{value}'") from exc
+    if not (0 <= hours <= 23 and 0 <= minutes <= 59):
+        raise ValueError(f"{flag_name} must be a valid HH:MM time, got '{value}'")
+    return hours * 60 + minutes
+
+
+def _validate_schedule_order(args: argparse.Namespace) -> None:
+    """Ensure the five schedule times are well-formed and strictly increasing.
+
+    A schedule where e.g. --continuous is before --opening-auction would let
+    the engine reach an inconsistent session state, so this is validated
+    regardless of whether --sessions-enabled/--schedule end up emitting the
+    section, matching the treatment of other argument sanity checks above.
+    """
+    ordered_flags = (
+        ("--pre-open", args.pre_open),
+        ("--opening-auction", args.opening_auction),
+        ("--continuous", args.continuous),
+        ("--closing-auction", args.closing_auction),
+        ("--closing-end", args.closing_end),
+    )
+    parsed = [
+        (flag_name, raw_value, _parse_hhmm_to_minutes(raw_value, flag_name))
+        for flag_name, raw_value in ordered_flags
+    ]
+    for (flag_a, value_a, minutes_a), (flag_b, value_b, minutes_b) in zip(
+        parsed, parsed[1:]
+    ):
+        if minutes_a >= minutes_b:
+            raise ValueError(
+                f"Schedule times must be strictly increasing: {flag_a} ({value_a}) "
+                f"must be earlier than {flag_b} ({value_b})"
+            )
 
 
 def _parse_seed_mm_mid_range(raw: str) -> tuple[float, float]:
@@ -314,6 +375,39 @@ def _parse_symbol_level_specs(
     return result
 
 
+def _parse_gateway_smp_specs(
+    specs: list[str],
+    allowed_gateways: set[str],
+) -> dict[str, SmpAction]:
+    result: dict[str, SmpAction] = {}
+    for raw in specs:
+        if ":" not in raw:
+            raise ValueError(
+                f"Invalid --gateway-smp '{raw}': expected GW_ID:SMP_ACTION"
+            )
+        gw_raw, smp_raw = raw.split(":", 1)
+        gateway_id = gw_raw.strip().upper()
+        if not gateway_id:
+            raise ValueError(
+                f"Invalid --gateway-smp '{raw}': gateway ID cannot be empty"
+            )
+        if gateway_id not in allowed_gateways:
+            raise ValueError(
+                f"--gateway-smp references unknown gateway_id '{gateway_id}'"
+            )
+        if gateway_id in result:
+            raise ValueError(f"Duplicate --gateway-smp for gateway '{gateway_id}'")
+        smp_str = smp_raw.strip().upper()
+        try:
+            smp_action = SmpAction(smp_str)
+        except ValueError:
+            raise ValueError(
+                f"Invalid --gateway-smp '{raw}': smp_action '{smp_str}' is invalid"
+            ) from None
+        result[gateway_id] = smp_action
+    return result
+
+
 def _parse_api_credentials(
     specs: list[str], allowed_gateways: set[str]
 ) -> tuple[ApiCredentialSpec, ...]:
@@ -403,6 +497,20 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
     symbols = [s.upper() for s in args.symbols]
 
     gateways = [parse_gateway_spec(raw) for raw in args.gateways]
+
+    gateway_smp = _parse_gateway_smp_specs(
+        specs=args.gateway_smp,
+        allowed_gateways={gw.gateway_id for gw in gateways},
+    )
+    if gateway_smp:
+        gateways = [
+            (
+                replace(gw, smp_action=gateway_smp[gw.gateway_id])
+                if gw.gateway_id in gateway_smp
+                else gw
+            )
+            for gw in gateways
+        ]
 
     risk_levels: dict[str, tuple[float, float | None]] = {}
     for raw in args.risk_level:
@@ -545,6 +653,7 @@ def _build_market_data_gateway_spec(
             args.market_data_replay_window_sec,
             args.market_data_max_symbols_per_client,
             args.market_data_max_client_queue,
+            args.market_data_depth_levels,
         )
     ) or bool(args.market_data_gateway)
 
@@ -581,6 +690,9 @@ def _build_market_data_gateway_spec(
         max_client_queue=int(
             args.market_data_max_client_queue
             or DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE
+        ),
+        depth_levels=int(
+            args.market_data_depth_levels or DEFAULT_MARKET_DATA_GATEWAY_DEPTH_LEVELS
         ),
     )
 
@@ -939,9 +1051,54 @@ def _parse_index_specs(args: argparse.Namespace) -> tuple[IndexSpec, ...]:
     )
 
 
+def _tick_decimals_by_symbol(
+    symbols: list[str],
+    symbol_overrides: dict[str, SymbolOverride],
+    default_tick_decimals: int,
+) -> dict[str, int]:
+    result: dict[str, int] = {}
+    for sym in symbols:
+        override = symbol_overrides.get(sym)
+        result[sym] = (
+            override.tick_decimals
+            if override is not None and override.tick_decimals is not None
+            else default_tick_decimals
+        )
+    return result
+
+
+def _parse_leg_price(raw: str, tick_decimals: int, label: str) -> int:
+    """Parse a combo leg price/stop_price.
+
+    Accepts either a plain integer tick count (legacy, backward-compatible
+    format, e.g. '20950') or a decimal display price (e.g. '209.50'), which
+    is converted to ticks using the leg symbol's tick_decimals. A value is
+    treated as decimal input only when it contains a '.'; this keeps every
+    existing integer-only invocation working unchanged.
+    """
+    text = raw.strip()
+    if "." in text:
+        try:
+            decimal_price = Decimal(text)
+        except InvalidOperation as exc:
+            raise ValueError(
+                f"{label} must be an integer tick count or a decimal price"
+            ) from exc
+        tick_size = Decimal(1).scaleb(-tick_decimals)
+        ticks = (decimal_price / tick_size).to_integral_value(rounding=ROUND_HALF_UP)
+        return int(ticks)
+    try:
+        return int(text)
+    except ValueError as exc:
+        raise ValueError(
+            f"{label} must be an integer tick count or a decimal price"
+        ) from exc
+
+
 def _parse_combo_specs(
     args: argparse.Namespace,
     allowed_symbols: set[str],
+    tick_decimals_by_symbol: dict[str, int],
 ) -> list[ComboSpec]:
     """Parse all --combo flags and return a list of ComboSpec objects."""
     from edumatcher.models.combo import ComboType
@@ -1009,21 +1166,28 @@ def _parse_combo_specs(
             price: int | None = None
             stop_price: int | None = None
             smp_action_str = "NONE"
+            leg_tick_decimals = tick_decimals_by_symbol.get(
+                sym, int(args.tick_decimals)
+            )
 
             if len(fields) >= 5 and fields[4].strip().lower() not in ("", "null"):
                 try:
-                    price = int(fields[4].strip())
+                    price = _parse_leg_price(
+                        fields[4],
+                        leg_tick_decimals,
+                        f"Invalid --combo '{raw}': leg price",
+                    )
                 except ValueError as exc:
-                    raise ValueError(
-                        f"Invalid --combo '{raw}': leg price must be an integer"
-                    ) from exc
+                    raise ValueError(str(exc)) from exc
             if len(fields) >= 6 and fields[5].strip().lower() not in ("", "null"):
                 try:
-                    stop_price = int(fields[5].strip())
+                    stop_price = _parse_leg_price(
+                        fields[5],
+                        leg_tick_decimals,
+                        f"Invalid --combo '{raw}': leg stop_price",
+                    )
                 except ValueError as exc:
-                    raise ValueError(
-                        f"Invalid --combo '{raw}': leg stop_price must be an integer"
-                    ) from exc
+                    raise ValueError(str(exc)) from exc
             if len(fields) >= 7 and fields[6].strip():
                 smp_action_str = fields[6].strip().upper()
 
@@ -1128,7 +1292,14 @@ def main() -> None:
             seed_mm_mid_range,
         ) = _parse_specs(args)
         indices = _parse_index_specs(args)
-        combos = _parse_combo_specs(args, allowed_symbols=set(symbols))
+        tick_decimals_by_symbol = _tick_decimals_by_symbol(
+            symbols, symbol_overrides, int(args.tick_decimals)
+        )
+        combos = _parse_combo_specs(
+            args,
+            allowed_symbols=set(symbols),
+            tick_decimals_by_symbol=tick_decimals_by_symbol,
+        )
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
@@ -1147,6 +1318,10 @@ def main() -> None:
             gateways=gateways,
             sessions_enabled=bool(args.sessions_enabled),
             snapshot_interval_sec=float(args.snapshot_interval),
+            quote_history_maxlen=int(args.quote_history_maxlen),
+            drop_copy_buffer_size=int(args.drop_copy_buffer_size),
+            recent_trades_maxlen=int(args.recent_trades_maxlen),
+            depth_snapshot_tolerance_ticks=int(args.depth_snapshot_tolerance_ticks),
             enforce_collars=not args.no_collars,
             enforce_circuit_breakers=not args.no_circuit_breakers,
             static_band_pct=args.static_band,

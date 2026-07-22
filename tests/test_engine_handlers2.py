@@ -15,6 +15,7 @@ More Engine tests targeting uncovered statements:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 
@@ -432,43 +433,43 @@ class TestCancelWithComboCascade:
 
 class TestVerboseLogging:
     def test_verbose_new_order_prints_no_error(
-        self, monkeypatch, tmp_path, capsys
+        self, monkeypatch, tmp_path, caplog
     ) -> None:
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
         _connect(engine)
         engine._handle_new_order(_order())
-        captured = capsys.readouterr()
-        assert "NEW" in captured.out
+        assert "NEW" in caplog.text
 
     def test_verbose_cancel_prints_no_error(
-        self, monkeypatch, tmp_path, capsys
+        self, monkeypatch, tmp_path, caplog
     ) -> None:
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
         _connect(engine)
         engine._handle_new_order(_order())
         order_id = _get_ack_id(pub_sock)
         pub_sock.sent.clear()
         engine._handle_cancel({"order_id": order_id, "gateway_id": "GW01"})
-        captured = capsys.readouterr()
-        assert "CANCELLED" in captured.out
+        assert "CANCELLED" in caplog.text
 
-    def test_verbose_amend_prints_no_error(self, monkeypatch, tmp_path, capsys) -> None:
+    def test_verbose_amend_prints_no_error(self, monkeypatch, tmp_path, caplog) -> None:
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
         _connect(engine)
         engine._handle_new_order(_order(qty=100))
         order_id = _get_ack_id(pub_sock)
         pub_sock.sent.clear()
         engine._handle_amend({"order_id": order_id, "gateway_id": "GW01", "qty": 80})
-        captured = capsys.readouterr()
-        assert "AMENDED" in captured.out
+        assert "AMENDED" in caplog.text
 
     def test_verbose_gateway_connect_prints_no_error(
-        self, monkeypatch, tmp_path, capsys
+        self, monkeypatch, tmp_path, caplog
     ) -> None:
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
         engine._handle_gateway_connect({"gateway_id": "GW01"})
-        captured = capsys.readouterr()
-        assert "Gateway connected" in captured.out
+        assert "Gateway connected" in caplog.text
 
 
 # ---------------------------------------------------------------------------

@@ -29,13 +29,6 @@ Buffer
 ``DROP_COPY_BUFFER_SIZE = 10_000`` messages are retained in a bounded deque.
 Once the deque is full, the oldest messages are automatically dropped.
 At ~10 fills/second, 10,000 messages covers roughly 16 minutes.
-
-Relationship to make_dropcopy_fill_msg
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-``models/message.py`` contains ``make_dropcopy_fill_msg()`` as an early
-placeholder for the drop copy concept.  ``DropCopyPublisher`` supersedes it
-for engine-side publishing.  The older helper is kept for backward compat
-with any subscribers that consume ``dropcopy.fill.{gateway_id}`` on port 5556.
 """
 
 from __future__ import annotations
@@ -47,6 +40,7 @@ from typing import Any, Optional
 
 import zmq
 
+from edumatcher.models.clock import now_ns
 from edumatcher.models.message import dumps
 
 # Per-process monotone counter — starts at 1 so seq=0 means "no events yet"
@@ -90,14 +84,19 @@ class DropCopyPublisher:
               ``edumatcher.config`` (``tcp://127.0.0.1:5557``).
     """
 
-    def __init__(self, context: zmq.Context[Any], addr: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        context: zmq.Context[Any],
+        addr: Optional[str] = None,
+        buffer_size: int = DROP_COPY_BUFFER_SIZE,
+    ) -> None:
         from edumatcher.config import DROP_COPY_PUB_ADDR
 
         bind_addr = addr if addr is not None else DROP_COPY_PUB_ADDR
         self._pub: zmq.Socket[bytes] = context.socket(zmq.PUB)
         self._pub.bind(bind_addr)
         # Bounded deque: when full, oldest messages are silently dropped
-        self._log: deque[DropCopyMessage] = deque(maxlen=DROP_COPY_BUFFER_SIZE)
+        self._log: deque[DropCopyMessage] = deque(maxlen=buffer_size)
         # Per-gateway topic bytes cache — avoids f-string + .encode() per publish
         self._topic_cache: dict[str, bytes] = {}
 
@@ -122,8 +121,6 @@ class DropCopyPublisher:
                      JSON alongside ``seq``, ``timestamp``, ``gateway_id``,
                      and ``event_type``.
         """
-        from edumatcher.models.clock import now_ns
-
         seq = next(_seq_counter)
         now = now_ns()
         msg = DropCopyMessage(

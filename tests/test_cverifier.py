@@ -297,6 +297,26 @@ class TestLayer2Gateways:
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S024" in _codes(results)
 
+    def test_s086_invalid_smp_action(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+            "      smp_action: SOMETIMES\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S086" in _codes(results)
+
+    def test_valid_smp_action_has_no_new_errors(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+            "      smp_action: cancel_both\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S086" not in _codes(results)
+
     def test_s025_gateway_enforce_mm_not_bool(self) -> None:
         raw = _raw(
             "symbols:\n  AAPL: {}\n"

@@ -6,8 +6,12 @@ import argparse
 
 from edumatcher.config_gen.defaults import (
     DEFAULT_CB_WINDOW_NS,
+    DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
+    DEFAULT_DROP_COPY_BUFFER_SIZE,
     DEFAULT_MM_MIN_QTY,
     DEFAULT_MM_SPREAD_TICKS,
+    DEFAULT_QUOTE_HISTORY_MAXLEN,
+    DEFAULT_RECENT_TRADES_MAXLEN,
     DEFAULT_SCHEDULE,
     DEFAULT_SNAPSHOT_INTERVAL_SEC,
     DEFAULT_TICK_DECIMALS,
@@ -39,6 +43,17 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         metavar="GW_SPEC",
         help="One or more gateway specs (ID[:ROLE[:DISCONNECT]]).",
+    )
+    parser.add_argument(
+        "--gateway-smp",
+        action="append",
+        default=[],
+        metavar="GW_ID:SMP_ACTION",
+        help="Gateway-level self-match-prevention default (NONE, CANCEL_AGGRESSOR, "
+        "CANCEL_RESTING, CANCEL_BOTH), applied by the engine to any order, combo "
+        "leg, or quote from GW_ID that doesn't specify its own SMP=. GW_ID must "
+        "be one of the IDs given to --gateways. Omit for a gateway to leave its "
+        "default at NONE. Can be repeated.",
     )
     parser.add_argument(
         "--symbol-opts",
@@ -97,6 +112,34 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_SNAPSHOT_INTERVAL_SEC,
         metavar="SECS",
         help="Snapshot interval seconds (> 0).",
+    )
+    parser.add_argument(
+        "--quote-history-maxlen",
+        type=int,
+        default=DEFAULT_QUOTE_HISTORY_MAXLEN,
+        metavar="N",
+        help="Max RECENT/ALL quote-history entries kept per gateway (> 0).",
+    )
+    parser.add_argument(
+        "--drop-copy-buffer-size",
+        type=int,
+        default=DEFAULT_DROP_COPY_BUFFER_SIZE,
+        metavar="N",
+        help="Drop-copy replay buffer size in messages (> 0).",
+    )
+    parser.add_argument(
+        "--recent-trades-maxlen",
+        type=int,
+        default=DEFAULT_RECENT_TRADES_MAXLEN,
+        metavar="N",
+        help="Recent trades retained per book snapshot (> 0).",
+    )
+    parser.add_argument(
+        "--depth-snapshot-tolerance-ticks",
+        type=int,
+        default=DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
+        metavar="N",
+        help="Depth snapshot window around last trade in ticks (> 0).",
     )
 
     parser.add_argument(
@@ -347,6 +390,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="N",
         help="market_data_gateway.max_client_queue override (> 0).",
+    )
+    parser.add_argument(
+        "--market-data-depth-levels",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.depth_levels override (> 0).",
     )
 
     parser.add_argument(
@@ -677,7 +727,9 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="COMBO_SPEC",
         help=(
             "Seed a market-maker combo order: ID:TYPE:TIF:SYM/SIDE/TYPE/QTY[/PRICE[/STOP[/SMP]]],...\n"
-            "Example: SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550\n"
+            "PRICE and STOP accept either a raw integer tick count (e.g. 20950) or a\n"
+            "decimal display price (e.g. 209.50), converted using the symbol's tick_decimals.\n"
+            "Example: SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50,MSFT/SELL/LIMIT/50/415.50\n"
             "Can be repeated."
         ),
     )

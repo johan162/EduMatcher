@@ -137,7 +137,7 @@ $(TYPECHECK_STAMP): $(SRC_FILES) $(TEST_FILES)
 
 $(TEST_STAMP): $(SRC_FILES) $(TEST_FILES)
 	@echo -e "$(DARKYELLOW)- Running tests with coverage check (≥$(COVERAGE)%)...$(NC)"
-	@if poetry run pytest tests/ -m "not perf" \
+	@if poetry run pytest tests/ -n auto -m "not perf" \
 		--cov=$(SRC_DIR)/$(PROJECT) \
 		--cov-report=term-missing \
 		--cov-report=xml \
@@ -235,9 +235,9 @@ verify: ## Run end-to-end deterministic matching verification suite
 # Code quality
 # ============================================================================================
 check: ## Run all code quality checks in parallel (format + lint + typecheck)
-	$(MAKE) -j 3 _check
+	$(MAKE) -j 4 _check
 
-_check: format lint typecheck
+_check: format lint typecheck typecheck-pyright ## Run all code quality checks (format + lint + typecheck)
 	@:
 
 lint flake8: $(LINT_STAMP) ## Run flake8 linting [stamp-cached]
@@ -247,6 +247,9 @@ format black: $(FORMAT_STAMP) ## Check formatting with black [stamp-cached]
 	@:
 
 typecheck mypy: $(TYPECHECK_STAMP) ## Run mypy type checking [stamp-cached]
+	@:
+
+typecheck-pyright: $(PYRIGHT_STAMP) ## Run pyright type checking [stamp-cached]
 	@:
 
 pre-commit: $(INSTALL_STAMP) ## Run all quality checks + short test (pre-commit gate)
@@ -260,6 +263,24 @@ pre-commit: $(INSTALL_STAMP) ## Run all quality checks + short test (pre-commit 
 # ============================================================================================
 build: $(INSTALL_STAMP) check test docs $(BUILD_WHEEL) $(BUILD_SDIST) ## Build sdist + wheel (runs check, test, docs first)
 	@:
+
+mp-build: ## Build wheel and install into the local multipass VM (requires multipass)
+	@echo -e "$(DARKYELLOW)- Building and installing package into multipass VM...$(NC)"
+	@$(MAKE) build
+	@$(MAKE) mp-dev
+
+mp-dev: ## Install the current dev snapshot into the multipass VM (requires multipass)
+	@echo -e "$(DARKYELLOW)- Installing package into multipass VM...$(NC)"
+	@if ! multipass list | grep -q edumatcher-dev; then \
+		echo -e "$(YELLOW)⚠ Multipass VM 'edumatcher-dev' not found. Building it from scratch...$(NC)"; \
+		./vm/build_multipass_vm.sh --name edumatcher-dev --dev --snapshot; \
+	else \
+		echo -e "$(BLUE)Multipass VM 'edumatcher-dev' already exists. Updating edumatcher to current dev-build ...$(NC)"; \
+		multipass exec edumatcher-dev -- bash -c "rm /tmp/*.whl"; \
+		multipass transfer dist/*.whl edumatcher-dev:/tmp/; \
+		multipass exec edumatcher-dev -- bash -c "cd /home/ubuntu/session && sudo /opt/edumatcher/.venv/bin/pip install --upgrade --force-reinstall /tmp/*.whl"; \
+	fi
+	@echo -e "$(GREEN)✓ Package installed into multipass VM$(NC)"
 
 # ============================================================================================
 # Documentation

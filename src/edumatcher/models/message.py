@@ -10,7 +10,9 @@ Topic conventions
   order.new          — gateway → engine (PUSH/PULL, but we still include a topic for audit)
   order.cancel       — gateway → engine
     system.gateway_connect   — gateway → engine: authenticate gateway_id
-    system.gateway_auth.{GW_ID} — engine → gateway: auth accepted/rejected
+    system.gateway_auth.{GW_ID} — engine → all: auth accepted/rejected (connect)
+    system.gateway_disconnect — gateway → engine: graceful disconnect
+    system.gateway_bye.{GW_ID} — engine → all: disconnect broadcast
   order.ack.{GW_ID}  — engine → gateway: accepted or rejected
   order.fill.{GW_ID} — engine → gateway: partial or full fill
   order.cancelled.{GW_ID} — engine → gateway: cancel confirmed
@@ -23,6 +25,14 @@ from __future__ import annotations
 
 import time
 from typing import Any
+
+from edumatcher.models.feed_schema import (
+    GatewayAuthPayload,
+    GatewayByePayload,
+    SessionStatePayload,
+    SystemEodPayload,
+    TradeExecutedPayload,
+)
 
 # PERF improvement #6: Use orjson instead of stdlib json.
 #
@@ -87,13 +97,14 @@ def make_gateway_auth_msg(
     reason: str = "",
     description: str = "",
 ) -> list[bytes]:
-    topic = f"system.gateway_auth.{gateway_id}"
-    payload = {
-        "gateway_id": gateway_id,
-        "accepted": accepted,
-        "reason": reason,
-        "description": description,
-    }
+    typed = GatewayAuthPayload(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        description=description,
+    )
+    topic = f"system.gateway_auth.{typed.gateway_id}"
+    payload = typed.to_dict()
     return encode(topic, payload)
 
 
@@ -223,7 +234,8 @@ def make_expired_msg(
 
 
 def make_trade_msg(trade_dict: dict[str, Any]) -> list[bytes]:
-    return encode("trade.executed", trade_dict)
+    typed = TradeExecutedPayload.from_dict(trade_dict)
+    return encode("trade.executed", typed.to_dict())
 
 
 def make_book_msg(symbol: str, book_snapshot: dict[str, Any]) -> list[bytes]:
@@ -249,7 +261,8 @@ def make_eod_msg(books: list[dict[str, Any]]) -> list[bytes]:
     ``books`` is a list of book snapshots (one per symbol), each containing
     the current best bid/ask so subscribers can record closing prices.
     """
-    return encode("system.eod", {"books": books})
+    typed = SystemEodPayload.from_dict({"books": books})
+    return encode("system.eod", typed.to_dict())
 
 
 def make_symbols_request_msg(gateway_id: str) -> list[bytes]:
@@ -294,10 +307,41 @@ def make_quote_legs_request_msg(
     )
 
 
-def make_quote_legs_msg(gateway_id: str, legs: list[dict[str, Any]]) -> list[bytes]:
-    """Engine -> gateway: reply with quote legs snapshot."""
+def make_quote_legs_msg(
+    gateway_id: str,
+    legs: list[dict[str, Any]],
+    *,
+    show_requested: str = "ACTIVE",
+    complete: bool = True,
+    recent: list[dict[str, Any]] | None = None,
+) -> list[bytes]:
+    """Engine -> gateway: reply with quote legs snapshot.
+
+    *legs* is the currently-active per-leg detail (qty, remaining, status)
+    — populated when *show_requested* is ``"ACTIVE"`` or ``"ALL"``.
+
+    *recent* is a bounded, most-recently-removed-first list of quote-level
+    summaries (quote_id, symbol, leg order ids, final quote_status, removal
+    *reason*, and *removed_at_ns*) drawn from the engine's in-memory,
+    per-gateway inactivation history — populated when *show_requested* is
+    ``"RECENT"`` or ``"ALL"``. Unlike *legs*, recent rows do not carry live
+    qty/remaining/status: that detail is not retained once an order leaves
+    the book. This history does not survive an engine restart.
+
+    *complete* is ``True`` when the reply fully answers what was requested
+    (always true for ``ACTIVE``; also true for ``RECENT``/``ALL`` now that
+    real history is tracked, modulo the history buffer's bound).
+    """
     topic = f"system.quote_legs.{gateway_id}"
-    return encode(topic, {"legs": legs})
+    return encode(
+        topic,
+        {
+            "legs": legs,
+            "show_requested": show_requested,
+            "complete": complete,
+            "recent": recent or [],
+        },
+    )
 
 
 # ------------------------------------------------------------------
@@ -464,10 +508,8 @@ def make_session_transition_msg(to_state: str) -> list[bytes]:
 
 def make_session_state_msg(state: str, prev_state: str = "") -> list[bytes]:
     """Engine → all: broadcast current session state."""
-    payload: dict[str, Any] = {"state": state}
-    if prev_state:
-        payload["prev_state"] = prev_state
-    return encode("session.state", payload)
+    typed = SessionStatePayload(state=state, prev_state=prev_state)
+    return encode("session.state", typed.to_dict())
 
 
 def make_auction_result_msg(
@@ -606,6 +648,20 @@ def make_gateway_disconnect_msg(gateway_id: str, reason: str = "") -> list[bytes
             "reason": reason,
         },
     )
+
+
+def make_gateway_bye_msg(gateway_id: str, reason: str = "") -> list[bytes]:
+    """
+    Engine → all subscribers: gateway lifecycle *disconnect* broadcast.
+
+    The PUB-side counterpart to ``system.gateway_auth.{id}`` (connect).  The
+    inbound ``system.gateway_disconnect`` is a gateway→engine PULL message and
+    never reaches PUB subscribers such as clearing; this broadcast republishes
+    the disconnect on the public feed so downstream consumers can close the
+    matching session.
+    """
+    typed = GatewayByePayload(gateway_id=gateway_id, reason=reason)
+    return encode(f"system.gateway_bye.{typed.gateway_id}", typed.to_dict())
 
 
 def make_kill_switch_msg(gateway_id: str, symbol: str = "") -> list[bytes]:
@@ -772,13 +828,6 @@ def make_cancel_symbol_ack_msg(
     )
 
 
-def make_dropcopy_fill_msg(
-    gateway_id: str, fill_payload: dict[str, Any]
-) -> list[bytes]:
-    """Engine → backoffice: copy of fill activity for one participant."""
-    return encode(f"dropcopy.fill.{gateway_id}", fill_payload)
-
-
 # ---------------------------------------------------------------------------
 # Halt-status snapshot (request / reply)
 # ---------------------------------------------------------------------------
@@ -867,7 +916,13 @@ def make_index_history_request_msg(
     types: list[str] | None = None,
     max_records: int = 10_000,
 ) -> list[bytes]:
-    """Gateway/operator → pm-index: request historical index records."""
+    """Gateway/operator → pm-index: request structural/audit index records.
+
+    pm-index's history is a structural audit log only (INIT, CORP_ACTION,
+    ADD_CONSTITUENT, DELIST) — it no longer stores level or EOD ticks.
+    Omitting *types* returns all structural record types. For index
+    level/EOD time-series history, query pm-stats instead.
+    """
     return encode(
         "index.history_request",
         {
@@ -875,7 +930,7 @@ def make_index_history_request_msg(
             "index_id": index_id,
             "from_ts": from_ts,
             "to_ts": to_ts,
-            "types": types or ["LEVEL", "EOD"],
+            "types": types or ["INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"],
             "max_records": max_records,
         },
     )

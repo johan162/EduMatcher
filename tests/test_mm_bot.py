@@ -326,6 +326,51 @@ class TestMainParsing:
             mm_main.main(["--symbol", "AAPL", "--qlegs-reconcile-interval-sec", "-1"])
         assert exc_info.value.code == 1
 
+    def test_main_build_parser_logging_flags(self) -> None:
+        """Parser accepts standard logging flags."""
+        from edumatcher.mm_bot import main as mm_main
+
+        args = mm_main._parse_args(
+            [
+                "--symbol",
+                "AAPL",
+                "-vv",
+                "--quiet",
+                "--log-level",
+                "ERROR",
+            ]
+        )
+        assert args.symbol == "AAPL"
+        assert args.verbose == 2
+        assert args.quiet is True
+        assert args.log_level == "ERROR"
+
+    def test_main_verbose_flag_enables_bot_debug(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """-v keeps legacy bot debug behavior enabled."""
+        from edumatcher.mm_bot import main as mm_main
+
+        bot_instances: list[object] = []
+
+        class FakeBot:
+            def __init__(self, **kwargs: object) -> None:
+                self.kwargs = kwargs
+                bot_instances.append(self)
+
+            def run(self) -> int:
+                return 0
+
+            def shutdown(self) -> None:
+                pass
+
+        monkeypatch.setattr("edumatcher.mm_bot.bot.MMBot", FakeBot)
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--symbol", "AAPL", "-v"])
+        assert exc_info.value.code == 0
+        assert len(bot_instances) == 1
+        assert bot_instances[0].kwargs["verbose"] is True  # type: ignore[attr-defined]
+
 
 # ========================================================================
 # Tests — MMBot integration tests (Phase 2-5)

@@ -20,6 +20,8 @@ Usage:
 Options:
   --version   Optional. PyPI version to install, for example 0.7.1
               If omitted, installs latest available release.
+  --dev       Optional. Install the local wheel file from /tmp/*.whl
+              instead of downloading from PyPI.
   --help      Show this help text
 EOF
 }
@@ -29,6 +31,10 @@ while [[ $# -gt 0 ]]; do
     --version)
       VERSION="${2:-}"
       shift 2
+      ;;
+    --dev)
+      VERSION="dev"
+      shift
       ;;
     --help)
       usage
@@ -81,8 +87,10 @@ fi
 mkdir -p /opt/edumatcher
 "$PYTHON_BIN" -m venv "$VENV_DIR"
 "$VENV_DIR/bin/pip" install --upgrade pip
-if [[ -n "$VERSION" && "$VERSION" != "latest" ]]; then
+if [[ -n "$VERSION" && "$VERSION" != "latest" && "$VERSION" != "dev" ]]; then
   "$VENV_DIR/bin/pip" install "${PACKAGE_NAME}==${VERSION}"
+elif [[ "$VERSION" == "dev" ]]; then
+  "$VENV_DIR/bin/pip" install /tmp/*.whl
 else
   "$VENV_DIR/bin/pip" install "${PACKAGE_NAME}"
 fi

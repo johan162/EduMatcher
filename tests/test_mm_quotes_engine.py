@@ -7,7 +7,7 @@ import pytest
 from edumatcher.engine.config_loader import EngineConfig, FixGatewayConfig, SymbolConfig
 from edumatcher.engine.main import Engine
 from edumatcher.models.message import decode
-from edumatcher.models.order import Order, OrderType, Side, TIF
+from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 
 
@@ -31,6 +31,7 @@ def _make_engine(
     enforce_mm_obligation: bool = False,
     mm_max_spread_ticks: int = 10,
     mm_min_qty: int = 100,
+    smp_action: SmpAction = SmpAction.NONE,
 ) -> tuple[Engine, _FakeSock]:
     pull_sock = _FakeSock(sent=[])
     pub_sock = _FakeSock(sent=[])
@@ -46,6 +47,7 @@ def _make_engine(
                 enforce_mm_obligation=enforce_mm_obligation,
                 mm_max_spread_ticks=mm_max_spread_ticks,
                 mm_min_qty=mm_min_qty,
+                smp_action=smp_action,
             )
         },
         sessions_enabled=False,
@@ -238,6 +240,153 @@ def test_quote_obligation_not_enforced_when_disabled(monkeypatch, tmp_path) -> N
         [f for f in pub_sock.sent if decode(f)[0] == "quote.ack.GW01"][-1]
     )[1]
     assert ack_payload["accepted"] is True
+
+
+def test_quote_legs_inherit_gateway_smp_action(monkeypatch, tmp_path) -> None:
+    """gateways.alf[].smp_action should be attached to both bid and ask legs
+    a QUOTE produces, not just left at the SmpAction.NONE default."""
+    engine, _ = _make_engine(
+        monkeypatch,
+        tmp_path,
+        role=ParticipantRole.MARKET_MAKER,
+        smp_action=SmpAction.CANCEL_RESTING,
+    )
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q-SMP-1",
+            "bid_price": 100.0,
+            "bid_qty": 10,
+            "ask_price": 101.0,
+            "ask_qty": 10,
+        }
+    )
+    entry = engine._quote_index.get("GW01", "AAPL")
+    assert entry is not None
+    book = engine._book("AAPL")
+    resting_by_id = {o.id: o for o in book.resting_orders()}
+    bid_order = resting_by_id[entry.bid_order_id]
+    ask_order = resting_by_id[entry.ask_order_id]
+    assert bid_order.smp_action == SmpAction.CANCEL_RESTING
+    assert ask_order.smp_action == SmpAction.CANCEL_RESTING
+
+
+def test_quote_smp_action_defaults_to_none_when_unconfigured(
+    monkeypatch, tmp_path
+) -> None:
+    engine, _ = _make_engine(monkeypatch, tmp_path, role=ParticipantRole.MARKET_MAKER)
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q-SMP-DEFAULT",
+            "bid_price": 100.0,
+            "bid_qty": 10,
+            "ask_price": 101.0,
+            "ask_qty": 10,
+        }
+    )
+    entry = engine._quote_index.get("GW01", "AAPL")
+    assert entry is not None
+    book = engine._book("AAPL")
+    resting_by_id = {o.id: o for o in book.resting_orders()}
+    assert resting_by_id[entry.bid_order_id].smp_action == SmpAction.NONE
+    assert resting_by_id[entry.ask_order_id].smp_action == SmpAction.NONE
+
+
+def test_quote_smp_cancel_resting_prevents_self_match(monkeypatch, tmp_path) -> None:
+    """With gateways.alf[].smp_action=CANCEL_RESTING, a quote leg that would
+    otherwise cross a stale same-gateway resting order cancels that resting
+    order instead of self-trading against it."""
+    engine, pub_sock = _make_engine(
+        monkeypatch,
+        tmp_path,
+        role=ParticipantRole.MARKET_MAKER,
+        smp_action=SmpAction.CANCEL_RESTING,
+    )
+
+    # A same-gateway resting SELL at 100.00, left over from e.g. a stale NEW
+    # order — not itself a quote leg, so quote-replacement's own cancel path
+    # never touches it.
+    stale_ask_seed = Order.create(
+        symbol="AAPL",
+        side=Side.SELL,
+        order_type=OrderType.LIMIT,
+        quantity=10,
+        gateway_id="GW01",
+        tif=TIF.DAY,
+        price=10000,  # ticks; 100.00
+    )
+    stale_ask_id = stale_ask_seed.id
+    # _handle_new_order rebuilds its own Order from the payload dict (via
+    # Order.from_dict), so it does not mutate stale_ask_seed in place --
+    # track the id and re-look-up state from the book itself below.
+    engine._handle_new_order(stale_ask_seed.to_dict())
+    book = engine._book("AAPL")
+    assert stale_ask_id in {o.id for o in book.resting_orders()}
+
+    pub_sock.sent.clear()
+    # New quote's bid crosses the stale resting ask.
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q-SMP-CROSS",
+            "bid_price": 100.0,
+            "bid_qty": 10,
+            "ask_price": 101.0,
+            "ask_qty": 10,
+        }
+    )
+
+    # No trade occurred -- the resting order was SMP-cancelled, not filled.
+    assert "trade.executed" not in _topics(pub_sock)
+    assert "order.cancelled.GW01" in _topics(pub_sock)
+    remaining_ids = {o.id for o in book.resting_orders()}
+    assert stale_ask_id not in remaining_ids
+
+    entry = engine._quote_index.get("GW01", "AAPL")
+    assert entry is not None
+    assert entry.bid_order_id in remaining_ids  # quote's bid still rests
+
+
+def test_quote_without_smp_action_self_trades_against_stale_resting_order(
+    monkeypatch, tmp_path
+) -> None:
+    """Control case for the previous test: with smp_action left at the
+    NONE default, the same crossing scenario DOES self-trade -- proving the
+    CANCEL_RESTING behavior above comes from the gateway config wiring and
+    not from some other unrelated guard."""
+    engine, pub_sock = _make_engine(
+        monkeypatch, tmp_path, role=ParticipantRole.MARKET_MAKER
+    )
+
+    stale_ask = Order.create(
+        symbol="AAPL",
+        side=Side.SELL,
+        order_type=OrderType.LIMIT,
+        quantity=10,
+        gateway_id="GW01",
+        tif=TIF.DAY,
+        price=10000,
+    )
+    engine._handle_new_order(stale_ask.to_dict())
+
+    pub_sock.sent.clear()
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q-NO-SMP-CROSS",
+            "bid_price": 100.0,
+            "bid_qty": 10,
+            "ask_price": 101.0,
+            "ask_qty": 10,
+        }
+    )
+
+    assert "trade.executed" in _topics(pub_sock)
 
 
 @pytest.mark.parametrize(

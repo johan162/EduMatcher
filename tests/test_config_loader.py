@@ -14,6 +14,7 @@ from edumatcher.engine.config_loader import (
     ScheduleConfig,
     load_engine_config,
 )
+from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 from edumatcher.models.quote import QuoteRefreshPolicy
 
@@ -131,6 +132,7 @@ class TestConfigLoaderHappyPath:
               enforce_mm_obligation: true
               mm_max_spread_ticks: 8
               mm_min_qty: 50
+              smp_action: CANCEL_RESTING
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         gw = cfg.fix_gateways["MM01"]
@@ -140,6 +142,30 @@ class TestConfigLoaderHappyPath:
         assert gw.enforce_mm_obligation is True
         assert gw.mm_max_spread_ticks == 8
         assert gw.mm_min_qty == 50
+        assert gw.smp_action == SmpAction.CANCEL_RESTING
+
+    def test_gateway_smp_action_defaults_to_none(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          alf:
+            - id: GW01
+        """
+        cfg = load_engine_config(_write_yaml(tmp_path, yaml))
+        assert cfg.fix_gateways["GW01"].smp_action == SmpAction.NONE
+
+    def test_gateway_smp_action_case_insensitive(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          alf:
+            - id: GW01
+              smp_action: cancel_both
+        """
+        cfg = load_engine_config(_write_yaml(tmp_path, yaml))
+        assert cfg.fix_gateways["GW01"].smp_action == SmpAction.CANCEL_BOTH
 
     def test_gateway_id_uppercased(self, tmp_path: Path) -> None:
         yaml = """
@@ -222,8 +248,35 @@ class TestConfigLoaderHappyPath:
     def test_snapshot_interval_defaults_to_point_five(self, tmp_path: Path) -> None:
         cfg = load_engine_config(_write_yaml(tmp_path, MINIMAL_YAML))
         assert cfg.snapshot_interval_sec == pytest.approx(0.5)
+        assert cfg.quote_history_maxlen == 30
+        assert cfg.drop_copy_buffer_size == 10_000
+        assert cfg.recent_trades_maxlen == 20
+        assert cfg.depth_snapshot_tolerance_ticks == 100
 
     def test_snapshot_interval_custom_value(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          alf:
+            - id: GW01
+        engine_tuning:
+          snapshot_interval_sec: 1.25
+          quote_history_maxlen: 60
+          drop_copy_buffer_size: 5000
+          recent_trades_maxlen: 50
+          depth_snapshot_tolerance_ticks: 250
+        """
+        cfg = load_engine_config(_write_yaml(tmp_path, yaml))
+        assert cfg.snapshot_interval_sec == pytest.approx(1.25)
+        assert cfg.quote_history_maxlen == 60
+        assert cfg.drop_copy_buffer_size == 5000
+        assert cfg.recent_trades_maxlen == 50
+        assert cfg.depth_snapshot_tolerance_ticks == 250
+
+    def test_snapshot_interval_legacy_top_level_still_supported(
+        self, tmp_path: Path
+    ) -> None:
         yaml = """
         symbols:
           AAPL: {}
@@ -344,7 +397,8 @@ class TestConfigLoaderFileErrors:
         gateways:
           alf:
             - id: GW01
-        snapshot_interval_sec: "fast"
+        engine_tuning:
+          snapshot_interval_sec: "fast"
         """
         with pytest.raises(ValueError, match="snapshot_interval_sec"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -356,9 +410,37 @@ class TestConfigLoaderFileErrors:
         gateways:
           alf:
             - id: GW01
-        snapshot_interval_sec: 0
+        engine_tuning:
+          snapshot_interval_sec: 0
         """
         with pytest.raises(ValueError, match="snapshot_interval_sec"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_engine_tuning_non_mapping_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          alf:
+            - id: GW01
+        engine_tuning: fast
+        """
+        with pytest.raises(ValueError, match="engine_tuning"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_engine_tuning_integer_fields_must_be_positive(
+        self, tmp_path: Path
+    ) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          alf:
+            - id: GW01
+        engine_tuning:
+          quote_history_maxlen: 0
+        """
+        with pytest.raises(ValueError, match="quote_history_maxlen"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
     def test_enforce_collars_non_bool_raises(self, tmp_path: Path) -> None:
@@ -612,6 +694,18 @@ class TestConfigLoaderGatewayErrors:
               quote_refresh_policy: SOMETIMES
         """
         with pytest.raises(ValueError, match="quote_refresh_policy is invalid"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_gateway_invalid_smp_action_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          alf:
+            - id: GW01
+              smp_action: SOMETIMES
+        """
+        with pytest.raises(ValueError, match="smp_action is invalid"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
     def test_gateway_invalid_enforce_mm_obligation_type_raises(

@@ -85,40 +85,49 @@ nav:
     - Your First Trade: concepts/04-concepts-first-trade.md
     - A Full Trading Day: concepts/05-concepts-trading-day.md
     - Market Data Feed (CALF): concepts/06-concepts-market-data-feed.md
+    - Implied Orders: concepts/07-concepts-implied-orders.md
   - User Guide:
-    - Getting Started: user-guide/00-getting-started.md
-    - Configuration: user-guide/01-configuration.md
-    - Controlling the Exchange: user-guide/02-commands.md
-    - Running the Engine: user-guide/03-running-the-engine.md
-    - Order Types: user-guide/04-order-types.md
-    - Combo Orders: user-guide/05-combos.md
-    - Auctions & Scheduling: user-guide/06-auctions-scheduling.md
-    - P&L & Clearing: user-guide/07-pnl-clearing.md
-    - Gateway Commands: user-guide/08-gateway.md
-    - Messages: user-guide/09-messages.md
-    - Processes: user-guide/10-processes.md
-    - Persistence: user-guide/11-persistence.md
-    - Risk Controls: user-guide/12-risk-controls.md
-    - Drop Copy: user-guide/13-drop-copy.md
-    - Market Making: user-guide/14-market-maker.md
-    - AI Traders: user-guide/15-ai-traders.md
-    - Statistics and Reporting: user-guide/16-statistics-and-reporting.md
-    - Market-Maker Bot: user-guide/17-mm-bot.md
-    - Post-Trade Dissemination (RALF): user-guide/18-post-trade.md
-    - External Protocols Overview: user-guide/19-protocol-overview.md
-    - Market Data Feed (CALF): user-guide/20-market-data-feed.md
-    - API Gateway (REST/WebSocket): user-guide/21-api-gateway.md
-    - Market Index (pm-index): user-guide/22-index.md
-    - Config Verifier (pm-cverifier): user-guide/23-config-verifier.md
-    - ALF TCP Gateway (pm-alf-gwy): user-guide/24-alf-gateway.md
-    - BALF TCP Gateway (pm-balf-gwy): user-guide/25-balf-gateway.md
-    - Protocol Support Library Examples: user-guide/80-examples.md
-    - Example Engine Configs: user-guide/81-example-configs.md
-    - Known Limitations & Bugs: user-guide/89-known-limitations-bugs.md
-    - Appendix - ALF Protocol: user-guide/90-app-alf-protocol.md
-    - Appendix - BALF Protocol: user-guide/91-app-balf-protocol.md
-    - Appendix - CALF Protocol: user-guide/92-app-calf-protocol.md
-    - Appendix - RALF Protocol: user-guide/93-app-ralf-protocol.md
+    - Getting Started: user-guide/000-getting-started.md
+    - Engine Configuration: user-guide/010-configuration.md
+    - Config Verifier: user-guide/020-config-verifier.md
+    - Configuration GUI: user-guide/030-config-GUI.md
+    - Running the Exchange: user-guide/040-running-the-engine.md
+    - Gateway Reference: user-guide/050-gateway.md
+    - Order Types: user-guide/060-order-types.md
+    - Combo Orders: user-guide/070-combos.md
+    - Auctions & Scheduling: user-guide/080-auctions-scheduling.md
+    - Market Making: user-guide/090-market-maker.md
+    - Market-Maker Bot: user-guide/100-mm-bot.md
+    - AI Traders: user-guide/110-ai-traders.md
+    - Risk Controls: user-guide/120-risk-controls.md
+    - P&L & Clearing: user-guide/130-pnl-clearing.md
+    - Statistics and Reporting: user-guide/140-statistics-and-reporting.md
+    - Market Index: user-guide/150-index.md
+    - Index Admin CLI: user-guide/152-index-admin-cli.md
+    - Exchange Commands: user-guide/160-commands.md
+    - Processes: user-guide/170-processes.md
+    - Persistence: user-guide/180-persistence.md
+    - Audit Trail: user-guide/190-audit.md
+    - Drop Copy: user-guide/200-drop-copy.md
+    - Drop-Copy TCP Gateway (pm-dc-gwy): user-guide/201-dc-gateway.md
+    - External Protocols Overview: user-guide/210-protocol-overview.md
+    - ALF TCP Gateway: user-guide/220-alf-gateway.md
+    - BALF TCP Gateway: user-guide/230-balf-gateway.md
+    - Market Data Feed (CALF): user-guide/240-market-data-feed.md
+    - CALF Protocol Spy (pm-calf-spy): user-guide/241-calf-spy-cli.md
+    - Post-Trade Dissemination (RALF): user-guide/250-post-trade.md
+    - RALF Protocol Spy (pm-ralf-spy): user-guide/251-ralf-spy-cli.md
+    - Drop-Copy Spy (pm-dc-spy): user-guide/252-dc-spy-cli.md
+    - API Gateway: user-guide/260-api-gateway.md
+    - Message Reference: user-guide/270-messages.md
+    - Examples: user-guide/800-examples.md
+    - Example Engine Configs: user-guide/810-example-configs.md
+    - Known Limitations & Bugs: user-guide/890-known-limitations-bugs.md
+    - "Appendix: ALF Protocol": user-guide/900-app-alf-protocol.md
+    - "Appendix: BALF Protocol": user-guide/910-app-balf-protocol.md
+    - "Appendix: CALF Protocol": user-guide/920-app-calf-protocol.md
+    - "Appendix: RALF Protocol": user-guide/930-app-ralf-protocol.md
+    - "Appendix: Engine Config Specification": user-guide/990-app-config-spec.md
   - Training:
     - Overview: training/index.md
     - "00 — Installation & Setup": training/00-installation.md

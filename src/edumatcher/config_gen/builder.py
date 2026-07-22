@@ -8,6 +8,7 @@ import random
 import string
 from typing import Any
 
+from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import ParticipantRole
 
 from .cb_spec import CbSpec
@@ -40,6 +41,7 @@ from .defaults import (
     DEFAULT_INDEX_DATA_DIR,
     DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
+    DEFAULT_MARKET_DATA_GATEWAY_DEPTH_LEVELS,
     DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE,
@@ -48,6 +50,8 @@ from .defaults import (
     DEFAULT_MARKET_DATA_GATEWAY_PORT,
     DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC,
     DEFAULT_CB_WINDOW_NS,
+    DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
+    DEFAULT_DROP_COPY_BUFFER_SIZE,
     DEFAULT_DYNAMIC_BAND_PCT,
     DEFAULT_MM_MIN_QTY,
     DEFAULT_MM_SPREAD_TICKS,
@@ -60,6 +64,8 @@ from .defaults import (
     DEFAULT_POST_TRADE_GATEWAY_NAME,
     DEFAULT_POST_TRADE_GATEWAY_PORT,
     DEFAULT_POST_TRADE_GATEWAY_REPLAY_RETENTION_SEC,
+    DEFAULT_QUOTE_HISTORY_MAXLEN,
+    DEFAULT_RECENT_TRADES_MAXLEN,
     DEFAULT_SNAPSHOT_INTERVAL_SEC,
     DEFAULT_STATIC_BAND_PCT,
     DEFAULT_TICK_DECIMALS,
@@ -74,6 +80,10 @@ class ConfigSpec:
     gateways: list[GatewaySpec]
     sessions_enabled: bool = False
     snapshot_interval_sec: float = DEFAULT_SNAPSHOT_INTERVAL_SEC
+    quote_history_maxlen: int = DEFAULT_QUOTE_HISTORY_MAXLEN
+    drop_copy_buffer_size: int = DEFAULT_DROP_COPY_BUFFER_SIZE
+    recent_trades_maxlen: int = DEFAULT_RECENT_TRADES_MAXLEN
+    depth_snapshot_tolerance_ticks: int = DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS
     enforce_collars: bool = True
     enforce_circuit_breakers: bool = True
     static_band_pct: float | None = None
@@ -129,6 +139,7 @@ class MarketDataGatewaySpec:
     replay_window_sec: int = DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC
     max_symbols_per_client: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT
     max_client_queue: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE
+    depth_levels: int = DEFAULT_MARKET_DATA_GATEWAY_DEPTH_LEVELS
 
 
 @dataclass(frozen=True)
@@ -217,7 +228,13 @@ class ConfigBuilder:
             "sessions_enabled": self.spec.sessions_enabled,
             "enforce_collars": self.spec.enforce_collars,
             "enforce_circuit_breakers": self.spec.enforce_circuit_breakers,
-            "snapshot_interval_sec": self.spec.snapshot_interval_sec,
+            "engine_tuning": {
+                "snapshot_interval_sec": self.spec.snapshot_interval_sec,
+                "quote_history_maxlen": self.spec.quote_history_maxlen,
+                "drop_copy_buffer_size": self.spec.drop_copy_buffer_size,
+                "recent_trades_maxlen": self.spec.recent_trades_maxlen,
+                "depth_snapshot_tolerance_ticks": self.spec.depth_snapshot_tolerance_ticks,
+            },
         }
 
         if self._should_emit_mm_defaults():
@@ -289,6 +306,7 @@ class ConfigBuilder:
             "replay_window_sec": spec.replay_window_sec,
             "max_symbols_per_client": spec.max_symbols_per_client,
             "max_client_queue": spec.max_client_queue,
+            "depth_levels": spec.depth_levels,
         }
 
     def _build_balf_gateway(self) -> dict[str, Any]:
@@ -526,6 +544,8 @@ class ConfigBuilder:
                 payload["description"] = gw.description
             if gw.role == ParticipantRole.MARKET_MAKER:
                 payload["quote_refresh_policy"] = "INACTIVATE_ON_ANY_FILL"
+            if gw.smp_action != SmpAction.NONE:
+                payload["smp_action"] = gw.smp_action.value
             gateways.append(payload)
         return gateways
 

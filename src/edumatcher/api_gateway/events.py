@@ -5,12 +5,19 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+ORDER_ACK_PREFIX = "order.ack."
+ORDER_FILL_PREFIX = "order.fill."
+ORDER_AMENDED_PREFIX = "order.amended."
+ORDER_CANCELLED_PREFIX = "order.cancelled."
+ORDER_EXPIRED_PREFIX = "order.expired."
+SYSTEM_SYMBOLS_PREFIX = "system.symbols."
+
 PRIVATE_PREFIXES = (
-    "order.ack.",
-    "order.fill.",
-    "order.amended.",
-    "order.cancelled.",
-    "order.expired.",
+    ORDER_ACK_PREFIX,
+    ORDER_FILL_PREFIX,
+    ORDER_AMENDED_PREFIX,
+    ORDER_CANCELLED_PREFIX,
+    ORDER_EXPIRED_PREFIX,
     "order.orders.",
     "combo.ack.",
     "combo.status.",
@@ -20,7 +27,7 @@ PRIVATE_PREFIXES = (
     "quote.status.",
     "risk.kill_switch_ack.",
     "system.gateway_auth.",
-    "system.symbols.",
+    SYSTEM_SYMBOLS_PREFIX,
     "system.quote_bootstrap.",
     "system.quote_legs.",
     "system.session_status.",
@@ -58,6 +65,8 @@ def websocket_type(topic: str) -> str:
         return "session"
     if topic.startswith("circuit_breaker."):
         return "circuit_breaker"
+    if topic.startswith("auction.result."):
+        return "auction"
     parts = topic.split(".")
     if len(parts) >= 2:
         return f"{parts[0]}.{parts[1]}"
@@ -81,5 +90,7 @@ def market_data_symbol(topic: str, payload: dict[str, Any]) -> str | None:
     """Find the symbol associated with a public market-data event."""
     if topic.startswith("book.") or topic.startswith("depth."):
         return topic.split(".", 1)[1]
+    if topic.startswith("auction.result."):
+        return topic[len("auction.result.") :].upper()
     raw_symbol = payload.get("symbol")
     return str(raw_symbol).upper() if raw_symbol else None

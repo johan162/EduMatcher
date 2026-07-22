@@ -87,6 +87,12 @@ class TestSmpCancelAggressor:
         assert trades == []
         assert buy.status == OrderStatus.CANCELLED
         assert sell.status == OrderStatus.NEW  # resting order untouched
+        # Spec (review C3): the cancelled aggressor must NOT be rested — no
+        # phantom quantity in the bid index, no re-registration in the book.
+        assert (
+            sum(book._bid_qty.values()) == 0
+        ), f"cancelled SMP aggressor left phantom bid qty: {dict(book._bid_qty)}"
+        assert book.get_order(buy.id) is None
 
     def test_sell_aggressor_cancelled(self):
         book = OrderBook("AAPL")
@@ -103,6 +109,11 @@ class TestSmpCancelAggressor:
         assert trades == []
         assert sell.status == OrderStatus.CANCELLED
         assert buy.status == OrderStatus.NEW
+        # Spec (review C3): the cancelled aggressor must NOT be rested.
+        assert (
+            sum(book._ask_qty.values()) == 0
+        ), f"cancelled SMP aggressor left phantom ask qty: {dict(book._ask_qty)}"
+        assert book.get_order(sell.id) is None
 
     def test_different_gateway_no_smp(self):
         """SMP should not trigger when gateways differ."""
@@ -209,6 +220,10 @@ class TestSmpCancelBoth:
         assert trades == []
         assert buy.status == OrderStatus.CANCELLED
         assert sell.status == OrderStatus.CANCELLED
+        # Spec (review C3): neither cancelled order may remain on the book.
+        assert (
+            sum(book._bid_qty.values()) == 0
+        ), f"cancelled SMP aggressor left phantom bid qty: {dict(book._bid_qty)}"
 
     def test_sell_both_cancelled(self):
         book = OrderBook("AAPL")
@@ -507,15 +522,20 @@ class TestSmpFok:
         """
         FOK BUY 100 @ 100.0, CANCEL_RESTING, against own resting SELL.
 
-        The pre-check counts 100 available (same-gateway qty included), so the
-        sweep starts.  SMP=CANCEL_RESTING then cancels the resting order and
-        continues — but there is no further liquidity, so the FOK ends up
-        unfilled.  _match_fok does not call _rest() or explicitly cancel the
-        aggressor after the sweep, so the FOK status stays NEW and the order
-        is silently discarded (neither resting nor cancelled in events).
+        The pre-check counts 100 available (same-gateway qty included), so
+        the sweep starts.  SMP=CANCEL_RESTING then cancels the resting order
+        and continues — but there is no further liquidity, so the FOK cannot
+        fill.
 
-        This is an edge case: SMP removes the liquidity that passed the pre-check.
-        The practical consequence is the same as a REJECTED FOK — no fill occurs.
+        Spec (review H8): a FOK must ALWAYS end in a terminal state — FILLED,
+        REJECTED, or CANCELLED — and its terminal event must be emitted so
+        the owner is notified.  It must never be silently discarded in a
+        non-terminal limbo.
+
+        NOTE: this test previously ASSERTED the limbo ("FOK is silently
+        discarded — not rested, not explicitly cancelled"), pinning the bug
+        as expected behaviour.  Rewritten as a specification test; it FAILS
+        until review finding H8 is fixed.
         """
         book = OrderBook("AAPL")
         own_sell = _limit(Side.SELL, 100.0, qty=100, gateway_id="GW1")
@@ -532,9 +552,15 @@ class TestSmpFok:
 
         assert trades == []
         assert own_sell.status == OrderStatus.CANCELLED
-        # FOK is silently discarded — not rested, not explicitly cancelled
-        assert fok.remaining_qty == 100
-        # verify no further buy-side liquidity remains at that price
+        # FOK must reach a terminal state and the owner must be told.
+        assert fok.status in (
+            OrderStatus.REJECTED,
+            OrderStatus.CANCELLED,
+        ), f"H8: FOK left in non-terminal limbo state {fok.status.value}"
+        assert any(
+            e.id == fok.id and e.status == fok.status for e in events
+        ), "H8: no terminal event emitted for the unfillable FOK"
+        # And it must never rest:
         snap = book.snapshot()
         assert all(level["price"] != 100.0 for level in snap["bids"])
 
@@ -940,30 +966,38 @@ class TestIcebergReplenishment:
         assert iceberg.status == OrderStatus.FILLED
 
     def test_iceberg_loses_priority_after_replenishment(self):
-        """After replenishment, iceberg goes behind earlier orders at same price."""
+        """After replenishment, iceberg goes behind orders that were already
+        resting at the same price when the peak refreshed.
+
+        Finding H1: priority is engine arrival order, not the client-supplied
+        timestamp — so this is expressed via true arrival order rather than by
+        back-dating a timestamp (which the engine now ignores for priority).
+        """
         book = OrderBook("AAPL")
-        # Place iceberg first
+        # Place iceberg first — it holds the front of the queue at 100.0.
         iceberg = _limit(Side.BUY, 100.0, qty=200, visible_qty=50, gateway_id="ICE")
         book.process(iceberg)
 
-        # Consume the first slice — iceberg replenishes with a new timestamp
-        sell1 = _limit(Side.SELL, 100.0, qty=50, gateway_id="MM")
-        book.process(sell1)
-
-        # Place a regular limit at same price BEFORE the replenishment timestamp
-        # To guarantee ordering, manually backdate it to just before iceberg's new ts
+        # A regular limit rests at the same price AFTER the iceberg but BEFORE
+        # its peak is consumed — so in arrival order it sits behind the current
+        # peak but ahead of any *future* refreshed peak.
         regular = _limit(Side.BUY, 100.0, qty=50, gateway_id="REG")
-        regular.timestamp = (
-            iceberg.timestamp - 1
-        )  # 1ns earlier than replenished iceberg
         book.process(regular)
 
-        # Next sell should fill the regular order (earlier timestamp than replenished iceberg)
+        # Consume the iceberg's first slice — the iceberg had priority for its
+        # displayed peak, then replenishes and re-queues to the back (a later
+        # arrival sequence than `regular`).
+        sell1 = _limit(Side.SELL, 100.0, qty=50, gateway_id="MM")
+        t1, _ = book.process(sell1)
+        assert t1[0].buy_order_id == iceberg.id  # peak had priority first
+
+        # Next sell fills the regular order, which now sits ahead of the
+        # refreshed peak.
         sell2 = _limit(Side.SELL, 100.0, qty=50, gateway_id="MM")
         trades, events = book.process(sell2)
 
         assert len(trades) == 1
-        # The fill should be against the regular order, not the iceberg
+        # The fill should be against the regular order, not the refreshed peak.
         filled_buy_id = trades[0].buy_order_id
         assert filled_buy_id == regular.id
 

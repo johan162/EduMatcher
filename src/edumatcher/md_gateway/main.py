@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 
 from edumatcher.config import (
@@ -15,6 +16,8 @@ from edumatcher.md_gateway.config import (
     load_market_data_gateway_config,
 )
 from edumatcher.md_gateway.gateway import MarketDataGateway
+
+log = logging.getLogger(__name__)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -42,7 +45,49 @@ def _build_parser() -> argparse.ArgumentParser:
         default=INDEX_PUB_CONNECT_ADDR,
         help="Index PUB socket address (default: tcp://127.0.0.1:5558)",
     )
+    parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase log verbosity (-v: INFO, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce log output to warnings/errors",
+    )
     return parser
+
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    log_level = getattr(args, "log_level", None)
+    verbose = getattr(args, "verbose", 0)
+    quiet = getattr(args, "quiet", False)
+
+    if log_level:
+        level_name = str(log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif verbose >= 2:
+        level = logging.DEBUG
+    elif verbose == 1:
+        level = logging.INFO
+    elif quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+    )
+    return int(level)
 
 
 def _resolve_config(
@@ -77,8 +122,11 @@ def _resolve_config(
             heartbeat_interval_sec=cfg.heartbeat_interval_sec,
             idle_timeout_sec=cfg.idle_timeout_sec,
             replay_window_sec=cfg.replay_window_sec,
+            max_connections=cfg.max_connections,
+            max_messages_per_second=cfg.max_messages_per_second,
             max_symbols_per_client=cfg.max_symbols_per_client,
             max_client_queue=cfg.max_client_queue,
+            depth_levels=cfg.depth_levels,
         ),
         known_symbols,
     )
@@ -87,21 +135,36 @@ def _resolve_config(
 def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
+    log_level = _configure_logging(args)
+    log.info("starting pm-md-gwy with log level %s", logging.getLevelName(log_level))
 
     try:
         config, known_symbols = _resolve_config(args)
     except Exception as exc:
+        log.error("failed to resolve configuration: %s", exc)
         parser.error(str(exc))
 
     if not config.enabled:
-        print("[CALF] market_data_gateway.enabled=false — exiting")
+        log.warning("market_data_gateway.enabled=false; exiting")
+        log.info("market_data_gateway.enabled=false; exiting")
         return
 
+    log.debug(
+        "resolved md-gateway config: bind=%s port=%s engine_pub=%s index_pub=%s known_symbols=%d",
+        config.bind_address,
+        config.port,
+        config.engine_pub_addr,
+        config.index_pub_addr,
+        len(known_symbols),
+    )
     gateway = MarketDataGateway(config=config, known_symbols=known_symbols)
     try:
         gateway.run()
+    except Exception as exc:
+        log.error("fatal runtime error: %s", exc)
+        raise
     finally:
         gateway.close()
 
 
-__all__ = ["main", "_build_parser", "_resolve_config"]
+__all__ = ["main", "_build_parser", "_resolve_config", "_configure_logging"]

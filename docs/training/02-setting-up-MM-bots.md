@@ -137,9 +137,9 @@ restart or partial execution.
 
 Interpretation guide:
 
-- `remaining` is open quantity still resting in the book.
-- `filled_qty` is already executed quantity on that leg.
-- `status` shows state such as ACTIVE, PARTIAL, or FILLED.
+- `Rem` is open quantity still resting in the book.
+- `Filled` is already executed quantity on that leg.
+- `Leg status` shows state such as `RESTING`, `PARTIAL`, or `FILLED`.
 
 :material-checkbox-blank-outline: **Checkpoint:** QLEGS shows both quote legs for each symbol.
 
@@ -199,10 +199,10 @@ letting students discover an empty book on their own?
 
 ## Further Reading
 
-- [Market Making](../user-guide/14-market-maker.md)
-- [Market-Maker Bot (pm-mm-bot)](../user-guide/17-mm-bot.md)
-- [Market-Maker Bot CLI Reference](../user-guide/17-mm-bot.md#cli-reference)
-- [Gateway Commands](../user-guide/08-gateway.md)
-- [ALF Protocol Reference](../user-guide/90-app-alf-protocol.md)
+- [Market Making](../user-guide/090-market-maker.md)
+- [Market-Maker Bot (pm-mm-bot)](../user-guide/100-mm-bot.md)
+- [Market-Maker Bot CLI Reference](../user-guide/100-mm-bot.md#cli-reference)
+- [Gateway Commands](../user-guide/050-gateway.md)
+- [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md)
 
 **Next:** [03 — The First Trade](03-the-first-trade.md)

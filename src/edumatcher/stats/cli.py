@@ -15,6 +15,9 @@ from edumatcher.stats.query import (
     open_readonly_connection,
     query_daily,
     query_dates,
+    query_index_daily,
+    query_index_ids,
+    query_index_snapshots,
     query_order_events,
     query_order_lifecycle,
     query_snapshots,
@@ -89,6 +92,40 @@ _ORDER_EVENTS_COLUMNS = [
 ]
 _SYMBOLS_COLUMNS = ["symbol"]
 _DATES_COLUMNS = ["date"]
+_INDEX_DAILY_COLUMNS = [
+    "date",
+    "index_id",
+    "open_level",
+    "high_level",
+    "low_level",
+    "close_level",
+    "close_session_state",
+    "update_count",
+]
+_INDEX_DAILY_WIDE_COLUMNS = [
+    "date",
+    "index_id",
+    "open_level",
+    "high_level",
+    "low_level",
+    "close_level",
+    "close_session_state",
+    "open_aggregate_cap",
+    "close_aggregate_cap",
+    "update_count",
+]
+_INDEX_SNAPSHOTS_COLUMNS = [
+    "ts",
+    "index_id",
+    "level",
+    "aggregate_cap",
+    "divisor",
+    "session_state",
+    "day_open",
+    "day_high",
+    "day_low",
+]
+_INDEX_IDS_COLUMNS = ["index_id"]
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -167,6 +204,30 @@ def _build_parser() -> argparse.ArgumentParser:
     dates = sub.add_parser("dates", help="List available trading dates")
     dates.add_argument("--symbol", metavar="SYMBOL")
 
+    index_daily = sub.add_parser(
+        "index-daily", help="Show daily index OHLC summary rows"
+    )
+    index_daily.add_argument("--date", metavar="YYYY-MM-DD")
+    index_daily.add_argument("--index-id", metavar="INDEX_ID")
+    index_daily.add_argument("--limit", type=int, default=100, metavar="N")
+    index_daily.add_argument(
+        "--wide",
+        action="store_true",
+        help="Include open/close aggregate market cap columns",
+    )
+
+    index_snapshots = sub.add_parser(
+        "index-snapshots", help="Show intraday index level history"
+    )
+    index_snapshots.add_argument("--index-id", required=True, metavar="INDEX_ID")
+    index_snapshots.add_argument("--date", metavar="YYYY-MM-DD")
+    index_snapshots.add_argument("--from", dest="from_ts", metavar="ISO_TS")
+    index_snapshots.add_argument("--to", dest="to_ts", metavar="ISO_TS")
+    index_snapshots.add_argument("--limit", type=int, default=500, metavar="N")
+
+    index_ids = sub.add_parser("index-ids", help="List index IDs present in stats DB")
+    index_ids.add_argument("--date", metavar="YYYY-MM-DD")
+
     return parser
 
 
@@ -239,7 +300,7 @@ def _run_query(
     conn: sqlite3.Connection, args: argparse.Namespace
 ) -> tuple[list[str], list[dict[str, Any]]]:
     if args.command == "daily":
-        rows = query_daily(
+        rows, _next_cursor = query_daily(
             conn,
             date_value=args.date,
             symbol=args.symbol.upper() if args.symbol else None,
@@ -260,7 +321,7 @@ def _run_query(
         return _SNAPSHOTS_COLUMNS, rows
 
     if args.command == "trades":
-        rows = query_trades(
+        rows, _next_cursor = query_trades(
             conn,
             symbol=args.symbol.upper() if args.symbol else None,
             date_value=args.date,
@@ -271,7 +332,7 @@ def _run_query(
         return _TRADES_COLUMNS, rows
 
     if args.command == "order-events":
-        rows = query_order_events(
+        rows, _next_cursor = query_order_events(
             conn,
             gateway_id=args.gateway.upper(),
             symbol=args.symbol.upper() if args.symbol else None,
@@ -295,9 +356,34 @@ def _run_query(
         rows = query_symbols(conn, date_value=args.date)
         return _SYMBOLS_COLUMNS, rows
 
-    assert args.command == "dates", f"Unhandled command: {args.command}"
-    rows = query_dates(conn, symbol=args.symbol.upper() if args.symbol else None)
-    return _DATES_COLUMNS, rows
+    if args.command == "dates":
+        rows = query_dates(conn, symbol=args.symbol.upper() if args.symbol else None)
+        return _DATES_COLUMNS, rows
+
+    if args.command == "index-daily":
+        rows, _next_cursor = query_index_daily(
+            conn,
+            date_value=args.date,
+            index_id=args.index_id.upper() if args.index_id else None,
+            limit=args.limit,
+        )
+        columns = _INDEX_DAILY_WIDE_COLUMNS if args.wide else _INDEX_DAILY_COLUMNS
+        return columns, rows
+
+    if args.command == "index-snapshots":
+        rows, _next_cursor = query_index_snapshots(
+            conn,
+            index_id=args.index_id.upper(),
+            date_value=args.date,
+            from_ts=args.from_ts,
+            to_ts=args.to_ts,
+            limit=args.limit,
+        )
+        return _INDEX_SNAPSHOTS_COLUMNS, rows
+
+    assert args.command == "index-ids", f"Unhandled command: {args.command}"
+    rows = query_index_ids(conn, date_value=args.date)
+    return _INDEX_IDS_COLUMNS, rows
 
 
 def main() -> None:

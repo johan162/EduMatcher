@@ -18,14 +18,31 @@ decimal scaling).  All price-derived columns (``price``, ``mark_price``,
 ``traded_notional``, ``buy_notional``, ``sell_notional``, ``net_amount``) are
 stored as INTEGER.  Columns derived from weighted-average math (``avg_cost``,
 ``realized_pnl``, ``unrealized_pnl`` and their end-of-day variants) are REAL.
+
+Ingest timestamp note
+---------------------
+``trade_events.ingest_ts_ns`` is the clearing-local ingest/write timestamp
+recorded when the flush transaction is built.  It is not an exchange event
+clock and should be interpreted as local pipeline timing metadata.
+
+Aggressor-side note
+-------------------
+``trade_events.aggressor_side`` mirrors the engine payload as-is.  For auction
+trades the upstream engine can mark buyer aggressor by construction, so this
+column should not be treated as an authoritative aggressor signal for auction
+analytics.
 """
 
 from __future__ import annotations
 
+import json
+import logging
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+_sql_log = logging.getLogger("edumatcher.clearing.sql")
 
 # ---------------------------------------------------------------------------
 # Pragmas — applied to every new connection.
@@ -42,7 +59,15 @@ PRAGMA temp_store = MEMORY;
 # ---------------------------------------------------------------------------
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS trade_events (
-  id               TEXT    PRIMARY KEY,
+  -- Composite identity (id, ts_ns).  The engine's trade ``id`` is only unique
+  -- *within a single engine run* (models/trade.py uses a per-process counter
+  -- that restarts from 1 on every launch), so ``id`` alone is NOT safe as the
+  -- archive's key.  A run-2 trade "1" would otherwise collide with a run-1
+  -- trade "1" and be silently dropped by INSERT OR IGNORE (finding CL-C1).
+  -- Keying on (id, ts_ns) means a genuine duplicate delivery repeats both and
+  -- is deduped, while a post-restart id reuse carries a different timestamp and
+  -- is preserved as a distinct row.
+  id               TEXT    NOT NULL,
   ts_ns            INTEGER NOT NULL,
   trade_date       TEXT    NOT NULL,
   symbol           TEXT    NOT NULL,
@@ -53,8 +78,11 @@ CREATE TABLE IF NOT EXISTS trade_events (
   sell_order_id    TEXT,
   buy_gateway_id   TEXT    NOT NULL,
   sell_gateway_id  TEXT    NOT NULL,
+  -- Mirrored from the engine payload verbatim.  See module docstring note:
+  -- auction trades can carry a biased aggressor marker upstream.
   aggressor_side   TEXT,
-  ingest_ts_ns     INTEGER NOT NULL
+  ingest_ts_ns     INTEGER NOT NULL,
+  PRIMARY KEY (id, ts_ns)
 );
 
 CREATE INDEX IF NOT EXISTS ix_trade_events_date
@@ -115,24 +143,56 @@ CREATE INDEX IF NOT EXISTS ix_gds_gateway_date
 CREATE INDEX IF NOT EXISTS ix_gds_symbol_date
   ON gateway_daily_summary(symbol, trade_date);
 
-CREATE VIEW IF NOT EXISTS gateway_pnl_totals AS
+-- P&L / notional are stored in tick units, and one tick is a different amount
+-- of currency per symbol (100 ticks = $1.00 at 2 decimals but $0.01 at 4).
+-- Summing raw ticks across symbols with different tick_decimals is meaningless
+-- (finding CL-H2), and these totals views expose no tick_decimals column for
+-- the CLI to normalize with — so normalize to display currency *inside* the
+-- view, per row, before aggregating.  Quantities (net_qty, traded_qty) are
+-- share counts, not tick-scaled, so they are summed raw.  DROP+CREATE (rather
+-- than IF NOT EXISTS) keeps the definition current on pre-existing databases.
+DROP VIEW IF EXISTS gateway_pnl_totals;
+CREATE VIEW gateway_pnl_totals AS
 SELECT
   gateway_id,
-  SUM(realized_pnl)                     AS realized_pnl_total,
-  SUM(unrealized_pnl)                   AS unrealized_pnl_total,
-  SUM(realized_pnl + unrealized_pnl)    AS total_pnl,
-  SUM(net_qty)                          AS net_qty_total
-FROM gateway_symbol_positions
+  SUM(realized_pnl / scale)                    AS realized_pnl_total,
+  SUM(unrealized_pnl / scale)                  AS unrealized_pnl_total,
+  SUM((realized_pnl + unrealized_pnl) / scale) AS total_pnl,
+  SUM(net_qty)                                 AS net_qty_total
+FROM (
+  SELECT
+    gateway_id, net_qty, realized_pnl, unrealized_pnl,
+    CASE tick_decimals
+      WHEN 0 THEN 1.0        WHEN 1 THEN 10.0
+      WHEN 2 THEN 100.0      WHEN 3 THEN 1000.0
+      WHEN 4 THEN 10000.0    WHEN 5 THEN 100000.0
+      WHEN 6 THEN 1000000.0  WHEN 7 THEN 10000000.0
+      WHEN 8 THEN 100000000.0 ELSE 100.0
+    END AS scale
+  FROM gateway_symbol_positions
+)
 GROUP BY gateway_id;
 
-CREATE VIEW IF NOT EXISTS daily_exchange_totals AS
+DROP VIEW IF EXISTS daily_exchange_totals;
+CREATE VIEW daily_exchange_totals AS
 SELECT
   trade_date,
-  SUM(traded_qty)       AS traded_qty_total,
-  SUM(traded_notional)  AS traded_notional_total,
-  SUM(net_amount)       AS net_amount_total,
-  SUM(realized_pnl)     AS realized_pnl_total
-FROM gateway_daily_summary
+  SUM(traded_qty)               AS traded_qty_total,
+  SUM(traded_notional / scale)  AS traded_notional_total,
+  SUM(net_amount / scale)       AS net_amount_total,
+  SUM(realized_pnl / scale)     AS realized_pnl_total
+FROM (
+  SELECT
+    trade_date, traded_qty, traded_notional, net_amount, realized_pnl,
+    CASE tick_decimals
+      WHEN 0 THEN 1.0        WHEN 1 THEN 10.0
+      WHEN 2 THEN 100.0      WHEN 3 THEN 1000.0
+      WHEN 4 THEN 10000.0    WHEN 5 THEN 100000.0
+      WHEN 6 THEN 1000000.0  WHEN 7 THEN 10000000.0
+      WHEN 8 THEN 100000000.0 ELSE 100.0
+    END AS scale
+  FROM gateway_daily_summary
+)
 GROUP BY trade_date;
 
 CREATE TABLE IF NOT EXISTS session_events (
@@ -244,6 +304,10 @@ def apply_schema(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(
         conn, "trade_events", "tick_decimals", "INTEGER NOT NULL DEFAULT 2"
     )
+    # Rebuild pre-CL-C1 trade_events (single-column ``id`` PRIMARY KEY) into the
+    # collision-safe surrogate-key layout.  No-op for fresh or already-migrated
+    # DBs.  Runs after the tick_decimals back-fill so legacy rows copy cleanly.
+    _migrate_trade_events_schema(conn)
     _add_column_if_missing(
         conn,
         "gateway_symbol_positions",
@@ -256,55 +320,44 @@ def apply_schema(conn: sqlite3.Connection) -> None:
         "tick_decimals",
         "INTEGER NOT NULL DEFAULT 2",
     )
-    # Ensure session / gateway-lifecycle tables exist on DB files created
-    # before these tables were added to SCHEMA.
-    _create_table_if_missing(
-        conn,
-        "session_events",
-        """
-        CREATE TABLE IF NOT EXISTS session_events (
-          id           INTEGER PRIMARY KEY AUTOINCREMENT,
-          event_type   TEXT    NOT NULL,
-          ts_ns        INTEGER NOT NULL,
-          trade_date   TEXT    NOT NULL,
-          payload_json TEXT
-        );
-        CREATE INDEX IF NOT EXISTS ix_session_events_date
-          ON session_events(trade_date);
-        CREATE INDEX IF NOT EXISTS ix_session_events_type
-          ON session_events(event_type);
-        """,
-    )
-    _create_table_if_missing(
-        conn,
-        "gateway_sessions",
-        """
-        CREATE TABLE IF NOT EXISTS gateway_sessions (
-          gateway_id         TEXT    NOT NULL,
-          connected_at_ns    INTEGER NOT NULL,
-          disconnected_at_ns INTEGER,
-          disconnect_reason  TEXT,
-          PRIMARY KEY (gateway_id, connected_at_ns)
-        );
-        CREATE INDEX IF NOT EXISTS ix_gateway_sessions_gateway
-          ON gateway_sessions(gateway_id);
-        """,
-    )
 
 
-def _create_table_if_missing(
-    conn: sqlite3.Connection,
-    table: str,
-    ddl: str,
-) -> None:
-    existing = {
-        row[0]
-        for row in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
-    }
-    if table not in existing:
-        conn.executescript(ddl)
+def _migrate_trade_events_schema(conn: sqlite3.Connection) -> None:
+    """
+    Migrate a legacy ``trade_events`` table (single-column ``id TEXT PRIMARY
+    KEY``) to the CL-C1 layout (composite ``PRIMARY KEY (id, ts_ns)``).
+
+    Detection is by primary-key composition: the legacy table has exactly one PK
+    column (``id``) while the new one has two (``id``, ``ts_ns``).  This is a
+    no-op on fresh databases (created directly from ``SCHEMA``) and on
+    already-migrated ones.  Rows are copied with ``INSERT OR IGNORE`` on the new
+    key, harmless for a well-formed legacy archive (its ids were already unique).
+    """
+    info = list(conn.execute("PRAGMA table_info(trade_events)"))
+    if not info:
+        return  # fresh DB — SCHEMA already built the new-layout table
+    pk_columns = {row[1] for row in info if row[5]}  # row[5] = pk position (>0)
+    if pk_columns == {"id", "ts_ns"}:
+        return  # already the composite-key layout
+
+    with conn:
+        conn.execute("ALTER TABLE trade_events RENAME TO _trade_events_legacy")
+        # SCHEMA's CREATE TABLE IF NOT EXISTS now builds the new-layout table
+        # (the old name is free) and recreates the trade_events indexes.
+        conn.executescript(SCHEMA)
+        conn.execute(
+            "INSERT OR IGNORE INTO trade_events ("
+            "  id, ts_ns, trade_date, symbol, quantity, price, tick_decimals,"
+            "  buy_order_id, sell_order_id, buy_gateway_id, sell_gateway_id,"
+            "  aggressor_side, ingest_ts_ns"
+            ") SELECT"
+            "  id, ts_ns, trade_date, symbol, quantity, price,"
+            "  COALESCE(tick_decimals, 2),"
+            "  buy_order_id, sell_order_id, buy_gateway_id, sell_gateway_id,"
+            "  aggressor_side, ingest_ts_ns"
+            " FROM _trade_events_legacy"
+        )
+        conn.execute("DROP TABLE _trade_events_legacy")
 
 
 def _add_column_if_missing(
@@ -321,13 +374,38 @@ def _add_column_if_missing(
     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_ddl}")
 
 
-def open_writer_connection(db_path: Path) -> sqlite3.Connection:
-    """Open (or create) the clearing DB for read/write access."""
+def _configure_sql_trace(conn: sqlite3.Connection, enabled: bool) -> None:
+    """Enable/disable SQLite statement trace logging for this connection."""
+    if not enabled:
+        conn.set_trace_callback(None)
+        return
+
+    def _trace(statement: str) -> None:
+        stmt = statement.strip()
+        if not stmt:
+            return
+        _sql_log.debug("sqlite: %s", stmt)
+
+    conn.set_trace_callback(_trace)
+
+
+def open_writer_connection(
+    db_path: Path, *, sql_trace: bool = False
+) -> sqlite3.Connection:
+    """
+    Open (or create) the clearing DB for read/write access.
+
+    The returned connection is created with ``check_same_thread=False`` so the
+    receive thread and timer thread can share one handle.  This is safe only
+    because all write paths in ``ClearingProcess`` serialize DB access under
+    its process lock; callers must preserve that invariant.
+    """
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     try:
         apply_schema(conn)
+        _configure_sql_trace(conn, enabled=sql_trace)
     except Exception:
         conn.close()
         raise
@@ -430,6 +508,51 @@ ON CONFLICT(trade_date, gateway_id, symbol) DO UPDATE SET
 """
 
 
+def _record_id_collisions(
+    conn: sqlite3.Connection, trades: list[TradeEventRow]
+) -> None:
+    """
+    Write a ``session_events`` row of type ``ID_COLLISION`` for every incoming
+    trade whose ``id`` already exists in the archive under a *different* ts_ns.
+
+    This is the loud counterpart to the old silent ``INSERT OR IGNORE`` drop:
+    the row is still archived (the surrogate PK + ``UNIQUE (id, ts_ns)`` key
+    guarantee that), and the operator gets a durable, queryable alert that the
+    engine reused a trade id across a restart.  Must be called inside the flush
+    transaction, before the trade INSERT, so ``existing`` reflects prior state.
+    """
+    if not trades:
+        return
+    ids = [t.id for t in trades]
+    placeholders = ",".join("?" * len(ids))
+    existing: dict[str, set[int]] = {}
+    for row in conn.execute(
+        f"SELECT id, ts_ns FROM trade_events WHERE id IN ({placeholders})", ids
+    ):
+        existing.setdefault(row[0], set()).add(row[1])
+
+    for t in trades:
+        seen = existing.get(t.id)
+        if seen and t.ts_ns not in seen:
+            conn.execute(
+                "INSERT INTO session_events"
+                " (event_type, ts_ns, trade_date, payload_json)"
+                " VALUES (?, ?, ?, ?)",
+                (
+                    "ID_COLLISION",
+                    t.ts_ns,
+                    t.trade_date,
+                    json.dumps(
+                        {
+                            "id": t.id,
+                            "new_ts_ns": t.ts_ns,
+                            "existing_ts_ns": sorted(seen),
+                        }
+                    ),
+                ),
+            )
+
+
 def flush_batch(
     conn: sqlite3.Connection,
     trades: list[TradeEventRow],
@@ -440,12 +563,16 @@ def flush_batch(
     Atomically persist one buffer-worth of trades in a single transaction.
 
     Steps:
-    1. INSERT OR IGNORE trade_events (idempotent)
+    0. Alert (not silently ignore) any incoming id that collides with an
+       already-archived row carrying a different timestamp — the CL-C1
+       engine-restart signature.
+    1. INSERT OR IGNORE trade_events (idempotent on (id, ts_ns))
     2. UPSERT gateway_symbol_positions (full replace with current state)
     3. UPSERT gateway_daily_summary (increment deltas, update snapshots)
     4. COMMIT
     """
     with conn:
+        _record_id_collisions(conn, trades)
         conn.executemany(
             _INSERT_TRADE,
             [_trade_row_to_dict(t) for t in trades],
@@ -458,6 +585,24 @@ def flush_batch(
             _UPSERT_DAILY,
             [_daily_row_to_dict(d) for d in daily_rows],
         )
+
+
+def fetch_all_positions(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """
+    Return every persisted row of ``gateway_symbol_positions`` as a dict.
+
+    Used at clearing startup to warm-start the in-memory ledger (finding CL-C4)
+    so a restart accumulates onto durable position state instead of overwriting
+    it from flat.  Every column the ledger needs to reconstruct a position is
+    already stored, so no ``trade_events`` replay is required.
+    """
+    rows = conn.execute(
+        "SELECT gateway_id, symbol, net_qty, avg_cost, realized_pnl,"
+        " unrealized_pnl, mark_price, tick_decimals,"
+        " buy_qty, sell_qty, buy_notional, sell_notional, last_trade_ts_ns"
+        " FROM gateway_symbol_positions"
+    ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def prune_old_events(conn: sqlite3.Connection, retention_days: int = 90) -> int:
@@ -523,7 +668,8 @@ def record_gateway_disconnect(
     disconnected_at_ns: int,
     reason: str | None,
 ) -> None:
-    """Update the matching connect row with disconnect timestamp and reason."""
+    """Update the matching connect row (exact ``connected_at_ns``) with the
+    disconnect timestamp and reason."""
     conn.execute(
         "UPDATE gateway_sessions"
         " SET disconnected_at_ns = ?, disconnect_reason = ?"
@@ -531,6 +677,35 @@ def record_gateway_disconnect(
         (disconnected_at_ns, reason, gateway_id, connected_at_ns),
     )
     conn.commit()
+
+
+def close_latest_gateway_session(
+    conn: sqlite3.Connection,
+    *,
+    gateway_id: str,
+    disconnected_at_ns: int,
+    reason: str | None,
+) -> int:
+    """
+    Close the most recent still-open session for ``gateway_id`` (finding CL-M5).
+
+    Matches on ``MAX(connected_at_ns)`` among the gateway's rows whose
+    ``disconnected_at_ns IS NULL``, so a disconnect is recorded from durable SQL
+    state alone — even after a clearing restart that lost the in-memory connect
+    timestamp.  No-op (returns 0) when the gateway has no open session.
+    Returns the number of rows updated.
+    """
+    cur = conn.execute(
+        "UPDATE gateway_sessions"
+        " SET disconnected_at_ns = ?, disconnect_reason = ?"
+        " WHERE gateway_id = ? AND connected_at_ns = ("
+        "   SELECT MAX(connected_at_ns) FROM gateway_sessions"
+        "   WHERE gateway_id = ? AND disconnected_at_ns IS NULL"
+        " )",
+        (disconnected_at_ns, reason, gateway_id, gateway_id),
+    )
+    conn.commit()
+    return cur.rowcount
 
 
 # ---------------------------------------------------------------------------
@@ -738,7 +913,7 @@ def query_trades(
         "   AND (:date_value IS NULL OR trade_date = :date_value)"
         "   AND (:from_date IS NULL OR trade_date >= :from_date)"
         "   AND (:to_date IS NULL OR trade_date <= :to_date)"
-        " ORDER BY ts_ns DESC, id ASC"
+        " ORDER BY ts_ns DESC, ingest_ts_ns DESC"
         " LIMIT :limit"
     )
     rows = conn.execute(
@@ -1025,6 +1200,7 @@ def query_reconcile(
     symbol: str | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
+    retention_days: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     Compare raw trade_events totals against gateway_daily_summary aggregates
@@ -1119,34 +1295,55 @@ def query_reconcile(
       SELECT * FROM summary_buy
       UNION ALL
       SELECT * FROM summary_sell
+    ),
+    -- Full set of (side, date, gateway, symbol) keys present on EITHER side.
+    -- Driving the comparison from raw_all alone (a LEFT JOIN) made keys that
+    -- exist ONLY in the summaries invisible — precisely the total-raw-loss
+    -- shape CL-C1 produces for a whole day (finding CL-H4).  The UNION anchor
+    -- makes it a full outer comparison so a summary-only key surfaces too.
+    keys AS (
+      SELECT side, trade_date, gateway_id, symbol FROM raw_all
+      UNION
+      SELECT side, trade_date, gateway_id, symbol FROM summary_all
     )
     SELECT
-      r.side,
-      r.trade_date,
-      r.gateway_id,
-      r.symbol,
-      r.raw_qty,
-      COALESCE(s.summary_qty, 0)       AS summary_qty,
-      (r.raw_qty - COALESCE(s.summary_qty, 0)) AS qty_diff,
-      r.raw_notional,
-      COALESCE(s.summary_notional, 0)  AS summary_notional,
-      ROUND(
-        r.raw_notional - COALESCE(s.summary_notional, 0),
-        8
-      ) AS notional_diff
-    FROM raw_all r
+      k.side,
+      k.trade_date,
+      k.gateway_id,
+      k.symbol,
+      COALESCE(r.raw_qty, 0)          AS raw_qty,
+      COALESCE(s.summary_qty, 0)      AS summary_qty,
+      (COALESCE(r.raw_qty, 0) - COALESCE(s.summary_qty, 0))          AS qty_diff,
+      COALESCE(r.raw_notional, 0)     AS raw_notional,
+      COALESCE(s.summary_notional, 0) AS summary_notional,
+      -- qty and notional are both INTEGER ticks, so an exact difference is the
+      -- right test (no float epsilon needed).
+      (COALESCE(r.raw_notional, 0) - COALESCE(s.summary_notional, 0))
+                                      AS notional_diff
+    FROM keys k
+    LEFT JOIN raw_all r
+      ON  r.side       = k.side
+      AND r.trade_date = k.trade_date
+      AND r.gateway_id = k.gateway_id
+      AND r.symbol     = k.symbol
     LEFT JOIN summary_all s
-      ON  s.side       = r.side
-      AND s.trade_date = r.trade_date
-      AND s.gateway_id = r.gateway_id
-      AND s.symbol     = r.symbol
-    WHERE ABS(r.raw_qty - COALESCE(s.summary_qty, 0)) > 0
-       -- Notional values are stored as REAL after dividing by tick scale, so
-       -- floating-point rounding can produce sub-cent differences.  0.0001 is
-       -- well below any meaningful tick increment (minimum tick = 0.01) while
-       -- still catching genuine mismatches.
-       OR ABS(r.raw_notional - COALESCE(s.summary_notional, 0)) > 0.0001
-    ORDER BY r.trade_date ASC, r.side ASC, r.gateway_id ASC, r.symbol ASC
+      ON  s.side       = k.side
+      AND s.trade_date = k.trade_date
+      AND s.gateway_id = k.gateway_id
+      AND s.symbol     = k.symbol
+    WHERE (
+        ABS(COALESCE(r.raw_qty, 0) - COALESCE(s.summary_qty, 0)) > 0
+        OR ABS(COALESCE(r.raw_notional, 0) - COALESCE(s.summary_notional, 0)) > 0
+      )
+      -- Optional retention guard: once raw rows are pruned (prune_old_events
+      -- keeps summaries) a two-sided compare would flag every pruned day as a
+      -- false positive.  When the CLI passes its retention window, exclude
+      -- dates older than it.  NULL = no guard (used by direct callers/tests).
+      AND (
+        :retention_days IS NULL
+        OR k.trade_date >= date('now', '-' || :retention_days || ' days')
+      )
+    ORDER BY k.trade_date ASC, k.side ASC, k.gateway_id ASC, k.symbol ASC
     """
     rows = conn.execute(
         sql,
@@ -1155,6 +1352,7 @@ def query_reconcile(
             "to_date": to_date,
             "gateway": gateway,
             "symbol": symbol,
+            "retention_days": retention_days,
         },
     ).fetchall()
     return [dict(r) for r in rows]

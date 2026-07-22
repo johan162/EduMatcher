@@ -16,23 +16,32 @@ def test_defaults_when_missing_file(tmp_path: Path) -> None:
 
 def test_load_custom_block(tmp_path: Path) -> None:
     p = tmp_path / "engine_config.yaml"
-    p.write_text("""
-market_data_gateway:
-  enabled: true
-  name: md-lab
-  bind_address: 127.0.0.1
-  port: 6001
-  heartbeat_interval_sec: 2
-  idle_timeout_sec: 9
-  replay_window_sec: 45
-  max_symbols_per_client: 50
-  max_client_queue: 500
-""")
+    p.write_text(
+        "\n".join(
+            [
+                "market_data_gateway:",
+                "  enabled: true",
+                "  name: md-lab",
+                "  bind_address: 127.0.0.1",
+                "  port: 6001",
+                "  heartbeat_interval_sec: 2",
+                "  idle_timeout_sec: 9",
+                "  replay_window_sec: 45",
+                "  max_connections: 12",
+                "  max_messages_per_second: 300",
+                "  max_symbols_per_client: 50",
+                "  max_client_queue: 500",
+                "",
+            ]
+        )
+    )
     cfg = load_market_data_gateway_config(p)
     assert cfg.name == "md-lab"
     assert cfg.bind_address == "127.0.0.1"
     assert cfg.port == 6001
     assert cfg.replay_window_sec == 45
+    assert cfg.max_connections == 12
+    assert cfg.max_messages_per_second == 300
 
 
 def test_invalid_section_type_raises(tmp_path: Path) -> None:
@@ -49,6 +58,8 @@ def test_invalid_section_type_raises(tmp_path: Path) -> None:
         ("heartbeat_interval_sec", 0),
         ("idle_timeout_sec", 0),
         ("replay_window_sec", 0),
+        ("max_connections", 0),
+        ("max_messages_per_second", 0),
         ("max_symbols_per_client", 0),
         ("max_client_queue", 0),
     ],

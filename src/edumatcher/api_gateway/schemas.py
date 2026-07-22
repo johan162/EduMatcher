@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from edumatcher.models.combo import ComboType
 from edumatcher.models.order import OrderType, Side, SmpAction, TIF
+from edumatcher.models.session import SessionState
 
 
 class StrictModel(BaseModel):
@@ -36,7 +37,11 @@ class OrderRequest(StrictModel):
     stop_price: float | None = None
     visible_qty: int | None = Field(default=None, gt=0)
     trail_offset: float | None = None
-    smp_action: SmpAction = SmpAction.NONE
+    # None means the client omitted smp_action -- the engine applies this
+    # gateway's configured smp_action default in that case, distinct from an
+    # explicit "smp_action": "NONE" (deliberately allow self-trades). See
+    # SmpAction's docstring in models/order.py.
+    smp_action: SmpAction | None = None
     client_order_id: str | None = None
 
     @field_validator("symbol")
@@ -149,7 +154,8 @@ class ComboRequest(StrictModel):
     combo_id: str = Field(min_length=1)
     combo_type: ComboType = ComboType.AON
     tif: TIF = TIF.DAY
-    smp_action: SmpAction = SmpAction.NONE
+    # None means the client omitted smp_action -- see OrderRequest.smp_action.
+    smp_action: SmpAction | None = None
     legs: list[ComboLegRequest] = Field(min_length=2, max_length=10)
 
 
@@ -198,7 +204,39 @@ class HistoryQuery(StrictModel):
     limit: int = Field(default=500, ge=1, le=5000)
 
 
-MarketDataChannel = Literal["book", "trades", "depth"]
+class SessionTransitionRequest(StrictModel):
+    to_state: SessionState
+
+
+class CircuitBreakerTriggerRequest(StrictModel):
+    symbol: str = Field(min_length=1)
+    level: str | None = None
+
+    @field_validator("symbol")
+    @classmethod
+    def uppercase_symbol(cls, value: str) -> str:
+        return value.upper()
+
+
+class CircuitBreakerResumeRequest(StrictModel):
+    symbol: str = Field(min_length=1)
+
+    @field_validator("symbol")
+    @classmethod
+    def uppercase_symbol(cls, value: str) -> str:
+        return value.upper()
+
+
+class SymbolCancelRequest(StrictModel):
+    symbol: str = Field(min_length=1)
+
+    @field_validator("symbol")
+    @classmethod
+    def uppercase_symbol(cls, value: str) -> str:
+        return value.upper()
+
+
+MarketDataChannel = Literal["book", "trades", "depth", "auction"]
 
 
 class MarketDataControl(StrictModel):

@@ -43,7 +43,17 @@ curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<ref>/vm/curl_setup_
 
 From repository root:
 
-./vm/build_multipass_vm.sh --name edumatcher-071 --version 0.7.1 --snapshot
+```bash
+./vm/build_multipass_vm.sh --name edumatcher-016 --version 0.16.0 --snapshot
+```
+
+## Build a VM with the current development wheel file
+
+From repository root:
+
+```bash
+./vm/build_multipass_vm.sh --name edumatcher-dev --dev --snapshot
+```
 
 Optional flags:
 
@@ -57,7 +67,7 @@ Optional flags:
 
 Open a shell:
 
-multipass shell edumatcher-071
+multipass shell edumatcher-016
 
 Verify links:
 
@@ -67,12 +77,11 @@ Start a session:
 
 mkdir -p ~/session
 cd ~/session
-pm-setup
 pm-engine --verbose
 
 Open additional host terminals and attach to the same VM for other processes:
 
-multipass shell edumatcher-071
+multipass shell edumatcher-016
 
 Then run, for example:
 
@@ -85,10 +94,10 @@ pm-gateway --id TRADER01
 
 Rebuild with a new version pin:
 
-./vm/build_multipass_vm.sh --name edumatcher-072 --version 0.7.2 --snapshot
+./vm/build_multipass_vm.sh --name edumatcher-016--version 0.16.0 --snapshot
 
 Or reprovision an existing VM manually:
 
-multipass transfer vm/install_edumatcher_runtime.sh edumatcher-071:/tmp/install_edumatcher_runtime.sh
-multipass exec edumatcher-071 -- sudo chmod +x /tmp/install_edumatcher_runtime.sh
-multipass exec edumatcher-071 -- sudo /tmp/install_edumatcher_runtime.sh --version 0.7.2
+multipass transfer vm/install_edumatcher_runtime.sh edumatcher-016:/tmp/install_edumatcher_runtime.sh
+multipass exec edumatcher-016 -- sudo chmod +x /tmp/install_edumatcher_runtime.sh
+multipass exec edumatcher-016 -- sudo /tmp/install_edumatcher_runtime.sh --version 0.16.0 

@@ -11,6 +11,10 @@ Usage
         print(result["halted_symbols"])
 """
 
-from edumatcher.commands.client import CommandTimeoutError, ExchangeCommandClient
+from edumatcher.commands.client import (
+    CommandError,
+    CommandTimeoutError,
+    ExchangeCommandClient,
+)
 
-__all__ = ["ExchangeCommandClient", "CommandTimeoutError"]
+__all__ = ["ExchangeCommandClient", "CommandTimeoutError", "CommandError"]

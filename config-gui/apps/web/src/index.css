@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Semantic design tokens (design §6). Both a light and a dark palette are
+ * defined from the start; the active one is chosen by the `.dark` class on
+ * <html>, toggled by the theme switcher.
+ */
+:root {
+  --color-bg: #f4f5f7;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-border: #d7dbe0;
+  --color-muted: #eef0f3;
+  --color-fg: #1c2430;
+  --color-fg-subtle: #5b6675;
+  --color-accent: #2563eb;
+  --color-accent-fg: #ffffff;
+
+  --color-required: #d9480f;
+  --color-optional-set: #2f9e44;
+  --color-optional-default: #98a2b3;
+  --color-warning: #b8860b;
+  --color-error: #d1242f;
+  --color-linked: #0ca5b0;
+  --color-success: #2f9e44;
+}
+
+html.dark {
+  --color-bg: #0f1319;
+  --color-surface: #171d26;
+  --color-surface-raised: #1e2632;
+  --color-border: #2c3644;
+  --color-muted: #202834;
+  --color-fg: #e7ecf3;
+  --color-fg-subtle: #9aa7b8;
+  --color-accent: #4d8dff;
+  --color-accent-fg: #0b1017;
+
+  --color-required: #ff7a45;
+  --color-optional-set: #51cf66;
+  --color-optional-default: #6b7686;
+  --color-warning: #f0c040;
+  --color-error: #ff6b6b;
+  --color-linked: #38d9d0;
+  --color-success: #51cf66;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* A brief pulse used to highlight a field jumped-to from the diagnostics drawer. */
+@keyframes field-flash {
+  0% {
+    box-shadow: 0 0 0 0 var(--color-linked);
+  }
+  60% {
+    box-shadow: 0 0 0 3px var(--color-linked);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.field-flash {
+  animation: field-flash 1.2s ease-out 2;
+  border-radius: 8px;
+}
+
+/* CodeMirror sizing */
+.cm-editor {
+  height: 100%;
+  font-size: 12.5px;
+}

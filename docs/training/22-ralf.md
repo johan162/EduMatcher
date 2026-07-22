@@ -186,16 +186,22 @@ HELLO|CLIENT=manual01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
 SUB|CH=CLEARING|SYM=*
 PING
 UNSUB|CH=CLEARING|SYM=AAPL
-EXIT
 ```
 
 Expected behavior:
 
 - PING yields PONG
 - UNSUB updates delivery set
-- EXIT closes session cleanly
 
-:material-checkbox-blank-outline: Checkpoint: you can manually drive and verify protocol control flow.
+!!! note "`EXIT` is gateway-initiated, not client-sent"
+    Per the [RALF Protocol Reference](../user-guide/930-app-ralf-protocol.md#5-message-catalog),
+    `EXIT` flows **gateway → client** only (e.g. on idle timeout,
+    `EXIT|REASON=idle_timeout|TS=...`) — there is no client-sent `EXIT`
+    command in the wire protocol, and the gateway has no handler for one.
+    To end your own session, simply close the TCP connection (`Ctrl+D` /
+    `Ctrl+C` in `nc`) rather than sending an `EXIT` line.
+
+:material-checkbox-blank-outline: Checkpoint: you can manually drive and verify protocol control flow, and you can explain who is allowed to send `EXIT`.
 
  
 
@@ -309,7 +315,8 @@ incidents versus routine noise.
 
 ## Further Reading
 
-- [Post-Trade Dissemination](../user-guide/18-post-trade.md)
-- [RALF Protocol Appendix](../user-guide/93-app-ralf-protocol.md)
-- [Protocol Support Library Examples](../user-guide/80-examples.md)
-- [Processes](../user-guide/10-processes.md)
+- [Post-Trade Dissemination](../user-guide/250-post-trade.md)
+- [RALF Protocol Spy (pm-ralf-spy)](../user-guide/251-ralf-spy-cli.md)
+- [RALF Protocol Appendix](../user-guide/930-app-ralf-protocol.md)
+- [Protocol Support Library Examples](../user-guide/800-examples.md)
+- [Processes](../user-guide/170-processes.md)

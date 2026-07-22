@@ -594,8 +594,8 @@ Expected end-to-end output for a passing run:
 
 ## What next?
 
-- [Order Types](../user-guide/04-order-types.md) — the full mechanics of each order type that the
+- [Order Types](../user-guide/060-order-types.md) — the full mechanics of each order type that the
   generator exercises
-- [Messages](../user-guide/09-messages.md) — the ZeroMQ message protocol used by the replay client
+- [Messages](../user-guide/270-messages.md) — the ZeroMQ message protocol used by the replay client
 - [Architecture](../architecture/01-architecture.md) — how the engine, gateway, and ZMQ bus fit
   together

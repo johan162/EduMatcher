@@ -34,10 +34,8 @@ RC_PHASE_REJECTION: int = 0x08
 RC_TRAILING_STOP_NO_PRICE: int = 0x09
 RC_INSUFFICIENT_LIQUIDITY: int = 0x0A
 RC_PRICE_COLLAR: int = 0x0B
+RC_INVALID_FIELD: int = 0x0C
 RC_OTHER: int = 0xFF
-
-# ORDER_ACK reject codes re-used for gateway-level new-order validation
-RC_INVALID_FIELD: int = 0xFF  # maps to "other" per spec
 
 # ---------------------------------------------------------------------------
 # Validation error

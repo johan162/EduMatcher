@@ -188,9 +188,9 @@ matter most?
 
 ## Further Reading
 
-- [Gateway Commands](../user-guide/08-gateway.md)
-- [Message Types (system.symbols)](../user-guide/09-messages.md)
-- [ALF Protocol — Cancellation Semantics](../user-guide/90-app-alf-protocol.md)
+- [Gateway Commands](../user-guide/050-gateway.md)
+- [Message Types (system.symbols)](../user-guide/270-messages.md)
+- [ALF Protocol — Cancellation Semantics](../user-guide/900-app-alf-protocol.md)
 
  
 

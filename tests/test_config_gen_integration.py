@@ -40,6 +40,74 @@ def test_minimal_output_parses(
     assert "Wrote generated config" in stderr
 
 
+def test_gateway_smp_emitted_and_parses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "TRADER02",
+            "--gateway-smp",
+            "TRADER02:CANCEL_RESTING",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    cfg = load_engine_config(out_file)
+    assert cfg.fix_gateways["TRADER02"].smp_action.value == "CANCEL_RESTING"
+    # TRADER01 was not given --gateway-smp, so it keeps the engine's own
+    # NONE default rather than pm-config-gen spelling out a no-op field.
+    assert cfg.fix_gateways["TRADER01"].smp_action.value == "NONE"
+    assert out_file.read_text(encoding="utf-8").count("smp_action") == 1
+
+
+def test_gateway_smp_unknown_gateway_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--gateway-smp",
+                "NOPE:CANCEL_BOTH",
+                "--dry-run",
+            ],
+        )
+
+    assert exc_info.value.code == 2
+
+
+def test_gateway_smp_invalid_action_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--gateway-smp",
+                "TRADER01:NOT_A_VALUE",
+                "--dry-run",
+            ],
+        )
+
+    assert exc_info.value.code == 2
+
+
 def test_market_maker_warns_and_stubs(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -479,7 +547,7 @@ def test_comment_default_config_fields_emits_engine_field_defaults(
         in captured.out
     )
     assert (
-        "# seconds between book snapshot publications for dirty books\nsnapshot_interval_sec: 0.5"
+        "# runtime retention and throttling knobs with memory/latency trade-offs\nengine_tuning:\n  # seconds between book snapshot publications for dirty books\n  snapshot_interval_sec: 0.5"
         in captured.out
     )
     # Check for circuit_breaker_defaults documentation in "Field Notes and Accepted Values" section
@@ -815,6 +883,131 @@ def test_combo_too_few_legs_fails(
         )
     assert exc_info.value.code == 2
     assert "2 legs" in capsys.readouterr().err
+
+
+def test_combo_leg_decimal_price_converts_to_ticks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "MSFT",
+            "--gateways",
+            "TRADER01",
+            "--combo",
+            "SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50,MSFT/SELL/LIMIT/50/415.50",
+            "--output",
+            str(out_file),
+        ],
+    )
+    cfg = load_engine_config(out_file)
+    combo = cfg.market_maker_combos[0]
+    assert combo.legs[0].price == 20950
+    assert combo.legs[1].price == 41550
+
+
+def test_combo_leg_decimal_price_honours_per_symbol_tick_decimals(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "MSFT",
+            "--gateways",
+            "TRADER01",
+            "--symbol-opts",
+            "AAPL:tick_decimals=4",
+            "--combo",
+            "SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.5,MSFT/SELL/LIMIT/50/415.50",
+            "--output",
+            str(out_file),
+        ],
+    )
+    cfg = load_engine_config(out_file)
+    combo = cfg.market_maker_combos[0]
+    assert combo.legs[0].price == 2095000  # AAPL tick_decimals=4
+    assert combo.legs[1].price == 41550  # MSFT default tick_decimals=2
+
+
+def test_combo_leg_price_bad_decimal_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "MSFT",
+                "--gateways",
+                "TRADER01",
+                "--combo",
+                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/1.2.3,MSFT/SELL/LIMIT/50/1",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "leg price" in capsys.readouterr().err
+
+
+def test_schedule_out_of_order_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--sessions-enabled",
+                "--continuous",
+                "09:20",
+                "--opening-auction",
+                "09:30",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "strictly increasing" in capsys.readouterr().err
+
+
+def test_schedule_bad_time_format_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--pre-open",
+                "9am",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "HH:MM format" in capsys.readouterr().err
 
 
 def test_cb_levels_with_resumption_mode_round_trips(

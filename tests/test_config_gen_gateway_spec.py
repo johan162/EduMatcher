@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from edumatcher.config_gen.gateway_spec import parse_gateway_spec
+from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 
 
@@ -11,6 +12,14 @@ def test_parse_gateway_spec_defaults() -> None:
     assert parsed.gateway_id == "TRADER01"
     assert parsed.role == ParticipantRole.TRADER
     assert parsed.disconnect_behaviour == DisconnectBehaviour.CANCEL_ALL
+
+
+def test_parse_gateway_spec_smp_action_defaults_none() -> None:
+    """smp_action is not part of the colon-delimited spec syntax -- it is
+    always SmpAction.NONE from parse_gateway_spec() and is only set
+    afterwards via the separate --gateway-smp flag (see cli.py)."""
+    parsed = parse_gateway_spec("TRADER01:TRADER:CANCEL_ALL:Some desc")
+    assert parsed.smp_action == SmpAction.NONE
 
 
 def test_parse_gateway_spec_mm_default_disconnect() -> None:

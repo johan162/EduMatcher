@@ -21,6 +21,7 @@ from edumatcher.engine.config_loader import (
 )
 from edumatcher.engine.main import Engine
 from edumatcher.engine.order_book import OrderBook
+from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.message import decode
 from edumatcher.models.order import (
     Order,
@@ -968,3 +969,345 @@ class TestNewOrderTypeInteractions:
         )
         restored = Order.from_dict(ioc.to_dict())
         assert restored.order_type == OrderType.IOC
+
+    def test_smp_action_defaults_to_none_sentinel_not_smpaction_none(self):
+        """Order.create()'s smp_action default is the Python None sentinel
+        ("client did not specify"), not SmpAction.NONE ("client explicitly
+        allows self-trades") -- these must stay distinguishable."""
+        order = Order.create(
+            symbol="AAPL",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            gateway_id="TRADER01",
+            price=100.0,
+        )
+        assert order.smp_action is None
+
+    def test_smp_action_none_sentinel_roundtrips_through_wire_dict(self):
+        """An order built with smp_action unspecified must still be None
+        after a to_dict/from_dict round trip -- the wire dict must carry a
+        JSON null, not silently coerce to the string "NONE"."""
+        order = Order.create(
+            symbol="AAPL",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            gateway_id="TRADER01",
+            price=100.0,
+        )
+        wire = order.to_dict()
+        assert wire["smp_action"] is None
+
+        restored = Order.from_dict(wire)
+        assert restored.smp_action is None
+
+    def test_smp_action_explicit_none_roundtrips_distinct_from_unspecified(self):
+        """An explicit SmpAction.NONE (client deliberately allows self-trades)
+        must round-trip as the concrete enum member, not collapse to the
+        unspecified sentinel."""
+        order = Order.create(
+            symbol="AAPL",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            gateway_id="TRADER01",
+            price=100.0,
+            smp_action=SmpAction.NONE,
+        )
+        wire = order.to_dict()
+        assert wire["smp_action"] == "NONE"
+
+        restored = Order.from_dict(wire)
+        assert restored.smp_action == SmpAction.NONE
+        assert restored.smp_action is not None
+
+    @pytest.mark.parametrize(
+        "smp_action",
+        [
+            SmpAction.CANCEL_AGGRESSOR,
+            SmpAction.CANCEL_RESTING,
+            SmpAction.CANCEL_BOTH,
+        ],
+    )
+    def test_smp_action_explicit_value_roundtrips(self, smp_action: SmpAction):
+        order = Order.create(
+            symbol="AAPL",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            gateway_id="TRADER01",
+            price=100.0,
+            smp_action=smp_action,
+        )
+        restored = Order.from_dict(order.to_dict())
+        assert restored.smp_action == smp_action
+
+
+# ===========================================================================
+#  SMP gateway-default fallback — engine-level integration
+# ===========================================================================
+
+
+@pytest.fixture
+def eng_with_smp_default(monkeypatch, tmp_path):
+    """Wired Engine where TRADER01's gateway config has a non-NONE default
+    smp_action (CANCEL_RESTING) and TRADER02 has no default (NONE)."""
+    pull_sock = _DummySocket(sent=[])
+    pub_sock = _DummySocket(sent=[])
+
+    cfg = EngineConfig(
+        symbols={
+            "AAPL": SymbolConfig(name="AAPL"),
+            "MSFT": SymbolConfig(name="MSFT"),
+        },
+        fix_gateways={
+            "TRADER01": FixGatewayConfig(
+                id="TRADER01",
+                description="t1",
+                smp_action=SmpAction.CANCEL_RESTING,
+            ),
+            "TRADER02": FixGatewayConfig(id="TRADER02", description="t2"),
+        },
+        sessions_enabled=True,
+    )
+
+    monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: pull_sock)
+    monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
+    monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
+    monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
+    monkeypatch.setattr("edumatcher.engine.main.load_gtc_combos", lambda _: [])
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
+
+    cfg_path = tmp_path / "engine_config.yaml"
+    cfg_path.write_text("dummy: true\n")
+
+    engine = Engine(config_path=str(cfg_path))
+    engine._session_state = SessionState.CONTINUOUS
+    engine._handle_gateway_connect({"gateway_id": "TRADER01"})
+    engine._handle_gateway_connect({"gateway_id": "TRADER02"})
+    pub_sock.sent.clear()
+    return engine, pub_sock
+
+
+class TestSmpGatewayDefaultFallback:
+    """Engine._handle_new_order / _accept_combo resolve an unspecified
+    (None) smp_action to the gateway's configured default, while an
+    explicit client value -- including explicit SmpAction.NONE -- always
+    takes precedence over that default."""
+
+    def test_new_order_unspecified_smp_gets_gateway_default(self, eng_with_smp_default):
+        engine, pub_sock = eng_with_smp_default
+        order = _make_order(gateway_id="TRADER01", price=100.0, smp_action=None)
+        engine._handle_new_order(order.to_dict())
+
+        book = engine._book("AAPL")
+        internal = book._order_index.get(order.id)
+        assert internal is not None
+        assert internal.smp_action == SmpAction.CANCEL_RESTING
+
+    def test_new_order_explicit_none_overrides_gateway_default(
+        self, eng_with_smp_default
+    ):
+        engine, pub_sock = eng_with_smp_default
+        order = _make_order(
+            gateway_id="TRADER01", price=100.0, smp_action=SmpAction.NONE
+        )
+        engine._handle_new_order(order.to_dict())
+
+        book = engine._book("AAPL")
+        internal = book._order_index.get(order.id)
+        assert internal is not None
+        assert internal.smp_action == SmpAction.NONE
+
+    def test_new_order_explicit_value_overrides_gateway_default(
+        self, eng_with_smp_default
+    ):
+        engine, pub_sock = eng_with_smp_default
+        order = _make_order(
+            gateway_id="TRADER01",
+            price=100.0,
+            smp_action=SmpAction.CANCEL_AGGRESSOR,
+        )
+        engine._handle_new_order(order.to_dict())
+
+        book = engine._book("AAPL")
+        internal = book._order_index.get(order.id)
+        assert internal is not None
+        assert internal.smp_action == SmpAction.CANCEL_AGGRESSOR
+
+    def test_new_order_unspecified_smp_with_no_gateway_default_stays_none_action(
+        self, eng_with_smp_default
+    ):
+        """TRADER02 has no configured default (implicit SmpAction.NONE) --
+        an unspecified order resolves to SmpAction.NONE, same as before
+        this feature existed."""
+        engine, pub_sock = eng_with_smp_default
+        order = _make_order(gateway_id="TRADER02", price=100.0, smp_action=None)
+        engine._handle_new_order(order.to_dict())
+
+        book = engine._book("AAPL")
+        internal = book._order_index.get(order.id)
+        assert internal is not None
+        assert internal.smp_action == SmpAction.NONE
+
+    def test_combo_leg_unspecified_smp_gets_gateway_default(self, eng_with_smp_default):
+        engine, pub_sock = eng_with_smp_default
+        combo = ComboOrder.create(
+            combo_id="C1",
+            gateway_id="TRADER01",
+            combo_type=ComboType.AON,
+            tif=TIF.DAY,
+            legs=[
+                ComboLeg(
+                    symbol="AAPL",
+                    side=Side.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=10,
+                    price=100.0,
+                ),
+                ComboLeg(
+                    symbol="MSFT",
+                    side=Side.SELL,
+                    order_type=OrderType.LIMIT,
+                    quantity=5,
+                    price=200.0,
+                ),
+            ],
+        )
+        engine._accept_combo(combo)
+
+        aapl_orders = [
+            o
+            for o in engine._book("AAPL").resting_orders()
+            if o.gateway_id == "TRADER01"
+        ]
+        msft_orders = [
+            o
+            for o in engine._book("MSFT").resting_orders()
+            if o.gateway_id == "TRADER01"
+        ]
+        assert len(aapl_orders) == 1
+        assert len(msft_orders) == 1
+        assert aapl_orders[0].smp_action == SmpAction.CANCEL_RESTING
+        assert msft_orders[0].smp_action == SmpAction.CANCEL_RESTING
+
+    def test_combo_leg_explicit_value_overrides_gateway_default(
+        self, eng_with_smp_default
+    ):
+        engine, pub_sock = eng_with_smp_default
+        combo = ComboOrder.create(
+            combo_id="C2",
+            gateway_id="TRADER01",
+            combo_type=ComboType.AON,
+            tif=TIF.DAY,
+            legs=[
+                ComboLeg(
+                    symbol="AAPL",
+                    side=Side.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=10,
+                    price=100.0,
+                    smp_action=SmpAction.NONE,
+                ),
+                ComboLeg(
+                    symbol="MSFT",
+                    side=Side.SELL,
+                    order_type=OrderType.LIMIT,
+                    quantity=5,
+                    price=200.0,
+                    smp_action=SmpAction.CANCEL_BOTH,
+                ),
+            ],
+        )
+        engine._accept_combo(combo)
+
+        aapl_orders = [
+            o
+            for o in engine._book("AAPL").resting_orders()
+            if o.gateway_id == "TRADER01"
+        ]
+        msft_orders = [
+            o
+            for o in engine._book("MSFT").resting_orders()
+            if o.gateway_id == "TRADER01"
+        ]
+        assert len(aapl_orders) == 1
+        assert len(msft_orders) == 1
+        # Explicit leg values win over the gateway's CANCEL_RESTING default.
+        assert aapl_orders[0].smp_action == SmpAction.NONE
+        assert msft_orders[0].smp_action == SmpAction.CANCEL_BOTH
+
+
+# ===========================================================================
+#  ComboLeg sentinel round-trip — model-level
+# ===========================================================================
+
+
+class TestComboLegSmpSentinel:
+    """ComboLeg mirrors Order's None-vs-explicit-NONE sentinel behavior."""
+
+    def test_combo_leg_smp_action_defaults_to_none_sentinel(self):
+        leg = ComboLeg(
+            symbol="AAPL",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            price=100.0,
+        )
+        assert leg.smp_action is None
+
+    def test_combo_leg_smp_action_none_sentinel_roundtrips_through_wire_dict(self):
+        leg = ComboLeg(
+            symbol="AAPL",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            price=100.0,
+        )
+        wire = leg.to_dict()
+        assert wire["smp_action"] is None
+
+        restored = ComboLeg.from_dict(wire)
+        assert restored.smp_action is None
+
+    def test_combo_leg_smp_action_explicit_none_roundtrips_distinct_from_unspecified(
+        self,
+    ):
+        leg = ComboLeg(
+            symbol="AAPL",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            price=100.0,
+            smp_action=SmpAction.NONE,
+        )
+        wire = leg.to_dict()
+        assert wire["smp_action"] == "NONE"
+
+        restored = ComboLeg.from_dict(wire)
+        assert restored.smp_action == SmpAction.NONE
+        assert restored.smp_action is not None
+
+    @pytest.mark.parametrize(
+        "smp_action",
+        [
+            SmpAction.CANCEL_AGGRESSOR,
+            SmpAction.CANCEL_RESTING,
+            SmpAction.CANCEL_BOTH,
+        ],
+    )
+    def test_combo_leg_smp_action_explicit_value_roundtrips(
+        self, smp_action: SmpAction
+    ):
+        leg = ComboLeg(
+            symbol="AAPL",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+            price=100.0,
+            smp_action=smp_action,
+        )
+        restored = ComboLeg.from_dict(leg.to_dict())
+        assert restored.smp_action == smp_action

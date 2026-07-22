@@ -11,6 +11,17 @@
     - The internal data structures of an order book — heaps, lazy deletion, price-level
       indexes — and how to read a visual order book depth diagram
     - The time complexity of every core operation: insert, match, cancel, stop trigger
+    - The principal data flows, the single-host/remote deployment boundary, and the trust model
+    - How state persists and is recovered across a restart, and what is *not* durable
+    - The runtime failure modes — ZeroMQ back-pressure and silent PUB drop to slow consumers
+    - Which configuration choices materially change throughput, latency, and memory
+
+!!! info "This page vs. the Detailed Walkthrough"
+    This page is the **architecture reference**: decisions, data flows, persistence,
+    failure modes, and performance. For a first-principles, code-level tour that
+    builds the same system up from a single limit order, read the
+    [Detailed Walkthrough](02-architecture-guide.md). Where the two overlap, this
+    page is the concise reference and the Walkthrough is the narrative.
 
 
 
@@ -220,8 +231,8 @@ All messages are two-frame ZMQ multipart:
 | `session.state` | Session phase changed; every subscriber reacts accordingly |
 | `auction.result.{SYMBOL}` | Auction uncross result: equilibrium price, quantity, imbalance |
 | `trade.executed` | A trade was matched; consumed by clearing, stats, RALF, viewers |
-| `book.{SYMBOL}` | Full order-book snapshot after every state change for this symbol |
-| `depth.{SYMBOL}` | Depth-of-market statistics (bid/ask imbalance, cost-to-move) published alongside `book.{SYMBOL}` |
+| `book.{SYMBOL}` | Full order-book snapshot. **Throttled**, not per-event: after a state change the snapshot is published on the next engine poll tick, and at most once per `snapshot_interval_sec` (default 0.5 s) per symbol. On-demand `book.snapshot_request` replies are immediate. See [Configuration choices that impact performance](#configuration-choices-that-impact-performance). |
+| `depth.{SYMBOL}` | Depth-of-market statistics (bid/ask imbalance, cost-to-move) published on the **same throttled tick** as `book.{SYMBOL}`. |
 | `circuit_breaker.halt.{SYMBOL}` | Symbol halted by the circuit breaker |
 | `circuit_breaker.resume.{SYMBOL}` | Symbol resumed after a circuit-breaker halt |
 | `system.eod` | End-of-day shutdown broadcast; signals all subscribers to flush and stop |
@@ -240,9 +251,9 @@ It subscribes to the engine PUB at :5556 and publishes index events independentl
 
 | Topic | Direction | Description |
 |-------|-----------|-------------|
-| `index.update` | pm-index → all | Current index level, OHLC, and session state |
-| `index.history_request` | GW → pm-index | Query index history by time range |
-| `index.history.{GW_ID}` | pm-index → GW | History query response |
+| `index.update` | pm-index → all | Current index level, OHLC, and session state — also consumed live by pm-stats for level/EOD history |
+| `index.history_request` | GW → pm-index | Query structural/audit history (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) by time range — not level/EOD data, which lives in pm-stats' SQLite tables |
+| `index.history.{GW_ID}` | pm-index → GW | Structural/audit history query response |
 | `index.corp_action` | GW → pm-index | Apply a corporate action to an index constituent |
 | `index.corp_action_ack.{GW_ID}` | pm-index → GW | Corporate action acknowledgement |
 | `index.constituent_change` | GW → pm-index | Add or remove an index constituent |
@@ -269,6 +280,51 @@ It subscribes to the engine PUB at :5556 and publishes index events independentl
 | pm-index | PULL :5559, PUB :5558, SUB→:5556 | **Binds** :5558 and :5559; connects→:5556 | Index calculation, OHLC, corporate actions |
 | pm-md-gwy (CALF) | SUB→:5556, SUB→:5558 | Connects | Translates engine events to CALF TCP for external market-data subscribers |
 | pm-ralf-gwy (RALF) | SUB→:5556 | Connects | Translates trade events to RALF TCP for external post-trade / clearing parties |
+
+
+
+## Data Flows
+
+Four principal flows move through the system. All of them converge on the
+single-writer engine and fan back out over PUB topics.
+
+**1. Order entry (request/response).** A gateway PUSHes a command on `:5555`; the
+engine processes it run-to-completion and publishes personalised results on the
+gateway's private `order.*` / `quote.*` / `system.*` prefixes on `:5556`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant GW as Gateway (ALF/API/MM-bot)
+    participant ENG as Engine (single thread)
+    participant SUB as Consumers (stats, clearing, audit, viewers, bridges)
+    GW->>ENG: PUSH order.new  :5555
+    Note over ENG: validate → collar/halt gate → match (sweep) → build events
+    ENG-->>GW: PUB order.ack.{GW} / order.fill.{GW}  :5556
+    ENG-->>SUB: PUB trade.executed  :5556
+    ENG-->>SUB: PUB book.{SYM} / depth.{SYM}  (throttled, next tick)
+    ENG-->>SUB: PUB drop_copy.event.{GW}  :5557
+```
+
+**2. Market data (broadcast, throttled).** After matching, `trade.executed` is
+published immediately, but `book.{SYM}` / `depth.{SYM}` snapshots are coalesced and
+emitted on the poll tick, at most once per `snapshot_interval_sec` per symbol (see
+[Configuration choices that impact performance](#configuration-choices-that-impact-performance)).
+Protocol bridges (`pm-md-gwy`/CALF) re-publish these to external TCP subscribers.
+
+**3. Post-trade & drop-copy.** `trade.executed` feeds `pm-clearing` (P&L),
+`pm-stats` (OHLCV), and `pm-audit` (full log) on `:5556`; the sequenced per-fill
+drop-copy feed on `:5557` feeds compliance consumers and `pm-ralf-gwy` (RALF).
+
+**4. Index sub-bus.** `pm-index` is a *second-tier publisher*: it subscribes to the
+engine's `:5556`, recomputes index levels, and publishes `index.update` on its own
+bus (`:5558`), accepting commands on `:5559`. It is the one process besides the
+engine that binds sockets.
+
+Where each of these ends up on disk is covered in
+[Persistence & crash recovery](#persistence-crash-recovery); how they behave when a
+consumer can't keep up is covered in
+[Failure modes & fault tolerance](#failure-modes-fault-tolerance).
 
 
 
@@ -335,6 +391,47 @@ serialised.  The price is that a long auction uncross blocks all other message
 processing until it finishes — acceptable for an educational system, but a
 production engine would decompose the critical path or use non-blocking event
 dispatch.
+
+### Deployment Topology & Trust Boundaries
+
+EduMatcher is **partially multi-host by design**. The core is single-host; remote
+reach is provided only through the external protocol gateways.
+
+- **The engine is never partitioned.** There is exactly one authoritative matching
+  engine. It cannot be sharded or run active/active — a second engine would be a
+  second, divergent order book.
+- **The internal ZMQ bus is loopback by default.** The engine binds
+  `tcp://127.0.0.1` for `:5555/:5556/:5557` (and `pm-index` for `:5558/:5559`).
+  These are **unauthenticated**: the PUSH socket accepts any `gateway_id` in the
+  payload, and `ADMIN` is a payload-level role check, not transport authentication.
+  The bus therefore MUST stay on a trusted host. The internal consumers (`pm-stats`,
+  `pm-clearing`, `pm-audit`, viewers, `pm-index`, and the protocol-gateway
+  processes) are expected to be **co-located** with the engine.
+- **Remote participants connect at the gateways, not the bus.** The protocol
+  gateways bind `0.0.0.0` and are the intended network edge:
+  order entry over **ALF** (`pm-alf-gwy`, :5565) and **BALF** (`pm-balf-gwy`, :5560),
+  which authenticate sessions against the `gateways.alf` allowlist; market data over
+  **CALF** (`pm-md-gwy`, :5570) and post-trade over **RALF** (`pm-ralf-gwy`, :5580).
+  A remote trading client or data consumer speaks TCP to one of these — it never
+  touches the ZMQ bus.
+
+```mermaid
+flowchart LR
+    subgraph Trusted["Trusted host (loopback ZMQ bus)"]
+        ENG["pm-engine\n:5555/:5556/:5557"]
+        OPS["pm-stats · pm-clearing · pm-audit · pm-index"]
+        GWP["Gateway processes\npm-alf-gwy · pm-balf-gwy\npm-md-gwy · pm-ralf-gwy"]
+        ENG <-->|ZMQ localhost| OPS
+        ENG <-->|ZMQ localhost| GWP
+    end
+    RC["Remote order-entry clients"] -->|"ALF/BALF TCP :5565/:5560\n(authenticated)"| GWP
+    RM["Remote data / post-trade consumers"] -->|"CALF/RALF TCP :5570/:5580"| GWP
+```
+
+The ZMQ bind host is overridable (`EDUMATCHER_ENGINE_HOST`,
+`EDUMATCHER_INDEX_BIND_HOST`), which *can* place ZMQ consumers on another machine —
+but doing so exposes the **unauthenticated** bus over the network and SHOULD only be
+done on a private, trusted segment. The supported remote path is the gateways.
 
 
 
@@ -1031,12 +1128,147 @@ perspective.
 
 
 
+## Persistence & Crash Recovery
+
+The engine holds the authoritative order book **in memory**. Durability is provided
+by two independent tiers: engine **state files** written at shutdown and reloaded at
+startup, and subscriber **data stores** written continuously during the session.
+
+| File / store | Written by | Cadence | Survives restart? | Purpose |
+|---|---|---|---|---|
+| `gtc_orders.json` | engine | clean shutdown | reloaded at startup | resting GTC orders (price-time priority preserved) |
+| `gtc_combos.json` | engine | clean shutdown | reloaded at startup | resting GTC combo parents + child links |
+| `book_stats.json` | engine | clean shutdown | reloaded at startup | last buy/sell price per symbol; reseeds collar & circuit-breaker references at the next open |
+| `stats.db` (SQLite) | pm-stats | per trade · snapshot every 15 min · EOD · every index.update tick | accumulates | OHLCV, intraday snapshots, trade log, index level snapshots & daily OHLC |
+| `clearing.db` (SQLite) | pm-clearing | per trade · connect/disconnect · EOD | accumulates | positions, VWAP, realised/unrealised P&L |
+| `audit.log` | pm-audit | continuous (rotating) | accumulates | full chronological event trail |
+| `indexes/<ID>_history.jsonl` | pm-index | on structural/corporate-action event only | accumulates | structural/audit trail (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) — level/EOD history lives in `stats.db` instead |
+| `indexes/<ID>_state.json` | pm-index | on EOD / corporate action | rewritten | divisor, last prices, and intraday OHLC checkpoint for restart |
+
+(Full field-level detail is in the user guide's
+[Persistence chapter](../user-guide/180-persistence.md#data-files-at-a-glance).)
+
+**Shutdown is an ordered sequence**, not a hard stop — this is what makes GTC
+recovery and clean consumer flush possible:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant OP as Operator (Ctrl-C / SIGINT)
+    participant ENG as Engine
+    participant DISK as State files
+    participant SUB as Subscribers
+    OP->>ENG: SIGINT
+    ENG->>DISK: serialise resting GTC orders + combos
+    ENG->>DISK: write book_stats.json (last prices, seed flags)
+    ENG-->>SUB: PUB order.expired for all DAY/ATO/ATC orders
+    ENG-->>SUB: PUB system.eod (flush-and-stop signal)
+    ENG->>ENG: close sockets
+    Note over SUB: stats/clearing/audit flush their stores and exit
+```
+
+At startup the engine reloads `gtc_orders.json` / `gtc_combos.json`, restoring each
+order **with its original timestamp** so queue priority is unchanged, and reseeds
+each symbol's collar and circuit-breaker reference from `book_stats.json`.
+
+**Idempotency and gap detection** guard the accumulating stores: trade events are
+inserted with `INSERT OR IGNORE` on trade id, so a replayed or duplicated event is
+harmless; the drop-copy feed carries a monotonic sequence number and CALF carries a
+per-`(channel,symbol)` sequence so consumers can detect and replay gaps.
+
+**What is *not* durable.** Messages in flight in ZMQ queues are lost on a hard kill
+(only a clean SIGINT runs the sequence above). DAY orders are intentionally dropped
+at shutdown. Trade IDs are a per-session monotonic counter that **resets to 1** on
+restart (`models/trade.py`), so trade-id uniqueness is *within a session only* —
+merging logs across sessions requires a session prefix. A `SIGKILL` skips GTC
+serialisation entirely, losing the resting book.
+
+
+
+## Failure Modes & Fault Tolerance
+
+The system's resilience is dominated by two facts: there is **one** engine (a single
+point of failure by design), and the internal bus uses **ZeroMQ default flow
+control**, which behaves very differently for the two socket patterns.
+
+### Back-pressure: PUSH blocks, PUB drops
+
+```mermaid
+flowchart TD
+    A[Producer wants to send] --> B{Socket type}
+    B -->|PUSH → PULL :5555| C{Receiver queue full\nat high-water mark?}
+    C -->|no| C2[send immediately]
+    C -->|yes| D[PUSH blocks the sender\n→ natural back-pressure]
+    B -->|PUB → SUB :5556/:5557/:5558| E{Subscriber queue full\nat high-water mark?}
+    E -->|no| E2[deliver a copy]
+    E -->|yes| F[PUB DROPS the message\nfor that slow subscriber — silently]
+```
+
+- **Order entry (PUSH/PULL, :5555):** if the engine falls behind, a gateway's PUSH
+  **blocks** until space frees up. This is benign back-pressure — order submitters
+  slow down; nothing is lost.
+- **Event fan-out (PUB/SUB, :5556/:5557/:5558):** if any subscriber can't drain fast
+  enough, ZeroMQ **discards** messages for *that* subscriber once its high-water mark
+  is reached. The loss is **silent** — there is no error, no gap signal from ZMQ
+  itself.
+
+`messaging/bus.py` creates sockets with **default** options — no explicit
+`SNDHWM`/`RCVHWM`, `LINGER`, or `CONFLATE` are set. So the effective HWM is ZeroMQ's
+default (~1000 messages per socket).
+
+!!! warning "Silent loss to internal stateful consumers — recommended change"
+    This default-drop behaviour was **inherited, not deliberately chosen**. It is
+    acceptable for viewers (which only ever need the *latest* book) but is a real
+    correctness risk for the **stateful internal consumers that have no replay path**
+    — `pm-clearing` (P&L), `pm-stats` (OHLCV), and `pm-audit` (the compliance log).
+    Under sustained back-pressure these can miss `trade.executed` events and silently
+    diverge, with no gap to detect.
+
+    Recommended, in order:
+
+    1. **Make it explicit and observable.** Set generous `RCVHWM` on the internal SUB
+       consumers and monitor ZeroMQ's drop counters; a silent gap should become a
+       visible alarm.
+    2. **Protect the stateful consumers.** For `pm-clearing`/`pm-audit`, prefer a
+       larger queue plus a slow-consumer alarm, or consume via the sequenced feeds
+       (drop-copy / RALF) that support replay, rather than the best-effort `:5556`
+       broadcast.
+    3. **Conflate the viewers.** `pm-viewer`/`pm-board` only need current state —
+       `zmq.CONFLATE` (keep only the newest message) removes them as a back-pressure
+       source entirely.
+
+    Reliable, replay-backed delivery already exists on the **external** edges (CALF
+    `replay_window_sec`, RALF `replay_retention_sec`, drop-copy's 10k in-memory
+    buffer); the gap is on the internal broadcast bus.
+
+### Other failure modes
+
+| Trigger | Effect | Mitigation / current behaviour |
+|---------|--------|--------------------------------|
+| Slow / stalled subscriber | PUB drops its messages at HWM (silent) | see recommendation above; external feeds replay |
+| Engine crash (hard) | whole exchange down; in-flight + DAY orders + resting book lost (no GTC flush) | single-writer SPOF by design; no HA. Clean SIGINT preserves GTC |
+| Engine restart (clean) | DAY orders expire; GTC/combos restored; trade-id counter resets to 1; subscribers reconnect automatically | ordered shutdown + startup reload |
+| Subscriber crash | isolated — engine and other consumers unaffected | reconnects and resumes; may have a gap (replay if supported) |
+| Gateway disconnect | per-gateway `disconnect_behaviour` (`CANCEL_QUOTES_ONLY` default / `CANCEL_ALL` / `LEAVE_ALL`) | configured per gateway |
+| Wall-clock regression | none — priority tie-break stays strictly increasing | `now_ns()` monotonic guarantee |
+| Drop-copy port (:5557) in use | engine logs a warning and runs **without** the drop-copy feed | deliberate: a port conflict must not stop matching |
+| Long auction uncross | blocks all message processing until it finishes | acceptable for teaching; single-thread trade-off |
+
+
+
 ## Performance Optimizations
 
-The matching engine was optimized from **~57,000 orders/second** to **~160,000
-orders/second** — a 2.8× improvement — using only pure-Python changes (no C
-extensions, no Cython, no multiprocessing).  This section explains each technique
-and *why* it works.
+A sequence of pure-Python changes (no C extensions, no Cython, no multiprocessing)
+raised single-thread throughput by roughly **2.8×**. This section explains each
+technique and *why* it works.
+
+!!! warning "Throughput is strongly CPU-architecture dependent"
+    The headline "after" figure of **~160,000 orders/second** is measured on
+    **ARM (Apple Silicon)**. The identical code on a typical **Intel x86** desktop
+    reaches roughly **~80,000 orders/second** — about half. The "before" baseline
+    (~57,000/s) and the latency table below are ARM figures. Treat all absolute
+    numbers as *illustrative of the relative gains*, not as a portable benchmark;
+    see [Why ARM and Intel differ so much](#why-arm-and-intel-differ-so-much).
 
 
 ### How to read the numbers
@@ -1131,19 +1363,27 @@ would give, making debugging slightly harder.
 
 
 
-###  Single `time.time()` call per order (cached timestamp)
+###  Single timestamp call per order (cached nanosecond clock)
 
-**What it does:**  Calls `time.time()` once at the top of the hot path and passes
-the result (`now`) down to every function that needs a timestamp.
+**What it does:**  Reads the clock once at the top of the hot path and passes the
+result (`now`, an integer nanosecond value) down to every function that needs a
+timestamp.
 
-**Why it's faster:**  `time.time()` is a system call — it crosses from Python into
-the OS kernel and back.  On macOS this costs ~300–500 ns.  A single aggressive
-order that triggers stops could call `time.time()` 4–6 times.  By caching it,
-we pay the cost exactly once.
+**Why it's faster:**  reading the clock is a system call — it crosses from Python
+into the OS kernel and back (~300–500 ns). A single aggressive order that triggers
+stops could read it 4–6 times. Caching it means we pay the cost exactly once.
+
+The ordering-critical timestamp is `now_ns()` (`models/clock.py`) — a wrapper over
+`time.time_ns()` that guarantees a **strictly increasing** integer nanosecond value
+(it never returns a duplicate or a value that went backwards, even if the wall
+clock does). `now_ns()` takes a lock to enforce that guarantee across threads; on
+the engine's single-threaded order loop the hot path calls `time.time_ns()`
+**directly**, bypassing the lock, because ties are already impossible within one
+run-to-completion order.
 
 ```python
 def _handle_new_order(self, payload):
-    now = time.time()                    # one syscall
+    now = now_ns()                       # one clock read, int nanoseconds
     ...
     trades, events = book.process(order, now=now)  # passed through
 
@@ -1153,10 +1393,10 @@ def _apply_fill(self, aggressor, passive, qty, price, trades, events, now):
 ```
 
 **Drawbacks:**  All fills and stop triggers within the same order share the exact
-same timestamp, even if matching takes a few microseconds.  This means you lose
-sub-microsecond precision for sequencing events within a single order.  It also
-pollutes the function signatures — every internal method now carries an extra
-`now` parameter, making the code slightly harder to read and test.
+same timestamp, even if matching takes a few microseconds — you lose sub-microsecond
+sequencing *within* a single order (across orders, monotonicity still holds). It
+also pollutes function signatures — every internal method carries an extra `now`
+parameter, making the code slightly harder to read and test.
 
 
 
@@ -1403,8 +1643,53 @@ always fully initialized, which can confuse static analysis tools like mypy.
 
 All of these improvements are **pure Python** — no C extensions, no multi-threading,
 no unsafe hacks.  The key insight is that in a tight loop, small costs (100 ns here,
-200 ns there) compound rapidly.  At 160,000 orders/second, each order has a budget
-of only **6.25 µs** — every nanosecond matters.
+200 ns there) compound rapidly.  At ~160,000 orders/second (ARM), each order has a
+budget of only **6.25 µs** — every nanosecond matters. On Intel x86 the budget is
+roughly double (~12.5 µs at ~80,000/s), because the per-order work is the same but
+each interpreter step is slower (below).
+
+### Why ARM and Intel differ so much
+
+The **same code** runs ~2× faster on Apple Silicon (ARM) than on a typical Intel
+x86 desktop. This is a property of the *workload* — a CPython bytecode interpreter
+doing pointer-chasing and small-object allocation — meeting two very different
+microarchitectures. The dominant hypotheses (in rough order of expected impact;
+confirming the split requires profiling, e.g. `perf stat` on each host):
+
+| Factor | Why it favours Apple Silicon |
+|--------|------------------------------|
+| **Interpreter dispatch** | CPython's eval loop is a giant computed-goto over bytecodes — a torrent of hard-to-predict indirect branches. Apple's very wide decode and large branch-prediction resources swallow this better than mainstream x86 desktop parts. |
+| **Memory latency & cache** | Refcounting and dict/attribute lookups are latency-bound pointer chases. Apple Silicon's on-package unified memory and large L1/L2 (and huge SLC) cut the average miss cost that this workload pays constantly. |
+| **Single-thread IPC / clocks** | The engine is single-threaded, so only 1-core performance matters. High-IPC M-series cores at competitive clocks beat many Intel desktop cores on this specific scalar, branchy, allocation-heavy code. |
+| **Refcount write traffic** | Every `INCREF`/`DECREF` is a small write; Apple's store buffering and cache bandwidth absorb the churn with less stall. |
+| **Native library codegen** | `orjson` (Rust) and the Python build itself may be compiled with better-tuned codegen / SIMD paths on `arm64` than the x86 wheels in use. |
+
+Two caveats. First, "Intel" and "ARM" are not monolithic: a recent high-clock
+Xeon/Core will close much of the gap versus an older desktop part, and the numbers
+here compare the specific machines used. Second, the *relative* speedups of the ten
+techniques above are stable across both architectures — only the absolute TPS moves.
+If you publish throughput figures, always state the CPU.
+
+## Configuration Choices That Impact Performance
+
+Several config values are not just feature toggles — they directly set the system's
+work rate, memory footprint, and back-pressure thresholds. The most important is the
+market-data throttle.
+
+| Setting | Where | Default | Performance effect |
+|---------|-------|---------|--------------------|
+| `snapshot_interval_sec` | engine config | `0.5` | **Dominant market-data lever.** Caps how often `book.{SYM}` / `depth.{SYM}` are published per symbol. Lower = fresher books but more messages, more serialisation, and more downstream CPU across every subscriber and bridge. The floor is the engine poll tick. |
+| Engine poll timeout | `engine/main.py` const | `200 ms` | Upper bound on idle→snapshot latency and on how often circuit-breaker resume timers are checked. Also the effective minimum snapshot cadence. |
+| `market_data_gateway.depth_levels` | CALF | `10` | Bytes per `DEPTH`/`SNAP` line. Combined with a `SYM=*` wildcard subscription, multiplies per-client bandwidth by the symbol count. |
+| `*.max_client_queue` | all gateways | `10000` | Per-client outbound backlog before `SLOW_CLIENT`/drop; also the per-client memory ceiling. |
+| `market_data_gateway.replay_window_sec` · `post_trade_gateway.replay_retention_sec` | CALF / RALF | `30` · `86400` | Replay reach vs replay-buffer memory. |
+| `*.heartbeat_interval_sec` · `*.idle_timeout_sec` | all gateways | varies | Idle-traffic volume vs dead-peer detection latency. |
+| `*.max_commands_per_second` · `*.max_messages_per_second` · `api rate_limit` | ALF / BALF / API | `100` · `100` · `10` | Ingress throttles that protect the single-threaded engine from a runaway client. |
+| ZeroMQ high-water marks | `messaging/bus.py` | **unset (ZMQ default ≈1000)** | Governs when PUB silently drops to slow subscribers and when PUSH blocks — see [Failure modes](#failure-modes-fault-tolerance). Not currently tunable via config. |
+
+Rule of thumb: to reduce load, **raise `snapshot_interval_sec`** first (it scales
+across every consumer at once); to reduce latency for a specific external consumer,
+tune that gateway's own knobs rather than the global throttle.
 
 ## Tick And Time Representation
 
@@ -1416,3 +1701,14 @@ of only **6.25 µs** — every nanosecond matters.
     - Outbound display timestamps use seconds derived from ns (`ns / 1e9`).
 - Matching, queue priority, auction price selection, and stop logic all operate
     on integer values to avoid float drift.
+
+**Monotonic ordering guarantee.** Ordering-critical timestamps come from
+`now_ns()` (`models/clock.py`), which wraps `time.time_ns()` and enforces a
+**strictly increasing** sequence: if the raw clock returns a value less than or
+equal to the last one (a duplicate, or a backwards wall-clock step), `now_ns()`
+returns `last + 1` instead. This matters because the timestamp is the **tie-breaker
+in price-time priority** — two orders at the same price must never compare equal,
+or heap ordering (and therefore queue fairness) becomes undefined. The guarantee is
+lock-protected for multi-threaded callers; the engine's single-threaded order loop
+deliberately calls `time.time_ns()` directly on the hot path (ties are impossible
+within one run-to-completion order — see [Performance Optimizations](#single-timestamp-call-per-order-cached-nanosecond-clock)).

@@ -109,6 +109,7 @@ class TestSchedulerMain:
         mock_run_now.assert_called_once()
         mock_pusher.return_value.close.assert_called_once()
 
+    @patch("edumatcher.scheduler.main.make_subscriber", return_value=MagicMock())
     @patch("edumatcher.scheduler.main._run_scheduled")
     @patch("edumatcher.scheduler.main._load_schedule", return_value=[])
     @patch("edumatcher.scheduler.main.time.sleep")
@@ -119,6 +120,7 @@ class TestSchedulerMain:
         mock_sleep: MagicMock,
         mock_load: MagicMock,
         mock_run_scheduled: MagicMock,
+        mock_subscriber: MagicMock,
     ) -> None:
         with patch("sys.argv", ["pm-scheduler"]):
             from edumatcher.scheduler.main import main

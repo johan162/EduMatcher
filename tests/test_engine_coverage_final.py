@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 import pytest
 
+from edumatcher.engine.collar import CollarConfig
 from edumatcher.engine.config_loader import (
     EngineConfig,
     FixGatewayConfig,
@@ -17,6 +18,7 @@ from edumatcher.engine.config_loader import (
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
+from edumatcher.models.price import to_ticks
 from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.message import decode
 from edumatcher.models.order import (
@@ -56,6 +58,7 @@ def _make_engine(
     book_stats=None,
     verbose=False,
     config_path_exists=True,
+    symbol_overrides=None,
 ):
     pull_sock = _Sock(sent=[])
     pub_sock = _Sock(sent=[])
@@ -63,7 +66,10 @@ def _make_engine(
     sym_configs = {}
     for sym in symbols:
         quotes_list = mm_quotes.get(sym, []) if mm_quotes else []
-        sym_configs[sym] = SymbolConfig(name=sym, market_maker_quotes=quotes_list)
+        overrides = symbol_overrides.get(sym, {}) if symbol_overrides else {}
+        sym_configs[sym] = SymbolConfig(
+            name=sym, market_maker_quotes=quotes_list, **overrides
+        )
 
     cfg = EngineConfig(
         symbols=sym_configs,
@@ -263,6 +269,102 @@ class TestLoadConfigWithStats:
         )
         engine._load_config()
         assert "AAPL" in engine.books
+
+
+# ---------------------------------------------------------------------------
+# Collar reference_price prefers persisted book_stats over stale config seed
+# ---------------------------------------------------------------------------
+
+
+class TestCollarReferencePricePrefersPersistedStats:
+    def test_reference_price_uses_persisted_book_stats_over_stale_config(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """Persisted book_stats.json last_buy_price wins over the config seed."""
+        stale_collar = CollarConfig(symbol="AAPL")
+        engine, _ = _make_engine(
+            monkeypatch,
+            tmp_path,
+            symbols=("AAPL",),
+            symbol_overrides={
+                "AAPL": {"last_buy_price": 100.0, "collar": stale_collar}
+            },
+            book_stats={"AAPL": {"last_buy_price": 150.0}},
+        )
+        engine._load_config()
+        assert engine._collars["AAPL"].reference_price == to_ticks(150.0, "AAPL")
+
+    def test_reference_price_falls_back_to_config_without_persisted_stats(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """With no persisted stats, the config seed is used as before."""
+        stale_collar = CollarConfig(symbol="AAPL")
+        engine, _ = _make_engine(
+            monkeypatch,
+            tmp_path,
+            symbols=("AAPL",),
+            symbol_overrides={
+                "AAPL": {"last_buy_price": 100.0, "collar": stale_collar}
+            },
+        )
+        engine._load_config()
+        assert engine._collars["AAPL"].reference_price == to_ticks(100.0, "AAPL")
+
+
+# ---------------------------------------------------------------------------
+# Circuit breaker reference is seeded from last price on day one
+# ---------------------------------------------------------------------------
+
+
+class TestCircuitBreakerSeededAtStartup:
+    def _cb_config(self):
+        from edumatcher.engine.circuit_breaker import (
+            CircuitBreakerConfig,
+            CircuitBreakerLevel,
+        )
+
+        return CircuitBreakerConfig(
+            symbol="AAPL",
+            reference_window_ns=300_000_000_000,
+            levels=[
+                CircuitBreakerLevel(
+                    name="L1",
+                    price_shift_pct=0.07,
+                    halt_duration_ns=300_000_000_000,
+                ),
+            ],
+        )
+
+    def test_cb_reference_seeded_from_last_price(self, monkeypatch, tmp_path) -> None:
+        engine, _ = _make_engine(
+            monkeypatch,
+            tmp_path,
+            symbols=("AAPL",),
+            symbol_overrides={
+                "AAPL": {"last_buy_price": 100.0, "circuit_breaker": self._cb_config()},
+            },
+        )
+        engine._load_config()
+        cb = engine._circuit_breakers["AAPL"]
+        assert cb.reference_price == to_ticks(100.0, "AAPL")
+
+    def test_first_trade_can_trigger_on_day_one(self, monkeypatch, tmp_path) -> None:
+        engine, _ = _make_engine(
+            monkeypatch,
+            tmp_path,
+            symbols=("AAPL",),
+            symbol_overrides={
+                "AAPL": {"last_buy_price": 100.0, "circuit_breaker": self._cb_config()},
+            },
+        )
+        engine._load_config()
+        cb = engine._circuit_breakers["AAPL"]
+        # A first print +8% from the seeded reference must be able to trigger L1.
+        from edumatcher.models.clock import now_ns
+
+        level = cb.record_trade(to_ticks(108.0, "AAPL"), now_ns())
+        assert level is not None
+        assert level.name == "L1"
 
 
 # ---------------------------------------------------------------------------

@@ -51,10 +51,16 @@ from edumatcher.models.message import (
     make_quote_cancel_msg,
     make_quote_ack_msg,
     make_quote_status_msg,
-    make_dropcopy_fill_msg,
     make_trade_msg,
     make_oco_order_msg,
     make_oco_cancel_msg,
+)
+from edumatcher.models.feed_schema import (
+    GatewayAuthPayload,
+    GatewayByePayload,
+    SessionStatePayload,
+    SystemEodPayload,
+    TradeExecutedPayload,
 )
 
 
@@ -84,19 +90,40 @@ class TestIndexMessages:
                 index_id="EDU100",
                 from_ts=1000.0,
                 to_ts=2000.0,
-                types=["LEVEL", "EOD"],
+                types=["INIT", "CORP_ACTION"],
             )
         )
         assert topic == "index.history_request"
         assert payload["gateway_id"] == "GW01"
         assert payload["index_id"] == "EDU100"
 
+    def test_make_index_history_request_msg_defaults_to_structural_types(self) -> None:
+        """pm-index's history is a structural/audit log only — the default
+        request must never ask for LEVEL/EOD, which are no longer stored.
+        """
+        _topic, payload = _rt(
+            make_index_history_request_msg(
+                gateway_id="GW01",
+                index_id="EDU100",
+                from_ts=1000.0,
+                to_ts=2000.0,
+            )
+        )
+        assert "LEVEL" not in payload["types"]
+        assert "EOD" not in payload["types"]
+        assert set(payload["types"]) == {
+            "INIT",
+            "CORP_ACTION",
+            "ADD_CONSTITUENT",
+            "DELIST",
+        }
+
     def test_make_index_history_msg(self) -> None:
         topic, payload = _rt(
             make_index_history_msg(
                 gateway_id="GW01",
                 index_id="EDU100",
-                records=[{"type": "LEVEL", "timestamp": 1.0}],
+                records=[{"type": "CORP_ACTION", "timestamp": 1.0}],
             )
         )
         assert topic == "index.history.GW01"
@@ -323,6 +350,24 @@ class TestSystemMessages:
         assert topic == "system.eod"
         assert len(payload["books"]) == 1
 
+    def test_make_eod_msg_matches_feed_schema(self) -> None:
+        topic, payload = _rt(
+            make_eod_msg(
+                [
+                    {
+                        "symbol": "AAPL",
+                        "last_price": 150.75,
+                        "bids": [{"price": 150.7, "qty": 10, "count": 1}],
+                        "asks": [{"price": 150.8, "qty": 12, "count": 1}],
+                    }
+                ]
+            )
+        )
+        typed = SystemEodPayload.from_dict(payload)
+        assert topic == "system.eod"
+        assert typed.books[0].symbol == "AAPL"
+        assert typed.books[0].last_price == 150.75
+
     def test_make_book_snapshot_request_msg(self) -> None:
         topic, payload = _rt(make_book_snapshot_request_msg("AAPL"))
         assert topic == "book.snapshot_request"
@@ -331,9 +376,44 @@ class TestSystemMessages:
 
 class TestMarketDataMessages:
     def test_make_trade_msg(self) -> None:
-        topic, payload = _rt(make_trade_msg({"symbol": "AAPL", "price": 150.0}))
+        topic, payload = _rt(
+            make_trade_msg(
+                {
+                    "id": "1",
+                    "symbol": "AAPL",
+                    "buy_order_id": "B1",
+                    "sell_order_id": "S1",
+                    "buy_gateway_id": "GW1",
+                    "sell_gateway_id": "GW2",
+                    "price": 150.0,
+                    "tick_decimals": 2,
+                    "quantity": 10,
+                    "aggressor_side": "BUY",
+                    "timestamp": 1_700_000_000.0,
+                }
+            )
+        )
         assert topic == "trade.executed"
         assert payload["price"] == 150.0
+
+    def test_make_trade_msg_matches_feed_schema(self) -> None:
+        typed = TradeExecutedPayload(
+            id="1",
+            symbol="AAPL",
+            buy_order_id="B1",
+            sell_order_id="S1",
+            buy_gateway_id="GW1",
+            sell_gateway_id="GW2",
+            price=150.75,
+            quantity=10,
+            aggressor_side="BUY",
+            timestamp=1_700_000_000.5,
+            tick_decimals=2,
+        )
+        topic, payload = _rt(make_trade_msg(typed.to_dict()))
+        roundtrip = TradeExecutedPayload.from_dict(payload)
+        assert topic == "trade.executed"
+        assert roundtrip == typed
 
     def test_make_book_msg(self) -> None:
         topic, payload = _rt(make_book_msg("AAPL", {"bids": [], "asks": []}))
@@ -355,6 +435,13 @@ class TestSessionMessages:
     def test_make_session_state_msg_with_prev(self) -> None:
         topic, payload = _rt(make_session_state_msg("CONTINUOUS", "OPENING_AUCTION"))
         assert payload["prev_state"] == "OPENING_AUCTION"
+
+    def test_make_session_state_msg_matches_feed_schema(self) -> None:
+        topic, payload = _rt(make_session_state_msg("CONTINUOUS", "OPENING_AUCTION"))
+        typed = SessionStatePayload.from_dict(payload)
+        assert topic == "session.state"
+        assert typed.state == "CONTINUOUS"
+        assert typed.prev_state == "OPENING_AUCTION"
 
     def test_make_auction_result_msg(self) -> None:
         topic, payload = _rt(
@@ -447,6 +534,23 @@ class TestMMQuoteAndRiskMessages:
         assert topic == "system.gateway_disconnect"
         assert payload["reason"] == "shutdown"
 
+    def test_gateway_auth_and_bye_match_feed_schema(self) -> None:
+        t1, p1 = _rt(make_gateway_auth_msg("GW01", True, reason="ok", description="d"))
+        t2, p2 = _rt(make_gateway_disconnect_msg("GW01", "bye"))
+        # gateway_disconnect is inbound (gateway -> engine), while gateway_bye
+        # is the PUB broadcast consumed by clearing.
+        from edumatcher.models.message import make_gateway_bye_msg
+
+        t3, p3 = _rt(make_gateway_bye_msg("GW01", "bye"))
+
+        auth = GatewayAuthPayload.from_dict(p1)
+        bye = GatewayByePayload.from_dict(p3)
+        assert t1 == "system.gateway_auth.GW01"
+        assert auth.accepted is True
+        assert t2 == "system.gateway_disconnect"
+        assert t3 == "system.gateway_bye.GW01"
+        assert bye.reason == "bye"
+
     def test_make_kill_switch_msg(self) -> None:
         topic, payload = _rt(make_kill_switch_msg("GW01", "AAPL"))
         assert topic == "risk.kill_switch"
@@ -499,11 +603,6 @@ class TestMMQuoteAndRiskMessages:
         assert topic == "risk.circuit_breaker_resume_all_ack.GW01"
         assert payload["accepted"] is True
         assert payload["resumed_symbols"] == 5
-
-    def test_make_dropcopy_fill_msg(self) -> None:
-        topic, payload = _rt(make_dropcopy_fill_msg("GW01", {"trade_id": "1"}))
-        assert topic == "dropcopy.fill.GW01"
-        assert payload["trade_id"] == "1"
 
     def test_make_depth_msg(self) -> None:
         topic, payload = _rt(make_depth_msg("AAPL", {"bids": [[10000, 10]]}))

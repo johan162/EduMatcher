@@ -1,8 +1,20 @@
-Version: 1.2.0
+Version: 1.3.0
 
 Date: 2026-06-22
 
 Status: Design and Research Proposal
+
+> **Update (2026-07-18):** The JSONL history design in Section 8 has been
+> narrowed and implemented as a **structural/corporate-action audit log only**
+> (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`). The `LEVEL` and `EOD`
+> record types described in earlier revisions of this document have been
+> removed from the JSONL design — they are no longer written to disk by
+> `pm-index` at all. That time-series data is now recorded by `pm-stats`,
+> which subscribes to the live `index.update` ZMQ broadcast and persists every
+> tick into two SQLite tables, `index_level_snapshots` and `index_daily_stats`,
+> queryable via `pm-stats-cli index-daily` / `index-snapshots` / `index-ids`.
+> This refactor is **implemented**. See Section 8.1a for the updated design
+> and pointers to the `pm-stats` documentation.
 
 # EduMatcher — Exchange Index Design Proposal
 
@@ -46,8 +58,10 @@ This proposal adds:
     a dedicated `pm-index` process.
 - Real-time index updates published on the existing ZMQ PUB bus and via the CALF
   market-data protocol for external subscribers.
-- Historical index values stored on disk so that past index levels can be
-    queried per index.
+- A structural/corporate-action audit trail stored on disk (JSONL) for each
+    index, plus level and end-of-day time-series history recorded by `pm-stats`
+    from the live `index.update` broadcast, so both audit events and historical
+    levels can be queried per index.
 - Handling for corporate actions (splits, dividends) and symbol delisting via a
   divisor adjustment mechanism — the same technique used by S&P 500.
 - An `INDEX` command in the ALF gateway so traders can query any configured
@@ -205,7 +219,7 @@ indices:
 | `indices[].description` | string | — | Human-readable label for operators and clients |
 | `indices[].base_value` | float | `1000.0` | Starting level for that index |
 | `indices[].publish_interval_sec` | float | `1.0` | Throttle for `index.update` publishing |
-| `indices[].history_file` | string | derived from `id` | JSONL file for snapshot persistence |
+| `indices[].history_file` | string | derived from `id` | JSONL structural/corporate-action audit log (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST` only — no level or EOD ticks; see Section 8) |
 | `indices[].state_file` | string | derived from `id` | State file for divisor, last prices, and OHLC recovery |
 | `indices[].constituents` | list[str] | — | Symbols included in the index; must exist in `symbols` |
 
@@ -338,9 +352,12 @@ path guarded by an idempotency flag (for example `_eod_finalized_for_session`).
 This guarantees exactly one EOD write/publish per session:
 
 1. Computes the final index value for the day.
-2. Writes a snapshot to the history file (see Section 8).
-3. Publishes a final `index.update` with `session_state = "CLOSED"`.
-4. Resets `_last_publish_time` so the next day starts fresh.
+2. Publishes a final `index.update` with `session_state = "CLOSED"` — this
+   forced publish is what `pm-stats` records as the day's close in
+   `index_daily_stats` (see Section 8). Nothing is written to the JSONL
+   history file for this step; the JSONL file only records structural/audit
+   events.
+3. Resets `_last_publish_time` so the next day starts fresh.
 
 If both events arrive, the second event is ignored for EOD finalisation.
 
@@ -641,29 +658,87 @@ def _on_trade(self, symbol: str, price: float) -> None:
 
 ## 8. History and Persistence
 
-### 8.1 Storage Format
+### 8.1 Storage Format — Structural/Audit Log Only
 
-Index history is stored as a JSONL file (one JSON object per line). This is simple
-to write, append-only, human-readable, and trivially parseable in Python. Each line
-is a self-contained JSON object:
+The JSONL history file is a **structural/corporate-action audit log**, not a
+level or EOD store. It exists so operators can answer "why did the divisor
+change?" without scanning a high-frequency time series. It records only the
+four event types that change an index's composition or divisor: `INIT`,
+`CORP_ACTION`, `ADD_CONSTITUENT`, and `DELIST`.
+
+Per-tick index levels (the throttled `index.update` broadcast) and end-of-day
+OHLC rollups are **not** written here at all. That time series lives entirely
+in `pm-stats` (see Section 8.1a) — `pm-index` never writes it to disk itself.
+
+The file is simple to write, append-only, human-readable, and trivially
+parseable in Python. Each line is a self-contained JSON object:
 
 ```json
-{"type": "LEVEL", "timestamp": 1749733200.123, "level": 1048.73, "session_state": "CONTINUOUS", "aggregate_cap": 7350000000000.0, "divisor": 7007100000.0}
-{"type": "EOD",   "timestamp": 1749760800.000, "level": 1051.20, "session_state": "CLOSED",     "aggregate_cap": 7368000000000.0, "divisor": 7007100000.0, "open": 1042.10, "high": 1056.30, "low": 1040.05, "close": 1051.20}
+{"type": "INIT", "timestamp": 1749733100.000, "index_id": "EDU100", "base_value": 1000.0, "divisor": 7007100000.0, "constituents": ["AAPL", "MSFT", "TSLA"], "level": 1000.0}
 {"type": "CORP_ACTION", "timestamp": 1749847200.000, "symbol": "AAPL", "action": "SPLIT", "detail": "2:1", "old_divisor": 7007100000.0, "new_divisor": 7007100000.0, "level": 1051.20}
 {"type": "DELIST", "timestamp": 1749933600.000, "symbol": "TSLA", "old_divisor": 7007100000.0, "new_divisor": 6180000000.0, "level": 1051.20}
+{"type": "ADD_CONSTITUENT", "timestamp": 1750020000.000, "symbol": "AMZN", "reference_price": 195.00, "old_divisor": 6180000000.0, "new_divisor": 6350000000.0, "level": 1051.20}
 ```
+
+`src/edumatcher/index/history.py` expresses this as a module-level constant:
+
+```python
+STRUCTURAL_RECORD_TYPES = frozenset({"INIT", "CORP_ACTION", "DELIST", "ADD_CONSTITUENT"})
+```
+
+`IndexHistory.query()` treats any `type` value not in `STRUCTURAL_RECORD_TYPES`
+as `"unknown"` — this now includes `LEVEL` and `EOD`, which are legacy type
+values that will never be produced by a current `pm-index` build but are still
+handled gracefully if an old history file is queried.
 
 #### Record types
 
 | `type` | When written | Fields |
 |---|---|---|
-| `LEVEL` | Every `publish_interval_sec` during trading | `timestamp`, `level`, `session_state`, `aggregate_cap`, `divisor` |
-| `EOD` | When session transitions to `CLOSED` | All `LEVEL` fields plus `open`, `high`, `low`, `close` for the day |
+| `INIT` | On first startup (no prior state) | `base_value`, `divisor`, `constituents` (list of symbols), `level` |
 | `CORP_ACTION` | On every corporate action command | `symbol`, `action`, `detail`, `old_divisor`, `new_divisor`, `level` |
 | `DELIST` | On delisting | `symbol`, `old_divisor`, `new_divisor`, `level` |
 | `ADD_CONSTITUENT` | On adding a constituent | `symbol`, `reference_price`, `old_divisor`, `new_divisor`, `level` |
-| `INIT` | On first startup (no prior state) | `base_value`, `divisor`, `constituents` (list of symbols), `level` |
+
+> **Removed:** `LEVEL` and `EOD` record types were removed from the JSONL
+> design. See Section 8.1a for where that data now lives.
+
+### 8.1a Level and EOD History Now Live in `pm-stats`
+
+Per-tick index levels and daily OHLC rollups are recorded by `pm-stats`
+(`src/edumatcher/stats/main.py`), not by `pm-index`. `pm-stats` subscribes to
+the live `index.update` ZMQ broadcast on `INDEX_PUB_ADDR` — the same broadcast
+the gateway and CALF consume — and persists every tick it receives into two
+SQLite tables:
+
+| Table | Grain | Written on |
+|---|---|---|
+| `index_level_snapshots` | Every `index.update` event received | Every throttled intraday tick, plus the forced end-of-day publish |
+| `index_daily_stats` | One row per `(date, index_id)`, upserted | Every `index.update` event; the row for the day is refreshed until the forced EOD publish closes it out |
+
+`pm-stats` applies no additional throttling of its own — `pm-index` has
+already rate-limited its publications via `publish_interval_sec` before
+`pm-stats` ever sees them, so every received tick is recorded.
+
+This split means:
+
+- `pm-index`'s JSONL file answers "what structural/audit events happened and
+    why did the divisor change?"
+- `pm-stats`'s SQLite tables answer "what was the index level at time T?" and
+    "what was the day's open/high/low/close?"
+
+Query the SQLite tables via `pm-stats-cli`:
+
+```bash
+pm-stats-cli index-daily --index-id EDU100
+pm-stats-cli index-snapshots --index-id EDU100 --from 2026-06-14T09:00:00+00:00 --to 2026-06-14T16:30:00+00:00
+pm-stats-cli index-ids
+```
+
+See `EduMatcher-Statistics-and-Reporting.md` (or the equivalent design doc for
+`pm-stats`) for the full schema and CLI reference. This design document
+(`EduMatcher-Index.md`) no longer owns the level/EOD history design — it is
+retained here only as a pointer.
 
 ### 8.2 State Persistence
 
@@ -691,22 +766,28 @@ divisor and last-known prices across restarts:
 }
 ```
 
-This file is rewritten on every `EOD` record and on every corporate action. On
-startup, if this file exists, divisor, last prices, and constituent state are
-loaded from it rather than re-initialising from config. If the loaded index id
-or constituent set conflicts with config, startup must fail fast unless
-`--reset` is explicitly requested.
+This file is rewritten on every EOD finalisation (Section 5.5) and on every
+corporate action. It is distinct from the JSONL structural/audit log described
+in Section 8.1 — the state file is a single-snapshot checkpoint for fast
+restart recovery, not an append-only audit trail. On startup, if this file
+exists, divisor, last prices, and constituent state are loaded from it rather
+than re-initialising from config. If the loaded index id or constituent set
+conflicts with config, startup must fail fast unless `--reset` is explicitly
+requested.
 
 ### 8.3 History Query
 
-The `pm-index` process serves history queries over ZMQ. The gateway/operator sends
-`index.history_request` via PUSH to `INDEX_PULL_ADDR` (`5559`); `pm-index` scans
-the JSONL file and replies on its PUB socket (`5558`) with topic
-`index.history.{gateway_id}`. The request payload includes `index_id` so the
-reply can be scoped to a specific configured index.
+The `pm-index` process serves *structural/audit* history queries over ZMQ —
+`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, and `DELIST` only. It never returns
+level or EOD data; that belongs to `pm-stats` (Section 8.1a). The
+gateway/operator sends `index.history_request` via PUSH to `INDEX_PULL_ADDR`
+(`5559`); `pm-index` scans the JSONL file and replies on its PUB socket
+(`5558`) with topic `index.history.{gateway_id}`. The request payload includes
+`index_id` so the reply can be scoped to a specific configured index.
 
 This is an acceptable implementation for educational use. A production system
-would use a time-series database.
+would use a time-series database — though note that, for level/EOD data, that
+role is now filled by `pm-stats`'s SQLite tables rather than by this file.
 
 Operational limits and validation rules:
 
@@ -714,15 +795,24 @@ Operational limits and validation rules:
 - If `to_ts < from_ts`, return an error payload.
 - Max records per response: `10_000` (configurable).
 - Max default query window when FROM/TO omitted: 30 days.
-- Unknown record type values are ignored and reported in `warnings`.
+- Unknown record type values (including legacy `LEVEL`/`EOD` values found in
+    an old history file) are ignored and reported in `warnings`.
+- `types` defaults to `sorted(STRUCTURAL_RECORD_TYPES)` — i.e.
+    `["ADD_CONSTITUENT", "CORP_ACTION", "DELIST", "INIT"]` — when the caller
+    omits it.
 
 ```python
 def _serve_history_request(self, payload: dict) -> None:
     """
-    Return LEVEL and EOD records within [from_ts, to_ts].
+    Return structural/audit records within [from_ts, to_ts].
+
+    Only STRUCTURAL_RECORD_TYPES (INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST)
+    are ever present in the JSONL file — LEVEL and EOD are no longer written
+    there at all (see Section 8.1a: that time series now lives in pm-stats).
 
     The JSONL file is read linearly from disk. For large files this is slow
-    but acceptable for an educational system. A future optimisation would
+    but acceptable for an educational system, and the file only grows on
+    structural/audit events, so it stays small. A future optimisation would
     add a binary-search index by timestamp.
     """
     gateway_id = payload.get("gateway_id")
@@ -738,7 +828,7 @@ def _serve_history_request(self, payload: dict) -> None:
             make_index_error_msg(f"index.history.{gateway_id}", "to_ts must be >= from_ts")
         )
         return
-    record_types = set(payload.get("types", ["LEVEL", "EOD"]))
+    record_types = set(payload.get("types", sorted(STRUCTURAL_RECORD_TYPES)))
     max_records = int(payload.get("max_records", 10_000))
 
     results = []
@@ -771,7 +861,11 @@ self._day_close: float | None  # set when session closes
 ```
 
 These are reset when `session.state` transitions to `OPENING_AUCTION` or
-`CONTINUOUS` (start of day). They are written to the `EOD` record at `CLOSED`.
+`CONTINUOUS` (start of day). They are included as `day_open`/`day_high`/
+`day_low` fields on the live `index.update` payload published at `CLOSED`
+(the forced EOD publish described in Section 5.5). Nothing is written to the
+JSONL history file for this — `pm-stats` is what turns this forced publish
+into the day's row in `index_daily_stats` (Section 8.1a).
 
 
 
@@ -880,10 +974,17 @@ sequenceDiagram
 
     C->>G: INDEX|HISTORY|FROM=...|TO=...
     G->>I: PUSH INDEX_PULL_ADDR (default :5559) index.history_request
-    I->>I: query JSONL + apply limits
+    I->>I: query structural/audit JSONL + apply limits
     I-->>G: PUB INDEX_PUB_ADDR (default :5558) topic index.history.{GW_ID}
-    G-->>C: Rendered HISTORY output
+    G-->>C: Rendered HISTORY output (structural/audit records only)
 ```
+
+> **Note:** this flow only ever returns structural/audit records (`INIT`,
+> `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`). For level or EOD time-series
+> data, the client-side equivalent is querying `pm-stats` via
+> `pm-stats-cli index-daily` / `index-snapshots` (Section 8.1a) — there is no
+> ZMQ request/response path for that data; it is queried directly from the
+> `pm-stats` SQLite database.
 
 ### 9.6 External Client Example
 
@@ -922,11 +1023,13 @@ The client does not need to know that ZMQ, JSON, or a divisor exist.
     `index.history_request` on a PULL socket (`INDEX_PULL_ADDR`, default port 5559).
 - Recalculate the index on every relevant trade.
 - Throttle publications to `publish_interval_sec`.
-- Track intraday OHLC.
-- Persist history to the JSONL file.
+- Track intraday OHLC (in memory, for inclusion in the live `index.update`
+    payload — not written to the JSONL file).
+- Persist structural/audit events (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`,
+    `DELIST`) to the JSONL history file.
 - Persist divisor and last prices to `index_state.json`.
 - Bind a PUB socket on `INDEX_PUB_ADDR` (default port 5558) and publish `index.update` messages.
-- Serve `index.history_request` messages.
+- Serve `index.history_request` messages (structural/audit records only).
 - Publish explicit acks/errors for operator commands and history requests.
 
 ### 10.2 Non-Responsibilities
@@ -934,6 +1037,9 @@ The client does not need to know that ZMQ, JSON, or a divisor exist.
 - `pm-index` does NOT modify the engine.
 - `pm-index` does NOT calculate P&L or positions.
 - `pm-index` does NOT publish to port 5556 — that is the engine's exclusive socket.
+- `pm-index` does NOT persist per-tick levels or daily OHLC rollups to disk —
+    that is `pm-stats`'s responsibility (Section 8.1a), driven by its own
+    subscription to the `index.update` broadcast.
 
 ### 10.3 Process Startup
 
@@ -976,15 +1082,28 @@ class IndexCalculator:
 **`src/edumatcher/index/history.py`** — `IndexHistory` class:
 
 ```python
+STRUCTURAL_RECORD_TYPES = frozenset({"INIT", "CORP_ACTION", "DELIST", "ADD_CONSTITUENT"})
+
+
 class IndexHistory:
     """
-    Manages the JSONL history file. Handles append, EOD snapshot, and query.
-    No ZMQ — pure file I/O.
+    Manages the JSONL structural/audit history file: INIT, CORP_ACTION,
+    ADD_CONSTITUENT, DELIST only. Handles append and query. No ZMQ, no LEVEL/
+    EOD writes — pure file I/O over structural/audit events. Level and EOD
+    time-series data is recorded separately by pm-stats from the live
+    index.update broadcast (see Section 8.1a); IndexHistory has no knowledge
+    of that data.
     """
     def __init__(self, history_file: str) -> None: ...
     def append(self, record: dict) -> None: ...
     def flush(self) -> None: ...
-    def query(self, from_ts: float, to_ts: float, types: set[str]) -> list[dict]: ...
+    def query(self, from_ts: float, to_ts: float, types: set[str]) -> list[dict]:
+        """
+        Any type not in STRUCTURAL_RECORD_TYPES — including legacy LEVEL/EOD
+        values that might be present in an old history file — is treated as
+        "unknown" rather than raising.
+        """
+        ...
 ```
 
 **`src/edumatcher/index/config_loader.py`** — `load_index_config(path)` function
@@ -1038,7 +1157,7 @@ changes, and history requests) are handled in one poll loop.
 | `src/edumatcher/index/__init__.py` | Package marker (empty) |
 | `src/edumatcher/index/main.py` | `pm-index` entry point and run loop |
 | `src/edumatcher/index/calculator.py` | `IndexCalculator` class (pure maths, no I/O) |
-| `src/edumatcher/index/history.py` | `IndexHistory` JSONL file manager |
+| `src/edumatcher/index/history.py` | `IndexHistory` structural/audit JSONL file manager (`STRUCTURAL_RECORD_TYPES`) |
 | `src/edumatcher/index/config_loader.py` | Load `indices:` section from YAML |
 | `tests/test_index_calculator.py` | Unit tests for `IndexCalculator` |
 | `tests/test_index_history.py` | Unit tests for `IndexHistory` |
@@ -1111,7 +1230,13 @@ def make_index_history_request_msg(
     to_ts: float,
     types: list[str] | None = None,
 ) -> list[bytes]:
-    """Gateway/operator → pm-index: request historical index records."""
+    """
+    Gateway/operator → pm-index: request historical index records.
+
+    types defaults to the structural/audit record types — LEVEL and EOD are
+    no longer written to the JSONL file, so requesting them here would always
+    return nothing. For level/EOD data, query pm-stats instead (Section 8.1a).
+    """
     return encode(
         "index.history_request",
         {
@@ -1119,7 +1244,7 @@ def make_index_history_request_msg(
             "index_id": index_id,
             "from_ts": from_ts,
             "to_ts": to_ts,
-            "types": types or ["LEVEL", "EOD"],
+            "types": types or ["INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"],
         },
     )
 
@@ -1202,7 +1327,11 @@ def index_history(
     to_ts: float,
     types: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Query historical index records within the given Unix timestamp range."""
+    """
+    Query structural/audit index records within the given Unix timestamp
+    range. Returns only INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST records —
+    for level or EOD time-series data, query pm-stats instead (Section 8.1a).
+    """
     self._send(make_index_history_request_msg(
         self._gw_id, from_ts, to_ts, types
     ))
@@ -1303,10 +1432,14 @@ pm-index = "edumatcher.index.main:main"
     "index_id": "EDU100",
   "from_ts": 1749700000.0,
     "to_ts": 1749800000.0,
-    "types": ["LEVEL", "EOD"],
+    "types": ["INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"],
     "max_records": 10000
 }
 ```
+
+`types` may only ever match structural/audit records — `LEVEL` and `EOD` are
+no longer valid values here since `pm-index` never writes them to the JSONL
+file. See Section 8.1a for the pm-stats equivalent for level/EOD queries.
 
 ### 12.4 Ack/Error Payloads
 
@@ -1335,28 +1468,32 @@ pm-index = "edumatcher.index.main:main"
 {
   "records": [
     {
-      "type": "LEVEL",
-      "timestamp": 1749733200.123,
-      "level": 1048.73,
-      "session_state": "CONTINUOUS",
-      "aggregate_cap": 7350000000000.0,
-      "divisor": 7007100000.0
+      "type": "INIT",
+      "timestamp": 1749733100.000,
+      "index_id": "EDU100",
+      "base_value": 1000.0,
+      "divisor": 7007100000.0,
+      "constituents": ["AAPL", "MSFT", "TSLA"],
+      "level": 1000.0
     },
     {
-      "type": "EOD",
-      "timestamp": 1749760800.000,
-      "level": 1051.20,
-      "session_state": "CLOSED",
-      "aggregate_cap": 7368000000000.0,
-      "divisor": 7007100000.0,
-      "open": 1042.10,
-      "high": 1056.30,
-      "low": 1040.05,
-      "close": 1051.20
+      "type": "CORP_ACTION",
+      "timestamp": 1749847200.000,
+      "symbol": "AAPL",
+      "action": "SPLIT",
+      "detail": "2:1",
+      "old_divisor": 7007100000.0,
+      "new_divisor": 7007100000.0,
+      "level": 1051.20
     }
   ]
 }
 ```
+
+Only structural/audit record types (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`,
+`DELIST`) ever appear in `records`. There is no `LEVEL` or `EOD` type in this
+response — see Section 8.1a for how to query level and EOD data from
+`pm-stats`.
 
 ### 12.6 `index.corp_action` Payload
 
@@ -1420,9 +1557,15 @@ index without needing a separate tool.
 
 ```
 INDEX              — show current index level with OHLC and change
-INDEX|HISTORY      — show last 30 days (mixed LEVEL + EOD records)
+INDEX|HISTORY      — show last 30 days of structural/audit records
+                     (INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST)
 INDEX|HISTORY|FROM=2026-06-01|TO=2026-06-12  — query history by date range
 ```
+
+> **Note:** `INDEX|HISTORY` only ever returns structural/audit records. For
+> index level or end-of-day time-series data, use `pm-stats-cli index-daily`
+> or `pm-stats-cli index-snapshots` instead (Section 8.1a) — there is no
+> `INDEX|HISTORY` equivalent for level/EOD data at the gateway command level.
 
 ### 13.2 Wiring the Command
 
@@ -1535,7 +1678,8 @@ Add to the operational commands section:
 
 ```
   INDEX              — show current index level (requires pm-index running)
-  INDEX|HISTORY      — show 30-day mixed LEVEL/EOD history
+  INDEX|HISTORY      — show 30-day structural/audit history (corp actions,
+                       constituent changes) — use pm-stats-cli for level/EOD
   INDEX|HISTORY|FROM=YYYY-MM-DD|TO=YYYY-MM-DD  — custom date range
 ```
 
@@ -1785,25 +1929,47 @@ class TestAddConstituent:
 
 ### 15.2 Unit Tests for `IndexHistory`
 
+`IndexHistory` only ever deals with structural/audit records now. Tests use
+`INIT`/`CORP_ACTION`/`DELIST`/`ADD_CONSTITUENT` fixtures; there is a dedicated
+test asserting that legacy `LEVEL`/`EOD` type values are treated as unknown
+rather than raising, in case an old history file is queried.
+
 ```python
 import json
 import tempfile
 from pathlib import Path
-from edumatcher.index.history import IndexHistory
+from edumatcher.index.history import IndexHistory, STRUCTURAL_RECORD_TYPES
 
 class TestIndexHistory:
     def test_append_and_query(self):
         with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as f:
             path = f.name
         h = IndexHistory(path)
-        h.append({"type": "LEVEL", "timestamp": 1000.0, "level": 1010.0})
-        h.append({"type": "EOD",   "timestamp": 2000.0, "level": 1020.0})
+        h.append({"type": "INIT", "timestamp": 1000.0, "level": 1000.0})
+        h.append({"type": "CORP_ACTION", "timestamp": 2000.0, "level": 1020.0})
         h.flush()
 
-        results = h.query(from_ts=0.0, to_ts=3000.0, types={"LEVEL", "EOD"})
+        results = h.query(from_ts=0.0, to_ts=3000.0, types={"INIT", "CORP_ACTION"})
         assert len(results) == 2
 
     def test_query_type_filter(self):
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as f:
+            path = f.name
+        h = IndexHistory(path)
+        h.append({"type": "INIT", "timestamp": 1000.0, "level": 1000.0})
+        h.append({"type": "CORP_ACTION", "timestamp": 2000.0, "level": 1020.0})
+        h.flush()
+
+        results = h.query(from_ts=0.0, to_ts=3000.0, types={"CORP_ACTION"})
+        assert len(results) == 1
+        assert results[0]["type"] == "CORP_ACTION"
+
+    def test_legacy_level_and_eod_types_are_unknown(self):
+        """
+        LEVEL/EOD are no longer written by pm-index, but a history file from
+        an older build might still contain them. query() must not raise —
+        such records are simply excluded from any structural-type filter.
+        """
         with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as f:
             path = f.name
         h = IndexHistory(path)
@@ -1811,9 +1977,10 @@ class TestIndexHistory:
         h.append({"type": "EOD",   "timestamp": 2000.0, "level": 1020.0})
         h.flush()
 
-        results = h.query(from_ts=0.0, to_ts=3000.0, types={"EOD"})
-        assert len(results) == 1
-        assert results[0]["type"] == "EOD"
+        assert "LEVEL" not in STRUCTURAL_RECORD_TYPES
+        assert "EOD" not in STRUCTURAL_RECORD_TYPES
+        results = h.query(from_ts=0.0, to_ts=3000.0, types=set(STRUCTURAL_RECORD_TYPES))
+        assert len(results) == 0
 ```
 
 ### 15.3 Manual End-to-End Test
@@ -1827,8 +1994,16 @@ class TestIndexHistory:
 6. Type `INDEX` — you should now see a level close to 1000.
 7. Run more AAPL trades at higher prices and type `INDEX` again — level should rise.
 8. In a separate terminal, start the scheduler: `poetry run pm-scheduler --now`.
-   When it sends `CLOSED`, check that an `EOD` record appears in `data/index_history.jsonl`.
-9. Query history from the gateway: `INDEX|HISTORY` — you should see the EOD record.
+   When it sends `CLOSED`, the forced EOD `index.update` is published live —
+   nothing is written to `data/indexes/EDU100_history.jsonl` for this (that
+   file only ever grows on structural/audit events). Instead, start `pm-stats`
+   alongside the other processes and confirm the day's row appears via
+   `pm-stats-cli index-daily --index-id EDU100`.
+9. Query the structural/audit trail from the gateway: `INDEX|HISTORY` — you
+   should see the `INIT` record from step 2's startup. It will not show any
+   level or EOD data; use `pm-stats-cli index-snapshots --index-id EDU100`
+   for the intraday tick history recorded in step 6–7, and `index-daily` for
+   the EOD rollup from step 8.
 
 ### 15.4 Integration and Failure-Path Tests (Required)
 
@@ -1843,13 +2018,16 @@ does not regress under operational edge cases.
 
 2. **Gateway command round-trip**
     - `INDEX` prints cached latest `index.update`.
-    - `INDEX|HISTORY` sends request, receives response, and renders records.
+    - `INDEX|HISTORY` sends request, receives response, and renders
+      structural/audit records only.
     - `INDEX|HISTORY|FROM=...|TO=...` limits returned records to range.
 
 3. **EOD deduplication**
     - Send `session.state=CLOSED` and `system.eod` in the same session.
-    - Assert exactly one EOD record is written.
-    - Assert exactly one final CLOSED `index.update` is published.
+    - Assert exactly one final CLOSED `index.update` is published (this is
+      what `pm-stats` uses to close out the day in `index_daily_stats`).
+    - Assert nothing is appended to the JSONL history file for this event —
+      EOD finalisation is no longer a JSONL-writing step.
 
 4. **Single-thread determinism under mixed events**
     - Feed interleaved trade, corp action, constituent change, and history request events.
@@ -1908,12 +2086,16 @@ flowchart TD
 3. **Multiple indices** — The design supports up to five indexes per exchange.
     Each index has its own ID, description, divisor, history file, and state file.
 
-4. **What happens if `pm-index` is offline when a session closes?** — The EOD record
-   will not be written. On restart, `pm-index` will load the state file and compute
-   the current level from the last known prices. The missing EOD record is a gap in
-   history. A future improvement would have `pm-index` write a `RESTART` event on
-   startup and compute a synthetic EOD if the state file indicates a previous session
-   ended without an EOD record.
+4. **What happens if `pm-index` is offline when a session closes?** — The forced
+   EOD `index.update` will not be published, so `pm-stats` will have no row for
+   that day in `index_daily_stats` (and no final tick in `index_level_snapshots`).
+   On restart, `pm-index` will load the state file and compute the current level
+   from the last known prices. The missing EOD publish is a gap in `pm-stats`'s
+   history, not in `pm-index`'s structural/audit JSONL file (which is unaffected,
+   since it never recorded EOD data in the first place). A future improvement
+   would have `pm-index` write a `RESTART` structural event on startup and
+   compute a synthetic EOD publish if the state file indicates a previous
+   session ended without one.
 
 5. **Price staleness** — If MSFT has not traded in several hours, the index uses
    MSFT's last known price. This is standard practice for intraday indices (use the
@@ -1934,8 +2116,13 @@ flowchart TD
 - **Constituent rebalancing command** — A `REBALANCE` operator command that updates
   all `shares_outstanding` values at once from a CSV file, applies divisor adjustments
   for each change, and records a bulk `REBALANCE` event in the history.
-- **Persistence to a time-series database** — Replace the JSONL file with SQLite
-  or InfluxDB for faster range queries once history files grow large.
+- **Persistence to a time-series database** — ✅ **Implemented** for the
+  high-frequency level/EOD time series: `pm-stats` now subscribes to
+  `index.update` and records every tick into SQLite tables
+  `index_level_snapshots` and `index_daily_stats` (Section 8.1a), queryable via
+  `pm-stats-cli index-daily` / `index-snapshots` / `index-ids`. The JSONL file
+  remains for the low-frequency structural/audit trail (`INIT`, `CORP_ACTION`,
+  `ADD_CONSTITUENT`, `DELIST`), which is small and does not need a database.
 
 
 
@@ -1992,14 +2179,19 @@ Objectives:
 
 - Implement `IndexCalculator` as a pure state and math component.
 - Implement per-index divisor bootstrap, price updates, and corporate-action math.
-- Implement JSONL history writing and state-file persistence.
-- Handle EOD deduplication and restart recovery without changing engine behavior.
+- Implement structural/audit-only JSONL history writing (`INIT`, `CORP_ACTION`,
+  `ADD_CONSTITUENT`, `DELIST`) and state-file persistence. LEVEL/EOD are
+  explicitly out of scope for the JSONL writer — that time series is owned by
+  `pm-stats` (Section 8.1a).
+- Handle EOD deduplication (of the live `index.update` publish) and restart
+  recovery without changing engine behavior.
 
 Tests:
 
 - Unit tests for initial divisor calculation and price movement.
 - Unit tests for stock splits, cash dividends, shares issuance, delisting, and constituent addition.
-- Unit tests for history append/query and state reload.
+- Unit tests for structural/audit history append/query and state reload,
+  including that legacy `LEVEL`/`EOD` type values are handled as unknown.
 - Integration tests for EOD deduplication and restart recovery.
 - Index unit-test coverage must be at least 85%.
 

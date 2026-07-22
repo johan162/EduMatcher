@@ -152,10 +152,13 @@ Execute several trades, then query the database:
 
 ```bash
 pm-stats-cli trades --symbol AAPL --limit 10
-pm-stats-cli ohlcv --symbol AAPL --interval 1m
-pm-stats-cli vwap --symbol AAPL
-pm-stats-cli summary
+pm-stats-cli daily --symbol AAPL
 ```
+
+(`daily` gives the day's OHLCV summary, including a `vwap` column — see
+[15 — Statistics & Reporting](15-statistics-reporting.md) for the full
+`pm-stats-cli` verb reference; there is no separate `ohlcv`, `vwap`, or
+`summary` verb.)
 
 `pm-stats` is a long-running subscriber. `pm-stats-cli` is a read-only query tool
 for the SQLite database written by `pm-stats`.
@@ -216,7 +219,8 @@ TRADER02> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=50
 ```
 
 `pm-clearing` consumes `trade.executed` events and maintains per-gateway position
-and P&L. It also writes a clearing report CSV in the data directory.
+and P&L, writing batched results to `clearing.db` (SQLite) in the data
+directory. Use `pm-clearing-cli --format csv ...` if you want a CSV export.
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-clearing` shows the changed position or records the trade in its report.
 
@@ -255,8 +259,8 @@ had to be restarted together?
 
 ## Further Reading
 
-- [Processes](../user-guide/10-processes.md)
-- [Messages](../user-guide/09-messages.md)
+- [Processes](../user-guide/170-processes.md)
+- [Messages](../user-guide/270-messages.md)
 - [Market Data & Drop Copy](13-market-data-drop-copy.md)
 - [Statistics & Reporting](15-statistics-reporting.md)
 - [Market Data Feed](../concepts/06-concepts-market-data-feed.md)

@@ -22,6 +22,9 @@ async def _authenticate_ws(websocket: WebSocket) -> tuple[str, str | None]:
     except TimeoutError:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         raise
+    except ValueError:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        raise WebSocketDisconnect(code=status.WS_1008_POLICY_VIOLATION) from None
     api_key = str(message.get("api_key", "")) if isinstance(message, dict) else ""
     registry: SessionRegistry = websocket.app.state.sessions
     credential = registry.get(api_key)
@@ -56,6 +59,48 @@ async def private_events(websocket: WebSocket) -> None:
                 await websocket.send_json(event)
         finally:
             websocket.app.state.engine.remove_sink(gateway_id, queue)
+    except (WebSocketDisconnect, TimeoutError):
+        return
+
+
+@router.websocket("/admin/monitor")
+async def admin_monitor(websocket: WebSocket) -> None:
+    await websocket.accept()
+    try:
+        _, gateway_id = await _authenticate_ws(websocket)
+        if gateway_id is None:
+            await websocket.send_json(
+                {"type": "error", "data": {"message": "ADMIN role required"}}
+            )
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        engine = websocket.app.state.engine
+        accepted, reason = await engine.authenticate(
+            gateway_id,
+            timeout=websocket.app.state.config.timeouts.engine_auth_sec,
+        )
+        if not accepted:
+            await websocket.send_json({"type": "error", "data": {"message": reason}})
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        role = await engine.resolve_role(
+            gateway_id, websocket.app.state.config.timeouts.engine_reply_sec
+        )
+        if role != "ADMIN":
+            await websocket.send_json(
+                {"type": "error", "data": {"message": "ADMIN role required"}}
+            )
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        await websocket.send_json({"type": "authenticated"})
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=512)
+        engine.add_admin_sink(queue)
+        try:
+            while True:
+                event = await queue.get()
+                await websocket.send_json(event)
+        finally:
+            engine.remove_admin_sink(queue)
     except (WebSocketDisconnect, TimeoutError):
         return
 
@@ -96,7 +141,11 @@ async def _receive_market_controls(
     channels: set[str],
 ) -> None:
     while True:
-        raw = await websocket.receive_json()
+        try:
+            raw = await websocket.receive_json()
+        except ValueError as exc:
+            await websocket.send_json({"type": "error", "data": {"message": str(exc)}})
+            continue
         try:
             control = MarketDataControl.model_validate(raw)
         except ValidationError as exc:
@@ -141,6 +190,8 @@ async def _send_market_data(
 def _event_channel(event_type: str) -> str | None:
     if event_type == "trade":
         return "trades"
+    if event_type == "auction":
+        return "auction"
     if event_type in {"book", "depth", "session", "circuit_breaker"}:
         return event_type
     return None
@@ -160,4 +211,6 @@ def _topic_from_event(event: dict[str, Any]) -> str:
         return "session.state"
     if event_type == "circuit_breaker":
         return "circuit_breaker.event"
+    if event_type == "auction" and symbol:
+        return f"auction.result.{symbol}"
     return event_type

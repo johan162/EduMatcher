@@ -212,7 +212,9 @@ class TestAmendEdgeCases:
         book.cancel_order(o.id)
         result, reset, reason = book.amend_order(o.id)
         assert result is None
-        assert "cannot amend" in reason.lower()
+        # H7: cancelled orders are purged from the indexes, so amend reports
+        # "not found" rather than a dead-order "cannot amend" message.
+        assert "not found" in reason.lower()
 
     def test_amend_market_order_rejected(self) -> None:
         book = OrderBook("TEST")

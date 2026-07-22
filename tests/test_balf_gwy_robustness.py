@@ -40,6 +40,7 @@ from edumatcher.balf_gwy.codec import (
     MSG_LOGON_ACK,
     MSG_NEW_ORDER,
     MSG_ORDER_ACK,
+    LOGON_REJECT_OTHER,
     SIDE_BUY,
     build_header,
     encode_price,
@@ -47,7 +48,7 @@ from edumatcher.balf_gwy.codec import (
 )
 from edumatcher.balf_gwy.config import BalfGatewayConfig
 from edumatcher.balf_gwy.gateway import BalfGateway
-from edumatcher.models.message import encode
+from edumatcher.models.message import decode, encode
 
 # ---------------------------------------------------------------------------
 # Wire-level helpers
@@ -222,7 +223,7 @@ def balf_gw_factory() -> Generator[FactoryFn, None, None]:
         pub_port = _free_port()
         gw_port = _free_port()
 
-        ctx = zmq.Context.instance()
+        ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
         pull_sock: zmq.Socket[bytes] = ctx.socket(zmq.PULL)
         pull_sock.bind(f"tcp://127.0.0.1:{pull_port}")
         pub_sock: zmq.Socket[bytes] = ctx.socket(zmq.PUB)
@@ -376,6 +377,135 @@ class TestAuthTimeout:
             assert not bc.is_closed(timeout=0.2), "connection should still be open"
             # Clean up by completing auth
             _do_auth(bc, pull, pub)
+
+    def test_auth_timeout_not_extended_by_byte_dribble(
+        self, balf_gw_factory: FactoryFn
+    ) -> None:
+        """Slowloris-style byte dribble must not bypass auth timeout."""
+        _, _, _, port = balf_gw_factory(auth_timeout_sec=0.4)
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+            bc = _BalfClient(cli)
+            for _ in range(8):
+                try:
+                    cli.sendall(b"\xbe")
+                except OSError:
+                    break
+                time.sleep(0.08)
+            assert bc.is_closed(timeout=1.5), "auth timeout must close dribbling peer"
+
+
+class TestPreAuthHardening:
+    """Pre-auth LOGON path should not allow amplification or handshake leaks."""
+
+    def test_duplicate_logon_while_pending_is_rejected_without_second_connect(
+        self, balf_gw_factory: FactoryFn
+    ) -> None:
+        _, pull, _pub, port = balf_gw_factory()
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+            bc = _BalfClient(cli)
+
+            bc.send(_build_logon("TRADER01"))
+            topic, _ = _drain_until(pull, "system.gateway_connect")
+            assert topic == "system.gateway_connect"
+
+            bc.send(_build_logon("TRADER01"))
+            body = bc.recv_until(MSG_LOGON_ACK, timeout=1.5)
+            accepted = body[16]
+            reject_code = body[17]
+            msg_len = body[18]
+            msg = body[20 : 20 + msg_len].decode("ascii", errors="ignore")
+
+            assert accepted == 0
+            assert reject_code == LOGON_REJECT_OTHER
+            assert "LOGON_ALREADY_PENDING" in msg
+
+            # Ensure the second LOGON did not emit another gateway_connect.
+            got_second_connect = False
+            deadline = time.monotonic() + 0.4
+            while time.monotonic() < deadline:
+                if not pull.poll(timeout=20):
+                    continue
+                evt_topic, _payload = decode(pull.recv_multipart())
+                if evt_topic == "system.gateway_connect":
+                    got_second_connect = True
+                    break
+            assert not got_second_connect
+
+    def test_auth_pending_disconnect_emits_gateway_disconnect(
+        self, balf_gw_factory: FactoryFn
+    ) -> None:
+        _, pull, _pub, port = balf_gw_factory()
+
+        cli = socket.create_connection(("127.0.0.1", port), timeout=3)
+        bc = _BalfClient(cli)
+        bc.send(_build_logon("TRADER01"))
+        topic, _ = _drain_until(pull, "system.gateway_connect")
+        assert topic == "system.gateway_connect"
+
+        cli.close()
+        disc_topic, disc_payload = _drain_until(pull, "system.gateway_disconnect")
+        assert disc_topic == "system.gateway_disconnect"
+        assert str(disc_payload.get("gateway_id", "")).upper() == "TRADER01"
+
+
+# ===========================================================================
+# Engine unavailable / backpressure fail-fast — critical (C1)
+# ===========================================================================
+
+
+class TestEngineUnavailableFailFast:
+    """Gateway must reject instead of hanging when engine PUSH cannot queue."""
+
+    def test_logon_rejected_when_engine_unavailable(
+        self, balf_gw_factory: FactoryFn
+    ) -> None:
+        _, pull, _pub, port = balf_gw_factory()
+
+        # Simulate engine unavailable: close the only PULL peer.
+        pull.close(linger=0)
+        time.sleep(0.05)
+
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+            bc = _BalfClient(cli)
+            bc.send(_build_logon("TRADER01"))
+
+            body = bc.recv_until(MSG_LOGON_ACK, timeout=1.5)
+            accepted = body[16]
+            reject_code = body[17]
+            msg_len = body[18]
+            msg = body[20 : 20 + msg_len].decode("ascii", errors="ignore")
+
+            assert accepted == 0
+            assert reject_code == LOGON_REJECT_OTHER
+            assert "ENGINE_UNAVAILABLE" in msg
+
+    def test_new_order_rejected_when_engine_unavailable(
+        self, balf_gw_factory: FactoryFn
+    ) -> None:
+        _, pull, pub, port = balf_gw_factory()
+
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+            bc = _BalfClient(cli)
+            _do_auth(bc, pull, pub)
+
+            # Engine goes down after auth.
+            pull.close(linger=0)
+            time.sleep(0.05)
+
+            bc.send(_build_new_order(seq_no=2))
+            body = bc.recv_until(MSG_ORDER_ACK, timeout=1.5)
+
+            # ORDER_ACK body:
+            # client_order_id Q | order_id Q | timestamp_ns Q |
+            # accepted B | reject_code B | reason_len B | reason[25]
+            accepted = body[24]
+            reject_code = body[25]
+            reason_len = body[26]
+            reason = body[27 : 27 + reason_len].decode("ascii", errors="ignore")
+
+            assert accepted == 0
+            assert reject_code == 0xFF
+            assert "ENGINE_UNAVAILABLE" in reason
 
 
 # ===========================================================================

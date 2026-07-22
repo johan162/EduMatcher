@@ -49,6 +49,14 @@ In Europe, the equivalent framework is **MiFID II (Markets in Financial Instrume
 
 Understanding which regulator and which rules apply is not just a legal matter. It is an engineering specification: audit trail formats, kill switch accessibility, pre-trade check requirements, and market data publication rules are all regulatory mandates, not optional features.
 
+!!! note "The South Sea Bubble and the Bubble Act (1720)"
+
+    In 1720, shares of Britain's South Sea Company rose from roughly £128 in January to nearly £1,000 by the summer, propelled by a scheme to convert government debt into company equity, before collapsing back below £200 by year-end. Parliament's response, the Bubble Act of 1720, prohibited joint-stock companies from operating without a royal charter — and modern scholarship has established the uncomfortable detail that the Act was passed in June 1720, *before* the crash, with the South Sea Company's own support: its purpose was less to protect investors than to suppress rival companies competing for the same speculative capital. The Act stayed on the books for over a century (repealed 1825) and materially shaped — many argue retarded — English corporate formation. It is the earliest large-scale demonstration of two themes that recur throughout this book: securities regulation is often written in the shadow of a specific crisis, and the entities lobbying for a rule are not always the ones the rule appears to protect. The subsequent parliamentary inquiry of 1721, which uncovered bribery of ministers with company stock, also produced one of history's first insider-dealing scandals on the record. <br> &nbsp; <br>
+
+    *References:** Ron Harris, "The Bubble Act: Its Passage and Its Effects on Business Organization," *Journal of Economic History* 54(3), 1994, https://www.jstor.org/stable/2123870; 
+
+ 
+
 ## Instruments: What Is Being Traded?
 
 An exchange does not trade "things" in a physical sense. It trades **instruments**, standardised financial contracts representing ownership or obligation. The most common are:

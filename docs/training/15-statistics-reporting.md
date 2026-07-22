@@ -68,32 +68,52 @@ TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=200
 
  
 
-## Exercise 3: Query OHLCV Data
+## Exercise 3: Query the Daily OHLCV Summary
+
+`pm-stats-cli` has no per-minute bar query — the closest built-in views are
+`daily` (one OHLCV row per symbol per trading day) and `snapshots` (periodic
+intraday price points, recorded at the interval set by
+`pm-stats --snapshot-interval`, default 15 minutes). For today's daily
+summary:
 
 ```bash
-pm-stats-cli ohlcv --symbol AAPL --interval 1m
+pm-stats-cli daily --symbol AAPL
 ```
 
 Expected output (table or JSON):
 
 ```
-timestamp           | open   | high   | low    | close  | volume
-2026-06-18 09:30:00 | 150.05 | 150.10 | 149.95 | 150.05 | 350
+date       | symbol | open_price | high_price | low_price | close_price | volume | trade_count | vwap
+-----------|--------|------------|------------|-----------|-------------|--------|-------------|-------
+2026-06-18 | AAPL   | 150        | 150.10     | 149.95    | 150.05      | 350    | 3           | 150.02
 ```
 
-:material-checkbox-blank-outline: **Checkpoint:** OHLCV data returned for AAPL.
+Note that `vwap` is already one of the columns in this row — see Exercise 4.
+
+For an intraday price series instead of a single daily summary row, use
+`snapshots`:
+
+```bash
+pm-stats-cli snapshots --symbol AAPL
+```
+
+:material-checkbox-blank-outline: **Checkpoint:** `daily` returns an OHLCV row for AAPL with today's date.
 
  
 
-## Exercise 4: Query VWAP
+## Exercise 4: Read the VWAP Column
+
+There is no standalone `vwap` command — the volume-weighted average price is
+a column on the `daily` row you already queried in Exercise 3:
 
 ```bash
-pm-stats-cli vwap --symbol AAPL
+pm-stats-cli daily --symbol AAPL
 ```
 
-Shows the volume-weighted average price across all trades in the current session.
+Read the `vwap` column from the output. It reflects the volume-weighted
+average price across all of today's trades for that symbol.
 
-:material-checkbox-blank-outline: **Checkpoint:** VWAP value returned.
+:material-checkbox-blank-outline: **Checkpoint:** you can locate the `vwap` value within `daily` output.
 
  
 
@@ -103,7 +123,10 @@ Shows the volume-weighted average price across all trades in the current session
 pm-stats-cli trades --symbol AAPL --limit 20
 ```
 
-Shows the last 20 trades with timestamp, price, quantity, and aggressor side.
+Shows the last 20 trades from `trade_log`: `ts`, `trade_id`, `symbol`,
+`price`, `quantity`, `buy_gateway_id`, `sell_gateway_id`. Note this is buyer
+and seller gateway, not an `aggressor_side` flag — `trade_log` does not
+record which side was the aggressor.
 
 :material-checkbox-blank-outline: **Checkpoint:** trade log visible.
 
@@ -111,18 +134,20 @@ Shows the last 20 trades with timestamp, price, quantity, and aggressor side.
 
 ## Exercise 6: Multi-Symbol Summary
 
+There is no dedicated `summary` verb. Omit `--symbol` on `daily` to get one
+row per symbol instead of filtering to one:
+
 ```bash
-pm-stats-cli summary
+pm-stats-cli daily
 ```
 
-Shows a per-symbol overview:
+Each row shows, per symbol: `open_price`, `high_price`, `low_price`,
+`close_price`, `volume`, `trade_count`, and `vwap` for the day. This does
+**not** include current spread (best bid/ask) — for that, use `snapshots`
+(most recent row per symbol) or query the live book directly with
+`BOOK|SYM=<symbol>` from a gateway.
 
-- Last price, day high, day low
-- Total volume
-- Number of trades
-- Current spread
-
-:material-checkbox-blank-outline: **Checkpoint:** summary covers all active symbols.
+:material-checkbox-blank-outline: **Checkpoint:** `daily` with no `--symbol` filter returns one row per active symbol.
 
  
 
@@ -140,12 +165,20 @@ The CSV can be imported into Excel or a Jupyter notebook for further analysis.
 
 ## What Gets Recorded
 
-| Event | Stored Fields |
+`pm-stats` writes to four tables (see
+[Statistics and Reporting](../user-guide/140-statistics-and-reporting.md)
+for the full column reference):
+
+| Table | Stored Fields |
 |-------|--------------|
-| Trade | timestamp, symbol, price, qty, aggressor side, buyer/seller gateway |
-| Book snapshot | timestamp, symbol, best bid, best ask, bid size, ask size |
-| OHLCV bar | open, high, low, close, volume per configurable interval |
-| Session event | timestamp, old state, new state |
+| `trade_log` | `ts`, `trade_id`, `symbol`, `price`, `quantity`, `buy_gateway_id`, `sell_gateway_id` — one row per trade, no aggregation |
+| `price_snapshots` | `ts`, `symbol`, `mid_price`, `best_bid`, `best_ask`, `pct_change` — periodic intraday snapshots at `--snapshot-interval` (default 15 min) |
+| `daily_stats` | `date`, `symbol`, `open/high/low/close_price`, `volume`, `trade_count`, `vwap`, plus open/close bid-ask and largest-trade fields — one row per symbol per day |
+| `order_events` | Per-gateway private order lifecycle events (`ACK`, `FILL`, `AMEND`, `CANCEL`, etc.) — see `pm-stats-cli order-events` |
+
+There is no separate table tracking session-phase transitions
+(`PRE_OPEN`→`CONTINUOUS`, etc.) — `pm-stats` records market data and order
+lifecycle events only.
 
  
 
@@ -175,9 +208,9 @@ queries itself, in-process, for every connected client?
 
 ## Further Reading
 
-- [Statistics and Reporting](../user-guide/16-statistics-and-reporting.md)
-- [Processes](../user-guide/10-processes.md)
-- [Persistence](../user-guide/11-persistence.md)
+- [Statistics and Reporting](../user-guide/140-statistics-and-reporting.md)
+- [Processes](../user-guide/170-processes.md)
+- [Persistence](../user-guide/180-persistence.md)
 - [Market Data Feed](../concepts/06-concepts-market-data-feed.md)
 
 **Next:** [16 — Persistence & Recovery](16-persistence-recovery.md)

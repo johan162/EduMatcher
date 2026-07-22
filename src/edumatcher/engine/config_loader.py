@@ -25,7 +25,7 @@ import yaml
 from edumatcher.models.combo import ComboLeg, ComboType
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 from edumatcher.models.quote import QuoteRefreshPolicy
-from edumatcher.models.order import TIF
+from edumatcher.models.order import TIF, SmpAction
 from edumatcher.models.mm_obligation import MarketMakerObligation
 
 if TYPE_CHECKING:
@@ -35,6 +35,10 @@ if TYPE_CHECKING:
 _DEFAULT_MM_MAX_SPREAD_TICKS = 10
 _DEFAULT_MM_MIN_QTY = 100
 _DEFAULT_SNAPSHOT_INTERVAL_SEC = 0.5
+_DEFAULT_QUOTE_HISTORY_MAXLEN = 30
+_DEFAULT_DROP_COPY_BUFFER_SIZE = 10_000
+_DEFAULT_RECENT_TRADES_MAXLEN = 20
+_DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS = 100
 _DEFAULT_CB_LEVELS: dict[str, dict[str, Any]] = {
     "L1": {"price_shift_pct": 0.07, "halt_duration_ns": 300_000_000_000},
     "L2": {"price_shift_pct": 0.13, "halt_duration_ns": 900_000_000_000},
@@ -107,6 +111,11 @@ class FixGatewayConfig:
     enforce_mm_obligation: bool = False
     mm_max_spread_ticks: int = _DEFAULT_MM_MAX_SPREAD_TICKS
     mm_min_qty: int = _DEFAULT_MM_MIN_QTY
+    # Self-match-prevention action applied by default to this gateway's live
+    # MM quote legs (QUOTE -> quote.new bid/ask orders). Does not affect
+    # NEW/combo order entry, which already carries its own explicit
+    # per-order SMP= field.
+    smp_action: SmpAction = SmpAction.NONE
     # Per-symbol MM obligations — supersede the flat fields above when present.
     # Populated from the ``mm_obligations`` mapping in gateway config.
     mm_obligations: dict[str, MarketMakerObligation] = field(default_factory=dict)
@@ -142,6 +151,10 @@ class EngineConfig:
         default_factory=dict
     )
     snapshot_interval_sec: float = _DEFAULT_SNAPSHOT_INTERVAL_SEC
+    quote_history_maxlen: int = _DEFAULT_QUOTE_HISTORY_MAXLEN
+    drop_copy_buffer_size: int = _DEFAULT_DROP_COPY_BUFFER_SIZE
+    recent_trades_maxlen: int = _DEFAULT_RECENT_TRADES_MAXLEN
+    depth_snapshot_tolerance_ticks: int = _DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS
     sessions_enabled: bool = False
     schedule: ScheduleConfig | None = None
     enforce_collars: bool = True
@@ -830,6 +843,7 @@ def load_engine_config(path: Path) -> EngineConfig:
                 QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL.value,
             )
         ).upper()
+        smp_action_raw = str(item.get("smp_action", SmpAction.NONE.value)).upper()
         enforce_mm_obligation = item.get(
             "enforce_mm_obligation", mm_global_policy.enforce_mm_obligation
         )
@@ -877,6 +891,11 @@ def load_engine_config(path: Path) -> EngineConfig:
             raise ValueError(
                 f"gateways.alf[{i}].quote_refresh_policy is invalid"
             ) from exc
+
+        try:
+            smp_action = SmpAction(smp_action_raw)
+        except ValueError as exc:
+            raise ValueError(f"gateways.alf[{i}].smp_action is invalid") from exc
 
         # --- Optional per-symbol mm_obligations mapping -----------------------
         mm_obligations: dict[str, MarketMakerObligation] = {}
@@ -927,6 +946,7 @@ def load_engine_config(path: Path) -> EngineConfig:
             enforce_mm_obligation=enforce_mm_obligation,
             mm_max_spread_ticks=mm_max_spread_ticks,
             mm_min_qty=mm_min_qty,
+            smp_action=smp_action,
             mm_obligations=mm_obligations,
             mm_obligation_policies=mm_obligation_policies,
         )
@@ -964,9 +984,16 @@ def load_engine_config(path: Path) -> EngineConfig:
     if not isinstance(sessions_enabled_raw, bool):
         raise ValueError("Engine config 'sessions_enabled' must be a boolean")
 
-    snapshot_interval_raw = raw.get(
-        "snapshot_interval_sec", _DEFAULT_SNAPSHOT_INTERVAL_SEC
+    engine_tuning_raw = raw.get("engine_tuning") or {}
+    if not isinstance(engine_tuning_raw, dict):
+        raise ValueError("Engine config 'engine_tuning' must be a mapping")
+
+    snapshot_interval_raw = engine_tuning_raw.get(
+        "snapshot_interval_sec",
+        raw.get("snapshot_interval_sec", _DEFAULT_SNAPSHOT_INTERVAL_SEC),
     )
+    if snapshot_interval_raw is None:
+        raise ValueError("Engine config 'snapshot_interval_sec' must be numeric")
     try:
         snapshot_interval_sec = float(snapshot_interval_raw)
     except (TypeError, ValueError) as exc:
@@ -975,6 +1002,62 @@ def load_engine_config(path: Path) -> EngineConfig:
         ) from exc
     if snapshot_interval_sec <= 0:
         raise ValueError("Engine config 'snapshot_interval_sec' must be > 0")
+
+    quote_history_raw = engine_tuning_raw.get(
+        "quote_history_maxlen", _DEFAULT_QUOTE_HISTORY_MAXLEN
+    )
+    try:
+        quote_history_maxlen = int(quote_history_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "Engine config 'engine_tuning.quote_history_maxlen' must be an integer"
+        ) from exc
+    if quote_history_maxlen <= 0:
+        raise ValueError(
+            "Engine config 'engine_tuning.quote_history_maxlen' must be > 0"
+        )
+
+    drop_copy_buffer_raw = engine_tuning_raw.get(
+        "drop_copy_buffer_size", _DEFAULT_DROP_COPY_BUFFER_SIZE
+    )
+    try:
+        drop_copy_buffer_size = int(drop_copy_buffer_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "Engine config 'engine_tuning.drop_copy_buffer_size' must be an integer"
+        ) from exc
+    if drop_copy_buffer_size <= 0:
+        raise ValueError(
+            "Engine config 'engine_tuning.drop_copy_buffer_size' must be > 0"
+        )
+
+    recent_trades_raw = engine_tuning_raw.get(
+        "recent_trades_maxlen", _DEFAULT_RECENT_TRADES_MAXLEN
+    )
+    try:
+        recent_trades_maxlen = int(recent_trades_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "Engine config 'engine_tuning.recent_trades_maxlen' must be an integer"
+        ) from exc
+    if recent_trades_maxlen <= 0:
+        raise ValueError(
+            "Engine config 'engine_tuning.recent_trades_maxlen' must be > 0"
+        )
+
+    depth_snapshot_raw = engine_tuning_raw.get(
+        "depth_snapshot_tolerance_ticks", _DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS
+    )
+    try:
+        depth_snapshot_tolerance_ticks = int(depth_snapshot_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "Engine config 'engine_tuning.depth_snapshot_tolerance_ticks' must be an integer"
+        ) from exc
+    if depth_snapshot_tolerance_ticks <= 0:
+        raise ValueError(
+            "Engine config 'engine_tuning.depth_snapshot_tolerance_ticks' must be > 0"
+        )
 
     enforce_collars_raw = raw.get("enforce_collars", True)
     if not isinstance(enforce_collars_raw, bool):
@@ -1010,6 +1093,10 @@ def load_engine_config(path: Path) -> EngineConfig:
         global_mm_obligation_policy=mm_global_policy,
         global_symbol_mm_obligation_policies=mm_global_symbol_policies,
         snapshot_interval_sec=snapshot_interval_sec,
+        quote_history_maxlen=quote_history_maxlen,
+        drop_copy_buffer_size=drop_copy_buffer_size,
+        recent_trades_maxlen=recent_trades_maxlen,
+        depth_snapshot_tolerance_ticks=depth_snapshot_tolerance_ticks,
         sessions_enabled=sessions_enabled_raw,
         schedule=schedule_cfg,
         enforce_collars=enforce_collars_raw,

@@ -2,12 +2,16 @@
 # Build and provision a VM with a pinned EduMatcher runtime.
 # Requires: multipass on the host machine.
 
-set -euo pipefail
+
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+WHITE='\033[1;37m'
+TEAL='\033[0;36m'
+GRAY='\033[0;37m'
+LIGHT_GRAY='\033[0;37m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,9 +21,9 @@ VM_NAME="edumatcher-vm"
 VM_IMAGE="lts"
 VM_CPUS="2"
 VM_MEMORY="3G"
-VM_DISK="8G"
+VM_DISK="6G"
 CREATE_SNAPSHOT="true"
-SNAPSHOT_NAME="clean-runtime"
+SNAPSHOT_NAME="clean"
 
 if [[ -f "$REPO_ROOT/pyproject.toml" ]]; then
   DEFAULT_VERSION="$(grep '^version\s*=\s*"' "$REPO_ROOT/pyproject.toml" | head -1 | cut -d '"' -f2)"
@@ -40,6 +44,7 @@ Options:
   --memory <size>              RAM size, ex: 2G (default: $VM_MEMORY)
   --disk <size>                Disk size, ex: 12G (default: $VM_DISK)
   --version <pypi-version>     EduMatcher version (default: $DEFAULT_VERSION)
+  --dev                        Install the local wheel file from /tmp/*.whl instead of downloading from PyPI.
   --snapshot                   Create a snapshot after provisioning (default: $CREATE_SNAPSHOT)
   --snapshot-name <name>       Snapshot name (default: $SNAPSHOT_NAME)
   --help                       Show this help text
@@ -74,6 +79,17 @@ while [[ $# -gt 0 ]]; do
     --version)
       EDUMATCHER_VERSION="${2:-}"
       shift 2
+      ;;
+    --dev)
+      EDUMATCHER_VERSION="dev"
+      echo -e "${BLUE}Checking for local wheel file in $REPO_ROOT/dist/*.whl.${NC}"
+      count=$(ls -1 "$REPO_ROOT/dist/"*.whl 2> /dev/null | wc -l)
+      if [ $count -eq 0 ]; then
+        echo -e "${RED}No local wheel file found in $REPO_ROOT/dist/*.whl for --dev installation.${NC}" 
+        exit 1
+      fi
+      echo -e "${GREEN}Found $count wheel file(s) in $REPO_ROOT/dist/*.whl.${NC}"
+      shift
       ;;
     --snapshot)
       CREATE_SNAPSHOT="true"
@@ -133,10 +149,10 @@ if ! multipass launch "$VM_IMAGE" \
   exit 1
 fi
 
-echo -e "${BLUE}Copying provisioning script...${NC}"
+echo -e "${BLUE}Installing provisioning script...${NC}"
 multipass transfer "$SCRIPT_DIR/install_edumatcher_runtime.sh" "$VM_NAME:/tmp/install_edumatcher_runtime.sh"
 
-echo -e "${BLUE}Provisioning EduMatcher $EDUMATCHER_VERSION...${NC}"
+echo -e "${BLUE}Now provisioning EduMatcher $EDUMATCHER_VERSION...${NC}"
 
 # Start by upgrading the VM's packages
 multipass exec "$VM_NAME" -- sudo apt-get upgrade -y
@@ -147,6 +163,12 @@ multipass exec "$VM_NAME" -- sudo apt-get upgrade -y
 multipass exec "$VM_NAME" -- sudo chmod +x /tmp/install_edumatcher_runtime.sh
 if [[ "$EDUMATCHER_VERSION" == "latest" ]]; then
   multipass exec "$VM_NAME" -- sudo /tmp/install_edumatcher_runtime.sh
+elif [[ "$EDUMATCHER_VERSION" == "dev" ]]; then
+  echo -e "${BLUE}Transferring local wheel file to VM for dev installation...${NC}"
+  echo -e "${BLUE}Looking for wheel file in \"$REPO_ROOT/dist/*.whl\" to \"$VM_NAME:/tmp/\"...${NC}"
+  multipass transfer $REPO_ROOT/dist/*.whl $VM_NAME:/tmp/
+  echo -e "${GREEN}Installing local wheel file DONE.${NC}"
+  multipass exec "$VM_NAME" -- sudo /tmp/install_edumatcher_runtime.sh --dev
 else
   multipass exec "$VM_NAME" -- sudo /tmp/install_edumatcher_runtime.sh --version "$EDUMATCHER_VERSION"
 fi
@@ -172,14 +194,21 @@ if [[ "$CREATE_SNAPSHOT" == "true" ]]; then
   multipass start "$VM_NAME"
 fi
 
+echo -e "--------------------------------------------------------------------------"
 echo -e "${GREEN}VM '$VM_NAME' is ready with EduMatcher $EDUMATCHER_VERSION installed.${NC}"
 
-echo -e "${BLUE}You can now open a shell into the VM and start using EduMatcher:${NC}"
+echo -e "${LIGHT_GRAY}Open a shell into the VM:${NC}"
 echo -e "${YELLOW}multipass shell $VM_NAME${NC}"
-echo -e "${BLUE}Inside the VM, you can check the installed pm-* commands:${NC}"
+echo -e "${LIGHT_GRAY}Inside the VM, check the installed pm-* commands:${NC}"
 echo -e "${YELLOW}ls -1 /usr/local/bin/pm-*${NC}"
-echo -e "${BLUE}And start a minimal session:${NC}"
+echo ""
+echo -e "${LIGHT_GRAY}To start the matching engine:${NC}"
 echo -e "${YELLOW}cd /home/ubuntu/session${NC}"
 echo -e "${YELLOW}pm-engine --verbose${NC}"
-
+echo ""
+echo -e "${LIGHT_GRAY}To then start a trading console in a different terminal:${NC}"
+echo -e "${YELLOW}pm-alf-console --id TRADER01${NC}"
+echo ""
+echo -e "${LIGHT_GRAY}To restore snapshot to get back to a clean state:${NC}"
+echo -e "${YELLOW}multipass restore -d $VM_NAME.$SNAPSHOT_NAME${NC}"
 

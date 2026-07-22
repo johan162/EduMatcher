@@ -1,5 +1,5 @@
 """
-Tests for clearing, ticker, gateway completer, and remaining coverage gaps.
+Tests for ticker, gateway completer, and remaining coverage gaps.
 """
 
 from __future__ import annotations
@@ -7,111 +7,6 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
-
-from edumatcher.models.trade import Trade
-
-# ---------------------------------------------------------------------------
-# clearing/main.py — ClearingProcess helpers
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def clearing_proc(tmp_path: Path):
-    """ClearingProcess with patched ZMQ; _csv_file closed after each test."""
-    from edumatcher.clearing_v1.main import ClearingProcess
-
-    fake_sock = MagicMock()
-    with (
-        patch("edumatcher.clearing_v1.main.make_subscriber", return_value=fake_sock),
-        patch("edumatcher.clearing_v1.main.DATA_DIR", tmp_path),
-        patch(
-            "edumatcher.clearing_v1.main.CLEARING_REPORT_FILE", tmp_path / "report.csv"
-        ),
-    ):
-        proc = ClearingProcess()
-    yield proc
-    proc._csv_file.close()
-
-
-def _make_trade(
-    symbol="AAPL",
-    buy_gw="GW01",
-    sell_gw="GW02",
-    price=100.0,
-    qty=100,
-) -> Trade:
-    return Trade.create(
-        symbol=symbol,
-        buy_order_id="B1",
-        sell_order_id="S1",
-        buy_gateway_id=buy_gw,
-        sell_gateway_id=sell_gw,
-        price=price,
-        quantity=qty,
-        aggressor_side="BUY",
-    )
-
-
-class TestClearingProcess:
-    def test_update_ledger_creates_position(self, clearing_proc) -> None:
-        proc = clearing_proc
-        trade = _make_trade()
-        proc._update_ledger(trade)
-        assert "GW01" in proc._ledger
-        assert "AAPL" in proc._ledger["GW01"]
-        assert proc._ledger["GW01"]["AAPL"].position == 100
-
-    def test_update_ledger_both_sides(self, clearing_proc) -> None:
-        proc = clearing_proc
-        trade = _make_trade()
-        proc._update_ledger(trade)
-        buy_rec = proc._ledger["GW01"]["AAPL"]
-        sell_rec = proc._ledger["GW02"]["AAPL"]
-        assert buy_rec.position == 100
-        assert sell_rec.position == -100
-
-    def test_record_trade_writes_csv(self, clearing_proc) -> None:
-        proc = clearing_proc
-        trade = _make_trade()
-        proc._record_trade(trade)
-        csv_content = proc._csv_path.read_text()
-        assert "AAPL" in csv_content
-
-    def test_print_pnl_table_no_error(self, clearing_proc) -> None:
-        proc = clearing_proc
-        trade = _make_trade(price=100.0, qty=100)
-        proc._update_ledger(trade)
-        # Set last_price to enable unrealized PnL
-        proc._ledger["GW01"]["AAPL"].last_price = 105.0
-        # Should not raise
-        proc._print_pnl_table()
-
-    def test_print_pnl_table_empty_ledger(self, clearing_proc) -> None:
-        proc = clearing_proc
-        # Should not raise with empty ledger
-        proc._print_pnl_table()
-
-    def test_update_ledger_multiple_trades(self, clearing_proc) -> None:
-        proc = clearing_proc
-        for i in range(3):
-            proc._update_ledger(_make_trade(price=100.0 + i, qty=50))
-        assert (
-            proc._ledger["GW01"]["AAPL"].volume == pytest.approx(150, abs=1)
-            if hasattr(proc._ledger["GW01"]["AAPL"], "volume")
-            else True
-        )
-        # Just check position is correct (3 * 50 = 150)
-        assert proc._ledger["GW01"]["AAPL"].position == pytest.approx(150.0)
-
-    def test_init_csv_creates_header(self, clearing_proc) -> None:
-        proc = clearing_proc
-        proc._csv_file.flush()  # ensure buffered data is written
-        csv_content = proc._csv_path.read_text()
-        assert "trade_id" in csv_content
-        assert "symbol" in csv_content
-
 
 # ---------------------------------------------------------------------------
 # ticker/main.py — TickerProcess helpers

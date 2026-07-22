@@ -7,6 +7,7 @@ protocol for external clearing/drop-copy/audit parties.
 from __future__ import annotations
 
 import errno
+import logging
 import select
 import signal
 import socket
@@ -24,6 +25,8 @@ from edumatcher.ralf_gateway.config import RalfGatewayConfig
 from edumatcher.ralf_gateway.protocol import RalfFrame, build_line, iso_utc, parse_line
 
 _ALLOWED_CHANNELS = frozenset({"CLEARING", "DROP_COPY", "AUDIT"})
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -69,7 +72,11 @@ class RalfGateway:
     def __init__(self, config: RalfGatewayConfig) -> None:
         self.config = config
         self._running = False
+        # Internal watermark used by tests/polling loops to detect that at
+        # least one event has been emitted.
         self._next_seq = 1
+        # Wire-level SEQ is maintained independently per channel.
+        self._next_seq_by_channel: dict[str, int] = {ch: 1 for ch in _ALLOWED_CHANNELS}
         self._journal: deque[JournalEvent] = deque()
         self._clients: dict[int, ClientSession] = {}
         self._server: socket.socket | None = None
@@ -93,27 +100,32 @@ class RalfGateway:
             signal.signal(signal.SIGINT, lambda *_: self.stop())
             signal.signal(signal.SIGTERM, lambda *_: self.stop())
 
-        print(
-            f"[RALF] Listening on {self.config.bind_address}:{self.config.port} "
-            f"(engine pub: {self.config.engine_pub_addr})"
+        log.info(
+            "listening on %s:%s (engine_pub=%s)",
+            self.config.bind_address,
+            self.config.port,
+            self.config.engine_pub_addr,
         )
 
-        while self._running:
-            self._accept_new_clients()
-            self._read_client_data()
-            self._poll_engine_events()
-            self._send_heartbeat_if_due()
-            self._flush_client_writes()
-            self._drop_idle_clients()
-            self._prune_journal()
-            time.sleep(0.01)
-
-        self.close()
+        try:
+            while self._running:
+                self._accept_new_clients()
+                self._read_client_data()
+                self._poll_engine_events()
+                self._send_heartbeat_if_due()
+                self._flush_client_writes()
+                self._drop_idle_clients()
+                self._prune_journal()
+                time.sleep(0.01)
+        finally:
+            self.close()
 
     def stop(self) -> None:
+        log.info("stop requested")
         self._running = False
 
     def close(self) -> None:
+        log.info("closing RALF gateway")
         for sess in list(self._clients.values()):
             try:
                 sess.sock.close()
@@ -138,8 +150,14 @@ class RalfGateway:
                 conn, addr = self._server.accept()
             except BlockingIOError:
                 break
+            except OSError as exc:
+                log.warning("accept failed: %s", exc)
+                break
             conn.setblocking(False)
             self._clients[conn.fileno()] = ClientSession(sock=conn, addr=addr)
+            log.info(
+                "client connected addr=%s:%s fd=%d", addr[0], addr[1], conn.fileno()
+            )
 
     def _read_client_data(self) -> None:
         if not self._clients:
@@ -148,7 +166,8 @@ class RalfGateway:
         readable: list[socket.socket] = [s.sock for s in self._clients.values()]
         try:
             ready, _, _ = select.select(readable, [], [], 0)
-        except OSError:
+        except OSError as exc:
+            log.warning("read select failed: %s", exc)
             return
 
         for sock_obj in ready:
@@ -160,7 +179,7 @@ class RalfGateway:
             except (BlockingIOError, OSError):
                 continue
             if not chunk:
-                self._disconnect(sess)
+                self._disconnect(sess, reason="peer_closed")
                 continue
             sess.in_buffer.extend(chunk)
             sess.last_activity = time.monotonic()
@@ -193,6 +212,12 @@ class RalfGateway:
                     sess.out_queue.popleft()
                     sess.out_offset = 0
             if len(sess.out_queue) > self.config.max_client_queue:
+                log.warning(
+                    "disconnecting slow client fd=%d queue=%d max=%d",
+                    sess.sock.fileno(),
+                    len(sess.out_queue),
+                    self.config.max_client_queue,
+                )
                 self._queue_line(
                     sess,
                     "ERR",
@@ -200,7 +225,7 @@ class RalfGateway:
                 )
                 self._close_after_flush(sess)
             if sess.closing and not sess.out_queue:
-                self._disconnect(sess)
+                self._disconnect(sess, reason="close_after_flush")
 
     # ------------------------------------------------------------------
     # Protocol handling
@@ -347,7 +372,7 @@ class RalfGateway:
             {
                 "CH": ",".join(channels),
                 "SYM": ",".join(symbols),
-                "SEQ": str(self._next_seq - 1),
+                "SEQ": str(self._latest_seq_for_channels(channels)),
                 "TS": iso_utc(time.time()),
             },
         )
@@ -368,8 +393,19 @@ class RalfGateway:
     def _replay_from(self, sess: ClientSession, last_seq: int) -> None:
         if not self._journal:
             return
-        oldest = self._journal[0].seq
-        if last_seq < oldest - 1:
+
+        entitled_channels = self._entitled_channels(sess)
+        if not entitled_channels:
+            return
+
+        oldest_by_channel: dict[str, int] = {}
+        for evt in self._journal:
+            if evt.channel not in entitled_channels:
+                continue
+            if evt.channel not in oldest_by_channel:
+                oldest_by_channel[evt.channel] = evt.seq
+
+        if any(last_seq < oldest - 1 for oldest in oldest_by_channel.values()):
             self._queue_line(
                 sess,
                 "ERR",
@@ -379,15 +415,17 @@ class RalfGateway:
                 sess,
                 "SNAP",
                 {
-                    "CH": "CLEARING",
+                    "CH": ",".join(sorted(entitled_channels)),
                     "SYM": "*",
-                    "SEQ": str(self._next_seq - 1),
+                    "SEQ": str(self._latest_seq_for_channels(list(entitled_channels))),
                     "TS": iso_utc(time.time()),
                 },
             )
             return
 
         for evt in self._journal:
+            if evt.channel not in entitled_channels:
+                continue
             if evt.seq > last_seq:
                 self._queue_raw(sess, evt.line)
 
@@ -401,9 +439,10 @@ class RalfGateway:
                 topic, payload = decode(self._sub.recv_multipart())
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
-                    raise
+                    log.warning("engine SUB recv error errno=%s", exc.errno)
                 break
             except Exception:
+                log.warning("decode error on engine SUB event", exc_info=True)
                 continue
             if topic == "trade.executed":
                 self._handle_trade(payload)
@@ -448,7 +487,7 @@ class RalfGateway:
                 continue
             symbol = str(raw_book.get("symbol", "")).upper()
             exec_count = str(self._trade_counts.get(symbol, 0))
-            for channel in ("CLEARING", "AUDIT"):
+            for channel in ("CLEARING", "DROP_COPY", "AUDIT"):
                 self._emit_event(
                     "EOD",
                     {
@@ -471,7 +510,8 @@ class RalfGateway:
         channel: str,
         symbol: str,
     ) -> None:
-        seq = self._next_seq
+        seq = self._next_seq_by_channel.get(channel, 1)
+        self._next_seq_by_channel[channel] = seq + 1
         self._next_seq += 1
 
         merged = dict(fields)
@@ -491,6 +531,19 @@ class RalfGateway:
                 continue
             if self._session_wants(sess, channel, symbol):
                 self._queue_raw(sess, line)
+
+    def _entitled_channels(self, sess: ClientSession) -> set[str]:
+        if sess.role == "AUDIT":
+            return set(_ALLOWED_CHANNELS)
+        if sess.role in _ALLOWED_CHANNELS:
+            return {sess.role}
+        return set()
+
+    def _latest_seq_for_channels(self, channels: list[str]) -> int:
+        latest = 0
+        for ch in channels:
+            latest = max(latest, self._next_seq_by_channel.get(ch, 1) - 1)
+        return latest
 
     def _session_wants(self, sess: ClientSession, channel: str, symbol: str) -> bool:
         for ch, sym in sess.subscriptions:
@@ -542,13 +595,18 @@ class RalfGateway:
     def _queue_raw(self, sess: ClientSession, payload: bytes) -> None:
         sess.out_queue.append(payload)
 
-    def _disconnect(self, sess: ClientSession) -> None:
+    def _disconnect(self, sess: ClientSession, reason: str = "unspecified") -> None:
         fileno = sess.sock.fileno()
+        client_id = sess.client_id or "-"
         try:
             sess.sock.close()
         except OSError:
             pass
         self._clients.pop(fileno, None)
+        log.info(
+            "client disconnected fd=%d client=%s reason=%s", fileno, client_id, reason
+        )
 
     def _close_after_flush(self, sess: ClientSession) -> None:
         sess.closing = True
+        log.debug("session fd=%d marked closing-after-flush", sess.sock.fileno())

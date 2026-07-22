@@ -1,12 +1,31 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
+log = logging.getLogger(__name__)
+
+# Record types written to the JSONL file. This file is an append-only
+# structural/audit log — it is NOT the home for level-update history.
+# Every index.update tick (including end-of-day closes) is instead
+# recorded by pm-stats in the index_level_snapshots / index_daily_stats
+# SQLite tables, which are built for efficient time-range queries.
+# See docs/user-guide/150-index.md and docs/user-guide/140-statistics-and-reporting.md.
+STRUCTURAL_RECORD_TYPES: frozenset[str] = frozenset(
+    {"INIT", "CORP_ACTION", "DELIST", "ADD_CONSTITUENT"}
+)
+
 
 class IndexHistory:
-    """Append-only JSONL manager for index history records."""
+    """Append-only JSONL manager for structural index audit records.
+
+    Holds only structural/corporate-action events (index creation,
+    splits, dividends, share issuance, delistings, constituent
+    additions) — never per-tick level updates. Level and end-of-day
+    history now lives exclusively in pm-stats' SQLite tables.
+    """
 
     def __init__(self, history_file: str) -> None:
         self._path = Path(history_file)
@@ -19,6 +38,12 @@ class IndexHistory:
 
     def append(self, record: dict[str, Any]) -> None:
         self._fh.write(json.dumps(record, separators=(",", ":")) + "\n")
+        log.debug(
+            "history append path=%s type=%s index_id=%s",
+            self._path,
+            record.get("type", "?"),
+            record.get("index_id", "?"),
+        )
 
     def flush(self) -> None:
         self._fh.flush()
@@ -73,14 +98,7 @@ class IndexHistory:
                         warnings.append("ignored record with invalid type")
                         continue
                     if rec_type not in types:
-                        if rec_type not in {
-                            "LEVEL",
-                            "EOD",
-                            "CORP_ACTION",
-                            "DELIST",
-                            "ADD_CONSTITUENT",
-                            "INIT",
-                        }:
+                        if rec_type not in STRUCTURAL_RECORD_TYPES:
                             warnings.append(f"ignored unknown record type: {rec_type}")
                         continue
                     try:
@@ -96,4 +114,14 @@ class IndexHistory:
         except FileNotFoundError:
             return [], []
 
+        log.debug(
+            "history query path=%s from_ts=%.3f to_ts=%.3f types=%s max_records=%d returned=%d warnings=%d",
+            self._path,
+            from_ts,
+            to_ts,
+            sorted(types),
+            max_records,
+            len(results),
+            len(warnings),
+        )
         return results, warnings

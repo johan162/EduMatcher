@@ -8,7 +8,12 @@ from typing import Any
 
 import yaml
 
-from edumatcher.config import ENGINE_CONFIG_FILE, ENGINE_PULL_ADDR, ENGINE_PUB_ADDR
+from edumatcher.config import (
+    DROP_COPY_PUB_ADDR,
+    ENGINE_CONFIG_FILE,
+    ENGINE_PULL_ADDR,
+    ENGINE_PUB_ADDR,
+)
 
 
 @dataclass(frozen=True)
@@ -21,7 +26,9 @@ class AlfGatewayConfig:
     port: int = 5565
     engine_pull_addr: str = ENGINE_PULL_ADDR
     engine_pub_addr: str = ENGINE_PUB_ADDR
+    drop_copy_pub_addr: str = DROP_COPY_PUB_ADDR
     heartbeat_interval_sec: int = 5
+    handshake_timeout_sec: int = 10
     idle_timeout_sec: int = 30
     max_connections: int = 64
     max_client_queue: int = 10_000
@@ -73,15 +80,7 @@ def _parse_gateway_roles(raw: Any) -> tuple[tuple[str, str], ...]:
     return tuple(parsed)
 
 
-def load_alf_gateway_config(path: Path) -> AlfGatewayConfig:
-    """Load optional ``alf_gateway`` section from engine config YAML."""
-    if not path.exists():
-        return AlfGatewayConfig()
-
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        return AlfGatewayConfig()
-
+def _load_alf_gateway_config_from_raw(raw: dict[str, Any]) -> AlfGatewayConfig:
     gw_roles = _parse_gateway_roles(raw)
 
     section = raw.get("alf_gateway")
@@ -96,6 +95,9 @@ def load_alf_gateway_config(path: Path) -> AlfGatewayConfig:
     port = _as_int(section.get("port", 5565), "port")
     heartbeat_interval_sec = _as_int(
         section.get("heartbeat_interval_sec", 5), "heartbeat_interval_sec"
+    )
+    handshake_timeout_sec = _as_int(
+        section.get("handshake_timeout_sec", 10), "handshake_timeout_sec"
     )
     idle_timeout_sec = _as_int(section.get("idle_timeout_sec", 30), "idle_timeout_sec")
     max_connections = _as_int(section.get("max_connections", 64), "max_connections")
@@ -115,6 +117,8 @@ def load_alf_gateway_config(path: Path) -> AlfGatewayConfig:
         raise ValueError("alf_gateway.port must be > 0")
     if heartbeat_interval_sec <= 0:
         raise ValueError("alf_gateway.heartbeat_interval_sec must be > 0")
+    if handshake_timeout_sec <= 0:
+        raise ValueError("alf_gateway.handshake_timeout_sec must be > 0")
     if idle_timeout_sec <= 0:
         raise ValueError("alf_gateway.idle_timeout_sec must be > 0")
     if max_connections <= 0:
@@ -135,7 +139,9 @@ def load_alf_gateway_config(path: Path) -> AlfGatewayConfig:
         port=port,
         engine_pull_addr=ENGINE_PULL_ADDR,
         engine_pub_addr=ENGINE_PUB_ADDR,
+        drop_copy_pub_addr=DROP_COPY_PUB_ADDR,
         heartbeat_interval_sec=heartbeat_interval_sec,
+        handshake_timeout_sec=handshake_timeout_sec,
         idle_timeout_sec=idle_timeout_sec,
         max_connections=max_connections,
         max_client_queue=max_client_queue,
@@ -144,6 +150,23 @@ def load_alf_gateway_config(path: Path) -> AlfGatewayConfig:
         error_window_sec=error_window_sec,
         gateway_roles=gw_roles,
     )
+
+
+def load_alf_gateway_config(path: Path) -> AlfGatewayConfig:
+    """Load optional ``alf_gateway`` section from engine config YAML."""
+    if not path.exists():
+        return AlfGatewayConfig()
+
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        return AlfGatewayConfig()
+
+    return _load_alf_gateway_config_from_raw(raw)
+
+
+def validate_alf_gateway_section(raw: dict[str, Any]) -> None:
+    """Validate the ``alf_gateway`` section using runtime loader semantics."""
+    _load_alf_gateway_config_from_raw(raw)
 
 
 def load_default_alf_gateway_config() -> AlfGatewayConfig:

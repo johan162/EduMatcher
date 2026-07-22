@@ -12,7 +12,7 @@ If you are new to exchanges, start with:
 
 1. [How an Exchange Works](how-exchange-works.md). 
   This is a rather large book so for the first you should restrict the reading to Part I & II. The rest can be saved for when you need it.
-2. [Getting Started](user-guide/00-getting-started.md). This will help you install EduMatcher.
+2. [Getting Started](user-guide/000-getting-started.md). This will help you install EduMatcher.
 3. [The Order Book](concepts/01-concepts-order-book.md). It cannot be overstated how important it is to thoroughly understand the concept of the *Order Book*
 4. [Your First Trade](concepts/04-concepts-first-trade.md). Getting your feet wet before you run the exchange
 
@@ -20,9 +20,9 @@ If you are already familiar with trading, use this quick routing table:
 
 | If you are... | Read this first | Then continue with |
 |---|---|---|
-| Hands-on user / instructor | [Getting Started](user-guide/00-getting-started.md) | [Configuration](user-guide/01-configuration.md) -> [Running the Engine](user-guide/03-running-the-engine.md) -> [Processes](user-guide/10-processes.md) |
-| Developer extending the system | [Architecture Overview](architecture/01-architecture.md) | [Architecture Walkthrough](architecture/02-architecture-guide.md) -> [Messages](user-guide/09-messages.md) -> [Developer Info](developer/01-dev-practice.md) |
-| Protocol reader | [Protocol Overview](user-guide/19-protocol-overview.md) | Choose protocol appendix and examples from there |
+| Hands-on user / instructor | [Getting Started](user-guide/000-getting-started.md) | [Configuration](user-guide/010-configuration.md) -> [Running the Engine](user-guide/040-running-the-engine.md) -> [Processes](user-guide/170-processes.md) |
+| Developer extending the system | [Architecture Overview](architecture/01-architecture.md) | [Architecture Walkthrough](architecture/02-architecture-guide.md) -> [Messages](user-guide/270-messages.md) -> [Developer Info](developer/01-dev-practice.md) |
+| Protocol reader | [Protocol Overview](user-guide/210-protocol-overview.md) | Choose protocol appendix and examples from there |
 
 ```mermaid
 flowchart TD
@@ -37,7 +37,7 @@ flowchart TD
   E -->|Integrate protocols| I[Protocol Overview]
 ```
 
-> Next step: Open [Getting Started](user-guide/00-getting-started.md) and pick either VM bootstrap or pipx install mode.
+> Next step: Open [Getting Started](user-guide/000-getting-started.md) and pick either VM bootstrap or pipx install mode.
 
 ## What This System Models
 
@@ -68,17 +68,17 @@ Better prices execute first; at the same price, earlier orders execute first.
 ## Reading Path (Beginner-Friendly)
 
 1. [How an Exchange Works](how-exchange-works.md)
-2. [Getting Started](user-guide/00-getting-started.md)
+2. [Getting Started](user-guide/000-getting-started.md)
 3. [The Order Book](concepts/01-concepts-order-book.md)
 4. [Your First Trade](concepts/04-concepts-first-trade.md)
-5. [P&L and Clearing](user-guide/07-pnl-clearing.md)
+5. [P&L and Clearing](user-guide/130-pnl-clearing.md)
 6. [A Full Trading Day](concepts/05-concepts-trading-day.md)
 
 > Next step: Complete steps 1 to 4 first, then run a session and return for steps 5 and 6.
 
 ## Installation
 
-See [User Guide: Installation](https://johan162.github.io/EduMatcher/user-guide/00-getting-started/#installation)
+See [User Guide: Installation](https://johan162.github.io/EduMatcher/user-guide/000-getting-started/#installation)
 
 ***Note:** Running an exchange is an inherent complex task and unfortunately it is only so much that can be simplified. However, going throught the user guide and training material should give a great start!*
 
@@ -96,12 +96,12 @@ If you want direct entry points, start with:
 - [Auctions](training/07-auctions.md)
 - [Risk Controls](training/11-risk-controls.md)
 
-> Next step: Use [Training Index](training/index.md) as your checklist and cross-reference each chapter with the matching [User Guide](user-guide/00-getting-started.md) section.
+> Next step: Use [Training Index](training/index.md) as your checklist and cross-reference each chapter with the matching [User Guide](user-guide/000-getting-started.md) section.
 
 ## Next Stops
 
-- [Configuration](user-guide/01-configuration.md)
-- [Commands](user-guide/02-commands.md)
-- [Running the Engine](user-guide/03-running-the-engine.md)
-- [Gateway Commands](user-guide/08-gateway.md)
-- [Protocol Overview](user-guide/19-protocol-overview.md)
+- [Configuration](user-guide/010-configuration.md)
+- [Commands](user-guide/160-commands.md)
+- [Running the Engine](user-guide/040-running-the-engine.md)
+- [Gateway Commands](user-guide/050-gateway.md)
+- [Protocol Overview](user-guide/210-protocol-overview.md)

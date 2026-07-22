@@ -117,12 +117,88 @@ def test_history_request_valid_response(
             "index_id": "EDU100",
             "from_ts": 0.0,
             "to_ts": 9999999999.0,
-            "types": ["INIT", "LEVEL"],
+            "types": ["INIT", "CORP_ACTION"],
         }
     )
     topic, payload = decode(fake_pub.sent[-1])
     assert topic == "index.history.GW1"
     assert isinstance(payload.get("records"), list)
+
+
+def test_history_request_default_types_are_structural_only(
+    proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket],
+) -> None:
+    """Omitting 'types' must default to the structural/audit record types
+    (INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST) — never LEVEL/EOD, since
+    pm-index no longer writes those to its JSONL file at all.
+    """
+    proc, fake_pub = proc_with_fakes
+    # append() only writes to the file handle's buffer; flush() is required
+    # before a fresh query() (which reopens the file for reading) can see
+    # the bootstrap INIT record written by _initialise().
+    proc._indices["EDU100"].history.flush()
+    proc._handle_history_request(
+        {
+            "gateway_id": "GW1",
+            "index_id": "EDU100",
+            "from_ts": 0.0,
+            "to_ts": 9999999999.0,
+        }
+    )
+    topic, payload = decode(fake_pub.sent[-1])
+    assert topic == "index.history.GW1"
+    # The bootstrap INIT record from _initialise() should come back by default.
+    records = payload.get("records")
+    assert records
+    assert all(r["type"] != "LEVEL" and r["type"] != "EOD" for r in records)
+
+
+def test_trade_updates_are_not_written_to_structural_history(
+    proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket],
+) -> None:
+    """Design intent: per-tick level updates must never reach the JSONL
+    audit log — only the live index.update broadcast (picked up by
+    pm-stats) and the in-memory publish throttle are touched.
+    """
+    proc, fake_pub = proc_with_fakes
+    idx = proc._indices["EDU100"]
+    idx.history.flush()
+    before_rows, _ = idx.history.query(
+        0.0, 9999999999.0, {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"}
+    )
+
+    proc._handle_trade({"symbol": "AAPL", "price": 120.0})
+    proc._handle_trade({"symbol": "MSFT", "price": 60.0})
+    idx.history.flush()
+
+    after_rows, _ = idx.history.query(
+        0.0, 9999999999.0, {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"}
+    )
+    assert len(after_rows) == len(before_rows)
+    assert fake_pub.sent  # the live broadcast still happened
+
+
+def test_finalize_eod_is_not_written_to_structural_history(
+    proc_with_fakes: tuple[index_main.IndexProcess, _FakeSocket],
+) -> None:
+    proc, fake_pub = proc_with_fakes
+    idx = proc._indices["EDU100"]
+    idx.history.flush()
+    before_rows, _ = idx.history.query(
+        0.0, 9999999999.0, {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"}
+    )
+
+    proc._finalize_eod()
+    idx.history.flush()
+
+    after_rows, _ = idx.history.query(
+        0.0, 9999999999.0, {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"}
+    )
+    assert len(after_rows) == len(before_rows)
+    # But the EOD close is still published live.
+    topic, payload = decode(fake_pub.sent[-1])
+    assert topic == "index.update"
+    assert payload["session_state"] == "CLOSED"
 
 
 def test_history_request_invalid_window_emits_error(
@@ -428,6 +504,9 @@ def test_build_parser_and_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     parser = index_main._build_parser()
     args = parser.parse_args(["--config", str(tmp_path / "cfg.yaml"), "--reset"])
     assert args.reset is True
+    assert args.log_level is None
+    assert args.verbose == 0
+    assert args.quiet is False
 
     called: dict[str, Any] = {"run": 0, "close": 0}
 
@@ -446,10 +525,27 @@ def test_build_parser_and_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         argparse.ArgumentParser,
         "parse_args",
         lambda _self: argparse.Namespace(
-            config=str(tmp_path / "cfg.yaml"), reset=False
+            config=str(tmp_path / "cfg.yaml"),
+            reset=False,
+            log_level=None,
+            verbose=0,
+            quiet=False,
         ),
     )
 
     index_main.main()
     assert called["run"] == 1
     assert called["close"] == 1
+
+
+def test_build_parser_logging_flags() -> None:
+    parser = index_main._build_parser()
+    args = parser.parse_args(["-vv", "--quiet", "--log-level", "ERROR"])
+    assert args.verbose == 2
+    assert args.quiet is True
+    assert args.log_level == "ERROR"
+
+
+def test_configure_logging_prefers_explicit_level() -> None:
+    args = argparse.Namespace(log_level="INFO", verbose=2, quiet=True)
+    assert index_main._configure_logging(args) == 20

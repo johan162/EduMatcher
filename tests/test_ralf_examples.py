@@ -158,7 +158,7 @@ def running_gateway() -> Generator[tuple[zmq.Socket[bytes], int], None, None]:
     thread.start()
     _wait_for_listener("127.0.0.1", gateway_port)
 
-    ctx = zmq.Context.instance()
+    ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
     pub = ctx.socket(zmq.PUB)
     pub.bind(engine_addr)
     time.sleep(0.15)
@@ -214,16 +214,17 @@ def test_python_example_subscribes_and_parses_gateway_exec(
         assert welcome.msg_type == "WELCOME"
         assert welcome.fields["ROLE"] == "AUDIT"
 
-        subscriber_module.subscribe_channels(
+        subscriber_module.subscribe(
             sock,
-            "AUDIT",
             ["CLEARING", "DROP_COPY", "AUDIT"],
             "*",
         )
-        snap_types = [
-            parser_module.parse_ralf_line(reader.recv_line()).msg_type for _ in range(3)
-        ]
-        assert snap_types == ["SNAP", "SNAP", "SNAP"]
+        # One SUB covering all three channels gets exactly one SNAP in reply
+        # (CH accepts a comma-separated list; see gateway._handle_sub and
+        # subscribe()'s own docstring) -- not one SNAP per channel.
+        snap = parser_module.parse_ralf_line(reader.recv_line())
+        assert snap.msg_type == "SNAP"
+        assert snap.fields["CH"] == "CLEARING,DROP_COPY,AUDIT"
 
         # PUB/SUB startup can drop early messages until subscriptions propagate.
         # Send a short burst so at least one EXEC lands deterministically.
@@ -267,22 +268,24 @@ def test_c_example_builds_and_receives_gateway_exec(
     try:
         startup_output = _read_pty_output(
             master_fd,
-            lambda text: "WELCOME type=WELCOME" in text
-            and "Subscribed as CLEARING" in text,
+            lambda text: "WELCOME type=WELCOME" in text and "as role=CLEARING" in text,
             timeout=10.0,
             proc=proc,
         )
         assert "WELCOME type=WELCOME" in startup_output
-        assert "Subscribed as CLEARING" in startup_output
+        assert "as role=CLEARING" in startup_output
 
+        # handle_message()'s real EXEC format is
+        # "EXEC  %-8s %6s @ %10s %-4s ch=%s%s\n" (ralf_subscriber.c) --
+        # e.g. "EXEC  AAPL       100 @     150.25 BUY  ch=CLEARING" --
+        # not "MSG type=EXEC CH=...".
         event_output = ""
         for _ in range(20):
             _send_trade_executed(pub, "EX-C-1")
             try:
                 event_output += _read_pty_output(
                     master_fd,
-                    lambda text: "MSG type=EXEC CH=CLEARING" in text
-                    and "SYM=AAPL" in text,
+                    lambda text: "EXEC  AAPL" in text and "ch=CLEARING" in text,
                     timeout=0.6,
                     proc=proc,
                 )
@@ -291,8 +294,8 @@ def test_c_example_builds_and_receives_gateway_exec(
                 event_output += str(exc)
                 time.sleep(0.05)
 
-        assert "MSG type=EXEC CH=CLEARING" in event_output
-        assert "SYM=AAPL" in event_output
+        assert "EXEC  AAPL" in event_output
+        assert "ch=CLEARING" in event_output
     finally:
         proc.terminate()
         proc.wait(timeout=5)

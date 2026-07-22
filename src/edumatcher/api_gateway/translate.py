@@ -42,7 +42,12 @@ def build_order(request: OrderRequest, gateway_id: str) -> Order:
             else None
         ),
         visible_qty=request.visible_qty,
-        smp_action=SmpAction(request.smp_action),
+        # None (omitted in the request) is preserved as None here too -- the
+        # engine applies the gateway's configured smp_action default in that
+        # case rather than an explicit NONE. See SmpAction's docstring.
+        smp_action=(
+            SmpAction(request.smp_action) if request.smp_action is not None else None
+        ),
         trail_offset=(
             to_ticks(request.trail_offset, request.symbol)
             if request.trail_offset is not None
@@ -108,7 +113,14 @@ def build_combo_payload(request: ComboRequest, gateway_id: str) -> dict[str, Any
                 if leg.stop_price is not None
                 else None
             ),
-            smp_action=SmpAction(request.smp_action),
+            # smp_action is combo-level (applies uniformly to every leg,
+            # matching the ALF console/gateway combo protocol); None means
+            # omitted -- see build_order's comment above.
+            smp_action=(
+                SmpAction(request.smp_action)
+                if request.smp_action is not None
+                else None
+            ),
         )
         for leg in request.legs
     ]

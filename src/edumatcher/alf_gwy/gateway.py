@@ -7,6 +7,7 @@ and bridges traffic to/from the engine ZMQ bus.
 from __future__ import annotations
 
 import errno
+import logging
 import select
 import signal
 import socket
@@ -46,6 +47,7 @@ from edumatcher.models.message import (
     make_orders_request_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
+    make_quote_legs_request_msg,
     make_quote_new_msg,
     make_symbols_request_msg,
 )
@@ -53,6 +55,13 @@ from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.price import register_tick_decimals, to_ticks
 
 _MAX_LINE_BYTES = 4096
+_MAX_ENGINE_EVENTS_PER_LOOP = 1000
+_MAX_DC_EVENTS_PER_LOOP = 1000
+# Topic prefix used by edumatcher.engine.drop_copy.DropCopyPublisher for live
+# (non-replay) fill events -- see docs/user-guide/200-drop-copy.md.
+_DC_EVENT_TOPIC_PREFIX = "drop_copy.event."
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -64,13 +73,16 @@ class ClientSession:
     role: str = "TRADER"
     authenticated: bool = False
     auth_pending: bool = False
+    dc_enabled: bool = False
     subscriptions: set[str] = field(default_factory=set)
     out_queue: deque[bytes] = field(default_factory=deque)
     out_offset: int = 0
     in_buffer: bytearray = field(default_factory=bytearray)
     closing: bool = False
+    connected_at: float = field(default_factory=time.monotonic)
     last_activity: float = field(default_factory=time.monotonic)
     last_outbound: float = field(default_factory=time.monotonic)
+    connect_emitted: bool = False
     lines_received: int = 0
     lines_sent: int = 0
     errors: int = 0
@@ -79,6 +91,7 @@ class ClientSession:
     rate_updated: float = 0.0
 
     def __post_init__(self) -> None:
+        self.connected_at = time.monotonic()
         self.last_activity = time.monotonic()
         self.last_outbound = time.monotonic()
         self.rate_updated = time.monotonic()
@@ -101,8 +114,11 @@ class AlfGateway:
         self._clients: dict[int, ClientSession] = {}
         self._active_gateway_sessions: dict[str, int] = {}
         self._topic_refcounts: dict[str, int] = {}
+        self._dc_topic_refcounts: dict[str, int] = {}
         self._gateway_roles = {gw_id: role for gw_id, role in config.gateway_roles}
+        # Shared ref-data snapshot state loaded from engine symbols responses.
         self._known_symbols: set[str] = set()
+        self._symbols_snapshot_loaded = False
 
         self._push: zmq.Socket[bytes] = make_pusher(config.engine_pull_addr)
         self._sub: zmq.Socket[bytes] = make_subscriber(
@@ -112,6 +128,12 @@ class AlfGateway:
             "circuit_breaker.halt.",
             "circuit_breaker.resume.",
         )
+        # Separate SUB socket for the engine's drop-copy feed (:5557). Kept
+        # distinct from self._sub (:5556) because it is a different ZMQ PUB
+        # address entirely -- see edumatcher.engine.drop_copy. No topics are
+        # subscribed here at startup; DC|ON subscribes this session's own
+        # drop_copy.event.<GW_ID> topic on demand (see _dc_subscribe_topic).
+        self._dc_sub: zmq.Socket[bytes] = make_subscriber(config.drop_copy_pub_addr)
 
         self._global_stats: dict[str, int] = {
             "connected_clients": 0,
@@ -136,9 +158,12 @@ class AlfGateway:
             signal.signal(signal.SIGINT, lambda *_: self.stop())
             signal.signal(signal.SIGTERM, lambda *_: self.stop())
 
-        print(
-            f"[ALF-GWY] Listening on {self.config.bind_address}:{self.config.port} "
-            f"(engine pull: {self.config.engine_pull_addr}, pub: {self.config.engine_pub_addr})"
+        log.info(
+            "listening on %s:%s (engine_pull=%s engine_pub=%s)",
+            self.config.bind_address,
+            self.config.port,
+            self.config.engine_pull_addr,
+            self.config.engine_pub_addr,
         )
 
         try:
@@ -146,6 +171,7 @@ class AlfGateway:
                 self._accept_new_clients()
                 self._read_client_data()
                 self._poll_engine_events()
+                self._poll_dc_events()
                 self._send_heartbeats_if_due()
                 self._flush_client_writes()
                 self._drop_idle_clients()
@@ -154,9 +180,11 @@ class AlfGateway:
             self.close()
 
     def stop(self) -> None:
+        log.info("stop requested")
         self._running = False
 
     def close(self) -> None:
+        log.info("closing ALF gateway")
         for session in list(self._clients.values()):
             self._disconnect(session, reason="gateway_shutdown")
         self._clients.clear()
@@ -170,6 +198,8 @@ class AlfGateway:
             self._push.close()
         if not self._sub.closed:
             self._sub.close()
+        if not self._dc_sub.closed:
+            self._dc_sub.close()
 
     # ------------------------------------------------------------------
     # Networking
@@ -322,6 +352,23 @@ class AlfGateway:
         fields = frame.fields
 
         if not session.authenticated:
+            if cmd == "HELLO" and session.auth_pending:
+                self._register_error(
+                    session,
+                    "HELLO_ALREADY_PENDING",
+                    "HELLO already received; awaiting auth result",
+                    close_connection=False,
+                )
+                return
+
+            if not self._allow_command_now(session):
+                self._register_error(
+                    session,
+                    "RATE_LIMITED",
+                    "Too many commands per second",
+                    close_connection=False,
+                )
+                return
             if cmd != "HELLO":
                 self._register_error(
                     session,
@@ -333,8 +380,12 @@ class AlfGateway:
             try:
                 self._handle_hello(session, fields)
             except ValidationError as exc:
+                close_conn = exc.code not in {
+                    "ENGINE_UNAVAILABLE",
+                    "HELLO_ALREADY_PENDING",
+                }
                 self._register_error(
-                    session, exc.code, exc.detail, close_connection=True
+                    session, exc.code, exc.detail, close_connection=close_conn
                 )
             return
 
@@ -397,6 +448,9 @@ class AlfGateway:
                 make_kill_switch_msg(self._require_gw(session), symbol)
             )
             return
+        if cmd == "DC":
+            self._handle_dc(session, fields)
+            return
         if cmd == "SYMBOLS":
             self._send_to_engine(make_symbols_request_msg(self._require_gw(session)))
             return
@@ -410,8 +464,17 @@ class AlfGateway:
                 )
             )
             return
+        if cmd == "QLEGS":
+            self._send_to_engine(
+                make_quote_legs_request_msg(
+                    self._require_gw(session),
+                    fields.get("SYM", ""),
+                    fields.get("SHOW", "ACTIVE"),
+                )
+            )
+            return
 
-        if cmd in {"STATUS", "POS", "QLEGS", "HELP"}:
+        if cmd in {"STATUS", "POS", "HELP"}:
             raise ValidationError(
                 "UNKNOWN_COMMAND",
                 f"{cmd} is interactive-only and not supported by pm-alf-gwy",
@@ -420,6 +483,12 @@ class AlfGateway:
         raise ValidationError("UNKNOWN_COMMAND", f"Unknown command: {cmd}")
 
     def _handle_hello(self, session: ClientSession, fields: dict[str, str]) -> None:
+        if session.auth_pending:
+            raise ValidationError(
+                "HELLO_ALREADY_PENDING",
+                "HELLO already received; awaiting auth result",
+            )
+
         client, _proto, gateway_id = validate_hello_fields(fields)
 
         if self._gateway_in_use(gateway_id):
@@ -434,13 +503,24 @@ class AlfGateway:
         session.client_name = client
         session.gateway_id = gateway_id
         session.auth_pending = True
+        session.connect_emitted = False
 
         auth_topic = f"system.gateway_auth.{gateway_id}"
         self._subscribe_topic(auth_topic)
         session.subscriptions.add(auth_topic)
-        self._send_to_engine(
-            make_gateway_connect_msg(gateway_id), count_as_command=False
-        )
+        try:
+            self._send_to_engine(
+                make_gateway_connect_msg(gateway_id), count_as_command=False
+            )
+        except ValidationError:
+            session.auth_pending = False
+            session.gateway_id = None
+            session.client_name = ""
+            if auth_topic in session.subscriptions:
+                session.subscriptions.remove(auth_topic)
+                self._unsubscribe_topic(auth_topic)
+            raise
+        session.connect_emitted = True
 
     def _handle_new(self, session: ClientSession, fields: dict[str, str]) -> None:
         req_type = fields.get("TYPE", "LIMIT")
@@ -462,7 +542,11 @@ class AlfGateway:
         order_type = self._parse_order_type(self._required_str(fields, "TYPE"))
         quantity = safe_int(self._required_str(fields, "QTY"), "QTY", min_value=1)
         tif = self._parse_tif(fields.get("TIF", "DAY"))
-        smp = self._parse_smp(fields.get("SMP", "NONE"))
+        # SMP omitted entirely means "let the engine apply this gateway's
+        # configured smp_action default" -- distinct from an explicit
+        # SMP=NONE, which means the client deliberately allows self-trades.
+        # See SmpAction's docstring in models/order.py.
+        smp = self._parse_smp(fields["SMP"]) if "SMP" in fields else None
 
         price = safe_float(fields["PRICE"], "PRICE") if "PRICE" in fields else None
         stop_price = safe_float(fields["STOP"], "STOP") if "STOP" in fields else None
@@ -580,7 +664,10 @@ class AlfGateway:
             self._required_str(fields, "COMBO_TYPE", default="AON")
         )
         tif = self._parse_tif(fields.get("TIF", "DAY"))
-        smp_action = self._parse_smp(fields.get("SMP", "NONE"))
+        # SMP omitted entirely means "let the engine apply this gateway's
+        # configured smp_action default" to every leg -- distinct from an
+        # explicit SMP=NONE. See SmpAction's docstring in models/order.py.
+        smp_action = self._parse_smp(fields["SMP"]) if "SMP" in fields else None
 
         leg_count = safe_int(
             self._required_str(fields, "LEG_COUNT"), "LEG_COUNT", min_value=2
@@ -721,20 +808,56 @@ class AlfGateway:
         self._validate_symbol(symbol)
         self._send_to_engine(make_quote_cancel_msg(self._require_gw(session), symbol))
 
+    def _handle_dc(self, session: ClientSession, fields: dict[str, str]) -> None:
+        """Toggle asynchronous drop-copy relay for this session.
+
+        ``DC|ON`` subscribes this session to the engine's drop-copy feed
+        (``DROP_COPY_PUB_ADDR``, :5557) scoped to this session's own
+        ``gateway_id`` -- every subsequent fill for this gateway arrives
+        asynchronously as a ``DC_FILL`` line, mirroring how a real exchange
+        relays drop copy down a participant's own session rather than
+        requiring a separate connection. ``DC|OFF`` unsubscribes. Mirrors
+        the on/off semantics of a real FIX drop-copy session being
+        provisioned per participant -- see docs/user-guide/200-drop-copy.md.
+        """
+        state = self._required_str(fields, "STATE")
+        gateway_id = self._require_gw(session)
+
+        if state == "ON":
+            if not session.dc_enabled:
+                self._dc_subscribe_topic(f"{_DC_EVENT_TOPIC_PREFIX}{gateway_id}")
+                session.dc_enabled = True
+            self._queue_line(session, "DC_ACK", {"STATE": "ON"})
+            return
+        if state == "OFF":
+            if session.dc_enabled:
+                self._dc_unsubscribe_topic(f"{_DC_EVENT_TOPIC_PREFIX}{gateway_id}")
+                session.dc_enabled = False
+            self._queue_line(session, "DC_ACK", {"STATE": "OFF"})
+            return
+        raise ValidationError("INVALID_VALUE", "DC STATE must be ON or OFF")
+
     # ------------------------------------------------------------------
     # Engine event polling
     # ------------------------------------------------------------------
 
     def _poll_engine_events(self) -> None:
-        while self._sub.poll(timeout=0):
+        budget = _MAX_ENGINE_EVENTS_PER_LOOP
+        while budget > 0 and self._sub.poll(timeout=0):
             try:
                 topic, payload = decode(self._sub.recv_multipart())
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
-                    raise
+                    log.warning(
+                        "ALF gateway SUB recv error (errno=%s); dropping remaining events for this tick",
+                        exc.errno,
+                    )
                 break
             except Exception:
+                budget -= 1
                 continue
+
+            budget -= 1
 
             if topic.startswith("system.gateway_auth."):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
@@ -754,6 +877,11 @@ class AlfGateway:
             if topic.startswith("system.quote_bootstrap."):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_qboot_response(gateway_id, payload)
+                continue
+
+            if topic.startswith("system.quote_legs."):
+                gateway_id = topic.rsplit(".", 1)[-1].upper()
+                self._handle_qlegs_response(gateway_id, payload)
                 continue
 
             if topic == "session.state":
@@ -799,6 +927,53 @@ class AlfGateway:
                 continue
 
             self._route_gateway_scoped_event(topic, payload)
+
+    def _poll_dc_events(self) -> None:
+        """Poll the drop-copy SUB socket (:5557) and relay to subscribed sessions.
+
+        Separate from :meth:`_poll_engine_events` because drop copy lives on
+        its own ZMQ PUB socket, distinct from the main event bus (:5556).
+        Only sessions that sent ``DC|ON`` are subscribed to any topic on
+        this socket at all (see ``_handle_dc``/``_dc_subscribe_topic``), so
+        this poll is a no-op whenever no connected session has opted in.
+        """
+        budget = _MAX_DC_EVENTS_PER_LOOP
+        while budget > 0 and self._dc_sub.poll(timeout=0):
+            try:
+                topic, payload = decode(self._dc_sub.recv_multipart())
+            except zmq.ZMQError as exc:
+                if exc.errno != errno.EINTR:
+                    log.warning(
+                        "ALF gateway drop-copy SUB recv error (errno=%s); "
+                        "dropping remaining DC events for this tick",
+                        exc.errno,
+                    )
+                break
+            except Exception:
+                budget -= 1
+                continue
+
+            budget -= 1
+
+            if not topic.startswith(_DC_EVENT_TOPIC_PREFIX):
+                continue
+            gateway_id = topic[len(_DC_EVENT_TOPIC_PREFIX) :].upper()
+            session = self._session_for_gateway(gateway_id)
+            if session is None or not session.dc_enabled:
+                continue
+
+            self._queue_line(
+                session,
+                "DC_FILL",
+                {
+                    "SEQ": str(payload.get("seq", "")),
+                    "ORDER_ID": str(payload.get("order_id", "")),
+                    "SYMBOL": str(payload.get("symbol", "")),
+                    "FILL_QTY": str(payload.get("fill_qty", "")),
+                    "FILL_PRICE": str(payload.get("fill_price", "")),
+                    "LIQUIDITY": str(payload.get("liquidity_flag", "")),
+                },
+            )
 
     def _handle_gateway_auth(self, gateway_id: str, payload: dict[str, Any]) -> None:
         target = self._find_pending_auth_session(gateway_id)
@@ -856,6 +1031,7 @@ class AlfGateway:
         symbols_raw = payload.get("symbols", [])
         symbol_meta = payload.get("symbol_meta", {})
         symbols = [str(s).upper() for s in symbols_raw if isinstance(s, str)]
+        self._symbols_snapshot_loaded = True
         self._known_symbols.update(symbols)
 
         if isinstance(symbol_meta, dict):
@@ -940,6 +1116,90 @@ class AlfGateway:
                 },
             )
         self._queue_line(session, "END", {"TYPE": "QBOOT"})
+
+    def _handle_qlegs_response(self, gateway_id: str, payload: dict[str, Any]) -> None:
+        session = self._session_for_gateway(gateway_id)
+        if session is None:
+            return
+
+        legs = payload.get("legs", [])
+        if not isinstance(legs, list):
+            legs = []
+        recent = payload.get("recent", [])
+        if not isinstance(recent, list):
+            recent = []
+        show_requested = str(payload.get("show_requested", "ACTIVE"))
+
+        self._queue_line(
+            session,
+            "QLEGS",
+            {
+                "COUNT": str(len(legs)),
+                "RECENT_COUNT": str(len(recent)),
+                "SHOW": show_requested,
+            },
+        )
+        for leg in legs:
+            if not isinstance(leg, dict):
+                continue
+            self._queue_line(
+                session,
+                "LEG",
+                {
+                    "QUOTE_ID": str(leg.get("quote_id", "")),
+                    "SYM": str(leg.get("symbol", "")),
+                    "SIDE": str(leg.get("leg_side", "")),
+                    "ORDER_ID": str(leg.get("order_id", "")),
+                    "QTY": str(leg.get("qty", "")),
+                    "REMAINING": str(leg.get("remaining", "")),
+                    "FILLED": str(leg.get("filled", "")),
+                    "STATUS": str(leg.get("status", "")),
+                    "QUOTE_STATUS": str(leg.get("quote_status", "")),
+                },
+            )
+        for entry in recent:
+            if not isinstance(entry, dict):
+                continue
+            quote_id = str(entry.get("quote_id", ""))
+            self._queue_line(
+                session,
+                "RECENT_LEG",
+                {
+                    "QUOTE_ID": quote_id,
+                    "SYM": str(entry.get("symbol", "")),
+                    "QUOTE_STATUS": str(entry.get("quote_status", "")),
+                    "REASON": str(entry.get("reason", "")),
+                    "REMOVED_AT_NS": str(entry.get("removed_at_ns", "")),
+                },
+            )
+            # Per-leg detail (qty/remaining/filled/status), when the engine
+            # had it available at removal time — see
+            # docs-design/EduMatcher-QLEGS-RECENT.md §9.3. Emitted as
+            # separate, optional lines rather than folded into RECENT_LEG's
+            # field set so existing parsers of RECENT_LEG are unaffected,
+            # and so a missing snapshot (bid_leg/ask_leg is None) is simply
+            # the absence of a line rather than a row of blank fields.
+            for leg_line_type, leg_field, leg_side in (
+                ("RECENT_BID_LEG", "bid_leg", "BUY"),
+                ("RECENT_ASK_LEG", "ask_leg", "SELL"),
+            ):
+                leg = entry.get(leg_field)
+                if not isinstance(leg, dict):
+                    continue
+                self._queue_line(
+                    session,
+                    leg_line_type,
+                    {
+                        "QUOTE_ID": quote_id,
+                        "SIDE": leg_side,
+                        "ORDER_ID": str(leg.get("order_id", "")),
+                        "QTY": str(leg.get("qty", "")),
+                        "REMAINING": str(leg.get("remaining", "")),
+                        "FILLED": str(leg.get("filled", "")),
+                        "STATUS": str(leg.get("status", "")),
+                    },
+                )
+        self._queue_line(session, "END", {"TYPE": "QLEGS"})
 
     def _route_gateway_scoped_event(self, topic: str, payload: dict[str, Any]) -> None:
         if "." not in topic:
@@ -1070,6 +1330,21 @@ class AlfGateway:
     def _drop_idle_clients(self) -> None:
         now = time.monotonic()
         for session in list(self._clients.values()):
+            if (
+                not session.authenticated
+                and now - session.connected_at > self.config.handshake_timeout_sec
+            ):
+                self._queue_line(
+                    session,
+                    "ERR",
+                    {
+                        "CODE": "AUTH_TIMEOUT",
+                        "DETAIL": "Handshake timeout",
+                    },
+                )
+                self._close_after_flush(session)
+                continue
+
             if now - session.last_activity <= self.config.idle_timeout_sec:
                 continue
             self._queue_line(
@@ -1135,7 +1410,12 @@ class AlfGateway:
             ) from exc
 
     def _validate_symbol(self, symbol: str) -> None:
-        if self._known_symbols and symbol not in self._known_symbols:
+        if not self._symbols_snapshot_loaded:
+            raise ValidationError(
+                "SYMBOLS_NOT_READY",
+                "Symbol metadata not loaded yet; retry shortly",
+            )
+        if symbol not in self._known_symbols:
             raise ValidationError("SYMBOL_NOT_CONFIGURED", f"Unknown symbol: {symbol}")
 
     def _require_gw(self, session: ClientSession) -> str:
@@ -1181,13 +1461,33 @@ class AlfGateway:
         session.out_queue.append(payload)
 
     def _send_to_engine(
-        self, frames: list[bytes], *, count_as_command: bool = True
+        self,
+        frames: list[bytes],
+        *,
+        count_as_command: bool = True,
+        require_engine: bool = True,
     ) -> None:
         try:
             self._push.send_multipart(frames)
-        except zmq.ZMQError:
-            if not self._running or self._push.closed:
+        except zmq.Again:
+            if self._push.closed:
                 return
+            if not require_engine:
+                return
+            raise ValidationError(
+                "ENGINE_UNAVAILABLE",
+                "Engine unavailable: command not forwarded; retry shortly",
+            )
+        except zmq.ZMQError as exc:
+            if self._push.closed:
+                return
+            if exc.errno == zmq.EAGAIN:
+                if not require_engine:
+                    return
+                raise ValidationError(
+                    "ENGINE_UNAVAILABLE",
+                    "Engine unavailable: command not forwarded; retry shortly",
+                )
             raise
         if count_as_command:
             self._global_stats["commands_forwarded_total"] += 1
@@ -1242,11 +1542,17 @@ class AlfGateway:
             self._unsubscribe_topic(topic)
         session.subscriptions.clear()
 
-        if gateway_id and session.authenticated:
+        if gateway_id and session.dc_enabled:
+            self._dc_unsubscribe_topic(f"{_DC_EVENT_TOPIC_PREFIX}{gateway_id}")
+            session.dc_enabled = False
+
+        if gateway_id and session.connect_emitted:
             self._send_to_engine(
                 make_gateway_disconnect_msg(gateway_id, reason=reason),
                 count_as_command=False,
+                require_engine=False,
             )
+            session.connect_emitted = False
 
         fileno = session.sock.fileno()
         session.close()
@@ -1267,6 +1573,26 @@ class AlfGateway:
             self._sub.setsockopt(zmq.UNSUBSCRIBE, topic.encode("utf-8"))
             return
         self._topic_refcounts[topic] = ref - 1
+
+    def _dc_subscribe_topic(self, topic: str) -> None:
+        """Refcounted SUBSCRIBE on the drop-copy socket (:5557).
+
+        Kept separate from :meth:`_subscribe_topic` because it targets
+        ``self._dc_sub`` rather than ``self._sub`` -- a different ZMQ PUB
+        address entirely, not just a different topic namespace.
+        """
+        ref = self._dc_topic_refcounts.get(topic, 0)
+        if ref == 0:
+            self._dc_sub.setsockopt(zmq.SUBSCRIBE, topic.encode("utf-8"))
+        self._dc_topic_refcounts[topic] = ref + 1
+
+    def _dc_unsubscribe_topic(self, topic: str) -> None:
+        ref = self._dc_topic_refcounts.get(topic, 0)
+        if ref <= 1:
+            self._dc_topic_refcounts.pop(topic, None)
+            self._dc_sub.setsockopt(zmq.UNSUBSCRIBE, topic.encode("utf-8"))
+            return
+        self._dc_topic_refcounts[topic] = ref - 1
 
     def _gateway_topics(self, gateway_id: str) -> tuple[str, ...]:
         return (

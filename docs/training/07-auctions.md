@@ -30,10 +30,19 @@ Key properties:
 
 ## Exercise 1: Set Up for an Opening Auction
 
-Stop the scheduler and restart with manual phase control (or use a config that
-pauses in PRE_OPEN). You want to stay in PRE_OPEN long enough to enter orders.
+Stop the scheduler and use manual phase control instead (see
+[06 — Freeze/Advance Procedure](06-time-in-force-sessions.md#freezeadvance-procedure-deterministic-session-control)).
+You want to be sitting in `OPENING_AUCTION` — **not** `PRE_OPEN` — before
+sending the `TIF=ATO` orders below: the engine only accepts `ATO` orders
+while the session state is exactly `OPENING_AUCTION` and rejects them during
+`PRE_OPEN` even though `PRE_OPEN` accepts orders generally. From
+`PRE_OPEN`, transition directly:
 
-From two gateways, enter orders while in PRE_OPEN/OPENING_AUCTION:
+```
+ADMIN01> SESSION|STATE=OPENING_AUCTION
+```
+
+From two gateways, enter orders while in `OPENING_AUCTION`:
 
 **TRADER01:**
 ```
@@ -156,9 +165,9 @@ order filled at its own price instead?
 
 ## Further Reading
 
-- [Auctions & Scheduling](../user-guide/06-auctions-scheduling.md)
+- [Auctions & Scheduling](../user-guide/080-auctions-scheduling.md)
 - [Auction Equilibrium Concepts](../concepts/05-concepts-trading-day.md)
-- [Order Types](../user-guide/04-order-types.md)
+- [Order Types](../user-guide/060-order-types.md)
 
  
 

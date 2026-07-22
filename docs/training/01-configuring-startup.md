@@ -313,10 +313,10 @@ the engine kept running?
 
 ## Further Reading
 
-- [Configuration](../user-guide/01-configuration.md)
-- [Config Verifier (`pm-cverifier`)](../user-guide/23-config-verifier.md)
-- [Running the Engine](../user-guide/03-running-the-engine.md)
-- [Gateway Commands](../user-guide/08-gateway.md)
-- [Message Types (system.symbols)](../user-guide/09-messages.md)
+- [Configuration](../user-guide/010-configuration.md)
+- [Config Verifier (`pm-cverifier`)](../user-guide/020-config-verifier.md)
+- [Running the Engine](../user-guide/040-running-the-engine.md)
+- [Gateway Commands](../user-guide/050-gateway.md)
+- [Message Types (system.symbols)](../user-guide/270-messages.md)
 
 **Next:** [02 — Setting Up Market-Maker Liquidity](02-setting-up-MM-bots.md)

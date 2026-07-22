@@ -23,9 +23,12 @@ Output:
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import errno
+import logging
 import signal
 import sqlite3
+import sys
 import threading
 import time
 from datetime import date, datetime
@@ -47,8 +50,10 @@ from edumatcher.models.message import decode
 _DISPLAY_INTERVAL_DEFAULT = 30  # seconds between printed ticker lines
 _DB_REFRESH_DEFAULT = 900  # seconds between daily_stats re-queries (15 min)
 _MAIN_LOOP_SLEEP_SEC = 0.1  # main-loop polling granularity
+_DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 console = Console(highlight=False)
+log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -186,8 +191,32 @@ class TickerProcess:
         self._symbols: list[str] = []
 
         self._last_db_refresh = 0.0
+        self._debug_counts: defaultdict[str, int] = defaultdict(int)
+        self._debug_last_summary = time.monotonic()
 
         self.sub = make_subscriber(ENGINE_PUB_ADDR, "book.")
+
+    def _dbg_count(self, key: str, amount: int = 1) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        self._debug_counts[key] += amount
+        self._flush_debug_summary()
+
+    def _flush_debug_summary(self, force: bool = False) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        now = time.monotonic()
+        if not force and now - self._debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
+            return
+        if not self._debug_counts:
+            self._debug_last_summary = now
+            return
+        summary = ", ".join(
+            f"{key}={value}" for key, value in sorted(self._debug_counts.items())
+        )
+        log.debug("ticker flow summary: %s", summary)
+        self._debug_counts.clear()
+        self._debug_last_summary = now
 
     # ------------------------------------------------------------------
     # DB refresh
@@ -195,6 +224,7 @@ class TickerProcess:
 
     def _refresh_db(self) -> None:
         if not self._db_path.exists():
+            self._dbg_count("db_refresh_skipped_missing_file")
             return
         try:
             conn = sqlite3.connect(str(self._db_path))
@@ -209,7 +239,11 @@ class TickerProcess:
                     if sym not in self._symbols:
                         self._symbols.append(sym)
                 self._symbols.sort()
+            self._dbg_count("db_refresh_ok")
+            self._dbg_count("db_rows_loaded", len(daily))
         except Exception as exc:
+            self._dbg_count("db_refresh_errors")
+            log.warning("ticker DB read error: %s", exc)
             console.print(f"[TICKER] DB read error: {exc}", style="dim red")
 
     # ------------------------------------------------------------------
@@ -219,12 +253,14 @@ class TickerProcess:
     def _receive(self) -> None:
         poller = zmq.Poller()
         poller.register(self.sub, zmq.POLLIN)
+        log.info("ticker receive loop started")
         while self._running:
             try:
                 socks = dict(poller.poll(timeout=300))
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
                     raise
+                self._dbg_count("receive_poll_eintr")
                 break
             if self.sub not in socks:
                 continue
@@ -232,6 +268,7 @@ class TickerProcess:
                 frames = self.sub.recv_multipart()
                 topic, payload = decode(frames)
             except Exception:
+                self._dbg_count("receive_decode_errors")
                 continue
 
             if topic.startswith("book."):
@@ -247,6 +284,10 @@ class TickerProcess:
                     if symbol not in self._symbols:
                         self._symbols.append(symbol)
                         self._symbols.sort()
+                self._dbg_count("book_events")
+                self._dbg_count("symbols_seen", 1 if symbol not in self._daily else 0)
+        self._flush_debug_summary(force=True)
+        log.info("ticker receive loop stopped")
 
     # ------------------------------------------------------------------
     # Main loop
@@ -255,6 +296,12 @@ class TickerProcess:
     def run(self) -> None:
         signal.signal(signal.SIGINT, lambda *_: self._stop())
         signal.signal(signal.SIGTERM, lambda *_: self._stop())
+        log.info(
+            "starting ticker runtime db=%s interval=%s db_interval=%s",
+            self._db_path,
+            self._display_interval,
+            self._db_interval,
+        )
 
         t = threading.Thread(target=self._receive, daemon=True)
         t.start()
@@ -289,19 +336,24 @@ class TickerProcess:
                         live = dict(self._live)
                     if syms:
                         console.print(_build_line(syms, daily, live))
+                        self._dbg_count("lines_printed")
                     else:
                         console.print(
                             f"[dim]{datetime.now().strftime('%H:%M:%S')}  "
                             "waiting for market data…[/dim]"
                         )
+                        self._dbg_count("lines_waiting")
                     last_display = now
 
+                self._flush_debug_summary()
                 time.sleep(_MAIN_LOOP_SLEEP_SEC)
         finally:
             self._running = False  # ensure _receive exits even on exception
             t.join(timeout=2.0)  # wait for thread before touching the socket
             self.sub.close()  # safe: _receive is no longer polling
+            self._flush_debug_summary(force=True)
         console.print("\n[TICKER] Stopped.", style="dim")
+        log.info("ticker shutdown complete")
 
     def _stop(self) -> None:
         self._running = False
@@ -313,6 +365,18 @@ class TickerProcess:
 
 
 def main() -> None:
+    parser = _build_parser()
+    args = parser.parse_args()
+    log_level = _configure_logging(args)
+    log.info("starting pm-ticker with log level %s", logging.getLevelName(log_level))
+    TickerProcess(
+        db_path=Path(args.db),
+        display_interval=args.interval,
+        db_interval=args.db_interval,
+    ).run()
+
+
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher scrolling market ticker")
     from edumatcher.cli_version import add_version_argument
 
@@ -337,12 +401,50 @@ def main() -> None:
         metavar="SEC",
         help=f"Seconds between daily_stats DB re-queries (default: {_DB_REFRESH_DEFAULT})",
     )
-    args = parser.parse_args()
-    TickerProcess(
-        db_path=Path(args.db),
-        display_interval=args.interval,
-        db_interval=args.db_interval,
-    ).run()
+    parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase log verbosity (-v: INFO, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce log output to warnings/errors",
+    )
+    return parser
+
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    log_level = getattr(args, "log_level", None)
+    verbose = getattr(args, "verbose", 0)
+    quiet = getattr(args, "quiet", False)
+
+    if log_level:
+        level_name = str(log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif verbose >= 2:
+        level = logging.DEBUG
+    elif verbose == 1:
+        level = logging.INFO
+    elif quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
+    )
+    return int(level)
 
 
 if __name__ == "__main__":

@@ -26,10 +26,13 @@ class MarketDataGatewayConfig:
     engine_pub_addr: str = ENGINE_PUB_ADDR
     index_pub_addr: str = INDEX_PUB_CONNECT_ADDR
     heartbeat_interval_sec: int = 1
-    idle_timeout_sec: int = 5
+    idle_timeout_sec: int = 300
     replay_window_sec: int = 30
+    max_connections: int = 64
+    max_messages_per_second: int = 200
     max_symbols_per_client: int = 200
     max_client_queue: int = 10_000
+    depth_levels: int = 10
 
 
 def _as_int(raw: object, field: str) -> int:
@@ -60,10 +63,18 @@ def _load_market_data_gateway_config_from_raw(
         md_raw.get("heartbeat_interval_sec", 1),
         "heartbeat_interval_sec",
     )
-    idle_timeout_sec = _as_int(md_raw.get("idle_timeout_sec", 5), "idle_timeout_sec")
+    idle_timeout_sec = _as_int(md_raw.get("idle_timeout_sec", 300), "idle_timeout_sec")
     replay_window_sec = _as_int(
         md_raw.get("replay_window_sec", 30),
         "replay_window_sec",
+    )
+    max_connections = _as_int(
+        md_raw.get("max_connections", 64),
+        "max_connections",
+    )
+    max_messages_per_second = _as_int(
+        md_raw.get("max_messages_per_second", 200),
+        "max_messages_per_second",
     )
     max_symbols_per_client = _as_int(
         md_raw.get("max_symbols_per_client", 200),
@@ -72,6 +83,10 @@ def _load_market_data_gateway_config_from_raw(
     max_client_queue = _as_int(
         md_raw.get("max_client_queue", 10_000),
         "max_client_queue",
+    )
+    depth_levels = _as_int(
+        md_raw.get("depth_levels", 10),
+        "depth_levels",
     )
 
     if port <= 0:
@@ -82,10 +97,16 @@ def _load_market_data_gateway_config_from_raw(
         raise ValueError("market_data_gateway.idle_timeout_sec must be > 0")
     if replay_window_sec <= 0:
         raise ValueError("market_data_gateway.replay_window_sec must be > 0")
+    if max_connections <= 0:
+        raise ValueError("market_data_gateway.max_connections must be > 0")
+    if max_messages_per_second <= 0:
+        raise ValueError("market_data_gateway.max_messages_per_second must be > 0")
     if max_symbols_per_client <= 0:
         raise ValueError("market_data_gateway.max_symbols_per_client must be > 0")
     if max_client_queue <= 0:
         raise ValueError("market_data_gateway.max_client_queue must be > 0")
+    if depth_levels <= 0:
+        raise ValueError("market_data_gateway.depth_levels must be > 0")
 
     return MarketDataGatewayConfig(
         enabled=enabled,
@@ -97,8 +118,11 @@ def _load_market_data_gateway_config_from_raw(
         heartbeat_interval_sec=heartbeat_interval_sec,
         idle_timeout_sec=idle_timeout_sec,
         replay_window_sec=replay_window_sec,
+        max_connections=max_connections,
+        max_messages_per_second=max_messages_per_second,
         max_symbols_per_client=max_symbols_per_client,
         max_client_queue=max_client_queue,
+        depth_levels=depth_levels,
     )
 
 

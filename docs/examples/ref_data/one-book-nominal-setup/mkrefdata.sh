@@ -40,6 +40,14 @@ if [[ -n "$SEED" ]]; then
   SEED_ARGS=(--seed "$SEED")
 fi
 
+# Guarantee a deterministic seed so both generation passes produce identical
+# MM quote prices, keeping the combo leg prices consistent with the book seeds.
+if [[ -z "$SEED" ]]; then
+  SEED=$(( RANDOM * 32768 + RANDOM ))
+  echo "[INFO] Auto-generated seed $SEED — re-run with --seed $SEED for identical output." >&2
+fi
+SEED_ARGS=(--seed "$SEED")
+
 if command -v pm-config-gen >/dev/null 2>&1; then
   CONFIG_GEN=(pm-config-gen)
 elif command -v poetry >/dev/null 2>&1; then

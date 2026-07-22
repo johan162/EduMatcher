@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Any
+from typing import Any, Callable
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
@@ -421,7 +421,257 @@ def _print_volume(result: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def execute_command(  # noqa: C901
+def _report(result: dict[str, Any], accepted_message: str) -> bool:
+    """Print *accepted_message* on success, else a REJECTED line with reason."""
+    accepted = bool(result.get("accepted"))
+    if accepted:
+        console.print(accepted_message)
+    else:
+        console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
+    return accepted
+
+
+def _cmd_halt(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    result = client.halt_all()
+    return _report(
+        result,
+        f"[bold red]HALTED[/bold red]  "
+        f"{result.get('halted_symbols', 0)} symbol(s), "
+        f"{result.get('cancelled_quotes', 0)} quote leg(s) cancelled",
+    )
+
+
+def _cmd_resume(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    result = client.resume_all()
+    return _report(
+        result,
+        f"[bold green]RESUMED[/bold green]  "
+        f"{result.get('resumed_symbols', 0)} symbol(s)",
+    )
+
+
+def _cmd_halt_sym(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    sym = fields.get("SYM", "")
+    if not sym:
+        console.print("[yellow]Usage:[/yellow]  HALT_SYM|SYM=<sym>")
+        return False
+    result = client.symbol_halt(sym)
+    return _report(
+        result,
+        f"[bold red]HALTED[/bold red]  {result.get('symbol', sym)}  "
+        f"{result.get('cancelled_quotes', 0)} quote leg(s) cancelled",
+    )
+
+
+def _cmd_resume_sym(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    sym = fields.get("SYM", "")
+    if not sym:
+        console.print("[yellow]Usage:[/yellow]  RESUME_SYM|SYM=<sym>")
+        return False
+    result = client.symbol_resume(sym)
+    return _report(
+        result, f"[bold green]RESUMED[/bold green]  {result.get('symbol', sym)}"
+    )
+
+
+def _cmd_cancel_sym(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    sym = fields.get("SYM", "")
+    if not sym:
+        console.print("[yellow]Usage:[/yellow]  CANCEL_SYM|SYM=<sym>")
+        return False
+    result = client.cancel_symbol(sym)
+    return _report(
+        result,
+        f"[yellow]CANCEL_SYM OK[/yellow]  {result.get('symbol', sym)}  "
+        f"orders={result.get('cancelled_orders', 0)}  "
+        f"quotes={result.get('cancelled_quotes', 0)}",
+    )
+
+
+def _cmd_kill(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    gw = fields.get("GW", "")
+    if not gw:
+        console.print("[yellow]Usage:[/yellow]  KILL|GW=<gw>[|SYM=<sym>]")
+        return False
+    result = client.kill_switch(gw, symbol=fields.get("SYM", ""))
+    return _report(
+        result,
+        f"[yellow]KILL OK[/yellow]  {gw.upper()}  "
+        f"orders={result.get('cancelled_orders', 0)}  "
+        f"quotes={result.get('cancelled_quotes', 0)}",
+    )
+
+
+def _cmd_kick(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    gw = fields.get("GW", "")
+    if not gw:
+        console.print("[yellow]Usage:[/yellow]  KICK|GW=<gw>[|REASON=<text>]")
+        return False
+    client.gateway_kick(gw, reason=fields.get("REASON", ""))
+    console.print(f"[yellow]KICK[/yellow]  sent disconnect for {gw.upper()}")
+    return True
+
+
+def _cmd_qcancel(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    gw = fields.get("GW", "")
+    sym = fields.get("SYM", "")
+    if not gw or not sym:
+        console.print("[yellow]Usage:[/yellow]  QCANCEL|GW=<gw>|SYM=<sym>")
+        return False
+    result = client.quote_cancel(gw, sym)
+    return _report(result, f"[yellow]QCANCEL OK[/yellow]  {gw.upper()}  {sym.upper()}")
+
+
+def _cmd_book(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    sym = fields.get("SYM", "")
+    if not sym:
+        console.print("[yellow]Usage:[/yellow]  BOOK|SYM=<sym>")
+        return False
+    _print_book(client.book_depth(sym))
+    return True
+
+
+def _cmd_orders(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    gw = fields.get("GW", "")
+    if not gw:
+        console.print("[yellow]Usage:[/yellow]  ORDERS|GW=<gw>")
+        return False
+    _print_orders(client.order_list(gw), gw.upper())
+    return True
+
+
+def _cmd_symbols(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    symbols = client.symbol_list()
+    if symbols_cache is not None:
+        symbols_cache.clear()
+        symbols_cache.extend(symbols)
+    _print_symbols(symbols)
+    return True
+
+
+def _cmd_session(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    state = fields.get("STATE", "")
+    if not state:
+        console.print("[yellow]Usage:[/yellow]  SESSION|STATE=<state>")
+        return False
+    result = client.session_advance(state)
+    console.print(
+        f"[bold]SESSION[/bold]  "
+        f"{result.get('prev_state', '?')} → {result.get('state', '?')}"
+    )
+    return True
+
+
+def _cmd_session_status(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    _print_session_status(client.session_status())
+    return True
+
+
+def _cmd_schedule(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    _print_schedule(client.session_schedule())
+    return True
+
+
+def _cmd_gateways(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    _print_gateways(client.gateway_list())
+    return True
+
+
+def _cmd_volume(
+    client: ExchangeCommandClient,
+    fields: dict[str, str],
+    symbols_cache: list[str] | None,
+) -> bool:
+    _print_volume(client.volume())
+    return True
+
+
+# Maps each upper-cased command name to its handler.  Adding a new command
+# only requires a new _cmd_* function plus an entry here (and argparse wiring
+# in cli.py).
+_COMMAND_HANDLERS: dict[
+    str, Callable[[ExchangeCommandClient, dict[str, str], list[str] | None], bool]
+] = {
+    "HALT": _cmd_halt,
+    "RESUME": _cmd_resume,
+    "HALT_SYM": _cmd_halt_sym,
+    "RESUME_SYM": _cmd_resume_sym,
+    "CANCEL_SYM": _cmd_cancel_sym,
+    "KILL": _cmd_kill,
+    "KICK": _cmd_kick,
+    "QCANCEL": _cmd_qcancel,
+    "BOOK": _cmd_book,
+    "ORDERS": _cmd_orders,
+    "SYMBOLS": _cmd_symbols,
+    "SESSION": _cmd_session,
+    "SESSION_STATUS": _cmd_session_status,
+    "SCHEDULE": _cmd_schedule,
+    "GATEWAYS": _cmd_gateways,
+    "VOLUME": _cmd_volume,
+}
+
+
+def execute_command(
     client: ExchangeCommandClient,
     cmd: str,
     fields: dict[str, str],
@@ -434,7 +684,8 @@ def execute_command(  # noqa: C901
     This function is the single source of truth for command behaviour.
     Both the interactive REPL (``pm-admin``) and the CLI tool
     (``pm-admin-cli``) call it so that adding a new command only requires
-    changes here (plus argparse wiring in ``cli.py``).
+    changes here (a new ``_cmd_*`` handler plus a ``_COMMAND_HANDLERS`` entry)
+    plus argparse wiring in ``cli.py``.
 
     Parameters
     ----------
@@ -459,167 +710,13 @@ def execute_command(  # noqa: C901
     CommandTimeoutError
         Propagated from the client when no ack arrives within the timeout.
     """
-    if cmd == "HALT":
-        result = client.halt_all()
-        if result.get("accepted"):
-            console.print(
-                f"[bold red]HALTED[/bold red]  "
-                f"{result.get('halted_symbols', 0)} symbol(s), "
-                f"{result.get('cancelled_quotes', 0)} quote leg(s) cancelled"
-            )
-        else:
-            console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
-        return bool(result.get("accepted"))
-
-    elif cmd == "RESUME":
-        result = client.resume_all()
-        if result.get("accepted"):
-            console.print(
-                f"[bold green]RESUMED[/bold green]  "
-                f"{result.get('resumed_symbols', 0)} symbol(s)"
-            )
-        else:
-            console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
-        return bool(result.get("accepted"))
-
-    elif cmd == "HALT_SYM":
-        sym = fields.get("SYM", "")
-        if not sym:
-            console.print("[yellow]Usage:[/yellow]  HALT_SYM|SYM=<sym>")
-            return False
-        result = client.symbol_halt(sym)
-        if result.get("accepted"):
-            console.print(
-                f"[bold red]HALTED[/bold red]  {result.get('symbol', sym)}  "
-                f"{result.get('cancelled_quotes', 0)} quote leg(s) cancelled"
-            )
-        else:
-            console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
-        return bool(result.get("accepted"))
-
-    elif cmd == "RESUME_SYM":
-        sym = fields.get("SYM", "")
-        if not sym:
-            console.print("[yellow]Usage:[/yellow]  RESUME_SYM|SYM=<sym>")
-            return False
-        result = client.symbol_resume(sym)
-        if result.get("accepted"):
-            console.print(
-                f"[bold green]RESUMED[/bold green]  {result.get('symbol', sym)}"
-            )
-        else:
-            console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
-        return bool(result.get("accepted"))
-
-    elif cmd == "CANCEL_SYM":
-        sym = fields.get("SYM", "")
-        if not sym:
-            console.print("[yellow]Usage:[/yellow]  CANCEL_SYM|SYM=<sym>")
-            return False
-        result = client.cancel_symbol(sym)
-        if result.get("accepted"):
-            console.print(
-                f"[yellow]CANCEL_SYM OK[/yellow]  {result.get('symbol', sym)}  "
-                f"orders={result.get('cancelled_orders', 0)}  "
-                f"quotes={result.get('cancelled_quotes', 0)}"
-            )
-        else:
-            console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
-        return bool(result.get("accepted"))
-
-    elif cmd == "KILL":
-        gw = fields.get("GW", "")
-        if not gw:
-            console.print("[yellow]Usage:[/yellow]  KILL|GW=<gw>[|SYM=<sym>]")
-            return False
-        result = client.kill_switch(gw, symbol=fields.get("SYM", ""))
-        if result.get("accepted"):
-            console.print(
-                f"[yellow]KILL OK[/yellow]  {gw.upper()}  "
-                f"orders={result.get('cancelled_orders', 0)}  "
-                f"quotes={result.get('cancelled_quotes', 0)}"
-            )
-        else:
-            console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
-        return bool(result.get("accepted"))
-
-    elif cmd == "KICK":
-        gw = fields.get("GW", "")
-        if not gw:
-            console.print("[yellow]Usage:[/yellow]  KICK|GW=<gw>[|REASON=<text>]")
-            return False
-        client.gateway_kick(gw, reason=fields.get("REASON", ""))
-        console.print(f"[yellow]KICK[/yellow]  sent disconnect for {gw.upper()}")
-        return True
-
-    elif cmd == "QCANCEL":
-        gw = fields.get("GW", "")
-        sym = fields.get("SYM", "")
-        if not gw or not sym:
-            console.print("[yellow]Usage:[/yellow]  QCANCEL|GW=<gw>|SYM=<sym>")
-            return False
-        result = client.quote_cancel(gw, sym)
-        if result.get("accepted"):
-            console.print(f"[yellow]QCANCEL OK[/yellow]  {gw.upper()}  {sym.upper()}")
-        else:
-            console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
-        return bool(result.get("accepted"))
-
-    elif cmd == "BOOK":
-        sym = fields.get("SYM", "")
-        if not sym:
-            console.print("[yellow]Usage:[/yellow]  BOOK|SYM=<sym>")
-            return False
-        _print_book(client.book_depth(sym))
-        return True
-
-    elif cmd == "ORDERS":
-        gw = fields.get("GW", "")
-        if not gw:
-            console.print("[yellow]Usage:[/yellow]  ORDERS|GW=<gw>")
-            return False
-        _print_orders(client.order_list(gw), gw.upper())
-        return True
-
-    elif cmd == "SYMBOLS":
-        symbols = client.symbol_list()
-        if symbols_cache is not None:
-            symbols_cache.clear()
-            symbols_cache.extend(symbols)
-        _print_symbols(symbols)
-        return True
-
-    elif cmd == "SESSION":
-        state = fields.get("STATE", "")
-        if not state:
-            console.print("[yellow]Usage:[/yellow]  SESSION|STATE=<state>")
-            return False
-        result = client.session_advance(state)
-        console.print(
-            f"[bold]SESSION[/bold]  "
-            f"{result.get('prev_state', '?')} → {result.get('state', '?')}"
-        )
-        return True
-    elif cmd == "SESSION_STATUS":
-        _print_session_status(client.session_status())
-        return True
-
-    elif cmd == "SCHEDULE":
-        _print_schedule(client.session_schedule())
-        return True
-
-    elif cmd == "GATEWAYS":
-        _print_gateways(client.gateway_list())
-        return True
-
-    elif cmd == "VOLUME":
-        _print_volume(client.volume())
-        return True
-    else:
+    handler = _COMMAND_HANDLERS.get(cmd)
+    if handler is None:
         console.print(
             f"[dim]Unknown command '{cmd}'.  Type HELP for the command reference.[/dim]"
         )
         return False
+    return handler(client, fields, symbols_cache)
 
 
 # ---------------------------------------------------------------------------

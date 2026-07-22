@@ -7,6 +7,7 @@ need a live ZMQ socket.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import time
 from pathlib import Path
@@ -15,11 +16,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import edumatcher.stats.main as stats_main_mod
 from edumatcher.stats.main import (
     SNAPSHOT_INTERVAL_SEC,
     SCHEMA,
     StatsProcess,
     _DayAccum,
+    _IndexDayAccum,
     _event_type_from_topic,
     _is_order_event_topic,
     _open_db,
@@ -66,7 +69,42 @@ class TestOpenDb:
                 "SELECT name FROM sqlite_master WHERE type='table'"
             ).fetchall()
         }
-        assert {"daily_stats", "price_snapshots", "trade_log"} <= tables
+        assert {
+            "daily_stats",
+            "price_snapshots",
+            "trade_log",
+            "index_daily_stats",
+            "index_level_snapshots",
+        } <= tables
+        conn.close()
+
+    def test_index_tables_have_range_query_indices(self, tmp_path: Path) -> None:
+        """The whole point of moving index history off the JSONL file into
+        SQLite is fast range lookups — a schema with the tables but no
+        indices on (index_id, ts) would silently regress back to a full
+        table scan per query. Assert the indices actually exist, not just
+        the tables.
+        """
+        conn = _open_db(tmp_path / "idx_check.db")
+        index_names = {
+            r[0]
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'"
+            ).fetchall()
+        }
+        assert "idx_ids_index_ts" in index_names
+        assert "idx_ds_index_id_date" in index_names
+
+        # And confirm SQLite's query planner actually picks the index for the
+        # access pattern index-snapshots relies on (index_id + ts range),
+        # rather than merely having an index that goes unused.
+        plan = conn.execute(
+            "EXPLAIN QUERY PLAN "
+            "SELECT * FROM index_level_snapshots WHERE index_id = ? AND ts >= ?",
+            ("EDU100", "2026-01-01"),
+        ).fetchall()
+        plan_text = " ".join(str(row) for row in plan)
+        assert "idx_ids_index_ts" in plan_text
         conn.close()
 
     def test_creates_parent_dirs(self, tmp_path: Path) -> None:
@@ -74,6 +112,18 @@ class TestOpenDb:
         conn = _open_db(p)
         assert p.exists()
         conn.close()
+
+    def test_sql_trace_logs_statements(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        p = tmp_path / "stats_sql_trace.db"
+        caplog.set_level(logging.DEBUG, logger="edumatcher.stats.sql")
+        conn = _open_db(p, sql_trace=True)
+        try:
+            conn.execute("SELECT 1").fetchone()
+        finally:
+            conn.close()
+        assert any("SELECT 1" in rec.message for rec in caplog.records)
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +341,330 @@ class TestOnEod:
             "SELECT close_bid, close_ask FROM daily_stats"
         ).fetchall()
         assert rows[0] == (None, None)
+
+
+# ---------------------------------------------------------------------------
+# _IndexDayAccum (pure dataclass — day-rollover semantics)
+# ---------------------------------------------------------------------------
+
+
+class TestIndexDayAccum:
+    """Design intent: an index has no independent trades/volume of its own,
+    but its level history should behave like a symbol's daily OHLC rollup —
+    first update opens the day, level extremes track high/low, most recent
+    update is the running close. These tests assert that *behavior*, not
+    the specific fields, so they'd catch a broken open/high/low/close
+    computation even if the implementation were rewritten.
+    """
+
+    def test_first_update_sets_open_high_low_close_identically(self) -> None:
+        acc = _IndexDayAccum(date="2026-06-14", index_id="EDU100")
+        acc.on_update(1000.0, aggregate_cap=5_000_000_000.0)
+        assert (
+            acc.open_level
+            == acc.high_level
+            == acc.low_level
+            == acc.close_level
+            == 1000.0
+        )
+        assert acc.open_aggregate_cap == 5_000_000_000.0
+        assert acc.update_count == 1
+
+    def test_open_level_never_changes_after_first_update(self) -> None:
+        acc = _IndexDayAccum(date="2026-06-14", index_id="EDU100")
+        acc.on_update(1000.0, aggregate_cap=None)
+        acc.on_update(950.0, aggregate_cap=None)  # a later, lower level
+        acc.on_update(1100.0, aggregate_cap=None)  # a later, higher level
+        assert acc.open_level == 1000.0  # unchanged by subsequent updates
+
+    def test_high_and_low_track_extremes_across_updates(self) -> None:
+        acc = _IndexDayAccum(date="2026-06-14", index_id="EDU100")
+        for level in (1000.0, 1050.0, 980.0, 1010.0):
+            acc.on_update(level, aggregate_cap=None)
+        assert acc.high_level == 1050.0
+        assert acc.low_level == 980.0
+
+    def test_close_level_is_most_recent_update_not_extreme(self) -> None:
+        acc = _IndexDayAccum(date="2026-06-14", index_id="EDU100")
+        for level in (1000.0, 1050.0, 980.0, 1010.0):
+            acc.on_update(level, aggregate_cap=None)
+        assert acc.close_level == 1010.0  # last value, not high or low
+
+    def test_update_count_increments_once_per_update(self) -> None:
+        acc = _IndexDayAccum(date="2026-06-14", index_id="EDU100")
+        for _ in range(7):
+            acc.on_update(1000.0, aggregate_cap=None)
+        assert acc.update_count == 7
+
+    def test_close_session_state_tracks_most_recent_update_not_extreme(self) -> None:
+        """Design intent: close_session_state is the finality signal for
+        close_level. It must mirror close_level's "most recent, not
+        extreme" semantics — the state at the moment of the last update,
+        regardless of what state earlier updates carried.
+        """
+        acc = _IndexDayAccum(date="2026-06-14", index_id="EDU100")
+        acc.on_update(1000.0, aggregate_cap=None, session_state="OPENING_AUCTION")
+        acc.on_update(1010.0, aggregate_cap=None, session_state="CONTINUOUS")
+        acc.on_update(1005.0, aggregate_cap=None, session_state="CONTINUOUS")
+        assert acc.close_session_state == "CONTINUOUS"
+
+    def test_close_session_state_becomes_closed_on_eod_update(self) -> None:
+        """The whole point of this field: once pm-index's forced EOD
+        publish arrives, close_session_state flips to CLOSED and stays
+        that way for the rest of the (now-finished) day — signalling that
+        close_level will not change again.
+        """
+        acc = _IndexDayAccum(date="2026-06-14", index_id="EDU100")
+        acc.on_update(1000.0, aggregate_cap=None, session_state="CONTINUOUS")
+        acc.on_update(1048.73, aggregate_cap=None, session_state="CLOSED")
+        assert acc.close_session_state == "CLOSED"
+        assert acc.close_level == 1048.73
+
+    def test_close_session_state_defaults_to_none_when_not_provided(self) -> None:
+        """session_state is an optional parameter — callers that don't pass
+        it (or receive a payload missing the field) shouldn't raise, and
+        the accumulator should make the "unknown/not finalized" state
+        explicit as None rather than defaulting to something that could be
+        mistaken for CLOSED.
+        """
+        acc = _IndexDayAccum(date="2026-06-14", index_id="EDU100")
+        acc.on_update(1000.0, aggregate_cap=None)
+        assert acc.close_session_state is None
+
+
+# ---------------------------------------------------------------------------
+# StatsProcess._on_index_update
+# ---------------------------------------------------------------------------
+
+
+class TestOnIndexUpdate:
+    """Design intent: every index.update event pm-stats receives should
+    become one durable, queryable row — both the intraday time series
+    (index_level_snapshots) and the day's rolling OHLC summary
+    (index_daily_stats) — without the linear-scan-JSONL problem the
+    pre-existing pm-index history file has. These tests exercise that
+    contract at the message-handling boundary, the same level the existing
+    _on_trade/_on_book tests operate at.
+    """
+
+    def _payload(
+        self,
+        index_id: str = "EDU100",
+        level: float = 1048.73,
+        **overrides: object,
+    ) -> dict:
+        base: dict = {
+            "index_id": index_id,
+            "level": level,
+            "aggregate_cap": 7_350_000_000_000.0,
+            "divisor": 1.25,
+            "session_state": "CONTINUOUS",
+            "timestamp": time.time(),
+        }
+        base.update(overrides)
+        return base
+
+    def test_index_update_recorded_in_snapshots(self, sp: StatsProcess) -> None:
+        sp._on_index_update(self._payload())
+        rows = sp._conn.execute(
+            "SELECT index_id, level, session_state FROM index_level_snapshots"
+        ).fetchall()
+        assert rows == [("EDU100", 1048.73, "CONTINUOUS")]
+
+    def test_index_update_upserts_daily_rollup(self, sp: StatsProcess) -> None:
+        sp._on_index_update(self._payload(level=1000.0))
+        sp._on_index_update(self._payload(level=1010.0))
+        rows = sp._conn.execute(
+            "SELECT open_level, close_level, update_count FROM index_daily_stats "
+            "WHERE index_id = 'EDU100'"
+        ).fetchall()
+        assert len(rows) == 1  # one row per (date, index_id), not per update
+        assert rows[0] == (1000.0, 1010.0, 2)
+
+    def test_close_session_state_persisted_and_updated_end_to_end(
+        self, sp: StatsProcess
+    ) -> None:
+        """Design intent: a caller querying index_daily_stats must be able
+        to tell whether close_level is a final EOD print or just the
+        latest tick, without a second query against index_level_snapshots.
+        This exercises the full path — payload -> handler -> accumulator ->
+        SQL upsert -> readback — for both the "still trading" and "day has
+        closed" cases.
+        """
+        sp._on_index_update(
+            self._payload(level=1000.0, session_state="OPENING_AUCTION")
+        )
+        sp._on_index_update(self._payload(level=1010.0, session_state="CONTINUOUS"))
+        row = sp._conn.execute(
+            "SELECT close_level, close_session_state FROM index_daily_stats "
+            "WHERE index_id = 'EDU100'"
+        ).fetchone()
+        assert row == (1010.0, "CONTINUOUS")  # not final yet
+
+        # pm-index's forced EOD publish arrives.
+        sp._on_index_update(self._payload(level=1048.73, session_state="CLOSED"))
+        row = sp._conn.execute(
+            "SELECT close_level, close_session_state FROM index_daily_stats "
+            "WHERE index_id = 'EDU100'"
+        ).fetchone()
+        assert row == (1048.73, "CLOSED")  # now final
+
+    def test_multiple_indexes_tracked_independently(self, sp: StatsProcess) -> None:
+        sp._on_index_update(self._payload(index_id="EDU100", level=1000.0))
+        sp._on_index_update(self._payload(index_id="EDUFIN", level=500.0))
+        rows = sp._conn.execute(
+            "SELECT index_id, close_level FROM index_daily_stats ORDER BY index_id"
+        ).fetchall()
+        assert rows == [("EDU100", 1000.0), ("EDUFIN", 500.0)]
+
+    def test_missing_index_id_ignored_not_raised(self, sp: StatsProcess) -> None:
+        sp._on_index_update({"level": 1000.0})  # no index_id
+        rows = sp._conn.execute("SELECT * FROM index_level_snapshots").fetchall()
+        assert rows == []
+
+    def test_missing_level_ignored_not_raised(self, sp: StatsProcess) -> None:
+        sp._on_index_update({"index_id": "EDU100"})  # no level
+        rows = sp._conn.execute("SELECT * FROM index_level_snapshots").fetchall()
+        assert rows == []
+
+    def test_malformed_payload_is_logged_for_observability(
+        self, sp: StatsProcess, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A silently-dropped malformed message is invisible to an operator;
+        the whole point of adding observability here is that a bad payload
+        shows up in the logs rather than just vanishing.
+        """
+        caplog.set_level(logging.WARNING, logger="edumatcher.stats.main")
+        sp._on_index_update({"index_id": "", "level": None})
+        assert any(
+            "ignoring malformed index.update" in rec.message for rec in caplog.records
+        )
+
+    def test_valid_update_logged_at_debug_for_observability(
+        self, sp: StatsProcess, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A successful index update should also be observable — an operator
+        running -vv should be able to see index traffic flowing through
+        pm-stats the same way book/trade traffic is debug-logged elsewhere.
+        """
+        caplog.set_level(logging.DEBUG, logger="edumatcher.stats.main")
+        sp._on_index_update(self._payload(index_id="EDU100", level=1048.73))
+        assert any(
+            "recorded index update" in rec.message and "EDU100" in rec.message
+            for rec in caplog.records
+        )
+
+    def test_optional_fields_persisted_when_present(self, sp: StatsProcess) -> None:
+        sp._on_index_update(
+            self._payload(day_open=1042.10, day_high=1056.30, day_low=1040.05)
+        )
+        row = sp._conn.execute(
+            "SELECT day_open, day_high, day_low FROM index_level_snapshots"
+        ).fetchone()
+        assert row == (1042.10, 1056.30, 1040.05)
+
+    def test_optional_fields_null_when_absent(self, sp: StatsProcess) -> None:
+        sp._on_index_update(self._payload())  # no day_open/high/low
+        row = sp._conn.execute(
+            "SELECT day_open, day_high, day_low FROM index_level_snapshots"
+        ).fetchone()
+        assert row == (None, None, None)
+
+
+# ---------------------------------------------------------------------------
+# StatsProcess._receive_one_index_message (index_sub poll-loop dispatch)
+# ---------------------------------------------------------------------------
+
+
+class TestReceiveOneIndexMessage:
+    """The engine-side poll loop (_receive) has no direct test in this file
+    — it's thin ZMQ glue exercised at integration level. _receive_one_index_message
+    is new, non-trivial dispatch logic of its own (topic routing + a decode
+    failure path), so it gets a small, targeted test here rather than being
+    left implicitly covered only by the _on_index_update tests above.
+    """
+
+    def test_index_update_topic_dispatches_to_handler(self, sp: StatsProcess) -> None:
+        from edumatcher.models.message import encode
+
+        frames = encode(
+            "index.update",
+            {"index_id": "EDU100", "level": 1048.73, "timestamp": time.time()},
+        )
+        sp.index_sub.recv_multipart = MagicMock(return_value=frames)
+
+        sp._receive_one_index_message()
+
+        rows = sp._conn.execute(
+            "SELECT index_id, level FROM index_level_snapshots"
+        ).fetchall()
+        assert rows == [("EDU100", 1048.73)]
+
+    def test_unrecognized_topic_is_ignored_not_raised(self, sp: StatsProcess) -> None:
+        from edumatcher.models.message import encode
+
+        frames = encode("index.corp_action", {"index_id": "EDU100"})
+        sp.index_sub.recv_multipart = MagicMock(return_value=frames)
+
+        sp._receive_one_index_message()  # must not raise
+
+        rows = sp._conn.execute("SELECT * FROM index_level_snapshots").fetchall()
+        assert rows == []
+
+    def test_decode_failure_is_logged_and_does_not_raise(
+        self, sp: StatsProcess, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        caplog.set_level(logging.WARNING, logger="edumatcher.stats.main")
+        sp.index_sub.recv_multipart = MagicMock(side_effect=RuntimeError("boom"))
+
+        sp._receive_one_index_message()  # must not raise
+
+        assert any(
+            "failed to decode index_sub message" in rec.message
+            for rec in caplog.records
+        )
+
+
+# ---------------------------------------------------------------------------
+# StatsProcess._index_accum_for (date rollover, mirrors TestAccumFor)
+# ---------------------------------------------------------------------------
+
+
+class TestIndexAccumFor:
+    def test_creates_new_accum_first_time(self, sp: StatsProcess) -> None:
+        acc = sp._index_accum_for("EDU100")
+        assert acc.index_id == "EDU100"
+        assert acc.date == sp._today()
+
+    def test_reuses_existing_accum_same_day(self, sp: StatsProcess) -> None:
+        acc1 = sp._index_accum_for("EDU100")
+        acc1.on_update(1000.0, aggregate_cap=None)
+        acc2 = sp._index_accum_for("EDU100")
+        assert acc2 is acc1
+        assert acc2.close_level == 1000.0
+
+    def test_day_rollover_flushes_previous_day_and_starts_fresh(
+        self, sp: StatsProcess
+    ) -> None:
+        """Mirrors the equivalent _accum_for rollover behavior for symbols:
+        when the calendar date changes, the prior day's accumulator must be
+        flushed to index_daily_stats before a fresh one starts, so no data
+        is silently lost across midnight.
+        """
+        acc = sp._index_accum_for("EDU100")
+        acc.date = "2020-01-01"  # simulate a stale accumulator from "yesterday"
+        acc.on_update(999.0, aggregate_cap=None)
+
+        # Next call detects the date mismatch and rolls over
+        new_acc = sp._index_accum_for("EDU100")
+        assert new_acc is not acc
+        assert new_acc.date == sp._today()
+
+        # The stale day's data must have been flushed to the DB before rollover
+        flushed = sp._conn.execute(
+            "SELECT close_level FROM index_daily_stats WHERE date = '2020-01-01'"
+        ).fetchone()
+        assert flushed == (999.0,)
 
 
 # ---------------------------------------------------------------------------
@@ -587,6 +961,69 @@ class TestStatsRun:
         cast(MagicMock, sp.sub.close).assert_called()
         cast(MagicMock, sp.push.close).assert_called()
 
+    def test_close_shuts_down_index_sub_independently_of_sub(
+        self, tmp_path: Path
+    ) -> None:
+        """Design intent: pm-index publishes on its own PUB endpoint, so
+        pm-stats needs a genuinely independent second subscriber socket, not
+        a second topic filter reusing the engine's socket. Use distinct
+        mocks (rather than this file's usual single-fake-socket `sp`
+        fixture, where both calls happen to return the same object and
+        could mask a bug where index_sub was silently aliased to sub) to
+        prove close() shuts each one down on its own.
+        """
+        engine_sock = MagicMock(name="engine_sub")
+        index_sock = MagicMock(name="index_sub")
+        push_sock = MagicMock(name="push")
+        with (
+            patch(
+                "edumatcher.stats.main.make_subscriber",
+                side_effect=[engine_sock, index_sock],
+            ),
+            patch("edumatcher.stats.main.make_pusher", return_value=push_sock),
+        ):
+            proc = StatsProcess(tmp_path / "close_test.db")
+
+        assert proc.sub is engine_sock
+        assert proc.index_sub is index_sock
+        assert proc.sub is not proc.index_sub
+
+        proc.close()
+
+        cast(MagicMock, engine_sock.close).assert_called_once()
+        cast(MagicMock, index_sock.close).assert_called_once()
+
+    def test_index_sub_connects_to_index_pub_addr_not_engine_addr(
+        self, tmp_path: Path
+    ) -> None:
+        """Assert the two subscriber sockets are wired to the two distinct
+        addresses this design depends on — if a future refactor accidentally
+        pointed index_sub at ENGINE_PUB_ADDR, index.update would silently
+        never arrive (wrong topic namespace) rather than raising an error,
+        so this is worth asserting explicitly.
+        """
+        from edumatcher.config import ENGINE_PUB_ADDR, INDEX_PUB_CONNECT_ADDR
+
+        calls: list[tuple[str, tuple[str, ...]]] = []
+
+        def _record_call(addr: str, *topics: str) -> MagicMock:
+            calls.append((addr, topics))
+            return MagicMock()
+
+        with (
+            patch("edumatcher.stats.main.make_subscriber", side_effect=_record_call),
+            patch("edumatcher.stats.main.make_pusher", return_value=MagicMock()),
+        ):
+            StatsProcess(tmp_path / "addr_test.db")
+
+        addrs = [addr for addr, _topics in calls]
+        assert ENGINE_PUB_ADDR in addrs
+        assert INDEX_PUB_CONNECT_ADDR in addrs
+        assert addrs.count(INDEX_PUB_CONNECT_ADDR) == 1
+
+        index_call = next(c for c in calls if c[0] == INDEX_PUB_CONNECT_ADDR)
+        assert "index.update" in index_call[1]
+
 
 # ---------------------------------------------------------------------------
 # stats main()
@@ -594,6 +1031,23 @@ class TestStatsRun:
 
 
 class TestStatsMain:
+    def test_build_parser_logging_flags(self) -> None:
+        parser = stats_main_mod._build_parser()
+        args = parser.parse_args(
+            ["-vv", "--quiet", "--log-level", "ERROR", "--sql-trace"]
+        )
+        assert args.verbose == 2
+        assert args.quiet is True
+        assert args.log_level == "ERROR"
+        assert args.sql_trace is True
+
+    def test_configure_logging_prefers_explicit_level(self) -> None:
+        from argparse import Namespace
+        from edumatcher.stats.main import _configure_logging
+
+        args = Namespace(log_level="INFO", verbose=2, quiet=True)
+        assert _configure_logging(args) == 20
+
     @patch("edumatcher.stats.main.StatsProcess.run", return_value=None)
     @patch("edumatcher.stats.main.make_pusher", return_value=MagicMock())
     @patch("edumatcher.stats.main.make_subscriber", return_value=MagicMock())

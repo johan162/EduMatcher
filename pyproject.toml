@@ -8,7 +8,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "edumatcher"
-version = "0.15.3"
+version = "0.16.1"
 description = "Educational multi-process trading system with order matching"
 authors = ["Johan Persson <johan162@gmail.com>"]
 readme = "README.md"
@@ -42,7 +42,7 @@ types-tabulate = "^0.10.0.20260308"
 pyright = "^1.1.411"
 flake8 = "^7.3.0"
 black = "^26.5.1"
-mypy = "^2.1.0"
+mypy = "^2.3.0"
 
 
 [tool.poetry.group.docs.dependencies]
@@ -57,8 +57,8 @@ pm-viewer   = "edumatcher.viewer.main:main"
 pm-board    = "edumatcher.board.main:main"
 pm-orders   = "edumatcher.orders.main:main"
 pm-audit    = "edumatcher.audit.main:main"
+pm-audit-cli = "edumatcher.audit.cli:main"
 pm-clearing = "edumatcher.clearing.main:main"
-pm-clearing-v1 = "edumatcher.clearing_v1.main:main"
 pm-clearing-cli = "edumatcher.clearing.cli:main"
 pm-stats    = "edumatcher.stats.main:main"
 pm-stats-cli = "edumatcher.stats.cli:main"
@@ -71,10 +71,15 @@ pm-ai-swarm = "edumatcher.ai_trader.swarm:main"
 pm-mm-bot   = "edumatcher.mm_bot.main:main"
 pm-ralf-gwy = "edumatcher.ralf_gateway.main:main"
 pm-md-gwy   = "edumatcher.md_gateway.main:main"
+pm-calf-spy = "edumatcher.calf_spy.cli:main"
+pm-ralf-spy = "edumatcher.ralf_spy.cli:main"
+pm-dc-spy   = "edumatcher.dc_spy.cli:main"
+pm-dc-gwy   = "edumatcher.dc_gateway.main:main"
 pm-alf-gwy  = "edumatcher.alf_gwy.main:main"
 pm-balf-gwy = "edumatcher.balf_gwy.main:main"
 pm-index    = "edumatcher.index.main:main"
 pm-index-cli = "edumatcher.index.cli:main"
+pm-index-admin-cli = "edumatcher.index.admin_cli:main"
 pm-api-gwy = "edumatcher.api_gateway.main:main"
 pm-setup    = "edumatcher.setup_cmd:main"
 pm-config-gen = "edumatcher.config_gen.cli:main"
@@ -139,10 +144,6 @@ module = "yaml"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "scipy.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
 disallow_untyped_calls = false
@@ -168,7 +169,7 @@ reportUntypedFunctionDecorator = false
 reportUntypedBaseClass = false
 reportUnknownLambdaType = false
 executionEnvironments = [
-    { root = "tests", reportPrivateUsage = false, reportUnusedVariable = false, reportUnusedFunction = false, reportUnusedImport = false, reportMissingTypeArgument = false, reportArgumentType = false, reportOptionalOperand = false, reportOptionalMemberAccess = false, reportOperatorIssue = false, reportAttributeAccessIssue = false, reportCallIssue = false, reportReturnType = false },
+    { root = "tests", extraPaths = ["."], reportPrivateUsage = false, reportUnusedVariable = false, reportUnusedFunction = false, reportUnusedImport = false, reportMissingTypeArgument = false, reportArgumentType = false, reportOptionalOperand = false, reportOptionalMemberAccess = false, reportOperatorIssue = false, reportAttributeAccessIssue = false, reportCallIssue = false, reportReturnType = false },
     { root = "tools", reportUnusedImport = false, reportMissingTypeArgument = false, reportArgumentType = false, reportOptionalMemberAccess = false },
     { root = "src" },
 ]

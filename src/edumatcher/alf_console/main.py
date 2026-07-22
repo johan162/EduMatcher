@@ -30,12 +30,16 @@ Commands
   QBOOT[|SYM=AAPL]         — request active quote bootstrap state from engine
   QLEGS[|SYM=AAPL][|SHOW=ACTIVE|RECENT|ALL]  — show MM quote legs
   KILL[|SYM=AAPL]          — kill-switch cancel for this gateway
+  DC|STATE=ON              — enable async drop-copy relay for this gateway's own fills
+  DC|STATE=OFF             — disable drop-copy relay
   STATUS                   — print gateway/session summary
   ORDERS                   — print table of this session's orders
   POS                      — print current positions with P&L
   SYMBOLS                  — list all active instruments in the engine
     INDEX                    — show current index level
-    INDEX|HISTORY|INDEX=<id>[|FROM=YYYY-MM-DD|TO=YYYY-MM-DD] — query index history
+    INDEX|HISTORY|INDEX=<id>[|FROM=YYYY-MM-DD|TO=YYYY-MM-DD] — query index structural/audit history
+                                (corporate actions, constituent changes — not level ticks;
+                                 use pm-stats-cli for level/EOD history)
   HELP                     — show command reference
   EXIT / QUIT              — disconnect
 """
@@ -43,6 +47,9 @@ Commands
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
+import logging
+import sys
 import threading
 import time
 from datetime import datetime
@@ -55,6 +62,7 @@ from prompt_toolkit.patch_stdout import patch_stdout as pt_patch_stdout
 
 from edumatcher.cli_version import add_version_argument
 from edumatcher.config import (
+    DROP_COPY_PUB_ADDR,
     ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
     INDEX_PUB_CONNECT_ADDR,
@@ -109,10 +117,79 @@ from .display import (
     print_symbols_table,
 )
 
+_DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+
+log = logging.getLogger(__name__)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="EduMatcher gateway")
+    add_version_argument(parser, "pm-alf-console")
+    parser.add_argument(
+        "--id",
+        required=True,
+        metavar="GW_ID",
+        help="Unique gateway identifier, e.g. GW01",
+    )
+    parser.add_argument(
+        "--drop-copy",
+        action="store_true",
+        help="Enable drop-copy relay on startup (equivalent to sending DC|ON "
+        "immediately after connecting). Default: off. Can also be toggled "
+        "at runtime with the DC|ON / DC|OFF command. See "
+        "docs/user-guide/200-drop-copy.md",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase log verbosity (-v: INFO, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce output to warnings/errors",
+    )
+    return parser
+
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    log_level = getattr(args, "log_level", None)
+    verbose = getattr(args, "verbose", 0)
+    quiet = getattr(args, "quiet", False)
+
+    if log_level:
+        level_name = str(log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif verbose >= 2:
+        level = logging.DEBUG
+    elif verbose == 1:
+        level = logging.INFO
+    elif quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
+    )
+    return int(level)
+
 
 class Gateway:
-    def __init__(self, gateway_id: str) -> None:
+    def __init__(self, gateway_id: str, drop_copy: bool = False) -> None:
         self.gateway_id = gateway_id.upper()
+        self._dc_enabled = False
+        self._dc_requested_on_startup = drop_copy
         self.order_cache: dict[str, dict[str, Any]] = {}  # order_id → state dict
         self.quote_leg_cache: dict[str, dict[str, Any]] = (
             {}
@@ -158,8 +235,74 @@ class Gateway:
             f"index.history.{self.gateway_id}",
             f"index.error.{self.gateway_id}",
         )
+        # Separate SUB socket for the engine's drop-copy feed (:5557),
+        # distinct from sub_sock (:5556) -- a different ZMQ PUB address, not
+        # just a different topic namespace. No topic is subscribed until
+        # DC|ON (or --drop-copy at startup) -- see _set_drop_copy().
+        self._dc_sub_sock = make_subscriber(DROP_COPY_PUB_ADDR)
+        self._dc_topic = f"drop_copy.event.{self.gateway_id}".encode()
         self._auth_reason: str = ""
         self._auth_description: str = ""
+        self._debug_counts: defaultdict[str, int] = defaultdict(int)
+        self._debug_last_summary = time.monotonic()
+
+    def _dbg_count(self, key: str, amount: int = 1) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        self._debug_counts[key] += amount
+        self._flush_debug_summary()
+
+    def _flush_debug_summary(self, force: bool = False) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        now = time.monotonic()
+        if not force and now - self._debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
+            return
+        if not self._debug_counts:
+            self._debug_last_summary = now
+            return
+        summary = ", ".join(
+            f"{key}={value}" for key, value in sorted(self._debug_counts.items())
+        )
+        log.debug("alf_console flow summary: %s", summary)
+        self._debug_counts.clear()
+        self._debug_last_summary = now
+
+    def _set_drop_copy(self, enabled: bool) -> None:
+        """Toggle the drop-copy relay (DC|ON / DC|OFF / --drop-copy).
+
+        Subscribes/unsubscribes ``drop_copy.event.<gateway_id>`` on the
+        dedicated drop-copy socket (:5557) -- see docs/user-guide/200-drop-copy.md.
+        Idempotent: calling with the same state twice is a no-op on the wire.
+        """
+        if enabled == self._dc_enabled:
+            return
+        if enabled:
+            self._dc_sub_sock.setsockopt(zmq.SUBSCRIBE, self._dc_topic)
+        else:
+            self._dc_sub_sock.setsockopt(zmq.UNSUBSCRIBE, self._dc_topic)
+        self._dc_enabled = enabled
+        console.print(f"[dim]DC {'ON' if enabled else 'OFF'}[/dim]")
+
+    @staticmethod
+    def _topic_family(topic: str) -> str:
+        if topic.startswith("order."):
+            return "order"
+        if topic.startswith("combo."):
+            return "combo"
+        if topic.startswith("oco."):
+            return "oco"
+        if topic.startswith("quote."):
+            return "quote"
+        if topic.startswith("risk."):
+            return "risk"
+        if topic.startswith("system."):
+            return "system"
+        if topic.startswith("trade."):
+            return "trade"
+        if topic.startswith("index."):
+            return "index"
+        return "other"
 
     # ------------------------------------------------------------------
     # Quote-leg tracking
@@ -246,6 +389,7 @@ class Gateway:
 
     def _authenticate(self, timeout_sec: float = 3.0) -> bool:
         # Give sockets time to connect and SUB filters to propagate.
+        log.info("starting gateway authentication gateway_id=%s", self.gateway_id)
         time.sleep(0.1)
         self.push_sock.send_multipart(make_gateway_connect_msg(self.gateway_id))
 
@@ -263,9 +407,20 @@ class Gateway:
                 accepted = bool(payload.get("accepted", False))
                 self._auth_reason = str(payload.get("reason", ""))
                 self._auth_description = str(payload.get("description", ""))
+                if accepted:
+                    log.info(
+                        "gateway authentication accepted gateway_id=%s", self.gateway_id
+                    )
+                else:
+                    log.warning(
+                        "gateway authentication rejected gateway_id=%s reason=%s",
+                        self.gateway_id,
+                        self._auth_reason,
+                    )
                 return accepted
             # Ignore unrelated early messages during handshake window.
         self._auth_reason = "Gateway authentication timed out"
+        log.warning("gateway authentication timed out gateway_id=%s", self.gateway_id)
         return False
 
     # ------------------------------------------------------------------
@@ -276,31 +431,88 @@ class Gateway:
         poller = zmq.Poller()
         poller.register(self.sub_sock, zmq.POLLIN)
         poller.register(self._index_sub_sock, zmq.POLLIN)
+        poller.register(self._dc_sub_sock, zmq.POLLIN)
+        log.info("gateway listeners started gateway_id=%s", self.gateway_id)
         while self._running:
             try:
                 socks = dict(poller.poll(timeout=200))
             except zmq.ZMQError:
+                log.warning("listener poll interrupted gateway_id=%s", self.gateway_id)
                 break
             if self.sub_sock in socks:
                 try:
                     frames = self.sub_sock.recv_multipart()
                     topic, payload = decode(frames)
+                    self._dbg_count("events_main_socket")
                     self._handle_event(topic, payload)
                 except Exception as exc:
                     if self._running:
+                        self._dbg_count("listener_errors")
+                        log.warning(
+                            "listener error gateway_id=%s: %s", self.gateway_id, exc
+                        )
                         console.print(f"[dim][WARN] listener error: {exc}[/dim]")
             if self._index_sub_sock in socks:
                 try:
                     frames = self._index_sub_sock.recv_multipart()
                     topic, payload = decode(frames)
+                    self._dbg_count("events_index_socket")
                     self._handle_event(topic, payload)
                 except Exception as exc:
                     if self._running:
+                        self._dbg_count("index_listener_errors")
+                        log.warning(
+                            "index listener error gateway_id=%s: %s",
+                            self.gateway_id,
+                            exc,
+                        )
                         console.print(f"[dim][WARN] index listener error: {exc}[/dim]")
+            if self._dc_sub_sock in socks:
+                try:
+                    frames = self._dc_sub_sock.recv_multipart()
+                    topic, payload = decode(frames)
+                    self._dbg_count("events_dc_socket")
+                    self._handle_dc_event(topic, payload)
+                except Exception as exc:
+                    if self._running:
+                        self._dbg_count("dc_listener_errors")
+                        log.warning(
+                            "drop-copy listener error gateway_id=%s: %s",
+                            self.gateway_id,
+                            exc,
+                        )
+                        console.print(
+                            f"[dim][WARN] drop-copy listener error: {exc}[/dim]"
+                        )
+        self._flush_debug_summary(force=True)
+        log.info("gateway listeners stopped gateway_id=%s", self.gateway_id)
+
+    def _handle_dc_event(self, topic: str, payload: dict[str, Any]) -> None:
+        """Render one drop-copy event received on the :5557 relay.
+
+        Only reached while DC is enabled, since no topic is subscribed on
+        ``_dc_sub_sock`` otherwise -- see ``_set_drop_copy``. Printed as a
+        ``DC_FILL``-style line for consistency with the wire message
+        pm-alf-gwy sends its own TCP clients for the same event (see
+        docs/user-guide/270-messages.md).
+        """
+        ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        seq = payload.get("seq", "?")
+        symbol = payload.get("symbol", "?")
+        qty = payload.get("fill_qty", "?")
+        price = payload.get("fill_price", "?")
+        liquidity = payload.get("liquidity_flag", "?")
+        order_id = str(payload.get("order_id", "?"))[:8]
+        console.print(
+            f"[{ts}] [bold cyan]DC_FILL[/bold cyan]   {order_id}  {symbol}  "
+            f"qty={qty} @{price}  [{liquidity}]  #{seq}  [dim]({topic})[/dim]"
+        )
 
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         oid = payload.get("order_id", "?")[:8]
+        self._dbg_count("events_total")
+        self._dbg_count(f"topic_family_{self._topic_family(topic)}")
 
         if "order.ack" in topic:
             if payload.get("accepted"):
@@ -662,6 +874,8 @@ class Gateway:
     def _parse_and_send(self, line: str) -> None:
         parts = line.strip().split("|")
         cmd = parts[0].upper()
+        self._dbg_count("commands_total")
+        self._dbg_count(f"command_{cmd.lower()}")
 
         if cmd == "HELP":
             console.print(HELP_TEXT)
@@ -762,6 +976,17 @@ class Gateway:
             )
             return
 
+        if cmd == "DC":
+            kv = self._kv(parts[1:])
+            state = kv.get("STATE", "")
+            if state == "ON":
+                self._set_drop_copy(True)
+            elif state == "OFF":
+                self._set_drop_copy(False)
+            else:
+                console.print("[red]DC requires STATE=ON or STATE=OFF[/red]")
+            return
+
         if cmd == "CANCEL":
             kv = self._kv(parts[1:])
             combo_id = kv.get("COMBO_ID")
@@ -813,6 +1038,7 @@ class Gateway:
                 self._send_new(parts[1:])
             return
 
+        log.warning("unknown command gateway_id=%s command=%s", self.gateway_id, cmd)
         console.print(f"[red]Unknown command: {cmd}[/red]  (type HELP)")
 
     @staticmethod
@@ -835,8 +1061,18 @@ class Gateway:
             price = float(kv["PRICE"]) if "PRICE" in kv else None
             stop_price = float(kv["STOP"]) if "STOP" in kv else None
             visible = int(kv["VISIBLE"]) if "VISIBLE" in kv else None
-            smp_action = SmpAction(kv.get("SMP", SmpAction.NONE))
+            # SMP omitted entirely means "let the engine apply this
+            # gateway's configured smp_action default" -- distinct from an
+            # explicit SMP=NONE. See SmpAction's docstring in
+            # models/order.py.
+            smp_action = SmpAction(kv["SMP"]) if "SMP" in kv else None
         except (KeyError, ValueError) as exc:
+            log.warning(
+                "NEW parse error gateway_id=%s input=%s error=%s",
+                self.gateway_id,
+                "|".join(parts),
+                exc,
+            )
             console.print(f"[red]Parse error: {exc}[/red]")
             return
 
@@ -904,6 +1140,7 @@ class Gateway:
         }
 
         self.push_sock.send_multipart(make_order_new_msg(order.to_dict()))
+        self._dbg_count("orders_submitted")
 
     def _send_quote(self, kv: dict[str, str]) -> None:
         try:
@@ -914,6 +1151,9 @@ class Gateway:
             ask_qty = int(kv["ASK_QTY"])
             tif = TIF(kv.get("TIF", "DAY"))
         except (KeyError, ValueError) as exc:
+            log.warning(
+                "QUOTE parse error gateway_id=%s error=%s", self.gateway_id, exc
+            )
             console.print(f"[red]QUOTE parse error: {exc}[/red]")
             return
 
@@ -938,6 +1178,7 @@ class Gateway:
             payload["quote_id"] = quote_id
 
         self.push_sock.send_multipart(make_quote_new_msg(payload))
+        self._dbg_count("quotes_submitted")
 
     def _send_oco(self, kv: dict[str, str]) -> None:
         """Parse and send an OCO pair from TYPE=OCO format."""
@@ -946,9 +1187,15 @@ class Gateway:
         tif_str = kv.get("TIF", "DAY")
 
         if not oco_id:
+            log.warning(
+                "OCO rejected gateway_id=%s reason=missing_oco_id", self.gateway_id
+            )
             console.print("[red]OCO requires OCO_ID=<label>[/red]")
             return
         if not symbol:
+            log.warning(
+                "OCO rejected gateway_id=%s reason=missing_symbol", self.gateway_id
+            )
             console.print("[red]OCO requires SYM=<symbol>[/red]")
             return
 
@@ -956,6 +1203,7 @@ class Gateway:
             quantity = int(kv["QTY"])
             tif_val = TIF(tif_str)
         except (KeyError, ValueError) as exc:
+            log.warning("OCO parse error gateway_id=%s error=%s", self.gateway_id, exc)
             console.print(f"[red]Parse error: {exc}[/red]")
             return
 
@@ -983,6 +1231,10 @@ class Gateway:
         leg2 = _parse_leg("LEG2_")
 
         if leg1 is None or leg2 is None:
+            log.warning(
+                "OCO rejected gateway_id=%s reason=missing_required_legs",
+                self.gateway_id,
+            )
             console.print(
                 "[red]OCO requires LEG1_SIDE= LEG1_TYPE= LEG2_SIDE= LEG2_TYPE=[/red]"
             )
@@ -998,6 +1250,7 @@ class Gateway:
             "leg2": leg2,
         }
         self.push_sock.send_multipart(make_oco_order_msg(payload))
+        self._dbg_count("oco_submitted")
 
     def _send_combo(self, kv: dict[str, str]) -> None:
         """Parse and send a combo order from TYPE=COMBO format."""
@@ -1005,9 +1258,15 @@ class Gateway:
         combo_id = kv.get("COMBO_ID", "")
         combo_type = kv.get("COMBO_TYPE", "AON")
         tif_str = kv.get("TIF", "DAY")
-        smp_str = kv.get("SMP", "NONE")
+        # SMP omitted entirely means "let the engine apply this gateway's
+        # configured smp_action default" to every leg -- distinct from an
+        # explicit SMP=NONE. See SmpAction's docstring in models/order.py.
+        smp_str = kv.get("SMP")
 
         if not combo_id:
+            log.warning(
+                "COMBO rejected gateway_id=%s reason=missing_combo_id", self.gateway_id
+            )
             console.print("[red]COMBO requires COMBO_ID=<label>[/red]")
             return
 
@@ -1015,6 +1274,9 @@ class Gateway:
             combo_type_val = ComboType(combo_type)
             tif_val = TIF(tif_str)
         except ValueError as exc:
+            log.warning(
+                "COMBO parse error gateway_id=%s error=%s", self.gateway_id, exc
+            )
             console.print(f"[red]Parse error: {exc}[/red]")
             return
 
@@ -1022,12 +1284,22 @@ class Gateway:
         try:
             leg_count = int(leg_count_str)
         except ValueError:
+            log.warning(
+                "COMBO rejected gateway_id=%s reason=invalid_leg_count value=%s",
+                self.gateway_id,
+                leg_count_str,
+            )
             console.print(
                 f"[red]LEG_COUNT must be an integer, got '{leg_count_str}'[/red]"
             )
             return
 
         if leg_count < 2 or leg_count > 10:
+            log.warning(
+                "COMBO rejected gateway_id=%s reason=leg_count_out_of_range count=%d",
+                self.gateway_id,
+                leg_count,
+            )
             console.print("[red]LEG_COUNT must be between 2 and 10[/red]")
             return
 
@@ -1041,6 +1313,11 @@ class Gateway:
             leg_type = kv.get(f"{prefix}.TYPE", "LIMIT")
 
             if not sym or not side or not qty:
+                log.warning(
+                    "COMBO rejected gateway_id=%s reason=missing_leg_fields leg=%d",
+                    self.gateway_id,
+                    i,
+                )
                 console.print(f"[red]Leg {i} missing SYM, SIDE, or QTY[/red]")
                 return
             try:
@@ -1050,9 +1327,15 @@ class Gateway:
                     order_type=OrderType(leg_type),
                     quantity=int(qty),
                     price=to_ticks(float(price), sym) if price else None,
-                    smp_action=SmpAction(smp_str),
+                    smp_action=SmpAction(smp_str) if smp_str is not None else None,
                 )
             except (ValueError, KeyError) as exc:
+                log.warning(
+                    "COMBO leg parse error gateway_id=%s leg=%d error=%s",
+                    self.gateway_id,
+                    i,
+                    exc,
+                )
                 console.print(f"[red]Leg {i} parse error: {exc}[/red]")
                 return
             legs.append(leg)
@@ -1066,6 +1349,7 @@ class Gateway:
         )
 
         self.push_sock.send_multipart(make_combo_order_msg(combo.to_dict()))
+        self._dbg_count("combo_submitted")
 
     @staticmethod
     def _parse_date(raw: str | None) -> float | None:
@@ -1084,18 +1368,29 @@ class Gateway:
     def run(self) -> None:
         if not self._authenticate():
             reason = self._auth_reason or f"Gateway not allowed: {self.gateway_id}"
+            log.error(
+                "gateway startup refused gateway_id=%s reason=%s",
+                self.gateway_id,
+                reason,
+            )
             console.print(f"[red]Connection refused:[/red] {reason}")
             self._running = False
             self.push_sock.close()
             self.sub_sock.close()
+            self._index_sub_sock.close()
+            self._dc_sub_sock.close()
             return
 
         self._authenticated = True
         # Request outstanding resting orders so reconnects restore order history
         self.push_sock.send_multipart(make_orders_request_msg(self.gateway_id))
 
+        if self._dc_requested_on_startup:
+            self._set_drop_copy(True)
+
         listener = threading.Thread(target=self._listen, daemon=True)
         listener.start()
+        log.info("gateway command loop started gateway_id=%s", self.gateway_id)
 
         desc = f" — {self._auth_description}" if self._auth_description else ""
         console.print(
@@ -1132,24 +1427,26 @@ class Gateway:
                 )
             except Exception:
                 pass
+            self._flush_debug_summary(force=True)
             self._index_push_sock.close()
             self.push_sock.close()
             self.sub_sock.close()
             self._index_sub_sock.close()
+            self._dc_sub_sock.close()
+            log.info("gateway shutdown complete gateway_id=%s", self.gateway_id)
             console.print(f"\n[bold]Gateway {self.gateway_id} disconnected.[/bold]")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="EduMatcher gateway")
-    add_version_argument(parser, "pm-alf-console")
-    parser.add_argument(
-        "--id",
-        required=True,
-        metavar="GW_ID",
-        help="Unique gateway identifier, e.g. GW01",
-    )
+    parser = _build_parser()
     args = parser.parse_args()
-    Gateway(args.id).run()
+    log_level = _configure_logging(args)
+    log.info(
+        "starting pm-alf-console with log level %s",
+        logging.getLevelName(log_level),
+    )
+    log.debug("resolved gateway args: id=%s drop_copy=%s", args.id, args.drop_copy)
+    Gateway(args.id, drop_copy=args.drop_copy).run()
 
 
 if __name__ == "__main__":

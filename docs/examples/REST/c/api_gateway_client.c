@@ -1,6 +1,16 @@
+/* Request POSIX.1-2008 declarations (getaddrinfo, freeaddrinfo, struct
+ * addrinfo, ...) explicitly. Without this, building with a strict
+ * standards flag such as `-std=c11` (as opposed to `-std=gnu11`) hides
+ * these symbols on some platforms/libc's, e.g. glibc, and the build fails
+ * with "storage size of 'hints' isn't known" / implicit-declaration
+ * errors. Must come before any header is included.
+ */
+#define _POSIX_C_SOURCE 200809L
+
 #include "api_gateway_client.h"
 
 #include <arpa/inet.h>
+#include <errno.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -60,9 +70,20 @@ char *api_gateway_get(const ApiGatewayClient *client, const char *path) {
         close(fd);
         return NULL;
     }
-    if (send(fd, request, (size_t)written, 0) < 0) {
-        close(fd);
-        return NULL;
+    /* send() is not guaranteed to write the whole buffer in one call, so
+     * this must loop until every byte is sent (or a real error occurs).
+     */
+    size_t total_sent = 0;
+    while (total_sent < (size_t)written) {
+        ssize_t sent = send(fd, request + total_sent, (size_t)written - total_sent, 0);
+        if (sent < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            close(fd);
+            return NULL;
+        }
+        total_sent += (size_t)sent;
     }
 
     size_t cap = 8192;
@@ -84,8 +105,16 @@ char *api_gateway_get(const ApiGatewayClient *client, const char *path) {
             response = grown;
         }
         ssize_t n = recv(fd, response + len, 4096, 0);
-        if (n <= 0) {
-            break;
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            free(response);
+            close(fd);
+            return NULL;
+        }
+        if (n == 0) {
+            break; /* orderly shutdown by the server: end of response */
         }
         len += (size_t)n;
     }

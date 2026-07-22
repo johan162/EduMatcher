@@ -155,7 +155,7 @@ def running_gateway() -> Generator[
     engine_pull_addr = f"tcp://127.0.0.1:{engine_pull_port}"
     engine_pub_addr = f"tcp://127.0.0.1:{engine_pub_port}"
 
-    ctx = zmq.Context.instance()
+    ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
 
     # Bind fake engine sockets BEFORE the gateway creates its ZMQ connections.
     engine_pull: zmq.Socket[bytes] = ctx.socket(zmq.PULL)
@@ -441,6 +441,15 @@ def test_new_order_forwarded_to_engine(
         lb = _LineBuffer(cli)
         _authenticate(cli, lb, pull, pub)
         _drain_pull_until(pull, "system.symbols_request", timeout=2.0)
+        time.sleep(0.1)
+
+        pub.send_multipart(
+            encode(
+                "system.symbols.TRADER01",
+                {"symbols": ["AAPL"]},
+            )
+        )
+        lb.recv_until(lambda ln: ln.startswith("SYMBOLS"), timeout=3.0)
 
         cli.sendall(b"NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00\n")
         topic, payload = _drain_pull_until(pull, "order.new", timeout=3.0)

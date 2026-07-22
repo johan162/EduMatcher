@@ -106,6 +106,31 @@ class TestRecordTrade:
         cb.record_trade(10800, T0 + 5_000_000)
         assert cb.reference_price == 10000
 
+
+class TestSeedReference:
+    def test_seed_sets_reference_before_any_trade(self) -> None:
+        cb = _make_cb()
+        assert cb.reference_price is None
+        cb.seed_reference(10000, T0)
+        assert cb.reference_price == 10000
+        assert len(cb.trade_history) == 1
+
+    def test_first_trade_can_trigger_against_seed(self) -> None:
+        cb = _make_cb()
+        cb.seed_reference(10000, T0)
+        # First real trade +8% from the seeded reference => L1
+        level = cb.record_trade(10800, T0 + 1_000_000)
+        assert level is not None
+        assert level.name == "L1"
+
+    def test_seed_is_noop_when_history_exists(self) -> None:
+        cb = _make_cb()
+        cb.record_trade(9000, T0)
+        cb.seed_reference(10000, T0 + 1_000_000)
+        # History untouched by the seed (still just the real trade).
+        assert len(cb.trade_history) == 1
+        assert cb.trade_history[0][1] == 9000
+
     def test_already_halted_does_not_double_fire(self) -> None:
         cb = _make_cb()
         for i in range(5):

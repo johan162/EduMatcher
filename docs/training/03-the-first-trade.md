@@ -26,8 +26,10 @@ pm-clearing
 ```
 
 `pm-clearing` subscribes to executed trades, updates per-gateway positions and
-P&L, and appends trades to `clearing_report.csv` in the data directory. Leave it
-running while you work through this chapter.
+P&L, and writes batched results to `clearing.db` (SQLite) in the data
+directory — not a CSV file. Use `pm-clearing-cli --format csv ...` afterward
+if you want a CSV export. Leave `pm-clearing` running while you work through
+this chapter.
 
 :material-checkbox-blank-outline: **Checkpoint:** clearing is running and waiting for trades.
 
@@ -171,7 +173,7 @@ that a LIMIT order would protect you from?
 
 - [Your First Trade](../concepts/04-concepts-first-trade.md)
 - [The Order Book](../concepts/01-concepts-order-book.md)
-- [Gateway Commands](../user-guide/08-gateway.md)
+- [Gateway Commands](../user-guide/050-gateway.md)
 
  
 

@@ -131,15 +131,25 @@ explicitly cancelled.
 
 ## Exercise 4: ATO Order
 
-Freeze in PRE_OPEN (`ADMIN01> SESSION|STATE=PRE_OPEN`), then place an
-At-The-Open order:
+Freeze in OPENING_AUCTION (`ADMIN01> SESSION|STATE=OPENING_AUCTION` — from
+PRE_OPEN, this is a valid direct transition), then place an At-The-Open
+order:
 
 ```
 TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.50|TIF=ATO
 ```
 
+!!! warning "ATO is rejected during PRE_OPEN, not just outside auction hours"
+    The engine only accepts `TIF=ATO` orders while the session state is
+    exactly `OPENING_AUCTION` — `PRE_OPEN` accepts orders generally (it is
+    not `CLOSED`), but an `ATO` order submitted while still in `PRE_OPEN` is
+    rejected with `"ATO orders only accepted during opening auction"`. Make
+    sure you have actually transitioned to `OPENING_AUCTION` (confirm with
+    `SESSION_STATUS`) before running this exercise.
+
 This order only participates in the opening auction. If not filled during the
-auction, it is cancelled when CONTINUOUS begins.
+auction, it is cancelled the moment the session leaves `OPENING_AUCTION`
+(e.g. when CONTINUOUS begins).
 
 :material-checkbox-blank-outline: **Checkpoint:** ATO order participates in auction or is cancelled.
 
@@ -176,13 +186,25 @@ OPENING_AUCTION phase.
 
 ## Summary
 
-| Phase | Accepts | Cancels |
+| Phase | Accepts | Cancels on **entry** |
 |-------|---------|---------|
-| PRE_OPEN | ATO, GTC | — |
-| OPENING_AUCTION | ATO, GTC | — |
-| CONTINUOUS | DAY, GTC, ATC, IOC, FOK | ATO (unfilled) |
-| CLOSING_AUCTION | ATC, GTC | — |
-| CLOSED | — | DAY, ATC (unfilled) |
+| PRE_OPEN | DAY, GTC (not ATO — see Exercise 4) | — |
+| OPENING_AUCTION | DAY, GTC, ATO | ATO (unfilled, on **exit** to any other phase) |
+| CONTINUOUS | DAY, GTC, IOC, FOK (not ATO or ATC) | — |
+| CLOSING_AUCTION | DAY, GTC, ATC | ATC (unfilled, on **exit** to CLOSED) |
+| CLOSED | — (no new orders accepted) | DAY (all, on entry to CLOSED) |
+
+Notes:
+
+- `ATO` is only accepted while the session state is exactly
+  `OPENING_AUCTION` — not during `PRE_OPEN`, even though `PRE_OPEN` accepts
+  orders generally.
+- `ATC` is only accepted while the session state is exactly
+  `CLOSING_AUCTION`.
+- Unfilled `ATO`/`ATC` orders are expired the moment the session *leaves*
+  their respective auction phase (not on any other transition).
+- All resting `DAY` orders (regardless of when they were placed) are expired
+  the moment the session transitions *into* `CLOSED`.
 
  
 
@@ -194,8 +216,8 @@ were accidentally submitted as DAY instead of GTC?
 
 ## Further Reading
 
-- [Auctions & Scheduling](../user-guide/06-auctions-scheduling.md)
-- [Persistence](../user-guide/11-persistence.md)
+- [Auctions & Scheduling](../user-guide/080-auctions-scheduling.md)
+- [Persistence](../user-guide/180-persistence.md)
 - [A Full Trading Day](../concepts/05-concepts-trading-day.md)
 
  

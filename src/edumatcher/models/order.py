@@ -51,10 +51,23 @@ class SmpAction(str, Enum):
     Self Match Prevention action — applied when an incoming order would trade
     against a resting order from the same gateway.
 
-    NONE             — disabled; self-trades are allowed (default)
+    NONE             — explicitly disabled; self-trades are allowed
     CANCEL_AGGRESSOR — cancel the incoming order, resting order stays
     CANCEL_RESTING   — cancel the resting order, continue matching
     CANCEL_BOTH      — cancel both orders
+
+    ``Order.smp_action`` (and ``ComboLeg.smp_action``) is typed
+    ``SmpAction | None`` rather than defaulting to ``NONE`` outright: ``None``
+    means the client did not specify ``SMP=`` at all, which is distinct from
+    an *explicit* ``SMP=NONE`` (a deliberate request to allow self-trades).
+    Client-facing processes (``alf_gwy``, ``alf_console``, ``api_gateway``)
+    preserve that distinction when parsing the wire request; the engine
+    resolves ``None`` to the order's gateway-configured default
+    (``gateways.alf[].smp_action``, falling back to ``NONE`` itself if the
+    gateway has none configured) before the order reaches the matching
+    engine — see ``Engine._resolve_smp_action`` in ``engine/main.py``. Code
+    that inspects ``Order.smp_action`` after that resolution point (e.g. the
+    order book) can safely assume it is a concrete member, never ``None``.
     """
 
     NONE = "NONE"
@@ -119,7 +132,12 @@ class Order:
     stop_price: Optional[int] = None  # STOP / STOP_LIMIT / TRAILING_STOP trigger price
     visible_qty: Optional[int] = None  # ICEBERG: fixed peak size
     displayed_qty: Optional[int] = None  # ICEBERG: current visible slice on book
-    smp_action: SmpAction = SmpAction.NONE  # self-match prevention
+    # Self-match prevention. None means "not yet resolved": either the client
+    # omitted SMP= (engine should apply the gateway's configured default) or
+    # this Order predates resolution (e.g. an unresolved ComboLeg). By the
+    # time an Order reaches the matching engine / order book, this is always
+    # a concrete SmpAction — see SmpAction's docstring.
+    smp_action: Optional[SmpAction] = None
 
     # Trailing stop field
     trail_offset: Optional[int] = (
@@ -142,6 +160,12 @@ class Order:
     # a FIFO matching scheme.  Optional; ignored when absent.
     client_tag: Optional[str] = None
 
+    # Engine-assigned monotonic arrival sequence (finding H1).  Time priority
+    # in the book is keyed on this, NOT on the client-supplied `timestamp`,
+    # so a back-dated payload timestamp cannot jump the price-time queue.
+    # Assigned by OrderBook when the order is placed on a heap; 0 = unassigned.
+    arrival_seq: int = 0
+
     # ------------------------------------------------------------------
     # Factory
     # ------------------------------------------------------------------
@@ -157,7 +181,7 @@ class Order:
         price: Optional[int] = None,
         stop_price: Optional[int] = None,
         visible_qty: Optional[int] = None,
-        smp_action: SmpAction = SmpAction.NONE,
+        smp_action: Optional[SmpAction] = None,
         trail_offset: Optional[int] = None,
         oco_group_id: Optional[str] = None,
     ) -> "Order":
@@ -203,12 +227,15 @@ class Order:
             "stop_price": self.stop_price,
             "visible_qty": self.visible_qty,
             "displayed_qty": self.displayed_qty,
-            "smp_action": self.smp_action.value,
+            "smp_action": (
+                self.smp_action.value if self.smp_action is not None else None
+            ),
             "combo_parent_id": self.combo_parent_id,
             "leg_index": self.leg_index,
             "origin": self.origin.value,
             "quote_id": self.quote_id,
             "client_tag": self.client_tag,
+            "arrival_seq": self.arrival_seq,
         }
 
     @classmethod
@@ -236,7 +263,12 @@ class Order:
         o.stop_price = d.get("stop_price")
         o.visible_qty = d.get("visible_qty")
         o.displayed_qty = d.get("displayed_qty")
-        o.smp_action = _SMP_MAP.get(d.get("smp_action", "NONE"), SmpAction.NONE)
+        # Absent key or explicit null both mean "client did not specify" —
+        # preserved as None (see SmpAction's docstring), not silently
+        # defaulted to SmpAction.NONE, so the engine can still tell the
+        # difference from an explicit SMP=NONE and apply a gateway default.
+        _smp_raw = d.get("smp_action")
+        o.smp_action = _SMP_MAP.get(_smp_raw) if _smp_raw is not None else None
         o.trail_offset = d.get("trail_offset")
         o.oco_group_id = d.get("oco_group_id")
         o.combo_parent_id = d.get("combo_parent_id")
@@ -244,4 +276,5 @@ class Order:
         o.origin = _ORIGIN_MAP.get(d.get("origin", "ORDER"), OrderOrigin.ORDER)
         o.quote_id = d.get("quote_id")
         o.client_tag = d.get("client_tag")
+        o.arrival_seq = d.get("arrival_seq", 0)
         return o

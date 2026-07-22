@@ -40,6 +40,14 @@ if [[ -n "$SEED" ]]; then
   SEED_ARGS=(--seed "$SEED")
 fi
 
+# Keep generated MM quote prices reproducible even when the caller does not
+# provide an explicit seed.
+if [[ -z "$SEED" ]]; then
+  SEED=$(( RANDOM * 32768 + RANDOM ))
+  echo "[INFO] Auto-generated seed $SEED — re-run with --seed $SEED for identical output." >&2
+fi
+SEED_ARGS=(--seed "$SEED")
+
 if command -v pm-config-gen >/dev/null 2>&1; then
   CONFIG_GEN=(pm-config-gen)
 elif command -v poetry >/dev/null 2>&1; then
@@ -88,6 +96,10 @@ COMMON_ARGS=(
   --closing-auction 16:00 \
   --closing-end 16:10 \
   --snapshot-interval 0.25 \
+  --quote-history-maxlen 30 \
+  --drop-copy-buffer-size 10000 \
+  --recent-trades-maxlen 20 \
+  --depth-snapshot-tolerance-ticks 100 \
   --static-band 0.20 \
   --dynamic-band 0.02 \
   --risk-level CORE:0.18:0.02 \

@@ -142,8 +142,12 @@ force-kills immediately if a bot hangs. Your baseline liquidity providers
 ## Classroom Tips
 
 - Run 3–5 AI traders for realistic order flow without overwhelming the book.
-- Mix profiles (`--profiles aggressive,cautious`) for diverse market dynamics.
-- Use `--seed` for reproducible order sequences across repeated classroom runs.
+- Mix profiles (`pm-ai-swarm --profiles aggressive,cautious`) for diverse
+  market dynamics.
+- For reproducible order sequences across repeated classroom runs: on a
+  single bot, use `pm-ai-trader --seed 42`; on the swarm, use
+  `pm-ai-swarm --seed-base 1000` (each bot's actual seed is
+  `seed_base + bot_index`) — `pm-ai-swarm` has no `--seed` flag of its own.
 - Combine with circuit breakers to demonstrate halt/resume under stress.
 
  
@@ -158,10 +162,10 @@ if you launched only `aggressive` bots with no market maker running?
 
 ## Further Reading
 
-- [AI Traders](../user-guide/15-ai-traders.md)
-- [Market-Maker Bot (pm-mm-bot)](../user-guide/17-mm-bot.md) — sibling automation tool for liquidity provision
+- [AI Traders](../user-guide/110-ai-traders.md)
+- [Market-Maker Bot (pm-mm-bot)](../user-guide/100-mm-bot.md) — sibling automation tool for liquidity provision
 - [Developer AI Bot Traders](../developer/02-ai-bot.md)
-- [Risk Controls](../user-guide/12-risk-controls.md)
+- [Risk Controls](../user-guide/120-risk-controls.md)
 - [Order Book Deep Dive](../concepts/02-concepts-order-book-deep-dive.md)
 
  

@@ -27,9 +27,13 @@ to detect gaps and de-duplicate messages.
 
 Important current limitation:
 
-- Replay exists as an in-process publisher method.
+- Replay exists as an in-process publisher method
+  (`DropCopyPublisher.replay(recipient_id, from_seq)`), backed by a
+  circular in-memory buffer of the last 10,000 events (roughly 16 minutes
+  of history at a sustained ~10 fills/second).
 - There is currently no external ZMQ replay-request handler for downstream
-  clients to call directly.
+  clients to call directly — and even once one exists, replay is bounded by
+  that 10,000-event buffer, not unlimited history.
 
 So operationally, reconnect handling is currently:
 
@@ -103,7 +107,7 @@ Interrupt/restart the subscriber while trades are flowing to simulate missed eve
 
 Confirm current behavior from docs:
 
-1. Review replay section in [Drop Copy](../user-guide/13-drop-copy.md).
+1. Review replay section in [Drop Copy](../user-guide/200-drop-copy.md).
 2. Note that replay is in-process and there is no external replay-request
    handler wired into the engine loop.
 
@@ -179,8 +183,8 @@ subscriber's socket briefly dropped messages?
 
 ## Further Reading
 
-- [Drop Copy](../user-guide/13-drop-copy.md)
-- [Messages](../user-guide/09-messages.md)
-- [Persistence](../user-guide/11-persistence.md)
+- [Drop Copy](../user-guide/200-drop-copy.md)
+- [Messages](../user-guide/270-messages.md)
+- [Persistence](../user-guide/180-persistence.md)
 
 **Next:** [21 - Automation with CommandClient & MM Bot Tuning](21-automation-commandclient-mm-bot.md)

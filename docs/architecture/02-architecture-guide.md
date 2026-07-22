@@ -19,14 +19,19 @@
 > possible trading concept and expanding layer by layer until the full system makes
 > sense. Every concept is immediately connected to the actual code that implements it.
 
-> **Note on code samples:** Some code samples in this document show `float` prices
-> and `time.time()` timestamps — the original types before the tick migration was
-> applied. The production codebase now uses **integer tick prices** (e.g. `$150.30`
-> is stored as `15030` for a symbol with a `$0.01` tick size) and **integer
-> nanosecond timestamps** from `monotonic_ns()` (see `models/clock.py`). The
-> concepts and logic are identical; only the types differ. Where the distinction
-> matters it is called out explicitly. See `EduMatcher_Tick_Migration_Plan_v6.md`
-> for the full details.
+> **Note on types.** The engine stores **integer tick prices** (e.g. `$150.30` is
+> `15030` for a `$0.01` tick) and **integer nanosecond timestamps** from `now_ns()`
+> (`models/clock.py`). This walkthrough uses those types. A few early illustrative
+> snippets show `float` prices or `time.time()` purely for readability where the
+> exact type is not the point; such cases are called out inline. For the reference
+> treatment of ticks, the monotonic clock, and conversions, see
+> [Architecture → Tick and Time Representation](01-architecture.md#tick-and-time-representation).
+
+> **This document vs. the Architecture reference.** This is the **code-level
+> walkthrough**. For the design reference — data flows, deployment/trust boundaries,
+> persistence & recovery, failure modes, and the performance/config knobs — see
+> [Architecture](01-architecture.md). Where they overlap, treat 01 as the concise
+> reference and this page as the narrative.
 
 
 
@@ -638,7 +643,7 @@ Where n = resting orders, P = distinct price levels (P << n in practice).
 > **Migration note:** The field types shown below reflect the **original** codebase
 > before the tick migration. In the current codebase: `price`, `stop_price`, and
 > `trail_offset` are `Optional[int]` (tick counts), and `timestamp` is `int`
-> (nanoseconds from `monotonic_ns()`). The field names and semantics are unchanged.
+> (nanoseconds from `now_ns()`). The field names and semantics are unchanged.
 > See `EduMatcher_Tick_Migration_Plan_v6.md` for the full type changes.
 
 ```python
@@ -1127,7 +1132,7 @@ After finding the price, `execute_uncross` fills all crossable interest:
 
 ```python
 def execute_uncross(book, eq_price):
-    now = monotonic_ns()  # from models/clock.py — single strictly-increasing
+    now = now_ns()  # from models/clock.py — single strictly-increasing
                           # nanosecond timestamp for all auction fills
     while True:
         best_bid = book._peek(book._bids)
@@ -1141,7 +1146,7 @@ def execute_uncross(book, eq_price):
 ```
 
 All auction fills happen at the single equilibrium price, simultaneously. The
-`now = monotonic_ns()` outside the loop means all trades in one auction uncross share
+`now = now_ns()` outside the loop means all trades in one auction uncross share
 the same timestamp — reflecting their logical simultaneity.
 
 
@@ -1551,7 +1556,7 @@ second, more than sufficient for most exchange volumes.
 ### The Gateway: User Interface
 
 The gateway translates human-readable ALF commands into ZMQ messages
-(see [ALF Protocol Reference](../user-guide/90-app-alf-protocol.md)):
+(see [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md)):
 
 ```mermaid
 flowchart TD
@@ -1678,7 +1683,7 @@ most time; both receive dedicated optimisations below.
 
 ```python
 # engine/main.py — _handle_new_order()
-now = monotonic_ns()  # ONE call per incoming order — int nanoseconds
+now = now_ns()  # ONE call per incoming order — int nanoseconds
                       # from models/clock.py; guaranteed strictly increasing
 
 trades, events = book.process(order, match=do_match, now=now)
@@ -1688,24 +1693,24 @@ trades, events = book.process(order, match=do_match, now=now)
 #   _reinsert_iceberg → iceberg.timestamp = now
 ```
 
-`monotonic_ns()` is a wrapper around `time.time_ns()` that guarantees strictly
+`now_ns()` is a wrapper around `time.time_ns()` that guarantees strictly
 increasing values even when the system clock steps backward (e.g. due to NTP
 adjustments on a virtual machine). Each call costs ~300-500ns on macOS/Linux. An
 aggressive order that triggers stop orders can recurse through `process()` several
-times. Without this optimisation, each level of recursion would call `monotonic_ns()`
+times. Without this optimisation, each level of recursion would call `now_ns()`
 independently. With it: one call, threaded through as a parameter.
 
 **Why do triggered stops need the same `now` as the original order?**
 
 When an aggressive order fills and triggers a stop, the stop order enters the book
-with `timestamp = now`. If the triggered order were assigned a fresh `monotonic_ns()`
+with `timestamp = now`. If the triggered order were assigned a fresh `now_ns()`
 timestamp, it would appear to have arrived *later* than the fill that triggered it —
 which is technically accurate but creates a subtle inconsistency: all the events
 produced by one incoming message would have slightly different timestamps, making
 the audit log harder to reason about. Using the same `now` for the entire cascade
 means “all events caused by message X happened at time T.”
 
-Savings: 2-4 `monotonic_ns()` calls eliminated per aggressive order with stops ≈
+Savings: 2-4 `now_ns()` calls eliminated per aggressive order with stops ≈
 0.6-2µs per order.
 
 ### `__slots__` on All Hot-Path Objects
@@ -1816,7 +1821,7 @@ def _flush_snapshots(self) -> None:
     # elapsed wall-clock duration (how many seconds since the last snapshot),
     # NOT generating an event timestamp for price-time priority. For duration
     # measurements, time.monotonic() returning a float of seconds is exactly
-    # right. monotonic_ns() from models/clock.py is only for event timestamps.
+    # right. now_ns() from models/clock.py is only for event timestamps.
     now = time.monotonic()
     sent: set[str] = set()
     for symbol in self._dirty_symbols:
@@ -2250,9 +2255,9 @@ something is committed to the log, it happened; if it is not in the log, it did 
 
 ### High-Precision Timestamps and Clock Synchronisation
 
-**Status in EduMatcher:** Nanosecond integer timestamps via `monotonic_ns()` (from
+**Status in EduMatcher:** Nanosecond integer timestamps via `now_ns()` (from
 `models/clock.py`) are now implemented — see `EduMatcher_Tick_Migration_Plan_v6.md`.
-`monotonic_ns()` wraps `time.time_ns()` with a guarantee of strictly increasing
+`now_ns()` wraps `time.time_ns()` with a guarantee of strictly increasing
 values even when the system clock is adjusted backward. All `Order`, `Trade`, and
 `ComboOrder` timestamps are `int` nanoseconds. The price-time priority heap key is
 `(±price_ticks, timestamp_ns)` — both integers, exact comparison.
@@ -2350,7 +2355,7 @@ engineering work for a real exchange.
 |Authentication      |Gateway ID only, no cryptographic proof                                 |TLS certificates, challenge-response              |
 |Authorisation       |Role-based (TRADER/MARKET_MAKER) — no enforcement of symbol restrictions|Fine-grained per-operation, per-symbol permissions|
 |Failover            |None                                                                    |Primary/secondary with automatic failover         |
-|Clock precision     |✅ Integer nanoseconds via `monotonic_ns()`                              |+ PTP synchronisation, hardware wire timestamps   |
+|Clock precision     |✅ Integer nanoseconds via `now_ns()`                              |+ PTP synchronisation, hardware wire timestamps   |
 |Price arithmetic    |✅ Integer tick-based, configurable per symbol                           |+ Dynamic tick size changes, exchange tick tables |
 |Order protocol      |Custom text (`NEW|SYM=AAPL|...`)                                        |FIX 4.4 / 5.0                                     |
 |Rate limiting       |None                                                                    |Per-gateway limits enforced at gateway            |

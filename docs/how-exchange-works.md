@@ -245,6 +245,14 @@ In Europe, the equivalent framework is **MiFID II (Markets in Financial Instrume
 
 Understanding which regulator and which rules apply is not just a legal matter. It is an engineering specification: audit trail formats, kill switch accessibility, pre-trade check requirements, and market data publication rules are all regulatory mandates, not optional features.
 
+!!! note "The South Sea Bubble and the Bubble Act (1720)"
+
+    In 1720, shares of Britain's South Sea Company rose from roughly £128 in January to nearly £1,000 by the summer, propelled by a scheme to convert government debt into company equity, before collapsing back below £200 by year-end. Parliament's response, the Bubble Act of 1720, prohibited joint-stock companies from operating without a royal charter — and modern scholarship has established the uncomfortable detail that the Act was passed in June 1720, *before* the crash, with the South Sea Company's own support: its purpose was less to protect investors than to suppress rival companies competing for the same speculative capital. The Act stayed on the books for over a century (repealed 1825) and materially shaped — many argue retarded — English corporate formation. It is the earliest large-scale demonstration of two themes that recur throughout this book: securities regulation is often written in the shadow of a specific crisis, and the entities lobbying for a rule are not always the ones the rule appears to protect. The subsequent parliamentary inquiry of 1721, which uncovered bribery of ministers with company stock, also produced one of history's first insider-dealing scandals on the record. <br> &nbsp; <br>
+
+    *References:** Ron Harris, "The Bubble Act: Its Passage and Its Effects on Business Organization," *Journal of Economic History* 54(3), 1994, https://www.jstor.org/stable/2123870; 
+
+ 
+
 ### Instruments: What Is Being Traded?
 
 An exchange does not trade "things" in a physical sense. It trades **instruments**, standardised financial contracts representing ownership or obligation. The most common are:
@@ -292,6 +300,14 @@ Reading the tape was a skill. A **tape reader** was someone who could watch the 
 In 1878, the phone was invented. In 1929, the first electronic ticker was installed. By the 1960s, electronic displays began replacing paper. Today, the "ticker" refers to the digital price feeds streaming across screens in every trading firm, brokerage, and financial news channel, and the **ticker symbol** (AAPL, MSFT, GOOG) is the abbreviated code printed on the old paper tape.
 
 When you see terms like "tick" (the minimum price movement), "tick data" (a record of every trade), or "ticker plant" (the server infrastructure that publishes market data), you are using the language of a machine that ran on telegraph cables and printed on paper strips.
+
+!!! note "The Kennedy Slide, the Lagging Tape, and the Study That Created NASDAQ (1962–71)"
+
+    On 28 May 1962 the Dow fell 5.7% in a single session — the sharpest one-day drop since 1929 — in what became known as the "Kennedy Slide." Operationally, the day's defining failure was informational: trading volume so overwhelmed the ticker that the tape ran more than an hour behind actual trading, meaning investors nationwide were making decisions on prices that no longer existed. The SEC's *Special Study of Securities Markets* (1963), a multi-volume examination already underway when the break occurred, documented the episode and, more consequentially, dissected the over-the-counter market's opaque, telephone-based quotation system, recommending that OTC quotations be automated. The NASD's answer to that recommendation went live on 8 February 1971 as NASDAQ — initially not a matching engine at all, but an automated *quotation display* system, exactly what the Special Study had prescribed. The lineage is worth stating plainly: the world's first electronic stock market exists because a regulator's post-crash study concluded that stale, inaccessible price information was itself a market-structure defect. Every market-data latency requirement in Part IV is a descendant of that conclusion.
+
+    **References:** Kennedy Slide of 1962, Wikipedia, https://en.wikipedia.org/wiki/Kennedy_Slide_of_1962 
+
+
 
 ### The Language Lives in the Code
 
@@ -356,6 +372,18 @@ This is still exactly what "going long" means in modern finance: you own the ass
 The Dutch East India Company (VOC), founded in 1602 and traded on the Amsterdam Exchange from that same year, pioneered many instruments still in use today, transferable shares, dividend payments, and the secondary market in those shares [5] [11], and became the arena for what is likely the first recorded large-scale short selling operation in financial history: in 1609, a merchant named Isaac Le Maire organised a group of traders to sell VOC shares they did not own, betting the price would fall so they could buy them back cheaply before delivery [5]. The scheme was disruptive enough that the Amsterdam city council attempted to ban short selling the following year, the earliest known attempt to regulate the practice [5]. It did not stick; short selling has been controversial, periodically banned, and always present in markets ever since.
 
 "Long" and "short" thus carry the physical memory of a world where trading meant moving real goods between warehouses and ships. A developer reading `last_sell_price` or `position += signed_qty` in the matching engine's clearing code is working with concepts that a 17th-century spice merchant would have recognised immediately, even if the technology would be unrecognisable to them.
+
+
+!!! note "Historic Notes"
+
+    No episode in financial history is retold more often, or more loosely, than the Dutch tulip mania of 1636–37. The legend: a whole nation ruined, fortunes traded for single bulbs, the economy wrecked, and so on largely dissolves under archival scrutiny. Contract prices for rare bulbs did rise spectacularly through late 1636 and collapse in February 1637, but the trade was concentrated among a modest circle of merchants and craftsmen dealing in *forward contracts* on bulbs still in the ground, an early lesson that a derivative on an unharvestable underlying is a bet on a price, not a purchase of a thing. Archival work has found no wave of bankruptcies and no measurable damage to the Dutch economy; the most extreme prices in the popular telling trace to moralising pamphlets written *after* the crash, not to transaction records. The episode earns its place in this book twice over: as a genuinely early forward market discovering the hard way that contract enforceability matters (many February 1637 contracts were simply never honoured, and courts largely declined to enforce them), and as a standing reminder to check the primary record before repeating a market legend. <br>&nbsp;<br>
+
+    **References:** 
+    Peter M. Garber, *Famous First Bubbles: The Fundamentals of Early Manias* (MIT Press, 2000), <br>&nbsp;<br>
+    *Tulipmania: Money, Honor, and Knowledge in the Dutch Golden Age* (University of Chicago Press, 2007).
+
+
+
 
 ### The Operational Mechanics of Short Selling, Borrow and Locate
 
@@ -436,6 +464,8 @@ The exchange is not a passive infrastructure provider. It is a regulated entity 
 
 A significant historical shift: exchanges used to be **member-owned mutuals**, non-profit organisations run for the benefit of their broker-dealer members. Over the past 30 years, most major exchanges have **demutualised**, converting to for-profit public companies. NYSE demutualised and listed in 2006; London Stock Exchange demutualised in 2001. This shift changed the incentive structure of exchanges: they now compete for order flow and listing fees, and their technology investment decisions are driven partly by shareholder returns.
 
+
+
 ### Regulators
 
 Regulators are not participants in the traditional sense, they do not submit orders, but they are the most consequential stakeholders in exchange system design. Every audit trail format, kill switch requirement, pre-trade check, and trade report exists to satisfy a regulatory obligation.
@@ -462,6 +492,13 @@ NYSE is a **hybrid market**: it combines electronic order matching with **Design
 
 Despite being the iconic "stock exchange," NYSE handles only a fraction of total US equity volume. Due to fragmentation under Reg NMS, NYSE typically accounts for roughly 20–25% of US equity volume [1]; the rest routes to NASDAQ, Cboe, and dozens of other venues. This is not a sign of weakness , it reflects the fragmented, competitive nature of modern US equity markets.
 
+!!! note "The Panic of 1792 and the Buttonwood Agreement"
+
+    The Buttonwood Agreement of 17 May 1792 did not appear out of calm deliberation. Weeks earlier, New York had suffered the young republic's first financial panic: William Duer, a former Treasury official, had borrowed heavily to corner Bank of New York shares and government debt, and his failure in March 1792 set off a cascade of defaults. Alexander Hamilton's Treasury responded with open-market purchases of government securities and instructions to banks to keep lending against collateral at defined haircuts — actions economic historians have described as a remarkably modern lender-of-last-resort operation, 140 years before the term was standard. The 24 brokers who signed the Buttonwood Agreement that May were, in part, organising to restore confidence after the chaos: trading only among themselves, at a fixed minimum commission of one-quarter percent, under known rules. The document survives in the NYSE archives, two sentences long — the founding text of American self-regulated exchange trading, and a direct response to the market's first blow-up.
+
+    **References:** The Buttonwood Agreement, https://en.wikipedia.org/wiki/Buttonwood_Agreement 
+
+
 ### NASDAQ
 NASDAQ launched in 1971 as the world's first fully electronic stock exchange. It is home to many of the world's largest technology companies (Apple, Microsoft, Amazon, Google). NASDAQ is a pure electronic market, no floor traders, no DMMs in the traditional sense. It pioneered the technology approach to exchange operation and drove down transaction costs dramatically.
 
@@ -474,11 +511,14 @@ Part of Deutsche Börse Group, Eurex is Europe's largest derivatives exchange, h
 ### LSE (London Stock Exchange)
 The LSE is one of Europe's oldest exchanges, dating to the 17th century coffee houses. It trades equities, bonds, and ETFs. The LSE uses the SETS (Stock Exchange Electronic Trading System) for liquid equities and runs opening and closing auctions. The LSE's Millennium Exchange technology platform is used by dozens of exchanges globally.
 
-> **Historic Note: The Big Bang, 27 October 1986**
->
-> The modern LSE is largely the product of a single day of deregulation known as the **Big Bang**. Until 1986, the LSE operated under a cartel-like structure inherited almost unchanged from its coffee-house origins: brokerage commissions were fixed by rule rather than set by competition, and firms were legally separated into **brokers** (who dealt with clients) and **jobbers** (who traded as principals on the floor), with outside and foreign ownership of member firms tightly restricted. On 27 October 1986, all of this changed at once: fixed commissions were abolished, the broker/jobber distinction was scrapped, non-member and foreign ownership was permitted, and open-outcry floor trading was replaced almost overnight by the screen-based **SEAQ** electronic quotation system. The changes were bundled together deliberately, as a negotiated settlement of a long-running restrictive-practices case brought by the UK government against the exchange, and the government wanted them delivered as a single event rather than a gradual transition. The effect was to compress a decade of gradual American-style deregulation into one day, and it is the direct reason the LSE moved from a floor-based, fixed-commission market to the electronic, competitive one described in this document.
->
-> Big Bang has an almost exact American predecessor: on **1 May 1975** ("**May Day**"), the SEC abolished fixed brokerage commissions on the NYSE, ending nearly two centuries of fixed-rate trading that dated back to the original 1792 Buttonwood Agreement described earlier in this chapter. Commission rates had been fixed by NYSE rule for so long that the change was existential for many old-line brokerages; it also created the discount-brokerage industry (Charles Schwab was founded the same year) and set in motion the competitive, cost-conscious order-routing dynamics, including, decades later, payment for order flow, that the *Smart Order Routing* section of Part IV describes in detail. May Day and Big Bang are worth holding in mind together: eleven years apart, one American and one British, both replacing a fixed-price professional cartel with open price competition, and both direct ancestors of the fee-driven, technology-mediated market structure this book describes throughout. [U.S. Securities and Exchange Commission historical release on the elimination of fixed commissions, 1975; London Stock Exchange Group, *Big Bang 1986* historical retrospective.]
+!!! note "Historic Note: The Big Bang, 27 October 1986"
+
+    The modern LSE is largely the product of a single day of deregulation known as the **Big Bang**. Until 1986, the LSE operated under a cartel-like structure inherited almost unchanged from its coffee-house origins: brokerage commissions were fixed by rule rather than set by competition, and firms were legally separated into **brokers** (who dealt with clients) and **jobbers** (who traded as principals on the floor), with outside and foreign ownership of member firms tightly restricted. On 27 October 1986, all of this changed at once: fixed commissions were abolished, the broker/jobber distinction was scrapped, non-member and foreign ownership was permitted, and open-outcry floor trading was replaced almost overnight by the screen-based **SEAQ** electronic quotation system. The changes were bundled together deliberately, as a negotiated settlement of a long-running restrictive-practices case brought by the UK government against the exchange, and the government wanted them delivered as a single event rather than a gradual transition. The effect was to compress a decade of gradual American-style deregulation into one day, and it is the direct reason the LSE moved from a floor-based, fixed-commission market to the electronic, competitive one described in this document. <br> &nbsp; <br>
+
+    Big Bang has an almost exact American predecessor: on **1 May 1975** ("**May Day**"), the SEC abolished fixed brokerage commissions on the NYSE, ending nearly two centuries of fixed-rate trading that dated back to the original 1792 Buttonwood Agreement described earlier in this chapter. Commission rates had been fixed by NYSE rule for so long that the change was existential for many old-line brokerages; it also created the discount-brokerage industry (Charles Schwab was founded the same year) and set in motion the competitive, cost-conscious order-routing dynamics, including, decades later, payment for order flow, that the *Smart Order Routing* section of Part IV describes in detail. May Day and Big Bang are worth holding in mind together: eleven years apart, one American and one British, both replacing a fixed-price professional cartel with open price competition, and both direct ancestors of the fee-driven, technology-mediated market structure this book describes throughout. <br>&nbsp;<br>
+    
+    **Reference:** Big Bang 20 years on, CENTRE FOR POLICY STUDIES,  https://web.archive.org/web/20211015091533/https://www.cps.org.uk/files/reports/original/111028101637-20061019EconomyBigBang20YearsOn.pdf
+
 
 ### Euronext
 
@@ -814,111 +854,302 @@ Combo orders are critical in derivatives markets. On CME, a futures trader might
 
 The execution challenge is **leg risk**: if one leg fills and the other does not, the trader is left with an unintended one-sided position. Production exchange systems handle this with sophisticated combo matching engines; simpler systems accept the leg risk explicitly.
 
-### Implied Orders, Synthetic Liquidity from Existing Orders
 
-This concept trips up almost every developer encountering derivatives exchange systems for the first time. Read it slowly.
 
-The clearest real-world examples of implied orders come from **futures markets**. A futures contract is a standardised agreement to buy or sell a fixed quantity of an underlying asset, crude oil, wheat, a stock index, a currency, at a predetermined price on a specified future delivery date. Each delivery month trades as a separate instrument with its own independent order book: a January crude oil contract and a February crude oil contract are two distinct products, each with its own buyers and sellers. (A fuller treatment of futures contracts is in the glossary and in Part I.) The important thing for this section is simply that the *same underlying asset*, crude oil, trades simultaneously in several different month-dated contracts, and participants may want to trade the *difference* between months just as much as they want to trade any individual month outright.
 
-In a market with both outright order books (January futures, February futures) and spread order books (the January/February calendar spread), an opportunity exists: two existing orders, one in the spread book and one in an outright book, can be combined to create what looks like a new order in the other outright book. This derived offer is called an **implied order**.
+## Implied Orders and Synthetic Liquidity
 
-The critical thing to understand before the example: **implied orders do not create liquidity from nowhere.** They are a different expression of liquidity that already exists. This distinction will become completely clear through the example.
+This concept trips up almost every developer encountering derivatives exchange systems for the first time — and unlike most topics in this book, it cannot be understood from a single example. Implied matching is genuinely layered: the price arithmetic is simple, the quantity rules are less simple, the priority interactions are subtle, and the engineering consequences are severe. This chapter therefore builds in ten explicit levels. Each level introduces exactly one new idea and works it through numerically before the next level begins. If a level feels obvious, read its example anyway — the numbers accumulate, and later levels reuse them.
 
-#### A Step-by-Step Implied Order Example
+One promise before we begin, which the rest of the chapter will prove repeatedly: **implied orders do not create liquidity from nowhere.** They are a different *expression* of liquidity that already exists in other books. Hold on to that sentence; every level below is ultimately a demonstration of it.
 
-**The instruments.** We have three order books:
+### Level 0: The Instruments
 
-| Book | What it represents |
-|---|---|
-| **January** | Outright WTI crude oil futures, January delivery |
-| **February** | Outright WTI crude oil futures, February delivery |
-| **Jan/Feb Spread** | The calendar spread; spread price = January price − February price |
+The clearest real-world home of implied orders is the **futures market**. A futures contract is a standardised agreement to buy or sell a fixed quantity of an underlying asset — crude oil, wheat, a stock index — at a predetermined price on a specified future delivery date. Each delivery month trades as a separate instrument with its own independent order book: January WTI crude and February WTI crude are two distinct products, each with its own buyers and sellers.
 
-**Spread price convention.** A spread price of −$2.00 means January is trading $2.00 *below* February. A participant who *buys* the spread buys January and sells February simultaneously. If the spread price is −$2, and January is at $75, the spread buyer buys January at $75 and sells February at $77 (the $2 difference).
+The same underlying therefore trades simultaneously in several month-dated books, and participants often want to trade the *difference* between two months just as much as either month outright. There are three standard motivations:
 
-**The book before anything happens.**
+1. **Rolling a position.** A trader long January who wants to stay long crude past January's expiry must sell January and buy February. Doing this as two separate outright trades exposes them to the market moving between the two fills.
+2. **Relative-value trading.** A trader may believe February is too expensive *relative to* January without having any view on the outright price of oil at all. Their desired exposure is purely the differential.
+3. **Margin efficiency.** A long-January/short-February position is largely hedged against flat-price moves in crude, so clearing houses margin the *spread* far more lightly than two independent outright positions. (CME publishes these inter-month margin credits explicitly in its SPAN parameters.)
+
+The naive way to get spread exposure — submit two outright orders and hope both fill — carries **leg risk**: one leg fills, the other does not, and the trader is left with an unintended outright position. Exchanges solved this by listing the spread itself as a tradeable instrument.
+
+### Level 1: The Spread Instrument and Its Sign Convention
+
+A **calendar spread** is a single listed instrument whose price is defined as the difference between two delivery months. Throughout this chapter we use the convention the major venues use for this product type:
+
+```
+spread price  S  =  Near-month price − Far-month price
+             (here: S = January − February)
+```
+
+**Buying** the spread means buying the near month and selling the far month, simultaneously, as one instruction. **Selling** the spread is the mirror image.
+
+The sign takes a moment to internalise, so work through both cases:
+
+| Spread price | Meaning | A spread *buyer* does |
+|---|---|---|
+| S = −$2.00 | January trades $2.00 **below** February | Buys Jan, sells Feb; e.g., buys Jan at $75.00 and sells Feb at $77.00 |
+| S = +$0.50 | January trades $0.50 **above** February | Buys Jan, sells Feb; e.g., buys Jan at $76.50 and sells Feb at $76.00 |
+
+Note something slightly counterintuitive in the first row: the spread *buyer* at −$2.00 pays $75 and receives $77. Buying a negative-priced spread means *receiving* the differential. Nothing is broken; the price is simply a signed difference, and it trades on its own tick grid like any other instrument.
+
+**Leg price assignment.** When a spread trade executes, the clearing system needs a concrete price for each leg, not just their difference. The exchange assigns leg prices using a documented rule — typically anchoring one leg to that month's last trade or settlement price and deriving the other so the difference equals the spread trade price, with both legs constrained to valid outright ticks. The economics for the traders depend only on the difference; the assignment rule exists so that positions, P&L, and margin can be computed per instrument. We will meet this again at Level 8.
+
+### Level 2: The Core Identity and the Six Formulas
+
+Everything in implied matching follows from rearranging one identity:
+
+```
+S = Jan − Feb     ⇔     Feb = Jan − S     ⇔     Jan = Feb + S
+```
+
+Each rearrangement says: *if you know a firm price in two of the three books, you know a synthetic price in the third.* Applying bid/ask logic to each rearrangement produces exactly six derived quotes. This table is the reference for the whole chapter; every worked example below is one row of it with numbers attached.
+
+| Derived (implied) quote | Built from | Formula |
+|---|---|---|
+| Implied **Feb ask** | Jan ask + Spread bid | Jan_ask − S_bid |
+| Implied **Feb bid** | Jan bid + Spread ask | Jan_bid − S_ask |
+| Implied **Jan ask** | Feb ask + Spread ask | Feb_ask + S_ask |
+| Implied **Jan bid** | Feb bid + Spread bid | Feb_bid + S_bid |
+| Implied **Spread ask** | Jan ask + Feb bid | Jan_ask − Feb_bid |
+| Implied **Spread bid** | Jan bid + Feb ask | Jan_bid − Feb_ask |
+
+Two terms of art, used exactly as CME's Globex documentation uses them:
+
+- **Implied IN**: an implied order created **in** the *spread* book, derived **from** two outright orders (the bottom two rows).
+- **Implied OUT**: an implied order created in an *outright* book, derived **out of** a spread order plus an outright order (the top four rows).
+
+The mnemonic: *in(to the spread), out (of the spread)*. Be aware that informal usage in the industry is inconsistent, so when reading a venue's documentation, check its definitions rather than assuming.
+
+Do not memorise the table. Instead, when you need a formula, ask the operational question: *"Who does the synthetic counterparty trade with, on each leg, to make this price firm?"* The next two levels show exactly how that question is answered.
+
+### Level 3: Implied OUT — A Complete Worked Example
+
+This is the canonical case: a spread order plus an outright order jointly manufacture a quote in a book that may otherwise be completely empty.
+
+**The books before anything happens:**
 
 | Book | Side | Price | Lots | Who |
 |---|---|---|---|---|
 | January (outright) | Ask | $75.00 | 50 | Trader A |
 | Jan/Feb Spread | Bid | −$2.00 | 30 | Trader B |
-| February (outright) | | *empty* | | |
+| February (outright) | — | *empty* | — | — |
 
-Trader A wants to sell 50 January lots at $75.00 or better.
-Trader B wants to buy the Jan/Feb spread at −$2.00, meaning they will buy January and sell February, as long as February is at least $2.00 more expensive than January.
+Trader A wants to sell up to 50 January lots at $75.00 or better. Trader B wants to buy up to 30 spreads at −$2.00 — that is, B will buy January and sell February whenever February is at least $2.00 above January.
 
-The February outright book is completely empty. No one has placed any outright February order.
+**Answering the operational question.** Could anyone, right now, firmly sell February even though the February book is empty? Yes: Trader B would. B is committed to selling February *provided* B simultaneously buys January $2.00 cheaper. Trader A is committed to selling January at $75.00. Chain the commitments: B can buy January at $75.00 from A, so B can sell February at $75.00 − (−$2.00) = **$77.00**. Formula row one, with numbers: Implied Feb ask = Jan_ask − S_bid = 75.00 − (−2.00) = 77.00.
 
-**How the implied order is computed.** The matching engine observes:
-- There is a January seller at $75.00 (Trader A).
-- There is a spread buyer who will sell February at January + $2.00 (Trader B).
-- Combining these: if January is $75.00, then Trader B will sell February at $75.00 + $2.00 = **$77.00**.
+**Quantity** is capped by the scarcer ingredient: min(50, 30) = **30 lots**. Trader B can only route 30 lots of February selling through this construction, however much January is on offer.
 
-The engine therefore publishes an **implied February ask at $77.00** in the February outright book. This offer did not come from a new participant. It was computed entirely from two pre-existing orders.
-
-The implied offer is limited to the smaller of the two underlying quantities: min(50, 30) = 30 lots. Trader B can only sell February up to 30 lots (his spread size), even though Trader A has 50.
-
-**Now the February order book looks like this:**
+The engine therefore publishes into the February book:
 
 | Book | Side | Price | Lots | Source |
 |---|---|---|---|---|
-| February | Ask | $77.00 | 30 | *Implied* (from Trader A + Trader B) |
+| February | Ask | $77.00 | 30 | **Implied** (A's outright + B's spread) |
 
-**Step 3: A buyer arrives.** Trader C submits a buy order for 20 lots of February at $77.00.
+**Execution.** Trader C submits a buy limit for 20 February at $77.00. Matching the implied quote requires three legs to fire *simultaneously and atomically*:
 
-The matching engine recognises that this matches the implied February offer. To execute the implied match, it must fire all three legs *simultaneously and atomically*:
+```{.mermaid width=600}
+sequenceDiagram
+    participant C as Trader C (Feb buyer)
+    participant ME as Matching Engine
+    participant A as Trader A (Jan ask 75.00)
+    participant B as Trader B (Spread bid −2.00)
 
-1. **Leg 1, outright January:** Trader A sells 20 lots of January to Trader B at **$75.00**.
-2. **Leg 2, Jan/Feb spread:** Trader B's spread order fills for 20 lots at **−$2.00** (bought January at $75, sold February at $77; $75 − $77 = −$2 ✓).
-3. **Leg 3, outright February:** Trader C buys 20 lots of February from Trader B at **$77.00**.
+    C->>ME: BUY 20 FEB @ 77.00
+    Note over ME: Implied Feb ask 77.00 × 30 identified.<br/>All legs validated, then committed atomically.
+    ME->>A: Leg 1 — A SELLS 20 JAN @ 75.00 to B
+    ME->>B: Leg 2 — B's spread order FILLS 20 @ −2.00
+    ME->>C: Leg 3 — B SELLS 20 FEB @ 77.00 to C
+    Note over ME: Three trade prints: JAN 20@75.00,<br/>SPREAD 20@−2.00, FEB 20@77.00
+```
 
-All three executions happen in the same atomic operation. There is no moment in time when Leg 1 has fired but Leg 2 has not.
+Verify each party got exactly what their order asked for:
 
-**The book after the match:**
+- **A** sold 20 January at $75.00 — precisely A's limit price.
+- **B** bought 20 spreads at −$2.00: long 20 Jan at $75.00, short 20 Feb at $77.00; 75 − 77 = −2 ✓. B's margin is computed on the spread exposure, which is far smaller than two outrights.
+- **C** bought 20 February at $77.00 — precisely C's limit price. C need never know, and on most feeds cannot know at fill time, that the counterparty was synthetic.
+
+**The books after the match:**
 
 | Book | Side | Price | Remaining lots |
 |---|---|---|---|
-| January (outright) | Ask | $75.00 | 30 (was 50, Trader A consumed 20) |
-| Jan/Feb Spread | Bid | −$2.00 | 10 (was 30, Trader B consumed 20) |
-| February (implied) | Ask | $77.00 | 10 (min of 30 and 10 remaining) |
+| January (outright) | Ask | $75.00 | 30 *(was 50)* |
+| Jan/Feb Spread | Bid | −$2.00 | 10 *(was 30)* |
+| February (implied) | Ask | $77.00 | **10** = min(30, 10) |
 
-**Where Trader B stands after the trade.** Trader B has successfully executed their spread strategy. Their clearing positions are:
-- Long 20 January lots at entry price $75.00
-- Short 20 February lots at entry price $77.00
+**Conservation accounting — the promise from the introduction, kept.** Before the match, the system contained 50 committed January lots and 30 committed spread lots; the 30-lot February quote was a *view* of those commitments, not an addition to them. After the match, 30 January lots and 10 spread lots remain, and the implied view has shrunk accordingly. Every one of the 20 lots C bought was constructed from one of A's lots plus one of B's lots, and each was consumed exactly once.
 
-The net economic result: they paid $75 for January and received $77 for February, a net receipt of $2 per lot, which is exactly the spread price they bid (−$2 means $2 received by the buyer). Their margin requirement is calculated on the *spread* exposure, which is much lower than holding two outright positions, because the long January and short February partly hedge each other against flat price moves in crude oil.
+**The removal test.** Cancel Trader A's January order and the implied February ask vanishes in the same event-processing cycle — there is nothing left to build it from. This is the definitive demonstration that the implied book holds no independent liquidity. Any implementation in which an implied quote can survive the cancellation of one of its ingredients is broken, and dangerously so: it is advertising a price the engine cannot honour.
 
-**Why no new liquidity was created.** Before the match, the total outstanding liquidity was:
-- 50 lots of January for sale at $75
-- 30 spread bids willing to buy January and sell February at a $2 differential
+### Level 4: Implied IN — Two Outrights Manufacture a Spread Quote
 
-After the match, the total outstanding liquidity is:
-- 30 lots of January for sale at $75
-- 10 spread bids
+Now the other direction. This time the *spread* book is thin and the outrights are live.
 
-In both cases, the February implied offer is entirely derived from the other two books. The 20 lots of February that Trader C bought were not new, they were constructed from 20 of Trader A's January lots and 20 of Trader B's spread lots. Each of those 20 lots was consumed exactly once. Nothing was duplicated.
+**The books:**
 
-Now remove Trader A's January order and watch what happens: the implied February offer disappears instantly, because one of its two components is gone. This is the definitive proof that the implied book holds no independent liquidity.
+| Book | Side | Price | Lots | Who |
+|---|---|---|---|---|
+| January (outright) | Bid | $74.40 | 25 | Trader D |
+| February (outright) | Ask | $76.60 | 40 | Trader E |
+| Jan/Feb Spread | — | *empty* | — | — |
 
-#### The Two Directions of Implied Matching
+The operational question: could anyone firmly *buy* the spread right now? Buying the spread means buying January and selling February — and neither of those is immediately possible against D and E (D is a January *buyer*, E is a February *seller*). Ask the mirror question instead: could anyone firmly **sell** the spread? Selling the spread means selling January and buying February. Selling January is possible — hit D's bid at $74.40. Buying February is possible — lift E's ask at $76.60. So an incoming spread seller can transact right now at 74.40 − 76.60 = **−$2.20**. The market is synthetically *bidding* −$2.20 for the spread:
 
-The example above is **implied-in**: an outright order plus a spread order imply a new outright in the other month.
+```
+Implied S_bid = Jan_bid − Feb_ask = 74.40 − 76.60 = −2.20
+Quantity      = min(25, 40) = 25 lots
+```
 
-The reverse is **implied-out**: two outright orders imply a spread. If there is a January buyer at $75 and a February seller at $77, the engine can see an implied spread sell at $75 − $77 = −$2. This implied spread sell can match a resting spread buyer at −$2. CME Globex supports both implied-in and implied-out across all its major futures products.
+Trader F submits a sell for 10 spreads at −$2.20. Atomic decomposition:
 
-#### Developer Implications
+1. **Jan leg:** F sells 10 January at $74.40 to Trader D.
+2. **Feb leg:** F buys 10 February at $76.60 from Trader E.
+3. **Spread print:** F sold 10 spreads at 74.40 − 76.60 = −$2.20 ✓.
 
-Implied matching creates several engineering challenges that are absent from simple outright matching:
+D and E each received a perfectly ordinary outright fill at their own limit price; neither needs to know a spread order was the aggressor. Afterwards: Jan bid 15 lots remain, Feb ask 30 lots remain, implied spread bid −$2.20 × 15 = min(15, 30).
 
-**Continuous recalculation.** Every change to an outright or spread order, a new order, a cancellation, a partial fill, potentially changes the implied prices in all related books. The engine must recalculate implied quotes in real time after every event.
+For completeness, the opposite synthetic quote needs the opposite ingredients: an implied spread **ask** requires a January *ask* and a February *bid* (Implied S_ask = Jan_ask − Feb_bid). With only D and E in the books, no implied spread ask exists — a synthetic quote exists only when every leg of its construction is individually executable.
 
-**Atomicity across legs.** When an implied order matches, all underlying legs must execute atomically. If any leg cannot execute (because, say, the underlying outright order was cancelled in the same microsecond), the entire match must be rolled back. This requires careful locking or sequential execution discipline.
+### Level 5: Quantity Rules — min(), Aggregation, and Shared Legs
 
-**Preventing double-execution.** Trader A's January order simultaneously participates in the January outright book and the implied February book. If both a direct January buyer and an implied February buyer arrive at the same instant, only one can fill Trader A, not both. The engine must serialise access to the underlying order regardless of which implied or outright path claims it first.
+The min() rule from Level 3 generalises, and the generalisation is where implementations start to acquire bugs.
 
-**Implied-of-implied (second-order implied).** Some exchanges allow implied orders derived from other implied orders, a spread-of-spreads implying an outright two months away, for instance. The combinatorial complexity grows quickly, and most exchanges limit the depth of implied chains (typically one or two levels).
+**Aggregation across contributors.** Suppose a second spread bidder joins Level 3's books:
 
-> **Key idea:** Implied orders are not free liquidity. They are a mechanism for expressing in one market the combined willingness already committed in two other markets. When an implied order matches, it consumes real orders from real books. The total liquidity in the system decreases by exactly the quantity matched, just as it would in any ordinary trade.
+| Book | Side | Price | Lots | Who |
+|---|---|---|---|---|
+| January | Ask | $75.00 | 50 | Trader A |
+| Spread | Bid | −$2.00 | 30 | Trader B |
+| Spread | Bid | −$2.00 | 15 | Trader H |
+
+Both spread bids combine with the *same* January ask to imply February asks at $77.00. The published implied quantity is not min(50,30) + min(50,15) = 45 by coincidence — it is min(50, 30+15) = **45**, and the distinction matters. The January ask is a **shared leg**: if A's ask were only 40 lots, the correct implied quantity would be min(40, 45) = 40, even though each pairwise min would still compute 30 and 15. An implementation that computes implied quantity pairwise and sums will over-advertise whenever a leg is shared. The correct statement: *the implied quantity at a price is the maximum flow that can be routed through the contributing orders simultaneously* — for chains, the bottleneck leg; for aggregations sharing a leg, the shared leg caps the total.
+
+**Regeneration after partial fills.** Implied quotes are recomputed, not decremented. After any fill or cancellation touching a contributing order, the engine re-derives the implied book from the current state of the real books. Level 3's post-trade table (implied 10 = min(30, 10)) is a recomputation, not "30 minus 20."
+
+### Level 6: Priority — Real Orders vs Implied Orders at the Same Price
+
+Suppose the February book contains both a real resting ask and an implied ask at the same price:
+
+| February book | Price | Lots | Source |
+|---|---|---|---|
+| Ask | $77.00 | 5 | **Real** — Trader G, resting since 09:31 |
+| Ask | $77.00 | 30 | Implied (A + B, per Level 3) |
+
+Trader C's buy for 20 at $77.00 arrives. Who fills?
+
+The general rule on the major venues: **at the same price level, direct (real) orders have priority over implied orders**, regardless of when the implied quote appeared. C's fill decomposes as 5 lots from G (a plain two-party outright trade), then 15 lots via the implied construction (the three-leg atomic execution from Level 3).
+
+The rationale mirrors the displayed-vs-hidden priority logic from the *Hidden Liquidity* section: a participant who committed capital directly in this book is rewarded ahead of a price that is merely a synthetic reflection of commitments elsewhere. It also has a practical engineering justification — the two-party fill is cheaper and simpler, so exhausting real liquidity first minimises the number of multi-leg atomic executions. Exchanges document the exact allocation per product (CME specifies implied participation within each product's matching algorithm), so treat "real before implied at the same price" as the strong default, and the product's rulebook as authoritative.
+
+### Level 7: Price Improvement Through Implication
+
+Implication does not just fill empty books; it can *beat* the real book. Suppose:
+
+| Book | Side | Price | Lots |
+|---|---|---|---|
+| January | Ask | $74.95 | 40 |
+| Spread | Bid | −$2.00 | 25 |
+| February | Ask (real) | $77.00 | 60 |
+
+The implied February ask is 74.95 − (−2.00) = **$76.95** — one tick *better* than the real February ask. An incoming market buy for 20 February fills at $76.95 via the implied path, and the real $77.00 seller is not touched. This is price improvement in exactly the Part II sense, delivered by cross-book arbitrage that the engine performs internally and instantly, rather than leaving a five-cent-wide inconsistency for a fast participant to harvest.
+
+This is the deeper purpose of implied functionality: it keeps the *set* of related books mutually consistent. Without implication, the relationship Jan_ask − S_bid < Feb_ask is a standing free lunch for whoever notices first; with implication, the engine itself closes the gap on behalf of the resting orders.
+
+### Level 8: Second-Generation Implieds
+
+Everything so far combined exactly two real orders. Some venues go further and allow an implied order to be built from a chain — most commonly, two spread orders whose middle legs cancel out.
+
+Suppose a March book exists, along with a Feb/Mar spread (S₂ = Feb − Mar):
+
+| Book | Side | Price | Lots |
+|---|---|---|---|
+| Jan/Feb Spread (S₁) | Bid | −$2.00 | 30 |
+| Feb/Mar Spread (S₂) | Bid | −$1.50 | 20 |
+
+The S₁ bidder stands ready to buy Jan and sell Feb; the S₂ bidder stands ready to buy Feb and sell Mar. Chain them and the February legs offset: jointly, the pair stands ready to buy January and sell **March** at (−2.00) + (−1.50) = **−$3.50**. That is an implied Jan/Mar spread bid at −$3.50, quantity min(30, 20) = 20 — an implied quote *both of whose ingredients are themselves spread orders*.
+
+When an incoming Jan/Mar seller hits it, the decomposition produces four leg positions across three participants, and the two internal February legs trade against each other at an exchange-assigned price (Level 1's leg-price-assignment rule, now doing real work: the February price is invisible in every order involved and must be manufactured consistently, on-tick, by the engine).
+
+**Why depth is limited.** Each additional generation multiplies the candidate combinations: with M related instruments, first-generation implieds already require examining every adjacent pair on every book event; second generation adds chains of chains, and the recomputation cost — and the size of the atomic multi-leg commit — grows combinatorially. Venues therefore cap implication depth, typically at one or two generations, and CME's product documentation specifies per product which implied types are enabled at all. When designing an engine, the implication depth is a configuration decision with a direct latency budget attached, not a free feature.
+
+### Level 9: Tick Alignment — Where the Arithmetic Meets Reality
+
+The formulas of Level 2 are exact arithmetic; real books are not. Two complications, both descendants of the *Tick Sizes and Fractional Ticks* chapter:
+
+**Spread ticks can differ from outright ticks.** Venues sometimes list a spread on a finer tick grid than its outright legs, precisely because spreads are less volatile than outrights. The moment the grids differ, an implied outright price computed from a spread price may land off the outright grid, and an implied spread price computed from two outrights may land off the spread grid. The engine must round — and, as with midpoint pegs, the rounding direction is an economic decision (it gives the residual tick fraction to one side), must be documented, and must be implemented in exactly one authoritative function shared by matching, market data, and clearing.
+
+**Leg price assignment must land on-tick.** Level 8's internally-generated February price must be a valid February tick, must keep every leg pair's difference equal to its spread trade price, and should stay inside that month's price collars. Venues publish their leg-pricing algorithms; an engine that assigns off-tick or collar-violating leg prices will produce trades that downstream systems reject — a failure mode far worse than rejecting the implied match up front.
+
+### Level 10: How Implieds Appear in Market Data
+
+Participants need to know implied liquidity exists, and sophisticated participants need to know *which part* of a displayed quantity is implied — an implied quote can vanish for reasons invisible in this book (its far-leg ingredient was cancelled), so its firmness has a different character than a real order's. Venues answer this in one of three documented ways: publish implied quantities as a separate book alongside the real book (CME's MDP3 feed disseminates implied depth distinctly for enabled products); aggregate real and implied quantity into one displayed number; or display only the real book and let implieds surface purely at execution. A market-data consumer must know which policy the venue uses, or its book reconstruction will disagree with the venue's — a classic source of "our depth doesn't match the exchange's" support tickets.
+
+### Engineering Deep-Dive
+
+With the mechanics established, the engineering challenges can be stated precisely.
+
+**Recalculation triggers and fan-out.** Every order event on any instrument in a related group — add, cancel, amend, partial fill — potentially changes implied quotes in every other book of the group. One cancellation of a deep spread order can move implied prices in several outright books at once, each movement generating market data. This *event fan-out* means implied-enabled products have a structurally higher ratio of market-data messages to order messages, which must be budgeted in the publishing path, not discovered in production.
+
+**Atomicity.** All legs of an implied match commit together or not at all. The single-threaded-per-book design from *The Matching Engine* chapter now shows its limits: an implied match spans multiple books, so either the related instrument group is assigned to one sequencer thread (the common production choice — the "partition by symbol" rule from Part IV becomes "partition by *related instrument group*"), or a cross-book commit protocol is required, with all the latency and complexity that implies.
+
+**Double-execution prevention.** Trader A's January order participates simultaneously in the January book and in the implied February ask. If a direct January buyer and a February buyer arrive in adjacent events, both paths claim A's lots — and only one may win. Serialised processing within the instrument group resolves this naturally: whichever event is sequenced first consumes the lots, and the recomputation step (Level 5) shrinks or removes the implied quote before the second event is processed. Any design that evaluates implied quotes against a stale copy of the contributing books reintroduces the race.
+
+**Determinism.** Implied recomputation must itself be deterministic: given the same event sequence, the same implied quotes must appear, in the same order, with the same rounding. Iterating over candidate combinations in hash-map order, or letting floating-point spread arithmetic creep in, breaks the replay guarantees the *Determinism, Replay, and Persistence* chapter establishes.
+
+**Testing invariants.** Implied logic is an ideal target for property-based testing, because its correctness conditions are crisp global invariants rather than example-shaped assertions:
+
+1. *Conservation:* after any event sequence, total resting quantity per real order never goes negative and is never consumed twice.
+2. *Firmness:* every published implied quote is executable at that instant — each ingredient exists with sufficient quantity.
+3. *Consistency:* no published implied price is off-grid for its book.
+4. *No-arbitrage closure:* after quiescence, no combination within the enabled implication depth prices better than the published books (Level 7's gap is always closed).
+5. *Removal test:* cancelling any single ingredient removes or correctly shrinks every implied quote built on it, within the same event cycle.
+
+A fuzzer generating random order flow across three related books, asserting these five properties after every event, will find more implied-matching bugs than any hand-written example suite.
+
+> **Key idea:** Implied orders are not free liquidity. They are the engine expressing, in one book, commitments already resting in others — so that related markets stay consistent, empty months stay tradeable, and cross-book price gaps are closed by the exchange itself rather than harvested by the fastest participant. When an implied order matches, real orders in real books are consumed, exactly once, atomically. Everything difficult about implementing implieds — shared-leg quantities, priority, tick rounding, fan-out, double-execution races — is downstream of taking that atomic, exactly-once consumption seriously.
+
+### Real-World Implementations
+
+**CME Globex** is the reference implementation for futures: implied IN and implied OUT functionality per product, implied depth disseminated on MDP3, and per-product documentation of which implied types and generations are enabled. **Eurex T7** provides equivalent functionality under the name *synthetic matching* for futures calendar spreads, with documented rules for synthetic price determination and leg pricing. **ICE** likewise operates implied pricing across its energy futures and their spread markets. The vocabulary differs per venue; the three-book mechanics of this chapter are the common core.
+
+### Self-Check Exercises
+
+*Answers follow; attempt each before reading on. Convention throughout: S = Near − Far.*
+
+**E1.** January: bid $74.20, ask $74.60. February: bid $76.10, ask $76.55. Compute the implied Jan/Feb spread bid and ask.
+
+**E2.** February bid $76.40 × 12 lots; Jan/Feb spread ask −$1.80 × 20 lots. What implied quote do these create, at what price and quantity?
+
+**E3.** In Level 3's books, Trader C instead submits a buy for 40 February at $77.00. Describe the outcome.
+
+**E4.** January ask $75.00 × 10; two spread bids at −$2.00 of 8 and 6 lots. What implied February quantity is published at $77.00, and why is 8 + 6 = 14 the wrong answer?
+
+**E5.** Jan/Feb spread ask −$1.70; Feb/Mar spread ask −$1.20. What second-generation implied quote do these create?
+
+**E6.** A colleague's implementation decrements implied quantities on fill instead of recomputing them, "for performance." Give one concrete sequence of events where this produces a firm-looking quote the engine cannot honour.
+
+&nbsp;
+
+<div style="page-break-after: always;"></div>
+
+&nbsp;
+
+#### Solutions
+
+**E1.** Implied S_bid = Jan_bid − Feb_ask = 74.20 − 76.55 = **−$2.35**. Implied S_ask = Jan_ask − Feb_bid = 74.60 − 76.10 = **−$1.50**. (Sanity check: the implied spread market −2.35 / −1.50 is wide because it stacks both outright spreads — an incoming spread trader pays both legs' crossing costs.)
+
+**E2.** This is a trap, and the trap is the point: **these two orders imply nothing.** Check the legs. The spread *ask* is a committed spread seller — sells Jan, buys Feb. For any construction involving it to be firm, its Feb-buying leg needs a resting Feb *ask* to lift; the only Feb order present is a *bid*, another buyer. No leg-complete construction exists, so no implied quote is published. Cross-check against the Level 2 table: the combination Feb_bid + S_ask appears in no row — the table pairs Feb_bid with S_bid (implied Jan bid) and Feb_ask with S_ask (implied Jan ask). If you mechanically computed 76.40 + (−1.80) = $74.60 and called it an implied Jan quote, you manufactured a price with no executable legs behind it — precisely the class of bug that testing invariant 2 ("every published implied quote is executable at that instant") exists to catch. The lesson: derive implied quotes from the operational question, never from sign-blind arithmetic.
+
+**E3.** The implied ask at $77.00 is 30 lots (min(50, 30)). C fills 30 lots via the three-leg construction: A sells 30 Jan at $75.00, B's spread fills 30 at −$2.00 (fully consumed), C buys 30 Feb at $77.00. B's spread order is exhausted, so the implied quote is recomputed to zero and C's remaining 10 lots rest as a real February bid at $77.00 — the February book now has genuine resting liquidity for the first time. A retains 20 January lots at $75.00.
+
+**E4.** Published quantity = min(10, 8 + 6) = **10**. The January ask is a shared leg: both spread bids route their February selling through the same 10 January lots, so the construction can carry at most 10 lots in total. Pairwise-min-then-sum (min(10,8) + min(10,6) = 14) counts the shared leg twice and over-advertises by 4 lots — quantity the engine could not deliver if hit.
+
+**E5.** Selling both spreads = (sell Jan, buy Feb) + (sell Feb, buy Mar) = sell Jan, buy Mar, with the Feb legs offsetting. Jointly they will *sell* the Jan/Mar spread at (−1.70) + (−1.20) = **−$2.90**: an implied Jan/Mar spread **ask** at −$2.90, quantity the min of the two spread quantities. The engine must additionally assign a consistent, on-tick February price for the two internal legs that cross each other.
+
+**E6.** Books: Jan ask 75.00 × 20 (A); spread bid −2.00 × 20 (B) → implied Feb ask 77.00 × 20. Event 1: a direct January buyer lifts A for 15 lots. A's remaining quantity is 5, so the true implied quantity is min(5, 20) = 5. A decrement-only implementation saw no fill *in the February book* and still advertises 20. Event 2: a February buyer sends buy 12 at $77.00 — the engine can construct only 5 lots and must reject, partially fill against a phantom, or (worst) let the atomic commit fail midway. Recomputation on every contributing-book event is not an optimisation opportunity; it is the correctness mechanism.
 
 
 ## Time-In-Force, How Long Should the Order Live?
@@ -974,7 +1205,7 @@ The exchange must verify available liquidity before executing any fills. In prac
 | **FOK** | No | No (all or nothing) | Immediate only | Arbitrage, multi-leg strategies |
 
 
-## The Order Book, The Exchange's Memory
+### The Order Book, The Exchange's Memory
 
 
 The **order book** (also called the **limit order book** or **LOB**) is the central data structure of a matching engine [1] [2]. It is the live record of every resting order in the market, all the buyers waiting to buy and all the sellers waiting to sell, organised by price.
@@ -1002,11 +1233,11 @@ Think of it as two sorted lists:
 
 The **spread** here is $150.35 − $150.34 = $0.01. The **mid price** is ($150.34 + $150.35) / 2 = $150.345. If a market sell order for 3,500 shares arrives, it sweeps bid size: 2,000 shares at $150.34 (exhausting that level), then 1,500 at $150.33 (also exhausting that level). The new best bid after the sweep is $150.32 with 3,200 shares remaining at that price level.
 
-### A Note on Implementation
+#### A Note on Implementation
 
 It is probably safe to say that no other data structure in an exchange is as heavily optimised as the order book. A modern exchange may maintain tens of thousands of order books simultaneously (one per tradeable symbol) and process millions of operations per second across them. Shaving a microsecond ($10^{-6}$s) from each operation or reducing the per-order memory footprint by a few bytes can translate directly into measurable throughput and latency gains at scale. Understanding *why* involves looking at how software architecture is shaped by hardware constraints.
 
-#### Principles of order book design
+##### Principles of order book design
 
 **Constant-time best price access.** The single most frequent operation is reading or modifying the best bid or best ask. Any design that requires traversal to find the top of book is immediately disqualified. Real implementations maintain direct pointers or indices to the best price level on each side, updated as levels are created or exhausted.
 
@@ -1016,7 +1247,7 @@ It is probably safe to say that no other data structure in an exchange is as hea
 
 **Minimise allocations on the hot path.** Dynamic memory allocation (malloc/new) is unpredictable in latency due to fragmentation and system calls. High-performance engines pre-allocate pools of order objects and price-level nodes at startup, then dispense and recycle from the pool during trading, achieving deterministic allocation latency.
 
-#### Aligning software architecture with hardware
+##### Aligning software architecture with hardware
 
 Modern CPUs are fast enough that raw instruction throughput is rarely the bottleneck. Instead, the limiting factor is **memory access latency**: an L1 cache hit takes ~1ns, an L3 hit takes ~10ns, but a main-memory fetch costs 50–100ns. A single cache miss during a match can dominate total processing time. This hardware reality drives several architectural choices:
 
@@ -1028,7 +1259,7 @@ Modern CPUs are fast enough that raw instruction throughput is rarely the bottle
 
 **Branch prediction and prefetching.** Critical paths are written to minimise unpredictable branches. Where future memory accesses are known (e.g. walking a price-level queue), software prefetch instructions are inserted manually so data arrives in cache before it is needed.
 
-#### How real exchanges achieve speed
+##### How real exchanges achieve speed
 
 **Single-threaded-per-book design.** Rather than using locks to protect a shared book from concurrent access, most production exchanges assign each order book to exactly one thread (or one core). All messages for that symbol are routed through a single sequencer thread. This eliminates lock contention entirely, which is the single largest source of latency variance in concurrent systems.
 
@@ -1044,8 +1275,132 @@ Modern CPUs are fast enough that raw instruction throughput is rarely the bottle
 
 The cumulative effect of these techniques is that a modern exchange can process an order, match it against resting liquidity, update the book, generate execution reports, and publish market data, all in well under 10 microseconds from the moment the network packet arrives.
 
+#### The Data Structure in Detail: Three Operations, Step by Step
 
-### The Spread
+The principles above describe *what* properties the structure must have. This section shows *how* they fit together, by walking through the three operations that every order book must support, against one concrete arrangement of data structures. The goal is not to prescribe the only correct design, it is to make the abstract complexity claims ("O(1) cancel by pointer", "O(1) best-price access") tangible enough to implement.
+
+**The concrete layout.** We assume the classic arrangement the previous sections described:
+
+- Each **side** (bid, ask) owns a price-indexed map from price to a **price-level** object. For a bounded, fixed-tick instrument this map is a direct-indexed array (price offset → slot); for an unbounded one it is a balanced tree or skip list. Either way, we treat "find the level for price P" as its own step, and note its cost.
+- Each **price level** holds a **doubly-linked list** of resting orders in strict time priority: head = oldest (front of queue), tail = newest (back of queue). It also caches its own `total_quantity` so depth queries need not walk the list.
+- Each **side** caches a pointer to its **best** price level (`best_bid_level` / `best_ask_level`), so top-of-book access never searches.
+- A global **order-ID → order-node** hash map lets a cancel or amend find the exact node in O(1) without knowing its price. Each order node stores back-pointers to its price level and its neighbours in the linked list.
+
+```
+Side (ASK)
+ ├── best_ask_level ───────────────┐
+ ├── price_map: {                   ▼
+ │     15035 ──► PriceLevel(150.35, total=1500)
+ │                 head► [O:501 q=1000 t=09:31:02] ◄──► [O:502 q=500 t=09:31:40] ◄tail
+ │     15036 ──► PriceLevel(150.36, total=2800)
+ │                 head► [O:503 q=2800 t=09:30:59] ◄tail
+ │   }
+ └── ...
+
+order_index: { 501 ► node@150.35, 502 ► node@150.35, 503 ► node@150.36, ... }
+```
+
+Every claim of speed in the previous sections is a claim about one of the three walk-throughs that follow.
+
+##### Operation 1: Insert a resting limit order
+
+A limit buy for 400 shares at $150.33 arrives and does **not** cross the ask (we handle the crossing case as Operation 3). It must be filed at the back of the queue for its price level, creating that level if it does not yet exist.
+
+```
+function insert_resting(order):                 # order: {id, side, price, qty, ts}
+    level = side(order.side).price_map.find(order.price)
+    if level is null:
+        level = pool.acquire_level(order.price)  # from pre-allocated pool, no malloc
+        side(order.side).price_map.insert(order.price, level)
+        update_best_pointer_on_insert(order.side, level)   # see note below
+    node = pool.acquire_node(order)              # from pre-allocated pool
+    list_append_tail(level, node)                # O(1): level.tail.next = node; ...
+    level.total_quantity += order.qty            # keep cached depth correct
+    order_index[order.id] = node                 # O(1) handle for later cancel/amend
+    publish_market_data_add(order.price, order.qty)
+```
+
+Cost analysis, tying back to the design principles:
+
+- `price_map.find` / `insert` is the *only* step whose cost depends on the price-map choice: O(1) for a direct-indexed array, O(log n) for a tree. Everything else is strictly O(1).
+- `list_append_tail` is O(1) because the level caches its tail pointer, this is why time priority (append at back) is cheap while price improvement (a new best level) is handled purely by the best-pointer update.
+- `update_best_pointer_on_insert` compares the new level's price to the current best on that side and, for a buy, replaces `best_bid_level` only if the new price is higher (for a sell, only if lower). This is the entire cost of a new order improving the top of book, one comparison, no search.
+- Both `acquire_level` and `acquire_node` come from startup-allocated pools, honouring "no allocation on the hot path."
+
+##### Operation 2: Cancel a resting order
+
+Cancellation is the most common message type in modern markets, so it must be the cheapest. This is exactly what the order-ID index and the doubly-linked list buy us:
+
+```
+function cancel(order_id):
+    node = order_index.get(order_id)
+    if node is null: return REJECT_UNKNOWN_ORDER     # already filled/cancelled
+    level = node.level
+    list_unlink(node)                 # O(1): node.prev.next = node.next; node.next.prev = node.prev
+    level.total_quantity -= node.qty
+    order_index.remove(order_id)
+    publish_market_data_delete(level.price, node.qty)
+    if list_is_empty(level):
+        side(node.side).price_map.remove(level.price)
+        if side(node.side).best_pointer == level:
+            recompute_best_pointer(node.side)   # only when the *best* level empties
+        pool.release_level(level)
+    pool.release_node(node)
+```
+
+The critical detail is `list_unlink`: because the list is *doubly* linked and the node holds pointers to both neighbours, removal is a couple of pointer writes with no traversal, regardless of where in the queue the order sat. A singly-linked list would force an O(queue-length) walk to find the predecessor, which is why the doubly-linked list is not a stylistic preference but a requirement. Note also that `recompute_best_pointer`, potentially the most expensive step, runs *only* when the level that emptied was itself the best on its side; a cancel deep in the book never touches the best pointer.
+
+##### Operation 3: An aggressive order sweeps the book
+
+Now the case that generates trades. A market (or marketable-limit) buy for 3,500 shares arrives against the ask side. It must consume resting liquidity from best price outward, in time priority within each level, until filled or until it runs out of book (or, for a limit, out of acceptable price).
+
+```
+function match_aggressive_buy(incoming):        # incoming: {qty, limit_price or ∞ for market}
+    while incoming.qty > 0:
+        level = ask_side.best_ask_level
+        if level is null: break                       # book exhausted on this side
+        if incoming.limit_price < level.price: break  # limit no longer marketable
+        node = level.head                             # oldest order first: time priority
+        while node is not null and incoming.qty > 0:
+            traded = min(incoming.qty, node.qty)
+            emit_trade(buyer=incoming, seller=node, price=level.price, qty=traded)
+            incoming.qty     -= traded
+            node.qty         -= traded
+            level.total_quantity -= traded
+            if node.qty == 0:                         # resting order fully filled
+                next_node = node.next
+                list_unlink(node)
+                order_index.remove(node.id)
+                pool.release_node(node)
+                node = next_node
+            else:
+                node = node                           # partial fill of resting order; sweep stops here
+                break
+        if list_is_empty(level):
+            ask_side.price_map.remove(level.price)
+            pool.release_level(level)
+            recompute_best_pointer(ASK)               # advance to next-best level
+    if incoming.qty > 0 and incoming.is_limit:
+        insert_resting(incoming)                      # unfilled remainder rests (Operation 1)
+```
+
+Trace it against the book from the start of this chapter, best ask $150.35 × 1,500, next $150.36 × 2,800:
+
+1. `level` = $150.35. `traded = min(3500, 1500) = 1500`. Trade printed at **$150.35**. Incoming now needs 2,000; the level empties, is released, best pointer advances.
+2. `level` = $150.36. `traded = min(2000, 2800) = 2000`. Trade printed at **$150.36**. Incoming is filled. The $150.36 level keeps 800 shares and becomes the new best ask.
+
+Two properties of this loop are worth making explicit because both were asserted earlier in the chapter without proof:
+
+- **Every fill in a sweep can print at a different price** (here $150.35 then $150.36). The single-price rule is a property of *auctions* (covered later), never of continuous sweeps, this loop is precisely where "market impact" and "slippage" come from.
+- **The inner loop preserves time priority**: it always starts at `level.head`, the oldest order, and a partial fill of a resting order (`node.qty > 0` after trading) *stops* the sweep, because if the incoming order could not consume even the front order at this level, it certainly cannot reach the orders behind it. The remaining incoming quantity then either rests (limit) or is done (market).
+
+> **Key idea:** The three operations, insert, cancel, sweep, are the entire contract of an order book, and each one's cost is dominated by a single step: the price-map lookup on insert, the pointer unlink on cancel, and the level-by-level walk on sweep. Every optimisation in the preceding sections (best-price pointers, doubly-linked queues, the order-ID index, pooled allocation) exists to make exactly one of those steps constant time. If you can implement these three functions with the costs annotated above, you have implemented the core of a matching engine; everything else is order types, risk checks, and protocol.
+
+##### A note on determinism
+
+Nothing in the three functions above reads a clock, consults a random source, or depends on iteration order of a hash map during matching (the `order_index` is used only for direct point lookups, never iterated during a match). This is deliberate, and it is what makes the engine replayable in the sense the *Determinism, Replay, and Persistence* chapter requires: given the same book state and the same ordered input, these functions produce identical trades in identical order. Introducing, say, a `map` whose iteration order varies between runs, or reading wall-clock time to break a tie, would silently destroy that guarantee.
+
+#### The Spread
 
 The **spread** is the gap between the best bid (highest buy offer) and the best ask (lowest sell offer). If the best bid is $150.30 and the best ask is $150.35, the spread is $0.05.
 
@@ -1055,17 +1410,17 @@ A **tight spread** (small gap) indicates a liquid, efficiently-priced market. A 
 
 The **mid price** is the arithmetic average of the best bid and best ask: (150.30 + 150.35) / 2 = $150.325. This is often used as the "current price" of an instrument when no trade has occurred recently.
 
-### Depth
+#### Depth
 
 **Depth** refers to how much quantity is resting at each price level. A market with 50,000 shares resting within $0.05 of the best bid is "deep", you can trade a large size without moving the price much. A market with only 100 shares available near the best price is "shallow", a single large order will sweep through multiple price levels.
 
 **Level 1 data** shows only the best bid price, best ask price, and quantities. **Level 2 data** (also called **market depth** or the full order book) shows all resting price levels. Professional traders subscribe to Level 2 data because depth reveals information about near-term price pressure.
 
-### Measuring Depth
+#### Measuring Depth
 
 Depth is not a single number, it is a shape. Practitioners and algorithms use several derived measures to quantify it for different purposes.
 
-**Quantity at a price level.** The simplest measure: the total resting quantity at a single specific price. If there are three sell orders at $150.35 for 200, 500, and 300 shares respectively, the quantity at $150.35 is 1,000 shares. This is what Level 2 data shows at each row.
+**Quantity at a price level.** The simplest measure: the total resting quantity at a single specific price. If there are three sell orders at $150.35 for 200, 500, and 300 shares respectively, the quantity at $150.35 is 1,000 shares. This is what Level 2 data shows at each row. (Note that this is exactly the `level.total_quantity` field the implementation above maintains incrementally, precisely so this query never walks the queue.)
 
 **Cumulative depth within N ticks.** More useful than a single level is knowing how much total quantity is available within a price range. If AAPL has a best ask of $150.35 and you sum all resting ask quantities from $150.35 to $150.45 (10 ticks), you get the total shares you could buy while moving the price at most 10 cents. A large cumulative depth within a few ticks indicates a resilient, liquid market; a small cumulative depth means a single large order will sweep many levels quickly.
 
@@ -1091,17 +1446,17 @@ Your 5,000-share buy sweeps all three levels: 2,000 at $150.35, 1,500 at $150.40
 VWAP = (2000 × 150.35 + 1500 × 150.40 + 1500 × 150.45) / 5000 = $150.395
 ```
 
-The **market impact** is the difference between this average and the initial best ask: $150.395 − $150.35 = $0.045 per share. Depth data lets a trader estimate their market impact before submitting, which is critical for execution strategy: split into smaller orders, use an iceberg, route to a dark pool, or simply accept the impact if time pressure is high.
+The **market impact** is the difference between this average and the initial best ask: $150.395 − $150.35 = $0.045 per share. Depth data lets a trader estimate their market impact before submitting, which is critical for execution strategy: split into smaller orders, use an iceberg, route to a dark pool, or simply accept the impact if time pressure is high. (This calculation is Operation 3 above, run as a read-only simulation against a copy of the book, rather than an actual match.)
 
 **Available depth at cost.** The inverse of the above: given a maximum acceptable average price (or maximum price movement), how large an order can you execute within that budget? This is how automated execution algorithms compute optimal slice sizes.
 
 **Volume-at-touch vs total book depth.** A useful distinction: *volume at touch* is only the best bid and ask (Level 1). *Total book depth* includes all visible levels. An iceberg order contributes only its visible peak to displayed depth, so total book depth may understate available liquidity if icebergs are present. This is why dark pool liquidity (invisible until matched) and iceberg reserves (invisible until refreshed) are relevant even to participants who believe they can read the full book.
 
-### Price Levels
+#### Price Levels
 
-A **price level** is a single specific price at which one or more orders are resting. All orders at $150.30 form one price level on the bid side. When all orders at a given price level have been filled or cancelled, that price level disappears from the book.
+A **price level** is a single specific price at which one or more orders are resting. All orders at $150.30 form one price level on the bid side. When all orders at a given price level have been filled or cancelled, that price level disappears from the book. (In the implementation above, this is the `pool.release_level` step, and it is also the moment the best pointer may need to advance.)
 
-### The Order Book Is Not the Market Price
+#### The Order Book Is Not the Market Price
 
 This is a subtle but important point: the order book shows only **resting orders**, orders that have not yet traded. The current market price, as quoted in news tickers and trading apps, is typically the price of the **most recent actual trade**, not the price of any resting order. After a trade happens, the market price updates. Between trades, the price is conventionally shown as the mid of the book.
 
@@ -1125,10 +1480,9 @@ The closing price carries particular weight precisely because it is independentl
 
 For exchange developers, the closing price has several concrete implications. It is the reference that the static price collar compares each new day's orders against. It is the benchmark that performance reports are measured against. It is the number that triggers overnight margin calls if positions have moved far enough. And it is the price that must be persisted at end of session, broadcast to all downstream systems, and made available when the exchange reopens the following morning.
 
-### What the World Sees vs What the Engine Knows
+#### What the World Sees vs What the Engine Knows
 
-Most market participants see only an **aggregated view** of the book: total quantity at each price level, without knowing how many individual orders make up that quantity or who placed them. The exchange itself knows the full detail, every individual order, its owner, its arrival time, its type. Publishing the aggregated view is part of the exchange's **market data** service; it's how participants observe the market.
-
+Most market participants see only an **aggregated view** of the book: total quantity at each price level, without knowing how many individual orders make up that quantity or who placed them. The exchange itself knows the full detail, every individual order, its owner, its arrival time, its type. Publishing the aggregated view is part of the exchange's **market data** service; it's how participants observe the market. (The engine's private, per-order detail is exactly the doubly-linked queue of nodes from the implementation section; the public aggregated view is the `total_quantity` per level. The two are kept consistent by updating the cached total on every insert, cancel, and fill.)
 
 ## Price-Time Priority, The Fairness Rule
 
@@ -1190,6 +1544,16 @@ For most US equities, the tick size is $0.01 (one cent); for US equity futures o
 ## Tick Sizes and Fractional Ticks
 
 The previous section introduced the tick as the minimum price increment and showed why prices are stored as integer tick counts rather than floating-point decimals. That was the minimum you needed to read the rest of Part II. This section goes deeper, because tick size is one of the most common sources of subtle numerical bugs in exchange software, and because it has a genuinely interesting history that explains why the rules look the way they do today.
+
+!!! note "The Odd-Eighths Scandal: The Study That Moved a Market (1994–97)"
+
+    In 1994, finance professors William Christie and Paul Schultz published a deceptively simple observation: for a large set of heavily traded NASDAQ stocks, market makers almost never quoted prices in odd eighths ($⅛, ⅜, ⅝, ⅞). With the even eighths alone in use, the effective minimum spread was a quarter dollar, not the eighth the tick regime allowed — consistent with tacit coordination among dealers to keep spreads wide. The market's reaction was itself a natural experiment: on 27 May 1994, the day after the findings were reported in the press, quoted spreads on several of the named stocks collapsed by roughly half, overnight, with no rule change of any kind — documented in a companion paper by Christie, Harris, and Schultz in the same issue of the *Journal of Finance*. The Department of Justice and the SEC investigated; the SEC's Section 21(a) report (August 1996) found that NASDAQ dealers had followed a "quoting convention" and that the NASD had failed to police its own market; the follow-on civil litigation settled in 1997 for approximately $1.03 billion, then the largest antitrust settlement on record. The regulatory aftermath — the SEC's Order Handling Rules (1997), Regulation ATS (1998), and momentum toward decimalization (2001) — reshaped US equity market structure. It remains the cleanest documented case of an academic paper, standing on public quote data, exposing and ending a market-wide pricing convention.<br>&nbsp;<br>
+
+    **References:** William G. Christie and Paul H. Schultz, "Why Do NASDAQ Market Makers Avoid Odd-Eighth Quotes?" *Journal of Finance* 49(5), 1994; William G. Christie, Jeffrey H. Harris, and Paul H. Schultz, "Why Did NASDAQ Market Makers Stop Avoiding Odd-Eighth Quotes?" *Journal of Finance* 49(5), 1994
+
+
+
+
 
 ### Recap: Why Integer Tick Counts
 
@@ -1515,12 +1879,12 @@ flowchart TD
 This cycle, repeating dozens of times per minute per symbol, is what "providing liquidity" means operationally. A professional market maker runs sophisticated algorithms that evaluate every fill, update pricing models, and decide within microseconds whether and at what prices to re-quote.
 
 
-## The Opening and Closing Auction
+### The Opening and Closing Auction
 
 
 Trading does not simply start at 9:30am and stop at 4:00pm (for US equities). The transition between closed and open trading is managed through a **call auction**, also called a **fixing** or **uncross**.
 
-### The Problem an Auction Solves
+#### The Problem an Auction Solves
 
 Imagine the exchange has been closed overnight. Many participants have new orders to submit. If the exchange simply opened and started matching immediately, the first few orders would define the opening price, which would be arbitrary and potentially far from "fair value" based on overnight news.
 
@@ -1536,7 +1900,7 @@ Instead, exchanges run an **opening auction**:
 
 The result is a fair opening price that reflects the overnight information available to all participants simultaneously, rather than favouring whoever happened to submit their order a few milliseconds earlier.
 
-### Finding the Equilibrium Price
+#### Finding the Equilibrium Price
 
 The equilibrium price is the price that maximises total traded volume, the **maximum executable volume rule**. For each candidate price, the algorithm calculates:
 - How many buy orders would trade at that price or better (buyers willing to pay at least that much)
@@ -1572,10 +1936,53 @@ The equilibrium price is **$151** , the single price at which the most volume (1
 
 **Auction imbalance messaging:** Exchanges often publish the **imbalance**, how many more shares are on the buy side than the sell side at the indicative price, to help participants decide whether to submit offsetting orders before the uncross. NYSE publishes closing auction imbalances starting at 3:45pm, giving participants 15 minutes to respond before the 4:00pm uncross.
 
-### The Closing Auction
+#### Auction-Only Order Types
+
+The order types introduced in the *Order Types* chapter are the vocabulary of *continuous* trading. Auctions add a small, specialised vocabulary of their own, order types that exist specifically to participate in an uncross and that behave differently, or do not exist at all, during continuous matching. A developer implementing an auction must handle these as distinct types with their own eligibility rules, not as ordinary limit orders that happen to arrive during the call period.
+
+**Market-on-Open / Market-on-Close (MOO / MOC).** An instruction to trade at whatever price the auction produces, with no price limit. An MOC order says, in effect, "I want to be part of the closing print, at the closing price, whatever it is." Because it names no price, it is always willing to trade and therefore always counts toward executable volume at the eventual equilibrium; its only risk is the auction price itself. MOO is the opening-auction equivalent.
+
+**Limit-on-Open / Limit-on-Close (LOO / LOC).** The same idea with a price limit. An LOC to buy at $151 participates in the closing auction only if the closing price is $151 or lower. It expresses "I want the close, but not above (or below) this price."
+
+**Imbalance-only orders (IO).** This is the auction-specific type most likely to surprise a developer, because it is defined *relative to the auction's own imbalance* rather than as a standalone buy or sell. An imbalance-only order provides liquidity **only on the side that offsets a published imbalance**, and only at prices that do not disturb the auction's price discovery. NASDAQ's Imbalance-Only order is the canonical example: an IO buy order is eligible to execute only against a sell-side imbalance, and NASDAQ constrains its effective price so that it can absorb imbalance without pushing the cross price through the prevailing quote. The purpose is to invite offsetting liquidity into a lopsided auction without letting that liquidity itself become a new source of price distortion.
+
+**Closing Offset orders (CO).** NYSE's Closing Offset order is a close cousin: a CO order participates in the closing auction *only to offset an imbalance on the opposite side*, and is the lowest-priority interest in the auction, it executes only after other eligible closing interest, and only to the extent it reduces a published imbalance. It lets a participant say "use me only if I am genuinely needed to balance the book," which is attractive to a trader who wants closing-price execution but does not want to add to a one-sided pileup.
+
+**Why these types need dedicated handling.** Each of these interacts with the equilibrium calculation differently:
+
+- MOO/MOC are unconditionally executable and simply add to both the "willing to buy at any price" and "willing to sell at any price" tallies.
+- LOO/LOC behave like ordinary limit orders *within* the auction's cumulative-volume calculation.
+- IO and CO orders are **conditional on the imbalance itself**, which means they can only be evaluated *after* a provisional imbalance has been computed from the other order types, and they must not be allowed to reverse the imbalance or move the price outside a permitted band. In implementation terms, the uncross is therefore not a single pass: the engine computes the equilibrium and imbalance from price-carrying and market orders first, then admits imbalance-offsetting interest to the extent it reduces (never inverts) the imbalance, then re-derives the final print.
+
+**A note on cut-off times.** Auction order types have entry and cancellation deadlines that differ from continuous-session rules, for example, on the major US venues, MOC and LOC orders have historically had a late-afternoon entry cut-off (in the region of 3:50pm Eastern), after which they may be entered or modified only to offset a published imbalance, and not freely cancelled. These exact times are set by exchange rule, are periodically revised, and differ between venues; treat any specific time in this book as illustrative and verify against the current rulebook of the venue you are building for.
+
+#### The Named Crosses: Opening Cross and Closing Cross
+
+Real venues brand and specify their auctions as named mechanisms, and an engineer reading exchange documentation will meet the names rather than the generic term "uncross." The mechanics are the equilibrium algorithm described above; the names denote the specific rule set, order types, and imbalance dissemination each venue attaches to it.
+
+**The NASDAQ Opening Cross and Closing Cross.** NASDAQ runs its opening and closing auctions as the **Opening Cross** and **Closing Cross**. In the run-up to the cross, NASDAQ disseminates order imbalance information, the indicative clearing price, the size of any imbalance, the paired-off quantity, at defined intervals so participants can respond with offsetting or imbalance-only interest. The Closing Cross establishes the **NASDAQ Official Closing Price (NOCP)**, the number used to value NASDAQ-listed securities at end of day. NASDAQ's cross is a fully electronic, rules-based uncross: the equilibrium price is chosen to maximise executable volume, with documented tie-breaks analogous to those above.
+
+**The NYSE close and the Designated Market Maker.** NYSE's closing auction reaches the same kind of single-price print but retains a human-supervised element that reflects NYSE's floor heritage: the **Designated Market Maker (DMM)** for each security is responsible for facilitating the close, and may, within strict rules and electronic constraints, help set the closing auction price when conditions are unusual. In ordinary conditions the process is electronic and formulaic; the DMM's role is a controlled backstop for the difficult cases (large imbalances, news, illiquidity), not a discretionary override of price discovery. NYSE publishes closing imbalance information in the final minutes (as noted above, from 3:45pm) so that offsetting interest can be attracted before the print.
+
+**Why the closing print is worth this much machinery.** The reason both venues invest so heavily in a robust, well-policed close is the same reason the next section on manipulation exists: an enormous quantity of economic activity references the closing price specifically. Index funds must trade at the close to track their benchmark; derivatives settle against it; fund NAVs are struck at it; performance is measured against it. A closing price is not merely the last number of the day, it is a contractually and financially load-bearing benchmark, which is exactly what makes it a target.
+
+#### The Closing Auction
 
 The closing auction works identically but at the end of the day, establishing the official **closing price**. This is one of the most important prices in the market, it is used to benchmark fund performance, price derivatives, and compute official valuations of positions. The NYSE closing auction is one of the most liquidity-rich events in the US equity market: it regularly accounts for 10–15% of a stock's entire day's trading volume, compressed into a few seconds of uncrossing [NYSE Closing Auction Dynamics, 2023]. On some benchmark index rebalancing days the proportion is even higher, as index funds must trade at exactly the closing price to match their benchmarks.
 
+#### Manipulating the Close, and Why the Auction Is Policed
+
+Because so much value references the closing price, the close is a standing target for manipulation. The generic abuse is called **marking the close** (or, for a benchmark fixing more generally, **banging the fix**): entering orders near the end of the auction period not to trade on their merits but to push the official price in a direction that benefits a position held elsewhere, a large derivatives position expiring against the close, an index-tracking obligation, a fund's month-end valuation, or simply a book that is marked to the closing price.
+
+The mechanics of the defence are already present in the design above. Imbalance dissemination lets honest offsetting interest arrive to counter an artificial push. The imbalance-only and closing-offset order types exist precisely to attract price-stabilising liquidity. The single-price uncross means a manipulator cannot cherry-pick; they must move the whole equilibrium, which requires committing real, exposed size. And every order into the auction is captured in the audit trail, timestamped and attributed, which is what makes after-the-fact enforcement possible.
+
+> **Historic Note: Marking the Close by Algorithm, Athena Capital, 2014**
+>
+> In October 2014 the U.S. Securities and Exchange Commission settled charges against **Athena Capital Research**, a high-frequency trading firm, for manipulating the closing prices of thousands of NASDAQ-listed stocks over a six-month period in 2009, the first SEC enforcement action for manipulation brought against a high-frequency trading firm. Athena's algorithm, known internally as **"Gravy,"** concentrated a large volume of aggressive orders in the final seconds before the close, in the securities where Athena held imbalance positions, in order to push the NASDAQ Closing Cross price in its favour. Internal communications, quoted in the SEC's order, described the intent in plain terms and even referred to the tactic in ways that made the manipulative purpose explicit, evidence drawn directly from the kind of audit trail this Part describes. Athena, without admitting or denying the findings, paid a $1 million penalty. The case is instructive for exchange developers for three reasons: it demonstrates that the closing auction's economic importance makes it a manipulation target; that the very imbalance information published to *improve* the auction can be gamed by a participant willing to trade against it artificially; and that the defence is ultimately the completeness of the timestamped, attributed audit trail, the same infrastructure the *Regulatory Surveillance* and *Determinism and Replay* chapters treat as first-class engineering requirements. [U.S. Securities and Exchange Commission, *In the Matter of Athena Capital Research, LLC*, Administrative Proceeding File No. 3-16199, 16 October 2014.]
+
+For the developer, the lesson is that an auction is not only a price-discovery algorithm but a *policed* one. The obligations this places on the system are concrete: disseminate imbalance and indicative-price information accurately and on schedule; enforce the entry and cancellation cut-offs for auction order types exactly; constrain imbalance-offsetting order types so they cannot themselves distort the print; and capture every auction message in the audit trail with the same rigour as continuous-session orders, because the closing print is precisely the number a regulator is most likely to ask you to reconstruct.
+
+> **Key idea:** The opening and closing auctions run the same maximum-executable-volume equilibrium algorithm as any call auction, but the closing print's role as a load-bearing financial benchmark drives everything distinctive about them: dedicated auction-only order types (MOC/LOC, imbalance-only, closing-offset), venue-specific named crosses with imbalance dissemination, a human backstop at NYSE, and an explicit surveillance and audit-trail burden aimed at the ever-present incentive to mark the close.
 
 ## Trading Sessions, The Day in the Life of a Market
 
@@ -1924,6 +2331,79 @@ Indexes feed risk control in other ways too:
 - **Correct, deterministic, auditable** index calculation is critical because derivatives settle on it, funds are priced on it, and risk controls fire on it.
 - Watch for **stale prices, closing-print manipulation, reconstitution turbulence, reflexivity, and corporate-action edge cases**.
 - Indexes are wired into **risk control**: in the US, **market-wide circuit breakers** halt all trading based on S&P 500 declines of 7%, 13%, and 20%.
+
+### Benchmark Integrity: LIBOR, the FX Fix, and the Anatomy of a Riggable Number
+
+
+The *Indexes* chapter made a structural argument: because so many instruments and obligations reference a single published number, the integrity of that number is a systemic concern, not a cosmetic one. That chapter treated the failure mode as *accidental*, a stale price, a wrong divisor, a miscalculation propagating downstream. This chapter treats the same structural fact from the other direction. When a widely referenced benchmark is computed from inputs that interested parties can *influence*, the benchmark is not merely fragile, it is **riggable**, and the history of the last two decades contains two enormous, exhaustively documented demonstrations of exactly that: the manipulation of **LIBOR** and the manipulation of the **4pm WM/Reuters foreign-exchange fix**. Together they produced tens of billions of dollars in fines, criminal convictions, the wholesale replacement of one of the most important numbers in finance, and a global re-engineering of how benchmarks are constructed. For anyone building systems that produce or consume reference prices, they are the definitive case studies in benchmark design.
+
+#### What Makes a Benchmark Riggable
+
+A benchmark is a number, published on a schedule, that summarises the price of something so that contracts can reference it instead of specifying a price directly. "The interest rate on this loan resets every quarter to three-month LIBOR plus 2%." "This fund is valued at the 4pm London fix." "This structured note pays out based on the closing level of the index." The reference is a convenience of staggering scale: at its peak, LIBOR was referenced by an estimated **$300+ trillion** in financial contracts worldwide, from multi-billion-dollar interest-rate swaps down to individual adjustable-rate mortgages and student loans.
+
+Three properties, taken together, make a benchmark vulnerable to manipulation. They are worth stating precisely, because a benchmark that avoids all three is very hard to rig, and every reform described later in this chapter is an attack on one of them.
+
+1. **The inputs are submitted or influenceable, not observed from arm's-length transactions.** If the benchmark is computed from numbers that participants *report*, or from a market thin enough that a participant can *move* it with their own trading, then the people who benefit from a particular outcome are, at least partly, the same people who determine the inputs.
+
+2. **The people who set the inputs have positions that the benchmark settles.** Manipulation requires a motive. If a submitting bank also runs a large derivatives book that pays out against the benchmark, every basis point of the published number is worth money to the submitter directly.
+
+3. **The calculation window is narrow and predictable.** If the benchmark is a snapshot taken over a short, known interval, a manipulator knows exactly when to concentrate their influence, and a small amount of activity at the right instant moves the published number by more than the same activity spread across the day would.
+
+LIBOR failed the first two conditions catastrophically. The FX fix failed all three. Neither failure was subtle in retrospect; both were, for years, simply not looked at closely enough.
+
+#### Case One: LIBOR, a Benchmark Built on Self-Reported Estimates
+
+**How LIBOR was constructed.** The London Interbank Offered Rate was, in its classic form, not a measurement of transactions at all. Each business day, a panel of major banks was asked a hypothetical question: at what rate could *you* borrow unsecured funds from another bank, in a given currency, for a given tenor, right now? Each panel bank *submitted an estimate*. The administrator (historically the British Bankers' Association) discarded the highest and lowest submissions, a **trimmed mean**, and averaged the rest to produce the day's published rate for each currency and tenor. Rates were published across several currencies and many maturities.
+
+Every one of the three vulnerability conditions was present, and the first two acutely so. The inputs were *self-reported estimates*, not transactions (condition 1, in its strongest possible form, there was frequently no underlying trade to anchor a submission to at all, especially once interbank lending dried up in the crisis). And the submitting banks ran vast derivatives books whose value depended on where LIBOR fixed (condition 2). A trader whose swap position gained value if three-month LIBOR were a basis point higher could, and as the record established, sometimes did, simply ask a colleague on the submissions desk to nudge the estimate.
+
+**The two distinct abuses.** The investigations uncovered two overlapping but separable forms of manipulation:
+
+- **Derivatives-driven skewing.** Traders requested specific submission levels to benefit their own trading positions, sometimes across banks, coordinating so that several panel members skewed the same way and moved the trimmed mean. Internal messages, later quoted in regulatory findings and criminal trials, recorded these requests with damning candour.
+
+- **Crisis-era "lowballing."** During 2007–09, a bank's LIBOR submission was read by the market as a signal of its own creditworthiness: a bank that admitted it could only borrow at a high rate was advertising distress. Several banks submitted artificially *low* rates to appear healthier than they were, distorting the benchmark for reasons of self-preservation rather than trading profit.
+
+**The consequences.** The enforcement wave was among the largest in financial history. **Barclays** was the first to settle, in June 2012, paying roughly **$450 million** across the U.S. CFTC, the U.S. Department of Justice, and the U.K. FSA; the surrounding scandal cost the bank its chairman and chief executive. **UBS** settled in December 2012 for about **$1.5 billion**, and **RBS** in early 2013 for around **$610 million**, both with criminal components attached to subsidiaries. Further settlements followed against other panel banks and interdealer brokers. Aggregate LIBOR-related fines across the industry exceeded **$9 billion**, and several individual traders were criminally convicted and imprisoned. Crucially, the manipulation was possible for years despite the enormous stakes, precisely because no one was checking the submissions against transactions, there were often no transactions to check against.
+
+**The structural fix: replace the benchmark.** LIBOR could not be patched, because its fatal flaw was its foundation, self-reported estimates of an activity (unsecured interbank term lending) that had largely stopped happening. The response was to move the world's benchmarks onto **transaction-based, secured, overnight rates** computed from observed trades in deep markets. In the United States, the Alternative Reference Rates Committee selected **SOFR** (the Secured Overnight Financing Rate), calculated by the Federal Reserve Bank of New York from actual overnight Treasury repurchase transactions, hundreds of billions of dollars of real trades every day, essentially impossible for any single participant to move or misreport. The United Kingdom moved to a reformed **SONIA**; other jurisdictions adopted their own transaction-based overnight rates. Administration of LIBOR itself had already been taken from the BBA and given to a regulated administrator (ICE Benchmark Administration) in 2014, but administration reform was not enough; the number had to be retired. Most USD LIBOR settings ceased to be published after **mid-2023**, ending a benchmark that had underpinned global finance for decades.
+
+The lesson is stated most sharply as a design principle: *a benchmark should be computed from observed transactions in a market too deep for any participant to move, not from the self-interested reports of the parties it enriches.* Every property that made LIBOR riggable is inverted in SOFR.
+
+#### Case Two: The 4pm FX Fix, a Benchmark Built on a Narrow Window
+
+If LIBOR is the case study in riggable *inputs*, the WM/Reuters 4pm London fix is the case study in a riggable *window*, condition 3 above, and it shows that even a benchmark computed from *real transactions* can be manipulated if the calculation interval is short and predictable enough.
+
+**How the fix was constructed.** Enormous quantities of foreign exchange, especially the passive, index-tracking flows of pension funds and asset managers, are transacted not at a negotiated price but at a daily **benchmark rate**: the WM/Reuters fix, of which the **4pm London fixing** is the most important. Historically the fix for major currency pairs was computed from actual trades and quotes captured over a short window, on the order of **one minute**, centred on 4:00pm London time. A client who instructed their bank to trade "at the 4pm fix" would receive whatever rate the fix produced, and the bank undertook to fill them at that rate.
+
+Here is the structural problem. The banks knew, in advance, the direction and often the rough size of the client orders they had agreed to fill at the fix, because clients placed those orders ahead of time. That advance knowledge, combined with a one-minute calculation window, created both the motive and the mechanism. A bank sitting on a large "buy euros at the fix" client order could buy euros aggressively *during* the fixing window to push the fix rate up, fill the client at that inflated rate, and pocket the difference between what it paid to accumulate the position and the higher fix at which it sold to the client. The tactic was known, self-descriptively, as **"banging the close."**
+
+**The coordination.** What turned a structural vulnerability into a scandal was collusion. Traders at different banks, holding offsetting or reinforcing fix orders, coordinated in electronic chat rooms, given names by their own participants that read as confessions: **"The Cartel," "The Bandits' Club," "The Mafia."** They shared confidential information about the size and direction of client orders and agreed how to trade the window jointly, so that their combined activity would move the fix reliably in the direction that maximised their collective profit at their own clients' expense.
+
+**The consequences.** In November 2014 a coordinated set of regulators, the U.K. FCA, the U.S. CFTC, the U.S. OCC, and the Swiss FINMA, announced settlements with six major banks totalling roughly **$4.3 billion**, with the FCA's portion (about **£1.1 billion** across five banks) the largest it had ever imposed at that time. Further settlements and, in the United States, criminal pleas followed in 2015, pushing global FX-manipulation penalties well above **$10 billion**. As with LIBOR, individual traders faced prosecution, and the chat-room transcripts became the evidentiary core of the cases, again, an attributed, timestamped audit trail proving intent.
+
+**The structural fix: widen the window and change the incentives.** The FX fix, unlike LIBOR, did not have to be abolished, because it was at least based on real transactions; it had to be made *harder to bang*. Following recommendations from the Financial Stability Board (2014–15), the calculation window for the major fixes was **widened from one minute to five minutes**. The arithmetic of manipulation is unforgiving of this change: moving a five-minute volume-weighted benchmark requires roughly five times the committed capital, and exposes the manipulator to five times the market risk, of moving a one-minute one, for the same effect on the published number. Alongside the wider window came clearer conduct rules separating the handling of client fix orders from proprietary trading, and greater transparency around fixing methodology. The reform is a clean illustration of attacking condition 3 directly: you cannot always change what a benchmark measures, but you can often change *how narrowly in time* it measures it, and a wider window is a structurally more manipulation-resistant one.
+
+#### What the Developer Should Take From This
+
+These are conduct-and-regulation stories, but they rest on system-design facts, and the engineering lessons generalise well beyond LIBOR and FX to any system that produces or consumes a reference price, including the closing auction of the *Opening and Closing Auction* chapter and the index calculation of the *Indexes* chapter.
+
+**Prefer observed transactions over reported estimates.** A benchmark anchored to actual, arm's-length trades in a deep market removes the "riggable input" vulnerability at its root. If you are designing a reference price, the first question is whether it can be computed from things that happened rather than things people said.
+
+**Prefer wide, and ideally unpredictable, calculation windows.** The narrower and more predictable the snapshot, the cheaper it is to bang. Volume-weighting over a longer interval raises the capital cost of manipulation in direct proportion. Where a snapshot is unavoidable (an auction *is* a snapshot), the compensating controls are the ones the auction chapter described: imbalance dissemination, offsetting order types, single-price uncrossing, and audit capture.
+
+**Separate the parties who set the inputs from the parties who profit from the output**, or, where you cannot separate them, surveil the boundary relentlessly. The LIBOR submissions desk sitting near the derivatives desk, and the FX fixing desk knowing the client order book, are the same structural conflict that self-match prevention and information-barrier controls exist to police inside an exchange.
+
+**The audit trail is what makes benchmarks enforceable after the fact.** In every one of these cases, the decisive evidence was the timestamped, attributed record, chat logs, submission histories, order timings, that reconstructed intent. This is the same completeness-and-immutability requirement that the *Regulatory Surveillance* and *Determinism, Replay, and Persistence* chapters place on the exchange itself. A benchmark you cannot reconstruct is a benchmark you cannot defend.
+
+> **Key idea:** A benchmark is riggable to the exact extent that interested parties can influence its inputs, hold positions that it settles, and know when its narrow calculation window falls. LIBOR failed on inputs (self-reported estimates by the banks the rate enriched) and was abolished in favour of transaction-based rates like SOFR; the 4pm FX fix failed on its window (one predictable minute, tradeable by banks who knew the client flow) and was hardened by widening the window to five minutes. Both produced fines in the billions and criminal convictions, and both teach the same design rule the *Indexes* chapter began: a number that the whole market leans on must be engineered, measured from deep observed markets, over windows too wide to bang, with the input-setters walled off from the output-beneficiaries, and fully captured in an audit trail, because its importance is precisely what makes it a target.
+
+#### References
+
+- U.S. Commodity Futures Trading Commission, U.S. Department of Justice, and U.K. Financial Services Authority: orders and statements of facts in the Barclays LIBOR settlement (June 2012); UBS (December 2012); RBS (February 2013).
+- U.K. Financial Conduct Authority, U.S. CFTC, U.S. Office of the Comptroller of the Currency, and Swiss FINMA: final notices and orders in the November 2014 foreign-exchange benchmark settlements; U.S. Department of Justice FX-related guilty pleas (May 2015).
+- Financial Stability Board, *Foreign Exchange Benchmarks* (final report, September 2014) and *Reforming Major Interest Rate Benchmarks* (July 2014 and subsequent progress reports), including the recommendation to widen the fix calculation window.
+- Martin Wheatley, *The Wheatley Review of LIBOR* (final report, HM Treasury, September 2012), on transferring administration and reforming submission practice.
+- Federal Reserve Bank of New York and the Alternative Reference Rates Committee: publications on SOFR and the transition away from USD LIBOR (2017–2023); ICE Benchmark Administration assumption of LIBOR administration (2014); cessation of most USD LIBOR settings (2023).
 
 ## Part III: Risk, Compliance, and Post-Trade
 
@@ -2450,6 +2930,15 @@ Not all market participants have direct relationships with the CCP. The clearing
 **Non-clearing members** are firms whose trades must be guaranteed by a clearing member. A hedge fund, for example, typically cannot be a direct clearing member of a CCP. Instead, it routes its trades through a **clearing broker** (usually a prime broker who is also a clearing member), who guarantees settlement to the CCP. The hedge fund posts margin to the clearing broker; the clearing broker posts to the CCP.
 
 This hierarchy matters for exchange developers because the clearing system must track not just which firm traded, but which clearing member guarantees each trade. The risk layering determines who bears the loss if a participant defaults: first the participant's posted margin, then the clearing broker's guarantee, then the CCP's guarantee fund, and finally the surviving clearing members' mutualized contributions. Understanding this chain explains why clearing brokers care so intensely about the credit quality and position size of their clients.
+
+
+!!! note "The Panic of 1907 and the Birth of the Lender of Last Resort"
+
+    On 22 October 1907, depositors ran on the Knickerbocker Trust Company in New York after its president was linked to a failed attempt to corner the copper market. The run spread across the trust companies, call-money rates on the NYSE spiked above 100% annualised, and the exchange's president later recounted that the market came within hours of closing outright. There was no central bank; the crisis was contained because J. Pierpont Morgan personally convened the city's bank presidents — famously locking them in his library overnight — and directed pooled liquidity to solvent-but-illiquid institutions, while the US Treasury deposited federal funds with the banks. The near-miss made the structural point unarguable: a financial system without an institutional liquidity backstop depends on the judgement, balance sheet, and mortality of individuals. Congress responded with the Aldrich–Vreeland Act (1908) and the National Monetary Commission, whose work led directly to the Federal Reserve Act of 1913. The margin spirals, circuit breakers, and CCP default waterfalls described in this Part are all, in a sense, institutionalised replacements for Morgan's library.<br>&nbsp;<br>
+
+    *References:** Robert F. Bruner and Sean D. Carr, *The Panic of 1907: Lessons Learned from the Market's Perfect Storm* (Wiley, 2007) ISBN: 978-0470152638
+
+
 
 ### Delivery versus Payment (DvP)
 
@@ -3255,6 +3744,100 @@ Understanding execution algorithms matters for exchange developers because they 
 > **Key idea:** The vast majority of exchange order flow originates from execution algorithms, not from humans pressing buttons. Understanding how these algos work helps explain patterns visible in market data, clustering of activity near the open and close (VWAP/ATC algos), evenly-spaced order arrivals (TWAP), and bursts of activity when prices move (IS algos increasing urgency).
 
 
+### Fixed Income Market Structure: Where the Order Book Model Breaks Down
+
+Every chapter so far has quietly assumed a particular kind of market: many participants trading a modest number of fungible instruments, meeting in a single continuous central limit order book, matched by price-time priority, with a tight two-sided quote available almost all the time. That model fits equities and listed futures extremely well. It fits most of the **bond market** hardly at all, and a developer who carries the CLOB mental model unmodified into fixed income will build the wrong system. This chapter exists to inoculate against that, by explaining *why* bonds are different and *what structure* they use instead.
+
+The stakes are not marginal. The global bond market is larger than the global equity market, and the U.S. Treasury market alone, the debt of the U.S. government, is the single largest and most important securities market in the world, the risk-free asset against which nearly everything else is priced. Yet for most of its history the Treasury market has had no central limit order book that a retail investor could see, and the corporate bond market still largely does not. Understanding why is understanding a genuinely different market structure.
+
+#### Why Bonds Break the Central-Limit-Order-Book Model
+
+Three facts about bonds, none of which is true of a typical stock, jointly dismantle the assumptions behind a continuous order book.
+
+**1. Instrument proliferation.** A company has, in the ordinary case, *one* class of common stock. That same company may have *dozens* of distinct bonds outstanding, each a separate instrument with its own coupon, maturity date, seniority, covenants, and callability. A single large issuer, or a government, can have hundreds of individual bond lines. Apple has one ticker for its equity; it has issued many separate bond CUSIPs across different maturities and coupons. So where equities concentrate all interest in a handful of instruments per issuer, bonds *shatter* it across a vast number of instruments, each with only a small slice of the total interest.
+
+**2. Infrequent trading.** The direct consequence of proliferation is that most individual bonds trade rarely, many go days or weeks between trades, and a large fraction of outstanding bonds do not trade on any given day at all. A great deal of the bond market is **buy-and-hold**: insurers, pension funds, and central banks buy bonds to hold to maturity for the income, not to trade them. An instrument that trades a handful of times a month cannot sustain a continuous two-sided order book; there is simply not enough flow to keep resting bids and offers meaningfully populated.
+
+**3. No continuous two-sided liquidity to rest.** A central limit order book presumes that at almost every instant there are participants willing to post firm resting bids and offers. For an infrequently traded bond there are not. There is no standing crowd; liquidity has to be *summoned* when a trade is wanted, rather than *found* sitting in a book. This single fact is the hinge of the entire chapter: if liquidity must be summoned on demand rather than read off a book, the market's structure reorganises around a completely different primitive, the **dealer** and the **quote request**, rather than the order and the match.
+
+> **Key idea:** Equities concentrate interest into few instruments with continuous resting liquidity, which is exactly what a central limit order book is built to match. Bonds fragment interest across a huge number of rarely traded instruments with no continuous resting liquidity, which is exactly what a central limit order book cannot serve. The bond market therefore did not adopt the CLOB; it built a dealer-intermediated, quote-driven structure instead.
+
+#### The Dealer-Intermediated, Quote-Driven Market
+
+In place of a matching engine crossing anonymous orders, the classic bond market is organised around **dealers** (also called **market makers** in this context, typically the fixed-income desks of large banks) who stand ready to buy bonds into their own inventory and sell bonds out of it. A customer who wants to trade a bond does not post an order to a book and wait; they *ask a dealer for a price*. The dealer, drawing on their inventory, their read of the market, and their willingness to take the position, quotes a bid and an offer. The customer trades against the dealer's balance sheet, not against another customer.
+
+This is a **quote-driven** market (as opposed to the **order-driven** markets of the rest of this book), and its defining workflow is the **Request for Quote (RFQ)**:
+
+1. A customer decides they want to buy (or sell) a particular bond in a particular size.
+2. They send an RFQ, historically by phone, now overwhelmingly electronically, to one or several dealers, specifying the bond and the size.
+3. Each solicited dealer responds with a firm quote (or declines).
+4. The customer compares the responses and trades against the best one, or none.
+
+Contrast every step with the CLOB. There is no anonymous continuous book; there is a bilateral solicitation. There is no price-time priority; the customer chooses among dealer quotes on price (and relationship, and certainty). The "liquidity" is not resting in a data structure; it is manufactured on request from a dealer's balance sheet and appetite. And critically, the dealer takes **principal risk**, when they buy a bond from a customer, they own it, and bear the risk of its price moving until they can sell it on. The dealer's compensation for that risk and that service is the **bid-offer spread**, which in illiquid bonds can be far wider than the penny-wide spreads of a liquid stock.
+
+**Electronification, but not "CLOB-ification."** It is a common misconception that bond markets are simply "less electronic" than equities and slowly catching up to a CLOB. That is wrong. Bond markets have electronified enormously, platforms such as **MarketAxess**, **Tradeweb**, and **Bloomberg** now intermediate a large and growing share of corporate-bond and government-bond trading, but what they electronified is the **RFQ workflow**, not the order book. An electronic RFQ platform lets a customer fire a request to many dealers at once and receive competing quotes back in seconds, which is a massive efficiency gain over sequential phone calls, but the underlying market structure is still request-and-quote, still dealer-intermediated, still principal-based. The technology accelerated the dealer model; it did not replace it with a matching engine.
+
+**All-to-all trading: a partial move toward the book.** The one genuine structural evolution is **all-to-all** trading, in which platforms allow *any* participant, not only designated dealers, to respond to an RFQ or provide liquidity. This lets an asset manager who happens to want the exact bond another asset manager is selling trade directly, with the platform as intermediary, rather than each paying a dealer spread. All-to-all blurs the sharp dealer/customer distinction and imports a little of the anonymous-matching flavour of equities, and it has grown significantly, especially in corporate credit. But it operates *alongside* the dealer RFQ model rather than replacing it, and the deepest, largest, or most illiquid trades still route to dealers who can commit balance sheet.
+
+#### The Two Very Different Halves: Governments vs Corporates
+
+"Fixed income" spans a spectrum from the most liquid security on earth to instruments that trade twice a year, and the market structure differs sharply along it.
+
+**Government bonds (U.S. Treasuries) — the liquid end.** Treasuries are the exception that partly proves the rule. Because they are homogeneous, enormous in size, and central to the whole financial system, the most recently issued, **on-the-run**, Treasuries are liquid enough to support something much closer to the order-driven markets of this book. The **interdealer** market for on-the-run Treasuries does run on **central limit order books** with price-time priority, operated by platforms such as **BrokerTec** and **Dealerweb**, and increasingly populated by the same principal-trading and high-frequency firms that trade equity futures. This is why the *Latency and Co-location* chapter's world reaches into Treasuries at all: the on-the-run interdealer market is a genuine low-latency CLOB. But step one issue back to the **off-the-run** bonds (everything not most-recently-issued), and liquidity thins dramatically and the market reverts to the dealer/RFQ structure. So even within Treasuries, the CLOB model holds only for a thin, liquid sliver at the front; the vast bulk trades like the rest of fixed income.
+
+**Corporate bonds — the illiquid end.** Corporate bonds sit firmly in the dealer-intermediated, RFQ world, for all the reasons in the previous section, magnified: enormous instrument proliferation, mostly buy-and-hold holders, and long gaps between trades for any given CUSIP. There is essentially no continuous central limit order book for a typical corporate bond, and building one would be pointless, there is not enough continuous interest to populate it. Electronic corporate-bond trading is RFQ and, increasingly, all-to-all, layered on top of the dealer model.
+
+**Municipals, mortgage-backed, and the rest** occupy various points on the same spectrum, but the organising principle is identical: the more homogeneous and heavily traded the instrument, the closer it gets to an order book; the more fragmented and buy-and-hold, the more purely it lives in the dealer/RFQ world.
+
+#### Post-Trade Transparency: TRACE and the End of the Opaque Quote
+
+An order-driven market is *pre-trade* transparent almost by definition: the order book *is* a public display of resting supply and demand, and (in equities) consolidated tapes publish trades in near real time. A quote-driven bond market has no book to display, and for most of its history it had strikingly little transparency of any kind. A customer asking a dealer for a price had no reliable, independent way to know where that bond had recently traded, which left the dealer's spread almost entirely to the dealer's discretion and the customer's negotiating skill.
+
+The decisive reform in the U.S. was **TRACE** (the **Trade Reporting and Compliance Engine**), introduced by the NASD (now FINRA) in **2002**, which for the first time required dealers to *report* their corporate-bond transactions and made much of that post-trade information public. TRACE did not create a central limit order book, and it did not make the market order-driven; it created **post-trade transparency**, so that a customer, or a regulator, could see the prices at which bonds had actually traded. The documented effect was a measurable narrowing of bid-offer spreads and a reduction in customers' transaction costs, particularly for smaller trades, precisely because information asymmetry between dealer and customer shrank. TRACE is the fixed-income analogue of the consolidated tape: not a matching mechanism, but a transparency mechanism, and it is the reason a modern bond RFQ can be checked against recent trade prints at all.
+
+For the developer, TRACE and its equivalents are a reminder that "transparency" in a quote-driven market is a *reporting* problem, not a book-display problem: the system's obligation is to capture, disseminate, and archive completed trades accurately and promptly, not to publish a live book that does not exist.
+
+#### Pricing Conventions: Yield, Price, and the 32nds
+
+Bonds also differ from equities at the granular level of how a price is even *expressed*, and a system handling bonds must model these conventions natively, exactly the kind of reference-data detail the *Reference Data* chapter warned is dangerous to get wrong.
+
+**Price and yield are two views of the same trade.** A bond can be quoted as a **price** (a percentage of face value, so a bond at "98.50" costs $985 per $1,000 of face) or as a **yield** (the annualised return an investor earns holding it to maturity). Price and yield move inversely and are linked by the bond's coupon and maturity through a standard present-value calculation. Different instruments are conventionally quoted different ways, some markets quote price, some quote yield, some quote a **spread** to a benchmark bond, and a system must convert correctly among them.
+
+**Clean price vs dirty price.** Because bonds pay periodic coupons, a buyer partway between coupon dates owes the seller the interest **accrued** since the last coupon. The **clean price** is the quoted price excluding accrued interest; the **dirty price** (or **invoice price**) is what the buyer actually pays, clean price plus accrued interest. Quoting is conventionally in clean price; settlement is in dirty price. A system that conflates the two will misprice every trade between coupon dates, i.e., almost all of them.
+
+**Fractional quoting in 32nds.** U.S. Treasuries are, by long convention, quoted in **32nds of a point** rather than in decimals, a price shown as "99-16" means 99 and 16/32, i.e., 99.50% of face, and finer gradations are quoted in halves or quarters of a 32nd (in eighths of a 32nd, i.e., 256ths). This is a direct descendant of the fractional-quoting history the *Tick Sizes and Fractional Ticks* chapter described for equities before decimalisation, except that Treasuries never decimalised, and a system parsing or displaying Treasury prices must handle the 32nds convention explicitly rather than assuming decimal prices.
+
+#### Settlement and the Move to Central Clearing
+
+**Settlement timing.** U.S. Treasuries have long settled on a next-business-day basis (**T+1**). U.S. corporate and municipal bonds settled on a **T+2** basis until the market-wide U.S. move to **T+1** in **May 2024** (the same shortening that applied to equities), so post-2024 most U.S. cash bond settlement is next-day. As always with settlement cycles, the exact convention is jurisdiction- and instrument-specific and periodically shortened, verify against current rules for the market you are building for.
+
+**Central clearing, arriving late to Treasuries.** A striking structural fact is that, unlike equities and listed derivatives, a large portion of the U.S. Treasury market has historically **not** been centrally cleared: many trades settled bilaterally between counterparties, without a central counterparty novating and guaranteeing them in the way the *Clearing and Settlement* chapter described as standard elsewhere. The clearing house that does exist for Treasuries, the **Fixed Income Clearing Corporation (FICC)**, a DTCC subsidiary, historically cleared only a fraction of the market. Regulators, concerned about the systemic risk of an enormous, systemically central market resting on bilateral, uncleared exposures (an echo of the LTCM and Archegos lessons about opaque bilateral risk), moved to **mandate central clearing** of a broad set of Treasury cash and repurchase (repo) transactions. The SEC adopted rules to this effect in **December 2023**, with a **phased implementation** that has since been subject to extension; treat the specific compliance dates as live and changeable, and verify current deadlines rather than relying on any date printed here. The direction of travel is unambiguous, however: the Treasury market is being pushed toward the central-clearing model that the rest of this book treats as the norm, precisely because its size makes bilateral, uncleared counterparty risk a systemic concern.
+
+#### The Primary Market: Auctions and Syndication
+
+The *primary market* mechanics of the *Raising Capital* chapter also look different in fixed income.
+
+**Government issuance by auction.** Governments issue debt through **auctions**. The U.S. Treasury sells new securities via a **single-price (uniform-price, or "Dutch") auction**: competitive bidders submit the yield they are willing to accept and the quantity they want; the Treasury fills bids from the lowest yield upward until the issue is sold; and, crucially, *all* winning bidders pay the *same* price, the highest accepted yield (the "stop-out" yield), regardless of the yield they individually bid. Non-competitive bidders (typically smaller investors) agree in advance to accept whatever that clearing yield turns out to be, guaranteeing them an allocation. The single-price format, and the rules constraining how much of an issue any one bidder may take, are not arbitrary; they are the direct product of a manipulation scandal, described in the historic note below.
+
+**Corporate issuance by syndication.** Corporate bonds are typically brought to market by a **syndicate** of investment banks (analogous to IPO underwriters) who build a book of investor demand and price the new issue, rather than by open auction. The mechanics resemble the equity underwriting of the *Raising Capital* chapter more than they resemble a Treasury auction.
+
+> **Historic Note: The Salomon Brothers Treasury Auction Scandal, 1991**
+>
+> The rules that govern U.S. Treasury auctions today, in particular the strict limit on how much of a single issue any one bidder may acquire, exist because of a deliberate abuse of the old rules by one firm. In 1991, **Salomon Brothers**, then a dominant force in government-bond trading, repeatedly violated the Treasury's rule limiting any single bidder to **35%** of an auction. Salomon submitted bids in the names of customers *without their authorisation*, using them to acquire far more than 35% of certain issues, and in the May 1991 two-year note auction it thereby gained control of a dominant share of the issue. Cornering the supply of a specific note let Salomon **squeeze** the market: participants who had sold the note short and needed to buy it back to deliver found that almost the entire supply was controlled by one firm, and were forced to pay artificially high prices. When the conduct came to light, the consequences were severe: Salomon paid roughly **$290 million** in fines and penalties, then among the largest ever imposed on a securities firm; its senior management resigned; and the firm was saved from potential collapse only when its largest shareholder, **Warren Buffett**, stepped in as interim chairman and pledged the firm's cooperation to regulators to preserve its ability to trade government debt. In the aftermath, the Treasury and its regulators overhauled the auction process, tightening bidder-identity and bidding rules and, over the following years, moving from the old multiple-price format toward the **single-price (uniform-price) auction** now standard, tested from 1992 and adopted for all marketable Treasury securities by **1998**, a format that reduces both the incentive and the ability to game the auction. The episode is the fixed-income counterpart to the manipulation cases elsewhere in this book: it shows that a primary-market mechanism is as much a target as a secondary-market benchmark, and that auction rules, like matching rules, are written in the scar tissue of specific abuses. [U.S. Securities and Exchange Commission and U.S. Department of the Treasury actions against Salomon Brothers, 1991–92; Joint Report on the Government Securities Market (Department of the Treasury, SEC, and Board of Governors of the Federal Reserve System), January 1992.]
+
+#### What the Developer Should Carry Away
+
+If you move from an equities or futures exchange to a fixed-income venue or platform, the mental adjustments are specific and large:
+
+- The core primitive is the **RFQ and the dealer quote**, not the order and the match. Your central workflow is soliciting and comparing quotes, not maintaining a crossing book, except in the narrow on-the-run interdealer Treasury niche, where a genuine CLOB does apply.
+- **Liquidity is summoned, not resting.** Do not model a bond market as a sparsely populated order book; model it as a network of dealers from whom quotes are requested on demand.
+- **Transparency is a post-trade reporting obligation** (TRACE-style), not a live-book display, because there is no live book to display for most instruments.
+- **Pricing conventions are richer and must be modelled natively**: price *and* yield, clean *and* dirty price, 32nds for Treasuries, spread quoting, day-count and accrued-interest calculations, all of which are reference-data and calculation correctness problems of exactly the kind the *Reference Data* chapter flagged as high-consequence.
+- **Instrument reference data dominates.** With hundreds of bonds per issuer, each with its own coupon, maturity, seniority, and call schedule, the instrument master is far larger and more intricate than an equity venue's, and errors in it mispricing accrued interest or a call date corrupt every trade in that bond.
+
+> **Key idea:** Fixed income is the largest securities market in the world and almost none of it looks like the central-limit-order-book, price-time-priority, continuous-matching model that the rest of this book describes. Because bonds fragment interest across a vast number of rarely traded instruments with no continuous resting liquidity, the market is dealer-intermediated and quote-driven, organised around the request-for-quote and the dealer's balance sheet, with a genuine order book surviving only in the thin, liquid on-the-run Treasury interdealer niche. Electronification accelerated the RFQ workflow rather than replacing it with a matching engine; transparency arrived as post-trade reporting (TRACE) rather than a public book; pricing carries its own conventions (yield, clean/dirty, 32nds); and central clearing is only now being extended to the Treasury market it had long bypassed. Carry the CLOB model into bonds unmodified and you will build for a market that does not exist.
+
+
 ## Cryptocurrency and Digital Asset Venues
 
 Every chapter so far has quietly assumed a particular model of "exchange": a regulated entity, operating within defined trading sessions, settling trades some fixed number of days later through a central counterparty, under the supervision of a single national regulator. Cryptocurrency and digital asset venues share a great deal of underlying mechanics with that model, order books, price-time priority, matching engines, are recognisably the same ideas, but they also break several of the traditional model's assumptions simultaneously. Because a growing number of developers move between traditional and digital-asset exchange systems over the course of a career, it is worth making those differences explicit rather than leaving them implicit.
@@ -3299,6 +3882,16 @@ Speed is not incidental to electronic markets, it is a primary competitive dimen
 At any moment, the same stock is trading on multiple exchanges simultaneously. If the price of AAPL changes on NYSE, that information takes time to propagate to NASDAQ. During that window, even if only 50 microseconds, participants who know the price has changed on NYSE can trade on NASDAQ before NASDAQ's quotes adjust. This is called **latency arbitrage**.
 
 Market makers must continuously update their quotes faster than latency arbitrageurs can act. A market maker whose quotes are 10 microseconds stale will find themselves adversely selected on the stale side. The entire market structure is shaped by this dynamic: venue design, technology choices, and the physical geography of data centres all aim to reduce or equalise latency.
+
+
+!!! note "Reuter's Pigeons: The First Latency Arbitrage Infrastructure (1850)"
+
+    In 1850 the European telegraph network had a hole in it: the Prussian line ended at Aachen and the Belgian–French line began at Brussels, roughly 120 kilometres apart. Market-moving information — above all, closing stock prices — crossed the gap by train, taking the better part of a day. Paul Julius Reuter's solution was a fleet of carrier pigeons flying the Aachen–Brussels route in around two hours, giving his subscribers Brussels prices from Berlin (and vice versa) many hours before anyone relying on the railway. The service lasted about a year before the telegraph gap was closed, at which point Reuter moved to London and built the news agency that still bears his name. The structure of the trade is precisely the one the rest of this chapter describes: identify the slowest link in the information path between two markets, replace it with a faster physical medium, and monetise the interval before the infrastructure catches up. Pigeons, dedicated dark fibre, microwave towers, and millimetre-wave links are one continuous story separated only by technology. <br>&nbsp;<br>
+
+    **References:** Donald Read, *The Power of News: The History of Reuters* (Oxford University Press, 1992), ISBN: 978-0198207689
+
+
+
 
 ### Co-location
 
@@ -3782,7 +4375,9 @@ CME Group provides open-access engineering wikis that map out their continuous m
 * **Implied Orders Functionality:** To read the explicit state constraints, calculation boundaries, and engine generation rules for "Implied-In" and "Implied-Out" routing structures, visit the [CME Globex Implied Orders Documentation](https://cmegroupclientsite.atlassian.net/wiki/display/EPICSANDBOX/Implied+Orders).
 * **Options-Specific Implied Generation:** For data regarding RFQ-triggered timers and second-generation restriction models, see the [CME Globex Implied Options Documentation](https://cmegroupclientsite.atlassian.net/wiki/spaces/EPICSANDBOX/pages/457327346/Implied+Options).
 * **Algorithmic Match Priorities:** To inspect how implied quantities interact with Pro Rata or FIFO allocation passes when competing with outright resting orders, review the [CME Globex Matching Algorithms Reference](https://cmegroupclientsite.atlassian.net/wiki/display/EPICSANDBOX/CME+Globex+Matching+Algorithms).
- 
+* **Implied Orders:** CME Group, *Client Systems Wiki — Implied Orders* (overview of implied IN / implied OUT functionality, per-product enablement, and implied dissemination on MDP3): https://cmegroupclientsite.atlassian.net/wiki/ (search: "Implied Orders")
+
+
 ### Cboe US Options Complex Book Architecture
 
 Cboe details its execution logic for multi-leg derivative allocations, net premium sorting, and atomicity verification.

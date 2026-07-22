@@ -37,20 +37,20 @@ docs/
 │   ├── mathjax.js                               - Typeset of LaTeX equations
 │   └── mermaid-init.js                          - Render mermaid graphs
 └── user-guide                                   - The main user-guide
-    ├── 01-configuration.md
-    ├── 02-commands.md
-    ├── 03-running-the-engine.md
-    ├── 04-order-types.md
-    ├── 05-combos.md
-    ├── 06-auctions-scheduling.md
-    ├── 07-pnl-clearing.md
-    ├── 08-gateway.md
-    ├── 09-messages.md
-    ├── 10-processes.md
-    ├── 11-persistence.md
-    ├── 12-risk-controls.md
-    ├── 13-drop-copy.md
-    ├── 90-app-alf-protocol.md
+    ├── 010-configuration.md
+    ├── 160-commands.md
+    ├── 040-running-the-engine.md
+    ├── 060-order-types.md
+    ├── 070-combos.md
+    ├── 080-auctions-scheduling.md
+    ├── 130-pnl-clearing.md
+    ├── 050-gateway.md
+    ├── 270-messages.md
+    ├── 170-processes.md
+    ├── 180-persistence.md
+    ├── 120-risk-controls.md
+    ├── 200-drop-copy.md
+    ├── 900-app-alf-protocol.md
     ├── pagebreaks.lua                             - LUA filter for adding custom page-breaks
     ├── template_a4.tex                            - Light A4 LaTeX template
     ├── template_b5.tex                            - Light B5 LaTeX template

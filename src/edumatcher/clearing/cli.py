@@ -164,9 +164,13 @@ _SESSIONS_COLS = [
 ]
 
 _NORMALIZE_FIELDS: dict[str, tuple[str, ...]] = {
-    # avg_cost is stored as REAL (result of division) and must NOT be divided
-    # again by the tick scale — only tick-integer columns are normalized here.
+    # These columns hold tick-unit values (some REAL because of VWAP/P&L
+    # division, but still *in ticks*) and are divided by the symbol's tick scale
+    # for display.  avg_cost is fractional ticks (ledger sets avg_cost from an
+    # int tick price), so it MUST be normalized too — omitting it rendered
+    # avg_cost 100x off next to mark_price (finding CL-H3).
     "positions": (
+        "avg_cost",
         "mark_price",
         "realized_pnl",
         "unrealized_pnl",
@@ -317,6 +321,16 @@ def _build_parser() -> argparse.ArgumentParser:
     rec.add_argument("--symbol", metavar="SYMBOL")
     rec.add_argument("--from", dest="from_date", metavar="YYYY-MM-DD")
     rec.add_argument("--to", dest="to_date", metavar="YYYY-MM-DD")
+    rec.add_argument(
+        "--retention-days",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Ignore dates older than N days (match pm-clearing --retention-days)"
+            " so pruned-raw days are not reported as false positives"
+        ),
+    )
 
     # sessions
     ses = sub.add_parser(
@@ -596,6 +610,7 @@ def _run_query(
         symbol=_upper(getattr(args, "symbol", None)),
         from_date=args.from_date,
         to_date=args.to_date,
+        retention_days=getattr(args, "retention_days", None),
     )
     if not rows:
         print("OK — no discrepancies found.")

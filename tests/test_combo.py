@@ -605,36 +605,27 @@ class TestComboLifecycle:
         assert combo.status == ComboStatus.PENDING
         assert len(combo.child_order_ids) == 2
 
-    def test_combo_partial_fill_then_complete(self, combo_engine) -> None:
-        """One leg fills immediately, the other later → PARTIALLY_MATCHED then MATCHED."""
+    def test_combo_aon_does_not_partially_execute(self, combo_engine) -> None:
+        """M5: an AON combo must NOT partially execute.
+
+        With liquidity for only one leg, an AON combo executes nothing — no
+        leg fills and the combo rests PENDING (all-or-none).  Full atomic
+        matching when all legs are fillable is covered by
+        test_combo_both_legs_fill_immediately.
+        """
         engine, pub_sock = combo_engine
 
-        # Seed liquidity only for leg 0 (AAPL BUY)
+        # Seed liquidity only for leg 0 (AAPL BUY) — leg 1 (MSFT) is unfillable.
         self._seed_resting(engine, "AAPL", Side.SELL, 10, 150.0)
         pub_sock.sent.clear()
 
-        payload = _two_leg_combo(price_a=150.0, price_b=300.0)
-        engine._handle_combo_order(payload)
+        engine._handle_combo_order(_two_leg_combo(price_a=150.0, price_b=300.0))
 
         combo = list(engine._combos.values())[0]
-        assert combo.status == ComboStatus.PARTIALLY_MATCHED
-
-        # Now seed liquidity for leg 1 (MSFT SELL) and send a crossing order
-        # Leg 1 child is already resting as a SELL at 300.0 on MSFT book
-        # A new BUY at 300.0 from another gateway will fill it
-        engine._handle_gateway_connect({"gateway_id": "TRADER02"})
-        filler = Order.create(
-            symbol="MSFT",
-            side=Side.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=5,
-            gateway_id="TRADER02",
-            price=300.0,
-        )
-        pub_sock.sent.clear()
-        engine._handle_new_order(filler.to_dict())
-
-        assert combo.status == ComboStatus.MATCHED
+        # M5: no leg may fill while another leg cannot — the combo rests PENDING.
+        assert combo.status == ComboStatus.PENDING
+        assert combo.leg_fill_qty[0] == 0
+        assert combo.leg_fill_qty[1] == 0
 
     def test_cascade_cancel_on_child_cancel(self, combo_engine) -> None:
         """Cancelling one combo child triggers cascade-cancel of siblings."""

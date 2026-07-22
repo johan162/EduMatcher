@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
+
+log = logging.getLogger(__name__)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -107,9 +110,49 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Engine PUB address",
     )
     parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Print debug-level events"
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase verbosity (-v: INFO + bot debug prints, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce output to warnings/errors",
     )
     return parser.parse_args(argv)
+
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    log_level = getattr(args, "log_level", None)
+    verbose = getattr(args, "verbose", 0)
+    quiet = getattr(args, "quiet", False)
+
+    if log_level:
+        level_name = str(log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif verbose >= 2:
+        level = logging.DEBUG
+    elif verbose == 1:
+        level = logging.INFO
+    elif quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
+    )
+    return int(level)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -120,11 +163,17 @@ def main(argv: list[str] | None = None) -> None:
         arg == "--gap" or arg.startswith("--gap=") for arg in cli_args
     )
     args = _parse_args(argv)
+    log_level = _configure_logging(args)
+    log.info("starting pm-mm-bot with log level %s", logging.getLevelName(log_level))
 
     from edumatcher.mm_bot.pricer import QuotePricer
 
     # Validate bootstrap range
-    QuotePricer.validate_bootstrap_range(args.initial_min, args.initial_max)
+    try:
+        QuotePricer.validate_bootstrap_range(args.initial_min, args.initial_max)
+    except ValueError as exc:
+        log.error("invalid bootstrap range: %s", exc)
+        raise
 
     # Validate positive timeouts and intervals
     positive_checks = [
@@ -137,41 +186,72 @@ def main(argv: list[str] | None = None) -> None:
     ]
     for flag, value in positive_checks:
         if value <= 0:
+            log.error(
+                "invalid startup value: %s must be positive (got %s)", flag, value
+            )
             print(f"ERROR: {flag} must be positive", file=sys.stderr)
             raise SystemExit(1)
     if args.reissue_delay_ms < 0:
+        log.error(
+            "invalid startup value: --reissue-delay-ms must be non-negative (got %s)",
+            args.reissue_delay_ms,
+        )
         print("ERROR: --reissue-delay-ms must be non-negative", file=sys.stderr)
         raise SystemExit(1)
 
     symbol = args.symbol.upper()
     gateway_id = f"MM_{symbol}_{args.id_suffix}"
+    bot_verbose = bool(args.verbose >= 1 or log_level <= logging.DEBUG)
+    log.info(
+        "resolved mm_bot config gateway_id=%s symbol=%s gap=%s qty=%s tif=%s",
+        gateway_id,
+        symbol,
+        args.gap,
+        args.qty,
+        args.tif,
+    )
+    log.debug(
+        "timeouts heartbeat=%s startup_session=%s bootstrap=%s cancel=%s shutdown=%s qlegs=%s",
+        args.heartbeat_interval_sec,
+        args.startup_session_timeout_sec,
+        args.bootstrap_timeout_sec,
+        args.cancel_timeout_sec,
+        args.shutdown_timeout_sec,
+        args.qlegs_reconcile_interval_sec,
+    )
 
     from edumatcher.mm_bot.bot import MMBot
 
-    bot = MMBot(
-        gateway_id=gateway_id,
-        symbol=symbol,
-        gap=args.gap,
-        gap_was_explicit=gap_was_explicit,
-        qty=args.qty,
-        drift_ticks=args.drift_ticks,
-        reissue_delay_ms=args.reissue_delay_ms,
-        tif=args.tif,
-        heartbeat_interval_sec=args.heartbeat_interval_sec,
-        startup_session_timeout_sec=args.startup_session_timeout_sec,
-        bootstrap_timeout_sec=args.bootstrap_timeout_sec,
-        cancel_timeout_sec=args.cancel_timeout_sec,
-        shutdown_timeout_sec=args.shutdown_timeout_sec,
-        qlegs_reconcile_interval_sec=args.qlegs_reconcile_interval_sec,
-        initial_min=args.initial_min,
-        initial_max=args.initial_max,
-        engine_pull=args.engine_pull,
-        engine_pub=args.engine_pub,
-        verbose=args.verbose,
-    )
+    try:
+        bot = MMBot(
+            gateway_id=gateway_id,
+            symbol=symbol,
+            gap=args.gap,
+            gap_was_explicit=gap_was_explicit,
+            qty=args.qty,
+            drift_ticks=args.drift_ticks,
+            reissue_delay_ms=args.reissue_delay_ms,
+            tif=args.tif,
+            heartbeat_interval_sec=args.heartbeat_interval_sec,
+            startup_session_timeout_sec=args.startup_session_timeout_sec,
+            bootstrap_timeout_sec=args.bootstrap_timeout_sec,
+            cancel_timeout_sec=args.cancel_timeout_sec,
+            shutdown_timeout_sec=args.shutdown_timeout_sec,
+            qlegs_reconcile_interval_sec=args.qlegs_reconcile_interval_sec,
+            initial_min=args.initial_min,
+            initial_max=args.initial_max,
+            engine_pull=args.engine_pull,
+            engine_pub=args.engine_pub,
+            verbose=bot_verbose,
+        )
+    except Exception as exc:
+        log.error("failed to create mm_bot runtime: %s", exc)
+        raise SystemExit(1)
     try:
         rc = bot.run()
+        log.info("pm-mm-bot exiting with code %s", rc)
         raise SystemExit(rc)
     except KeyboardInterrupt:
+        log.info("keyboard interrupt received; shutting down mm_bot")
         bot.shutdown()
         raise SystemExit(0)

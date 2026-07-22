@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 if TYPE_CHECKING:
@@ -367,7 +367,7 @@ class TestEngineCancelOCO:
 
 
 class TestEngineSessionTransitions:
-    def _engine(self, monkeypatch, tmp_path):
+    def _engine(self, monkeypatch: Any, tmp_path: Path) -> tuple[Any, Any]:
         from dataclasses import dataclass
         from edumatcher.engine.config_loader import (
             EngineConfig,
@@ -378,12 +378,12 @@ class TestEngineSessionTransitions:
 
         @dataclass
         class _Sock:
-            sent: list
+            sent: list[list[bytes]]
 
-            def send_multipart(self, f):
+            def send_multipart(self, f: list[bytes]) -> None:
                 self.sent.append(f)
 
-            def close(self):
+            def close(self) -> None:
                 pass
 
         pull_sock = _Sock(sent=[])

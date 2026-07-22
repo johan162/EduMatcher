@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from edumatcher.config_gen.builder import (
     ApiCredentialSpec,
     ApiGatewaySpec,
@@ -14,6 +16,7 @@ from edumatcher.config_gen.builder import (
 from edumatcher.config_gen.cb_spec import parse_cb_spec
 from edumatcher.config_gen.gateway_spec import parse_gateway_spec
 from edumatcher.config_gen.symbol_spec import SymbolOverride
+from edumatcher.models.order import SmpAction
 
 
 def test_builder_minimal() -> None:
@@ -28,6 +31,45 @@ def test_builder_minimal() -> None:
     assert payload["gateways"]["alf"][0]["disconnect_behaviour"] == "CANCEL_ALL"
     assert "risk_controls" not in payload
     assert "circuit_breaker_defaults" not in payload
+
+
+def test_builder_omits_smp_action_when_none() -> None:
+    """smp_action: NONE is the engine's own default -- the generated YAML
+    should stay minimal and not spell out a no-op field."""
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert "smp_action" not in payload["gateways"]["alf"][0]
+
+
+def test_builder_emits_gateway_smp_action_when_set() -> None:
+    gw = replace(parse_gateway_spec("TRADER01"), smp_action=SmpAction.CANCEL_RESTING)
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[gw],
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert payload["gateways"]["alf"][0]["smp_action"] == "CANCEL_RESTING"
+
+
+def test_builder_gateway_smp_action_is_per_gateway() -> None:
+    gw1 = replace(parse_gateway_spec("TRADER01"), smp_action=SmpAction.CANCEL_BOTH)
+    gw2 = parse_gateway_spec("TRADER02")
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[gw1, gw2],
+    )
+    payload = ConfigBuilder(spec).build()
+
+    alf = payload["gateways"]["alf"]
+    assert alf[0]["id"] == "TRADER01"
+    assert alf[0]["smp_action"] == "CANCEL_BOTH"
+    assert alf[1]["id"] == "TRADER02"
+    assert "smp_action" not in alf[1]
 
 
 def test_builder_with_risk_level_and_symbol_level_reference() -> None:

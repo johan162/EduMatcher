@@ -39,17 +39,26 @@ gateway from chapter 01.
 
 ## Exercise 1: Configure Price Collars
 
-Add risk controls to `engine_config.yaml`:
+Collars are configured per symbol under `symbols.<SYM>.collar` (a direct
+override) or inherited from a named `risk_controls.levels` profile via
+`symbols.<SYM>.level`. Add a direct collar override to `engine_config.yaml`:
 
 ```yaml
-risk_controls:
+symbols:
   AAPL:
-    static_collar_pct: 10       # ±10% from reference price
-    dynamic_collar_ticks: 50    # ±50 ticks from last trade
+    collar:
+      static_band_pct: 0.10    # ±10% from reference price
+      dynamic_band_pct: 0.05   # ±5% from last traded price
   MSFT:
-    static_collar_pct: 10
-    dynamic_collar_ticks: 50
+    collar:
+      static_band_pct: 0.10
+      dynamic_band_pct: 0.05
 ```
+
+Both fields are fractions in `(0, 1)`, not whole percentages — `0.10` means
+10%. If omitted, the built-in defaults are `static_band_pct: 0.20`,
+`dynamic_band_pct: 0.02`. `enforce_collars` (top-level, defaults to `true`)
+must also not be set to `false`.
 
 Restart the engine.
 
@@ -65,8 +74,8 @@ Place an order far outside the allowed range:
 TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=200.00|TIF=DAY
 ```
 
-If the reference price is 150.00 and the collar is ±10%, anything above 165.00
-or below 135.00 is rejected.
+If the reference price is 150.00 and the static collar is ±10%, anything
+above 165.00 or below 135.00 is rejected.
 
 Expected: rejection — price outside static collar.
 
@@ -76,12 +85,24 @@ Expected: rejection — price outside static collar.
 
 ## Exercise 3: Configure Circuit Breakers
 
+Circuit-breaker trigger percentages and halt durations come from a global
+ladder, `circuit_breaker_defaults`, applied to every symbol unless a symbol
+defines its own `circuit_breaker.levels` override (see the `TSLA` pattern in
+[Configuration](../user-guide/010-configuration.md#risk-controls-and-collars)).
+Add a two-level ladder:
+
 ```yaml
-risk_controls:
-  AAPL:
-    circuit_breaker_pct: 5      # halt if price moves ±5% in one session
-    circuit_breaker_cooldown_sec: 30
+circuit_breaker_defaults:
+  reference_window_ns: 300000000000   # 5 minutes — window the move is measured over
+  levels:
+    L1:
+      price_shift_pct: 0.05           # halt if price moves ±5% within the window
+      halt_duration_ns: 30000000000   # 30 second halt
+      resumption_mode: AUCTION
 ```
+
+`enforce_circuit_breakers` (top-level, defaults to `true`) must also not be
+set to `false`.
 
 Restart the engine.
 
@@ -91,11 +112,15 @@ Restart the engine.
 
 ## Exercise 4: Trigger a Circuit Breaker
 
-Push AAPL's price 5% by trading aggressively (you may need to adjust MM bot
-gap or trade in volume). When the threshold is breached:
+Push AAPL's price 5% within the 5-minute reference window by trading
+aggressively (you may need to adjust MM bot gap or trade in volume). When the
+threshold is breached, the exact halt announcement wording may vary by
+version — the reliable way to confirm the halt fired is to check that new
+AAPL orders are rejected (see the verification drill below), not to match a
+literal log line. Illustratively:
 
 ```
-[HALT] AAPL — circuit breaker triggered (5.1% move)
+[HALT] AAPL — circuit breaker triggered (~5% move)
 ```
 
 All resting orders on AAPL are preserved but no new matching occurs.
@@ -275,10 +300,10 @@ designed to stop that per-order collars cannot?
 
 ## Further Reading
 
-- [Risk Controls](../user-guide/12-risk-controls.md)
-- [Controlling the Exchange](../user-guide/02-commands.md)
-- [Processes](../user-guide/10-processes.md)
-- [Drop Copy](../user-guide/13-drop-copy.md)
+- [Risk Controls](../user-guide/120-risk-controls.md)
+- [Controlling the Exchange](../user-guide/160-commands.md)
+- [Processes](../user-guide/170-processes.md)
+- [Drop Copy](../user-guide/200-drop-copy.md)
 - [A Full Trading Day](../concepts/05-concepts-trading-day.md)
 
  

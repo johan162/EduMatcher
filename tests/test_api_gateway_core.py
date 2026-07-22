@@ -95,7 +95,7 @@ VALUES
     ('2026-06-24T10:00:01', 'FILL', 'ORD1', 'GW01', 'AAPL', 'BUY', 'LIMIT', 'DAY'),
     ('2026-06-24T10:00:02', 'ACK', 'ORD2', 'GW02', 'MSFT', 'BUY', 'LIMIT', 'DAY');
 """)
-    events = query_order_events(
+    events, _next_cursor = query_order_events(
         conn,
         gateway_id="GW01",
         symbol="AAPL",
