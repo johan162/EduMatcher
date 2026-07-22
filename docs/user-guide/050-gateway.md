@@ -242,6 +242,18 @@ poetry run pm-alf-console --id GW01
 The `--id` flag sets your gateway identifier. It appears on all orders and fills.
 The ID must be preconfigured in `engine_config.yaml` under `gateways.alf`.
 
+**CLI flags:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--id GW_ID` | *(required)* | Unique gateway identifier (e.g. `GW01`, `ALICE`). Must be listed under `gateways.alf` in `engine_config.yaml` |
+| `--drop-copy` | off | Enable the drop-copy relay on startup (equivalent to sending `DC\|STATE=ON` immediately after connecting). Can also be toggled at runtime — see [DC — Toggle Drop-Copy Relay](#dc-toggle-drop-copy-relay) |
+| `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `--version` | — | Print the installed version and exit |
+| `-h` / `--help` | — | Print the argument reference and exit |
+
 On startup, the gateway:
 
 1. Connects PUSH socket to the engine PULL port (5555)

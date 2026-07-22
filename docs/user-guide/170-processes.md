@@ -381,6 +381,7 @@ pm-alf-console --id <GW_ID>
 | Flag              | Required | Description                                           |
 |-------------------|----------|-------------------------------------------------------|
 | `--id`            | Yes      | Unique gateway identifier (e.g. `GW01`, `ALICE`)     |
+| `--drop-copy`     | No       | Enable the drop-copy relay on startup (equivalent to sending `DC\|STATE=ON` immediately after connecting); default off — see [Gateway → DC](050-gateway.md#dc-toggle-drop-copy-relay) |
 | `--log-level`     | No       | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`| No       | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
 | `-q` / `--quiet`  | No       | Reduce output to warnings/errors                      |
