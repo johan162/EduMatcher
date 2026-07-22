@@ -78,7 +78,9 @@ flowchart LR
     PUB -->|SUB| BRD
     PUB -->|SUB| AI
     PUB -->|SUB| MMB
-    DC -.->|drop-copy SUB| EXT["External risk /\ncompliance systems"]
+    DC -.->|drop-copy SUB| EXT["External risk /\ncompliance systems\n(direct ZMQ)"]
+    DC -.->|drop-copy SUB| DCGWY["pm-dc-gwy\n(TCP :5590)"]
+    DCGWY -->|TCP| EXT2["External risk /\ncompliance systems\n(no ZeroMQ)"]
 ```
 
 The engine is the only process that writes to the order book.  Every other
@@ -202,6 +204,7 @@ pm-engine --verbose
 | **pm-alf-gwy**     | `pm-alf-gwy`              | ALF TCP gateway — order entry for external bots over TCP :5565 | No              |
 | **pm-ralf-gwy**    | `pm-ralf-gwy`             | External post-trade dissemination gateway (RALF)           | No                  |
 | **pm-md-gwy**      | `pm-md-gwy`               | External market-data gateway (CALF) over TCP :5570         | No                  |
+| **pm-dc-gwy**      | `pm-dc-gwy`               | External drop-copy gateway (DC1) — relays :5557 fills over TCP :5590 for non-ZeroMQ clients | No |
 | **pm-api-gwy** | `pm-api-gwy`          | REST/WebSocket order-entry and market-data API gateway     | No                  |
 | **pm-index**       | `pm-index`                | Real-time cap-weighted index calculation and dissemination | No                  |
 
@@ -1553,6 +1556,63 @@ dropping it as an idle client.
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 
 See [RALF Protocol Spy (pm-ralf-spy)](251-ralf-spy-cli.md) for full usage.
+
+
+## pm-dc-gwy — Drop-Copy TCP Gateway
+
+Runs a small external-facing TCP gateway that relays the engine's drop-copy
+feed (`DropCopyPublisher`, `PUB :5557`) to plain-TCP clients using the DC1
+text protocol — no ZeroMQ dependency required on the client side. It is the
+TCP counterpart to `pm-dc-spy`: both subscribe internally to
+`drop_copy.event.<gateway_id>`, but `pm-dc-gwy` fans events out to any number
+of concurrently connected external clients instead of printing to a
+terminal. There is no authentication, entitlement model, or replay-by-sequence
+— any client may `HELLO` with any gateway `ID` and receive that gateway's
+live fills for as long as it stays connected.
+
+```bash
+pm-dc-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5590] [--engine-dc-pub tcp://127.0.0.1:5557] [--log-level LEVEL] [-v|-vv] [-q]
+```
+
+**Startup options:**
+
+| Flag              | Default                 | Description                                        |
+|-------------------|-------------------------|----------------------------------------------------|
+| `--config` / `-c` | `engine_config.yaml`    | Config file; optional `dc_gateway` section (hand-edited, no `pm-config-gen` integration) |
+| `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients              |
+| `--port`          | from config / `5590`    | TCP listen port for DC1 clients                    |
+| `--engine-dc-pub` | `tcp://127.0.0.1:5557`  | Engine drop-copy PUB address consumed by the gateway |
+| `--log-level`     | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose`| off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
+| `-q` / `--quiet`  | off                     | Reduce output to warnings/errors                      |
+
+**Expected runtime input arguments:**
+
+No terminal input. External parties connect over TCP and send DC1 lines:
+
+- `HELLO|CLIENT=..|PROTO=DC1|ID=..`
+- `PING`
+- `EXIT`
+
+**Messages subscribed** (internal SUB from :5557, refcounted per gateway ID
+requested by connected clients):
+
+| Topic                        | Purpose                          |
+|-------------------------------|----------------------------------|
+| `drop_copy.event.<gateway_id>` | Source for `DC_FILL` relay lines |
+
+**Messages published** (TCP DC1 feed):
+
+| Message type | Purpose                             |
+|--------------|-------------------------------------|
+| `WELCOME`    | Session acceptance                  |
+| `DC_FILL`    | Unsolicited fill relay              |
+| `HB`         | Heartbeat                           |
+| `PONG`       | Ping reply                          |
+| `ERR`        | Protocol errors                     |
+
+For external usage and examples see
+[Drop-Copy TCP Gateway](201-dc-gateway.md).
 
 
 ## pm-dc-spy (Drop-Copy Spy)

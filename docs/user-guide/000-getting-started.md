@@ -289,6 +289,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 |---|---|---|---|
 | `pm-engine` | Background | Matching engine; central order-book writer | [Processes](170-processes.md), [Running the Engine](040-running-the-engine.md), [Configuration](010-configuration.md) |
 | `pm-alf-console` | Interactive terminal | ALF participant terminal and order entry | [Processes](170-processes.md), [Gateway](050-gateway.md), [ALF Protocol](900-app-alf-protocol.md) |
+| `pm-alf-gwy` | Background | External ALF TCP gateway — order entry for bots/remote clients over TCP :5565 | [Processes](170-processes.md#pm-alf-gwy-alf-tcp-gateway), [ALF TCP Gateway](220-alf-gateway.md), [ALF Protocol](900-app-alf-protocol.md) |
 | `pm-scheduler` | Background | Session phase transitions by schedule | [Processes](170-processes.md), [Auctions and Scheduling](080-auctions-scheduling.md) |
 | `pm-viewer` | Terminal display | Single-symbol live order book view | [Processes](170-processes.md), [Order Types](060-order-types.md) |
 | `pm-orders` | Terminal display | Live cross-gateway order status monitor | [Processes](170-processes.md), [Messages](270-messages.md) |
@@ -306,6 +307,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-api-gwy` | Background | REST/WebSocket order-entry and market-data API gateway | [Processes](170-processes.md#pm-api-gwy-restwebsocket-api-gateway), [API Gateway](260-api-gateway.md) |
 | `pm-index` | Background | Real-time cap-weighted index calculation and dissemination | [Processes](170-processes.md#pm-index-index-calculation-process), [Market Index](150-index.md) |
 | `pm-balf-gwy` | Background | Binary order-entry gateway (BALF) over TCP | [Processes](170-processes.md), [BALF Gateway](230-balf-gateway.md), [BALF Protocol](910-app-balf-protocol.md) |
+| `pm-dc-gwy` | Background | External drop-copy gateway (DC1) — relays :5557 fills over TCP for non-ZeroMQ clients | [Processes](170-processes.md#pm-dc-gwy-drop-copy-tcp-gateway), [Drop-Copy TCP Gateway](201-dc-gateway.md), [Drop Copy](200-drop-copy.md) |
 
 ### CLI utilities (runnable)
 
@@ -320,6 +322,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-index-admin-cli` | Apply index corporate actions (splits, dividends, share issuance/buybacks) and constituent changes (add/delist) | [Processes](170-processes.md#pm-index-admin-cli-index-corporate-action-constituent-change-cli), [Index Admin CLI](152-index-admin-cli.md), [Market Index](150-index.md) |
 | `pm-calf-spy` | Spy on the CALF market-data protocol — connect to `pm-md-gwy` and print every line, human-readable or JSON | [Processes](170-processes.md#pm-calf-spy-calf-protocol-spy), [CALF Protocol Spy](241-calf-spy-cli.md), [Market Data Feed](240-market-data-feed.md) |
 | `pm-ralf-spy` | Spy on the RALF post-trade protocol — connect to `pm-ralf-gwy` and print every line, human-readable or JSON | [Processes](170-processes.md#pm-ralf-spy-ralf-protocol-spy), [RALF Protocol Spy](251-ralf-spy-cli.md), [Post-Trade Dissemination](250-post-trade.md) |
+| `pm-dc-spy` | Spy on the engine's drop-copy feed — connect directly to `:5557` and print every fill event, human-readable or JSON | [Processes](170-processes.md#pm-dc-spy-drop-copy-spy), [Drop-Copy Spy](252-dc-spy-cli.md), [Drop Copy](200-drop-copy.md) |
 | `pm-setup` |  Bootstrap local session directory and defaults | [Processes](170-processes.md), [Installation](000-getting-started.md#installation) |
 | `pm-config-gen` | Generate `engine_config.yaml` from CLI options | [Processes](170-processes.md), [Configuration generator](010-configuration.md#generate-configs-with-pm-config-gen) |
 
@@ -555,7 +558,8 @@ grouped below by role.
 | Expose REST/WebSocket order entry & market data      | `pm-api-gwy`                             | [API Gateway](260-api-gateway.md)                |
 | Accept binary order entry over TCP (BALF)            | `pm-balf-gwy`                           | [BALF Gateway](230-balf-gateway.md)              |
 | Feed external clearing/drop-copy consumers (RALF)    | `pm-ralf-gwy`                           | [Post-Trade Dissemination](250-post-trade.md)    |
-| Feed compliance/risk systems directly                | Subscribe to `:5557` (drop-copy socket) | [Drop Copy](200-drop-copy.md)                    |
+| Feed compliance/risk systems directly (ZeroMQ)       | Subscribe to `:5557` (drop-copy socket) | [Drop Copy](200-drop-copy.md)                    |
+| Feed compliance/risk systems directly (plain TCP, no ZeroMQ) | `pm-dc-gwy`                     | [Drop-Copy TCP Gateway](201-dc-gateway.md)       |
 
 ### Automation
 

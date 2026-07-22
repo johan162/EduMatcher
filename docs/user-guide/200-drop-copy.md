@@ -8,8 +8,9 @@
     - The message format published on the drop copy channel
     - What replay support exists today and what its limits are
     - How to configure and monitor the drop copy stream
-    - Two ways to consume it: connecting directly to port 5557, or relaying
-      it through your own ALF session with `DC|STATE=ON`
+    - Three ways to consume it: connecting directly to port 5557, relaying
+      it through your own ALF session with `DC|STATE=ON`, or via the
+      standalone `pm-dc-gwy` TCP gateway for non-ZeroMQ clients
     - How this compares to how real exchanges deliver drop copy
 
     **Prerequisite**: [Processes](170-processes.md) gives an overview of the
@@ -346,6 +347,19 @@ on your ALF session does not stop you from also connecting a separate
 `pm-dc-spy`/direct subscriber to port 5557.
 
 
+## Alternative: `pm-dc-gwy` for non-ZeroMQ external clients
+
+Both options above assume the recipient either has `pyzmq` available (direct
+port-5557 subscriber) or is already an ALF trading client (`DC` relay). If
+neither is true — an external risk system, clearing broker, or compliance
+monitor written in a language or environment where installing ZeroMQ isn't
+practical — [`pm-dc-gwy`](201-dc-gateway.md) exposes the same feed over a
+plain TCP text protocol (DC1). A client sends `HELLO|...|ID=<gateway_id>` and
+receives that gateway's fills as unsolicited `DC_FILL` lines, with no ZeroMQ
+dependency at all. See [Drop-Copy TCP Gateway](201-dc-gateway.md) for the
+full protocol reference and setup instructions.
+
+
 ## How real exchanges publish drop copy
 
 Real venues typically deliver drop copy over a **dedicated FIX session per
@@ -409,6 +423,7 @@ checks, see [RALF protocol reference](930-app-ralf-protocol.md) and
 ## See also
 
 - [Drop-Copy Spy (pm-dc-spy)](252-dc-spy-cli.md) — read-only CLI for inspecting this feed without writing a subscriber
+- [Drop-Copy TCP Gateway (pm-dc-gwy)](201-dc-gateway.md) — plain-TCP relay of this feed for non-ZeroMQ external clients
 - [Gateway → DC](050-gateway.md#dc-toggle-drop-copy-relay) — relay this feed through your own `pm-alf-console` session
 - [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay) — relay this feed through your own `pm-alf-gwy` session
 - [Processes](170-processes.md) — full ZeroMQ topology

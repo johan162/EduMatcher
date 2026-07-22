@@ -109,6 +109,7 @@ nav:
     - Persistence: user-guide/180-persistence.md
     - Audit Trail: user-guide/190-audit.md
     - Drop Copy: user-guide/200-drop-copy.md
+    - Drop-Copy TCP Gateway (pm-dc-gwy): user-guide/201-dc-gateway.md
     - External Protocols Overview: user-guide/210-protocol-overview.md
     - ALF TCP Gateway: user-guide/220-alf-gateway.md
     - BALF TCP Gateway: user-guide/230-balf-gateway.md
