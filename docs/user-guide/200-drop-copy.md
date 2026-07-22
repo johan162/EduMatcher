@@ -8,6 +8,9 @@
     - The message format published on the drop copy channel
     - What replay support exists today and what its limits are
     - How to configure and monitor the drop copy stream
+    - Two ways to consume it: connecting directly to port 5557, or relaying
+      it through your own ALF session with `DC|STATE=ON`
+    - How this compares to how real exchanges deliver drop copy
 
     **Prerequisite**: [Processes](170-processes.md) gives an overview of the
     ZeroMQ topology that drop copy sits within.
@@ -253,6 +256,19 @@ To change the drop copy port, edit `DROP_COPY_PUB_ADDR` in `config.py`.
 
 ## Subscribing to the drop copy feed
 
+!!! tip "Quick observability: pm-dc-spy"
+    For ad-hoc inspection you don't need to write a subscriber at all —
+    [`pm-dc-spy`](252-dc-spy-cli.md) is a read-only CLI that connects to
+    port 5557 and prints every fill event, human-readable or as JSON:
+
+    ```bash
+    pm-dc-spy --gateway TRADER01
+    ```
+
+    Use the example subscriber below when you're building your own
+    risk/clearing integration; use `pm-dc-spy` when you just want to look
+    at the wire.
+
 A minimal Python subscriber that prints every fill event:
 
 ```python
@@ -292,6 +308,77 @@ Listening for drop-copy events on :5557 ...
 
 
 
+## Alternative: relayed through your own ALF session
+
+Connecting directly to port 5557 (above) is the most general option and the
+right choice for an external, independent recipient — a risk system,
+clearing broker, or compliance monitor that is not itself an ALF trading
+client. But if you already have an ALF session open (`pm-alf-console` or a
+`pm-alf-gwy` TCP client) and only want to see **your own** fills without
+managing a second connection, both ALF entry points can relay the feed for
+you:
+
+```bash
+# pm-alf-console: enable from the start
+pm-alf-console --id TRADER01 --drop-copy
+
+# or toggle at runtime from either pm-alf-console or an external
+# pm-alf-gwy client
+DC|STATE=ON
+```
+
+Once enabled, every fill for that gateway arrives asynchronously as a
+`DC_FILL` line — see
+[Gateway → DC](050-gateway.md#dc-toggle-drop-copy-relay) and
+[ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay) for the
+full command reference. Internally this is exactly the same ZMQ SUB
+connection to `drop_copy.event.{gateway_id}` described above — `pm-alf-gwy`
+and `pm-alf-console` just do the subscribing for you and re-deliver it down
+the connection you already have, scoped to your own gateway ID only. This
+mirrors how a real exchange's drop copy is typically wired: relayed to a
+participant's own session infrastructure rather than requiring a wholly
+separate connection — see
+[How real exchanges publish drop copy](#how-real-exchanges-publish-drop-copy)
+below for the comparison.
+
+Both paths read the same feed and can be used simultaneously; enabling `DC`
+on your ALF session does not stop you from also connecting a separate
+`pm-dc-spy`/direct subscriber to port 5557.
+
+
+## How real exchanges publish drop copy
+
+Real venues typically deliver drop copy over a **dedicated FIX session per
+recipient**, separate from the trading session — often a second
+`SenderCompID`/`TargetCompID` pair, sometimes hosted by the exchange,
+sometimes by a clearing broker relaying fills downstream. The payload is an
+Execution Report (`MsgType=8`), the same message type used for live
+order acks/fills, delivered again on the drop-copy session. Sequence
+numbers are session-scoped FIX `MsgSeqNum`, with gap recovery via FIX's
+native `ResendRequest`/`SequenceReset` rather than a bespoke replay
+protocol. Entitlement is structural — the FIX session itself is provisioned
+per participant — rather than a filter applied after connecting.
+
+EduMatcher's drop-copy relay through `pm-alf-gwy`/`pm-alf-console` (`DC`,
+above) is the closer simulation of this pattern: a per-participant,
+per-connection relay scoped to that participant's own `gateway_id`, layered
+on top of an existing session rather than requiring a wholly separate
+connection. The direct port-5557 connection is architecturally closer to
+tapping the wire between the exchange and its drop-copy relay — useful for
+building your own relay or observability tooling, but not how a real
+end-participant would typically receive their drop copy.
+
+!!! warning "Still no authentication or entitlement checks"
+    Unlike a real FIX drop-copy session (provisioned per participant at the
+    connection level), neither the raw port-5557 socket nor the `DC`
+    command in `pm-alf-gwy`/`pm-alf-console` enforce that a gateway can only
+    see its own fills through some external check — `DC` scopes what a
+    session *asks for* via `gateway_id`, but the underlying feed itself
+    still has no authentication (see
+    [Architecture](#architecture) above). This is a deliberate scope
+    decision for EduMatcher, not an oversight.
+
+
 ## RALF DROP_COPY channel vs. this feed
 
 The RALF gateway (`pm-ralf-gwy`) has its own concept called the `DROP_COPY`
@@ -321,6 +408,9 @@ checks, see [RALF protocol reference](930-app-ralf-protocol.md) and
 
 ## See also
 
+- [Drop-Copy Spy (pm-dc-spy)](252-dc-spy-cli.md) — read-only CLI for inspecting this feed without writing a subscriber
+- [Gateway → DC](050-gateway.md#dc-toggle-drop-copy-relay) — relay this feed through your own `pm-alf-console` session
+- [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay) — relay this feed through your own `pm-alf-gwy` session
 - [Processes](170-processes.md) — full ZeroMQ topology
 - [Risk Controls](120-risk-controls.md) — halt, collar, and circuit breaker events
 - [Persistence](180-persistence.md) — durable audit trail as a complement to drop copy

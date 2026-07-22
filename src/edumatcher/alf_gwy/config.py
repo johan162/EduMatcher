@@ -8,7 +8,12 @@ from typing import Any
 
 import yaml
 
-from edumatcher.config import ENGINE_CONFIG_FILE, ENGINE_PULL_ADDR, ENGINE_PUB_ADDR
+from edumatcher.config import (
+    DROP_COPY_PUB_ADDR,
+    ENGINE_CONFIG_FILE,
+    ENGINE_PULL_ADDR,
+    ENGINE_PUB_ADDR,
+)
 
 
 @dataclass(frozen=True)
@@ -21,6 +26,7 @@ class AlfGatewayConfig:
     port: int = 5565
     engine_pull_addr: str = ENGINE_PULL_ADDR
     engine_pub_addr: str = ENGINE_PUB_ADDR
+    drop_copy_pub_addr: str = DROP_COPY_PUB_ADDR
     heartbeat_interval_sec: int = 5
     handshake_timeout_sec: int = 10
     idle_timeout_sec: int = 30
@@ -133,6 +139,7 @@ def _load_alf_gateway_config_from_raw(raw: dict[str, Any]) -> AlfGatewayConfig:
         port=port,
         engine_pull_addr=ENGINE_PULL_ADDR,
         engine_pub_addr=ENGINE_PUB_ADDR,
+        drop_copy_pub_addr=DROP_COPY_PUB_ADDR,
         heartbeat_interval_sec=heartbeat_interval_sec,
         handshake_timeout_sec=handshake_timeout_sec,
         idle_timeout_sec=idle_timeout_sec,

@@ -262,6 +262,12 @@ On startup, the gateway:
     not need to be running for the rest of the console to work, but `INDEX` and
     `INDEX|HISTORY` will simply produce no output if it is not.
 
+!!! note "A third socket talks to the drop-copy feed"
+    `pm-alf-console` also connects a SUB socket to the engine's drop-copy PUB
+    port (`DROP_COPY_PUB_ADDR`, default `:5557`), but subscribes to nothing
+    on it until `DC|STATE=ON` (or `--drop-copy` at startup) — see
+    [DC — Toggle Drop-Copy Relay](#dc-toggle-drop-copy-relay) below.
+
 ```mermaid
 sequenceDiagram
     participant GW as pm-alf-console --id TRADER01
@@ -337,6 +343,7 @@ All commands use the ALF pipe-separated key=value format.
 | Order entry | `NEW`, `NEW|TYPE=COMBO`, `NEW|TYPE=OCO`, `QUOTE` | Create new exposure |
 | Order updates | `AMEND`, `CANCEL`, `QUOTE_CANCEL` | Modify or remove exposure |
 | Risk controls | `KILL` | Emergency local gateway kill-switch |
+| Drop copy | `DC` | Toggle asynchronous relay of this gateway's own fills from the engine's drop-copy feed |
 | Monitoring | `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `QBOOT`, `QLEGS`, `INDEX` | Inspect live/cached state |
 | Session control | `HELP`, `EXIT`, `QUIT` | Terminal usability |
 
@@ -552,6 +559,49 @@ KILL|SYM=<symbol>
 ```
 
 `KILL` cancels active quote legs and non-quote resting orders for the gateway.
+
+### DC — Toggle Drop-Copy Relay
+
+```
+DC|STATE=ON
+DC|STATE=OFF
+```
+
+`DC` subscribes (or unsubscribes) this session to the engine's drop-copy feed
+(`DropCopyPublisher`, ZMQ PUB `:5557` — see [Drop Copy](200-drop-copy.md)),
+scoped to **this gateway's own fills only**. Once `DC|STATE=ON` is active,
+every subsequent fill for this gateway arrives asynchronously as a `DC_FILL`
+line, in addition to (not instead of) the usual `FILL` line driven by
+`order.fill.{GW_ID}` on the main event bus.
+
+```text
+GW01> DC|STATE=ON
+[dim]DC ON[/dim]
+...
+[09:31:02.417] DC_FILL   7c4a91e2  AAPL  qty=100 @150.05  [TAKER]  #42  (drop_copy.event.GW01)
+```
+
+Disabled by default; start with `--drop-copy` to enable automatically on
+connect instead of sending `DC|STATE=ON` manually every session:
+
+```bash
+pm-alf-console --id GW01 --drop-copy
+```
+
+!!! note "Why both FILL and DC_FILL?"
+    `FILL` (from `order.fill.{GW_ID}` on `:5556`) is the trading session's
+    own fill notification and always arrives regardless of `DC` state.
+    `DC_FILL` is a second, independent notification sourced from the
+    engine's dedicated drop-copy feed (`:5557`) — the same feed a real
+    exchange would deliver to a separate risk/back-office recipient. Seeing
+    both for the same fill (with different envelopes: `DC_FILL` carries the
+    drop-copy `seq`/`liquidity_flag`, not the order-lifecycle `remaining`/
+    `status` fields `FILL` carries) is expected and mirrors how a real
+    participant's own trading session and their firm's drop-copy recipient
+    receive independent copies of the same execution.
+    `pm-alf-gwy` supports the identical `DC|STATE=ON`/`DC|STATE=OFF`
+    command for external TCP clients — see
+    [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay).
 
 ### NEW — Submit an Order
 
@@ -931,6 +981,16 @@ All events are printed inline with a `[HH:MM:SS.mmm]` timestamp prefix. A backgr
 | `KILL ACK  orders=<n> quote_legs=<n>` | Kill-switch applied; counts show what was cancelled     |
 | `KILL REJ  <reason>`                  | Kill-switch rejected (not expected in normal operation) |
 
+### Drop-Copy Events
+
+Only printed while `DC` is enabled (`DC|STATE=ON` or `--drop-copy`) — see
+[DC — Toggle Drop-Copy Relay](#dc-toggle-drop-copy-relay).
+
+| Message | Meaning |
+|---|---|
+| `DC ON` / `DC OFF` | Confirms the relay was toggled locally (printed immediately, no round trip to the engine) |
+| `DC_FILL  <id>  <symbol>  qty=<n> @<price>  [<MAKER\|TAKER>]  #<seq>  (drop_copy.event.<GW_ID>)` | One event per fill, sourced from the engine's drop-copy feed (`:5557`) rather than the main event bus — arrives in addition to the ordinary `FILL` line |
+
 ### System Events
 
 | Message                           | Meaning                                                   |
@@ -1014,7 +1074,7 @@ The gateway provides **context-aware tab completion**:
 
 | Position                  | Completions                                                                                                                               |
 |---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| First word                | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `QLEGS`, `KILL`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `INDEX`, `HELP`, `EXIT`, `QUIT` |
+| First word                | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `QLEGS`, `KILL`, `DC`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `INDEX`, `HELP`, `EXIT`, `QUIT` |
 | After `NEW\|`             | `SYM=`, `SIDE=`, `TYPE=`, `QTY=`, `PRICE=`, `STOP=`, `TRAIL=`, `TIF=`, `VISIBLE=`, `SMP=`                                                 |
 | After `NEW\|TYPE=COMBO\|` | `COMBO_ID=`, `COMBO_TYPE=`, `TIF=`, `LEG_COUNT=`, plus `LEG0.SYM=`, `LEG0.SIDE=`, etc.                                                    |
 | After `NEW\|TYPE=OCO\|`   | `OCO_ID=`, `SYM=`, `QTY=`, `TIF=`, `LEG1_SIDE=`, `LEG1_TYPE=`, etc.                                                                       |

@@ -56,6 +56,10 @@ from edumatcher.models.price import register_tick_decimals, to_ticks
 
 _MAX_LINE_BYTES = 4096
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
+_MAX_DC_EVENTS_PER_LOOP = 1000
+# Topic prefix used by edumatcher.engine.drop_copy.DropCopyPublisher for live
+# (non-replay) fill events -- see docs/user-guide/200-drop-copy.md.
+_DC_EVENT_TOPIC_PREFIX = "drop_copy.event."
 
 log = logging.getLogger(__name__)
 
@@ -69,6 +73,7 @@ class ClientSession:
     role: str = "TRADER"
     authenticated: bool = False
     auth_pending: bool = False
+    dc_enabled: bool = False
     subscriptions: set[str] = field(default_factory=set)
     out_queue: deque[bytes] = field(default_factory=deque)
     out_offset: int = 0
@@ -109,6 +114,7 @@ class AlfGateway:
         self._clients: dict[int, ClientSession] = {}
         self._active_gateway_sessions: dict[str, int] = {}
         self._topic_refcounts: dict[str, int] = {}
+        self._dc_topic_refcounts: dict[str, int] = {}
         self._gateway_roles = {gw_id: role for gw_id, role in config.gateway_roles}
         # Shared ref-data snapshot state loaded from engine symbols responses.
         self._known_symbols: set[str] = set()
@@ -122,6 +128,12 @@ class AlfGateway:
             "circuit_breaker.halt.",
             "circuit_breaker.resume.",
         )
+        # Separate SUB socket for the engine's drop-copy feed (:5557). Kept
+        # distinct from self._sub (:5556) because it is a different ZMQ PUB
+        # address entirely -- see edumatcher.engine.drop_copy. No topics are
+        # subscribed here at startup; DC|ON subscribes this session's own
+        # drop_copy.event.<GW_ID> topic on demand (see _dc_subscribe_topic).
+        self._dc_sub: zmq.Socket[bytes] = make_subscriber(config.drop_copy_pub_addr)
 
         self._global_stats: dict[str, int] = {
             "connected_clients": 0,
@@ -159,6 +171,7 @@ class AlfGateway:
                 self._accept_new_clients()
                 self._read_client_data()
                 self._poll_engine_events()
+                self._poll_dc_events()
                 self._send_heartbeats_if_due()
                 self._flush_client_writes()
                 self._drop_idle_clients()
@@ -185,6 +198,8 @@ class AlfGateway:
             self._push.close()
         if not self._sub.closed:
             self._sub.close()
+        if not self._dc_sub.closed:
+            self._dc_sub.close()
 
     # ------------------------------------------------------------------
     # Networking
@@ -432,6 +447,9 @@ class AlfGateway:
             self._send_to_engine(
                 make_kill_switch_msg(self._require_gw(session), symbol)
             )
+            return
+        if cmd == "DC":
+            self._handle_dc(session, fields)
             return
         if cmd == "SYMBOLS":
             self._send_to_engine(make_symbols_request_msg(self._require_gw(session)))
@@ -790,6 +808,35 @@ class AlfGateway:
         self._validate_symbol(symbol)
         self._send_to_engine(make_quote_cancel_msg(self._require_gw(session), symbol))
 
+    def _handle_dc(self, session: ClientSession, fields: dict[str, str]) -> None:
+        """Toggle asynchronous drop-copy relay for this session.
+
+        ``DC|ON`` subscribes this session to the engine's drop-copy feed
+        (``DROP_COPY_PUB_ADDR``, :5557) scoped to this session's own
+        ``gateway_id`` -- every subsequent fill for this gateway arrives
+        asynchronously as a ``DC_FILL`` line, mirroring how a real exchange
+        relays drop copy down a participant's own session rather than
+        requiring a separate connection. ``DC|OFF`` unsubscribes. Mirrors
+        the on/off semantics of a real FIX drop-copy session being
+        provisioned per participant -- see docs/user-guide/200-drop-copy.md.
+        """
+        state = self._required_str(fields, "STATE")
+        gateway_id = self._require_gw(session)
+
+        if state == "ON":
+            if not session.dc_enabled:
+                self._dc_subscribe_topic(f"{_DC_EVENT_TOPIC_PREFIX}{gateway_id}")
+                session.dc_enabled = True
+            self._queue_line(session, "DC_ACK", {"STATE": "ON"})
+            return
+        if state == "OFF":
+            if session.dc_enabled:
+                self._dc_unsubscribe_topic(f"{_DC_EVENT_TOPIC_PREFIX}{gateway_id}")
+                session.dc_enabled = False
+            self._queue_line(session, "DC_ACK", {"STATE": "OFF"})
+            return
+        raise ValidationError("INVALID_VALUE", "DC STATE must be ON or OFF")
+
     # ------------------------------------------------------------------
     # Engine event polling
     # ------------------------------------------------------------------
@@ -880,6 +927,53 @@ class AlfGateway:
                 continue
 
             self._route_gateway_scoped_event(topic, payload)
+
+    def _poll_dc_events(self) -> None:
+        """Poll the drop-copy SUB socket (:5557) and relay to subscribed sessions.
+
+        Separate from :meth:`_poll_engine_events` because drop copy lives on
+        its own ZMQ PUB socket, distinct from the main event bus (:5556).
+        Only sessions that sent ``DC|ON`` are subscribed to any topic on
+        this socket at all (see ``_handle_dc``/``_dc_subscribe_topic``), so
+        this poll is a no-op whenever no connected session has opted in.
+        """
+        budget = _MAX_DC_EVENTS_PER_LOOP
+        while budget > 0 and self._dc_sub.poll(timeout=0):
+            try:
+                topic, payload = decode(self._dc_sub.recv_multipart())
+            except zmq.ZMQError as exc:
+                if exc.errno != errno.EINTR:
+                    log.warning(
+                        "ALF gateway drop-copy SUB recv error (errno=%s); "
+                        "dropping remaining DC events for this tick",
+                        exc.errno,
+                    )
+                break
+            except Exception:
+                budget -= 1
+                continue
+
+            budget -= 1
+
+            if not topic.startswith(_DC_EVENT_TOPIC_PREFIX):
+                continue
+            gateway_id = topic[len(_DC_EVENT_TOPIC_PREFIX) :].upper()
+            session = self._session_for_gateway(gateway_id)
+            if session is None or not session.dc_enabled:
+                continue
+
+            self._queue_line(
+                session,
+                "DC_FILL",
+                {
+                    "SEQ": str(payload.get("seq", "")),
+                    "ORDER_ID": str(payload.get("order_id", "")),
+                    "SYMBOL": str(payload.get("symbol", "")),
+                    "FILL_QTY": str(payload.get("fill_qty", "")),
+                    "FILL_PRICE": str(payload.get("fill_price", "")),
+                    "LIQUIDITY": str(payload.get("liquidity_flag", "")),
+                },
+            )
 
     def _handle_gateway_auth(self, gateway_id: str, payload: dict[str, Any]) -> None:
         target = self._find_pending_auth_session(gateway_id)
@@ -1448,6 +1542,10 @@ class AlfGateway:
             self._unsubscribe_topic(topic)
         session.subscriptions.clear()
 
+        if gateway_id and session.dc_enabled:
+            self._dc_unsubscribe_topic(f"{_DC_EVENT_TOPIC_PREFIX}{gateway_id}")
+            session.dc_enabled = False
+
         if gateway_id and session.connect_emitted:
             self._send_to_engine(
                 make_gateway_disconnect_msg(gateway_id, reason=reason),
@@ -1475,6 +1573,26 @@ class AlfGateway:
             self._sub.setsockopt(zmq.UNSUBSCRIBE, topic.encode("utf-8"))
             return
         self._topic_refcounts[topic] = ref - 1
+
+    def _dc_subscribe_topic(self, topic: str) -> None:
+        """Refcounted SUBSCRIBE on the drop-copy socket (:5557).
+
+        Kept separate from :meth:`_subscribe_topic` because it targets
+        ``self._dc_sub`` rather than ``self._sub`` -- a different ZMQ PUB
+        address entirely, not just a different topic namespace.
+        """
+        ref = self._dc_topic_refcounts.get(topic, 0)
+        if ref == 0:
+            self._dc_sub.setsockopt(zmq.SUBSCRIBE, topic.encode("utf-8"))
+        self._dc_topic_refcounts[topic] = ref + 1
+
+    def _dc_unsubscribe_topic(self, topic: str) -> None:
+        ref = self._dc_topic_refcounts.get(topic, 0)
+        if ref <= 1:
+            self._dc_topic_refcounts.pop(topic, None)
+            self._dc_sub.setsockopt(zmq.UNSUBSCRIBE, topic.encode("utf-8"))
+            return
+        self._dc_topic_refcounts[topic] = ref - 1
 
     def _gateway_topics(self, gateway_id: str) -> tuple[str, ...]:
         return (

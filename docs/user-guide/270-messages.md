@@ -45,7 +45,7 @@ Quick index of all defined message topics with publisher and purpose.
 | `order.combo` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to submit a combo (multi-leg) order. |
 | `order.combo_cancel` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to cancel a combo and all its child legs. |
 | `order.ack.{GW_ID}` | pm-engine via PUB :5556 | Acknowledgement of an `order.new` submission. |
-| `order.fill.{GW_ID}` | pm-engine via PUB :5556 | Notifies a gateway (and the order monitor) of a partial or full fill. A derived copy of each fill is separately relayed as `drop_copy.event.{gateway_id}` on :5557 — see below and [Drop Copy](200-drop-copy.md). |
+| `order.fill.{GW_ID}` | pm-engine via PUB :5556 | Notifies a gateway (and the order monitor) of a partial or full fill. A derived copy of each fill is separately relayed as `drop_copy.event.{gateway_id}` on :5557 — see below and [Drop Copy](200-drop-copy.md). Can also be relayed to a participant's own ALF session as `DC_FILL` via `DC\|STATE=ON` — see [Gateway → DC](050-gateway.md#dc-toggle-drop-copy-relay). |
 | `order.cancelled.{GW_ID}` | pm-engine via PUB :5556 | Confirms a cancel request or a Self-Match Prevention (SMP) forced cancellation. |
 | `order.amended.{GW_ID}` | pm-engine via PUB :5556 | Confirms a successful order amendment. |
 | `order.expired.{GW_ID}` | pm-engine via PUB :5556 | Published during engine shutdown for every resting `DAY` order that did not fill. |
@@ -890,6 +890,16 @@ message has its own envelope (`seq`, `timestamp`, `gateway_id`, `event_type`)
 and is not a verbatim republish of this topic's payload — see
 [Drop Copy](200-drop-copy.md) for the full drop-copy schema. No other topic
 on this page is mirrored to `:5557`.
+
+!!! note "Two ways to consume drop copy"
+    `drop_copy.event.{gateway_id}` on `:5557` can be consumed directly (any
+    ZMQ SUB client, or `pm-dc-spy` for ad-hoc inspection — see
+    [Drop Copy](200-drop-copy.md)), or relayed asynchronously down a
+    participant's own ALF session via `pm-alf-console --drop-copy` /
+    `DC|STATE=ON` or `pm-alf-gwy`'s `DC|STATE=ON` command, which re-emits it
+    as an ALF `DC_FILL` line scoped to that session's own `gateway_id`. See
+    [Gateway → DC](050-gateway.md#dc-toggle-drop-copy-relay) and
+    [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay).
 
 | Field | Type | Description |
 |---|---|---|

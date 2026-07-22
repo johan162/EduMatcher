@@ -246,3 +246,4 @@ independently per session.
 - [Appendix — RALF Protocol](930-app-ralf-protocol.md) — normative wire format, full field tables, sequencing rules
 - [Processes](170-processes.md#pm-ralf-spy-ralf-protocol-spy) — where `pm-ralf-spy` sits in the process model
 - [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) — the analogous inspection tool for the pre-trade market-data feed
+- [Drop-Copy Spy (pm-dc-spy)](252-dc-spy-cli.md) — the analogous inspection tool for the engine's raw drop-copy feed (distinct from RALF's `DROP_COPY` channel — see [comparison](200-drop-copy.md#ralf-drop_copy-channel-vs-this-feed))

@@ -30,6 +30,8 @@ Commands
   QBOOT[|SYM=AAPL]         — request active quote bootstrap state from engine
   QLEGS[|SYM=AAPL][|SHOW=ACTIVE|RECENT|ALL]  — show MM quote legs
   KILL[|SYM=AAPL]          — kill-switch cancel for this gateway
+  DC|STATE=ON              — enable async drop-copy relay for this gateway's own fills
+  DC|STATE=OFF             — disable drop-copy relay
   STATUS                   — print gateway/session summary
   ORDERS                   — print table of this session's orders
   POS                      — print current positions with P&L
@@ -60,6 +62,7 @@ from prompt_toolkit.patch_stdout import patch_stdout as pt_patch_stdout
 
 from edumatcher.cli_version import add_version_argument
 from edumatcher.config import (
+    DROP_COPY_PUB_ADDR,
     ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
     INDEX_PUB_CONNECT_ADDR,
@@ -129,6 +132,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Unique gateway identifier, e.g. GW01",
     )
     parser.add_argument(
+        "--drop-copy",
+        action="store_true",
+        help="Enable drop-copy relay on startup (equivalent to sending DC|ON "
+        "immediately after connecting). Default: off. Can also be toggled "
+        "at runtime with the DC|ON / DC|OFF command. See "
+        "docs/user-guide/200-drop-copy.md",
+    )
+    parser.add_argument(
         "--log-level",
         choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
         help="Logging level override (default: WARNING)",
@@ -175,8 +186,10 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 class Gateway:
-    def __init__(self, gateway_id: str) -> None:
+    def __init__(self, gateway_id: str, drop_copy: bool = False) -> None:
         self.gateway_id = gateway_id.upper()
+        self._dc_enabled = False
+        self._dc_requested_on_startup = drop_copy
         self.order_cache: dict[str, dict[str, Any]] = {}  # order_id → state dict
         self.quote_leg_cache: dict[str, dict[str, Any]] = (
             {}
@@ -222,6 +235,12 @@ class Gateway:
             f"index.history.{self.gateway_id}",
             f"index.error.{self.gateway_id}",
         )
+        # Separate SUB socket for the engine's drop-copy feed (:5557),
+        # distinct from sub_sock (:5556) -- a different ZMQ PUB address, not
+        # just a different topic namespace. No topic is subscribed until
+        # DC|ON (or --drop-copy at startup) -- see _set_drop_copy().
+        self._dc_sub_sock = make_subscriber(DROP_COPY_PUB_ADDR)
+        self._dc_topic = f"drop_copy.event.{self.gateway_id}".encode()
         self._auth_reason: str = ""
         self._auth_description: str = ""
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
@@ -248,6 +267,22 @@ class Gateway:
         log.debug("alf_console flow summary: %s", summary)
         self._debug_counts.clear()
         self._debug_last_summary = now
+
+    def _set_drop_copy(self, enabled: bool) -> None:
+        """Toggle the drop-copy relay (DC|ON / DC|OFF / --drop-copy).
+
+        Subscribes/unsubscribes ``drop_copy.event.<gateway_id>`` on the
+        dedicated drop-copy socket (:5557) -- see docs/user-guide/200-drop-copy.md.
+        Idempotent: calling with the same state twice is a no-op on the wire.
+        """
+        if enabled == self._dc_enabled:
+            return
+        if enabled:
+            self._dc_sub_sock.setsockopt(zmq.SUBSCRIBE, self._dc_topic)
+        else:
+            self._dc_sub_sock.setsockopt(zmq.UNSUBSCRIBE, self._dc_topic)
+        self._dc_enabled = enabled
+        console.print(f"[dim]DC {'ON' if enabled else 'OFF'}[/dim]")
 
     @staticmethod
     def _topic_family(topic: str) -> str:
@@ -396,6 +431,7 @@ class Gateway:
         poller = zmq.Poller()
         poller.register(self.sub_sock, zmq.POLLIN)
         poller.register(self._index_sub_sock, zmq.POLLIN)
+        poller.register(self._dc_sub_sock, zmq.POLLIN)
         log.info("gateway listeners started gateway_id=%s", self.gateway_id)
         while self._running:
             try:
@@ -431,8 +467,44 @@ class Gateway:
                             exc,
                         )
                         console.print(f"[dim][WARN] index listener error: {exc}[/dim]")
+            if self._dc_sub_sock in socks:
+                try:
+                    frames = self._dc_sub_sock.recv_multipart()
+                    topic, payload = decode(frames)
+                    self._dbg_count("events_dc_socket")
+                    self._handle_dc_event(topic, payload)
+                except Exception as exc:
+                    if self._running:
+                        self._dbg_count("dc_listener_errors")
+                        log.warning(
+                            "drop-copy listener error gateway_id=%s: %s",
+                            self.gateway_id,
+                            exc,
+                        )
+                        console.print(f"[dim][WARN] drop-copy listener error: {exc}[/dim]")
         self._flush_debug_summary(force=True)
         log.info("gateway listeners stopped gateway_id=%s", self.gateway_id)
+
+    def _handle_dc_event(self, topic: str, payload: dict[str, Any]) -> None:
+        """Render one drop-copy event received on the :5557 relay.
+
+        Only reached while DC is enabled, since no topic is subscribed on
+        ``_dc_sub_sock`` otherwise -- see ``_set_drop_copy``. Printed as a
+        ``DC_FILL``-style line for consistency with the wire message
+        pm-alf-gwy sends its own TCP clients for the same event (see
+        docs/user-guide/270-messages.md).
+        """
+        ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        seq = payload.get("seq", "?")
+        symbol = payload.get("symbol", "?")
+        qty = payload.get("fill_qty", "?")
+        price = payload.get("fill_price", "?")
+        liquidity = payload.get("liquidity_flag", "?")
+        order_id = str(payload.get("order_id", "?"))[:8]
+        console.print(
+            f"[{ts}] [bold cyan]DC_FILL[/bold cyan]   {order_id}  {symbol}  "
+            f"qty={qty} @{price}  [{liquidity}]  #{seq}  [dim]({topic})[/dim]"
+        )
 
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
@@ -902,6 +974,17 @@ class Gateway:
             )
             return
 
+        if cmd == "DC":
+            kv = self._kv(parts[1:])
+            state = kv.get("STATE", "")
+            if state == "ON":
+                self._set_drop_copy(True)
+            elif state == "OFF":
+                self._set_drop_copy(False)
+            else:
+                console.print("[red]DC requires STATE=ON or STATE=OFF[/red]")
+            return
+
         if cmd == "CANCEL":
             kv = self._kv(parts[1:])
             combo_id = kv.get("COMBO_ID")
@@ -1292,11 +1375,16 @@ class Gateway:
             self._running = False
             self.push_sock.close()
             self.sub_sock.close()
+            self._index_sub_sock.close()
+            self._dc_sub_sock.close()
             return
 
         self._authenticated = True
         # Request outstanding resting orders so reconnects restore order history
         self.push_sock.send_multipart(make_orders_request_msg(self.gateway_id))
+
+        if self._dc_requested_on_startup:
+            self._set_drop_copy(True)
 
         listener = threading.Thread(target=self._listen, daemon=True)
         listener.start()
@@ -1342,6 +1430,7 @@ class Gateway:
             self.push_sock.close()
             self.sub_sock.close()
             self._index_sub_sock.close()
+            self._dc_sub_sock.close()
             log.info("gateway shutdown complete gateway_id=%s", self.gateway_id)
             console.print(f"\n[bold]Gateway {self.gateway_id} disconnected.[/bold]")
 
@@ -1354,8 +1443,8 @@ def main() -> None:
         "starting pm-alf-console with log level %s",
         logging.getLevelName(log_level),
     )
-    log.debug("resolved gateway args: id=%s", args.id)
-    Gateway(args.id).run()
+    log.debug("resolved gateway args: id=%s drop_copy=%s", args.id, args.drop_copy)
+    Gateway(args.id, drop_copy=args.drop_copy).run()
 
 
 if __name__ == "__main__":

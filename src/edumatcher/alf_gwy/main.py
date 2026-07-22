@@ -35,7 +35,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Override engine host in ZMQ URLs "
-            "(uses tcp://<host>:5555 and tcp://<host>:5556)"
+            "(uses tcp://<host>:5555, tcp://<host>:5556, and tcp://<host>:5557)"
         ),
     )
     parser.add_argument(
@@ -88,9 +88,11 @@ def _resolve_config(args: argparse.Namespace) -> AlfGatewayConfig:
 
     engine_pull_addr = cfg.engine_pull_addr
     engine_pub_addr = cfg.engine_pub_addr
+    drop_copy_pub_addr = cfg.drop_copy_pub_addr
     if args.engine_host:
         engine_pull_addr = f"tcp://{args.engine_host}:5555"
         engine_pub_addr = f"tcp://{args.engine_host}:5556"
+        drop_copy_pub_addr = f"tcp://{args.engine_host}:5557"
 
     return AlfGatewayConfig(
         enabled=cfg.enabled,
@@ -99,6 +101,7 @@ def _resolve_config(args: argparse.Namespace) -> AlfGatewayConfig:
         port=port,
         engine_pull_addr=engine_pull_addr,
         engine_pub_addr=engine_pub_addr,
+        drop_copy_pub_addr=drop_copy_pub_addr,
         heartbeat_interval_sec=cfg.heartbeat_interval_sec,
         idle_timeout_sec=cfg.idle_timeout_sec,
         max_connections=cfg.max_connections,

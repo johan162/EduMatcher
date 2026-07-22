@@ -54,6 +54,7 @@ alf_gateway:
     assert cfg.port == 6010
     assert cfg.engine_pull_addr == "tcp://10.0.0.5:5555"
     assert cfg.engine_pub_addr == "tcp://10.0.0.5:5556"
+    assert cfg.drop_copy_pub_addr == "tcp://10.0.0.5:5557"
 
 
 def test_main_invalid_config_exits(

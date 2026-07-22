@@ -11,6 +11,7 @@ def test_load_defaults_when_missing(tmp_path: Path) -> None:
     cfg = load_alf_gateway_config(tmp_path / "missing.yaml")
     assert cfg.port == 5565
     assert cfg.max_connections == 64
+    assert cfg.drop_copy_pub_addr == "tcp://127.0.0.1:5557"
 
 
 def test_load_alf_gateway_custom_values(tmp_path: Path) -> None:

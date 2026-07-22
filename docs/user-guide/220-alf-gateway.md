@@ -148,7 +148,7 @@ CLI override options:
 |--------|---------|-------------|
 | `--bind ADDR` | from config / `0.0.0.0` | Override TCP bind address |
 | `--port PORT` | from config / `5565` | Override TCP listen port |
-| `--engine-host HOST` | from config | Override engine host (sets `tcp://HOST:5555` and `tcp://HOST:5556`) |
+| `--engine-host HOST` | from config | Override engine host (sets `tcp://HOST:5555`, `tcp://HOST:5556`, and `tcp://HOST:5557` for drop copy) |
 | `--config` / `-c` | see resolution order below | Path to engine config YAML |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
@@ -369,6 +369,43 @@ scoped to one symbol.
 
 **Response:** `KILL_ACK|ACCEPTED=TRUE|ORDERS=N|QUOTES=N`
 
+### `DC` — toggle drop-copy relay
+
+```text
+DC|STATE=ON
+DC|STATE=OFF
+```
+
+Subscribes (or unsubscribes) this session to the engine's drop-copy feed
+(`DropCopyPublisher`, ZMQ PUB `:5557` — a separate socket from the main
+event bus on `:5556`, see [Drop Copy](200-drop-copy.md)), scoped to this
+session's own `gateway_id`. Unlike CALF/RALF, the drop-copy feed has no
+handshake or role model of its own — `pm-alf-gwy` maintains a single
+refcounted subscription per gateway ID on its drop-copy SUB socket and fans
+it out only to the session(s) that requested it.
+
+Disabled by default per session. There is no gateway-wide config flag to
+force it on — each connecting client opts in independently with `DC|STATE=ON`,
+mirroring how a real drop-copy relay is provisioned per participant, not
+per venue.
+
+**Response:** `DC_ACK|STATE=ON` or `DC_ACK|STATE=OFF`
+
+**Live events (while enabled):** `DC_FILL|SEQ=..|ORDER_ID=..|SYMBOL=..|FILL_QTY=..|FILL_PRICE=..|LIQUIDITY=..`
+— one per fill, delivered asynchronously in addition to (not instead of) the
+ordinary `FILL` message. `SEQ` and `LIQUIDITY` (`MAKER`/`TAKER`) come from
+the drop-copy envelope and are not present on `FILL`; `DC_FILL` does not
+carry `REMAINING`/`STATUS` the way `FILL` does. See
+[Drop Copy — order.fill event](200-drop-copy.md#orderfill-event) for the
+full source payload.
+
+```text
+> DC|STATE=ON
+DC_ACK|STATE=ON
+...
+DC_FILL|SEQ=42|ORDER_ID=ORD-001|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05|LIQUIDITY=TAKER
+```
+
 ### `SYMBOLS` — instrument list
 
 ```text
@@ -505,6 +542,8 @@ These messages are addressed to your gateway ID and arrive on your session only.
 | `OCO_ACK` | `OCO_ID`, `ACCEPTED`, `LEG1_ID`, `LEG2_ID`, `REASON` |
 | `OCO_CANCELLED` | `OCO_ID`, `CANCELLED_ID`, `REASON` |
 | `KILL_ACK` | `ACCEPTED`, `REASON`, `ORDERS`, `QUOTES` |
+| `DC_ACK` | `STATE` (`ON`/`OFF`) — reply to `DC`, not unsolicited |
+| `DC_FILL` | `SEQ`, `ORDER_ID`, `SYMBOL`, `FILL_QTY`, `FILL_PRICE`, `LIQUIDITY` — only while `DC|STATE=ON` is active, see [`DC`](#dc-toggle-drop-copy-relay) |
 
 
 ## Error codes
@@ -826,6 +865,7 @@ Expected output ends with `BYE` or a clean connection close immediately after `W
 
 - [ALF Protocol Reference](900-app-alf-protocol.md) — formal wire syntax and full field/enum definitions
 - [Gateway Commands](050-gateway.md) — interactive command reference for `pm-alf-console`
+- [Drop Copy](200-drop-copy.md) — the engine's drop-copy feed (`:5557`) that `DC|STATE=ON` relays
 - [Configuration](010-configuration.md) — `alf_gateway:` section and `gateways.alf` allowlist
 - [Processes](170-processes.md#pm-alf-gwy-alf-tcp-gateway) — process topology and ZMQ message tables
 - [External Protocols Overview](210-protocol-overview.md) — protocol comparison and selection guide

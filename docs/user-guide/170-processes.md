@@ -219,6 +219,7 @@ pm-engine --verbose
 | **pm-index-admin-cli** | `pm-index-admin-cli --id <GW_ID> <command> [options]` | One-shot CLI for index corporate actions and constituent changes | Optional              |
 | **pm-calf-spy**  | `pm-calf-spy [--channels CH] [--symbols SYM] [--ping-interval SEC] [--format human\|json]` | Read-only CALF protocol spy — connects to `pm-md-gwy` and prints every line it sends | Optional |
 | **pm-ralf-spy**  | `pm-ralf-spy --role ROLE [--channels CH] [--symbols SYM] [--ping-interval SEC] [--format human\|json]` | Read-only RALF protocol spy — connects to `pm-ralf-gwy` and prints every line it sends | Optional |
+| **pm-dc-spy**    | `pm-dc-spy [--gateway GW_ID] [--replay-of ID] [--format human\|json]` | Read-only drop-copy spy — connects to the engine's drop-copy `PUB` socket (:5557) and prints every fill event | Optional |
 
 
 **Setup and configuration tools:**
@@ -1551,6 +1552,31 @@ dropping it as an idle client.
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 
 See [RALF Protocol Spy (pm-ralf-spy)](251-ralf-spy-cli.md) for full usage.
+
+
+## pm-dc-spy (Drop-Copy Spy)
+
+`pm-dc-spy` is a read-only CLI client for the engine's drop-copy feed
+(`DropCopyPublisher`, `PUB :5557`): it opens a plain `zmq.SUB` connection —
+no handshake, no heartbeat, unlike CALF/RALF — subscribes to fill events
+for one gateway or all gateways, and prints every message it receives,
+human-readable or as JSON. It never mutates exchange state, and any number
+of instances can run at once (e.g. one per terminal, each with a different
+`--gateway` filter).
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--host` | `127.0.0.1` | Drop-copy `PUB` socket host |
+| `--port` | `5557` | Drop-copy `PUB` socket port |
+| `--gateway` | *(none)* | Only show fills for this gateway; default subscribes to all gateways |
+| `--replay-of` | *(none)* | Also subscribe to `drop_copy.replay.<RECIPIENT_ID>` to observe `DropCopyPublisher.replay()` calls |
+| `--format` | `human` | `human` or `json` output |
+| `--count` | `0` | Exit after N messages (`0` = run until Ctrl-C) |
+| `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+
+See [Drop-Copy Spy (pm-dc-spy)](252-dc-spy-cli.md) for full usage.
 
 
 ## pm-index — Index Calculation Process

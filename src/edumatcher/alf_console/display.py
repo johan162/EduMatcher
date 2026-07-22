@@ -98,6 +98,7 @@ HELP_TEXT = """
     QBOOT[|SYM=<sym>]               — request active quote bootstrap state from engine
         QLEGS[|SYM=<sym>][|SHOW=ACTIVE|RECENT|ALL]  — show MM quote legs and fill flags
     KILL[|SYM=<sym>]                — kill-switch cancel for this gateway
+    DC|STATE=ON|OFF                 — toggle async drop-copy relay (own fills only)
     STATUS      — show gateway/session summary (identity, symbols, order counts)
     ORDERS      — inspect this gateway's order table with IDs, quantities, and status
   POS         — show current positions with P&L
