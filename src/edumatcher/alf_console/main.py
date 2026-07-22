@@ -481,7 +481,9 @@ class Gateway:
                             self.gateway_id,
                             exc,
                         )
-                        console.print(f"[dim][WARN] drop-copy listener error: {exc}[/dim]")
+                        console.print(
+                            f"[dim][WARN] drop-copy listener error: {exc}[/dim]"
+                        )
         self._flush_debug_summary(force=True)
         log.info("gateway listeners stopped gateway_id=%s", self.gateway_id)
 

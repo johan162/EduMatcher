@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from typing import Any
 
 from rich.console import Console
 
@@ -176,7 +177,7 @@ class _SpySession:
         )
         self.count = 0
 
-    def on_message(self, topic: str, payload: dict, recv_time: float) -> None:
+    def on_message(self, topic: str, payload: dict[str, Any], recv_time: float) -> None:
         if self.args.format == "json":
             print(format_json(topic, payload, recv_ts=recv_time), flush=True)
         else:
@@ -207,7 +208,9 @@ def main() -> None:
         session.console.print(f"[bold red]pm-dc-spy: {exc}[/bold red]")
         raise SystemExit(1) from exc
 
-    target = f"drop_copy.event.{gateway}" if gateway else "drop_copy.event.* (all gateways)"
+    target = (
+        f"drop_copy.event.{gateway}" if gateway else "drop_copy.event.* (all gateways)"
+    )
     session.console.print(
         f"[bold cyan]◆ pm-dc-spy[/bold cyan] connected to "
         f"{args.host}:{args.port}, subscribed to [bold]{target}[/bold]"

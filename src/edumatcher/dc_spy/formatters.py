@@ -101,9 +101,7 @@ def format_human(topic: str, payload: dict[str, Any], *, raw: bool = False) -> s
 def _format_payload(payload: dict[str, Any], *, exclude: frozenset[str]) -> str:
     """Render the remaining KEY=VALUE fields, sorted for stable output."""
     return " ".join(
-        f"{key}={value}"
-        for key, value in sorted(payload.items())
-        if key not in exclude
+        f"{key}={value}" for key, value in sorted(payload.items()) if key not in exclude
     )
 
 

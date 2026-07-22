@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 import zmq
 
 
@@ -105,9 +104,7 @@ def test_dc_command_off_unsubscribes() -> None:
     dc_sub.reset_mock()
     gw._parse_and_send("DC|STATE=OFF")
 
-    dc_sub.setsockopt.assert_called_once_with(
-        zmq.UNSUBSCRIBE, b"drop_copy.event.GW01"
-    )
+    dc_sub.setsockopt.assert_called_once_with(zmq.UNSUBSCRIBE, b"drop_copy.event.GW01")
     assert gw._dc_enabled is False
 
 
@@ -157,9 +154,7 @@ def test_set_drop_copy_helper_direct() -> None:
     dc_sub.setsockopt.assert_not_called()
 
     gw._set_drop_copy(False)
-    dc_sub.setsockopt.assert_called_once_with(
-        zmq.UNSUBSCRIBE, b"drop_copy.event.GW01"
-    )
+    dc_sub.setsockopt.assert_called_once_with(zmq.UNSUBSCRIBE, b"drop_copy.event.GW01")
 
 
 def test_drop_copy_requested_on_startup_flag_stored() -> None:

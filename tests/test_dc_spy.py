@@ -170,7 +170,7 @@ def test_cli_connect_error_bad_endpoint() -> None:
 
 @pytest.fixture()
 def publisher() -> Generator[tuple[DropCopyPublisher, int], None, None]:
-    ctx = zmq.Context.instance()
+    ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
     port = _free_port()
     pub = DropCopyPublisher(ctx, addr=f"tcp://127.0.0.1:{port}")
     # Give the PUB socket a brief moment to finish binding before any
@@ -197,7 +197,9 @@ def test_integration_receives_published_fill(
     t = threading.Thread(target=publish_after_subscribe)
     t.start()
     try:
-        client.run(lambda topic, payload, ts: received.append((topic, payload)), max_messages=1)
+        client.run(
+            lambda topic, payload, ts: received.append((topic, payload)), max_messages=1
+        )
     finally:
         t.join(timeout=2)
         client.close()
@@ -228,7 +230,9 @@ def test_integration_gateway_filter_excludes_other_gateways(
     t = threading.Thread(target=publish_both)
     t.start()
     try:
-        client.run(lambda topic, payload, ts: received.append((topic, payload)), max_messages=1)
+        client.run(
+            lambda topic, payload, ts: received.append((topic, payload)), max_messages=1
+        )
     finally:
         t.join(timeout=2)
         client.close()
@@ -241,7 +245,9 @@ def test_integration_replay_topic_received_when_requested(
     publisher: tuple[DropCopyPublisher, int],
 ) -> None:
     pub, port = publisher
-    opts = DcSpyOptions(host="127.0.0.1", port=port, gateway="NOBODY", replay_of="MY_RISK_SYS")
+    opts = DcSpyOptions(
+        host="127.0.0.1", port=port, gateway="NOBODY", replay_of="MY_RISK_SYS"
+    )
     client = DcSpyClient(opts)
     client.connect()
 
@@ -255,7 +261,9 @@ def test_integration_replay_topic_received_when_requested(
     t = threading.Thread(target=publish_and_replay)
     t.start()
     try:
-        client.run(lambda topic, payload, ts: received.append((topic, payload)), max_messages=1)
+        client.run(
+            lambda topic, payload, ts: received.append((topic, payload)), max_messages=1
+        )
     finally:
         t.join(timeout=2)
         client.close()
