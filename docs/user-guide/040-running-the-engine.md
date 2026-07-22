@@ -178,25 +178,34 @@ Open a terminal per process, or use a multiplexer like `tmux`.
 **Step 1 — matching engine (mandatory)**
 
 ```bash
-# Verbose mode shows every order and trade on stdout — useful when learning
-pm-engine --verbose
+# -v (INFO) shows startup/lifecycle lines; -vv (DEBUG) adds every order and
+# trade — useful when learning
+pm-engine -v
 
-# Silent mode for cleaner output in production-like runs
+# Default (WARNING-only) for cleaner output in production-like runs
 pm-engine
 
 # Custom config file
 pm-engine --config my_config.yaml
 ```
 
-Wait for the engine to print its startup lines before starting anything else:
+With `-v`, wait for the engine to print its startup lines before starting
+anything else:
 
 ```
-[ENGINE] Loaded config from engine_config.yaml  (3 symbol(s): AAPL MSFT TSLA; 4 gateway id(s))
-[ENGINE] Session handling: enabled (startup state: CLOSED)
-[ENGINE] Risk enforcement: collars=on, circuit_breakers=on
-[ENGINE] Drop copy PUB bound on port 5557
-[ENGINE] Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
+2026-07-23 09:30:00,001 INFO edumatcher.engine.main - Loaded config from engine_config.yaml  (3 symbol(s): AAPL MSFT TSLA; 4 gateway id(s))
+2026-07-23 09:30:00,001 INFO edumatcher.engine.main - Session handling: enabled (startup state: CLOSED)
+2026-07-23 09:30:00,001 INFO edumatcher.engine.main - Risk enforcement: collars=on, circuit_breakers=on
+2026-07-23 09:30:00,004 INFO edumatcher.engine.main - Drop copy PUB bound on port 5557
+2026-07-23 09:30:00,004 INFO edumatcher.engine.main - Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 ```
+
+Without `-v` the engine still starts the same way — it just prints nothing at
+this stage, since these are INFO-level messages and the default level is
+WARNING. A short fixed delay (as `tools/launch_all.sh` uses) or a readiness
+check against port 5555 works equally well as a startup signal when running
+silently. See [Logging levels](#logging-levels) below for the full flag
+reference.
 
 !!! tip
     When sessions are disabled the session line reads `Session handling: disabled` and the engine starts in `CONTINUOUS` state immediately, with no scheduler required.
@@ -282,6 +291,24 @@ pm-mm-bot --symbol AAPL    # autonomous market-maker bot
 | `pm-admin-cli` | No | PUSH :5555, SUB :5556 | Single-shot CLI wrapper for the same commands as `pm-admin`. For scripting and automation. |
 | `pm-ai-trader` | No | PUSH :5555, SUB :5556 | Single AI trading bot that connects as a gateway and submits orders based on configurable personality profiles. |
 | `pm-ai-swarm` | No | PUSH :5555, SUB :5556 | Coordinated multi-agent AI trading swarm. Runs multiple bots simultaneously to generate realistic order flow. |
+
+### Logging levels
+
+`pm-engine` uses the same logging flags as every other `pm-` process:
+
+| Flag | Effect |
+|------|--------|
+| *(none)* | Default — `WARNING` and above only |
+| `-v` | `INFO` — adds startup/lifecycle messages (config loaded, sockets bound, gateway connects, session transitions) |
+| `-vv` | `DEBUG` — adds per-order/per-trade detail (`NEW`, `CANCEL`, `TRADE`, `REJECTED`, `COMBO`, `OCO`, `AMENDED`, …) |
+| `--log-level LEVEL` | Explicit level (`CRITICAL`/`ERROR`/`WARNING`/`INFO`/`DEBUG`), overrides `-v`/`-vv` |
+| `-q` / `--quiet` | Explicit `WARNING` (same as the default; mostly useful for clarity in scripts) |
+
+Every log line carries a timestamp, level, and logger name
+(`edumatcher.engine.main` or `edumatcher.engine.persistence`), so multiple
+processes' output can be told apart even when interleaved in the same
+terminal or log aggregator — the old hand-written `[ENGINE]`/`[PERSISTENCE]`
+prefixes have been replaced by this standard format.
 
 ### ZeroMQ port summary
 
@@ -516,12 +543,15 @@ the `data/` directory.
 
 ### Engine exits immediately
 
+These `FATAL` messages are logged at `ERROR` level, so they print even
+without `-v` (the default `WARNING` level shows `WARNING` and above).
+
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `[ENGINE] FATAL: Invalid config …: Engine config must have a 'gateways.alf' list` | `gateways.alf:` is missing or not a list | Correct `engine_config.yaml` |
-| `[ENGINE] FATAL: Invalid config …: Config for symbol '<SYM>' must be a mapping` | A `symbols:` entry is not a mapping | Correct `engine_config.yaml` |
-| `[ENGINE] FATAL: Cannot bind sockets …` (address already in use) | Another engine (or other process) is already bound to :5555/:5556/:5557 | `lsof -i :5555` to find and kill the conflicting process |
-| `[ENGINE] FATAL: Invalid config …` (other message) | A structural error in the YAML — the message names the offending key | Read the named key in the message and correct `engine_config.yaml` |
+| `FATAL: Invalid config …: Engine config must have a 'gateways.alf' list` | `gateways.alf:` is missing or not a list | Correct `engine_config.yaml` |
+| `FATAL: Invalid config …: Config for symbol '<SYM>' must be a mapping` | A `symbols:` entry is not a mapping | Correct `engine_config.yaml` |
+| `FATAL: Cannot bind sockets …` (address already in use) | Another engine (or other process) is already bound to :5555/:5556/:5557 | `lsof -i :5555` to find and kill the conflicting process |
+| `FATAL: Invalid config …` (other message) | A structural error in the YAML — the message names the offending key | Read the named key in the message and correct `engine_config.yaml` |
 
 ### Gateway authentication timeout
 

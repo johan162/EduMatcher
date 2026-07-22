@@ -307,7 +307,7 @@ class TestOCOStopLimitValidation:
 
 class TestVerboseCombo:
     def test_verbose_combo_accepted_logs(self, monkeypatch, tmp_path, caplog) -> None:
-        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine.main")
         engine, pub_sock = _make_engine(
             monkeypatch, tmp_path, symbols=("AAPL", "MSFT"), verbose=True
         )
@@ -338,7 +338,7 @@ class TestVerboseCombo:
         assert "COMBO" in caplog.text
 
     def test_verbose_cascade_cancel_logs(self, monkeypatch, tmp_path, caplog) -> None:
-        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine.main")
         engine, pub_sock = _make_engine(
             monkeypatch, tmp_path, symbols=("AAPL", "MSFT"), verbose=True
         )
@@ -378,7 +378,7 @@ class TestVerboseCombo:
 
 class TestVerboseOCO:
     def test_verbose_oco_accepted_logs(self, monkeypatch, tmp_path, caplog) -> None:
-        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine.main")
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
         _connect(engine)
         engine._handle_oco_order(
@@ -395,7 +395,7 @@ class TestVerboseOCO:
         assert "OCO" in caplog.text
 
     def test_verbose_oco_cancel_logs(self, monkeypatch, tmp_path, caplog) -> None:
-        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine.main")
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
         _connect(engine)
         engine._handle_oco_order(

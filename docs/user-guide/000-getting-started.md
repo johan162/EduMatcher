@@ -371,20 +371,27 @@ and executes one trade. No configuration file is required — the engine starts 
 Open a terminal and run:
 
 ```bash
-pm-engine
+pm-engine -v
 ```
 
 Expected output:
 
 ```
-[ENGINE] WARNING: no engine_config.yaml found — running in unrestricted mode (no symbol/gateway allowlist)
-[ENGINE] Drop copy PUB bound on port 5557
-[ENGINE] Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
+2026-07-23 09:30:00,001 WARNING edumatcher.engine.main - Config file engine_config.yaml could not be read — running without symbol restrictions. (...)
+2026-07-23 09:30:00,004 INFO edumatcher.engine.main - Drop copy PUB bound on port 5557
+2026-07-23 09:30:00,004 INFO edumatcher.engine.main - Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 ```
 
 With no config file the engine runs in **unrestricted mode** and session
 handling is **disabled**, so it starts directly in the `CONTINUOUS` state and
 matches orders immediately — there is no auction phase to advance past.
+
+!!! note "Default log level is WARNING"
+    Like every other `pm-` process, `pm-engine` is quiet by default — only
+    warnings and errors print. Pass `-v` for INFO (startup/lifecycle
+    messages, shown above), `-vv` for DEBUG, or `--log-level LEVEL` for an
+    explicit level. See [Running the Engine](040-running-the-engine.md) for
+    the full flag reference.
 
 The engine is now running. Leave this terminal open.
 

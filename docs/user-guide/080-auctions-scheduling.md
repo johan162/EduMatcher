@@ -230,20 +230,23 @@ useful for integration testing and demos where you want to exercise the full
 auction lifecycle in seconds rather than hours.
 
 ```bash
-poetry run pm-scheduler --now --delay 2
+poetry run pm-scheduler --now --delay 2 -v
 ```
+
+`-v` is needed to see the transition log below — like every other `pm-`
+process, `pm-scheduler` is quiet by default (`WARNING` and above only); `-v`
+raises the level to `INFO`.
 
 Output:
 
 ```
-[SCHEDULER] --now mode: sending all transitions with 2.0s delays
-
-[SCHEDULER] → PRE_OPEN
-[SCHEDULER] → OPENING_AUCTION
-[SCHEDULER] → CONTINUOUS
-[SCHEDULER] → CLOSING_AUCTION
-[SCHEDULER] → CLOSED
-[SCHEDULER] Done.
+2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - --now mode: sending all transitions with 2.0s delays
+2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - -> PRE_OPEN
+2026-07-23 09:30:02,003 INFO edumatcher.scheduler.main - -> OPENING_AUCTION
+2026-07-23 09:30:04,005 INFO edumatcher.scheduler.main - -> CONTINUOUS
+2026-07-23 09:30:06,007 INFO edumatcher.scheduler.main - -> CLOSING_AUCTION
+2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - -> CLOSED
+2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - Done.
 ```
 
 

@@ -289,15 +289,20 @@ pm-engine --verbose
 The heart of the system — receives orders, matches them, publishes events.
 
 ```bash
-pm-engine [--verbose] [--config engine_config.yaml]
+pm-engine [-v|-vv] [--config engine_config.yaml] [--log-level LEVEL] [-q]
 ```
 
 **Startup options:**
 
-| Flag               | Description                                                |
-|--------------------|------------------------------------------------------------|
-| `--verbose` / `-v` | Print each order received and trade produced to stdout     |
-| `--config` / `-c`  | Path to engine config YAML (default: `engine_config.yaml`) |
+| Flag                | Default    | Description                                                              |
+|---------------------|------------|---------------------------------------------------------------------------|
+| `--config` / `-c`   | `engine_config.yaml` | Path to engine config YAML                                     |
+| `--log-level`       | `WARNING`  | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`       |
+| `-v` / `--verbose`  | off        | Increase log verbosity (`-v` → `INFO`: startup/lifecycle messages; `-vv` → `DEBUG`: per-order/per-trade detail) |
+| `-q` / `--quiet`    | off        | Explicit `WARNING` (same as the default)                                |
+
+See [Running the Engine → Logging levels](040-running-the-engine.md#logging-levels)
+for the full flag reference and example output.
 
 **Expected runtime input arguments:**
 

@@ -61,7 +61,7 @@ from edumatcher.models.session import VALID_TRANSITIONS, SessionState
 # Operational logging goes through the logging module; the process entry point
 # (main()) configures the handler/level, the library installs no handlers
 # (mirrors the engine's setup — review finding L3).
-log = logging.getLogger("edumatcher.scheduler")
+log = logging.getLogger(__name__)
 
 # Default schedule (HH:MM) — used when no config file provides one
 DEFAULT_SCHEDULE: list[tuple[str, str]] = [
@@ -173,7 +173,7 @@ def _load_schedule(config_path: Path | None) -> list[tuple[str, str]]:
                     normalized = _normalize_hhmm(raw_time)
                     if normalized is None:
                         log.warning(
-                            "[SCHEDULER] ignoring invalid schedule time for %r: %r "
+                            "ignoring invalid schedule time for %r: %r "
                             "(times must be quoted, e.g. '09:30')",
                             key,
                             raw_time,
@@ -181,12 +181,10 @@ def _load_schedule(config_path: Path | None) -> list[tuple[str, str]]:
                         continue
                     result.append((normalized, state))
                 if result:
-                    log.info("[SCHEDULER] Loaded schedule from %s", config_path)
+                    log.info("Loaded schedule from %s", config_path)
                     return result
         except Exception as exc:
-            log.warning(
-                "[SCHEDULER] could not load schedule from %s: %s", config_path, exc
-            )
+            log.warning("could not load schedule from %s: %s", config_path, exc)
     return DEFAULT_SCHEDULE
 
 
@@ -309,13 +307,13 @@ def _send_transition(push_sock: zmq.Socket[bytes], state: str) -> bool:
         return True
     except zmq.Again:
         log.warning(
-            "[SCHEDULER] engine not reachable; transition to %s was not "
+            "engine not reachable; transition to %s was not "
             "delivered (send timed out)",
             state,
         )
         return False
     except zmq.ZMQError as exc:
-        log.error("[SCHEDULER] failed to send transition to %s: %s", state, exc)
+        log.error("failed to send transition to %s: %s", state, exc)
         return False
 
 
@@ -361,7 +359,7 @@ def _query_engine_state(
     try:
         push_sock.send_multipart(make_session_state_request_msg(gateway_id))
     except zmq.ZMQError as exc:
-        log.debug("[SCHEDULER] session-state request could not be sent: %s", exc)
+        log.debug("session-state request could not be sent: %s", exc)
         return None
 
     deadline = time.monotonic() + timeout_ms / 1000.0
@@ -427,19 +425,19 @@ def _run_transitions(
     """
     for step in steps:
         if not is_running():
-            log.info("[SCHEDULER] Interrupted")
+            log.info("Interrupted")
             return False
 
         label = step.label or step.state
         wait = step.wait()
         if wait > 0:
-            log.info("[SCHEDULER] Waiting %.0fs for %s", wait, label)
+            log.info("Waiting %.0fs for %s", wait, label)
             _interruptible_sleep(wait, is_running)
             if not is_running():
-                log.info("[SCHEDULER] Interrupted")
+                log.info("Interrupted")
                 return False
 
-        log.info("[SCHEDULER] -> %s", label)
+        log.info("-> %s", label)
         _dispatch_transition(push_sock, confirm_sock, step.state)
 
     return True
@@ -456,10 +454,10 @@ def _dispatch_transition(
     if confirm_sock is None:
         return
     if _confirm_transition(confirm_sock, state):
-        log.debug("[SCHEDULER]   confirmed: engine applied %s", state)
+        log.debug("confirmed: engine applied %s", state)
     else:
         log.warning(
-            "[SCHEDULER] no confirmation that the engine applied %s "
+            "no confirmation that the engine applied %s "
             "(it may have been rejected or the engine is unreachable)",
             state,
         )
@@ -484,9 +482,9 @@ def _run_scheduled(
     """
     running = is_running or (lambda: True)
 
-    log.debug("[SCHEDULER] Schedule for today:")
+    log.debug("Schedule for today:")
     for hhmm, state in schedule:
-        log.debug("[SCHEDULER]   %s -> %s", hhmm, state)
+        log.debug("%s -> %s", hhmm, state)
 
     # A2: recover the engine's current state so catch-up only replays the
     # transitions it still needs, instead of blindly assuming a CLOSED start.
@@ -494,12 +492,9 @@ def _run_scheduled(
     if confirm_sock is not None:
         engine_state = _query_engine_state(push_sock, confirm_sock, gateway_id)
         if engine_state is not None:
-            log.info("[SCHEDULER] Engine reports current state: %s", engine_state.value)
+            log.info("Engine reports current state: %s", engine_state.value)
         else:
-            log.warning(
-                "[SCHEDULER] could not determine engine state; assuming a "
-                "CLOSED start"
-            )
+            log.warning("could not determine engine state; assuming a " "CLOSED start")
 
     # Partition the schedule against a single "now" snapshot.
     now = datetime.now()
@@ -514,10 +509,10 @@ def _run_scheduled(
 
     catch_up = _catch_up_transitions(past, engine_state)
     if past and not catch_up:
-        log.info("[SCHEDULER] Engine already at the current phase; no catch-up needed")
+        log.info("Engine already at the current phase; no catch-up needed")
     elif catch_up:
         log.info(
-            "[SCHEDULER] Catching up %d transition(s) to reach the current phase",
+            "Catching up %d transition(s) to reach the current phase",
             len(catch_up),
         )
 
@@ -530,7 +525,7 @@ def _run_scheduled(
         steps.append(_Step(state, _wait_until(target), label=f"{state} (at {hhmm})"))
 
     if _run_transitions(push_sock, confirm_sock, running, steps):
-        log.info("[SCHEDULER] All transitions sent for today.")
+        log.info("All transitions sent for today.")
 
 
 def _run_forever(
@@ -548,11 +543,11 @@ def _run_forever(
             break
         secs = _seconds_until_next_day()
         log.info(
-            "[SCHEDULER] Day complete; sleeping %.1fh until the next trading day",
+            "Day complete; sleeping %.1fh until the next trading day",
             secs / 3600.0,
         )
         _interruptible_sleep(secs, is_running)
-    log.info("[SCHEDULER] Stopped.")
+    log.info("Stopped.")
 
 
 def _run_now(
@@ -571,7 +566,7 @@ def _run_now(
         SessionState.CLOSED,
     ]
 
-    log.info("[SCHEDULER] --now mode: sending all transitions with %ss delays", delay)
+    log.info("--now mode: sending all transitions with %ss delays", delay)
 
     # First transition fires immediately; the rest are spaced by ``delay``.
     steps = [
@@ -580,7 +575,7 @@ def _run_now(
     ]
 
     if _run_transitions(push_sock, None, running, steps):
-        log.info("[SCHEDULER] Done.")
+        log.info("Done.")
 
 
 def _configure_logging(args: argparse.Namespace) -> int:
@@ -661,14 +656,14 @@ def main() -> None:
 
     log_level = _configure_logging(args)
     log.info(
-        "[SCHEDULER] starting pm-scheduler with log level %s",
+        "starting pm-scheduler with log level %s",
         logging.getLevelName(log_level),
     )
 
     # --delay only applies to --now mode; warn rather than silently ignore it
     # (review finding L4).
     if args.delay is not None and not args.now:
-        log.warning("[SCHEDULER] --delay is ignored outside --now mode")
+        log.warning("--delay is ignored outside --now mode")
     now_mode_delay = args.delay if args.delay is not None else NOW_MODE_DELAY
 
     running = True
@@ -689,7 +684,7 @@ def main() -> None:
     push_sock.setsockopt(zmq.SNDTIMEO, SEND_TIMEOUT_MS)
     push_sock.setsockopt(zmq.LINGER, LINGER_MS)
     log.debug(
-        "[SCHEDULER] PUSH -> engine at %s (send timeout %dms, linger %dms)",
+        "PUSH -> engine at %s (send timeout %dms, linger %dms)",
         ENGINE_PULL_ADDR,
         SEND_TIMEOUT_MS,
         LINGER_MS,
@@ -704,7 +699,7 @@ def main() -> None:
         else:
             config_path = Path(args.config) if args.config else ENGINE_CONFIG_FILE
             if args.config and not config_path.exists():
-                log.error("[SCHEDULER] FATAL: config file not found: %s", config_path)
+                log.error("FATAL: config file not found: %s", config_path)
                 sys.exit(1)
 
             schedule = _load_schedule(config_path)
@@ -713,7 +708,7 @@ def main() -> None:
             errors = _validate_schedule(schedule)
             if errors:
                 for err in errors:
-                    log.error("[SCHEDULER] FATAL: invalid schedule: %s", err)
+                    log.error("FATAL: invalid schedule: %s", err)
                 sys.exit(1)
 
             # Subscribe to the engine's session.state broadcasts (to confirm
@@ -730,8 +725,7 @@ def main() -> None:
                 # (slow-joiner — review finding L5).
                 time.sleep(SUB_CONNECT_SETTLE_SEC)
                 log.debug(
-                    "[SCHEDULER] subscribed to session.state and "
-                    "system.session_status.%s",
+                    "subscribed to session.state and " "system.session_status.%s",
                     SCHEDULER_GATEWAY_ID,
                 )
 
