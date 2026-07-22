@@ -268,6 +268,7 @@ ALF commands fall into three groups:
 |----------------------------------------------|-------------------------------------------------------------------------------|
 | Trading commands forwarded to the engine     | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `KILL`, `SYMBOLS`, `QBOOT` |
 | Gateway-local informational commands         | `STATUS`, `ORDERS`, `POS`, `QLEGS`, `HELP`                                    |
+| Drop-copy relay control (gateway-local)      | `DC`                                                                          |
 | Session-control commands for the CLI process | `EXIT`, `QUIT`                                                                |
 
 If you are writing another interface that wants to submit orders, the most
@@ -899,6 +900,63 @@ will cancel all of the above gateway-owned resting exposure across all symbols.
 
 
 
+##  `DC` — drop-copy relay control
+
+`DC` toggles whether this session relays the engine's drop-copy feed
+(`DropCopyPublisher`, ZMQ `PUB` on a separate socket from the main event bus)
+scoped to the session's own gateway ID.
+
+### Syntax
+
+```text
+DC|STATE=ON
+DC|STATE=OFF
+```
+
+`STATE` is required and must be exactly `ON` or `OFF`; any other value is
+rejected with `ERR|CODE=INVALID_VALUE`.
+
+### Semantics
+
+Unlike the trading commands above, `DC` is **not forwarded to the engine as
+an order-entry message**. It only changes a local subscription on the
+gateway process (`pm-alf-console` or `pm-alf-gwy`): `STATE=ON` subscribes
+this session to drop-copy fill events for its own `gateway_id`; `STATE=OFF`
+unsubscribes. Disabled by default — each session opts in independently, and
+there is no config flag to force it on for every session.
+
+Once enabled, fills for this gateway arrive **asynchronously** as unsolicited
+`DC_FILL` lines, in addition to (not instead of) the ordinary `FILL` message
+that every session already receives. `DC_FILL` is not itself a command a
+client sends — it is only ever sent by the gateway, so it is not part of the
+command grammar in this appendix; see
+[ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay) for its
+full field format.
+
+### Acknowledgement behavior
+
+The gateway replies with `DC_ACK|STATE=ON` or `DC_ACK|STATE=OFF` confirming
+the new subscription state.
+
+### Examples
+
+```text
+> DC|STATE=ON
+DC_ACK|STATE=ON
+...
+DC_FILL|SEQ=42|ORDER_ID=ORD-001|SYMBOL=AAPL|FILL_QTY=100|FILL_PRICE=150.05|LIQUIDITY=TAKER
+> DC|STATE=OFF
+DC_ACK|STATE=OFF
+```
+
+!!! note "Not FIX drop-copy, not a separate session"
+    This is a same-connection relay, not a second FIX-style drop-copy
+    session. See [Drop Copy](200-drop-copy.md) for the underlying feed this
+    relays, and [Drop-Copy TCP Gateway](201-dc-gateway.md) for a standalone
+    external gateway (`pm-dc-gwy`) that exposes the same feed to clients that
+    are not ALF sessions at all.
+
+
 ##  Informational gateway commands
 
 These commands are part of the ALF command language accepted by `pm-alf-console`,
@@ -1124,11 +1182,16 @@ If you are writing another ALF producer, the most important exact behaviors are:
    for the current gateway (optionally filtered by symbol).
 10. `QLEGS` is a gateway-local monitoring view for quote legs; use
     `SHOW=ALL` after fills to inspect both live and recently completed legs.
+11. `DC` is handled entirely gateway-side and is never forwarded to the
+    engine as an order-entry message; `DC_FILL` is sent only by the gateway
+    and is not part of the client-side command grammar.
 
 ## See also
 
 - [Gateway](050-gateway.md) — the gateway terminal that implements this protocol
 - [Order Types](060-order-types.md) — semantic descriptions of every order type referenced here
 - [Messages](270-messages.md) — the ZeroMQ messages that the gateway emits after parsing ALF commands
+- [Drop Copy](200-drop-copy.md) — the underlying feed `DC|STATE=ON` relays
+- [Drop-Copy TCP Gateway](201-dc-gateway.md) — standalone gateway for external, non-ALF drop-copy clients
 - [BALF Protocol Reference](910-app-balf-protocol.md) — binary encoding of the same order model
 - [CALF Protocol Reference](920-app-calf-protocol.md) — market-data feed protocol

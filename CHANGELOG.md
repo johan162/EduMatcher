@@ -1,11 +1,18 @@
-## [v0.16.0] - 2026-07-19
+## [v0.16.1] - 2026-07-19
 
 Release Type: major
 
 ### 📋 Summary
 This release introduces the new Config GUI, the new `pm-audit-cli` audit-trail inspection tool, expanded API Gateway operator controls, and broader CALF market-data capabilities. For Index handling a new admin client was added `pm-index-admin-cli` that handles corporate actions. 
-The CALF protocol gets two new channels AUCTION and CB and in addition both CALF and RALF gateways get a "spy" client `pm-calf-spy` and `pm-ralf_spy` which are used to take a peek under the protocol hood what information the protocols are sending. These are purely read-only tools.
+The CALF protocol gets two new channels AUCTION and CB and in addition both DC, CALF and RALF gateways get a "spy" clients :
+
+- `pm-calf-spy` , spy on the CALF protocol
+- `pm-ralf_spy` , spy on the RALF protocol
+- `pm-dc-spy` , spy on the engine drop-copy PUB channel
+
+which are used to take a peek under the protocol hood what information the protocols are sending. These are purely read-only tools.
 This release also hardens the matching engine, scheduler, gateways, and clearing pipeline, adds consistent logging controls across processes, and refreshes the user-guide, Exchange Intro, and protocol documentation at much larger scale than a typical minor release. It expands historical index and pricing visibility across the API and stats stack, improves engine handling of quote-leg requests, and tightens gateway/runtime behavior. 
+Finally a new gateway was added, `pm-dc-gwy` to make the Drop-Copy available to external clients
 
 
 ### ⚠️ Breaking Changes
@@ -17,6 +24,8 @@ This release also hardens the matching engine, scheduler, gateways, and clearing
 - Added `pm-index-admin-cli` index administration to handle index adjustment after corporate actions
 - Added `pm-calf-spy` to print events sent on the CALF protocol
 - Added `pm-ralf-spy` to print events sent on the RALF protocol
+- Added `pm-dc-spy` to print all DC events
+- Added `pm-dc-gwy` to make DC available for external clients
 - Added two new channels to CALF protocol, `AUCTION` and `CB` to provide detailed auction and cb information
 - Added ADMIN-only API Gateway operator commands and supporting session/schema updates
 - Added CALF protocol extensions including deeper market-data coverage, configurable depth levels, and index-channel support
@@ -81,6 +90,10 @@ This release also hardens the matching engine, scheduler, gateways, and clearing
 - Updated and stabilized tests to align with new API/index return values and buffer-handling behavior
 - Added top-level Makefile target to build multipass VM from dev snapshot
 - Regenerated all example enging-configuration
+
+## [v0.16.0] - (Not released)
+
+Internal Beta testing version
 
 
 ## [v0.15.3] - 2026-07-07
