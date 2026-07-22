@@ -251,7 +251,7 @@ really-clean: clean ## Remove all generated files and node_modules (use with cau
 	@echo -e "$(GREEN)✓ Removed node_modules as well$(NC)"
 
 bundle-quiz:  ## Build the quiz bundle zip file
-	$(MAKE) -C knowledge-check bundle-quiz
+	$(MAKE) -C knowledge-check/quiz-20-questions bundle-quiz
 
 
 
