@@ -1,0 +1,5068 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/190-audit/">
+      
+      
+        <link rel="prev" href="../180-persistence/">
+      
+      
+        <link rel="next" href="../200-drop-copy/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Audit Trail - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#audit-trail" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Audit Trail
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../000-getting-started/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../training/" class="md-tabs__link">
+          
+  
+  
+  Training
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/07-concepts-implied-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implied Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../000-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../010-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../020-config-verifier/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config Verifier
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../030-config-GUI/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration GUI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../040-running-the-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../050-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../060-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../070-combos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../080-auctions-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../090-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../100-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market-Maker Bot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../110-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../120-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../130-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../140-statistics-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../150-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../152-index-admin-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index Admin CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../160-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exchange Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../170-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../180-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Trail
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Trail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Overview">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-a-full-event-log-matters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why a full event log matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-directory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Directory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pm-audit-event-recorder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-audit — Event Recorder
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="pm-audit — Event Recorder">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#startup-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Startup options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#write-buffering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write buffering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#log-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Log format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#log-rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Log rotation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#subscribed-topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subscribed topics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#signal-handling-and-graceful-shutdown" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signal handling and graceful shutdown
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pm-audit-cli-query-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-audit-cli — Query Tool
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="pm-audit-cli — Query Tool">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-a-separate-query-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why a separate query tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#global-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rotated-log-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotated log discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#events-general-event-search" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        events — General event search
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orders-order-lifecycle-investigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        orders — Order lifecycle investigation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trades-trade-execution-search" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        trades — Trade execution search
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#topics-topic-discovery-and-statistics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        topics — Topic discovery and statistics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gateways-gateway-activity-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        gateways — Gateway activity summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timeline-chronological-event-stream" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        timeline — Chronological event stream
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stats-log-file-statistics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        stats — Log file statistics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#index-build-or-update-the-sqlite-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        index — Build or update the SQLite index
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cookbook-common-audit-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cookbook — Common Audit Workflows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cookbook — Common Audit Workflows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#investigate-a-specific-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Investigate a specific order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reconstruct-a-trade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reconstruct a trade
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verify-session-phases-fired-correctly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify session phases fired correctly
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#identify-the-most-active-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identify the most active gateway
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#check-log-health-before-end-of-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check log health before end of day
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#export-a-full-session-for-offline-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Export a full session for offline analysis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter-across-rotated-log-backups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter across rotated log backups
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See Also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../200-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../201-dc-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy TCP Gateway (pm-dc-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocol-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Protocols Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../220-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../230-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../240-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../241-calf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CALF Protocol Spy (pm-calf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../250-post-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-Trade Dissemination (RALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../251-ralf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RALF Protocol Spy (pm-ralf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../252-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../260-api-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../270-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../800-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../810-example-configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../890-known-limitations-bugs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Limitations & Bugs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../900-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../910-app-balf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../920-app-calf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../930-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../990-app-config-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: Engine Config Specification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/00-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    00 — Installation & Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/01-configuring-startup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    01 — Configuring & Starting Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/02-setting-up-MM-bots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    02 — Setting Up Market-Maker Liquidity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/03-the-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    03 — The First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/04-amending-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04 — Amending Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/05-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05 — Order Types Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/06-time-in-force-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    06 — Time-in-Force & Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/07-auctions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    07 — Auctions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/08-cancelling-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    08 — Cancelling & Managing Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/09-market-making/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    09 — Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/10-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10 — Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/11-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11 — Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/12-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12 — P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/13-market-data-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13 — Market Data & Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/14-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14 — AI Traders & Swarm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/15-statistics-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15 — Statistics & Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/16-persistence-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16 — Persistence & Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/17-capstone-scenario/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17 — Capstone Scenario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/18-exchange-observer-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18 — Exchange Observer Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/19-advanced-admin-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    19 — Advanced Admin Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/20-drop-copy-replay-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20 — Drop-Copy Replay & Recovery Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/21-automation-commandclient-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21 — Automation with CommandClient & MM Bot Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/22-ralf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/24-api-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24 — API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/25-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/26-alf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 - ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/27-balf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27 - BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/05-vm-runtime-image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Runtime Image
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="audit-trail">Audit Trail<a class="headerlink" href="#audit-trail" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will understand:</p>
+<ul>
+<li>Why a full event log matters for an exchange and what <code>pm-audit</code> records</li>
+<li>The JSONL log format and how log rotation works</li>
+<li>All <code>pm-audit</code> startup options including write buffering</li>
+<li>How to query audit logs from the command line using every <code>pm-audit-cli</code> verb</li>
+<li>When to use the optional SQLite index for faster queries</li>
+<li>A practical cookbook for common audit investigation workflows</li>
+</ul>
+</div>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>EduMatcher maintains a complete, immutable record of every message that passes
+through the ZeroMQ bus. This is the <strong>audit trail</strong> — a chronological log of
+every order, fill, trade, cancellation, session transition, and system event
+that occurred during a trading session.</p>
+<p>The audit system has two independent components:</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Role</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>pm-audit</code></strong></td>
+<td>Subscriber — records every event to a rotating JSONL log file</td>
+<td>Long-running process</td>
+</tr>
+<tr>
+<td><strong><code>pm-audit-cli</code></strong></td>
+<td>Query tool — reads audit logs and prints structured output</td>
+<td>One-shot CLI</td>
+</tr>
+</tbody>
+</table>
+<p>The recorder and the query tool are completely independent. <code>pm-audit-cli</code>
+reads log files directly from disk and works even when <code>pm-audit</code> is not
+running.</p>
+<pre class="mermaid"><code>flowchart TB
+    subgraph Runtime
+        ENG["pm-engine\n(ZMQ PUB :5556)"]
+        AUD["pm-audit\nSUB :5556"]
+        LOG[("data/audit.log\n+ rotated backups")]
+        ENG -- "all topics" --&gt; AUD
+        AUD -- "buffered JSONL writes" --&gt; LOG
+    end
+    subgraph Operator
+        CLI["pm-audit-cli\n(read-only)"]
+        LOG -- "stream parse" --&gt; CLI
+        CLI -. "optional fast path" .-&gt; IDX[("audit_index.db")]
+    end</code></pre>
+<h3 id="why-a-full-event-log-matters">Why a full event log matters<a class="headerlink" href="#why-a-full-event-log-matters" title="Permanent link">&para;</a></h3>
+<p>A financial exchange must be able to answer questions after the fact:</p>
+<ul>
+<li>Was a specific order ever acknowledged by the engine?</li>
+<li>What sequence of events led to a particular fill?</li>
+<li>Did a circuit breaker fire before or after an order was submitted?</li>
+<li>Which gateways were active at a given time?</li>
+</ul>
+<p>The audit trail answers all of these by preserving every message exactly as
+it was broadcast, with a millisecond-precision UTC timestamp.</p>
+<h2 id="data-directory">Data Directory<a class="headerlink" href="#data-directory" title="Permanent link">&para;</a></h2>
+<p>Audit logs are stored in the same data directory used by all other EduMatcher
+persistent files:</p>
+<table>
+<thead>
+<tr>
+<th>Running mode</th>
+<th>Default location</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source checkout (<code>poetry run pm-audit</code>)</td>
+<td><code>&lt;repo&gt;/src/data/audit.log</code></td>
+</tr>
+<tr>
+<td>Installed (<code>pm-audit</code> on PATH)</td>
+<td><code>~/.local/share/edumatcher/audit.log</code></td>
+</tr>
+</tbody>
+</table>
+<p>Override with <code>EDUMATCHER_DATA_DIR</code> or <code>--log-file</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/sessions/morning&quot;</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-audit<span class="w">  </span><span class="c1"># writes to $HOME/sessions/morning/audit.log</span>
+</code></pre></div>
+<h2 id="pm-audit-event-recorder">pm-audit — Event Recorder<a class="headerlink" href="#pm-audit-event-recorder" title="Permanent link">&para;</a></h2>
+<p><code>pm-audit</code> subscribes to all topics on the engine's PUB socket and appends
+every message as a single JSON line to the configured log file.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-audit<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<h3 id="startup-options">Startup options<a class="headerlink" href="#startup-options" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--log-file PATH</code></td>
+<td><code>data/audit.log</code></td>
+<td>Output log file path</td>
+</tr>
+<tr>
+<td><code>--terminal</code> / <code>-t</code></td>
+<td>off</td>
+<td>Also print each entry to stdout (useful during demos)</td>
+</tr>
+<tr>
+<td><code>--buffer-size N</code></td>
+<td><code>100</code></td>
+<td>Number of messages to buffer in memory before flushing to disk</td>
+</tr>
+<tr>
+<td><code>--flush-interval SECONDS</code></td>
+<td><code>10.0</code></td>
+<td>Maximum seconds to wait before flushing buffer regardless of size</td>
+</tr>
+<tr>
+<td><code>--log-level</code></td>
+<td><code>WARNING</code></td>
+<td>Explicit level: <code>CRITICAL</code>, <code>ERROR</code>, <code>WARNING</code>, <code>INFO</code>, <code>DEBUG</code></td>
+</tr>
+<tr>
+<td><code>-v</code> / <code>--verbose</code></td>
+<td>off</td>
+<td>Increase verbosity (<code>-v</code> → <code>INFO</code>, <code>-vv</code> → <code>DEBUG</code>)</td>
+</tr>
+<tr>
+<td><code>-q</code> / <code>--quiet</code></td>
+<td>off</td>
+<td>No-op — the default level is already <code>WARNING</code>, so <code>--quiet</code> currently sets the same level and has no observable effect</td>
+</tr>
+</tbody>
+</table>
+<p><code>--log-level</code> takes priority over <code>-v</code>/<code>-q</code> when both are given.</p>
+<h3 id="write-buffering">Write buffering<a class="headerlink" href="#write-buffering" title="Permanent link">&para;</a></h3>
+<p>Writing every message to disk individually would generate enormous I/O on
+active sessions. <code>pm-audit</code> batches messages in memory and flushes as a
+group when either limit is reached:</p>
+<ul>
+<li><strong>Buffer full</strong>: buffer contains <code>--buffer-size</code> messages (default 100)</li>
+<li><strong>Timer expired</strong>: <code>--flush-interval</code> seconds have elapsed since the last flush (default 10 s)</li>
+<li><strong>Shutdown</strong>: Ctrl-C, SIGINT, or SIGTERM always flushes remaining messages before exit</li>
+</ul>
+<p>No messages are lost on clean shutdown. A hard kill (<code>kill -9</code>) may lose up
+to <code>--buffer-size</code> messages that had not yet been flushed.</p>
+<p><strong>Tuning examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Default: good balance of throughput and latency</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>pm-audit
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># High-throughput session: larger buffer, less frequent disk I/O</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>pm-audit<span class="w"> </span>--buffer-size<span class="w"> </span><span class="m">500</span><span class="w"> </span>--flush-interval<span class="w"> </span><span class="m">30</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># Low-latency / compliance: flush aggressively</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>pm-audit<span class="w"> </span>--buffer-size<span class="w"> </span><span class="m">1</span><span class="w"> </span>--flush-interval<span class="w"> </span><span class="m">1</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1"># Demo mode: see every event on the terminal as well</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>pm-audit<span class="w"> </span>--terminal
+</code></pre></div>
+<h3 id="log-format">Log format<a class="headerlink" href="#log-format" title="Permanent link">&para;</a></h3>
+<p>Every line is an independent JSON record in this exact format:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[2026-07-08T09:30:00.123+00:00] [trade.executed] {&quot;id&quot;: &quot;TRD-001&quot;, &quot;symbol&quot;: &quot;AAPL&quot;, ...}
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Example</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[timestamp]</code></td>
+<td><code>2026-07-08T09:30:00.123+00:00</code></td>
+<td>UTC ISO-8601 with millisecond precision</td>
+</tr>
+<tr>
+<td><code>[topic]</code></td>
+<td><code>trade.executed</code></td>
+<td>ZeroMQ topic exactly as broadcast by the engine</td>
+</tr>
+<tr>
+<td><code>{...}</code></td>
+<td><code>{"symbol": "AAPL", ...}</code></td>
+<td>Full JSON payload of the message</td>
+</tr>
+</tbody>
+</table>
+<p>Lines are appended in arrival order. Within a single session they are
+chronologically monotonic.</p>
+<h3 id="log-rotation">Log rotation<a class="headerlink" href="#log-rotation" title="Permanent link">&para;</a></h3>
+<p>Log files rotate at <strong>10 MB</strong> with <strong>5 backups</strong> kept:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>data/audit.log       ← active, current writes
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>data/audit.log.1     ← previous
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>data/audit.log.2     ← older
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>...
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>data/audit.log.5     ← oldest kept
+</code></pre></div>
+<p>When <code>audit.log</code> reaches 10 MB the Python <code>RotatingFileHandler</code> renames it
+to <code>audit.log.1</code> (shifting existing backups up) and opens a fresh
+<code>audit.log</code>. Rotated files may also be compressed externally; <code>pm-audit-cli</code>
+reads <code>.gz</code> files transparently.</p>
+<h3 id="subscribed-topics">Subscribed topics<a class="headerlink" href="#subscribed-topics" title="Permanent link">&para;</a></h3>
+<p><code>pm-audit</code> subscribes with an <strong>empty topic filter</strong>, which causes ZeroMQ to
+deliver every published message without exception:</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order.new</code></td>
+<td>Gateway order submissions</td>
+</tr>
+<tr>
+<td><code>order.ack.*</code></td>
+<td>Engine order acknowledgements</td>
+</tr>
+<tr>
+<td><code>order.fill.*</code></td>
+<td>Fill notifications</td>
+</tr>
+<tr>
+<td><code>order.cancelled.*</code></td>
+<td>Cancel confirmations</td>
+</tr>
+<tr>
+<td><code>order.expired.*</code></td>
+<td>TIF expiry notifications</td>
+</tr>
+<tr>
+<td><code>trade.executed</code></td>
+<td>Every matched trade pair</td>
+</tr>
+<tr>
+<td><code>book.*</code></td>
+<td>Book snapshots after every change</td>
+</tr>
+<tr>
+<td><code>session.state</code></td>
+<td>Session phase transitions</td>
+</tr>
+<tr>
+<td><code>system.*</code></td>
+<td>Gateway auth, symbols, EOD</td>
+</tr>
+<tr>
+<td><em>(all others)</em></td>
+<td>Admin events, combos, quotes, circuit breaker</td>
+</tr>
+</tbody>
+</table>
+<h3 id="signal-handling-and-graceful-shutdown">Signal handling and graceful shutdown<a class="headerlink" href="#signal-handling-and-graceful-shutdown" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Ctrl-C / SIGINT / SIGTERM → flush buffer → close socket → exit
+</code></pre></div>
+<p>The buffer flush happens synchronously before the process exits so the last
+batch of messages is always written to disk.</p>
+<h2 id="pm-audit-cli-query-tool">pm-audit-cli — Query Tool<a class="headerlink" href="#pm-audit-cli-query-tool" title="Permanent link">&para;</a></h2>
+<p><code>pm-audit-cli</code> is a read-only command-line tool for querying audit logs
+without shell pipelines or SQL knowledge. It reads JSONL files directly from
+disk and produces structured output.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-audit-cli<span class="w"> </span><span class="o">[</span>global-options<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>command-options<span class="o">]</span>
+</code></pre></div>
+<h3 id="why-a-separate-query-tool">Why a separate query tool<a class="headerlink" href="#why-a-separate-query-tool" title="Permanent link">&para;</a></h3>
+<p><code>pm-audit</code> is a long-running writer. Querying is a separate one-shot
+operation. Keeping them separate means:</p>
+<ul>
+<li>You can query logs while <code>pm-audit</code> is still writing</li>
+<li>The tool works on archived logs from previous sessions</li>
+<li>Queries never affect the running recorder</li>
+</ul>
+<p>This follows the same pattern as <code>pm-stats-cli</code> and <code>pm-clearing-cli</code>.</p>
+<h3 id="global-options">Global options<a class="headerlink" href="#global-options" title="Permanent link">&para;</a></h3>
+<p>These flags are parsed once, before the subcommand:</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--log-file PATH</code></td>
+<td><code>data/audit.log</code></td>
+<td>Primary audit log file to read</td>
+</tr>
+<tr>
+<td><code>--log-dir PATH</code></td>
+<td>(parent of <code>--log-file</code>)</td>
+<td>Directory containing rotated log backups; when set, rotated files are discovered automatically</td>
+</tr>
+<tr>
+<td><code>--format table\|json\|csv</code></td>
+<td><code>table</code></td>
+<td>Output format</td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>off</td>
+<td>Suppress CSV header row</td>
+</tr>
+<tr>
+<td><code>--use-index PATH</code></td>
+<td>(auto)</td>
+<td>Path to SQLite index file; auto-detected as <code>&lt;the directory containing --log-file&gt;/audit_index.db</code> when present</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Not every flag applies to every command</p>
+<p><code>--use-index</code> only affects the <code>events</code> command — <code>orders</code>, <code>trades</code>,
+<code>topics</code>, <code>gateways</code>, and <code>timeline</code> always stream the JSONL log files
+directly and never consult the SQLite index, even when one exists and
+<code>--use-index</code> is given. <code>--format</code>/<code>--no-header</code> are also ignored by
+<code>stats</code> (its output is a fixed text summary, not a table) and by <code>index</code>
+(which prints build progress, not rows).</p>
+<p>The auto-detected index path is always <code>&lt;the directory containing
+--log-file&gt;/audit_index.db</code> — it does <strong>not</strong> use <code>--log-dir</code>. If
+<code>--log-dir</code> points somewhere other than <code>--log-file</code>'s own parent
+directory, the index lookup still only checks the log file's parent.</p>
+</div>
+<p><strong>Output formats:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>table</code></td>
+<td>Interactive terminal — aligned columns, human-readable</td>
+</tr>
+<tr>
+<td><code>json</code></td>
+<td>Automation, scripts, downstream processing</td>
+</tr>
+<tr>
+<td><code>csv</code></td>
+<td>Export to spreadsheets or pipelines</td>
+</tr>
+</tbody>
+</table>
+<p><strong>No-result behaviour:</strong></p>
+<ul>
+<li><code>table</code>: prints <code>No matching events found.</code></li>
+<li><code>json</code>: prints <code>[]</code></li>
+<li><code>csv</code>: prints header only (or nothing with <code>--no-header</code>)</li>
+</ul>
+<p>Exit code is always <code>0</code> when a query succeeds with no results. Non-zero only
+on argument errors (exit <code>2</code>) or I/O failures (exit <code>1</code>).</p>
+<h3 id="rotated-log-discovery">Rotated log discovery<a class="headerlink" href="#rotated-log-discovery" title="Permanent link">&para;</a></h3>
+<p>When <code>--log-dir</code> is set (or defaulted from <code>--log-file</code>), <code>pm-audit-cli</code>
+automatically discovers rotated backup files:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>logs/audit.log.2.gz   ← oldest, read first
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>logs/audit.log.1      ← middle
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>logs/audit.log        ← newest, read last
+</code></pre></div>
+<p>All results are returned in chronological order across all files.</p>
+<h3 id="events-general-event-search"><code>events</code> — General event search<a class="headerlink" href="#events-general-event-search" title="Permanent link">&para;</a></h3>
+<p>Search log entries by topic prefix, gateway, symbol, and time range. This is
+the most flexible command and the right starting point for any investigation.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--topic PREFIX</code></td>
+<td>(all)</td>
+<td>Filter by topic prefix, e.g. <code>order.fill</code> or <code>trade.</code></td>
+</tr>
+<tr>
+<td><code>--gateway GW_ID</code></td>
+<td>(all)</td>
+<td>Filter by gateway ID appearing in the payload</td>
+</tr>
+<tr>
+<td><code>--symbol SYMBOL</code></td>
+<td>(all)</td>
+<td>Filter by instrument symbol</td>
+</tr>
+<tr>
+<td><code>--date YYYY-MM-DD</code></td>
+<td>(all)</td>
+<td>Shorthand for a full trading day</td>
+</tr>
+<tr>
+<td><code>--from ISO_TS</code></td>
+<td>(none)</td>
+<td>Start of time range (inclusive)</td>
+</tr>
+<tr>
+<td><code>--to ISO_TS</code></td>
+<td>(none)</td>
+<td>End of time range (inclusive)</td>
+</tr>
+<tr>
+<td><code>--limit N</code></td>
+<td><code>100</code></td>
+<td>Maximum rows returned</td>
+</tr>
+<tr>
+<td><code>--reverse</code></td>
+<td>off</td>
+<td>Show newest events first</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Output columns:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>timestamp</code></td>
+<td>UTC timestamp of the event</td>
+</tr>
+<tr>
+<td><code>topic</code></td>
+<td>ZeroMQ topic</td>
+</tr>
+<tr>
+<td><code>gateway</code></td>
+<td>Gateway ID extracted from payload (if present)</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td>Instrument symbol extracted from payload (if present)</td>
+</tr>
+<tr>
+<td><code>order_id</code></td>
+<td>Order ID extracted from payload (if present)</td>
+</tr>
+<tr>
+<td><code>summary</code></td>
+<td>Brief human-readable description of the event</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title"><code>summary</code> format differs when the SQLite index is used</p>
+<p>When <code>events</code> is served from the JSONL log files, <code>summary</code> is a
+structured, topic-aware description (e.g. <code>FILL 60@150.00</code>). When a
+usable index exists at the resolved <code>--use-index</code> path, <code>events</code> is
+served from SQLite instead, and <code>summary</code> is just the payload dict's
+<code>str()</code> representation truncated to 80 characters — a different, less
+readable format. Rebuild the index after querying if you need the
+latest events; the index is never queried automatically for freshness.</p>
+</div>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># All events in the log (last 100)</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>pm-audit-cli<span class="w"> </span>events
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># All fills for gateway GW01 on a specific date</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.fill<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># All trade executions for AAPL in a two-hour window</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>trade.executed<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T11:30:00+00:00
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="c1"># Most recent 50 events across all topics</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span><span class="w"> </span>--reverse
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="c1"># All session phase transitions</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>session.state
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="c1"># All order rejections</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.ack<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="c1"># Export all trade events as JSON for analysis</span>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>trade.executed<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>--limit<span class="w"> </span><span class="m">5000</span><span class="w"> </span>&gt;<span class="w"> </span>trades.json
+<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a>
+<a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="c1"># Order submissions from a specific gateway in CSV format</span>
+<a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.new<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>&gt;<span class="w"> </span>gw01_orders.csv
+</code></pre></div>
+<h3 id="orders-order-lifecycle-investigation"><code>orders</code> — Order lifecycle investigation<a class="headerlink" href="#orders-order-lifecycle-investigation" title="Permanent link">&para;</a></h3>
+<p>Find all audit events related to specific order IDs or filter by gateway and
+symbol to reconstruct an order's full journey through the engine.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--id ORDER_ID</code></td>
+<td>(none)</td>
+<td>Order ID to find (repeatable; searches <code>order_id</code> and <code>id</code> fields in payload)</td>
+</tr>
+<tr>
+<td><code>--gateway GW_ID</code></td>
+<td>(all)</td>
+<td>Filter by gateway ID</td>
+</tr>
+<tr>
+<td><code>--symbol SYMBOL</code></td>
+<td>(all)</td>
+<td>Filter by symbol</td>
+</tr>
+<tr>
+<td><code>--date YYYY-MM-DD</code></td>
+<td>(all)</td>
+<td>Trading date</td>
+</tr>
+<tr>
+<td><code>--from ISO_TS</code></td>
+<td>(none)</td>
+<td>Start of time range</td>
+</tr>
+<tr>
+<td><code>--to ISO_TS</code></td>
+<td>(none)</td>
+<td>End of time range</td>
+</tr>
+<tr>
+<td><code>--limit N</code></td>
+<td><code>100</code></td>
+<td>Maximum rows</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Output columns:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>timestamp</code></td>
+<td>Event timestamp</td>
+</tr>
+<tr>
+<td><code>order_id</code></td>
+<td>Order identifier</td>
+</tr>
+<tr>
+<td><code>event</code></td>
+<td>Last dot-separated segment of the topic. For two-part topics like <code>order.new</code> this is the verb (<code>new</code>). For per-gateway topics like <code>order.ack.GW01</code>, <code>order.fill.GW01</code>, or <code>order.cancelled.GW01</code> it is the <strong>gateway ID</strong>, not the verb — the topic's own verb segment (<code>ack</code>, <code>fill</code>, <code>cancelled</code>) is dropped.</td>
+</tr>
+<tr>
+<td><code>gateway</code></td>
+<td>Gateway ID</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td>Instrument symbol</td>
+</tr>
+<tr>
+<td><code>side</code></td>
+<td><code>BUY</code> or <code>SELL</code></td>
+</tr>
+<tr>
+<td><code>qty</code></td>
+<td><code>quantity</code>, then <code>filled_qty</code>, then <code>remaining_qty</code> — whichever key is present first in the payload</td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td>Price (limit price or fill price depending on event type)</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>Order status after the event</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title"><code>qty</code> does not show the fill quantity for order.fill events</p>
+<p>The <code>qty</code> column looks for a <code>filled_qty</code> key as its second choice, but
+<code>order.fill.{GW_ID}</code> payloads actually use the key <code>fill_qty</code> (see
+<a href="../270-messages/#orderfillgw_id">Messages — order.fill</a>). Since neither
+<code>quantity</code> nor <code>filled_qty</code> is present on a fill event, <code>qty</code> falls
+through to <code>remaining_qty</code> instead — the quantity left on the order, not
+the quantity filled in that event. Use <code>timeline</code> (which shows the full
+payload) or <code>events --topic order.fill</code> if you need the actual fill
+size.</p>
+</div>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Full lifecycle of one specific order</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Two orders side by side</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00143
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># All order events for gateway GW01 today</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="c1"># Order events for AAPL in a session</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="c1"># Export one order&#39;s lifecycle as JSON for a support ticket</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142<span class="w"> </span>--format<span class="w"> </span>json
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="c1"># Order activity for market-maker in CSV</span>
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--gateway<span class="w"> </span>MM_AAPL_01<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>&gt;<span class="w"> </span>mm_orders.csv
+</code></pre></div>
+<h3 id="trades-trade-execution-search"><code>trades</code> — Trade execution search<a class="headerlink" href="#trades-trade-execution-search" title="Permanent link">&para;</a></h3>
+<p>Find <code>trade.executed</code> events with precise filtering on both sides of the
+trade, price ranges, and minimum quantities.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--symbol SYMBOL</code></td>
+<td>(all)</td>
+<td>Filter by instrument symbol</td>
+</tr>
+<tr>
+<td><code>--gateway GW_ID</code></td>
+<td>(all)</td>
+<td>Match trades where this gateway appears on either side</td>
+</tr>
+<tr>
+<td><code>--buy-gateway GW_ID</code></td>
+<td>(all)</td>
+<td>Filter by buyer gateway specifically</td>
+</tr>
+<tr>
+<td><code>--sell-gateway GW_ID</code></td>
+<td>(all)</td>
+<td>Filter by seller gateway specifically</td>
+</tr>
+<tr>
+<td><code>--min-price PRICE</code></td>
+<td>(none)</td>
+<td>Minimum trade price (inclusive)</td>
+</tr>
+<tr>
+<td><code>--max-price PRICE</code></td>
+<td>(none)</td>
+<td>Maximum trade price (inclusive)</td>
+</tr>
+<tr>
+<td><code>--min-qty QTY</code></td>
+<td>(none)</td>
+<td>Minimum trade quantity (inclusive)</td>
+</tr>
+<tr>
+<td><code>--date YYYY-MM-DD</code></td>
+<td>(all)</td>
+<td>Trading date</td>
+</tr>
+<tr>
+<td><code>--from ISO_TS</code></td>
+<td>(none)</td>
+<td>Start of time range</td>
+</tr>
+<tr>
+<td><code>--to ISO_TS</code></td>
+<td>(none)</td>
+<td>End of time range</td>
+</tr>
+<tr>
+<td><code>--limit N</code></td>
+<td><code>100</code></td>
+<td>Maximum rows</td>
+</tr>
+<tr>
+<td><code>--reverse</code></td>
+<td>off</td>
+<td>Show newest first</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Output columns:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>timestamp</code></td>
+<td>Trade execution timestamp</td>
+</tr>
+<tr>
+<td><code>trade_id</code></td>
+<td>Trade identifier — a monotonically increasing integer (as a string, e.g. <code>"42"</code>), unique within a single engine run. Not a UUID.</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td>Instrument symbol</td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td>Execution price</td>
+</tr>
+<tr>
+<td><code>quantity</code></td>
+<td>Matched quantity</td>
+</tr>
+<tr>
+<td><code>buy_gateway</code></td>
+<td>Buyer gateway ID</td>
+</tr>
+<tr>
+<td><code>sell_gateway</code></td>
+<td>Seller gateway ID</td>
+</tr>
+<tr>
+<td><code>aggressor</code></td>
+<td>Which side crossed the spread: <code>BUY</code>, <code>SELL</code>, or <code>AUCTION</code> for trades produced by an auction match</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># All trades for AAPL today</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1"># Block trades (&gt;= 1,000 shares) across all symbols</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--min-qty<span class="w"> </span><span class="m">1000</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="c1"># Trades between two specific gateways</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--buy-gateway<span class="w"> </span>GW01<span class="w"> </span>--sell-gateway<span class="w"> </span>MM_AAPL_01
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="c1"># MSFT trades in a specific price band</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--min-price<span class="w"> </span><span class="m">410</span>.0<span class="w"> </span>--max-price<span class="w"> </span><span class="m">420</span>.0
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="c1"># Most recent 20 trades</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--limit<span class="w"> </span><span class="m">20</span><span class="w"> </span>--reverse
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="c1"># Export full day as CSV for post-trade analysis</span>
+<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span><span class="w"> </span>&gt;<span class="w"> </span>day_trades.csv
+<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a>
+<a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a><span class="c1"># All trades involving market maker</span>
+<a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--gateway<span class="w"> </span>MM_AAPL_01<span class="w"> </span>--format<span class="w"> </span>json
+</code></pre></div>
+<h3 id="topics-topic-discovery-and-statistics"><code>topics</code> — Topic discovery and statistics<a class="headerlink" href="#topics-topic-discovery-and-statistics" title="Permanent link">&para;</a></h3>
+<p>List all topics present in the audit logs with event counts and first/last
+occurrence timestamps. Useful for understanding what happened in a session
+and for checking whether expected event types were produced.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--date YYYY-MM-DD</code></td>
+<td>(all)</td>
+<td>Restrict to a trading date</td>
+</tr>
+<tr>
+<td><code>--from ISO_TS</code></td>
+<td>(none)</td>
+<td>Start of time range</td>
+</tr>
+<tr>
+<td><code>--to ISO_TS</code></td>
+<td>(none)</td>
+<td>End of time range</td>
+</tr>
+<tr>
+<td><code>--prefix PREFIX</code></td>
+<td>(all)</td>
+<td>Filter topics by prefix, e.g. <code>order.</code></td>
+</tr>
+<tr>
+<td><code>--sort count\|alpha</code></td>
+<td><code>count</code></td>
+<td>Sort by event count descending (default) or alphabetically</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Output columns:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>topic</code></td>
+<td>ZeroMQ topic name</td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td>Number of events with this topic</td>
+</tr>
+<tr>
+<td><code>first_seen</code></td>
+<td>Timestamp of the first occurrence</td>
+</tr>
+<tr>
+<td><code>last_seen</code></td>
+<td>Timestamp of the last occurrence</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># All topics in the log, most frequent first</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-audit-cli<span class="w"> </span>topics
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># Topics on a specific trading date</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="c1"># Order-related topics only, sorted alphabetically</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--prefix<span class="w"> </span>order.<span class="w"> </span>--sort<span class="w"> </span>alpha
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="c1"># What happened during the opening auction?</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="c1"># Export all topic stats as JSON</span>
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--format<span class="w"> </span>json
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a>
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a><span class="c1"># Check that trades were produced today</span>
+<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--prefix<span class="w"> </span>trade.<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+</code></pre></div>
+<h3 id="gateways-gateway-activity-summary"><code>gateways</code> — Gateway activity summary<a class="headerlink" href="#gateways-gateway-activity-summary" title="Permanent link">&para;</a></h3>
+<p>List all gateways seen in the audit logs and show a summary of their
+activity: order submissions, fills, and trades participated in.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--date YYYY-MM-DD</code></td>
+<td>(all)</td>
+<td>Trading date</td>
+</tr>
+<tr>
+<td><code>--from ISO_TS</code></td>
+<td>(none)</td>
+<td>Start of time range</td>
+</tr>
+<tr>
+<td><code>--to ISO_TS</code></td>
+<td>(none)</td>
+<td>End of time range</td>
+</tr>
+<tr>
+<td><code>--min-events N</code></td>
+<td>(none)</td>
+<td>Only show gateways with at least N events</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Output columns:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td>Gateway identifier</td>
+</tr>
+<tr>
+<td><code>events</code></td>
+<td>Total event count (all topics)</td>
+</tr>
+<tr>
+<td><code>orders</code></td>
+<td><code>order.new</code> events submitted</td>
+</tr>
+<tr>
+<td><code>fills</code></td>
+<td><code>order.fill.*</code> events received</td>
+</tr>
+<tr>
+<td><code>trades</code></td>
+<td><code>trade.executed</code> events participated in</td>
+</tr>
+<tr>
+<td><code>first_seen</code></td>
+<td>First event timestamp</td>
+</tr>
+<tr>
+<td><code>last_seen</code></td>
+<td>Last event timestamp</td>
+</tr>
+</tbody>
+</table>
+<p>Results are sorted by total event count descending — the most active gateway
+appears first.</p>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># All gateways in the logs</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-audit-cli<span class="w"> </span>gateways
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># Active gateways on a specific date</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1"># Only gateways with meaningful activity</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--min-events<span class="w"> </span><span class="m">10</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="c1"># Gateway activity in the first hour of trading</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T10:30:00+00:00
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="c1"># Export as JSON for automation</span>
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--format<span class="w"> </span>json
+<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a>
+<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a><span class="c1"># Check which gateways connected during the closing auction</span>
+<a id="__codelineno-17-17" name="__codelineno-17-17" href="#__codelineno-17-17"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-17-18" name="__codelineno-17-18" href="#__codelineno-17-18"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T15:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T16:00:00+00:00
+</code></pre></div>
+<h3 id="timeline-chronological-event-stream"><code>timeline</code> — Chronological event stream<a class="headerlink" href="#timeline-chronological-event-stream" title="Permanent link">&para;</a></h3>
+<p>Show a raw chronological stream of events for session replay and forensic
+investigation. Unlike <code>events</code>, the <code>timeline</code> command exposes the full JSON
+payload as a single column, making it suitable for detailed reconstruction of
+what happened over a time window.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--from ISO_TS</code></td>
+<td>(none)</td>
+<td>Start time</td>
+</tr>
+<tr>
+<td><code>--to ISO_TS</code></td>
+<td>(none)</td>
+<td>End time</td>
+</tr>
+<tr>
+<td><code>--topic PREFIX</code></td>
+<td>(all)</td>
+<td>Filter by topic prefix</td>
+</tr>
+<tr>
+<td><code>--gateway GW_ID</code></td>
+<td>(all)</td>
+<td>Filter by gateway</td>
+</tr>
+<tr>
+<td><code>--symbol SYMBOL</code></td>
+<td>(all)</td>
+<td>Filter by symbol</td>
+</tr>
+<tr>
+<td><code>--limit N</code></td>
+<td><code>500</code></td>
+<td>Maximum events</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Output columns:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>timestamp</code></td>
+<td>Event timestamp</td>
+</tr>
+<tr>
+<td><code>topic</code></td>
+<td>ZeroMQ topic</td>
+</tr>
+<tr>
+<td><code>gateway</code></td>
+<td>Gateway ID (if present in payload)</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td>Symbol (if present in payload)</td>
+</tr>
+<tr>
+<td><code>payload</code></td>
+<td>Full JSON payload as a string</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># Opening 5 minutes of trading</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:35:00+00:00
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="c1"># Gateway activity in a 10-minute window</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T14:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T14:10:00+00:00
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="c1"># Symbol-focused replay with higher limit</span>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T16:00:00+00:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="w">  </span>--limit<span class="w"> </span><span class="m">2000</span>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="c1"># All session state changes across the day (timeline has no --date flag;</span>
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a><span class="c1"># use --from/--to to bound a trading day instead)</span>
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--topic<span class="w"> </span>session.state<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T00:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T23:59:59+00:00
+<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a>
+<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a><span class="c1"># Only trades and fills in the closing auction</span>
+<a id="__codelineno-19-20" name="__codelineno-19-20" href="#__codelineno-19-20"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--topic<span class="w"> </span>trade.<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-21" name="__codelineno-19-21" href="#__codelineno-19-21"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T15:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T16:00:00+00:00
+<a id="__codelineno-19-22" name="__codelineno-19-22" href="#__codelineno-19-22"></a>
+<a id="__codelineno-19-23" name="__codelineno-19-23" href="#__codelineno-19-23"></a><span class="c1"># Export for external replay tooling</span>
+<a id="__codelineno-19-24" name="__codelineno-19-24" href="#__codelineno-19-24"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-25" name="__codelineno-19-25" href="#__codelineno-19-25"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T16:00:00+00:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-19-26" name="__codelineno-19-26" href="#__codelineno-19-26"></a><span class="w">  </span>--format<span class="w"> </span>json<span class="w"> </span>--limit<span class="w"> </span><span class="m">100000</span><span class="w"> </span>&gt;<span class="w"> </span>session_replay.json
+</code></pre></div>
+<h3 id="stats-log-file-statistics"><code>stats</code> — Log file statistics<a class="headerlink" href="#stats-log-file-statistics" title="Permanent link">&para;</a></h3>
+<p>Show a health-check summary of the audit log files: total events, file sizes,
+date range, and counts of unique topics and gateways. Run this to confirm
+that <code>pm-audit</code> has been recording as expected.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-audit-cli<span class="w"> </span>stats<span class="w"> </span><span class="o">[</span>--verbose<span class="o">]</span>
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--verbose</code></td>
+<td>off</td>
+<td>Show a per-file breakdown in addition to the summary</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example output (default):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>Audit Log Statistics
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>  Total events:       45,678
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>  Total size:         12.4 MB
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>  Log files:          3
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>  Oldest event:       2026-07-01T09:30:00.123+00:00
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>  Newest event:       2026-07-08T15:59:59.987+00:00
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>  Topics seen:        24
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a>  Gateways seen:      5
+</code></pre></div>
+<p><strong>Example output (<code>--verbose</code>):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>Audit Log Statistics
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>  Total events:       45,678
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>  Total size:         12.4 MB
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>  Log files:          3
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>  Oldest event:       2026-07-01T09:30:00.123+00:00
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>  Newest event:       2026-07-08T15:59:59.987+00:00
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>  Topics seen:        24
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>  Gateways seen:      5
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>  Per-file breakdown:
+<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a>    data/audit.log.2  12,000 events  4.1 MB
+<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a>    data/audit.log.1  18,234 events  6.2 MB
+<a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a>    data/audit.log     15,444 events  2.1 MB
+</code></pre></div>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># Quick health check</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>pm-audit-cli<span class="w"> </span>stats
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="c1"># Full breakdown including per-file stats</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>pm-audit-cli<span class="w"> </span>stats<span class="w"> </span>--verbose
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="c1"># Check a specific log file location</span>
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>pm-audit-cli<span class="w"> </span>--log-file<span class="w"> </span>/mnt/archive/2026-07-01/audit.log<span class="w"> </span>stats
+</code></pre></div>
+<h3 id="index-build-or-update-the-sqlite-index"><code>index</code> — Build or update the SQLite index<a class="headerlink" href="#index-build-or-update-the-sqlite-index" title="Permanent link">&para;</a></h3>
+<p>For large audit histories or frequent complex queries, <code>pm-audit-cli</code> can
+build an optional SQLite index from the JSONL log files. Once built, the
+<code>events</code> command uses it automatically for significantly faster response.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--output PATH</code></td>
+<td><code>&lt;the directory containing --log-file&gt;/audit_index.db</code></td>
+<td>Destination SQLite database</td>
+</tr>
+<tr>
+<td><code>--days N</code></td>
+<td>(none)</td>
+<td>Index only the last N days of logs</td>
+</tr>
+<tr>
+<td><code>--from ISO_TS</code></td>
+<td>(none)</td>
+<td>Start of index range</td>
+</tr>
+<tr>
+<td><code>--to ISO_TS</code></td>
+<td>(none)</td>
+<td>End of index range</td>
+</tr>
+<tr>
+<td><code>--rebuild</code></td>
+<td>off</td>
+<td>Delete all existing index data and rebuild from scratch</td>
+</tr>
+<tr>
+<td><code>--incremental</code></td>
+<td>off</td>
+<td>Add only entries newer than the last indexed timestamp</td>
+</tr>
+</tbody>
+</table>
+<p><code>--rebuild</code> and <code>--incremental</code> are mutually exclusive.</p>
+<div class="admonition warning">
+<p class="admonition-title">Re-running <code>index</code> without <code>--rebuild</code>/<code>--incremental</code> duplicates rows</p>
+<p>Without either flag, <code>index</code> re-inserts every entry in the requested
+range on each run with no deduplication — running the same <code>--days 7</code>
+command twice doubles the row count for that window. Use <code>--incremental</code>
+for routine re-indexing, or <code>--rebuild</code> to start clean.</p>
+</div>
+<p><strong>Index schema highlights:</strong></p>
+<p>The index stores one row per log line in a <code>audit_events</code> table with
+dedicated columns for <code>timestamp</code>, <code>topic</code>, <code>gateway_id</code>, <code>symbol</code>,
+<code>order_id</code>, and <code>trade_id</code>, each with a covering index. The full JSON payload
+is kept in a <code>payload</code> column so no information is lost.</p>
+<p><strong>Performance comparison (1 M events):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Query type</th>
+<th>JSONL streaming</th>
+<th>SQLite index</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Recent 100 events</td>
+<td>&lt; 1 s</td>
+<td>&lt; 0.1 s</td>
+</tr>
+<tr>
+<td>Single topic filter</td>
+<td>4–6 s</td>
+<td>0.2 s</td>
+</tr>
+<tr>
+<td>Multi-filter (topic + gateway + date)</td>
+<td>10–15 s</td>
+<td>0.5 s</td>
+</tr>
+<tr>
+<td>Order ID lookup</td>
+<td>8 s</td>
+<td>0.05 s</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Index auto-detection:</strong></p>
+<p>When <code>audit_index.db</code> exists in the log directory, the <code>events</code> command uses
+it automatically. Override with <code>--use-index PATH</code> or point at a different
+index location.</p>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># Build index for the last 7 days</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--days<span class="w"> </span><span class="m">7</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="c1"># Build complete index from all log files</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--rebuild
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="c1"># Incremental update — only adds entries not yet in the index</span>
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--incremental
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="c1"># Index a specific date range</span>
+<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-01T00:00:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T23:59:59+00:00
+<a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a>
+<a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a><span class="c1"># Build index to a custom location</span>
+<a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--output<span class="w"> </span>/tmp/session_idx.db<span class="w"> </span>--rebuild
+<a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a>
+<a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a><span class="c1"># Use a non-default index when querying</span>
+<a id="__codelineno-25-18" name="__codelineno-25-18" href="#__codelineno-25-18"></a>pm-audit-cli<span class="w"> </span>--use-index<span class="w"> </span>/tmp/session_idx.db<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-25-19" name="__codelineno-25-19" href="#__codelineno-25-19"></a><span class="w">  </span>events<span class="w"> </span>--topic<span class="w"> </span>trade.executed<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span>
+</code></pre></div>
+<div class="admonition tip">
+<p class="admonition-title">When to build an index</p>
+<p>Build an index when:</p>
+<ul>
+<li>The audit log contains more than ~500,000 events</li>
+<li>You run more than a few queries per session</li>
+<li>You need to correlate events across multiple fields (topic + gateway + symbol + date)</li>
+</ul>
+<p>For ad-hoc queries on small logs, streaming JSONL is fast enough without the extra disk space.</p>
+</div>
+<h2 id="cookbook-common-audit-workflows">Cookbook — Common Audit Workflows<a class="headerlink" href="#cookbook-common-audit-workflows" title="Permanent link">&para;</a></h2>
+<h3 id="investigate-a-specific-order">Investigate a specific order<a class="headerlink" href="#investigate-a-specific-order" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># Find all events for order ORD-GW01-00142</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="c1"># Same as JSON (attach to support ticket)</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142<span class="w"> </span>--format<span class="w"> </span>json
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="c1"># Find by gateway and time window (when order ID is not known)</span>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:35:00+00:00
+</code></pre></div>
+<h3 id="reconstruct-a-trade">Reconstruct a trade<a class="headerlink" href="#reconstruct-a-trade" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Find trade details by symbol and time</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T10:15:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T10:15:01+00:00
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="c1"># Find all large trades above a price threshold</span>
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--min-qty<span class="w"> </span><span class="m">500</span><span class="w"> </span>--min-price<span class="w"> </span><span class="m">150</span>.0<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+</code></pre></div>
+<h3 id="verify-session-phases-fired-correctly">Verify session phases fired correctly<a class="headerlink" href="#verify-session-phases-fired-correctly" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># See all session transitions in order</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>session.state<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="c1"># Timeline around market open</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>pm-audit-cli<span class="w"> </span>timeline<span class="w"> </span>--topic<span class="w"> </span>session.<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:25:00+00:00<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08T09:35:00+00:00
+</code></pre></div>
+<h3 id="identify-the-most-active-gateway">Identify the most active gateway<a class="headerlink" href="#identify-the-most-active-gateway" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-audit-cli<span class="w"> </span>gateways<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08
+</code></pre></div>
+<h3 id="check-log-health-before-end-of-day">Check log health before end of day<a class="headerlink" href="#check-log-health-before-end-of-day" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-audit-cli<span class="w"> </span>stats<span class="w"> </span>--verbose
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>pm-audit-cli<span class="w"> </span>topics<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--sort<span class="w"> </span>count<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-10
+</code></pre></div>
+<h3 id="export-a-full-session-for-offline-analysis">Export a full session for offline analysis<a class="headerlink" href="#export-a-full-session-for-offline-analysis" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># Build index first for speed</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>pm-audit-cli<span class="w"> </span>index<span class="w"> </span>--rebuild
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="c1"># Export all trades</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>pm-audit-cli<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>trades.csv
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="c1"># Export all order events for gateway GW01</span>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>pm-audit-cli<span class="w"> </span>events<span class="w"> </span>--topic<span class="w"> </span>order.<span class="w"> </span>--gateway<span class="w"> </span>GW01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="w">  </span>--date<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span>&gt;<span class="w"> </span>gw01_orders.json
+</code></pre></div>
+<h3 id="filter-across-rotated-log-backups">Filter across rotated log backups<a class="headerlink" href="#filter-across-rotated-log-backups" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># Pass the directory; pm-audit-cli discovers audit.log, audit.log.1, etc.</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>pm-audit-cli<span class="w"> </span>--log-dir<span class="w"> </span>data/<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="w">  </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-08<span class="w"> </span>--limit<span class="w"> </span><span class="m">10000</span>
+</code></pre></div>
+<h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Exit code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0</code></td>
+<td>Success (including queries that returned zero rows)</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>I/O error (log file not found, unreadable database)</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td>Argument error (invalid date format, bad <code>--limit</code>, conflicting flags)</td>
+</tr>
+</tbody>
+</table>
+<p>Invalid log lines (malformed JSON, truncated writes) are always silently
+skipped — no warning is printed, and there is no global <code>--verbose</code> flag on
+<code>pm-audit-cli</code> to enable one. (<code>stats --verbose</code> is a different, per-command
+flag that only adds a per-file size/count breakdown to the <code>stats</code> output.)</p>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../170-processes/#pm-audit-event-logger">Processes — pm-audit</a> — startup reference table in the process overview</li>
+<li><a href="../180-persistence/">Persistence</a> — which files each process writes and where they live</li>
+<li><a href="../140-statistics-and-reporting/">Statistics and Reporting</a> — <code>pm-stats</code> and <code>pm-stats-cli</code> for structured market data queries</li>
+<li><a href="../130-pnl-clearing/">P&amp;L &amp; Clearing</a> — <code>pm-clearing</code> and <code>pm-clearing-cli</code> for trade settlement</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

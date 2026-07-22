@@ -126,7 +126,7 @@ USER_GUIDE_LUA_FILTER_FLAGS := --lua-filter $(USER_GUIDE_LUA_FILTER) --lua-filte
 # Keep this list markdown-only; non-markdown assets are tracked separately
 # via USER_GUIDE_PDF_DEPS so they trigger rebuilds without polluting content.
 USER_GUIDE_MD_SOURCES := \
-	$(sort $(wildcard $(DOCS_DIR)/user-guide/[0-9][0-9]-*.md))
+	$(sort $(wildcard $(DOCS_DIR)/user-guide/[0-9][0-9][0-9]-*.md))
 
 # $(info USER_GUIDE_MD_SOURCES: $(USER_GUIDE_MD_SOURCES))
 

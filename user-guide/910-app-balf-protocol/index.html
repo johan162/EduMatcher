@@ -1,0 +1,4635 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/910-app-balf-protocol/">
+      
+      
+        <link rel="prev" href="../900-app-alf-protocol/">
+      
+      
+        <link rel="next" href="../920-app-calf-protocol/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Appendix: BALF Protocol - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#appendix-balf-protocol-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Appendix: BALF Protocol
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../000-getting-started/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../training/" class="md-tabs__link">
+          
+  
+  
+  Training
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/07-concepts-implied-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implied Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../000-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../010-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../020-config-verifier/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config Verifier
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../030-config-GUI/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration GUI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../040-running-the-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../050-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../060-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../070-combos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../080-auctions-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../090-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../100-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market-Maker Bot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../110-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../120-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../130-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../140-statistics-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../150-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../152-index-admin-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index Admin CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../160-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exchange Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../170-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../180-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../190-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Trail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../200-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../201-dc-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy TCP Gateway (pm-dc-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocol-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Protocols Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../220-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../230-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../240-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../241-calf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CALF Protocol Spy (pm-calf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../250-post-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-Trade Dissemination (RALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../251-ralf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RALF Protocol Spy (pm-ralf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../252-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../260-api-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../270-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../800-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../810-example-configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../890-known-limitations-bugs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Limitations & Bugs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../900-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-balf-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What BALF is
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scope-conformance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scope &amp; conformance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Scope &amp; conformance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-balf-does-not-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What BALF does not change
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#non-goals-for-balf-100" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Non-goals for BALF 1.0.0
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wire-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wire format
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Wire format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#connection-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#byte-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Byte order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#frame-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frame structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#flag-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flag semantics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#identifier-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identifier rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#frame-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frame format
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Frame format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#header-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Header layout
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#header-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Header fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sequence-numbering-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sequence numbering rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scalar-encodings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scalar encodings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Scalar encodings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#price-encoding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Price encoding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#symbol-encoding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Symbol encoding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gateway-id-encoding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gateway ID encoding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-id-encoding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order ID encoding
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message definitions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Message definitions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#summary-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary table
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logon-0x01-client-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LOGON (0x01) - Client -&gt; Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logon_ack-0x02-server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LOGON_ACK (0x02) - Server -&gt; Client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#new_order-0x10-client-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NEW_ORDER (0x10) - Client -&gt; Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order_ack-0x11-server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ORDER_ACK (0x11) - Server -&gt; Client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancel_order-0x12-client-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CANCEL_ORDER (0x12) - Client -&gt; Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancel_ack-0x13-server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CANCEL_ACK (0x13) - Server -&gt; Client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#amend_order-0x14-client-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AMEND_ORDER (0x14) - Client -&gt; Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#amend_ack-0x15-server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AMEND_ACK (0x15) - Server -&gt; Client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#execution_report-0x20-server-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EXECUTION_REPORT (0x20) - Server -&gt; Client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#heartbeat-0x30-bidirectional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HEARTBEAT (0x30) - Bidirectional
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#heartbeat_ack-0x31-bidirectional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HEARTBEAT_ACK (0x31) - Bidirectional
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logout-0x40-client-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LOGOUT (0x40) - Client -&gt; Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#session-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Session lifecycle
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Session lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sequence-number-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sequence number rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gatewaysbalf-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        gateways.balf fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#balf_gateway-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        balf_gateway fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-to-watch-out-for-during-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to watch out for during implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#practical-parsing-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Practical parsing notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../920-app-calf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../930-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../990-app-config-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: Engine Config Specification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/00-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    00 — Installation & Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/01-configuring-startup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    01 — Configuring & Starting Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/02-setting-up-MM-bots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    02 — Setting Up Market-Maker Liquidity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/03-the-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    03 — The First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/04-amending-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04 — Amending Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/05-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05 — Order Types Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/06-time-in-force-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    06 — Time-in-Force & Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/07-auctions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    07 — Auctions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/08-cancelling-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    08 — Cancelling & Managing Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/09-market-making/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    09 — Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/10-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10 — Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/11-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11 — Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/12-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12 — P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/13-market-data-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13 — Market Data & Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/14-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14 — AI Traders & Swarm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/15-statistics-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15 — Statistics & Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/16-persistence-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16 — Persistence & Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/17-capstone-scenario/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17 — Capstone Scenario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/18-exchange-observer-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18 — Exchange Observer Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/19-advanced-admin-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    19 — Advanced Admin Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/20-drop-copy-replay-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20 — Drop-Copy Replay & Recovery Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/21-automation-commandclient-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21 — Automation with CommandClient & MM Bot Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/22-ralf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/24-api-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24 — API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/25-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/26-alf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 - ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/27-balf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27 - BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/05-vm-runtime-image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Runtime Image
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="appendix-balf-protocol-reference">Appendix: BALF Protocol Reference<a class="headerlink" href="#appendix-balf-protocol-reference" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>Status: Normative.</strong> This appendix is the single source of truth for the BALF
+<code>1.0.0</code> wire contract as implemented by <code>pm-balf-gwy</code> (<code>balf_gwy/</code>). For an
+operational, tutorial-style guide see <a href="../230-balf-gateway/">BALF TCP Gateway</a>; for
+the gateway's configuration block see
+<a href="../990-app-config-spec/#62-balf_gateway-pm-balf-gwy">Engine Config Specification §6.2</a>.
+The key words MUST, MUST NOT, SHOULD, and MAY are used per RFC 2119.</p>
+</blockquote>
+<h2 id="what-balf-is">What BALF is<a class="headerlink" href="#what-balf-is" title="Permanent link">&para;</a></h2>
+<p><strong>BALF</strong> stands for <strong>Binary ALF</strong>.</p>
+<p>It is EduMatcher's fixed-width binary protocol for programmatic order entry
+through <code>pm-balf-gwy</code>. BALF carries the same trading intent as ALF, but it
+replaces human-readable text parsing with deterministic byte offsets.</p>
+<p>BALF is designed for low-latency clients that want:</p>
+<ul>
+<li>fixed frame sizes</li>
+<li>no delimiter scanning</li>
+<li>no decimal string parsing on the hot path</li>
+<li>explicit message sequencing</li>
+<li>simple exact-byte reads</li>
+</ul>
+<p>BALF is intentionally smaller and more predictable than text protocols:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>NEW_ORDER is always 60 bytes on the wire
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>CANCEL_ORDER is always 24 bytes on the wire
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>EXECUTION_REPORT is always 64 bytes on the wire
+</code></pre></div>
+<p>This appendix is the <strong>normative reference</strong> for BALF <code>1.0.0</code>. If another tool,
+bot, or GUI wants to speak BALF, this document is the correct source to follow.</p>
+<h2 id="scope-conformance">Scope &amp; conformance<a class="headerlink" href="#scope-conformance" title="Permanent link">&para;</a></h2>
+<p>BALF is the <strong>binary client protocol accepted by <code>pm-balf-gwy</code></strong>. The gateway
+translates BALF frames into the engine's internal ZeroMQ + JSON messages.</p>
+<p>That distinction matters:</p>
+<ul>
+<li><strong>BALF</strong> is what a client writes on the wire</li>
+<li><strong>engine messages</strong> are what the gateway publishes internally</li>
+</ul>
+<p>This appendix describes the BALF side, not the internal message bus.</p>
+<h3 id="what-balf-does-not-change">What BALF does not change<a class="headerlink" href="#what-balf-does-not-change" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The matching engine itself.</li>
+<li>The set of supported instruments and single-leg order types.</li>
+<li>Gateway authentication rules. The same allowlist model is used.</li>
+</ul>
+<h3 id="non-goals-for-balf-100">Non-goals for BALF <code>1.0.0</code><a class="headerlink" href="#non-goals-for-balf-100" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Encryption at the protocol layer. Use TLS or a tunnel if needed.</li>
+<li>RDMA or kernel-bypass transport. BALF is defined over standard TCP.</li>
+<li>Combo and OCO wire encodings. These are future work, not part of <code>1.0.0</code>.</li>
+<li>Sequence recovery / resend request design. Gap detection exists, but recovery
+  negotiation is not defined in <code>1.0.0</code>.</li>
+<li>Multicast market data. A future BDMD protocol may cover that separately.</li>
+</ul>
+<h2 id="wire-format">Wire format<a class="headerlink" href="#wire-format" title="Permanent link">&para;</a></h2>
+<h3 id="connection-model">Connection model<a class="headerlink" href="#connection-model" title="Permanent link">&para;</a></h3>
+<p>BALF uses one TCP connection per gateway session.</p>
+<p>A session starts with <code>LOGON</code> and ends with <code>LOGOUT</code> or a disconnect. Each TCP
+connection is logically bound to one gateway ID.</p>
+<h3 id="byte-order">Byte order<a class="headerlink" href="#byte-order" title="Permanent link">&para;</a></h3>
+<p>All multi-byte numeric fields are <strong>little-endian</strong>.</p>
+<p>This is an explicit BALF <code>1.0.0</code> convention and intentionally differs from
+big-endian exchange protocols such as ITCH / OUCH.</p>
+<h3 id="frame-structure">Frame structure<a class="headerlink" href="#frame-structure" title="Permanent link">&para;</a></h3>
+<p>Every BALF frame has:</p>
+<ul>
+<li>an 8-byte header</li>
+<li>a fixed-size body determined only by <code>msg_type</code></li>
+</ul>
+<p>There is no length prefix. The receiver reads the header first, looks up the
+expected frame size from the message type, then reads exactly the remaining
+bytes.</p>
+<p>If <code>msg_type</code> is unknown, the receiver treats the frame as a protocol error and
+should close the connection.</p>
+<h3 id="flag-semantics">Flag semantics<a class="headerlink" href="#flag-semantics" title="Permanent link">&para;</a></h3>
+<p>In BALF <code>1.0.0</code>, all header flag bits must be zero.</p>
+<p>The <code>RETRANSMIT</code> bit is reserved for a future recovery extension and is not
+active in <code>1.0.0</code>.</p>
+<p>Reserved fields in all message bodies must also be zero when sent and should be
+validated as zero when received.</p>
+<h3 id="identifier-rules">Identifier rules<a class="headerlink" href="#identifier-rules" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>gateway_id</code> is a 16-byte ASCII field, zero-padded on the right.</li>
+<li><code>client_order_id</code> is a client-assigned <code>u64</code>.</li>
+<li><code>order_id</code> is a gateway-assigned session-scoped <code>u64</code>.</li>
+<li><code>0</code> is reserved and must not be used as a valid accepted <code>order_id</code>.</li>
+</ul>
+<h2 id="frame-format">Frame format<a class="headerlink" href="#frame-format" title="Permanent link">&para;</a></h2>
+<h3 id="header-layout">Header layout<a class="headerlink" href="#header-layout" title="Permanent link">&para;</a></h3>
+<p>Every BALF message begins with the same 8-byte header:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a> 0               1               2               3
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a> 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>┌───────────────┬───────────────┬───────────────┬───────────────┐
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>│     magic     │    version    │   msg_type    │     flags     │
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>│    (0xBA)     │     (0x01)    │               │               │
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>├───────────────┴───────────────┴───────────────┴───────────────┤
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>│                           seq_no                              │
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>│                         (u32 LE)                              │
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>└───────────────────────────────────────────────────────────────┘
+</code></pre></div>
+<h3 id="header-fields">Header fields<a class="headerlink" href="#header-fields" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>magic</code></td>
+<td><code>u8</code></td>
+<td>Always <code>0xBA</code>. Reject frames where this byte is wrong.</td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>version</code></td>
+<td><code>u8</code></td>
+<td>Protocol version. BALF <code>1.0.0</code> uses <code>1</code>.</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>msg_type</code></td>
+<td><code>u8</code></td>
+<td>Message type code, see the tables below.</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>flags</code></td>
+<td><code>u8</code></td>
+<td>Must be <code>0</code> in BALF <code>1.0.0</code>. Reserved for future use.</td>
+</tr>
+<tr>
+<td>4-7</td>
+<td><code>seq_no</code></td>
+<td><code>u32 LE</code></td>
+<td>Monotonically increasing sequence number.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sequence-numbering-rules">Sequence numbering rules<a class="headerlink" href="#sequence-numbering-rules" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Sequence numbers are tracked separately in each direction.</li>
+<li><code>LOGON</code> and <code>LOGON_ACK</code> carry <code>seq_no = 0</code>.</li>
+<li>The first non-LOGON message in each direction starts at <code>1</code>.</li>
+<li>Sequence numbers increment by <code>1</code> per message.</li>
+<li>Sequence numbers wrap to <code>1</code> at <code>UINT32_MAX</code>.</li>
+<li>A gap in the inbound sequence number is a protocol error.</li>
+<li>BALF <code>1.0.0</code> does not define a resend request or replay recovery protocol.</li>
+</ul>
+<h2 id="scalar-encodings">Scalar encodings<a class="headerlink" href="#scalar-encodings" title="Permanent link">&para;</a></h2>
+<h3 id="price-encoding">Price encoding<a class="headerlink" href="#price-encoding" title="Permanent link">&para;</a></h3>
+<p>All prices and price-like offsets are encoded as signed 64-bit integers scaled
+by <code>10^8</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>wire_value = round(display_price * 100_000_000)
+</code></pre></div>
+<p>Examples:</p>
+<table>
+<thead>
+<tr>
+<th>Display value</th>
+<th>Wire value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>150.25</code></td>
+<td><code>15_025_000_000</code></td>
+</tr>
+<tr>
+<td><code>0.0001</code></td>
+<td><code>10_000</code></td>
+</tr>
+<tr>
+<td><code>-2.00</code></td>
+<td><code>-200_000_000</code></td>
+</tr>
+</tbody>
+</table>
+<p>A value of <code>0</code> means the field is not used for that order type.</p>
+<h3 id="symbol-encoding">Symbol encoding<a class="headerlink" href="#symbol-encoding" title="Permanent link">&para;</a></h3>
+<p>Symbols are stored as 8 bytes, zero-padded ASCII, left-aligned.</p>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>&quot;AAPL&quot; -&gt; 41 50 50 4C 00 00 00 00
+</code></pre></div>
+<p>Symbols longer than 8 ASCII characters are not supported in BALF <code>1.0.0</code>.</p>
+<h3 id="gateway-id-encoding">Gateway ID encoding<a class="headerlink" href="#gateway-id-encoding" title="Permanent link">&para;</a></h3>
+<p>Gateway IDs are stored as 16 bytes, zero-padded ASCII, left-aligned.</p>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>&quot;TRADER01&quot; -&gt; 54 52 41 44 45 52 30 31 00 00 00 00 00 00 00 00
+</code></pre></div>
+<h3 id="order-id-encoding">Order ID encoding<a class="headerlink" href="#order-id-encoding" title="Permanent link">&para;</a></h3>
+<p>BALF uses a compact <code>u64</code> session-scoped order ID on the wire.</p>
+<ul>
+<li>the gateway allocates the ID when the order is accepted</li>
+<li>the gateway maps that ID to the engine's internal UUID or matching-engine key</li>
+<li>the <code>order_id</code> is echoed in cancel, amend, and execution messages</li>
+<li><code>0</code> is reserved and invalid</li>
+</ul>
+<h2 id="message-definitions">Message definitions<a class="headerlink" href="#message-definitions" title="Permanent link">&para;</a></h2>
+<h3 id="summary-table">Summary table<a class="headerlink" href="#summary-table" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Name</th>
+<th>Direction</th>
+<th>Body bytes</th>
+<th>Total frame bytes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x01</code></td>
+<td><code>LOGON</code></td>
+<td>Client -&gt; Server</td>
+<td>24</td>
+<td>32</td>
+</tr>
+<tr>
+<td><code>0x02</code></td>
+<td><code>LOGON_ACK</code></td>
+<td>Server -&gt; Client</td>
+<td>84</td>
+<td>92</td>
+</tr>
+<tr>
+<td><code>0x10</code></td>
+<td><code>NEW_ORDER</code></td>
+<td>Client -&gt; Server</td>
+<td>52</td>
+<td>60</td>
+</tr>
+<tr>
+<td><code>0x11</code></td>
+<td><code>ORDER_ACK</code></td>
+<td>Server -&gt; Client</td>
+<td>52</td>
+<td>60</td>
+</tr>
+<tr>
+<td><code>0x12</code></td>
+<td><code>CANCEL_ORDER</code></td>
+<td>Client -&gt; Server</td>
+<td>16</td>
+<td>24</td>
+</tr>
+<tr>
+<td><code>0x13</code></td>
+<td><code>CANCEL_ACK</code></td>
+<td>Server -&gt; Client</td>
+<td>24</td>
+<td>32</td>
+</tr>
+<tr>
+<td><code>0x14</code></td>
+<td><code>AMEND_ORDER</code></td>
+<td>Client -&gt; Server</td>
+<td>36</td>
+<td>44</td>
+</tr>
+<tr>
+<td><code>0x15</code></td>
+<td><code>AMEND_ACK</code></td>
+<td>Server -&gt; Client</td>
+<td>40</td>
+<td>48</td>
+</tr>
+<tr>
+<td><code>0x20</code></td>
+<td><code>EXECUTION_REPORT</code></td>
+<td>Server -&gt; Client</td>
+<td>56</td>
+<td>64</td>
+</tr>
+<tr>
+<td><code>0x30</code></td>
+<td><code>HEARTBEAT</code></td>
+<td>Bidirectional</td>
+<td>8</td>
+<td>16</td>
+</tr>
+<tr>
+<td><code>0x31</code></td>
+<td><code>HEARTBEAT_ACK</code></td>
+<td>Bidirectional</td>
+<td>8</td>
+<td>16</td>
+</tr>
+<tr>
+<td><code>0x40</code></td>
+<td><code>LOGOUT</code></td>
+<td>Client -&gt; Server</td>
+<td>0</td>
+<td>8</td>
+</tr>
+</tbody>
+</table>
+<p>All sizes include the 8-byte header.</p>
+<h3 id="logon-0x01-client-server"><code>LOGON</code> (0x01) - Client -&gt; Server<a class="headerlink" href="#logon-0x01-client-server" title="Permanent link">&para;</a></h3>
+<p>Sent immediately after the TCP connection is established, before any orders.
+<code>seq_no</code> is <code>0</code>.</p>
+<p><strong>Body (24 bytes):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Offset  0  |  gateway_id     |  u8[16]  |  Zero-padded ASCII gateway ID
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>Offset 16  |  proto_version   |  u8      |  Must be 1
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>Offset 17  |  _reserved       |  u8[7]   |  Must be zero
+</code></pre></div>
+<h3 id="logon_ack-0x02-server-client"><code>LOGON_ACK</code> (0x02) - Server -&gt; Client<a class="headerlink" href="#logon_ack-0x02-server-client" title="Permanent link">&para;</a></h3>
+<p>Sent in response to <code>LOGON</code>. <code>seq_no</code> is <code>0</code> on this message; normal sequencing
+begins from <code>1</code> on subsequent messages.</p>
+<p><strong>Body (84 bytes):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Offset  0  |  gateway_id     |  u8[16]  |  Echoed gateway ID
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>Offset 16  |  accepted       |  u8      |  1 = accepted, 0 = rejected
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>Offset 17  |  reject_code    |  u8      |  See reject codes below; 0 if accepted
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>Offset 18  |  msg_len        |  u8      |  Byte length of the meaningful part of msg[]
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>Offset 19  |  _pad           |  u8      |  Reserved, zero
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>Offset 20  |  msg            |  u8[64]  |  Human-readable description or rejection reason
+</code></pre></div>
+<p><strong>Reject codes:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x00</code></td>
+<td>Accepted</td>
+</tr>
+<tr>
+<td><code>0x01</code></td>
+<td>Gateway ID not configured in engine</td>
+</tr>
+<tr>
+<td><code>0x02</code></td>
+<td>Gateway ID already connected</td>
+</tr>
+<tr>
+<td><code>0x03</code></td>
+<td>Protocol version mismatch</td>
+</tr>
+<tr>
+<td><code>0xFF</code></td>
+<td>Other (see <code>msg</code> field)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="new_order-0x10-client-server"><code>NEW_ORDER</code> (0x10) - Client -&gt; Server<a class="headerlink" href="#new_order-0x10-client-server" title="Permanent link">&para;</a></h3>
+<p><strong>Body (52 bytes):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>Offset  0  |  client_order_id  |  u64 LE  |  Client-assigned reference, echoed in all responses
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>Offset  8  |  symbol           |  u8[8]   |  Zero-padded ASCII symbol
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>Offset 16  |  price            |  i64 LE  |  Limit price x 10^8; 0 for MARKET/STOP orders
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>Offset 24  |  stop_price       |  i64 LE  |  Stop trigger x 10^8; 0 if unused
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>Offset 32  |  trail_offset     |  i64 LE  |  Trailing offset x 10^8; 0 if unused
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>Offset 40  |  quantity         |  u32 LE  |  Order quantity
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>Offset 44  |  visible_qty      |  u32 LE  |  ICEBERG peak size; 0 for all other types
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>Offset 48  |  side             |  u8      |  1 = BUY, 2 = SELL
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>Offset 49  |  order_type       |  u8      |  See order type codes below
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>Offset 50  |  tif              |  u8      |  See TIF codes below
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>Offset 51  |  smp              |  u8      |  See SMP codes below
+</code></pre></div>
+<p><strong>Order type codes:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>ALF equivalent</th>
+<th>Required price fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x01</code></td>
+<td><code>MARKET</code></td>
+<td>none (price = 0)</td>
+</tr>
+<tr>
+<td><code>0x02</code></td>
+<td><code>LIMIT</code></td>
+<td><code>price</code></td>
+</tr>
+<tr>
+<td><code>0x03</code></td>
+<td><code>IOC</code></td>
+<td><code>price</code></td>
+</tr>
+<tr>
+<td><code>0x04</code></td>
+<td><code>FOK</code></td>
+<td><code>price</code></td>
+</tr>
+<tr>
+<td><code>0x05</code></td>
+<td><code>STOP</code></td>
+<td><code>stop_price</code></td>
+</tr>
+<tr>
+<td><code>0x06</code></td>
+<td><code>STOP_LIMIT</code></td>
+<td><code>stop_price</code> and <code>price</code></td>
+</tr>
+<tr>
+<td><code>0x07</code></td>
+<td><code>ICEBERG</code></td>
+<td><code>price</code> and <code>visible_qty</code></td>
+</tr>
+<tr>
+<td><code>0x08</code></td>
+<td><code>TRAILING_STOP</code></td>
+<td><code>trail_offset</code>; optionally <code>stop_price</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>TIF codes:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>ALF equivalent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x01</code></td>
+<td><code>DAY</code></td>
+</tr>
+<tr>
+<td><code>0x02</code></td>
+<td><code>GTC</code></td>
+</tr>
+<tr>
+<td><code>0x03</code></td>
+<td><code>ATO</code></td>
+</tr>
+<tr>
+<td><code>0x04</code></td>
+<td><code>ATC</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>SMP codes:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>ALF equivalent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x00</code></td>
+<td><code>NONE</code></td>
+</tr>
+<tr>
+<td><code>0x01</code></td>
+<td><code>CANCEL_AGGRESSOR</code></td>
+</tr>
+<tr>
+<td><code>0x02</code></td>
+<td><code>CANCEL_RESTING</code></td>
+</tr>
+<tr>
+<td><code>0x03</code></td>
+<td><code>CANCEL_BOTH</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="order_ack-0x11-server-client"><code>ORDER_ACK</code> (0x11) - Server -&gt; Client<a class="headerlink" href="#order_ack-0x11-server-client" title="Permanent link">&para;</a></h3>
+<p>Sent for every <code>NEW_ORDER</code>. Arrives before any <code>EXECUTION_REPORT</code> for the same
+order.</p>
+<p><strong>Body (52 bytes):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>Offset  0  |  client_order_id  |  u64 LE  |  Echoed from NEW_ORDER
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>Offset  8  |  order_id         |  u64 LE  |  Session-scoped BALF order ID; 0 if rejected
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>Offset 16  |  timestamp_ns     |  u64 LE  |  Nanoseconds since Unix epoch (engine receive time)
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>Offset 24  |  accepted         |  u8      |  1 = accepted, 0 = rejected
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>Offset 25  |  reject_code      |  u8      |  See reject codes below; 0 if accepted
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>Offset 26  |  reason_len       |  u8      |  Length of meaningful bytes in reason[]
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>Offset 27  |  reason           |  u8[25]  |  Rejection reason string (ASCII); zeros if accepted
+</code></pre></div>
+<p><strong>Reject codes:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x00</code></td>
+<td>Accepted</td>
+</tr>
+<tr>
+<td><code>0x01</code></td>
+<td>Symbol not configured</td>
+</tr>
+<tr>
+<td><code>0x02</code></td>
+<td>Invalid quantity (zero or negative)</td>
+</tr>
+<tr>
+<td><code>0x03</code></td>
+<td>Price required but missing</td>
+</tr>
+<tr>
+<td><code>0x04</code></td>
+<td>FOK - insufficient liquidity</td>
+</tr>
+<tr>
+<td><code>0x05</code></td>
+<td>Market closed / phase rejection</td>
+</tr>
+<tr>
+<td><code>0x06</code></td>
+<td>Unknown order type</td>
+</tr>
+<tr>
+<td><code>0x07</code></td>
+<td>ICEBERG visible_qty &gt;= quantity</td>
+</tr>
+<tr>
+<td><code>0x08</code></td>
+<td>TRAILING_STOP - no prior trade price</td>
+</tr>
+<tr>
+<td><code>0x0C</code></td>
+<td>Invalid field / gateway validation failure</td>
+</tr>
+<tr>
+<td><code>0xFF</code></td>
+<td>Other (see <code>reason</code> field)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="cancel_order-0x12-client-server"><code>CANCEL_ORDER</code> (0x12) - Client -&gt; Server<a class="headerlink" href="#cancel_order-0x12-client-server" title="Permanent link">&para;</a></h3>
+<p><strong>Body (16 bytes):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>Offset  0  |  client_order_id  |  u64 LE  |  New client ref for this cancel request
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>Offset  8  |  order_id         |  u64 LE  |  Session-scoped BALF order ID to cancel
+</code></pre></div>
+<h3 id="cancel_ack-0x13-server-client"><code>CANCEL_ACK</code> (0x13) - Server -&gt; Client<a class="headerlink" href="#cancel_ack-0x13-server-client" title="Permanent link">&para;</a></h3>
+<p><strong>Body (24 bytes):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Offset  0  |  client_order_id  |  u64 LE  |  Echoed from CANCEL_ORDER
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>Offset  8  |  order_id         |  u64 LE  |  Order being cancelled
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>Offset 16  |  accepted         |  u8      |  1 = cancelled, 0 = rejected
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>Offset 17  |  cancel_reason    |  u8      |  0 = client request, 1 = SMP, 2 = session end, 3 = IOC/FOK expire
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>Offset 18  |  _reserved        |  u8[6]   |  Must be zero
+</code></pre></div>
+<h3 id="amend_order-0x14-client-server"><code>AMEND_ORDER</code> (0x14) - Client -&gt; Server<a class="headerlink" href="#amend_order-0x14-client-server" title="Permanent link">&para;</a></h3>
+<p>Amends price and/or quantity of a resting LIMIT or ICEBERG order. At least one
+of the <code>amend_flags</code> bits must be set.</p>
+<p><strong>Body (36 bytes):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>Offset  0  |  client_order_id  |  u64 LE  |  New client ref for this amend request
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>Offset  8  |  order_id         |  u64 LE  |  Session-scoped BALF order ID to amend
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>Offset 16  |  new_price        |  i64 LE  |  New limit price x 10^8; ignored if bit 0 of amend_flags is clear
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>Offset 24  |  new_quantity     |  u32 LE  |  New total quantity; ignored if bit 1 of amend_flags is clear
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>Offset 28  |  amend_flags      |  u8      |  Bit 0 = price changed, bit 1 = quantity changed
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>Offset 29  |  _reserved        |  u8[7]   |  Must be zero
+</code></pre></div>
+<h3 id="amend_ack-0x15-server-client"><code>AMEND_ACK</code> (0x15) - Server -&gt; Client<a class="headerlink" href="#amend_ack-0x15-server-client" title="Permanent link">&para;</a></h3>
+<p><strong>Body (40 bytes):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>Offset  0  |  client_order_id  |  u64 LE  |  Echoed from AMEND_ORDER
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>Offset  8  |  order_id         |  u64 LE  |  Amended order
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>Offset 16  |  new_price        |  i64 LE  |  Price after amendment x 10^8
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>Offset 24  |  new_quantity     |  u32 LE  |  Total quantity after amendment
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>Offset 28  |  remaining_qty    |  u32 LE  |  Unfilled quantity after amendment
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>Offset 32  |  accepted         |  u8      |  1 = accepted, 0 = rejected
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>Offset 33  |  priority_reset   |  u8      |  1 = order lost time priority; 0 = priority preserved
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>Offset 34  |  _reserved        |  u8[6]   |  Must be zero
+</code></pre></div>
+<h3 id="execution_report-0x20-server-client"><code>EXECUTION_REPORT</code> (0x20) - Server -&gt; Client<a class="headerlink" href="#execution_report-0x20-server-client" title="Permanent link">&para;</a></h3>
+<p>Sent for every partial or full fill. Both sides of a match (aggressor and
+resting order) receive their own <code>EXECUTION_REPORT</code>.</p>
+<p><strong>Body (56 bytes):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Offset  0  |  client_order_id  |  u64 LE  |  Echoed from the original NEW_ORDER
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>Offset  8  |  order_id         |  u64 LE  |  Filled order ID
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>Offset 16  |  fill_price       |  i64 LE  |  Execution price x 10^8
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>Offset 24  |  fill_qty         |  u32 LE  |  Quantity matched in this event
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>Offset 28  |  remaining_qty    |  u32 LE  |  Unfilled quantity after this fill
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>Offset 32  |  timestamp_ns     |  u64 LE  |  Trade timestamp - nanoseconds since Unix epoch
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>Offset 40  |  symbol           |  u8[8]   |  Symbol (for convenience; matches original order)
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>Offset 48  |  side             |  u8      |  1 = BUY, 2 = SELL
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>Offset 49  |  status           |  u8      |  1 = PARTIAL, 2 = FILLED
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>Offset 50  |  _reserved        |  u8[6]   |  Must be zero
+</code></pre></div>
+<h3 id="heartbeat-0x30-bidirectional"><code>HEARTBEAT</code> (0x30) - Bidirectional<a class="headerlink" href="#heartbeat-0x30-bidirectional" title="Permanent link">&para;</a></h3>
+<p>Either side may send a heartbeat at any time. The recipient must respond with
+<code>HEARTBEAT_ACK</code>. A session is considered dead if no traffic (including
+heartbeats) arrives within 5 seconds (configurable). The default send interval
+is 1 second.</p>
+<p>If the timeout is exceeded, the connection is considered stale and should be
+closed.</p>
+<p><strong>Body (8 bytes):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>Offset  0  |  send_time_ns  |  u64 LE  |  Sender&#39;s wall-clock time in nanoseconds since Unix epoch
+</code></pre></div>
+<h3 id="heartbeat_ack-0x31-bidirectional"><code>HEARTBEAT_ACK</code> (0x31) - Bidirectional<a class="headerlink" href="#heartbeat_ack-0x31-bidirectional" title="Permanent link">&para;</a></h3>
+<p><strong>Body (8 bytes):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>Offset  0  |  orig_send_time_ns  |  u64 LE  |  Echo of the send_time_ns from the HEARTBEAT
+</code></pre></div>
+<h3 id="logout-0x40-client-server"><code>LOGOUT</code> (0x40) - Client -&gt; Server<a class="headerlink" href="#logout-0x40-client-server" title="Permanent link">&para;</a></h3>
+<p>Graceful disconnect. No body. After sending <code>LOGOUT</code>, the client must not send
+any further messages and should close the TCP connection. The server will flush
+any pending outbound messages and then close the connection on its side.</p>
+<p><strong>Body: none (total frame = 8 bytes, header only).</strong></p>
+<h2 id="session-lifecycle">Session lifecycle<a class="headerlink" href="#session-lifecycle" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>sequenceDiagram
+    participant Client
+    participant Gateway as pm-balf-gwy
+
+    Client-&gt;&gt;Gateway: TCP SYN
+    Gateway--&gt;&gt;Client: TCP SYN-ACK
+
+    Client-&gt;&gt;Gateway: LOGON (seq=0)
+    Gateway--&gt;&gt;Client: LOGON_ACK (seq=0)
+    Note over Client: If accepted=0, client should close TCP
+
+    Client-&gt;&gt;Gateway: NEW_ORDER (seq=1)
+    Gateway--&gt;&gt;Client: ORDER_ACK (seq=1)
+    Gateway--&gt;&gt;Client: EXECUTION_REPORT (seq=2)
+    Note over Gateway: if immediate fill
+
+    Client-&gt;&gt;Gateway: CANCEL_ORDER (seq=2)
+    Gateway--&gt;&gt;Client: CANCEL_ACK (seq=3)
+
+    Gateway--&gt;&gt;Client: HEARTBEAT (seq=N)
+    Note over Gateway: server-initiated liveness check
+    Client-&gt;&gt;Gateway: HEARTBEAT_ACK (seq=M)
+
+    Client-&gt;&gt;Gateway: LOGOUT (seq=K)
+    Note over Gateway: server closes TCP after flushing</code></pre>
+<h3 id="sequence-number-rules">Sequence number rules<a class="headerlink" href="#sequence-number-rules" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Separate, independent sequence counters for each direction.</li>
+<li>Both counters start at <code>1</code> on the first non-LOGON message.</li>
+<li><code>LOGON</code> and <code>LOGON_ACK</code> carry seq_no <code>0</code> by convention and are not part of
+  the numbered sequence.</li>
+<li>Sequence numbers increment by <code>1</code> per message. They wrap to <code>1</code> (not <code>0</code>) at
+  <code>UINT32_MAX</code>.</li>
+<li>A gap in the inbound sequence number is a protocol error; the receiver should
+  log it and may close the connection.</li>
+<li>BALF <code>1.0.0</code> does not define a resend/recovery request. On detected gaps,
+  receivers should treat the session as out-of-sync and reconnect.</li>
+<li>The <code>RETRANSMIT</code> flag is reserved for a future recovery extension and must be
+  <code>0</code> in BALF <code>1.0.0</code>.</li>
+</ul>
+<h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
+<p>BALF settings are part of the main engine configuration file
+(<code>engine_config.yaml</code>). They use two related blocks:</p>
+<ul>
+<li><code>gateways.balf</code> for BALF gateway identity allowlist and role metadata</li>
+<li><code>balf_gateway</code> for BALF TCP listener/runtime parameters</li>
+</ul>
+<p>Path locations:</p>
+<ul>
+<li><code>engine_config.yaml</code> -&gt; <code>gateways</code> -&gt; <code>balf</code></li>
+<li><code>engine_config.yaml</code> -&gt; <code>balf_gateway</code></li>
+</ul>
+<h3 id="gatewaysbalf-fields"><code>gateways.balf</code> fields<a class="headerlink" href="#gatewaysbalf-fields" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type / allowed range</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateways.balf[].id</code></td>
+<td>Non-empty string</td>
+<td>None (required)</td>
+<td>BALF gateway identity used at <code>LOGON</code> and allowlist validation.</td>
+</tr>
+<tr>
+<td><code>gateways.balf[].description</code></td>
+<td>String</td>
+<td>Empty string</td>
+<td>Human-readable operator description.</td>
+</tr>
+<tr>
+<td><code>gateways.balf[].role</code></td>
+<td>Enum: <code>TRADER</code>, <code>MARKET_MAKER</code>, <code>ADMIN</code></td>
+<td><code>TRADER</code></td>
+<td>Role attached to this BALF identity.</td>
+</tr>
+<tr>
+<td><code>gateways.balf[].mm_max_spread_ticks</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>10</code> (common)</td>
+<td>Market-maker max spread guard (when role/policy requires it).</td>
+</tr>
+<tr>
+<td><code>gateways.balf[].mm_min_qty</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>100</code> (common)</td>
+<td>Market-maker minimum displayed size guard (when role/policy requires it).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="balf_gateway-fields"><code>balf_gateway</code> fields<a class="headerlink" href="#balf_gateway-fields" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type / allowed range</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>balf_gateway.bind_address</code></td>
+<td>IP/host bind string</td>
+<td><code>0.0.0.0</code> (common)</td>
+<td>Local interface address for BALF TCP listening.</td>
+</tr>
+<tr>
+<td><code>balf_gateway.port</code></td>
+<td>Integer, <code>1..65535</code></td>
+<td><code>5560</code></td>
+<td>BALF listen port.</td>
+</tr>
+<tr>
+<td><code>balf_gateway.heartbeat_interval_sec</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>1</code></td>
+<td>Default heartbeat send interval.</td>
+</tr>
+<tr>
+<td><code>balf_gateway.heartbeat_timeout_sec</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>5</code></td>
+<td>Liveness timeout before session is considered dead and closed.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">balf_gateway</span><span class="p">:</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5560</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">  </span><span class="nt">heartbeat_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+</code></pre></div>
+<p>The gateway ID allowlist is still enforced by the engine. BALF IDs do not need
+to match ALF IDs, but both use the same allowlist policy.</p>
+<h2 id="what-to-watch-out-for-during-implementation">What to watch out for during implementation<a class="headerlink" href="#what-to-watch-out-for-during-implementation" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Read exactly 8 bytes for the header first, then read the exact remaining
+  bytes for that <code>msg_type</code>; partial reads are normal on TCP.</li>
+<li>Reject unknown <code>msg_type</code>, bad <code>magic</code>, wrong <code>version</code>, and non-zero reserved
+  fields deterministically; silent tolerance creates interoperability bugs.</li>
+<li>Keep separate inbound and outbound sequence counters; never mix directions.</li>
+<li>Treat <code>LOGON</code> and <code>LOGON_ACK</code> as <code>seq_no = 0</code> special cases and start normal
+  sequencing at <code>1</code> afterward.</li>
+<li>Enforce little-endian decoding/encoding for all multi-byte numeric fields;
+  endianness mistakes are the most common BALF parser defect.</li>
+<li>Respect fixed-width ASCII rules for <code>symbol</code> and <code>gateway_id</code> with zero
+  padding; trim only trailing zero bytes on decode.</li>
+<li>Treat <code>order_id = 0</code> as invalid/reserved and do not allow it as an accepted
+  live order identifier.</li>
+<li>On detected sequence gaps, treat the session as out-of-sync and reconnect;
+  BALF <code>1.0.0</code> does not define resend negotiation.</li>
+</ul>
+<h2 id="practical-parsing-notes">Practical parsing notes<a class="headerlink" href="#practical-parsing-notes" title="Permanent link">&para;</a></h2>
+<p>If you are writing another BALF client, the most important exact behaviors are:</p>
+<ol>
+<li>BALF is <strong>not</strong> ALF. It is a binary wire protocol with fixed-width frames.</li>
+<li>The header is always 8 bytes.</li>
+<li>All multi-byte numeric values are little-endian.</li>
+<li><code>flags</code> must be zero in BALF <code>1.0.0</code>.</li>
+<li><code>order_id</code> is a compact session-scoped <code>u64</code>.</li>
+<li><code>LOGON</code> and <code>LOGON_ACK</code> use <code>seq_no = 0</code>.</li>
+<li>Sequence gaps are protocol errors.</li>
+<li>Combo, OCO, and recovery wire features are not part of <code>1.0.0</code>.</li>
+<li>Heartbeats are bidirectional and use their own fixed 8-byte body.</li>
+<li>The gateway generates the final engine mapping; clients do not send UUIDs.</li>
+<li>The protocol uses little-endian byte order for all multi-byte numeric fields.</li>
+</ol>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../230-balf-gateway/">BALF TCP Gateway</a> — operational user guide: setup,
+  configuration, session lifecycle, Python client example, and troubleshooting</li>
+<li><a href="../220-alf-gateway/">ALF TCP Gateway</a> — text-protocol alternative when binary
+  parsing is not required</li>
+<li><a href="../010-configuration/">Configuration</a> — <code>balf_gateway:</code> section reference</li>
+<li><a href="../210-protocol-overview/">External Protocols Overview</a> — protocol comparison
+  and selection guide</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

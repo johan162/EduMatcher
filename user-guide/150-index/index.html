@@ -1,0 +1,4601 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/150-index/">
+      
+      
+        <link rel="prev" href="../140-statistics-and-reporting/">
+      
+      
+        <link rel="next" href="../152-index-admin-cli/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Market Index - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#market-index-pm-index" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Market Index
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../000-getting-started/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../training/" class="md-tabs__link">
+          
+  
+  
+  Training
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/07-concepts-implied-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implied Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../000-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../010-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../020-config-verifier/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config Verifier
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../030-config-GUI/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration GUI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../040-running-the-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../050-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../060-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../070-combos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../080-auctions-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../090-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../100-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market-Maker Bot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../110-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../120-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../130-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../140-statistics-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-process-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this process is
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#starting-pm-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Starting pm-index
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Starting pm-index">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cli-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI options
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#minimal-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimal example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#field-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Field reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generating-with-pm-config-gen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generating with pm-config-gen
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-calculation-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How Calculation Works
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How Calculation Works">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cap-weighted-formula" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cap-weighted formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#divisor-initialisation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Divisor initialisation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Update trigger
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reference-prices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference prices
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#publish-throttle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Publish throttle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#intraday-ohlc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Intraday OHLC
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#corporate-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Corporate Actions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Corporate Actions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#divisor-adjustment-formula" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Divisor adjustment formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supported-corporate-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported corporate actions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#applying-corporate-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Applying corporate actions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#constituent-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Constituent changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-and-history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State and History
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="State and History">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#state-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#history-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        History file
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#getting-index-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Getting Index Values
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Getting Index Values">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#from-a-gateway-terminal-index-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From a gateway terminal (INDEX command)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="From a gateway terminal (INDEX command)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#structuralaudit-history-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Structural/audit history queries
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#from-the-market-data-gateway-calf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From the market-data gateway (CALF)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="From the market-data gateway (CALF)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#idx-message-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IDX message fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-pm-index-cli-for-structuralaudit-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using pm-index-cli for structural/audit records
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#querying-leveleod-history-with-pm-stats-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Querying level/EOD history with pm-stats-cli
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#via-the-rest-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Via the REST API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reading-the-structuralaudit-file-directly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the structural/audit file directly
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-configurations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Configurations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example Configurations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#single-index-three-constituents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single index, three constituents
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#two-indices-with-different-base-values-and-publish-rates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two indices with different base values and publish rates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#full-manual-yaml-for-two-indices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full manual YAML for two indices
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#operational-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational Checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../152-index-admin-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index Admin CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../160-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exchange Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../170-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../180-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../190-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Trail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../200-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../201-dc-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy TCP Gateway (pm-dc-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocol-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Protocols Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../220-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../230-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../240-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../241-calf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CALF Protocol Spy (pm-calf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../250-post-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-Trade Dissemination (RALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../251-ralf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RALF Protocol Spy (pm-ralf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../252-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../260-api-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../270-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../800-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../810-example-configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../890-known-limitations-bugs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Limitations & Bugs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../900-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../910-app-balf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../920-app-calf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../930-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../990-app-config-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: Engine Config Specification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/00-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    00 — Installation & Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/01-configuring-startup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    01 — Configuring & Starting Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/02-setting-up-MM-bots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    02 — Setting Up Market-Maker Liquidity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/03-the-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    03 — The First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/04-amending-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04 — Amending Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/05-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05 — Order Types Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/06-time-in-force-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    06 — Time-in-Force & Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/07-auctions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    07 — Auctions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/08-cancelling-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    08 — Cancelling & Managing Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/09-market-making/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    09 — Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/10-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10 — Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/11-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11 — Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/12-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12 — P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/13-market-data-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13 — Market Data & Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/14-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14 — AI Traders & Swarm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/15-statistics-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15 — Statistics & Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/16-persistence-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16 — Persistence & Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/17-capstone-scenario/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17 — Capstone Scenario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/18-exchange-observer-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18 — Exchange Observer Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/19-advanced-admin-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    19 — Advanced Admin Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/20-drop-copy-replay-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20 — Drop-Copy Replay & Recovery Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/21-automation-commandclient-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21 — Automation with CommandClient & MM Bot Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/22-ralf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/24-api-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24 — API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/25-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/26-alf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 - ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/27-balf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27 - BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/05-vm-runtime-image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Runtime Image
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="market-index-pm-index">Market Index (<code>pm-index</code>)<a class="headerlink" href="#market-index-pm-index" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will understand:</p>
+<ul>
+<li>What <code>pm-index</code> does and how it fits into the EduMatcher process model</li>
+<li>How to start <code>pm-index</code> and which CLI options are available</li>
+<li>How to configure one or more indices in <code>engine_config.yaml</code></li>
+<li>How cap-weighted index calculation and divisor normalisation work</li>
+<li>How to apply corporate actions without disrupting the index level</li>
+<li>How to query the current index value, structural/audit records, and
+  level/EOD time-series history</li>
+<li>Where state and history files are stored and how recovery works</li>
+</ul>
+</div>
+<h2 id="what-this-process-is">What this process is<a class="headerlink" href="#what-this-process-is" title="Permanent link">&para;</a></h2>
+<p><code>pm-index</code> is a standalone index calculation process. It subscribes to
+trade events published by <code>pm-engine</code> and recomputes all configured indices
+in real time. Calculated values are re-published on a dedicated ZMQ socket
+so the market-data gateway (<code>pm-md-gwy</code>) can forward them to external
+subscribers over the CALF <code>INDEX</code> channel.</p>
+<pre class="mermaid"><code>flowchart LR
+    E["pm-engine\nPUB :5556"] --&gt;|"trade.executed\nsession.state\nsystem.eod"| I["pm-index\nPUB :5558\nPULL :5559"]
+    I --&gt;|"index.update"| G["pm-md-gwy\nCALF TCP :5570"]
+    G --&gt;|"IDX messages"| C["External clients"]
+    CON["pm-alf-console\n(INDEX|HISTORY)"] --&gt;|"index.history_request"| I
+    ADM["pm-index-admin-cli"] --&gt;|"index.corp_action\nindex.constituent_change"| I</code></pre>
+<p><code>pm-index</code> does <strong>not</strong> connect to the engine PULL socket. It never sends
+order or session commands to the engine — it only listens and publishes.</p>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>pm-engine</code> running</li>
+<li>At least one index defined in <code>engine_config.yaml</code></li>
+<li>Every constituent symbol listed in <code>symbols:</code> with <code>outstanding_shares</code> set</li>
+</ul>
+<p><code>pm-index</code> can start before or after <code>pm-engine</code>; the ZMQ subscriber will
+reconnect automatically. Order only matters for the first few seconds of a fresh
+session — if <code>pm-index</code> misses early trades the reference prices from config are
+used as fallback until real trades arrive.</p>
+<h2 id="starting-pm-index">Starting <code>pm-index</code><a class="headerlink" href="#starting-pm-index" title="Permanent link">&para;</a></h2>
+<p>Installed mode:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-index
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-index<span class="w"> </span>--config<span class="w"> </span>path/to/engine_config.yaml
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>pm-index<span class="w"> </span>--reset
+</code></pre></div>
+<p>Developer / Poetry mode:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-index
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-index<span class="w"> </span>--config<span class="w"> </span>path/to/engine_config.yaml
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-index<span class="w"> </span>--reset
+</code></pre></div>
+<h3 id="cli-options">CLI options<a class="headerlink" href="#cli-options" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--config FILE</code> / <code>-c FILE</code></td>
+<td><code>engine_config.yaml</code></td>
+<td>Path to the engine config YAML file</td>
+</tr>
+<tr>
+<td><code>--reset</code></td>
+<td>off</td>
+<td>Delete persisted state files and re-initialise all indices from config</td>
+</tr>
+<tr>
+<td><code>--log-level</code></td>
+<td><code>WARNING</code></td>
+<td>Explicit level: <code>CRITICAL</code>, <code>ERROR</code>, <code>WARNING</code>, <code>INFO</code>, <code>DEBUG</code></td>
+</tr>
+<tr>
+<td><code>-v</code> / <code>--verbose</code></td>
+<td>off</td>
+<td>Increase verbosity (<code>-v</code> → <code>INFO</code>, <code>-vv</code> → <code>DEBUG</code>)</td>
+</tr>
+<tr>
+<td><code>-q</code> / <code>--quiet</code></td>
+<td>off</td>
+<td>Reduce output to warnings/errors</td>
+</tr>
+</tbody>
+</table>
+<p><code>--reset</code> is useful after:</p>
+<ul>
+<li>changing constituent lists or <code>base_value</code> in config</li>
+<li>replacing a corrupted state file</li>
+<li>starting a new multi-day session from a clean baseline</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Use <code>--reset</code> with care</p>
+<p><code>--reset</code> deletes the divisor and all persisted last prices for every
+configured index. The index restarts from scratch using only the reference
+prices in the engine config. The structural/audit JSONL file is <strong>not</strong>
+deleted; only the small state JSON file is removed.</p>
+</div>
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<p>All index configuration lives in the top-level <code>indices:</code> section of
+<code>engine_config.yaml</code>. See
+<a href="../010-configuration/#configuring-pm-index">Engine Configuration</a>
+for the full field reference; a complete YAML example is shown below.</p>
+<h3 id="minimal-example">Minimal example<a class="headerlink" href="#minimal-example" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">outstanding_shares</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15000000000</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">MSFT</span><span class="p">:</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nt">outstanding_shares</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7400000000</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="nt">TSLA</span><span class="p">:</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="nt">outstanding_shares</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3200000000</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_ALL</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="nt">indices</span><span class="p">:</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EDU100</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;EduMatcher</span><span class="nv"> </span><span class="s">broad</span><span class="nv"> </span><span class="s">index&quot;</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="w">    </span><span class="nt">base_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000.0</span>
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="w">    </span><span class="nt">publish_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="w">    </span><span class="nt">history_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/indexes/EDU100_history.jsonl</span>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="w">    </span><span class="nt">state_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/indexes/EDU100_state.json</span>
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="w">    </span><span class="nt">constituents</span><span class="p">:</span>
+<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AAPL</span>
+<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MSFT</span>
+<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TSLA</span>
+</code></pre></div>
+<h3 id="field-reference">Field reference<a class="headerlink" href="#field-reference" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>—</td>
+<td>Alphanumeric index identifier; used in events, file names, and gateway commands</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>string</td>
+<td>—</td>
+<td>Human-readable label emitted in index events</td>
+</tr>
+<tr>
+<td><code>base_value</code></td>
+<td>float</td>
+<td><code>1000.0</code></td>
+<td>Starting index level on first launch</td>
+</tr>
+<tr>
+<td><code>publish_interval_sec</code></td>
+<td>float</td>
+<td><code>1.0</code></td>
+<td>Throttle on how often <code>index.update</code> is broadcast</td>
+</tr>
+<tr>
+<td><code>history_file</code></td>
+<td>string</td>
+<td><code>data/indexes/&lt;ID&gt;_history.jsonl</code></td>
+<td>Append-only JSONL <strong>structural/audit trail</strong> — corporate actions and constituent changes only, not level history (see <a href="#state-and-history">State and History</a>)</td>
+</tr>
+<tr>
+<td><code>state_file</code></td>
+<td>string</td>
+<td><code>data/indexes/&lt;ID&gt;_state.json</code></td>
+<td>Checkpoint file for divisor and last prices</td>
+</tr>
+<tr>
+<td><code>constituents</code></td>
+<td>list</td>
+<td>—</td>
+<td>Symbols included in the index</td>
+</tr>
+</tbody>
+</table>
+<p>Constraints:</p>
+<ul>
+<li>Maximum <strong>5</strong> indices per config file</li>
+<li>Every constituent symbol must appear in <code>symbols:</code> with <code>outstanding_shares &gt; 0</code></li>
+<li><code>id</code> values must be unique</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Index eligibility is set at listing (IPO)</p>
+<p><code>outstanding_shares</code> is what makes a symbol index-eligible, and it is part
+of the symbol's <a href="../010-configuration/#adding-or-removing-symbols">initial listing
+(IPO)</a>. Set it when you list
+the symbol; a constituent without a positive <code>outstanding_shares</code> is
+rejected at startup. Share counts change only through corporate actions
+(splits, issuance), not intra-day trading.</p>
+</div>
+<h3 id="generating-with-pm-config-gen">Generating with <code>pm-config-gen</code><a class="headerlink" href="#generating-with-pm-config-gen" title="Permanent link">&para;</a></h3>
+<p><code>pm-config-gen</code> can emit the full <code>indices:</code> block automatically:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15000000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7400000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>TSLA:3200000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span>--index<span class="w"> </span>EDU100:<span class="s2">&quot;EduMatcher broad index&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span>--index-constituents<span class="w"> </span>EDU100:AAPL,MSFT,TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<p>File paths are derived from the index ID automatically when <code>--index-history-file</code>
+and <code>--index-state-file</code> are not specified.</p>
+<h2 id="how-calculation-works">How Calculation Works<a class="headerlink" href="#how-calculation-works" title="Permanent link">&para;</a></h2>
+<h3 id="cap-weighted-formula">Cap-weighted formula<a class="headerlink" href="#cap-weighted-formula" title="Permanent link">&para;</a></h3>
+<p>Each index uses <strong>market-capitalisation weighting</strong>. A constituent's influence
+on the index level is proportional to its total market value relative to all
+other constituents:</p>
+<div class="arithmatex">\[
+\text{aggregate\_cap} = \sum_{\text{sym} \in \text{constituents}} \text{last\_price}(\text{sym}) \times \text{outstanding\_shares}(\text{sym})
+\]</div>
+<div class="arithmatex">\[
+\text{index\_level} = \frac{\text{aggregate\_cap}}{\text{divisor}}
+\]</div>
+<p>A company trading at $200 with 1 billion shares has a market cap of $200 billion.
+A company trading at $100 with 500 million shares has a market cap of $50 billion.
+The first company contributes four times as much to the index level as the second.</p>
+<h3 id="divisor-initialisation">Divisor initialisation<a class="headerlink" href="#divisor-initialisation" title="Permanent link">&para;</a></h3>
+<p>On first startup (no persisted state), the divisor is chosen so the initial
+index level equals <code>base_value</code>:</p>
+<div class="arithmatex">\[
+\text{initial\_divisor} = \frac{\text{aggregate\_cap at launch}}{\text{base\_value}}
+\]</div>
+<p>Example with three stocks and <code>base_value = 1000</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th style="text-align: right;">Price</th>
+<th style="text-align: right;">Outstanding shares</th>
+<th style="text-align: right;">Market cap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AAPL</td>
+<td style="text-align: right;">209.50</td>
+<td style="text-align: right;">15,000,000,000</td>
+<td style="text-align: right;">3,142,500,000,000</td>
+</tr>
+<tr>
+<td>MSFT</td>
+<td style="text-align: right;">415.00</td>
+<td style="text-align: right;">7,400,000,000</td>
+<td style="text-align: right;">3,071,000,000,000</td>
+</tr>
+<tr>
+<td>TSLA</td>
+<td style="text-align: right;">248.00</td>
+<td style="text-align: right;">3,200,000,000</td>
+<td style="text-align: right;">793,600,000,000</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"><strong>7,007,100,000,000</strong></td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>initial_divisor = 7,007,100,000,000 / 1000.0 = 7,007,100,000
+</code></pre></div>
+<p>The divisor is a large number, but the ratio <code>aggregate_cap / divisor</code> always
+yields a level close to the configured <code>base_value</code>. After the first launch it
+evolves only through explicit corporate-action adjustments.</p>
+<h3 id="update-trigger">Update trigger<a class="headerlink" href="#update-trigger" title="Permanent link">&para;</a></h3>
+<p><code>pm-index</code> recalculates after every <code>trade.executed</code> message for a constituent
+symbol. Trades in non-constituent symbols are ignored. The calculation is O(N)
+in the number of constituents — fast enough for any educational exchange.</p>
+<h3 id="reference-prices">Reference prices<a class="headerlink" href="#reference-prices" title="Permanent link">&para;</a></h3>
+<p>When no trade has occurred for a constituent since startup, a reference price
+seeded from the engine config is used: the average of <code>last_buy_price</code> and
+<code>last_sell_price</code> when both are set, or whichever one is set if only one is
+present. A symbol with neither field set fails to load as an index
+constituent. Once the first real trade arrives the reference price is
+replaced by the actual trade price.</p>
+<h3 id="publish-throttle">Publish throttle<a class="headerlink" href="#publish-throttle" title="Permanent link">&para;</a></h3>
+<p>Recalculation happens on every trade, but publishing is throttled to
+<code>publish_interval_sec</code> (default 1 s). The internal level is always up to date;
+the throttle controls only how often <code>index.update</code> messages are broadcast.</p>
+<h3 id="intraday-ohlc">Intraday OHLC<a class="headerlink" href="#intraday-ohlc" title="Permanent link">&para;</a></h3>
+<p><code>pm-index</code> tracks day open, high, and low internally. They are reset at
+<code>OPENING_AUCTION</code> or <code>CONTINUOUS</code> session transitions and finalised with a
+closing value when the session reaches <code>CLOSED</code>.</p>
+<h2 id="corporate-actions">Corporate Actions<a class="headerlink" href="#corporate-actions" title="Permanent link">&para;</a></h2>
+<p>Corporate actions change a company's share structure without destroying value.
+Without divisor adjustment, a 2-for-1 stock split would make the index drop by
+roughly half — which would be wrong because no value was lost.</p>
+<p>The divisor is adjusted so the <strong>index level is preserved at the moment of the
+action</strong>. Future price movements then reflect real value changes.</p>
+<h3 id="divisor-adjustment-formula">Divisor adjustment formula<a class="headerlink" href="#divisor-adjustment-formula" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[
+\text{new\_divisor} = \text{old\_divisor} \times \frac{\text{new\_aggregate\_cap}}{\text{old\_aggregate\_cap}}
+\]</div>
+<p>This guarantees continuity:</p>
+<div class="arithmatex">\[
+\frac{\text{new\_cap}}{\text{new\_divisor}} = \frac{\text{new\_cap}}{\text{old\_divisor} \times \frac{\text{new\_cap}}{\text{old\_cap}}} = \frac{\text{old\_cap}}{\text{old\_divisor}} \quad \checkmark
+\]</div>
+<h3 id="supported-corporate-actions">Supported corporate actions<a class="headerlink" href="#supported-corporate-actions" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th><code>action</code> value</th>
+<th>Required parameters</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stock split</td>
+<td><code>SPLIT</code></td>
+<td><code>ratio_numerator</code>, <code>ratio_denominator</code></td>
+<td>Increases shares, reduces price by the same factor; divisor corrected for integer-rounding drift</td>
+</tr>
+<tr>
+<td>Cash dividend</td>
+<td><code>CASH_DIVIDEND</code></td>
+<td><code>dividend_per_share</code></td>
+<td>Reduces price by the dividend amount; divisor adjusted to preserve index level</td>
+</tr>
+<tr>
+<td>Shares issuance</td>
+<td><code>SHARES_ISSUANCE</code></td>
+<td><code>new_shares_outstanding</code></td>
+<td>Sets the new total share count outright (not a delta); divisor rescaled to preserve index level — typically upward for a genuine issuance, but the code does not require <code>new_shares_outstanding</code> to exceed the current count, so supplying a smaller value rescales the divisor downward instead</td>
+</tr>
+</tbody>
+</table>
+<h3 id="applying-corporate-actions">Applying corporate actions<a class="headerlink" href="#applying-corporate-actions" title="Permanent link">&para;</a></h3>
+<p>Use <a href="../152-index-admin-cli/"><code>pm-index-admin-cli</code></a> to apply corporate actions
+to a running <code>pm-index</code> process:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>split<span class="w">    </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--ratio-numerator<span class="w"> </span><span class="m">2</span><span class="w"> </span>--ratio-denominator<span class="w"> </span><span class="m">1</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>dividend<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--dividend-per-share<span class="w"> </span><span class="m">2</span>.50
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>shares<span class="w">   </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--new-shares<span class="w"> </span><span class="m">3500000000</span>
+</code></pre></div>
+<p>Each subcommand prints a confirmation prompt before sending (skip it with
+<code>-y</code>/<code>--yes</code>), supports <code>--dry-run</code> to preview the outbound payload without
+sending it, and blocks for the <code>index.corp_action_ack.{gateway_id}</code> response.
+<code>pm-index</code> applies the action in-process, immediately publishes an updated
+index value live, and writes a <code>CORP_ACTION</code> record to the structural/audit
+history file. See <a href="../152-index-admin-cli/">Index Admin CLI</a> for the full
+subcommand reference, <code>--dry-run</code> output, and exit codes.</p>
+<div class="admonition important">
+<p class="admonition-title">Apply corporate actions before the market opens</p>
+<p>It is safest to apply corporate actions during <code>PRE_OPEN</code> before trading
+starts for the day. Applying them during continuous trading means the index
+will have a brief moment where the pre-adjustment divisor is used for one
+more trade before the action takes effect.</p>
+</div>
+<p>??? note "Under the hood: <code>ExchangeCommandClient</code>"
+    <code>pm-index-admin-cli</code> is a thin wrapper over the <code>ExchangeCommandClient</code>
+    class (<code>edumatcher.commands.client</code>) — the same class <code>pm-admin-cli</code> uses
+    internally for its engine commands. The CLI calls its
+    <code>index_corp_action()</code> method directly:</p>
+<div class="highlight"><pre><span></span><code>```python
+from edumatcher.commands import ExchangeCommandClient
+
+client = ExchangeCommandClient(&quot;GW_ADMIN&quot;)
+
+client.index_corp_action(
+    &quot;EDU100&quot;, &quot;SPLIT&quot;, &quot;AAPL&quot;,
+    ratio_numerator=2, ratio_denominator=1,
+)
+client.index_corp_action(
+    &quot;EDU100&quot;, &quot;CASH_DIVIDEND&quot;, &quot;MSFT&quot;,
+    dividend_per_share=2.50,
+)
+client.index_corp_action(
+    &quot;EDU100&quot;, &quot;SHARES_ISSUANCE&quot;, &quot;TSLA&quot;,
+    new_shares_outstanding=3500000000,
+)
+
+client.close()
+```
+
+Unlike the engine&#39;s PUSH socket, `pm-index`&#39;s PULL socket has no
+`connect()`/auth handshake — see
+[Index Admin CLI — Why there is no connect() step](152-index-admin-cli.md#why-there-is-no-connect-authentication-step).
+Writing a script against this class directly still works and is how
+`pm-index-admin-cli` itself is implemented, but the CLI adds validation,
+a confirmation prompt, and `--dry-run`, so it&#39;s the preferred path for
+interactive/manual use.
+</code></pre></div>
+<h3 id="constituent-changes">Constituent changes<a class="headerlink" href="#constituent-changes" title="Permanent link">&para;</a></h3>
+<p>Constituents can be added or removed without restarting <code>pm-index</code>, also via
+<a href="../152-index-admin-cli/"><code>pm-index-admin-cli</code></a>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>add<span class="w">    </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--symbol<span class="w"> </span>AMZN<span class="w"> </span>--shares-outstanding<span class="w"> </span><span class="m">10500000000</span><span class="w"> </span>--initial-price<span class="w"> </span><span class="m">195</span>.00
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>delist<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--symbol<span class="w"> </span>TSLA
+</code></pre></div>
+<p>Adding a constituent adjusts the divisor so the index level does not change at
+the moment of addition. Delisting a constituent adjusts the divisor so the
+remaining constituents continue smoothly.</p>
+<p>Every corporate action and constituent change is written to the <code>history_file</code>
+as a <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, or <code>DELIST</code> record — queryable with
+<a href="../160-commands/#pm-index-cli-index-structuralaudit-history-query-tool"><code>pm-index-cli</code></a>.</p>
+<h2 id="state-and-history">State and History<a class="headerlink" href="#state-and-history" title="Permanent link">&para;</a></h2>
+<h3 id="state-file">State file<a class="headerlink" href="#state-file" title="Permanent link">&para;</a></h3>
+<p><code>pm-index</code> writes a small JSON checkpoint file at startup (right after
+computing the initial level), after every EOD finalization, and after any
+corporate action or constituent change (add/delist):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">&quot;index_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EDU100&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EduMatcher broad index&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">&quot;divisor&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">7007100000.0</span><span class="p">,</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span><span class="nt">&quot;constituents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;MSFT&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;TSLA&quot;</span><span class="p">],</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="nt">&quot;last_prices&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span><span class="nt">&quot;AAPL&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">211.30</span><span class="p">,</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">    </span><span class="nt">&quot;MSFT&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">418.50</span><span class="p">,</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">    </span><span class="nt">&quot;TSLA&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">251.00</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">  </span><span class="nt">&quot;day_open&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1042.10</span><span class="p">,</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">  </span><span class="nt">&quot;day_high&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1056.30</span><span class="p">,</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">  </span><span class="nt">&quot;day_low&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1040.05</span><span class="p">,</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">  </span><span class="nt">&quot;last_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1051.20</span><span class="p">,</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">  </span><span class="nt">&quot;last_updated&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1749760800.0</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="p">}</span>
+</code></pre></div>
+<p>On restart, this file is loaded to restore the divisor and last prices.
+If the <code>index_id</code> or constituent list in the file does not match the current
+config, <code>pm-index</code> exits with an error. Use <code>--reset</code> to clear the state and
+reinitialise from config.</p>
+<h3 id="history-file">History file<a class="headerlink" href="#history-file" title="Permanent link">&para;</a></h3>
+<p>The JSONL history file is a <strong>structural/corporate-action audit log</strong>, not a
+level-history store. Only events that change an index's composition or
+divisor are appended (one JSON object per line):</p>
+<table>
+<thead>
+<tr>
+<th>Record type</th>
+<th>When written</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>INIT</code></td>
+<td>First-ever startup (no prior state); records <code>base_value</code>, <code>divisor</code>, constituent list</td>
+</tr>
+<tr>
+<td><code>CORP_ACTION</code></td>
+<td>After every split, dividend, or shares-issuance adjustment</td>
+</tr>
+<tr>
+<td><code>ADD_CONSTITUENT</code></td>
+<td>After a new symbol is added to the index</td>
+</tr>
+<tr>
+<td><code>DELIST</code></td>
+<td>After a symbol is removed from the index</td>
+</tr>
+</tbody>
+</table>
+<p>Example history file extract:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>{&quot;type&quot;: &quot;INIT&quot;, &quot;timestamp&quot;: 1749733100.0, &quot;index_id&quot;: &quot;EDU100&quot;, &quot;base_value&quot;: 1000.0, &quot;divisor&quot;: 7007100000.0, &quot;constituents&quot;: [&quot;AAPL&quot;, &quot;MSFT&quot;, &quot;TSLA&quot;], &quot;level&quot;: 1000.0}
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>{&quot;type&quot;: &quot;CORP_ACTION&quot;, &quot;timestamp&quot;: 1749847200.0, &quot;index_id&quot;: &quot;EDU100&quot;, &quot;symbol&quot;: &quot;AAPL&quot;, &quot;action&quot;: &quot;SPLIT&quot;, &quot;detail&quot;: &quot;2:1&quot;, &quot;old_divisor&quot;: 7007100000.0, &quot;new_divisor&quot;: 7007100000.0, &quot;level&quot;: 1051.20}
+</code></pre></div>
+<p>History files are not deleted by <code>--reset</code>. They accumulate across sessions and
+provide a permanent structural audit trail.</p>
+<div class="admonition note">
+<p class="admonition-title">Level and EOD history live in pm-stats, not here</p>
+<p>Every <code>index.update</code> broadcast — including the throttled intraday ticks and
+the forced end-of-day publish — is recorded by
+<a href="../140-statistics-and-reporting/#index-level-history"><code>pm-stats</code></a> in two
+SQLite tables: <code>index_level_snapshots</code> (every tick) and <code>index_daily_stats</code>
+(daily OHLC rollup). Query them with <code>pm-stats-cli index-snapshots</code> and
+<code>pm-stats-cli index-daily</code>. This JSONL file intentionally does <strong>not</strong>
+duplicate that data; it exists purely so operators can audit <em>why</em> an
+index's divisor changed (splits, dividends, constituent changes) without
+scanning a high-frequency time series.</p>
+<p>Note that <code>index_daily_stats.close_level</code> reflects the <em>most recent</em>
+update for that date, not necessarily the final close, until the day
+ends or <code>close_session_state</code> reads <code>CLOSED</code> — see
+<a href="../140-statistics-and-reporting/#getting-the-eod-index-level-for-a-date">Getting the EOD index level for a date</a>.</p>
+</div>
+<h2 id="getting-index-values">Getting Index Values<a class="headerlink" href="#getting-index-values" title="Permanent link">&para;</a></h2>
+<h3 id="from-a-gateway-terminal-index-command">From a gateway terminal (<code>INDEX</code> command)<a class="headerlink" href="#from-a-gateway-terminal-index-command" title="Permanent link">&para;</a></h3>
+<p>Connect through any <code>pm-alf-console</code> session (including <code>ADMIN</code> role) and run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>INDEX
+</code></pre></div>
+<p>Sample output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[10:15:23.411] EDU100  1048.73  +6.63  +0.64%  O=1042.10 H=1056.30 L=1040.05  CONTINUOUS
+</code></pre></div>
+<div class="admonition note">
+<p><code>pm-index</code> must be running. If it is not, the gateway prints
+"No index data received yet. Is pm-index running?"</p>
+</div>
+<h4 id="structuralaudit-history-queries">Structural/audit history queries<a class="headerlink" href="#structuralaudit-history-queries" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>INDEX|HISTORY|INDEX=EDU100
+</code></pre></div>
+<p><code>INDEX=&lt;id&gt;</code> is required unless the console has already received at least one
+<code>index.update</code> broadcast for an index in this session, in which case that
+index's ID is used as the default and <code>INDEX=</code> may be omitted. Without either,
+the console prints <code>INDEX|HISTORY requires INDEX=&lt;id&gt; or prior index.update.</code>
+and sends nothing.</p>
+<p>Returns the last 30 days of structural/audit records (<code>INIT</code>, <code>CORP_ACTION</code>,
+<code>ADD_CONSTITUENT</code>, <code>DELIST</code>) — corporate actions and constituent changes, not
+level ticks.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>INDEX|HISTORY|INDEX=EDU100|FROM=2026-06-01|TO=2026-06-12
+</code></pre></div>
+<p>Returns records within the given date range (inclusive). The response includes
+one line per record, newest last.</p>
+<div class="admonition tip">
+<p class="admonition-title">Level/EOD history is a different tool</p>
+<p><code>INDEX|HISTORY</code> only returns structural/audit events. For index level or
+end-of-day time-series data, use <code>pm-stats-cli index-snapshots</code> or
+<code>pm-stats-cli index-daily</code> instead (see
+<a href="../140-statistics-and-reporting/#index-level-history">Statistics and Reporting</a>).</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Offline analysis with <code>pm-index-cli</code></p>
+<p>For richer filtering, CSV/JSON export, or scripting of structural/audit
+records, use <code>pm-index-cli</code> instead. It reads the JSONL history files
+directly without going through the gateway socket.</p>
+</div>
+<h3 id="from-the-market-data-gateway-calf">From the market-data gateway (CALF)<a class="headerlink" href="#from-the-market-data-gateway-calf" title="Permanent link">&para;</a></h3>
+<p>If <code>pm-md-gwy</code> is running and connected to <code>pm-index</code>, external clients can
+subscribe via the CALF <code>INDEX</code> channel:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>HELLO|CLIENT=student01|PROTO=CALF1
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>SUB|CH=INDEX|SYM=EDU100
+</code></pre></div>
+<p>The gateway sends an initial <code>SNAP</code> and then live <code>IDX</code> messages:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>SNAP|CH=INDEX|SYM=EDU100|SEQ=1|TS=2026-06-12T10:15:23.000Z|LEVEL=1048.73|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|SESSION=CONTINUOUS
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>IDX|CH=INDEX|SYM=EDU100|SEQ=2|TS=2026-06-12T10:15:24.411Z|LEVEL=1051.20|CHG=+9.10|PCTCHG=+0.87|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|AGGCAP=7368000000000|SESSION=CONTINUOUS
+</code></pre></div>
+<h4 id="idx-message-fields"><code>IDX</code> message fields<a class="headerlink" href="#idx-message-fields" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>string</td>
+<td>Always <code>INDEX</code></td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>string</td>
+<td>Index ID (e.g. <code>EDU100</code>)</td>
+</tr>
+<tr>
+<td><code>SEQ</code></td>
+<td>int</td>
+<td>Monotonic sequence number for gap detection</td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td>string</td>
+<td>UTC ISO-8601 timestamp</td>
+</tr>
+<tr>
+<td><code>LEVEL</code></td>
+<td>decimal</td>
+<td>Current index level</td>
+</tr>
+<tr>
+<td><code>CHG</code></td>
+<td>decimal</td>
+<td>Change from day open (signed); omitted before first open</td>
+</tr>
+<tr>
+<td><code>PCTCHG</code></td>
+<td>decimal</td>
+<td>Percentage change from day open (signed); omitted before first open</td>
+</tr>
+<tr>
+<td><code>OPEN</code></td>
+<td>decimal</td>
+<td>Day open level; omitted during <code>PRE_OPEN</code> and <code>OPENING_AUCTION</code></td>
+</tr>
+<tr>
+<td><code>HIGH</code></td>
+<td>decimal</td>
+<td>Day high</td>
+</tr>
+<tr>
+<td><code>LOW</code></td>
+<td>decimal</td>
+<td>Day low</td>
+</tr>
+<tr>
+<td><code>AGGCAP</code></td>
+<td>int</td>
+<td>Current aggregate market cap</td>
+</tr>
+<tr>
+<td><code>SESSION</code></td>
+<td>string</td>
+<td>Current session state</td>
+</tr>
+</tbody>
+</table>
+<h3 id="using-pm-index-cli-for-structuralaudit-records">Using <code>pm-index-cli</code> for structural/audit records<a class="headerlink" href="#using-pm-index-cli-for-structuralaudit-records" title="Permanent link">&para;</a></h3>
+<p><code>pm-index-cli</code> queries the structural/audit JSONL files directly from the
+command line — no running <code>pm-index</code> process is needed. It does <strong>not</strong> have
+level or EOD subcommands; use <code>pm-stats-cli</code> for that (next section).</p>
+<p><code>--config</code>, <code>--data-dir</code>, <code>--format</code>, and <code>--no-header</code> are global options and
+must come <strong>before</strong> the subcommand (<code>events</code> / <code>indices</code>); putting them after
+the subcommand is a parse error since only the top-level parser defines them.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># Corporate actions and constituent changes (all time)</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># Filter to a specific structural event type</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--type<span class="w"> </span>CORP_ACTION
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="c1"># Export to CSV for import into a spreadsheet (--format comes before the subcommand)</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>events<span class="w"> </span>&gt;<span class="w"> </span>edu100_events.csv
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="c1"># JSON output for scripting</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import json,sys; [print(r[&#39;ts&#39;], r[&#39;type&#39;], r[&#39;detail&#39;]) for r in json.load(sys.stdin)]&quot;</span>
+<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a>
+<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="c1"># Date-range query</span>
+<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a><span class="w">  </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-06-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-06-25
+<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a>
+<a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a><span class="c1"># List all configured indices</span>
+<a id="__codelineno-16-19" name="__codelineno-16-19" href="#__codelineno-16-19"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>indices
+<a id="__codelineno-16-20" name="__codelineno-16-20" href="#__codelineno-16-20"></a>
+<a id="__codelineno-16-21" name="__codelineno-16-21" href="#__codelineno-16-21"></a><span class="c1"># Read history files directly from a directory without a config file</span>
+<a id="__codelineno-16-22" name="__codelineno-16-22" href="#__codelineno-16-22"></a><span class="c1"># (defaults to ./data/indexes when --data-dir is omitted)</span>
+<a id="__codelineno-16-23" name="__codelineno-16-23" href="#__codelineno-16-23"></a>pm-index-cli<span class="w"> </span>--data-dir<span class="w"> </span>/custom/path/indexes<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100
+</code></pre></div>
+<p>See the <a href="../160-commands/">pm-index-cli reference</a> for all subcommands, column
+descriptions, and output-format options.</p>
+<h3 id="querying-leveleod-history-with-pm-stats-cli">Querying level/EOD history with <code>pm-stats-cli</code><a class="headerlink" href="#querying-leveleod-history-with-pm-stats-cli" title="Permanent link">&para;</a></h3>
+<p>For index level ticks or daily OHLC history, use <code>pm-stats-cli</code> instead, which
+reads from pm-stats' SQLite database:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Daily open/high/low/close rollup</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-stats-cli<span class="w"> </span>index-daily<span class="w"> </span>--index-id<span class="w"> </span>EDU100
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># Raw level snapshots (every recorded tick) in a time window</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>pm-stats-cli<span class="w"> </span>index-snapshots<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-06-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-06-25
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1"># List all index IDs that have recorded data</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>pm-stats-cli<span class="w"> </span>index-ids
+</code></pre></div>
+<p>See <a href="../140-statistics-and-reporting/#index-level-history">Statistics and Reporting</a>
+for the full command reference.</p>
+<h3 id="via-the-rest-api">Via the REST API<a class="headerlink" href="#via-the-rest-api" title="Permanent link">&para;</a></h3>
+<p><code>pm-api-gwy</code> also exposes both the structural/audit log and the level/EOD
+time series over HTTP, under <code>/api/v1/history</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Data</th>
+<th>Backing store</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /history/index-daily</code></td>
+<td>Daily index OHLC rows</td>
+<td><code>pm-stats</code> SQLite</td>
+</tr>
+<tr>
+<td><code>GET /history/index-snapshots</code></td>
+<td>Intraday index level ticks</td>
+<td><code>pm-stats</code> SQLite</td>
+</tr>
+<tr>
+<td><code>GET /history/index-ids</code></td>
+<td>Index IDs with recorded statistics</td>
+<td><code>pm-stats</code> SQLite</td>
+</tr>
+<tr>
+<td><code>GET /history/index-events</code></td>
+<td>Structural/audit records (<code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code>)</td>
+<td>Live round-trip to <code>pm-index</code>, not <code>pm-stats</code></td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer key-trader-demo&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span><span class="s2">&quot;http://127.0.0.1:8080/api/v1/history/index-daily?index_id=EDU100&amp;date=2026-06-14&quot;</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer key-trader-demo&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">  </span><span class="s2">&quot;http://127.0.0.1:8080/api/v1/history/index-events?index_id=EDU100&amp;from=1750000000&amp;to=1760000000&quot;</span>
+</code></pre></div>
+<p>See <a href="../260-api-gateway/#history-endpoints">API Gateway — History endpoints</a>
+for the full parameter reference, pagination rules, and the note that
+<code>index-events</code> is the one history endpoint that is not served from
+<code>pm-stats</code> and has no pagination cursor.</p>
+<h3 id="reading-the-structuralaudit-file-directly">Reading the structural/audit file directly<a class="headerlink" href="#reading-the-structuralaudit-file-directly" title="Permanent link">&para;</a></h3>
+<p>The JSONL file is plain text — one JSON object per line. This can be useful
+for quick one-off inspections or when <code>pm-index-cli</code> is not available:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>tail<span class="w"> </span>-20<span class="w"> </span>data/indexes/EDU100_history.jsonl
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="c1"># Corporate action records only</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>grep<span class="w"> </span><span class="s1">&#39;&quot;type&quot;: &quot;CORP_ACTION&quot;&#39;</span><span class="w"> </span>data/indexes/EDU100_history.jsonl<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="c1"># Structural records between two timestamps</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;EOF&#39;</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="s">import json</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="s">from_ts = 1749700000.0</span>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="s">to_ts   = 1749800000.0</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="s">with open(&quot;data/indexes/EDU100_history.jsonl&quot;) as f:</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="s">    for line in f:</span>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a><span class="s">        rec = json.loads(line)</span>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="s">        if from_ts &lt;= rec[&quot;timestamp&quot;] &lt;= to_ts:</span>
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a><span class="s">            print(f&quot;{rec[&#39;timestamp&#39;]:.0f}  {rec[&#39;type&#39;]}  {rec.get(&#39;symbol&#39;, &#39;&#39;)}&quot;)</span>
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a><span class="s">EOF</span>
+</code></pre></div>
+<h2 id="example-configurations">Example Configurations<a class="headerlink" href="#example-configurations" title="Permanent link">&para;</a></h2>
+<h3 id="single-index-three-constituents">Single index, three constituents<a class="headerlink" href="#single-index-three-constituents" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15000000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7400000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>TSLA:3200000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">  </span>--index<span class="w"> </span>EDU100:<span class="s2">&quot;EduMatcher broad index&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">  </span>--index-constituents<span class="w"> </span>EDU100:AAPL,MSFT,TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<h3 id="two-indices-with-different-base-values-and-publish-rates">Two indices with different base values and publish rates<a class="headerlink" href="#two-indices-with-different-base-values-and-publish-rates" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15000000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7400000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>TSLA:3200000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="w">  </span>--index<span class="w"> </span>BROAD:<span class="s2">&quot;Broad market&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="w">  </span>--index-constituents<span class="w"> </span>BROAD:AAPL,MSFT,TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="w">  </span>--index-base-value<span class="w"> </span>BROAD:1000.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="w">  </span>--index<span class="w"> </span>TECH2:<span class="s2">&quot;Technology pair&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a><span class="w">  </span>--index-constituents<span class="w"> </span>TECH2:AAPL,MSFT<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a><span class="w">  </span>--index-base-value<span class="w"> </span>TECH2:500.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a><span class="w">  </span>--index-interval<span class="w"> </span>TECH2:2.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<h3 id="full-manual-yaml-for-two-indices">Full manual YAML for two indices<a class="headerlink" href="#full-manual-yaml-for-two-indices" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nt">indices</span><span class="p">:</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BROAD</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Broad</span><span class="nv"> </span><span class="s">market&quot;</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">    </span><span class="nt">base_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000.0</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">    </span><span class="nt">publish_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">    </span><span class="nt">history_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/indexes/BROAD_history.jsonl</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w">    </span><span class="nt">state_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/indexes/BROAD_state.json</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="w">    </span><span class="nt">constituents</span><span class="p">:</span>
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AAPL</span>
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MSFT</span>
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TSLA</span>
+<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a>
+<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TECH2</span>
+<a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Technology</span><span class="nv"> </span><span class="s">pair&quot;</span>
+<a id="__codelineno-22-15" name="__codelineno-22-15" href="#__codelineno-22-15"></a><span class="w">    </span><span class="nt">base_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500.0</span>
+<a id="__codelineno-22-16" name="__codelineno-22-16" href="#__codelineno-22-16"></a><span class="w">    </span><span class="nt">publish_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.0</span>
+<a id="__codelineno-22-17" name="__codelineno-22-17" href="#__codelineno-22-17"></a><span class="w">    </span><span class="nt">history_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/indexes/TECH2_history.jsonl</span>
+<a id="__codelineno-22-18" name="__codelineno-22-18" href="#__codelineno-22-18"></a><span class="w">    </span><span class="nt">state_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/indexes/TECH2_state.json</span>
+<a id="__codelineno-22-19" name="__codelineno-22-19" href="#__codelineno-22-19"></a><span class="w">    </span><span class="nt">constituents</span><span class="p">:</span>
+<a id="__codelineno-22-20" name="__codelineno-22-20" href="#__codelineno-22-20"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AAPL</span>
+<a id="__codelineno-22-21" name="__codelineno-22-21" href="#__codelineno-22-21"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MSFT</span>
+</code></pre></div>
+<h2 id="operational-checklist">Operational Checklist<a class="headerlink" href="#operational-checklist" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Ensure every constituent has <code>outstanding_shares</code> set in <code>symbols:</code>.</li>
+<li>Create the <code>data/indexes/</code> directory before first run (or let <code>pm-index</code>
+   create it automatically — it creates parent directories as needed).</li>
+<li>Start <code>pm-engine</code> before <code>pm-index</code> during normal operations; <code>pm-index</code> will
+   reconnect if the order is reversed but may miss the first few trades.</li>
+<li>Use <code>--reset</code> only when deliberately changing the constituent list or
+   <code>base_value</code>. This discards the divisor history for all indices.</li>
+<li>Apply corporate actions during <code>PRE_OPEN</code> to avoid mid-session index jumps,
+   using <a href="../152-index-admin-cli/"><code>pm-index-admin-cli</code></a>.</li>
+<li>Check <code>data/indexes/&lt;ID&gt;_state.json</code> after a crash to confirm the divisor
+   was persisted. If the file is missing or truncated, use <code>--reset</code>.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

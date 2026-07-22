@@ -1,0 +1,5123 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/030-config-GUI/">
+      
+      
+        <link rel="prev" href="../020-config-verifier/">
+      
+      
+        <link rel="next" href="../040-running-the-engine/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Configuration GUI - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#configuration-gui-config-gui" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Configuration GUI
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../000-getting-started/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../training/" class="md-tabs__link">
+          
+  
+  
+  Training
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/07-concepts-implied-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implied Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../000-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../010-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../020-config-verifier/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config Verifier
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration GUI
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration GUI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prerequisites">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#running-the-container-recommended-for-most-users" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the container (recommended for most users)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-development" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local development
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional-server-side-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional: server-side verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#browser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browser
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-application" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the application
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running the application">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#option-1-one-command-with-the-container-stack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option 1 — One command with the container stack
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-2-a-pre-built-image-artifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option 2 — A pre-built image artifact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-3-local-development" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option 3 — Local development
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-tour-of-the-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A tour of the interface
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#personas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Personas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-tabs-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The tabs at a glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#basics-symbols-and-gateways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basics: symbols and gateways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#core-concepts-and-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core concepts and workflows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Core concepts and workflows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#symbols-and-the-ipo-dialog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Symbols and the IPO dialog
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-symbols-workspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Symbols workspace
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#symbol-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Symbol overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#risk-and-collars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Risk and collars
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#circuit-breakers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Circuit breakers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sessions-and-schedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sessions and schedule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#market-makers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Market makers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Market makers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#layer-1-global-obligation-defaults-market-maker-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 1 — Global obligation defaults (Market Maker tab)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-2-per-symbol-obligation-overrides-symbols-market-maker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 2 — Per-symbol obligation overrides (Symbols → Market Maker)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layer-3-per-gateway-per-symbol-overrides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layer 3 — Per-gateway, per-symbol overrides
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quote-seeding-mid-range-vs-explicit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quote seeding: mid-range vs explicit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-workflow-for-a-new-market-maker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A workflow for a new market maker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-quote-stub-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Quote Stub Review
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#indices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Indices
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#combos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combos
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#auxiliary-gateways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auxiliary gateways
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#engine-tuning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Engine tuning
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#diagnostics-and-live-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnostics and live validation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#importing-an-existing-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Importing an existing configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reviewing-and-exporting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reviewing and exporting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployment-and-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployment and operations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deployment and operations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#single-container-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single container (recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#manual-production-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual production build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backend-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backend environment variables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#building-behind-a-corporate-proxy-or-firewall" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building behind a corporate proxy or firewall
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional-server-side-verification_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional: server-side verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security notes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-gui-stays-valid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the GUI stays valid
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture at a glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See Also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../040-running-the-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../050-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../060-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../070-combos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../080-auctions-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../090-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../100-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market-Maker Bot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../110-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../120-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../130-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../140-statistics-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../150-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../152-index-admin-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index Admin CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../160-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exchange Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../170-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../180-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../190-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Trail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../200-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../201-dc-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy TCP Gateway (pm-dc-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocol-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Protocols Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../220-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../230-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../240-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../241-calf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CALF Protocol Spy (pm-calf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../250-post-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-Trade Dissemination (RALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../251-ralf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RALF Protocol Spy (pm-ralf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../252-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../260-api-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../270-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../800-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../810-example-configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../890-known-limitations-bugs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Limitations & Bugs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../900-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../910-app-balf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../920-app-calf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../930-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../990-app-config-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: Engine Config Specification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/00-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    00 — Installation & Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/01-configuring-startup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    01 — Configuring & Starting Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/02-setting-up-MM-bots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    02 — Setting Up Market-Maker Liquidity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/03-the-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    03 — The First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/04-amending-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04 — Amending Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/05-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05 — Order Types Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/06-time-in-force-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    06 — Time-in-Force & Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/07-auctions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    07 — Auctions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/08-cancelling-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    08 — Cancelling & Managing Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/09-market-making/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    09 — Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/10-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10 — Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/11-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11 — Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/12-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12 — P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/13-market-data-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13 — Market Data & Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/14-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14 — AI Traders & Swarm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/15-statistics-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15 — Statistics & Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/16-persistence-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16 — Persistence & Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/17-capstone-scenario/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17 — Capstone Scenario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/18-exchange-observer-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18 — Exchange Observer Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/19-advanced-admin-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    19 — Advanced Admin Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/20-drop-copy-replay-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20 — Drop-Copy Replay & Recovery Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/21-automation-commandclient-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21 — Automation with CommandClient & MM Bot Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/22-ralf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/24-api-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24 — API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/25-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/26-alf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 - ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/27-balf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27 - BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/05-vm-runtime-image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Runtime Image
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="configuration-gui-config-gui">Configuration GUI (<code>config-gui</code>)<a class="headerlink" href="#configuration-gui-config-gui" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will understand:</p>
+<ul>
+<li>What the Config Builder GUI is and how it relates to <code>pm-config-gen</code>,
+  <code>pm-cverifier</code>, and the engine itself</li>
+<li>Every way to run the application — a single container command, a pre-built
+  image artifact, or a local development setup — and what each one needs</li>
+<li>How the interface is organised: the three-pane layout, personas, tabs, and
+  the live diagnostics drawer</li>
+<li>The core exchange concepts each tab configures, with links to the reference
+  chapters that explain them in depth</li>
+<li>How to add symbols with the IPO dialog, configure market makers, and read
+  the effective-value Symbol Overview</li>
+<li>How to import, validate, and export a configuration</li>
+<li>How to deploy the GUI in production and troubleshoot common problems</li>
+</ul>
+</div>
+<div class="admonition info">
+<p class="admonition-title">About the figures on this page</p>
+<p>Blocks marked <strong>📷 Figure N</strong> are placeholders indicating where a UI
+screenshot should be added, together with a short description of what to
+capture and a suggested asset path under
+<code>docs/user-guide/images/config-gui/</code>. Replace each block with the image and
+an italic caption once the screenshots are taken.</p>
+</div>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>The <strong>Config Builder</strong> (<code>config-gui</code>) is a browser-based application for
+creating, importing, editing, validating, and exporting an
+<a href="../010-configuration/"><code>engine_config.yaml</code></a> file interactively.</p>
+<p>It is a <strong>companion to</strong>, not a replacement for, the
+<a href="../010-configuration/#generate-configs-with-pm-config-gen"><code>pm-config-gen</code></a> CLI.
+Both produce the same file format, but they suit different situations:</p>
+<table>
+<thead>
+<tr>
+<th>Use the…</th>
+<th>when you want to…</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>GUI</strong> (<code>config-gui</code>)</td>
+<td>build a config by filling in forms, see mistakes highlighted as you type, import and edit an existing file, or learn the schema through inline help.</td>
+</tr>
+<tr>
+<td><strong>CLI</strong> (<code>pm-config-gen</code>)</td>
+<td>script config generation in CI, or drive it from a shell with repeatable flags.</td>
+</tr>
+</tbody>
+</table>
+<p>The GUI adds three things the CLI cannot offer: <strong>live cross-field validation</strong>
+(undefined risk levels, port collisions, out-of-order schedules, and more),
+<strong>progressive disclosure</strong> so beginners see only a handful of fields while
+experts see everything, and a full <strong>round-trip import</strong> of existing configs.</p>
+<div class="admonition info">
+<p class="admonition-title">Where it lives</p>
+<p>The application is a self-contained Node.js/TypeScript project in the
+<code>config-gui/</code> directory at the repository root. It is independent of the
+Python engine and needs no Python to run — with one optional exception, the
+<a href="#optional-server-side-verification">server-side verification</a> feature.</p>
+</div>
+<p>Its output is held to the same correctness bar as the CLI: a golden-file test
+pipes generated configs through the engine's own <code>load_engine_config()</code> parser,
+so anything the GUI exports is guaranteed to load (see
+<a href="#how-the-gui-stays-valid">How the GUI stays valid</a>).</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 1 — The main window</p>
+<p><em>Screenshot placeholder.</em> Capture the application in light theme on the
+<strong>Basics</strong> tab, showing the full three-pane layout (navigation list on the
+left, the active panel in the centre, the diagnostics drawer on the right)
+and the top bar (persona switcher, <strong>Import</strong>, <strong>New</strong>, theme toggle,
+<strong>Save</strong>). Suggested file: <code>images/config-gui/fig-01-main-window.png</code>.</p>
+</div>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<p>What you need depends on how you intend to run the application.</p>
+<h3 id="running-the-container-recommended-for-most-users">Running the container (recommended for most users)<a class="headerlink" href="#running-the-container-recommended-for-most-users" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Podman ≥ 4</strong> or <strong>Docker ≥ 24</strong></td>
+<td>Podman is preferred; Docker works equally well. The <code>make up</code> target auto-detects which one is installed.</td>
+</tr>
+<tr>
+<td><strong>Compose plugin</strong></td>
+<td><code>podman compose</code> (Podman 5+ built-in, or <code>podman-compose</code>) or <code>docker compose</code> (the V2 plugin — not the legacy <code>docker-compose</code> binary). Verify with <code>docker compose version</code> / <code>podman compose version</code>.</td>
+</tr>
+<tr>
+<td><strong>GNU Make</strong></td>
+<td>Only needed for the <code>Makefile</code> targets. On macOS, install via Homebrew (<code>brew install make</code>) or the Xcode Command Line Tools.</td>
+</tr>
+<tr>
+<td><strong>macOS only</strong></td>
+<td>A Podman machine must be running. <code>make up</code> starts it automatically; to do it manually run <code>podman machine init &amp;&amp; podman machine start</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>No Node.js, npm, or Python is required on the host for the container path — every
+build step happens inside the image.</p>
+<h3 id="local-development">Local development<a class="headerlink" href="#local-development" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Node.js ≥ 20</strong></td>
+<td>Developed and tested on Node 22 and Node 26. Install via <a href="https://github.com/nvm-sh/nvm">nvm</a>, <a href="https://github.com/Schniz/fnm">fnm</a>, or your OS package manager.</td>
+</tr>
+<tr>
+<td><strong>npm ≥ 10</strong></td>
+<td>Bundled with Node.js ≥ 20. Verify with <code>npm --version</code>.</td>
+</tr>
+<tr>
+<td><strong>GNU Make</strong></td>
+<td>Optional but convenient for the <code>Makefile</code> targets.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="optional-server-side-verification">Optional: server-side verification<a class="headerlink" href="#optional-server-side-verification" title="Permanent link">&para;</a></h3>
+<p>Needed only if you want the <strong>Verify with pm-cverifier</strong> button on the Review
+tab to work:</p>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Python environment</strong></td>
+<td>The repository's Poetry environment installed at the repo root (<code>poetry install</code>).</td>
+</tr>
+<tr>
+<td><strong><code>pm-cverifier</code> on <code>PATH</code></strong></td>
+<td>Provided by the Poetry env, or set <code>CVERIFIER_COMMAND="poetry run pm-cverifier"</code> so the backend can locate it. See <a href="../020-config-verifier/">Config Verifier</a>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="browser">Browser<a class="headerlink" href="#browser" title="Permanent link">&para;</a></h3>
+<p>Any modern browser (Chrome/Edge ≥ 110, Firefox ≥ 115, Safari ≥ 16). The
+application uses no browser extensions and runs fully offline once loaded.</p>
+<h2 id="running-the-application">Running the application<a class="headerlink" href="#running-the-application" title="Permanent link">&para;</a></h2>
+<p>There are three supported ways to start the GUI, in increasing order of setup
+effort. Pick the one that matches your situation.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Best for</th>
+<th>Needs</th>
+<th>URL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#option-1-one-command-with-the-container-stack">Container stack</a></td>
+<td>Most users; production</td>
+<td>Podman/Docker + Make</td>
+<td><code>http://localhost:8080</code></td>
+</tr>
+<tr>
+<td><a href="#option-2-a-pre-built-image-artifact">Pre-built image artifact</a></td>
+<td>Offline hosts, no repo clone</td>
+<td>Podman/Docker only</td>
+<td><code>http://localhost:8080</code></td>
+</tr>
+<tr>
+<td><a href="#option-3-local-development">Local development</a></td>
+<td>Contributing to the GUI itself</td>
+<td>Node.js + npm</td>
+<td><code>http://127.0.0.1:5174</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="option-1-one-command-with-the-container-stack">Option 1 — One command with the container stack<a class="headerlink" href="#option-1-one-command-with-the-container-stack" title="Permanent link">&para;</a></h3>
+<p>If you have a repository checkout and a container runtime, this is the fastest
+path. From the <code>config-gui/</code> directory:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w"> </span>up
+</code></pre></div>
+<p><code>make up</code> auto-detects Podman or Docker (preferring Podman), starts the Podman
+machine on macOS if needed, builds the image, and starts the stack in the
+background. Open <strong>http://localhost:8080</strong> once the build completes.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>make<span class="w"> </span>down<span class="w">     </span><span class="c1"># stop and remove the stack</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>make<span class="w"> </span>logs<span class="w">     </span><span class="c1"># follow the container log</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>make<span class="w"> </span>ps<span class="w">       </span><span class="c1"># show stack status</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>make<span class="w"> </span><span class="nb">help</span><span class="w">     </span><span class="c1"># list every available target</span>
+</code></pre></div>
+<p>Prefer to drive the runtime directly? <code>docker compose up --build</code> (or
+<code>podman compose up --build</code>) does the same thing. Deployment details — the
+image layout, environment variables, and building behind a corporate proxy —
+are covered under <a href="#deployment-and-operations">Deployment and operations</a>.</p>
+<h3 id="option-2-a-pre-built-image-artifact">Option 2 — A pre-built image artifact<a class="headerlink" href="#option-2-a-pre-built-image-artifact" title="Permanent link">&para;</a></h3>
+<p>For a host without a repository clone — or to ship a ready-to-run image — the
+distributable artifact is a self-contained OCI image archive built with
+<code>make dist</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>dist/edumatcher-config-gui-&lt;version&gt;.tar
+</code></pre></div>
+<p>The tar contains everything the application needs at runtime (Node.js runtime,
+compiled frontend, and the Fastify backend) with no external dependencies. Load
+and run it on the target host:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Podman</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>podman<span class="w"> </span>load<span class="w">  </span>--input<span class="w"> </span>edumatcher-config-gui-&lt;version&gt;.tar
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>podman<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>config-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8080</span>:8080<span class="w"> </span>edumatcher-config-gui:&lt;version&gt;
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># Docker</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>docker<span class="w"> </span>load<span class="w">  </span>--input<span class="w"> </span>edumatcher-config-gui-&lt;version&gt;.tar
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>config-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8080</span>:8080<span class="w"> </span>edumatcher-config-gui:&lt;version&gt;
+</code></pre></div>
+<p>The <code>load</code> command prints the exact image tag, e.g. <code>edumatcher-config-gui:1.0.0</code>.
+Open <strong>http://localhost:8080</strong>. Stop and remove with
+<code>podman stop config-gui &amp;&amp; podman rm config-gui</code> (or the <code>docker</code> equivalents).
+Pass any <a href="#backend-environment-variables">backend environment variable</a> with
+<code>-e</code>, for example <code>-e CORS_ORIGIN="https://myhost.example"</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">No Node.js or npm required</p>
+<p>The tar archive is fully self-contained. The host only needs Podman or
+Docker — no Node.js, no npm, and no repository clone.</p>
+</div>
+<h3 id="option-3-local-development">Option 3 — Local development<a class="headerlink" href="#option-3-local-development" title="Permanent link">&para;</a></h3>
+<p>To hack on the GUI, run the two processes (the Fastify <strong>API</strong> and the Vite
+<strong>web</strong> dev server) from a checkout:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>config-gui
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>npm<span class="w"> </span>install
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>npm<span class="w"> </span>run<span class="w"> </span>dev<span class="w">          </span><span class="c1"># starts the API (port 5175) and the web UI (port 5174)</span>
+</code></pre></div>
+<p>Open <strong>http://127.0.0.1:5174</strong>. The Vite dev server hot-reloads on save and
+proxies <code>/api/*</code> to the backend, so you only ever open the <code>5174</code> URL.</p>
+<p>For separate logs, run the processes in two terminals with <code>npm run dev:server</code>
+and <code>npm run dev:web</code> (or <code>make dev-server</code> / <code>make dev-web</code>). Developer-facing
+details — project layout, tests, and how to keep the GUI in sync with the
+engine — live in the project's
+<a href="https://github.com/johan162/EduMatcher/blob/main/config-gui/README.md"><code>config-gui/README.md</code></a>.</p>
+<h2 id="a-tour-of-the-interface">A tour of the interface<a class="headerlink" href="#a-tour-of-the-interface" title="Permanent link">&para;</a></h2>
+<p>The window is a persistent <strong>three-pane layout</strong> designed so that you always
+know what to edit, what you are editing, and what still needs attention.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>┌─────────────────────────────────────────────────────────────────────┐
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>│  Top bar:  [Persona ▾]                     Import  New  ☾  Save       │
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>├───────────────┬─────────────────────────────────┬────────────────────┤
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>│  Navigation   │        Active panel             │   Diagnostics      │
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>│  (tab list    │   (fields for the selected      │   drawer           │
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>│   with status │    tab / master–detail editor)  │   (errors,         │
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>│   glyphs)     │                                 │    warnings, info) │
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>└───────────────┴─────────────────────────────────┴────────────────────┘
+</code></pre></div>
+<ul>
+<li><strong>Top bar</strong> — the <a href="#personas">persona</a> switcher, <strong>Import</strong> (load an existing
+  YAML file), <strong>New</strong> (start a blank draft, with a confirmation), the light/dark
+  <strong>theme toggle</strong> (☾ / ☀), and <strong>Save</strong> (shows a confirmation toast; the draft
+  is already autosaved to <code>localStorage</code> continuously on every change, so a
+  refresh or crash never loses work — clicking Save doesn't write anything
+  that wasn't already saved).</li>
+<li><strong>Navigation</strong> — the list of <a href="#the-tabs-at-a-glance">tabs</a>. Each carries a
+  status glyph: <code>✓</code> valid, <code>!</code> has warnings, <code>✗</code> has errors, <code>—</code> optional and
+  untouched. Tabs above your current persona are hidden entirely, not disabled.</li>
+<li><strong>Active panel</strong> — the form for the selected tab. Large tabs (Symbols,
+  Auxiliary Gateways) use a <strong>master–detail</strong> sub-layout: a list on the left, an
+  editor for the selected item on the right.</li>
+<li><strong>Diagnostics drawer</strong> — always visible; it lists <em>every</em> current issue across
+  the <em>whole</em> configuration, not just the active tab, each with a <strong>Jump →</strong>
+  action that navigates to and highlights the offending field(s). See
+  <a href="#diagnostics-and-live-validation">Diagnostics and live validation</a>.</li>
+</ul>
+<p>Mandatory fields carry a red asterisk and a red left border; optional fields
+show their default as ghost placeholder text until you set them. Every
+non-obvious field has an <strong>(i) help popover</strong> giving a one-paragraph explanation
+and the equivalent <code>pm-config-gen</code> flag.</p>
+<h2 id="personas">Personas<a class="headerlink" href="#personas" title="Permanent link">&para;</a></h2>
+<p>A single global <strong>persona</strong> setting controls how much of the field surface is
+visible. It is a <em>view filter</em>, never a data filter: switching personas never
+discards data, and a higher-tier value set by import (or by a previous session
+at a higher tier) is preserved and still exported even while hidden.</p>
+<table>
+<thead>
+<tr>
+<th>Persona</th>
+<th>Audience</th>
+<th>Philosophy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Beginner</strong></td>
+<td>A first-time student standing up a classroom exchange</td>
+<td>Show only what a minimal, safe exchange needs. Everything else uses safe defaults.</td>
+</tr>
+<tr>
+<td><strong>Intermediate</strong></td>
+<td>A TA or instructor tuning a scenario</td>
+<td>Adds risk levels, circuit-breaker tuning, per-symbol overrides, indices, and the common auxiliary gateways.</td>
+</tr>
+<tr>
+<td><strong>Expert</strong></td>
+<td>A course author building the full environment</td>
+<td>Everything: combos, per-gateway market-maker overrides, BALF/API gateways, engine tuning, and deterministic seeding.</td>
+</tr>
+</tbody>
+</table>
+<p>Because persona gates which tabs appear, the visible workspace grows as you move
+up:</p>
+<table>
+<thead>
+<tr>
+<th>Persona</th>
+<th>Tabs shown</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Beginner</strong></td>
+<td>Basics, Sessions &amp; Schedule, Market Maker¹, Review &amp; Export</td>
+</tr>
+<tr>
+<td><strong>Intermediate</strong></td>
+<td>…the above <strong>plus</strong> Risk &amp; Collars, Circuit Breakers, Symbols, Indices, Auxiliary Gateways</td>
+</tr>
+<tr>
+<td><strong>Expert</strong></td>
+<td>…the above <strong>plus</strong> Combos, Engine Tuning</td>
+</tr>
+</tbody>
+</table>
+<p>¹ The <strong>Market Maker</strong> tab appears at any persona, but only once at least one
+gateway has the <code>MARKET_MAKER</code> role.</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 2 — Persona switcher and theme toggle</p>
+<p><em>Screenshot placeholder.</em> Capture the top bar with the persona dropdown open
+showing Beginner / Intermediate / Expert, plus the theme toggle. A second
+capture in dark theme is useful to show both palettes.
+Suggested file: <code>images/config-gui/fig-02-persona-theme.png</code>.</p>
+</div>
+<h2 id="the-tabs-at-a-glance">The tabs at a glance<a class="headerlink" href="#the-tabs-at-a-glance" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Tab</th>
+<th>Persona</th>
+<th>Configures</th>
+<th>Reference chapter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Basics</strong></td>
+<td>Beginner</td>
+<td>The symbol universe and the ALF gateway allowlist</td>
+<td><a href="../010-configuration/#alf-gateway-allowlist">ALF gateway allowlist</a>, <a href="../220-alf-gateway/">ALF gateway</a></td>
+</tr>
+<tr>
+<td><strong>Sessions &amp; Schedule</strong></td>
+<td>Beginner</td>
+<td>Whether the scheduler drives the trading day, and the phase times</td>
+<td><a href="../080-auctions-scheduling/">Auctions &amp; Session Scheduling</a></td>
+</tr>
+<tr>
+<td><strong>Risk &amp; Collars</strong></td>
+<td>Intermediate</td>
+<td>The global collar band, named risk levels, and collar enforcement</td>
+<td><a href="../120-risk-controls/#price-collars">Price collars</a></td>
+</tr>
+<tr>
+<td><strong>Circuit Breakers</strong></td>
+<td>Intermediate</td>
+<td>The halt ladder, reference window, and CB enforcement</td>
+<td><a href="../120-risk-controls/#circuit-breakers">Circuit breakers</a></td>
+</tr>
+<tr>
+<td><strong>Market Maker</strong></td>
+<td>Beginner¹</td>
+<td>Obligation defaults and startup quote seeding</td>
+<td><a href="../090-market-maker/">Market Making</a></td>
+</tr>
+<tr>
+<td><strong>Symbols</strong></td>
+<td>Intermediate</td>
+<td>Per-symbol overrides for every setting, plus MM quotes</td>
+<td><a href="../010-configuration/#symbol-universe">Symbol universe</a></td>
+</tr>
+<tr>
+<td><strong>Indices</strong></td>
+<td>Intermediate</td>
+<td>Cap-weighted index definitions and constituents</td>
+<td><a href="../150-index/">Market Index</a></td>
+</tr>
+<tr>
+<td><strong>Combos</strong></td>
+<td>Expert</td>
+<td>Multi-leg startup seed orders</td>
+<td><a href="../070-combos/">Combo Orders</a></td>
+</tr>
+<tr>
+<td><strong>Auxiliary Gateways</strong></td>
+<td>Intermediate</td>
+<td>Post-Trade, Market-Data, BALF, and API gateway processes</td>
+<td><a href="../250-post-trade/">RALF</a>, <a href="../240-market-data-feed/">CALF</a>, <a href="../230-balf-gateway/">BALF</a>, <a href="../260-api-gateway/">API</a></td>
+</tr>
+<tr>
+<td><strong>Engine Tuning</strong></td>
+<td>Expert</td>
+<td>Low-level runtime retention and throttling knobs</td>
+<td><a href="../010-configuration/#engine_tuning"><code>engine_tuning</code></a></td>
+</tr>
+<tr>
+<td><strong>Review &amp; Export</strong></td>
+<td>Beginner</td>
+<td>Diagnostics summary, YAML preview, download, and verify</td>
+<td><a href="../020-config-verifier/">Config Verifier</a></td>
+</tr>
+</tbody>
+</table>
+<p>¹ Shown only when a <code>MARKET_MAKER</code> gateway exists.</p>
+<p>The rest of this chapter walks through the concepts behind these tabs. If you
+just want to produce a working file quickly, follow the
+<a href="#a-workflow-for-a-new-market-maker">market-maker workflow</a> and then jump to
+<a href="#reviewing-and-exporting">Reviewing and exporting</a>.</p>
+<h2 id="basics-symbols-and-gateways">Basics: symbols and gateways<a class="headerlink" href="#basics-symbols-and-gateways" title="Permanent link">&para;</a></h2>
+<p>The <strong>Basics</strong> tab is the mandatory foundation: at least one <strong>symbol</strong> and one
+<strong>gateway</strong> are required before anything can be exported.</p>
+<ul>
+<li><strong>Symbols</strong> are the instruments that trade on the exchange. Add them with the
+  <a href="#symbols-and-the-ipo-dialog">IPO dialog</a>; names are uppercased automatically
+  and must be unique.</li>
+<li><strong>Gateways</strong> are the participant sessions permitted to connect, each with a
+  <strong>role</strong> — <code>TRADER</code>, <code>MARKET_MAKER</code>, or <code>ADMIN</code>. Roles determine which
+  commands a session may send; see
+  <a href="../010-configuration/#role-privileges">Role Privileges</a> and the
+  <a href="../220-alf-gateway/">ALF gateway</a> chapter. A <code>MARKET_MAKER</code> gateway unlocks the
+  Market Maker tab and quote seeding; an <code>ADMIN</code> gateway can issue exchange-wide
+  halt/resume commands (see
+  <a href="../120-risk-controls/#admin-role-operator-controls">ADMIN-role operator controls</a>).</li>
+</ul>
+<p>At <strong>Expert</strong> persona, each <code>MARKET_MAKER</code> gateway row shows a <strong>⚙ Advanced</strong>
+button — see <a href="#layer-3-per-gateway-per-symbol-overrides">per-gateway market-maker overrides</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 3 — The Basics tab</p>
+<p><em>Screenshot placeholder.</em> Capture the Basics tab showing the symbols tag
+input with a few symbols and the gateways table with mixed roles (a TRADER,
+a MARKET_MAKER, and an ADMIN), including the ⚙ button on the MM row (Expert
+persona). Suggested file: <code>images/config-gui/fig-03-basics.png</code>.</p>
+</div>
+<h2 id="core-concepts-and-workflows">Core concepts and workflows<a class="headerlink" href="#core-concepts-and-workflows" title="Permanent link">&para;</a></h2>
+<h3 id="symbols-and-the-ipo-dialog">Symbols and the IPO dialog<a class="headerlink" href="#symbols-and-the-ipo-dialog" title="Permanent link">&para;</a></h3>
+<p>Clicking <strong>"+ Add symbol"</strong> on the Basics or Symbols tab opens the
+<strong>"List a new symbol (IPO)"</strong> dialog rather than a plain name field.</p>
+<p>The mental model is that adding a symbol is like an
+<a href="../120-risk-controls/#day-one-ipo-behaviour">initial public offering</a>: on the
+very first tick the engine has no trade history, so you must supply the starting
+prices explicitly — otherwise the collar and circuit-breaker
+<a href="../120-risk-controls/#rolling-reference-window">reference prices</a> have nothing to
+anchor to. The dialog captures a single <strong>reference price</strong> and derives
+everything that must agree with it (last-trade prices, and the market maker's
+opening quote) in one place, so the book, the last price, and the risk anchors
+all start consistent. See also
+<a href="../010-configuration/#collar-reference-price-selection">Collar reference price selection</a>.</p>
+<p>The dialog collects:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Symbol name</strong></td>
+<td>Uppercased automatically; must be unique.</td>
+</tr>
+<tr>
+<td><strong>Reference price</strong></td>
+<td>The opening mid-price. Derives <code>last_buy_price</code> / <code>last_sell_price</code> and becomes the collar's static reference on day one.</td>
+</tr>
+<tr>
+<td><strong>Tick decimals</strong> (Intermediate+)</td>
+<td>Price precision (0–8). Defaults to the global value. See <a href="../060-order-types/">tick size</a>.</td>
+</tr>
+<tr>
+<td><strong>Outstanding shares</strong></td>
+<td>Required if the symbol will be an <a href="../150-index/">index</a> constituent; a sensible default is pre-filled.</td>
+</tr>
+<tr>
+<td><strong>Opening spread (ticks)</strong> (Intermediate+)</td>
+<td>Spread, in ticks, used to auto-derive the primary market maker's opening bid/ask around the reference price.</td>
+</tr>
+<tr>
+<td><strong>Quote size</strong> (Intermediate+)</td>
+<td>Quantity used for the auto-derived primary market maker quote.</td>
+</tr>
+<tr>
+<td><strong>Additional market makers</strong> (Expert)</td>
+<td>Extra bid/ask quote rows for MM gateways beyond the primary one.</td>
+</tr>
+</tbody>
+</table>
+<p>If a <code>MARKET_MAKER</code> gateway is configured, the primary market-maker quote is
+always auto-derived from <strong>Opening spread</strong> and <strong>Quote size</strong> applied to the
+reference price — it is never left blank. <a href="#quote-seeding-mid-range-vs-explicit">Mid-range seeding</a>
+is a separate mechanism that applies when a symbol has no explicit quote at
+all (for example, one added outside the IPO dialog).</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 4 — The IPO ‘List a new symbol’ dialog</p>
+<p><em>Screenshot placeholder.</em> Capture the dialog open with a reference price,
+tick decimals, and opening spread/quote size filled in, and (at Expert)
+the additional market-maker quote rows visible. Suggested file:
+<code>images/config-gui/fig-04-ipo-dialog.png</code>.</p>
+</div>
+<h3 id="the-symbols-workspace">The Symbols workspace<a class="headerlink" href="#the-symbols-workspace" title="Permanent link">&para;</a></h3>
+<p>The <strong>Symbols</strong> tab (Intermediate+) is a master–detail editor. The left list
+holds every symbol; the right pane edits the selected one through sub-tabs:</p>
+<table>
+<thead>
+<tr>
+<th>Sub-tab</th>
+<th>Persona</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>General</strong></td>
+<td>Intermediate</td>
+<td>Tick decimals, outstanding shares, last prices, assigned risk level</td>
+</tr>
+<tr>
+<td><strong>Collar</strong></td>
+<td>Intermediate</td>
+<td>Per-symbol static/dynamic band overrides</td>
+</tr>
+<tr>
+<td><strong>Circuit Breaker</strong></td>
+<td>Expert</td>
+<td>Per-symbol ladder overrides — see <a href="#circuit-breakers">Circuit breakers</a></td>
+</tr>
+<tr>
+<td><strong>Market Maker</strong></td>
+<td>Intermediate</td>
+<td>Per-symbol obligation overrides</td>
+</tr>
+<tr>
+<td><strong>MM Quotes</strong></td>
+<td>Intermediate</td>
+<td>Explicit opening quotes per MM gateway</td>
+</tr>
+</tbody>
+</table>
+<p>Two conveniences make it easy to check a symbol without losing your place:</p>
+<ul>
+<li>An <strong>👁 eye icon</strong> on each row in the left list opens the read-only
+  <a href="#symbol-overview">Symbol Overview</a> <em>without changing</em> the current selection —
+  so you can peek at any symbol while editing another.</li>
+<li>An <strong>Overview</strong> button in the detail-pane header opens the same overview for
+  the currently selected symbol.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 5 — The Symbols workspace</p>
+<p><em>Screenshot placeholder.</em> Capture the Symbols tab: the left symbol list with
+the eye icons, and the detail pane showing the sub-tabs (General, Collar,
+Circuit Breaker, Market Maker, MM Quotes) with the <strong>Overview</strong> button
+top-right. Suggested file: <code>images/config-gui/fig-05-symbols.png</code>.</p>
+</div>
+<h3 id="symbol-overview">Symbol overview<a class="headerlink" href="#symbol-overview" title="Permanent link">&para;</a></h3>
+<p>The <strong>Overview</strong> dialog is read-only and shows the <strong>effective</strong> values — what
+the engine will actually use after all inheritance and merge rules are applied —
+in one compact view, with each value annotated by its source. It consolidates
+what is otherwise spread across five sub-tabs and several global defaults.</p>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>What it shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>General</strong></td>
+<td>Tick decimals (per-symbol override vs global), last buy/sell prices, outstanding shares, and the active risk level (assigned or inherited default).</td>
+</tr>
+<tr>
+<td><strong>Collar (effective)</strong></td>
+<td>The static and dynamic band percentages that will apply, each tagged with its source (<code>symbol override</code>, <code>level CORE</code>, <code>engine default</code>). Flags if collar enforcement is off globally.</td>
+</tr>
+<tr>
+<td><strong>Circuit breaker (effective)</strong></td>
+<td>The resolved reference window and full ladder. <strong>Per-symbol overrides appear in accent colour</strong>; inherited values are shown normally. Flags if CB enforcement is off globally.</td>
+</tr>
+<tr>
+<td><strong>Market maker (effective)</strong></td>
+<td>The resolved obligation (enforce/max-spread/min-qty) with source, any per-gateway overrides, and the effective opening quotes with an origin badge (<code>explicit</code>, <code>seeded</code>, or <code>fill in</code>).</td>
+</tr>
+<tr>
+<td><strong>Memberships</strong></td>
+<td>Which indices and combos reference this symbol — cross-references not otherwise visible from the Symbols tab.</td>
+</tr>
+</tbody>
+</table>
+<p>Use it as a final sanity check before exporting, or to diagnose why a symbol
+behaves unexpectedly in the engine.</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 6 — The read-only Symbol Overview</p>
+<p><em>Screenshot placeholder.</em> Capture the overview dialog for a symbol that has
+a mix of inherited and overridden values, so the source annotations and the
+accent-coloured circuit-breaker overrides are visible.
+Suggested file: <code>images/config-gui/fig-06-symbol-overview.png</code>.</p>
+</div>
+<h3 id="risk-and-collars">Risk and collars<a class="headerlink" href="#risk-and-collars" title="Permanent link">&para;</a></h3>
+<p>A <strong>collar</strong> rejects orders priced too far from a reference price, protecting the
+book from fat-finger errors. The static band anchors to a session reference; the
+dynamic band tracks near-live prices. The full mechanism — band definitions,
+which orders are checked, and how it differs from circuit breakers — is
+described in <a href="../120-risk-controls/#price-collars">Price collars</a>; order-level
+behaviour is covered in <a href="../060-order-types/">Order Types</a>.</p>
+<p>On the <strong>Risk &amp; Collars</strong> tab (Intermediate+) you can:</p>
+<ul>
+<li>Set a <strong>global band</strong>, which creates the <code>DEFAULT</code> risk level applied to every
+  symbol that does not specify its own.</li>
+<li>Define <strong>named risk levels</strong> (e.g. <code>CORE</code>, <code>HIGH_BETA</code>) that symbols reference
+  by name — see
+  <a href="../120-risk-controls/#global-level-profiles-l1l2l3-style">Global level profiles</a>
+  and <a href="../010-configuration/#per-symbol-risk-level-assignment">per-symbol risk-level assignment</a>.</li>
+<li>Toggle <strong>collar enforcement</strong> globally (<code>enforce_collars</code>). Because this tab is
+  Intermediate, a Beginner draft keeps enforcement at its safe default (on).</li>
+</ul>
+<p>Per-symbol band overrides live on the Symbols → <strong>Collar</strong> sub-tab and take
+precedence over the level and global values.</p>
+<h3 id="circuit-breakers">Circuit breakers<a class="headerlink" href="#circuit-breakers" title="Permanent link">&para;</a></h3>
+<p>A <strong>circuit breaker</strong> halts trading in a symbol when it moves too far from its
+rolling reference, then resumes after a cool-off. Each ladder level has a
+<strong>shift %</strong> (how far triggers it), a <strong>halt duration</strong> (the cool-off), and a
+<strong>resumption mode</strong> (<code>AUCTION</code> runs an uncross before continuous trading resumes;
+<code>CONTINUOUS</code> reopens matching immediately). The complete model — the rolling
+reference window, day-one behaviour, and resumption modes — is in
+<a href="../120-risk-controls/#circuit-breakers">Circuit breakers</a>.</p>
+<p>The <strong>Circuit Breakers</strong> tab (Intermediate+) presents the ladder as a table
+(Level, Shift %, Halt, Rest of day, Resumption) plus the
+<a href="../120-risk-controls/#rolling-reference-window">reference window</a> and the global
+<code>enforce_circuit_breakers</code> toggle. At <strong>Expert</strong> persona you can add or remove
+ladder levels.</p>
+<p>Per-symbol overrides live on the Symbols → <strong>Circuit Breaker</strong> sub-tab (Expert),
+which mirrors the same table but treats blank cells as "inherit the global
+ladder value". You can override the shift, the cool-off (including "rest of
+day"), the resumption mode, and the reference window for a single symbol.</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 7 — The Circuit Breakers ladder</p>
+<p><em>Screenshot placeholder.</em> Capture the Circuit Breakers tab ladder table with
+L1/L2/L3, one level set to "rest of day", and the reference-window field.
+Suggested file: <code>images/config-gui/fig-07-circuit-breakers.png</code>.</p>
+</div>
+<h3 id="sessions-and-schedule">Sessions and schedule<a class="headerlink" href="#sessions-and-schedule" title="Permanent link">&para;</a></h3>
+<p>A trading day moves through phases — pre-open, opening auction, continuous
+trading, closing auction — driven by the <a href="../080-auctions-scheduling/#the-session-scheduler-pm-scheduler"><code>pm-scheduler</code></a>
+process. The <strong>Sessions &amp; Schedule</strong> tab (Beginner) toggles
+<a href="../010-configuration/#sessions_enabled"><code>sessions_enabled</code></a> and, from Intermediate,
+edits the <a href="../080-auctions-scheduling/#configuring-the-schedule">phase times</a>.</p>
+<p>The GUI enforces that phase times are strictly increasing as you type — the same
+rule the engine applies — so an out-of-order schedule is caught immediately
+rather than at export. See <a href="../080-auctions-scheduling/#session-phases">Session phases</a>
+for what each phase means.</p>
+<div class="admonition tip">
+<p class="admonition-title">Sessions imply a running scheduler</p>
+<p>Turning <code>sessions_enabled</code> on means the engine starts CLOSED and waits for
+<code>pm-scheduler</code> to drive transitions. If you enable sessions, remember to run
+the scheduler alongside the engine, or the market stays closed.</p>
+</div>
+<h3 id="market-makers">Market makers<a class="headerlink" href="#market-makers" title="Permanent link">&para;</a></h3>
+<p>Market makers supply the two-sided quotes that give a symbol a tradeable book
+from the first moment. The GUI models this in three independent layers plus a
+quote-seeding mechanism. Understanding the layers avoids duplicate work and
+confusion about which value "wins". The engine-side reference is
+<a href="../090-market-maker/">Market Making</a>; obligation enforcement is detailed under
+<a href="../090-market-maker/#mm-obligations-enforcement">MM obligations enforcement</a>.</p>
+<h4 id="layer-1-global-obligation-defaults-market-maker-tab">Layer 1 — Global obligation defaults (Market Maker tab)<a class="headerlink" href="#layer-1-global-obligation-defaults-market-maker-tab" title="Permanent link">&para;</a></h4>
+<p>The <strong>Market Maker tab</strong> holds the exchange-wide defaults applied to every
+symbol and every <code>MARKET_MAKER</code> gateway unless overridden:</p>
+<ul>
+<li><strong>Enforce MM obligations</strong> — whether the engine checks quote-width and size
+  compliance at all.</li>
+<li><strong>Max spread (ticks)</strong> — the widest allowed bid–ask spread; wider quotes are
+  rejected (<a href="../090-market-maker/#spread-constraint">spread constraint</a>).</li>
+<li><strong>Min quantity</strong> — the minimum displayed size on each side
+  (<a href="../090-market-maker/#minimum-size-constraint">minimum size constraint</a>).</li>
+</ul>
+<p>This layer maps to <code>mm_obligation_defaults</code> in the YAML
+(<a href="../010-configuration/#market-maker-obligation-defaults">reference</a>).</p>
+<h4 id="layer-2-per-symbol-obligation-overrides-symbols-market-maker">Layer 2 — Per-symbol obligation overrides (Symbols → Market Maker)<a class="headerlink" href="#layer-2-per-symbol-obligation-overrides-symbols-market-maker" title="Permanent link">&para;</a></h4>
+<p>The Symbols → <strong>Market Maker</strong> sub-tab relaxes or tightens the obligation for one
+instrument. <code>(inherit)</code> on a field writes nothing (the global default applies);
+setting a value emits an <code>mm_obligation_defaults.symbols.&lt;SYM&gt;</code> entry that
+overrides only that field. Use it when, say, a less liquid symbol needs a wider
+allowed spread. See <a href="../090-market-maker/#per-symbol-overrides">per-symbol overrides</a>.</p>
+<h4 id="layer-3-per-gateway-per-symbol-overrides">Layer 3 — Per-gateway, per-symbol overrides<a class="headerlink" href="#layer-3-per-gateway-per-symbol-overrides" title="Permanent link">&para;</a></h4>
+<p>At <strong>Expert</strong> persona, the <strong>⚙ Advanced</strong> dialog on each <code>MARKET_MAKER</code> gateway
+row (Basics tab) provides the finest-grained control:</p>
+<ol>
+<li><strong>Flat gateway overrides</strong> — <code>enforce_mm_obligation</code>, <code>mm_max_spread_ticks</code>,
+   <code>mm_min_qty</code> for <em>every symbol this gateway quotes</em>.</li>
+<li><strong>Per-symbol table</strong> — overrides for specific symbols on this gateway, written
+   as <code>gateways.alf[*].mm_obligations.&lt;SYM&gt;</code> (the nested keys are
+   <code>max_spread_ticks</code> / <code>min_qty</code>, without the <code>mm_</code> prefix — a format quirk the
+   GUI handles for you).</li>
+</ol>
+<p>The dialog also sets the gateway's
+<a href="../090-market-maker/#quote-refresh-policy"><strong>quote refresh policy</strong></a> — when seeded
+quotes are inactivated after a fill. The default <code>INACTIVATE_ON_ANY_FILL</code> suits
+most scenarios.</p>
+<p><strong>Precedence (highest to lowest):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Per-gateway per-symbol  (mm_obligations.&lt;SYM&gt;)
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>  → Per-gateway flat    (gateway.mm_max_spread_ticks / mm_min_qty)
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    → Per-symbol global (mm_obligation_defaults.symbols.&lt;SYM&gt;)
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>      → Global defaults (mm_obligation_defaults)
+</code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 8 — Per-gateway ⚙ Advanced market-maker dialog</p>
+<p><em>Screenshot placeholder.</em> Capture the Advanced dialog (Expert persona) for a
+MARKET_MAKER gateway showing the quote refresh policy, the flat obligation
+overrides, and the per-symbol override table.
+Suggested file: <code>images/config-gui/fig-08-mm-advanced.png</code>.</p>
+</div>
+<h4 id="quote-seeding-mid-range-vs-explicit">Quote seeding: mid-range vs explicit<a class="headerlink" href="#quote-seeding-mid-range-vs-explicit" title="Permanent link">&para;</a></h4>
+<p>Before the engine starts there must be resting quotes in the book (see
+<a href="../090-market-maker/#startup-seeding-pre-loading-quotes-from-config">startup seeding</a>).
+The GUI offers two ways to supply them, plus an automatic fallback.</p>
+<p><strong>Option A — Explicit quotes (highest precedence).</strong> On the Symbols → <strong>MM
+Quotes</strong> sub-tab you enter a specific <code>bid_price</code> / <code>ask_price</code> / <code>bid_qty</code> /
+<code>ask_qty</code> for each symbol × MM gateway pair. Every column header has an <strong>(i)</strong>
+help popover; the most-asked-about one is <strong>Seed once</strong>:</p>
+<blockquote>
+<p>When on, the engine injects this quote only if it has no prior book state for
+the symbol, so a restart with existing history will not re-inject it. Turn it
+off to (re)seed on every startup regardless of history.</p>
+</blockquote>
+<p>See <a href="../090-market-maker/#controlling-when-seeds-are-applied-seed_once">controlling when seeds apply</a>
+and <a href="../090-market-maker/#choosing-tif-for-seed-quotes">choosing TIF for seeds</a>.</p>
+<p><strong>Option B — Global mid-range seeding.</strong> On the Market Maker tab, set a <strong>Seed
+MM mid-range</strong> (e.g. <code>100</code> to <code>300</code>). The builder computes one deterministic
+midpoint and applies it to <em>every</em> symbol:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>midpoint = (min + max) / 2     # arithmetic mean, snapped to the tick grid
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>bid      = midpoint − 1 tick
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>ask      = midpoint + 1 tick
+</code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">The same midpoint applies to every symbol</p>
+<p>A mid-range of <code>200–220</code> gives every symbol a midpoint of <code>210</code>, so AAPL and
+TSLA both open with <code>bid: 209.99 / ask: 210.01</code> (at <code>tick_decimals = 2</code>). The
+range is <em>averaged into a single value</em>, not distributed across symbols. If
+you need different opening prices per symbol, use explicit quotes (Option A).</p>
+</div>
+<p>Two related switches (Intermediate+) accompany mid-range seeding:</p>
+<ul>
+<li><strong>Seed last prices from MM</strong> — derives <code>last_buy_price</code> / <code>last_sell_price</code>
+  from the same midpoint so the collar's static reference matches the opening
+  quote. Requires a mid-range.</li>
+<li><strong>Seed placeholder last prices</strong> — emits <code>last_buy_price: null</code> /
+  <code>last_sell_price: null</code> for instruments whose reference price is managed
+  externally.</li>
+</ul>
+<p>At <strong>Expert</strong> persona, a <strong>Deterministic seed</strong> fixes the RNG seed for
+reproducible classroom runs.</p>
+<p><strong>Fallback — null stub.</strong> If neither an explicit quote nor a mid-range is
+supplied, the builder emits <code>bid_price: null</code> / <code>ask_price: null</code>. The Quote Stub
+Review flags this and the Review tab blocks export until it is resolved.</p>
+<h4 id="a-workflow-for-a-new-market-maker">A workflow for a new market maker<a class="headerlink" href="#a-workflow-for-a-new-market-maker" title="Permanent link">&para;</a></h4>
+<p>A logical order that avoids rework:</p>
+<ol>
+<li><strong>Add a <code>MARKET_MAKER</code> gateway</strong> (Basics). Give it a clear ID like <code>MM01</code>. At
+   Expert, review its quote refresh policy in the ⚙ dialog.</li>
+<li><strong>Set global obligation defaults</strong> (Market Maker tab): max spread, min
+   quantity, and whether to enforce. Leave defaults for a simple classroom
+   exchange.</li>
+<li><strong>Choose a seeding strategy.</strong> <em>Quick:</em> set a mid-range (e.g. <code>100–100</code>) and
+   enable <strong>Seed last prices from MM</strong>. <em>Realistic:</em> leave the mid-range unset
+   and plan to enter explicit quotes per symbol.</li>
+<li><strong>Add symbols</strong> with the <a href="#symbols-and-the-ipo-dialog">IPO dialog</a>. If you
+   chose explicit quotes, add one MM Quotes row per gateway for each symbol.</li>
+<li><strong>Check the Quote Stub Review</strong> (below) — every row must be green before
+   export.</li>
+<li><strong>Adjust per symbol</strong> (optional) on the Symbols → Market Maker sub-tab, or
+   per gateway in the ⚙ dialog.</li>
+<li><strong>Verify with the Symbol Overview</strong> before exporting.</li>
+</ol>
+<h4 id="the-quote-stub-review">The Quote Stub Review<a class="headerlink" href="#the-quote-stub-review" title="Permanent link">&para;</a></h4>
+<p>The Market Maker tab's <strong>Quote Stub Review</strong> gives a go/no-go status for every
+symbol × MM gateway pair:</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>✓ quote defined</td>
+<td>An explicit quote with both prices is set</td>
+<td>None</td>
+</tr>
+<tr>
+<td>✓ seeded from mid-range</td>
+<td>The mid-range will compute prices at export</td>
+<td>None</td>
+</tr>
+<tr>
+<td>! fill in before starting the engine</td>
+<td>Neither explicit nor seeded</td>
+<td>Add a quote or set a mid-range</td>
+</tr>
+</tbody>
+</table>
+<p>Export is blocked while any row is unresolved.</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 9 — Market Maker tab and Quote Stub Review</p>
+<p><em>Screenshot placeholder.</em> Capture the Market Maker tab showing the obligation
+defaults, the mid-range seeding controls, and the Quote Stub Review table
+with a mix of statuses. Suggested file: <code>images/config-gui/fig-09-market-maker.png</code>.</p>
+</div>
+<h3 id="indices">Indices<a class="headerlink" href="#indices" title="Permanent link">&para;</a></h3>
+<p>The <strong>Indices</strong> tab (Intermediate+) defines cap-weighted indices and their
+constituents. Each constituent must be a configured symbol with
+<code>outstanding_shares</code> set (the GUI flags any that are missing). The calculation
+model and field reference are in <a href="../150-index/">Market Index</a>.</p>
+<h3 id="combos">Combos<a class="headerlink" href="#combos" title="Permanent link">&para;</a></h3>
+<p>The <strong>Combos</strong> tab (Expert) builds multi-leg startup seed orders — pairs,
+spreads, hedged entries, and market-maker spreads. Prices are entered as decimal
+display values and converted to ticks per each leg symbol's precision. See
+<a href="../070-combos/">Combo Orders</a> for the strategy background and
+<a href="../060-order-types/#combo">the COMBO order type</a> for lifecycle behaviour.</p>
+<h3 id="auxiliary-gateways">Auxiliary gateways<a class="headerlink" href="#auxiliary-gateways" title="Permanent link">&para;</a></h3>
+<p>The <strong>Auxiliary Gateways</strong> tab (Intermediate+) configures the optional network
+services around the engine, each on its own sub-tab:</p>
+<table>
+<thead>
+<tr>
+<th>Sub-tab</th>
+<th>Persona</th>
+<th>Process</th>
+<th>Reference</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Post-Trade</td>
+<td>Intermediate</td>
+<td>RALF — fills, drop-copy, audit</td>
+<td><a href="../250-post-trade/">Post-Trade (RALF)</a></td>
+</tr>
+<tr>
+<td>Market-Data</td>
+<td>Intermediate</td>
+<td>CALF — top-of-book, trades, index</td>
+<td><a href="../240-market-data-feed/">Market Data Feed (CALF)</a></td>
+</tr>
+<tr>
+<td>BALF</td>
+<td>Expert</td>
+<td>Binary ALF gateway</td>
+<td><a href="../230-balf-gateway/">BALF Gateway</a></td>
+</tr>
+<tr>
+<td>API</td>
+<td>Expert</td>
+<td>REST/WebSocket gateway</td>
+<td><a href="../260-api-gateway/">API Gateway</a></td>
+</tr>
+</tbody>
+</table>
+<p>Enabling a gateway reveals its fields; disabling it keeps your values but
+excludes the section from the exported file. <strong>Ports are collision-checked
+across every enabled gateway</strong> — the diagnostics drawer warns if two services
+would bind the same address and port.</p>
+<h3 id="engine-tuning">Engine tuning<a class="headerlink" href="#engine-tuning" title="Permanent link">&para;</a></h3>
+<p>The <strong>Engine Tuning</strong> tab (Expert) exposes low-level performance knobs that
+rarely need changing. It mirrors the grouped
+<a href="../010-configuration/#engine_tuning"><code>engine_tuning</code></a> block and currently
+exposes five fields:</p>
+<ul>
+<li><strong>Snapshot interval</strong> —
+  <a href="../010-configuration/#engine_tuningsnapshot_interval_sec"><code>engine_tuning.snapshot_interval_sec</code></a>,
+  the minimum seconds between published book snapshots for a busy symbol.</li>
+<li><strong>Quote history</strong> —
+  <a href="../010-configuration/#engine_tuningquote_history_maxlen"><code>engine_tuning.quote_history_maxlen</code></a>,
+  how many recently inactivated quotes per gateway are retained for QLEGS
+  RECENT/ALL.</li>
+<li><strong>Drop copy buffer</strong> —
+  <a href="../010-configuration/#engine_tuningdrop_copy_buffer_size"><code>engine_tuning.drop_copy_buffer_size</code></a>,
+  how many drop-copy events are retained in memory for replay after reconnect.</li>
+<li><strong>Recent trades</strong> —
+  <a href="../010-configuration/#engine_tuningrecent_trades_maxlen"><code>engine_tuning.recent_trades_maxlen</code></a>,
+  how many recent trade rows each order book keeps for snapshots and
+  diagnostics.</li>
+<li><strong>Depth snapshot tolerance</strong> —
+  <a href="../010-configuration/#engine_tuningdepth_snapshot_tolerance_ticks"><code>engine_tuning.depth_snapshot_tolerance_ticks</code></a>,
+  the published depth window around the last trade, measured in ticks.</li>
+</ul>
+<p>The GUI presents these in the same way as the rest of the application: default
+values are shown as hints, changing a value marks the field as explicitly set,
+and the reset control returns it to the engine default.</p>
+<h2 id="diagnostics-and-live-validation">Diagnostics and live validation<a class="headerlink" href="#diagnostics-and-live-validation" title="Permanent link">&para;</a></h2>
+<p>Every rule runs <strong>live</strong>, on each change, and again before export. Results
+appear in three coordinated places:</p>
+<ul>
+<li><strong>Field markers</strong> — a red/amber left border, an inline icon, and a tooltip on
+  the offending field.</li>
+<li><strong>Tab glyphs</strong> — each tab shows the worst severity it contains (<code>✗</code> &gt; <code>!</code> &gt;
+  <code>✓</code> &gt; <code>—</code>).</li>
+<li><strong>Diagnostics drawer</strong> — the global list of every issue, each with <strong>Jump →</strong>
+  to navigate to and briefly highlight the linked field(s). When a rule links
+  two fields (for example a symbol's risk level and the level catalogue), both
+  are highlighted together.</li>
+</ul>
+<p>The rules mirror the CLI's own checks (undefined risk level, single gateway, no
+ADMIN gateway, collars/CB disabled, sessions-with-default-schedule, port
+collisions, out-of-order schedule) and add GUI-only structural checks (index
+constituents, combo legs, unknown market-maker obligation symbols, and more).</p>
+<p><strong>Export gate:</strong> the Review tab's <strong>Download</strong> is disabled while any
+<strong>error</strong>-severity diagnostic exists anywhere in the config. Warnings do not
+block export but require a one-time acknowledgement.</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 10 — Diagnostics drawer with Jump →</p>
+<p><em>Screenshot placeholder.</em> Capture the diagnostics drawer listing a mix of
+errors and warnings, with a field highlighted after using <strong>Jump →</strong>.
+Suggested file: <code>images/config-gui/fig-10-diagnostics.png</code>.</p>
+</div>
+<h2 id="importing-an-existing-configuration">Importing an existing configuration<a class="headerlink" href="#importing-an-existing-configuration" title="Permanent link">&para;</a></h2>
+<p><strong>Import</strong> (top bar) loads an existing <code>engine_config.yaml</code> into the form so you
+can edit it visually. The GUI maps the file directly into its internal model and
+opens the Review tab first, reporting the health of what you loaded.</p>
+<p>Anything the GUI does not model — a hand-added section, or a field from a newer
+schema — is preserved verbatim in a per-section <strong>"unmapped YAML" passthrough</strong>
+and re-emitted unchanged on export, so import → edit → export never silently
+drops data. A banner marks any tab that carries unmapped content.</p>
+<div class="admonition note">
+<p class="admonition-title">Comments are not round-tripped</p>
+<p>The GUI is a <em>structural</em> editor, not a text editor. It regenerates the
+header/comment block fresh (matching <code>pm-config-gen</code>'s convention) but does
+not preserve inline comments from the imported file.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 11 — Import result on the Review tab</p>
+<p><em>Screenshot placeholder.</em> Capture the Review tab immediately after importing
+a sample config, showing the diagnostics summary and, if present, an
+"unmapped section preserved" banner.
+Suggested file: <code>images/config-gui/fig-11-import.png</code>.</p>
+</div>
+<h2 id="reviewing-and-exporting">Reviewing and exporting<a class="headerlink" href="#reviewing-and-exporting" title="Permanent link">&para;</a></h2>
+<p>The <strong>Review &amp; Export</strong> tab (Beginner) is the final pass:</p>
+<ol>
+<li><strong>Diagnostics summary</strong> — the full issue list grouped by tab.</li>
+<li><strong>Output options</strong> — the download filename and the
+   "comment default fields" toggle (emits the full commented reference block,
+   matching <code>pm-config-gen --comment-default-config-fields</code>).</li>
+<li><strong>YAML preview</strong> — a live, syntax-highlighted, read-only render of exactly
+   what will be downloaded, with a copy-to-clipboard button. This preview <em>is</em>
+   the dry-run view.</li>
+<li><strong>Export actions:</strong><ul>
+<li><strong>Download</strong> — writes <code>engine_config.yaml</code> (blocked while any error
+  exists; warnings require a one-time acknowledgement).</li>
+<li><strong>Verify with pm-cverifier</strong> — optional; see
+  <a href="#optional-server-side-verification">server-side verification</a>.</li>
+</ul>
+</li>
+</ol>
+<p>Once downloaded, the file is ready for the engine and its companion processes —
+see <a href="../040-running-the-engine/">Running the Engine</a> and, for a first end-to-end
+run, <a href="../000-getting-started/">Getting Started</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 12 — Review &amp; Export with YAML preview</p>
+<p><em>Screenshot placeholder.</em> Capture the Review tab showing the diagnostics
+summary, the syntax-highlighted YAML preview, and the Download / Verify
+actions. Suggested file: <code>images/config-gui/fig-12-review-export.png</code>.</p>
+</div>
+<h2 id="deployment-and-operations">Deployment and operations<a class="headerlink" href="#deployment-and-operations" title="Permanent link">&para;</a></h2>
+<h3 id="single-container-recommended">Single container (recommended)<a class="headerlink" href="#single-container-recommended" title="Permanent link">&para;</a></h3>
+<p>For production the Fastify backend can serve the compiled frontend, so the whole
+application runs as <strong>one container on one port</strong> — no reverse-proxy juggling
+between a static host and an API, and no CORS configuration because everything
+is same-origin. <code>make up</code> (or <code>docker compose up --build</code>) is the entry point;
+see <a href="#option-1-one-command-with-the-container-stack">Running the application</a>.</p>
+<p>The image is multi-stage: it installs dependencies, builds the frontend, prunes
+dev dependencies, and starts the API with <code>STATIC_DIR</code> pointed at the built
+assets. The API serves the UI and falls back to <code>index.html</code> for client-side
+routes.</p>
+<h3 id="manual-production-build">Manual production build<a class="headerlink" href="#manual-production-build" title="Permanent link">&para;</a></h3>
+<p>To run the pieces yourself:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">cd</span><span class="w"> </span>config-gui
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>npm<span class="w"> </span>install
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>npm<span class="w"> </span>run<span class="w"> </span>build<span class="w">            </span><span class="c1"># emits the static UI to apps/web/dist</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="nv">STATIC_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">/apps/web/dist&quot;</span><span class="w"> </span><span class="nv">HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="nv">PORT</span><span class="o">=</span><span class="m">8080</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span>npm<span class="w"> </span>run<span class="w"> </span>start<span class="w"> </span>--workspace<span class="w"> </span>@edumatcher/server
+</code></pre></div>
+<p>Alternatively host <code>apps/web/dist</code> on any static server and run the API
+separately; then either reverse-proxy <code>/api</code> under the same origin or set
+<code>CORS_ORIGIN</code> to the UI's origin.</p>
+<h3 id="backend-environment-variables">Backend environment variables<a class="headerlink" href="#backend-environment-variables" title="Permanent link">&para;</a></h3>
+<p>All optional, read by the Fastify server:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HOST</code></td>
+<td><code>127.0.0.1</code></td>
+<td>API bind address (use <code>0.0.0.0</code> in containers)</td>
+</tr>
+<tr>
+<td><code>PORT</code></td>
+<td><code>5175</code></td>
+<td>API port (<code>8080</code> in the container image)</td>
+</tr>
+<tr>
+<td><code>STATIC_DIR</code></td>
+<td><em>(unset)</em></td>
+<td>Absolute path to the built UI; enables single-origin/single-container mode</td>
+</tr>
+<tr>
+<td><code>MAX_IMPORT_BYTES</code></td>
+<td><code>1000000</code></td>
+<td>Maximum accepted import payload (1 MB)</td>
+</tr>
+<tr>
+<td><code>CVERIFIER_COMMAND</code></td>
+<td><code>pm-cverifier</code></td>
+<td>Command for the optional verify endpoint, e.g. <code>"poetry run pm-cverifier"</code></td>
+</tr>
+<tr>
+<td><code>CORS_ORIGIN</code></td>
+<td><code>*</code></td>
+<td>Allowed CORS origin; restrict on shared deployments</td>
+</tr>
+<tr>
+<td><code>LOG_LEVEL</code></td>
+<td><code>info</code></td>
+<td>Fastify log level</td>
+</tr>
+</tbody>
+</table>
+<h3 id="building-behind-a-corporate-proxy-or-firewall">Building behind a corporate proxy or firewall<a class="headerlink" href="#building-behind-a-corporate-proxy-or-firewall" title="Permanent link">&para;</a></h3>
+<p>The build downloads npm packages from a registry. <strong>The Docker build does not
+inherit your host's npm or proxy settings</strong> — it has its own network and an
+empty npm config. Behind a proxy or a TLS-intercepting firewall, <code>npm install</code>
+may <strong>hang</strong> (the connection is silently dropped) rather than fail fast.</p>
+<p>First confirm the registry is reachable from inside a container:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>node:22-slim<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;npm config set fetch-timeout 30000 &amp;&amp; npm ping&quot;</span>
+</code></pre></div>
+<p>If that hangs, pass build arguments to route around it. <code>docker compose</code> picks
+up your shell's proxy variables automatically:</p>
+<table>
+<thead>
+<tr>
+<th>Build arg</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HTTP_PROXY</code> / <code>HTTPS_PROXY</code> / <code>NO_PROXY</code></td>
+<td>Route npm through your corporate proxy</td>
+</tr>
+<tr>
+<td><code>NPM_REGISTRY</code></td>
+<td>Use a corporate mirror (Artifactory / Nexus) instead of the public registry</td>
+</tr>
+<tr>
+<td><code>NPM_STRICT_SSL</code></td>
+<td>Set to <code>false</code> <strong>only</strong> as a last resort for TLS interception when you cannot install the CA</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">HTTPS_PROXY</span><span class="o">=</span>http://proxy.corp.example:8080
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NPM_REGISTRY</span><span class="o">=</span>https://artifactory.corp.example/api/npm/npm-remote/
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>--build
+</code></pre></div>
+<div class="admonition tip">
+<p class="admonition-title">TLS interception (custom root CA)</p>
+<p>If your proxy re-signs TLS with a corporate root CA, the cleaner fix than
+disabling <code>strict-ssl</code> is to trust that CA: copy the CA <code>.crt</code> into the image
+and set <code>NODE_EXTRA_CA_CERTS=/path/to/ca.crt</code> before <code>npm install</code>. The build
+also sets a fetch timeout, so a blocked network now fails in about two
+minutes with a clear error rather than hanging indefinitely.</p>
+</div>
+<h3 id="optional-server-side-verification_1">Optional: server-side verification<a class="headerlink" href="#optional-server-side-verification_1" title="Permanent link">&para;</a></h3>
+<p>The Review tab's <strong>Verify with pm-cverifier</strong> button POSTs the generated YAML to
+the backend, which shells out to <a href="../020-config-verifier/"><code>pm-cverifier</code></a> and
+renders its authoritative report inline. It is optional and pluggable:</p>
+<ul>
+<li>If the tool is not installed, the endpoint returns <code>503</code> and the UI shows a
+  clear "not available" message; nothing else is affected. The default container
+  image does <strong>not</strong> include the Python toolchain, so this button is inactive
+  there by design.</li>
+<li>To enable it, run the backend where <code>pm-cverifier</code> is on <code>PATH</code>, or set
+  <code>CVERIFIER_COMMAND="poetry run pm-cverifier"</code>.</li>
+<li>The backend invokes the tool with a fixed argument array over a temporary file
+  — never a shell string — so no user input is interpolated into a command line.</li>
+</ul>
+<h3 id="security-notes">Security notes<a class="headerlink" href="#security-notes" title="Permanent link">&para;</a></h3>
+<p>This is primarily a single-user local tool. Before exposing it on a shared
+network:</p>
+<ul>
+<li>Drafts and any generated API keys live <strong>only in the browser</strong>
+  (<code>localStorage</code>) and in the file you download. The backend does not persist
+  drafts and does not log request/response bodies containing credentials.</li>
+<li>The only subprocess-spawning endpoint is <code>POST /api/config/verify</code>. Put it
+  behind authentication and rate limiting on shared deployments, and set a
+  restrictive <code>CORS_ORIGIN</code>.</li>
+<li>Import payloads are size-capped (<code>MAX_IMPORT_BYTES</code>) and parsed with a safe
+  YAML schema.</li>
+</ul>
+<h2 id="how-the-gui-stays-valid">How the GUI stays valid<a class="headerlink" href="#how-the-gui-stays-valid" title="Permanent link">&para;</a></h2>
+<p>The GUI re-implements the <code>engine_config.yaml</code> schema in TypeScript and
+serializes it with the same section ordering and comment conventions as
+<code>pm-config-gen</code>. Because the format now has two implementations, a golden-file
+test (<code>npm run verify:python</code>) generates representative configs and runs each
+through the engine's real <code>load_engine_config()</code>. Keeping that check green is
+what guarantees GUI output loads in the engine. The developer checklist for
+keeping the two in sync lives in the
+<a href="https://github.com/johan162/EduMatcher/blob/main/config-gui/README.md"><code>config-gui/README.md</code></a>.</p>
+<h2 id="architecture-at-a-glance">Architecture at a glance<a class="headerlink" href="#architecture-at-a-glance" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>flowchart LR
+    U["Browser (React app)"] --&gt;|edits| S["In-memory draft (Zustand store)"]
+    S --&gt;|live| D["diagnostics engine (TypeScript)"]
+    D --&gt; U
+    U --&gt;|Import YAML| API["Fastify API"]
+    U --&gt;|Generate / Download| API
+    U -. "Optional Verify" .-&gt; API
+    API -. "execFile" .-&gt; PY["pm-cverifier (Python, optional)"]</code></pre>
+<p>The application is two processes: a <strong>web</strong> frontend (Vite + React) that in
+development proxies <code>/api/*</code> to the backend, and a <strong>server</strong> (Fastify) that
+imports, validates, generates, and — optionally — verifies. In production the
+server can also serve the built UI, collapsing the two into one container.</p>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>docker compose up --build</code> hangs at <code>RUN npm install</code></strong></td>
+<td>Corporate proxy/firewall blocks the registry; the build does not inherit host settings</td>
+<td>Confirm with <code>docker run --rm node:22-slim sh -c "npm config set fetch-timeout 30000 &amp;&amp; npm ping"</code>, then pass proxy/registry build args — see <a href="#building-behind-a-corporate-proxy-or-firewall">Building behind a corporate proxy</a>.</td>
+</tr>
+<tr>
+<td><strong><code>make up</code> fails: neither podman nor docker found</strong></td>
+<td>No container runtime on the host</td>
+<td>Install Podman or Docker, or use <a href="#option-3-local-development">local development</a>.</td>
+</tr>
+<tr>
+<td><strong><code>make up</code> on macOS: podman machine not running</strong></td>
+<td>The Podman VM is not started</td>
+<td><code>make up</code> starts it automatically; otherwise <code>podman machine init &amp;&amp; podman machine start</code>.</td>
+</tr>
+<tr>
+<td><strong>API calls fail in dev</strong> (<code>ECONNREFUSED</code> / 404 on <code>/api</code>)</td>
+<td>The backend is not running</td>
+<td>Start <code>npm run dev:server</code>; the web dev server proxies <code>/api</code> to <code>http://127.0.0.1:5175</code>.</td>
+</tr>
+<tr>
+<td><strong><code>"root" option must be an absolute path</code></strong> on startup</td>
+<td><code>STATIC_DIR</code> is a relative path</td>
+<td>Use an absolute path, e.g. <code>STATIC_DIR="$PWD/apps/web/dist"</code>.</td>
+</tr>
+<tr>
+<td><strong>Blank page in production</strong>, API works</td>
+<td>UI not built or <code>STATIC_DIR</code> wrong</td>
+<td>Run <code>npm run build</code>, then point <code>STATIC_DIR</code> at <code>apps/web/dist</code>.</td>
+</tr>
+<tr>
+<td><strong>Client route (e.g. <code>/review</code>) 404s in production</strong></td>
+<td>Static host without SPA fallback</td>
+<td>Let the API serve the UI (<code>STATIC_DIR</code>) — it falls back to <code>index.html</code>.</td>
+</tr>
+<tr>
+<td><strong>"pm-cverifier is not available"</strong> in the Review tab</td>
+<td>Verifier not on <code>PATH</code> (expected in the default container)</td>
+<td>Optional; set <code>CVERIFIER_COMMAND="poetry run pm-cverifier"</code> or run where the tool is installed.</td>
+</tr>
+<tr>
+<td><strong><code>npm run verify:python</code> cannot import <code>edumatcher</code></strong></td>
+<td>Python env not installed</td>
+<td>Run <code>poetry install</code> at the repository root.</td>
+</tr>
+<tr>
+<td><strong>Import rejected as too large</strong></td>
+<td>File exceeds <code>MAX_IMPORT_BYTES</code> (1 MB)</td>
+<td>Raise the limit via the env var, or trim the file.</td>
+</tr>
+<tr>
+<td><strong>Port already in use</strong></td>
+<td>Another process holds <code>5174</code>/<code>5175</code>/<code>8080</code></td>
+<td>Change <code>PORT</code> (API) or <code>server.port</code> / proxy target in <code>config-gui/apps/web/vite.config.ts</code> (web).</td>
+</tr>
+<tr>
+<td><strong>Imported config shows an "unmapped" banner</strong></td>
+<td>The file has sections the GUI does not model</td>
+<td>Expected — those sections are preserved read-only and re-emitted unchanged.</td>
+</tr>
+<tr>
+<td><strong>Quote Stub Review shows "! fill in" after import</strong></td>
+<td>No mid-range seeding and no explicit quotes for some symbols</td>
+<td>Set a mid-range on the Market Maker tab, or enter explicit bid/ask on each flagged symbol's MM Quotes sub-tab.</td>
+</tr>
+<tr>
+<td><strong>A tab you expected is missing</strong></td>
+<td>It is above the current persona, or (Market Maker) no MM gateway exists</td>
+<td>Raise the <a href="#personas">persona</a>, or add a <code>MARKET_MAKER</code> gateway.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../010-configuration/">Engine Configuration</a> — the <code>engine_config.yaml</code> format and the <code>pm-config-gen</code> CLI</li>
+<li><a href="../020-config-verifier/">Config Verifier (<code>pm-cverifier</code>)</a> — the authoritative validator behind the Verify button</li>
+<li><a href="../120-risk-controls/">Risk Controls</a> — collars, circuit breakers, and day-one (IPO) behaviour</li>
+<li><a href="../080-auctions-scheduling/">Auctions &amp; Session Scheduling</a> — session phases and <code>pm-scheduler</code></li>
+<li><a href="../090-market-maker/">Market Making</a> — obligations, quote lifecycle, and startup seeding</li>
+<li><a href="../060-order-types/">Order Types</a> — how orders interact with collars and circuit breakers</li>
+<li><a href="../070-combos/">Combo Orders</a> and <a href="../150-index/">Market Index</a> — the Combos and Indices tabs</li>
+<li><a href="../810-example-configs/">Example Engine Configs</a> — reference configurations to import and study</li>
+<li><a href="../040-running-the-engine/">Running the Engine</a> — using the file you exported</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

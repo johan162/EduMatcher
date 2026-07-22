@@ -1,0 +1,5580 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/920-app-calf-protocol/">
+      
+      
+        <link rel="prev" href="../910-app-balf-protocol/">
+      
+      
+        <link rel="next" href="../930-app-ralf-protocol/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Appendix: CALF Protocol - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#appendix-calf-protocol-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Appendix: CALF Protocol
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../000-getting-started/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../training/" class="md-tabs__link">
+          
+  
+  
+  Training
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/07-concepts-implied-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implied Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../000-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../010-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../020-config-verifier/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config Verifier
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../030-config-GUI/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration GUI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../040-running-the-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../050-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../060-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../070-combos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../080-auctions-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../090-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../100-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market-Maker Bot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../110-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../120-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../130-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../140-statistics-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../150-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../152-index-admin-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index Admin CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../160-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exchange Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../170-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../180-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../190-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Trail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../200-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../201-dc-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy TCP Gateway (pm-dc-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocol-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Protocols Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../220-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../230-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../240-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../241-calf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CALF Protocol Spy (pm-calf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../250-post-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-Trade Dissemination (RALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../251-ralf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RALF Protocol Spy (pm-ralf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../252-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../260-api-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../270-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../800-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../810-example-configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../890-known-limitations-bugs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Limitations & Bugs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../900-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../910-app-balf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-calf-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What CALF is
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scope-conformance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scope &amp; conformance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Scope &amp; conformance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#supported-in-calf-100" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported in CALF 1.0.0
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#out-of-scope-in-calf-100" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of scope in CALF 1.0.0
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transport-and-session-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transport and session model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wire-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wire format
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Wire format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#line-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Line structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parsing-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parsing behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tcp-stream-requirement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TCP stream requirement
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#field-conventions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Field conventions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Field conventions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reserved-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reserved keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wire-value-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wire value types
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#channel-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Channel model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Channel model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#subscription-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subscription rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message-catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message catalog
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Message catalog">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#session-control-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Session control messages
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#market-data-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Market-data messages
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message definitions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Message definitions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hello" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HELLO
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#welcome" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WELCOME
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sub" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SUB
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unsub" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UNSUB
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#snap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SNAP
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#md" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MD
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#trade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TRADE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        STATE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#idx" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IDX
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#depth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DEPTH
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#auction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AUCTION
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CB
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HB
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ping-pong" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PING / PONG
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#err" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ERR
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EXIT
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sequence-and-recovery-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sequence and recovery semantics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sequence and recovery semantics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stream-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stream identity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sequence-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sequence rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#first-connect-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        First connect behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reconnect-behavior-resume1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reconnect behavior (RESUME=1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#liveness-and-timeout-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Liveness and timeout rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#session-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Session lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gateway-behavior-requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gateway behavior requirements
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-to-watch-out-for-during-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to watch out for during implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conformance-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conformance notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../930-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../990-app-config-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: Engine Config Specification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/00-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    00 — Installation & Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/01-configuring-startup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    01 — Configuring & Starting Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/02-setting-up-MM-bots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    02 — Setting Up Market-Maker Liquidity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/03-the-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    03 — The First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/04-amending-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04 — Amending Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/05-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05 — Order Types Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/06-time-in-force-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    06 — Time-in-Force & Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/07-auctions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    07 — Auctions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/08-cancelling-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    08 — Cancelling & Managing Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/09-market-making/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    09 — Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/10-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10 — Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/11-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11 — Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/12-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12 — P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/13-market-data-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13 — Market Data & Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/14-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14 — AI Traders & Swarm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/15-statistics-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15 — Statistics & Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/16-persistence-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16 — Persistence & Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/17-capstone-scenario/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17 — Capstone Scenario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/18-exchange-observer-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18 — Exchange Observer Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/19-advanced-admin-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    19 — Advanced Admin Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/20-drop-copy-replay-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20 — Drop-Copy Replay & Recovery Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/21-automation-commandclient-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21 — Automation with CommandClient & MM Bot Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/22-ralf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/24-api-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24 — API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/25-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/26-alf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 - ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/27-balf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27 - BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/05-vm-runtime-image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Runtime Image
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="appendix-calf-protocol-reference">Appendix: CALF Protocol Reference<a class="headerlink" href="#appendix-calf-protocol-reference" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>Status: Normative.</strong> This appendix is the single source of truth for the CALF
+<code>1.0.0</code> wire contract as implemented by <code>pm-md-gwy</code> (<code>md_gateway/</code>). For an
+operational, tutorial-style guide see <a href="../240-market-data-feed/">Market Data Feed (CALF)</a>;
+for the gateway's configuration block see
+<a href="../990-app-config-spec/#63-market_data_gateway-pm-md-gwy-calf">Engine Config Specification §6.3</a>.
+The key words MUST, MUST NOT, SHOULD, and MAY are used per RFC 2119.</p>
+</blockquote>
+<h2 id="what-calf-is">What CALF is<a class="headerlink" href="#what-calf-is" title="Permanent link">&para;</a></h2>
+<p><strong>CALF</strong> stands for <strong>Channel ALF</strong>.</p>
+<p>CALF is EduMatcher's text market-data protocol. It is designed for educational
+clarity and bot usability: human-readable on the wire, easy to debug in a
+terminal, and strict enough to support deterministic clients.</p>
+<p>CALF complements the other application protocols:</p>
+<table>
+<thead>
+<tr>
+<th>Protocol</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ALF</td>
+<td>Text order entry (interactive)</td>
+</tr>
+<tr>
+<td>BALF</td>
+<td>Binary order entry (low-latency programmatic)</td>
+</tr>
+<tr>
+<td>CALF</td>
+<td>Channelized text market data</td>
+</tr>
+</tbody>
+</table>
+<p>This appendix is the <strong>normative reference</strong> for CALF <code>1.0.0</code> semantics.</p>
+<h2 id="scope-conformance">Scope &amp; conformance<a class="headerlink" href="#scope-conformance" title="Permanent link">&para;</a></h2>
+<p>CALF is the external market-data protocol exposed by <code>pm-md-gwy</code>. The gateway
+subscribes to internal engine PUB topics and translates them into CALF lines
+for TCP clients.</p>
+<p>This appendix specifies the <strong>client-visible CALF protocol</strong>. It does not
+specify internal engine message schemas beyond what is needed to explain CALF
+behavior.</p>
+<h3 id="supported-in-calf-100">Supported in CALF <code>1.0.0</code><a class="headerlink" href="#supported-in-calf-100" title="Permanent link">&para;</a></h3>
+<ul>
+<li>top-of-book updates (<code>MD</code>) by symbol</li>
+<li>trade prints (<code>TRADE</code>) by symbol</li>
+<li>state transitions (<code>STATE</code>) for session-wide and symbol-level changes</li>
+<li>index level updates (<code>IDX</code>) from <code>pm-index</code></li>
+<li>aggregated multi-level order book updates (<code>DEPTH</code>) — Level 2, not
+  order-by-order</li>
+<li>auction uncross results (<code>AUCTION</code>) — equilibrium price, matched quantity,
+  and imbalance for open/close auctions and circuit-breaker resumption
+  auctions</li>
+<li>full circuit-breaker halt/resume detail (<code>CB</code>) — trigger price, reference
+  price, ladder level, auto-resume time, and resumption mode, alongside the
+  coarse <code>STATE</code> transition</li>
+<li>point-in-time stream baselines (<code>SNAP</code>) for <code>TOP</code>, <code>STATE</code>, <code>INDEX</code>,
+  <code>DEPTH</code>, and <code>CB</code></li>
+<li>per-stream sequence numbers on <code>(CH, SYM)</code></li>
+<li><code>SYM=*</code> wildcard subscriptions for <code>STATE</code>, <code>TOP</code>, <code>TRADE</code>, and <code>AUCTION</code></li>
+<li>bounded replay on reconnect (<code>RESUME=1</code> + <code>LASTSEQ</code>)</li>
+<li>heartbeat and liveness signaling</li>
+<li>gateway capability advertisement via <code>WELCOME|CH_SUPPORTED=</code></li>
+</ul>
+<h3 id="out-of-scope-in-calf-100">Out of scope in CALF <code>1.0.0</code><a class="headerlink" href="#out-of-scope-in-calf-100" title="Permanent link">&para;</a></h3>
+<ul>
+<li>full order-by-order (Level 3) market data — <code>DEPTH</code> is Level 2
+  (aggregated per price level), never per-order</li>
+<li><code>SYM=*</code> for <code>INDEX</code>, <code>DEPTH</code>, or <code>CB</code></li>
+<li>index-level circuit breakers on <code>CB</code> (symbol-level only; see
+  <a href="../../docs-design/EduMatcher-index-cb.md">EduMatcher-index-cb.md</a> for the
+  separate index-level proposal)</li>
+<li>multicast / UDP transport</li>
+<li>entitlement matrix per field</li>
+<li>durable historical replay from disk</li>
+<li>protocol-layer authentication token</li>
+</ul>
+<h2 id="transport-and-session-model">Transport and session model<a class="headerlink" href="#transport-and-session-model" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Transport</td>
+<td>TCP</td>
+</tr>
+<tr>
+<td>Default port</td>
+<td><code>5570</code></td>
+</tr>
+<tr>
+<td>Encoding</td>
+<td>UTF-8 line protocol</td>
+</tr>
+<tr>
+<td>Delimiter</td>
+<td><code>\n</code></td>
+</tr>
+<tr>
+<td>Max line length</td>
+<td>4096 bytes including newline</td>
+</tr>
+</tbody>
+</table>
+<p>A CALF client connection is long-lived.</p>
+<ul>
+<li>Client must send <code>HELLO</code> within 5 seconds of TCP connect.</li>
+<li>Gateway replies with <code>WELCOME</code> on success.</li>
+<li>Client may then send <code>SUB</code>, <code>UNSUB</code>, <code>PING</code>, and <code>EXIT</code>.</li>
+<li>Gateway streams <code>SNAP</code>, <code>MD</code>, <code>TRADE</code>, <code>STATE</code>, <code>IDX</code>, <code>DEPTH</code>, <code>AUCTION</code>,
+  <code>CB</code>, <code>HB</code>, and <code>ERR</code>.</li>
+</ul>
+<p>If no <code>HELLO</code> is received within 5 seconds, the gateway closes the socket.</p>
+<h2 id="wire-format">Wire format<a class="headerlink" href="#wire-format" title="Permanent link">&para;</a></h2>
+<h3 id="line-structure">Line structure<a class="headerlink" href="#line-structure" title="Permanent link">&para;</a></h3>
+<p>Every CALF message is one line:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>&lt;MSGTYPE&gt;|KEY=VALUE|KEY=VALUE|...\n
+</code></pre></div>
+<p><code>MSGTYPE</code> is the first token and is always uppercase ASCII.</p>
+<p>Examples:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>HELLO|CLIENT=bot01|PROTO=CALF1
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SIDE=BUY
+</code></pre></div>
+<h3 id="parsing-behavior">Parsing behavior<a class="headerlink" href="#parsing-behavior" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Messages are delimited by newline (<code>\n</code>).</li>
+<li><code>\r\n</code> from clients is accepted for robustness.</li>
+<li>Field order after <code>MSGTYPE</code> is not significant.</li>
+<li>Unknown keys are ignored unless needed for validating a specific message.</li>
+<li>Duplicate keys: last occurrence wins.</li>
+<li>Empty lines are invalid and may result in <code>ERR|CODE=BAD_MESSAGE</code>.</li>
+</ul>
+<h3 id="tcp-stream-requirement">TCP stream requirement<a class="headerlink" href="#tcp-stream-requirement" title="Permanent link">&para;</a></h3>
+<p>TCP is a byte stream, not a message queue.</p>
+<p>A receiver must buffer bytes and split by newline. A single <code>recv()</code> may
+contain half a line, one full line, or many lines.</p>
+<h2 id="field-conventions">Field conventions<a class="headerlink" href="#field-conventions" title="Permanent link">&para;</a></h2>
+<h3 id="reserved-keys">Reserved keys<a class="headerlink" href="#reserved-keys" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Logical channel (<code>TOP</code>, <code>TRADE</code>, <code>STATE</code>, <code>INDEX</code>, <code>DEPTH</code>, <code>AUCTION</code>, <code>CB</code>)</td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Symbol, index id, or <code>*</code> where allowed</td>
+</tr>
+<tr>
+<td><code>SEQ</code></td>
+<td>Sequence number for one <code>(CH, SYM)</code> stream</td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td>UTC ISO-8601 timestamp with milliseconds</td>
+</tr>
+</tbody>
+</table>
+<h3 id="wire-value-types">Wire value types<a class="headerlink" href="#wire-value-types" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Wire representation</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Decimal price</td>
+<td>Text decimal</td>
+<td><code>150.25</code></td>
+</tr>
+<tr>
+<td>Integer</td>
+<td>Base-10 text integer</td>
+<td><code>1200</code></td>
+</tr>
+<tr>
+<td>Boolean flag</td>
+<td><code>0</code> or <code>1</code></td>
+<td><code>RESUME=1</code></td>
+</tr>
+<tr>
+<td>Timestamp</td>
+<td>UTC ISO-8601 ms</td>
+<td><code>2026-06-07T10:15:23.411Z</code></td>
+</tr>
+</tbody>
+</table>
+<p>Optional fields are omitted when not present. Empty required values are invalid.</p>
+<h2 id="channel-model">Channel model<a class="headerlink" href="#channel-model" title="Permanent link">&para;</a></h2>
+<p>CALF groups market data into logical channels.</p>
+<table>
+<thead>
+<tr>
+<th>Channel</th>
+<th>Description</th>
+<th><code>SYM=*</code> allowed?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TOP</code></td>
+<td>Best bid/ask updates and snapshots</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>TRADE</code></td>
+<td>Trade prints</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>STATE</code></td>
+<td>Session or symbol state transitions</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>INDEX</code></td>
+<td>Index level updates</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>DEPTH</code></td>
+<td>Aggregated multi-level order book (Level 2)</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>AUCTION</code></td>
+<td>Auction uncross results (equilibrium price, imbalance)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>CB</code></td>
+<td>Circuit-breaker halt/resume detail (trigger price, level, ...)</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<p><code>SNAP</code> is a message type, not a channel.</p>
+<p>A client does not subscribe to <code>SNAP</code> directly. The gateway auto-sends <code>SNAP</code>
+for new <code>SUB</code> requests on <code>TOP</code>, <code>STATE</code>, <code>INDEX</code>, <code>DEPTH</code>, and <code>CB</code>. <code>TRADE</code>
+and <code>AUCTION</code> have no baseline <code>SNAP</code> — only future events are delivered for
+those two channels, since neither has a persistent "current value" to
+snapshot.</p>
+<p><code>SYM=*</code> for <code>TOP</code> does not produce a single <code>SNAP|SYM=*</code>. Top-of-book has no
+meaningful "wildcard" value, so the gateway instead sends one real <code>SNAP</code> per
+currently known symbol, then live <code>MD</code> for any symbol — including ones that
+become known only after the <code>SUB</code> — via the same wildcard subscription entry.</p>
+<h3 id="subscription-rules">Subscription rules<a class="headerlink" href="#subscription-rules" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>SUB</code> may include multiple channels and symbols separated by commas.</li>
+<li>A multi-value <code>SUB</code> applies to the Cartesian product of channels and symbols.</li>
+<li><code>SYM=*</code> is valid when the channel set is a subset of
+  <code>{STATE, TOP, TRADE, AUCTION}</code>, in any combination. <code>SYM=*</code> combined with
+  <code>INDEX</code>, <code>DEPTH</code>, or <code>CB</code> — alone or mixed with any other channel in the
+  same <code>SUB</code> — is invalid.</li>
+<li>A wildcard subscription (<code>SYM=*</code>) counts as exactly one entry toward
+  <code>max_symbols_per_client</code>, not one entry per known symbol.</li>
+<li>Re-subscribing an already active pair is idempotent.</li>
+<li>Maximum symbols per client are enforced by gateway config.</li>
+<li>If any requested <code>(CH,SYM)</code> pair is invalid, the gateway rejects the <code>SUB</code>
+  request with <code>ERR</code> and leaves existing subscriptions unchanged.</li>
+<li>For non-<code>INDEX</code> channels, a non-wildcard <code>SYM</code> is validated against the
+  gateway's known instrument list (populated from the engine's configured
+  symbols at startup); an unrecognized symbol returns
+  <code>ERR|CODE=INVALID_SYMBOL</code>. <code>INDEX</code> is exempt from this check — index ids
+  live in a separate namespace from tradable instrument symbols, so any
+  non-empty id is accepted at <code>SUB</code> time regardless of whether a matching
+  index is actually configured. <code>AUCTION</code> and <code>CB</code> are not exempt: a
+  non-wildcard symbol for either is checked against the same known-instrument
+  list as <code>TOP</code>/<code>TRADE</code>/<code>STATE</code>/<code>DEPTH</code>.</li>
+<li>If the gateway's known-symbol list itself is empty (for example, engine
+  config failed to load additional symbol metadata at gateway startup),
+  known-symbol validation is skipped entirely and any non-wildcard symbol is
+  accepted; this is a permissive fallback, not a documented steady-state
+  mode, and operators should treat an empty known-symbol list as a
+  configuration problem to fix rather than relied-upon behavior.</li>
+</ul>
+<p><code>DEPTH</code> and <code>CB</code> disallow <code>SYM=*</code> deliberately, not as an oversight: <code>DEPTH</code>
+messages carry up to <code>2 x depth_levels</code> price levels each, so a wildcard
+subscription could multiply one client's outbound bandwidth by the entire
+symbol count; <code>CB</code> halts/resumes are rare, per-symbol operator-relevant
+events rather than a firehose use case. <code>AUCTION</code>, by contrast, allows
+<code>SYM=*</code>: auction events are extremely low frequency (at most a handful per
+symbol per trading day), so a wildcard subscription poses none of <code>DEPTH</code>'s
+bandwidth risk, and — like <code>TRADE</code> — <code>AUCTION</code> has no baseline <code>SNAP</code> to
+burst per symbol on subscribe.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>SUB|CH=TOP,TRADE|SYM=AAPL,MSFT
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>SUB|CH=STATE|SYM=*
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>SUB|CH=TRADE|SYM=*
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>SUB|CH=TOP,TRADE,STATE|SYM=*
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>SUB|CH=DEPTH|SYM=AAPL
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>SUB|CH=AUCTION|SYM=*
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>SUB|CH=CB|SYM=AAPL
+</code></pre></div>
+<h2 id="message-catalog">Message catalog<a class="headerlink" href="#message-catalog" title="Permanent link">&para;</a></h2>
+<h3 id="session-control-messages">Session control messages<a class="headerlink" href="#session-control-messages" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Direction</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HELLO</code></td>
+<td>Client -&gt; Gateway</td>
+<td>Start session; optional single-stream resume</td>
+</tr>
+<tr>
+<td><code>WELCOME</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Confirm session and advertise parameters</td>
+</tr>
+<tr>
+<td><code>SUB</code></td>
+<td>Client -&gt; Gateway</td>
+<td>Add subscriptions</td>
+</tr>
+<tr>
+<td><code>UNSUB</code></td>
+<td>Client -&gt; Gateway</td>
+<td>Remove subscriptions</td>
+</tr>
+<tr>
+<td><code>PING</code></td>
+<td>Client -&gt; Gateway</td>
+<td>Liveness probe</td>
+</tr>
+<tr>
+<td><code>PONG</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Probe reply</td>
+</tr>
+<tr>
+<td><code>HB</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Heartbeat when quiet</td>
+</tr>
+<tr>
+<td><code>ERR</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Protocol or flow error</td>
+</tr>
+<tr>
+<td><code>EXIT</code></td>
+<td>Client -&gt; Gateway</td>
+<td>Clean disconnect</td>
+</tr>
+</tbody>
+</table>
+<h3 id="market-data-messages">Market-data messages<a class="headerlink" href="#market-data-messages" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Direction</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SNAP</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Point-in-time baseline for one stream</td>
+</tr>
+<tr>
+<td><code>MD</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Incremental top-of-book update</td>
+</tr>
+<tr>
+<td><code>TRADE</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Trade print</td>
+</tr>
+<tr>
+<td><code>STATE</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Session/symbol state transition</td>
+</tr>
+<tr>
+<td><code>IDX</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Index level update</td>
+</tr>
+<tr>
+<td><code>DEPTH</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Incremental multi-level order book update</td>
+</tr>
+<tr>
+<td><code>AUCTION</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Auction uncross result</td>
+</tr>
+<tr>
+<td><code>CB</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Circuit-breaker halt/resume detail</td>
+</tr>
+</tbody>
+</table>
+<h2 id="message-definitions">Message definitions<a class="headerlink" href="#message-definitions" title="Permanent link">&para;</a></h2>
+<h3 id="hello"><code>HELLO</code><a class="headerlink" href="#hello" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Client -&gt; Gateway</p>
+<p><strong>Purpose:</strong> Session handshake. Optional replay request for one stream.</p>
+<p><strong>Response:</strong> <code>WELCOME</code> on successful handshake, or <code>ERR|CODE=PROTO_MISMATCH</code>
+(connection closed) if <code>CLIENT</code>/<code>PROTO</code> fail validation. When <code>RESUME=1</code> is
+present and the handshake itself succeeds, the gateway always sends
+<code>WELCOME</code> first and then evaluates the resume request separately — an
+invalid resume (bad <code>CH</code>/<code>SYM</code>/<code>LASTSEQ</code> shape, or a replay miss) produces
+<code>WELCOME</code> followed by an <code>ERR</code> (<code>BAD_MESSAGE</code> or <code>REPLAY_MISS</code>), not <code>ERR</code>
+alone. A <code>BAD_MESSAGE</code> resume error closes the connection after the queued
+messages are flushed; a <code>REPLAY_MISS</code> does not — it is followed by a <code>SNAP</code>
+and the session continues.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CLIENT</code></td>
+<td>Yes</td>
+<td>Client ID (ASCII, max 32 chars)</td>
+</tr>
+<tr>
+<td><code>PROTO</code></td>
+<td>Yes</td>
+<td>Must be <code>CALF1</code></td>
+</tr>
+<tr>
+<td><code>RESUME</code></td>
+<td>No</td>
+<td><code>1</code> enables replay request</td>
+</tr>
+<tr>
+<td><code>CH</code></td>
+<td>If <code>RESUME=1</code></td>
+<td>One channel to resume</td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>If <code>RESUME=1</code></td>
+<td>One symbol for resumed stream</td>
+</tr>
+<tr>
+<td><code>LASTSEQ</code></td>
+<td>If <code>RESUME=1</code></td>
+<td>Last received sequence for that stream</td>
+</tr>
+</tbody>
+</table>
+<p>Validation rules:</p>
+<ul>
+<li>Messages other than <code>HELLO</code> sent before successful handshake receive
+  <code>ERR|CODE=AUTH_REQUIRED</code>.</li>
+<li><code>RESUME=1</code> with missing <code>CH</code>, <code>SYM</code>, or <code>LASTSEQ</code> is invalid.</li>
+<li><code>RESUME=1</code> with multi-value <code>CH</code> or <code>SYM</code> is invalid.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>HELLO|CLIENT=bot01|PROTO=CALF1
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
+</code></pre></div>
+<h3 id="welcome"><code>WELCOME</code><a class="headerlink" href="#welcome" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Gateway -&gt; Client</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROTO</code></td>
+<td>Yes</td>
+<td>Echoes negotiated protocol</td>
+</tr>
+<tr>
+<td><code>GW</code></td>
+<td>Yes</td>
+<td>Gateway instance name</td>
+</tr>
+<tr>
+<td><code>HBINT</code></td>
+<td>Yes</td>
+<td>Heartbeat interval in seconds</td>
+</tr>
+<tr>
+<td><code>REPLAY</code></td>
+<td>Yes</td>
+<td>Replay window in seconds</td>
+</tr>
+<tr>
+<td><code>SYMBOLS</code></td>
+<td>No</td>
+<td>Comma-separated snapshot of instrument symbols known to the gateway at connect time. Omitted when the gateway has no known symbols yet. The known-symbol set can grow after <code>WELCOME</code> is sent, as new <code>book.{SYMBOL}</code>/trade events arrive from the engine — this field is a point-in-time snapshot, not a fixed universe, and a symbol absent here may still become subscribable later without a new <code>WELCOME</code>.</td>
+</tr>
+<tr>
+<td><code>CH_SUPPORTED</code></td>
+<td>No</td>
+<td>Comma-separated list of channels this gateway build supports. Present on every CALF <code>1.0.0</code>+ gateway; omitted entirely by earlier gateways. A client uses its presence — not the <code>PROTO</code> value, which does not change — to detect whether <code>DEPTH</code>/<code>INDEX</code> and the <code>SYM=*</code> wildcard extension are available.</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE
+</code></pre></div>
+<p>A client that receives no <code>CH_SUPPORTED</code> field must assume only <code>TOP</code>,
+<code>TRADE</code>, and <code>STATE</code> are available and must not rely on <code>SYM=*</code> for <code>TOP</code>/
+<code>TRADE</code>, <code>INDEX</code>, or <code>DEPTH</code> without first probing with <code>SUB</code> and handling a
+possible <code>ERR|CODE=INVALID_CHANNEL</code>/<code>INVALID_SYMBOL</code> response.</p>
+<h3 id="sub"><code>SUB</code><a class="headerlink" href="#sub" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Client -&gt; Gateway</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Yes</td>
+<td>Comma-separated channels</td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Comma-separated symbols (<code>*</code> only when <code>CH</code> is a subset of <code>{STATE, TOP, TRADE, AUCTION}</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Response semantics:</strong></p>
+<ul>
+<li>No explicit ACK.</li>
+<li>New <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code> subscriptions trigger <code>SNAP</code>. A
+  wildcard <code>TOP</code> subscription (<code>SYM=*</code>) triggers one real <code>SNAP</code> per
+  currently known symbol, never a single <code>SNAP</code> with a literal <code>SYM=*</code>.</li>
+<li><code>TRADE</code> and <code>AUCTION</code> subscriptions do not have a baseline <code>SNAP</code>; only
+  future events are sent for those two channels.</li>
+<li>Invalid requests return <code>ERR</code>.</li>
+<li>Existing successful subscriptions remain active when a later <code>SUB</code> request is invalid.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>SUB|CH=TOP,TRADE|SYM=AAPL,MSFT
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>SUB|CH=STATE|SYM=*
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>SUB|CH=TRADE|SYM=*
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>SUB|CH=DEPTH|SYM=AAPL
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>SUB|CH=AUCTION|SYM=*
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>SUB|CH=CB|SYM=AAPL
+</code></pre></div>
+<h3 id="unsub"><code>UNSUB</code><a class="headerlink" href="#unsub" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Client -&gt; Gateway</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Yes</td>
+<td>Comma-separated channels</td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Comma-separated symbols</td>
+</tr>
+</tbody>
+</table>
+<p><code>UNSUB</code> is idempotent. Removing a non-existent <code>(CH,SYM)</code> pair has no effect.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>UNSUB|CH=TOP|SYM=AAPL
+</code></pre></div>
+<h3 id="snap"><code>SNAP</code><a class="headerlink" href="#snap" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Gateway -&gt; Client</p>
+<p><strong>Purpose:</strong> Baseline for one stream.</p>
+<p><code>SNAP</code> uses channel-specific payload fields.</p>
+<p>Common fields:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Yes</td>
+<td><code>TOP</code>, <code>STATE</code>, <code>INDEX</code>, <code>DEPTH</code>, or <code>CB</code></td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Symbol, index id, or <code>*</code> for session state</td>
+</tr>
+<tr>
+<td><code>SEQ</code></td>
+<td>Yes</td>
+<td>Current stream sequence</td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td>Yes</td>
+<td>Snapshot timestamp</td>
+</tr>
+</tbody>
+</table>
+<p><code>CH=TOP</code> fields:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BID</code></td>
+<td>No</td>
+<td>Best bid price</td>
+</tr>
+<tr>
+<td><code>BIDSZ</code></td>
+<td>No</td>
+<td>Best bid size</td>
+</tr>
+<tr>
+<td><code>ASK</code></td>
+<td>No</td>
+<td>Best ask price</td>
+</tr>
+<tr>
+<td><code>ASKSZ</code></td>
+<td>No</td>
+<td>Best ask size</td>
+</tr>
+<tr>
+<td><code>LAST</code></td>
+<td>No</td>
+<td>Last trade price</td>
+</tr>
+<tr>
+<td><code>LASTSZ</code></td>
+<td>No</td>
+<td>Last trade size</td>
+</tr>
+</tbody>
+</table>
+<p>A <code>SUB|CH=TOP|SYM=*</code> never produces a <code>SNAP</code> with a literal <code>SYM=*</code> — see
+"Channel model" above. Each <code>SNAP</code> in the resulting burst has a real <code>SYM</code>
+and uses that symbol's own <code>(TOP, SYM)</code> sequence.</p>
+<p><code>CH=STATE</code> fields:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SESSION</code></td>
+<td>Yes</td>
+<td>Current state value</td>
+</tr>
+</tbody>
+</table>
+<p><code>CH=INDEX</code> fields: identical field set to the <code>IDX</code> message — see that
+section below. Since CALF <code>1.0.0</code>, <code>SUB|CH=INDEX</code> sends a baseline <code>SNAP</code>
+before any live <code>IDX</code> updates, the same as <code>TOP</code>/<code>STATE</code>/<code>DEPTH</code>.</p>
+<p><code>CH=DEPTH</code> fields: identical field set to the <code>DEPTH</code> message — see that
+section below. <code>BIDS</code>/<code>ASKS</code> are omitted entirely (not sent as empty
+strings) when a symbol's book has no resting orders on that side yet.</p>
+<p><code>CH=CB</code> fields: identical field set to the <code>CB</code> message — see that section
+below. Reflects the <strong>last known</strong> circuit-breaker status for the symbol —
+<code>STATUS=ACTIVE</code> with no further fields if the symbol has never halted.</p>
+<p><code>TRADE</code>/<code>AUCTION</code> stream note:</p>
+<ul>
+<li>Neither <code>CH=TRADE</code> nor <code>CH=AUCTION</code> has a <code>SNAP</code> variant in CALF <code>1.0.0</code> —
+  both are pure event streams with no persistent "current value."</li>
+<li>Delivery for both starts from events that occur after the subscription is
+  active (plus any replay via <code>RESUME=1</code>, see "Sequence and recovery
+  semantics").</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>SNAP|CH=TOP|SYM=AAPL|SEQ=100|TS=2026-06-07T10:16:00.000Z|BID=150.10|BIDSZ=1200|ASK=150.12|ASKSZ=900|LAST=150.11|LASTSZ=300
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>SNAP|CH=STATE|SYM=*|SEQ=5|TS=2026-06-07T10:16:00.000Z|SESSION=CONTINUOUS
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>SNAP|CH=INDEX|SYM=EDU100|SEQ=42|TS=2026-06-12T10:15:23.000Z|LEVEL=1048.73|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|SESSION=CONTINUOUS
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>SNAP|CH=DEPTH|SYM=AAPL|SEQ=1|TS=2026-07-11T14:32:00.000Z|LEVELS=10|BIDS=150.10:1200:3,150.09:800:2|ASKS=150.12:900:2,150.13:600:1
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>SNAP|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T14:05:00.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|MODE=AUCTION
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>SNAP|CH=CB|SYM=MSFT|SEQ=1|TS=2026-07-20T14:05:00.000Z|STATUS=ACTIVE
+</code></pre></div>
+<h3 id="md"><code>MD</code><a class="headerlink" href="#md" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Gateway -&gt; Client</p>
+<p><strong>Purpose:</strong> Incremental <code>TOP</code> update. Unchanged sides may be omitted.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Yes</td>
+<td><code>TOP</code></td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Symbol</td>
+</tr>
+<tr>
+<td><code>SEQ</code></td>
+<td>Yes</td>
+<td>Stream sequence</td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td>Yes</td>
+<td>Event timestamp</td>
+</tr>
+<tr>
+<td><code>BID</code></td>
+<td>No</td>
+<td>Updated bid</td>
+</tr>
+<tr>
+<td><code>BIDSZ</code></td>
+<td>No</td>
+<td>Updated bid size</td>
+</tr>
+<tr>
+<td><code>ASK</code></td>
+<td>No</td>
+<td>Updated ask</td>
+</tr>
+<tr>
+<td><code>ASKSZ</code></td>
+<td>No</td>
+<td>Updated ask size</td>
+</tr>
+<tr>
+<td><code>LAST</code></td>
+<td>No</td>
+<td>Updated last trade price</td>
+</tr>
+<tr>
+<td><code>LASTSZ</code></td>
+<td>No</td>
+<td>Updated last trade size</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>MD|CH=TOP|SYM=AAPL|SEQ=1051|TS=2026-06-07T10:16:00.115Z|BID=150.11|BIDSZ=1400|ASK=150.13|ASKSZ=800
+</code></pre></div>
+<h3 id="trade"><code>TRADE</code><a class="headerlink" href="#trade" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Gateway -&gt; Client</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Yes</td>
+<td><code>TRADE</code></td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Symbol</td>
+</tr>
+<tr>
+<td><code>SEQ</code></td>
+<td>Yes</td>
+<td>Stream sequence</td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td>Yes</td>
+<td>Trade timestamp</td>
+</tr>
+<tr>
+<td><code>PX</code></td>
+<td>Yes</td>
+<td>Trade price</td>
+</tr>
+<tr>
+<td><code>QTY</code></td>
+<td>Yes</td>
+<td>Trade quantity</td>
+</tr>
+<tr>
+<td><code>SIDE</code></td>
+<td>Yes</td>
+<td>Aggressor side (<code>BUY</code> or <code>SELL</code>)</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SIDE=BUY
+</code></pre></div>
+<h3 id="state"><code>STATE</code><a class="headerlink" href="#state" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Gateway -&gt; Client</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Yes</td>
+<td><code>STATE</code></td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Symbol or <code>*</code></td>
+</tr>
+<tr>
+<td><code>SEQ</code></td>
+<td>Yes</td>
+<td>Stream sequence</td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td>Yes</td>
+<td>Transition timestamp</td>
+</tr>
+<tr>
+<td><code>SESSION</code></td>
+<td>Yes</td>
+<td>New state value</td>
+</tr>
+<tr>
+<td><code>PREV</code></td>
+<td>No</td>
+<td>Previous state when known</td>
+</tr>
+</tbody>
+</table>
+<p>Valid <code>SESSION</code> values:</p>
+<ul>
+<li><code>PRE_OPEN</code></li>
+<li><code>OPENING_AUCTION</code></li>
+<li><code>CONTINUOUS</code></li>
+<li><code>CLOSING_AUCTION</code></li>
+<li><code>CLOSED</code></li>
+<li><code>HALTED</code> (symbol-level)</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>STATE|CH=STATE|SYM=AAPL|SEQ=3|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
+</code></pre></div>
+<h3 id="idx"><code>IDX</code><a class="headerlink" href="#idx" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Gateway -&gt; Client</p>
+<p><strong>Purpose:</strong> Index level update for one <code>INDEX</code> stream.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Yes</td>
+<td><code>INDEX</code></td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Index identifier (e.g. <code>EDU50</code>)</td>
+</tr>
+<tr>
+<td><code>SEQ</code></td>
+<td>Yes</td>
+<td>Stream-local sequence number</td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td>Yes</td>
+<td>Event timestamp</td>
+</tr>
+<tr>
+<td><code>LEVEL</code></td>
+<td>Yes</td>
+<td>Current index level, decimal string</td>
+</tr>
+<tr>
+<td><code>SESSION</code></td>
+<td>Yes</td>
+<td>Index session state</td>
+</tr>
+<tr>
+<td><code>OPEN</code></td>
+<td>No</td>
+<td>Day open level, decimal string</td>
+</tr>
+<tr>
+<td><code>HIGH</code></td>
+<td>No</td>
+<td>Day high, decimal string</td>
+</tr>
+<tr>
+<td><code>LOW</code></td>
+<td>No</td>
+<td>Day low, decimal string</td>
+</tr>
+<tr>
+<td><code>CHG</code></td>
+<td>No</td>
+<td>Change from open, signed decimal e.g. <code>+1.23</code></td>
+</tr>
+<tr>
+<td><code>PCTCHG</code></td>
+<td>No</td>
+<td>Percent change from open, signed e.g. <code>+0.45</code></td>
+</tr>
+<tr>
+<td><code>AGGCAP</code></td>
+<td>No</td>
+<td>Aggregate market cap, integer string</td>
+</tr>
+</tbody>
+</table>
+<p><code>IDX</code> has no baseline <code>SNAP</code> variant in CALF <code>1.0.0</code>. Delivery starts from
+events that occur after the subscription becomes active.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>IDX|CH=INDEX|SYM=EDU50|SEQ=12|TS=2026-06-07T10:16:00.000Z|LEVEL=5123.45|SESSION=CONTINUOUS|OPEN=5100.00|CHG=+23.45|PCTCHG=+0.46
+</code></pre></div>
+<h3 id="depth"><code>DEPTH</code><a class="headerlink" href="#depth" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Gateway -&gt; Client</p>
+<p><strong>Purpose:</strong> Aggregated, multi-level order book update — CALF's Level 2
+view. Each level is an aggregate of every resting order at that price;
+individual order identity is never exposed (Level 3 is explicitly out of
+scope, see "Out of scope in CALF 1.0.0" above).</p>
+<p><strong>Response:</strong> No reply required. A gap in <code>SEQ</code> should trigger replay or
+resync, exactly as for <code>MD</code>.</p>
+<p>Unlike <code>MD</code>, which omits individual unchanged <code>BID</code>/<code>ASK</code> fields, <code>DEPTH</code> is
+a <strong>full-ladder replace per message</strong>: whenever the top-<code>LEVELS</code> price
+levels on either side change, the message carries that side's complete
+current ladder, not a per-level diff. <code>DEPTH</code> is only sent when the tracked
+levels actually changed since the previous <code>DEPTH</code>/<code>SNAP</code> for the symbol.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Yes</td>
+<td><code>DEPTH</code></td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Symbol</td>
+</tr>
+<tr>
+<td><code>SEQ</code></td>
+<td>Yes</td>
+<td>Stream sequence for <code>(DEPTH, SYM)</code></td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td>Yes</td>
+<td>Event timestamp</td>
+</tr>
+<tr>
+<td><code>LEVELS</code></td>
+<td>Yes</td>
+<td>Number of price levels per side configured on this gateway (<code>market_data_gateway.depth_levels</code>, default <code>10</code>)</td>
+</tr>
+<tr>
+<td><code>BIDS</code></td>
+<td>No</td>
+<td>Bid-side ladder, best price first; omitted if no resting bids</td>
+</tr>
+<tr>
+<td><code>ASKS</code></td>
+<td>No</td>
+<td>Ask-side ladder, best price first; omitted if no resting asks</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Level encoding grammar</strong> (applies to both <code>BIDS</code> and <code>ASKS</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>&lt;LEVELS_VALUE&gt; ::= &lt;LEVEL&gt; (&quot;,&quot; &lt;LEVEL&gt;)*
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>&lt;LEVEL&gt;        ::= &lt;PRICE&gt; &quot;:&quot; &lt;QTY&gt; &quot;:&quot; &lt;COUNT&gt;
+</code></pre></div>
+<p><code>PRICE</code> is decimal text, <code>QTY</code> is the aggregated resting quantity at that
+price, <code>COUNT</code> is the number of individual resting orders aggregated into
+it. <code>:</code> and <code>,</code> are ordinary field-value characters in CALF — the only
+reserved wire character is <code>|</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>DEPTH|CH=DEPTH|SYM=AAPL|SEQ=2|TS=2026-07-11T14:32:00.512Z|LEVELS=10|BIDS=150.10:1400:4,150.09:800:2,150.08:400:1|ASKS=150.12:900:2,150.13:600:1,150.14:250:1
+</code></pre></div>
+<p><code>SYM=*</code> is invalid for <code>SUB|CH=DEPTH</code> — see "Subscription rules" above.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant C as Client
+    participant G as pm-md-gwy
+
+    C-&gt;&gt;G: SUB|CH=DEPTH|SYM=AAPL
+    Note over G: current DEPTH SEQ for AAPL is 1
+    G--&gt;&gt;C: SNAP|CH=DEPTH|SYM=AAPL|SEQ=1|LEVELS=10|BIDS=150.10:1200:3|ASKS=150.12:900:2
+
+    Note over G: book.AAPL changes at a tracked level
+    G--&gt;&gt;C: DEPTH|CH=DEPTH|SYM=AAPL|SEQ=2|LEVELS=10|BIDS=150.10:1400:4|ASKS=150.12:900:2
+
+    Note over G: book.AAPL changes but not within the top 10 levels
+    Note over G: no DEPTH message emitted — unchanged ladder is not resent</code></pre>
+<h3 id="auction"><code>AUCTION</code><a class="headerlink" href="#auction" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Gateway -&gt; Client</p>
+<p><strong>Purpose:</strong> Result of one auction uncross for a symbol — a scheduled
+opening/closing auction, or a circuit-breaker resumption auction. Published
+exactly once per uncross, even when there was no crossable interest at all.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Yes</td>
+<td><code>AUCTION</code></td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Symbol</td>
+</tr>
+<tr>
+<td><code>SEQ</code></td>
+<td>Yes</td>
+<td>Stream sequence for <code>(AUCTION, SYM)</code></td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td>Yes</td>
+<td>Event timestamp</td>
+</tr>
+<tr>
+<td><code>EQPX</code></td>
+<td>No</td>
+<td>Equilibrium price; omitted when there was no crossable interest</td>
+</tr>
+<tr>
+<td><code>EQQTY</code></td>
+<td>Yes</td>
+<td>Total executable quantity matched at <code>EQPX</code> (<code>0</code> when no cross)</td>
+</tr>
+<tr>
+<td><code>TRADES</code></td>
+<td>Yes</td>
+<td>Number of trades produced by the uncross (<code>0</code> when no cross)</td>
+</tr>
+<tr>
+<td><code>IMBSIDE</code></td>
+<td>No</td>
+<td>Residual imbalance side, <code>BUY</code> or <code>SELL</code>; omitted when balanced or no cross</td>
+</tr>
+<tr>
+<td><code>IMBQTY</code></td>
+<td>Yes</td>
+<td>Residual imbalance quantity at <code>EQPX</code> (<code>0</code> when balanced or no cross)</td>
+</tr>
+</tbody>
+</table>
+<p><code>AUCTION</code> has no baseline <code>SNAP</code> (see "Channel model" above) — a new
+subscriber only receives auction results from the next uncross onward,
+unless it also uses <code>RESUME=1</code> to replay recent history.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|TS=2026-07-20T13:30:00.012Z|EQPX=150.10|EQQTY=48200|TRADES=37|IMBSIDE=BUY|IMBQTY=1400
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>AUCTION|CH=AUCTION|SYM=TSLA|SEQ=4|TS=2026-07-20T20:00:00.004Z|EQQTY=0|TRADES=0|IMBQTY=0
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>AUCTION|CH=AUCTION|SYM=MSFT|SEQ=2|TS=2026-07-20T13:30:00.031Z|EQPX=421.00|EQQTY=15000|TRADES=12|IMBQTY=0
+</code></pre></div>
+<p>The second example is a no-cross auction (<code>EQPX</code>/<code>IMBSIDE</code> both omitted, all
+counts <code>0</code>); the third is a perfectly balanced cross (<code>IMBSIDE</code> omitted,
+<code>IMBQTY=0</code>, but <code>EQPX</code>/<code>EQQTY</code>/<code>TRADES</code> all present).</p>
+<h3 id="cb"><code>CB</code><a class="headerlink" href="#cb" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Gateway -&gt; Client</p>
+<p><strong>Purpose:</strong> Full circuit-breaker halt/resume detail for one symbol —
+trigger price, reference price, ladder level, scheduled auto-resume time,
+and resumption mode. <code>STATE</code> (above) still carries the coarse
+<code>SESSION=HALTED</code>/<code>SESSION=CONTINUOUS</code> transition unchanged; <code>CB</code> is emitted
+<strong>alongside</strong> <code>STATE</code>, from the same underlying engine event, for clients
+that also want the detail.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Yes</td>
+<td><code>CB</code></td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Symbol</td>
+</tr>
+<tr>
+<td><code>SEQ</code></td>
+<td>Yes</td>
+<td>Stream sequence for <code>(CB, SYM)</code></td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td>Yes</td>
+<td>Event timestamp</td>
+</tr>
+<tr>
+<td><code>STATUS</code></td>
+<td>Yes</td>
+<td><code>ACTIVE</code> (not halted) or <code>HALTED</code></td>
+</tr>
+<tr>
+<td><code>LEVEL</code></td>
+<td>No</td>
+<td>Ladder level (e.g. <code>L1</code>/<code>L2</code>/<code>L3</code>, config-defined) or <code>ADMIN_ALL</code>/<code>ADMIN_SYMBOL</code> for an operator-initiated halt; present only when <code>STATUS=HALTED</code></td>
+</tr>
+<tr>
+<td><code>TRIGGERPX</code></td>
+<td>No</td>
+<td>Trigger price; present only for an automatic (non-<code>ADMIN_*</code>) halt currently in effect</td>
+</tr>
+<tr>
+<td><code>REFPX</code></td>
+<td>No</td>
+<td>Reference price at trigger time; present only for an automatic halt currently in effect</td>
+</tr>
+<tr>
+<td><code>RESUMEAT</code></td>
+<td>No</td>
+<td>Scheduled auto-resume time, UTC ISO-8601 with ms (same format as <code>TS</code>); present only for a timed halt currently in effect — absent for rest-of-day or manual/<code>ADMIN_*</code> halts</td>
+</tr>
+<tr>
+<td><code>MODE</code></td>
+<td>No</td>
+<td><code>AUCTION</code>, <code>CONTINUOUS</code>, or <code>MANUAL</code>; present only when <code>STATUS=HALTED</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>LEVEL</code>/<code>TRIGGERPX</code>/<code>REFPX</code>/<code>RESUMEAT</code> describe the halt that just ended and
+are always omitted on a resume event (<code>STATUS=ACTIVE</code>) — only <code>MODE</code> carries
+over, since it is meaningful for both halt and resume (which resumption
+mechanism applies/applied).</p>
+<blockquote>
+<p><strong>Internal field-name note:</strong> the engine's own halt payload uses the field
+name <code>resumption_mode</code>, while its resume payload uses <code>mode</code> for the same
+concept — an inconsistency in the underlying <code>circuit_breaker.halt.*</code>/
+<code>circuit_breaker.resume.*</code> engine topics. CALF normalizes this: both the
+<code>CB</code> halt event and the <code>CB</code> resume event use the same wire key, <code>MODE</code>, so
+a CALF client never needs to know about the internal inconsistency.</p>
+</blockquote>
+<p><code>CB</code> has a baseline <code>SNAP</code> (see the <code>SNAP</code> section above) reflecting the
+last known status for the symbol.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T14:05:00.010Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|MODE=AUCTION
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>CB|CH=CB|SYM=TSLA|SEQ=1|TS=2026-07-20T15:00:00.000Z|STATUS=HALTED|LEVEL=ADMIN_ALL|MODE=MANUAL
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T14:20:00.010Z|STATUS=ACTIVE|MODE=AUCTION
+</code></pre></div>
+<p>The first example is an automatic threshold-breach halt (all detail fields
+present); the second is an ADMIN exchange-wide halt (<code>trigger</code>/<code>reference</code>/
+<code>resume</code> all omitted, matching the engine's <code>None</code> values for that path);
+the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>, only
+<code>MODE</code> retained).</p>
+<p><code>SYM=*</code> is invalid for <code>SUB|CH=CB</code> — see "Subscription rules" above.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant E as pm-engine
+    participant G as pm-md-gwy
+    participant C as Client
+
+    C-&gt;&gt;G: SUB|CH=STATE,CB|SYM=AAPL
+    G--&gt;&gt;C: SNAP|CH=STATE|SYM=AAPL|SEQ=9|SESSION=CONTINUOUS
+    G--&gt;&gt;C: SNAP|CH=CB|SYM=AAPL|SEQ=2|STATUS=ACTIVE
+
+    Note over E: large trade shifts price beyond the L2 threshold
+    E--&gt;&gt;G: circuit_breaker.halt.AAPL
+    G--&gt;&gt;C: STATE|CH=STATE|SYM=AAPL|SEQ=10|SESSION=HALTED|PREV=CONTINUOUS
+    G--&gt;&gt;C: CB|CH=CB|SYM=AAPL|SEQ=3|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=...|MODE=AUCTION
+
+    Note over E: halt duration elapses engine resumes and re-auctions AAPL
+    E--&gt;&gt;G: circuit_breaker.resume.AAPL
+    G--&gt;&gt;C: STATE|CH=STATE|SYM=AAPL|SEQ=11|SESSION=CONTINUOUS|PREV=HALTED
+    G--&gt;&gt;C: CB|CH=CB|SYM=AAPL|SEQ=4|STATUS=ACTIVE|MODE=AUCTION
+    E--&gt;&gt;G: auction.result.AAPL
+    G--&gt;&gt;C: AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|EQPX=149.80|EQQTY=6200|TRADES=5|IMBSIDE=SELL|IMBQTY=300</code></pre>
+<h3 id="hb"><code>HB</code><a class="headerlink" href="#hb" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Gateway -&gt; Client</p>
+<p>Sent when no outbound market-data line was emitted during the heartbeat interval.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TS</code></td>
+<td>Yes</td>
+<td>Gateway timestamp</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>HB|TS=2026-06-07T10:16:05.000Z
+</code></pre></div>
+<h3 id="ping-pong"><code>PING</code> / <code>PONG</code><a class="headerlink" href="#ping-pong" title="Permanent link">&para;</a></h3>
+<p><code>PING</code> is client-initiated liveness check. <code>PONG</code> is immediate reply.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>PING
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>PONG
+</code></pre></div>
+<h3 id="err"><code>ERR</code><a class="headerlink" href="#err" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Gateway -&gt; Client</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CODE</code></td>
+<td>Yes</td>
+<td>Machine-readable error code</td>
+</tr>
+<tr>
+<td><code>MSG</code></td>
+<td>No</td>
+<td>Human-readable context</td>
+</tr>
+<tr>
+<td><code>CH</code></td>
+<td>No</td>
+<td>Channel context when relevant</td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>No</td>
+<td>Symbol context when relevant</td>
+</tr>
+</tbody>
+</table>
+<p>Normative error codes:</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROTO_MISMATCH</code></td>
+<td><code>HELLO</code> missing <code>CLIENT</code> or <code>PROTO != CALF1</code></td>
+</tr>
+<tr>
+<td><code>AUTH_REQUIRED</code></td>
+<td>Non-<code>HELLO</code> message sent before successful handshake</td>
+</tr>
+<tr>
+<td><code>INVALID_CHANNEL</code></td>
+<td><code>CH</code> not in <code>{TOP, TRADE, STATE, INDEX, DEPTH, AUCTION, CB}</code></td>
+</tr>
+<tr>
+<td><code>INVALID_SYMBOL</code></td>
+<td>Symbol not in the gateway's known instrument list (does not apply to <code>INDEX</code>, which has no known-id check — see "Subscription rules"), <code>SYM=*</code> used with <code>INDEX</code>/<code>DEPTH</code>/<code>CB</code> on <code>SUB</code> (alone or mixed with any other channel), <code>SYM=*</code> used at all on <code>HELLO|RESUME=1</code> (every channel, including <code>TOP</code>/<code>TRADE</code>/<code>STATE</code>/<code>AUCTION</code>), a <code>SUB</code> with no <code>SYM</code> at all, or <code>CH=INDEX</code> combined with an empty symbol</td>
+</tr>
+<tr>
+<td><code>SUB_LIMIT</code></td>
+<td>Subscription would exceed <code>max_symbols_per_client</code></td>
+</tr>
+<tr>
+<td><code>REPLAY_MISS</code></td>
+<td><code>LASTSEQ</code> is older than the replay window; gateway sends a <code>SNAP</code> instead</td>
+</tr>
+<tr>
+<td><code>SLOW_CLIENT</code></td>
+<td>Outbound queue exceeded <code>max_client_queue</code>; connection closed</td>
+</tr>
+<tr>
+<td><code>BAD_MESSAGE</code></td>
+<td>Parse failure, oversized line (&gt; 4096 bytes), or unsupported message type</td>
+</tr>
+<tr>
+<td><code>RATE_LIMITED</code></td>
+<td>Client exceeded <code>max_messages_per_second</code> (inbound token-bucket); connection stays open</td>
+</tr>
+</tbody>
+</table>
+<p>Terminal behavior:</p>
+<ul>
+<li><code>SLOW_CLIENT</code> is terminal for the current TCP session; gateway disconnects.</li>
+<li><code>BAD_MESSAGE</code> may be terminal when parsing cannot continue safely.</li>
+<li><code>RATE_LIMITED</code> is non-terminal; the offending message is dropped and the
+  connection remains open. The client may retry once its send rate is back
+  under <code>max_messages_per_second</code>.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>ERR|CODE=REPLAY_MISS|MSG=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
+</code></pre></div>
+<h3 id="exit"><code>EXIT</code><a class="headerlink" href="#exit" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Client -&gt; Gateway</p>
+<p>Requests clean disconnect.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>EXIT
+</code></pre></div>
+<h2 id="sequence-and-recovery-semantics">Sequence and recovery semantics<a class="headerlink" href="#sequence-and-recovery-semantics" title="Permanent link">&para;</a></h2>
+<h3 id="stream-identity">Stream identity<a class="headerlink" href="#stream-identity" title="Permanent link">&para;</a></h3>
+<p>Sequence numbers are maintained per <code>(CH, SYM)</code> stream.</p>
+<p>Examples:</p>
+<ul>
+<li><code>(TOP, AAPL)</code> has its own counter</li>
+<li><code>(TRADE, AAPL)</code> has a different counter</li>
+<li><code>(STATE, *)</code> and <code>(STATE, AAPL)</code> are distinct counters</li>
+</ul>
+<h3 id="sequence-rules">Sequence rules<a class="headerlink" href="#sequence-rules" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Start value is <code>1</code> for each stream.</li>
+<li>Increment by <code>1</code> per emitted message in that stream.</li>
+<li>Sequence appears in <code>SNAP</code>, <code>MD</code>, <code>TRADE</code>, <code>STATE</code>, <code>IDX</code>, <code>DEPTH</code>,
+  <code>AUCTION</code>, and <code>CB</code>.</li>
+<li>A client-detected gap means one or more missed messages.</li>
+</ul>
+<h3 id="first-connect-behavior">First connect behavior<a class="headerlink" href="#first-connect-behavior" title="Permanent link">&para;</a></h3>
+<p>On first subscribe to a <code>TOP</code>, <code>STATE</code>, <code>INDEX</code>, <code>DEPTH</code>, or <code>CB</code> stream:</p>
+<ol>
+<li>Gateway sends <code>SNAP</code> with current stream <code>SEQ</code>.</li>
+<li>Client stores <code>last_seq[(CH,SYM)] = SNAP.SEQ</code>.</li>
+<li>Next incremental event for that stream must be <code>SEQ + 1</code>.</li>
+</ol>
+<p><code>TRADE</code> and <code>AUCTION</code> have no step 1 — see the <code>SNAP</code> section above.</p>
+<h3 id="reconnect-behavior-resume1">Reconnect behavior (<code>RESUME=1</code>)<a class="headerlink" href="#reconnect-behavior-resume1" title="Permanent link">&para;</a></h3>
+<p><code>RESUME=1</code> applies to one stream per <code>HELLO</code>.</p>
+<ul>
+<li>Client supplies <code>CH</code>, <code>SYM</code>, and <code>LASTSEQ</code>.</li>
+<li><code>CH</code> and <code>SYM</code> must each contain exactly one value when <code>RESUME=1</code>.</li>
+<li><code>LASTSEQ</code> must be a positive base-10 integer.</li>
+<li>If missing events are inside replay window, gateway replays in order then
+  continues live.</li>
+<li>If missing range is outside window, gateway sends <code>ERR|CODE=REPLAY_MISS</code>
+  followed by a fresh <code>SNAP</code>.</li>
+<li>If the stream has no retained replay history at all yet (nothing has been
+  emitted for that <code>(CH,SYM)</code> since the gateway started or the buffer last
+  pruned it), the gateway returns zero replay lines and does <strong>not</strong> send
+  <code>ERR|CODE=REPLAY_MISS</code> or a <code>SNAP</code> — the client resumes live from
+  whatever the next emitted event turns out to be. This differs from the
+  replay-miss case above and is easy to mistake for a silently dropped
+  resume; clients that need a guaranteed baseline after <code>RESUME=1</code> should
+  also send an explicit <code>SUB</code> for the same stream, which always triggers a
+  <code>SNAP</code> for <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code> regardless of replay state.</li>
+<li><code>SYM=*</code> is always invalid for <code>RESUME=1</code>, for every channel, even for
+  <code>TOP</code>/<code>TRADE</code>/<code>STATE</code> where <code>SYM=*</code> is otherwise allowed on <code>SUB</code>.
+  <code>RESUME</code> has no equivalent of <code>SUB</code>'s per-symbol snapshot burst, 
+  so a wildcard resume cannot be served a meaningful
+  baseline on a replay miss. <code>HELLO|RESUME=1|CH=TOP|SYM=*</code> returns
+  <code>ERR|CODE=INVALID_SYMBOL</code> and closes the connection, the same as an
+  ineligible wildcard on <code>SUB</code>. Clients must always resume a single
+  concrete symbol and, if they also want an "everything" subscription,
+  add it separately via <code>SUB|SYM=*</code> after reconnecting.</li>
+<li>Beyond the wildcard rule above, <code>RESUME=1</code>'s <code>SYM</code> value is otherwise
+  <strong>not</strong> checked against the gateway's known-symbol list the way <code>SUB</code>'s
+  is — a resume for a symbol the gateway doesn't currently know about is
+  still accepted and added to the session's subscriptions; it simply won't
+  match any live event until the gateway learns about that symbol.</li>
+</ul>
+<pre class="mermaid"><code>sequenceDiagram
+    participant C as Client
+    participant G as pm-md-gwy
+
+    Note over C,G: Last seen on (TOP,AAPL): SEQ=1042
+    C-&gt;&gt;G: HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
+    G--&gt;&gt;C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+
+    alt Replay hit
+        G--&gt;&gt;C: MD|CH=TOP|SYM=AAPL|SEQ=1043|...
+        G--&gt;&gt;C: MD|CH=TOP|SYM=AAPL|SEQ=1044|...
+        G--&gt;&gt;C: ...
+        G--&gt;&gt;C: MD|CH=TOP|SYM=AAPL|SEQ=1050|...
+        G--&gt;&gt;C: MD|CH=TOP|SYM=AAPL|SEQ=1051|... (live)
+    else Replay miss
+        G--&gt;&gt;C: ERR|CODE=REPLAY_MISS|CH=TOP|SYM=AAPL
+        G--&gt;&gt;C: SNAP|CH=TOP|SYM=AAPL|SEQ=1105|...
+    end</code></pre>
+<h2 id="liveness-and-timeout-rules">Liveness and timeout rules<a class="headerlink" href="#liveness-and-timeout-rules" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Gateway emits <code>HB</code> every <code>heartbeat_interval_sec</code> when no outbound market-data
+  line has been sent in that interval.</li>
+<li>Client may issue <code>PING</code> anytime; gateway must respond with <code>PONG</code>.</li>
+<li>If no inbound or outbound traffic occurs for <code>idle_timeout_sec</code>, gateway
+  closes the connection.</li>
+<li><code>HB</code>, <code>PING</code>, and <code>PONG</code> are liveness messages and do not participate in
+  <code>(CH,SYM)</code> sequence counters.</li>
+</ul>
+<h2 id="session-lifecycle">Session lifecycle<a class="headerlink" href="#session-lifecycle" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>sequenceDiagram
+    participant C as CALF Client
+    participant G as pm-md-gwy
+
+    C-&gt;&gt;G: TCP connect
+    C-&gt;&gt;G: HELLO|CLIENT=bot01|PROTO=CALF1
+    G--&gt;&gt;C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+
+    C-&gt;&gt;G: SUB|CH=TOP,TRADE|SYM=AAPL
+    G--&gt;&gt;C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|...
+    G--&gt;&gt;C: MD|CH=TOP|SYM=AAPL|SEQ=101|...
+    G--&gt;&gt;C: TRADE|CH=TRADE|SYM=AAPL|SEQ=44|...
+
+    G--&gt;&gt;C: HB|TS=...
+    C-&gt;&gt;G: PING
+    G--&gt;&gt;C: PONG
+
+    C-&gt;&gt;G: EXIT
+    Note over G: Close TCP cleanly</code></pre>
+<h2 id="gateway-behavior-requirements">Gateway behavior requirements<a class="headerlink" href="#gateway-behavior-requirements" title="Permanent link">&para;</a></h2>
+<p>For CALF <code>1.0.0</code> interoperability, <code>pm-md-gwy</code> must:</p>
+<ol>
+<li>Accept TCP clients and enforce HELLO-before-use semantics.</li>
+<li>Normalize internal engine events into CALF lines.</li>
+<li>Maintain independent sequence counters per <code>(CH, SYM)</code>.</li>
+<li>Keep bounded replay buffers per <code>(CH, SYM)</code> stream.</li>
+<li>Auto-send <code>SNAP</code> on new <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code> subscriptions;
+   for a wildcard <code>TOP</code> subscription, auto-send one real per-symbol <code>SNAP</code>
+   for every currently known symbol rather than a single <code>SYM=*</code> snapshot.</li>
+<li>Enforce channel and symbol rules deterministically, including which
+   channels accept <code>SYM=*</code> (<code>STATE</code>, <code>TOP</code>, <code>TRADE</code>, <code>AUCTION</code> only).</li>
+<li>Advertise supported channels in <code>WELCOME|CH_SUPPORTED=</code>.</li>
+<li>Disconnect slow clients when queue limits are exceeded.</li>
+</ol>
+<h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
+<p>CALF gateway settings are part of the main engine configuration file
+(<code>engine_config.yaml</code>) as a top-level <code>market_data_gateway</code> block.</p>
+<p>Path location:</p>
+<ul>
+<li><code>engine_config.yaml</code> -&gt; <code>market_data_gateway</code></li>
+</ul>
+<p>All supported CALF <code>1.0.0</code> configuration fields are listed below.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type / allowed range</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>market_data_gateway.enabled</code></td>
+<td>Boolean (<code>true</code>/<code>false</code>)</td>
+<td><code>true</code> (recommended when CALF is used)</td>
+<td>Enables/disables the CALF gateway process configuration.</td>
+</tr>
+<tr>
+<td><code>market_data_gateway.name</code></td>
+<td>Non-empty string</td>
+<td>Implementation-defined</td>
+<td>Gateway instance name advertised in <code>WELCOME|GW=...</code>.</td>
+</tr>
+<tr>
+<td><code>market_data_gateway.bind_address</code></td>
+<td>IP/host bind string</td>
+<td><code>0.0.0.0</code> (common)</td>
+<td>Local interface address to bind for incoming TCP clients.</td>
+</tr>
+<tr>
+<td><code>market_data_gateway.port</code></td>
+<td>Integer, <code>1..65535</code></td>
+<td><code>5570</code></td>
+<td>TCP listen port for CALF clients.</td>
+</tr>
+<tr>
+<td><code>market_data_gateway.heartbeat_interval_sec</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>1</code></td>
+<td>Interval used to emit <code>HB</code> when no outbound market-data line was sent.</td>
+</tr>
+<tr>
+<td><code>market_data_gateway.idle_timeout_sec</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>5</code></td>
+<td>Maximum silent period (no inbound and no outbound traffic) before disconnect.</td>
+</tr>
+<tr>
+<td><code>market_data_gateway.replay_window_sec</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>30</code></td>
+<td>Time-bounded replay retention per <code>(CH,SYM)</code> stream for resume/gap recovery.</td>
+</tr>
+<tr>
+<td><code>market_data_gateway.max_connections</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>64</code></td>
+<td>Maximum concurrent TCP client connections accepted by the gateway.</td>
+</tr>
+<tr>
+<td><code>market_data_gateway.max_messages_per_second</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>200</code></td>
+<td>Per-client inbound token-bucket rate limit; excess messages receive <code>ERR|CODE=RATE_LIMITED</code> and are dropped without disconnecting the client.</td>
+</tr>
+<tr>
+<td><code>market_data_gateway.max_symbols_per_client</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>200</code></td>
+<td>Per-client subscription symbol limit across active subscriptions. A wildcard subscription counts as one entry.</td>
+</tr>
+<tr>
+<td><code>market_data_gateway.max_client_queue</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>10000</code></td>
+<td>Per-client outbound queue cap; overflow triggers <code>ERR|CODE=SLOW_CLIENT</code> and disconnect.</td>
+</tr>
+<tr>
+<td><code>market_data_gateway.depth_levels</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>10</code></td>
+<td>Number of price levels per side included in <code>DEPTH</code>/<code>SNAP(CH=DEPTH)</code> messages. There is no separate enable/disable flag — <code>DEPTH</code> is on by default in CALF <code>1.0.0</code>; this only tunes ladder depth.</td>
+</tr>
+</tbody>
+</table>
+<p>Operational notes:</p>
+<ul>
+<li><code>HBINT</code> in <code>WELCOME</code> must reflect <code>heartbeat_interval_sec</code>.</li>
+<li><code>REPLAY</code> in <code>WELCOME</code> must reflect <code>replay_window_sec</code>.</li>
+<li><code>max_connections</code> bounds concurrent TCP clients; connections beyond this
+  limit are rejected at accept time.</li>
+<li><code>max_messages_per_second</code> affects inbound <code>ERR|CODE=RATE_LIMITED</code>
+  behavior; it is a non-terminal, per-client token bucket, unlike
+  <code>max_client_queue</code>.</li>
+<li><code>max_symbols_per_client</code> affects <code>SUB</code> validation and <code>ERR|CODE=SUB_LIMIT</code>.</li>
+<li><code>max_client_queue</code> controls slow-client backpressure behavior.</li>
+<li><code>depth_levels</code> affects <code>DEPTH</code> message size and bandwidth; lower it on
+  bandwidth-constrained deployments rather than expecting clients to request
+  fewer levels — there is no per-client <code>LEVELS=</code> override in CALF <code>1.0.0</code>.</li>
+</ul>
+<p><strong>Example:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nt">market_data_gateway</span><span class="p">:</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;md-gwy01&quot;</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5570</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">  </span><span class="nt">replay_window_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">  </span><span class="nt">max_connections</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">  </span><span class="nt">max_messages_per_second</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="w">  </span><span class="nt">max_symbols_per_client</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
+<a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+<a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a><span class="w">  </span><span class="nt">depth_levels</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</code></pre></div>
+<h2 id="what-to-watch-out-for-during-implementation">What to watch out for during implementation<a class="headerlink" href="#what-to-watch-out-for-during-implementation" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Implement line buffering correctly for TCP streams (<code>recv()</code> may return
+  partial lines or multiple lines at once).</li>
+<li>Enforce HELLO-before-use strictly; all non-HELLO pre-auth messages must
+  receive <code>ERR|CODE=AUTH_REQUIRED</code>.</li>
+<li>Keep <code>SNAP</code> semantics explicit: it is a message type, not a subscribable
+  channel; <code>TOP</code>, <code>STATE</code>, <code>INDEX</code>, <code>DEPTH</code>, and <code>CB</code> subscriptions
+  auto-trigger <code>SNAP</code> — <code>TRADE</code> and <code>AUCTION</code> never do.</li>
+<li>For a wildcard <code>TOP</code> subscription, do not call the per-symbol snapshot
+  builder with a literal <code>SYM="*"</code> — it has no meaningful per-symbol state
+  and will silently produce an empty snapshot. Iterate known symbols and send
+  one real <code>SNAP</code> each.</li>
+<li>Enforce <code>SYM=*</code> constraints exactly (<code>STATE</code>, <code>TOP</code>, <code>TRADE</code>, <code>AUCTION</code>
+  only — never <code>INDEX</code>, <code>DEPTH</code>, or <code>CB</code>, and never when mixed with any of
+  those three in the same <code>SUB</code>) and validate multi-value <code>SUB</code> as Cartesian
+  stream requests.</li>
+<li><code>DEPTH</code> is a full-ladder replace per message, not a per-level diff like
+  <code>MD</code>. Do not attempt incremental per-level patching on either the gateway
+  or client side.</li>
+<li><code>CB</code> and <code>STATE</code> are emitted from the same underlying
+  <code>circuit_breaker.halt.*</code>/<code>circuit_breaker.resume.*</code> engine event — do not
+  let <code>CB</code>'s richer detail leak into <code>STATE</code>'s field set, and do not let a
+  <code>CB</code> normaliser failure suppress the <code>STATE</code> emission (or vice versa);
+  both should be independent <code>_emit_stream_event</code> calls from the same handler.</li>
+<li>Normalize the engine's <code>resumption_mode</code>/<code>mode</code> field-name inconsistency
+  (halt payload vs. resume payload) onto a single wire key, <code>MODE</code>, in <code>CB</code> —
+  do not propagate the internal inconsistency to clients.</li>
+<li>Track sequence numbers independently per <code>(CH,SYM)</code> stream; never use a single
+  global counter.</li>
+<li>Treat <code>RESUME=1</code> as single-stream only and validate <code>CH</code>, <code>SYM</code>, and
+  <code>LASTSEQ</code> strictly.</li>
+<li>Bound replay by configured window and emit deterministic <code>REPLAY_MISS</code> + fresh
+  <code>SNAP</code> behavior when outside window.</li>
+<li>Apply slow-client backpressure deterministically: queue overflow must produce
+  <code>SLOW_CLIENT</code> and disconnect.</li>
+<li>Keep liveness signals (<code>HB</code>, <code>PING</code>, <code>PONG</code>) outside market-data sequencing;
+  they do not consume <code>(CH,SYM)</code> sequence numbers.</li>
+</ul>
+<h2 id="conformance-notes">Conformance notes<a class="headerlink" href="#conformance-notes" title="Permanent link">&para;</a></h2>
+<p>If you are implementing a CALF client, the most important protocol truths are:</p>
+<ol>
+<li>CALF is line-based text over TCP, not message-framed datagrams.</li>
+<li><code>HELLO</code> is mandatory before any subscription command.</li>
+<li><code>SNAP</code> is a message type, not a subscribable channel.</li>
+<li>Sequence tracking is per <code>(CH, SYM)</code> stream.</li>
+<li><code>SYM=*</code> is valid for <code>STATE</code>, <code>TOP</code>, <code>TRADE</code>, and <code>AUCTION</code> subscriptions
+   — never for <code>INDEX</code>, <code>DEPTH</code>, or <code>CB</code>.</li>
+<li>A wildcard <code>TOP</code> subscription never yields a <code>SNAP</code> with a literal
+   <code>SYM=*</code>; it yields one real <code>SNAP</code> per known symbol.</li>
+<li>Replay resume is single-stream per <code>HELLO|RESUME=1</code>.</li>
+<li>On replay miss, client must accept fresh <code>SNAP</code> and reset local baseline.</li>
+<li><code>DEPTH</code> messages replace a side's entire tracked ladder, never a single
+   price level in isolation.</li>
+<li><code>WELCOME|CH_SUPPORTED=</code>, not <code>PROTO</code>, is how a client detects whether a
+    gateway build supports <code>DEPTH</code>, <code>INDEX</code>, <code>AUCTION</code>, <code>CB</code>, or the <code>SYM=*</code>
+    wildcard extension — <code>PROTO=CALF1</code> does not change across CALF <code>1.0.0</code>.</li>
+<li>Heartbeats and ping/pong are separate liveness mechanisms.</li>
+<li>A <code>SLOW_CLIENT</code> error indicates disconnect and reconnect is required.</li>
+<li>Protocol values and keys are uppercase by convention and should be emitted
+    uppercase for interoperability.</li>
+<li><code>CB</code> is always emitted alongside <code>STATE</code> for the same halt/resume engine
+    event, never instead of it — a client that only wants the coarse
+    transition can ignore <code>CB</code> entirely and keep using <code>STATE</code> exactly as
+    before this extension.</li>
+<li><code>AUCTION</code> fires exactly once per uncross, including when there was no
+    crossable interest — absence of <code>EQPX</code>/<code>IMBSIDE</code> signals "no cross" or
+    "balanced," not a suppressed/missing event.</li>
+</ol>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../240-market-data-feed/">Market Data Feed (CALF)</a> — operational guide and client examples</li>
+<li><a href="../241-calf-spy-cli/">CALF Protocol Spy (pm-calf-spy)</a> — read-only CLI for inspecting the live wire format</li>
+<li><a href="../170-processes/">Processes</a> — where <code>pm-md-gwy</code> sits in the process model</li>
+<li><a href="../990-app-config-spec/#63-market_data_gateway-pm-md-gwy-calf">Engine Config Specification</a> — <code>market_data_gateway</code> field law</li>
+<li><a href="../210-protocol-overview/">External Protocols Overview</a> — ALF/BALF/CALF/RALF at a glance</li>
+<li><a href="../120-risk-controls/">Risk Controls</a> — circuit-breaker engine behavior behind the <code>CB</code> channel</li>
+<li><a href="../150-index/">Market Index</a> — auction uncross mechanics behind the <code>AUCTION</code> channel</li>
+<li><a href="../../docs-design/EduMatcher-CALF-auction-cb.md">EduMatcher-CALF-auction-cb.md</a> — design proposal for the <code>AUCTION</code> and <code>CB</code> channels</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
