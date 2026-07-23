@@ -18,7 +18,10 @@ else
 	SED_INPLACE := -i
 endif
 
-.PHONY: docs pdf-docs pdf-training chapters-pdf-a4 clean really-clean serve check-latex-engine
+.PHONY: docs pdf-docs pdf-training chapters-pdf-a4 clean really-clean serve check-latex-engine \
+	cover-user-guide cover-training-guide covers \
+	docs-container-build docs-container-start docs-container-stop docs-container-restart docs-container-status docs-container-logs \
+	help _covers covers cover-user-guide cover-training-guide
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
 # NOTE: This requires GNU Make 4.3+ and MacOS ships with vGNU Make 3.81 due to licensing issues
@@ -98,6 +101,7 @@ DIST_DIR := ./dist
 BUILD_DIR := .build
 SCRIPTS_DIR := ../scripts
 SITE_DIR := ../site
+ASSETS_DIR := $(DOCS_DIR)/assets
 
 # Documentation Container Server configuration
 SERVER_HOST := 0.0.0.0
@@ -466,14 +470,14 @@ check-latex-engine:
 		exit 1; \
 	fi
 
-pdf-docs: check-latex-engine  ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
+pdf-docs: check-latex-engine  cover-user-guide ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm -rf $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
 	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
 	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
-pdf-training: check-latex-engine  ## Build the training guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
+pdf-training: check-latex-engine  cover-training-guide ## Build the training guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(TRAINING_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm -rf $(DIST_DIR)/$(PROJECT)_training-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(TRAINING_GUIDE_A4_PDF) $(TRAINING_GUIDE_DARK_A4_PDF) $(TRAINING_GUIDE_B5_PDF) $(TRAINING_GUIDE_DARK_B5_PDF)
@@ -481,6 +485,25 @@ pdf-training: check-latex-engine  ## Build the training guide in all PDF variant
 	@zip -9 -j $(DIST_DIR)/$(PROJECT)_training-guide-bundle-$(VERSION).zip $(TRAINING_GUIDE_A4_PDF) $(TRAINING_GUIDE_DARK_A4_PDF) $(TRAINING_GUIDE_B5_PDF) $(TRAINING_GUIDE_DARK_B5_PDF)
 	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_training-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
+cover-user-guide:  ## Build the cover images for all User Guide PDF variants (A4 light/dark, B5 light/dark)
+	@echo -e "$(DARKYELLOW)- Building cover images for user-guide PDF variants...$(NC)"
+	@sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-user-guide-template.html > $(ASSETS_DIR)/cover-user-guide.html
+	@${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-user-guide
+	@rm -f $(ASSETS_DIR)/cover-user-guide.html
+	@echo -e "$(GREEN)✓ Cover image for user-guide built under $(ASSETS_DIR)$(NC)"
+
+cover-training-guide:  ## Build the cover images for all Training Guide PDF variants (A4 light/dark, B5 light/dark)
+	@echo -e "$(DARKYELLOW)- Building cover images for training-guide PDF variants...$(NC)"
+	@sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-training-guide-template.html > $(ASSETS_DIR)/cover-training-guide.html
+	@${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-training-guide
+	@rm -f $(ASSETS_DIR)/cover-training-guide.html
+	@echo -e "$(GREEN)✓ Cover image for training-guide built under $(ASSETS_DIR)$(NC)"
+
+_covers: cover-user-guide cover-training-guide  
+	@:
+
+covers: _covers  ## Build the cover images in parallel for all User Guide and Training Guide PDF variants
+	@${MAKE} -j2 _covers	
 
 $(DIST_DIR) : ## Ensure the dist directory exists
 	@mkdir -p $(DIST_DIR)
