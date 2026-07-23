@@ -17,7 +17,7 @@ else
     PUPPETEER_EXECUTABLE_PATH ?= /usr/bin/google-chrome
 endif
 
-.PHONY: pdf-docs pdf-parts-a4 help clean really-clean check-latex-engine
+.PHONY: pdf-docs pdf-parts-a4 help clean really-clean check-latex-engine cover bundle-quiz
 
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
@@ -88,10 +88,11 @@ $(DOC_STAMP): $(DOC_FILES)
 
 # Directories
 DOCS_DIR := .
-DIST_DIR := dist
-BUILD_DIR := .build
-SCRIPTS_DIR := ../scripts
-SITE_DIR := ./site
+DIST_DIR := $(DOCS_DIR)/dist
+BUILD_DIR := $(DOCS_DIR)/.build
+SCRIPTS_DIR := $(DOCS_DIR)/../scripts
+SITE_DIR := $(DOCS_DIR)/site
+ASSETS_DIR := $(DOCS_DIR)/assets
 
 # Project settings
 PROJECT := exchange-intro
@@ -172,19 +173,19 @@ PARTS_A4_DIST_DIR := $(DIST_DIR)/parts-a4-pdf
 
 PART_1_PDF   := $(PARTS_A4_DIST_DIR)/exchange-intro-part-I-$(VERSION).pdf
 PART_1_BUILD := $(BUILD_DIR)/part-1
-PART_1_COVER := assets/cover_exchange_intro-part-I.png
+PART_1_COVER := assets/cover-exchange-intro-part-I.png
 
 PART_2_PDF   := $(PARTS_A4_DIST_DIR)/exchange-intro-part-II-$(VERSION).pdf
 PART_2_BUILD := $(BUILD_DIR)/part-2
-PART_2_COVER := assets/cover_exchange_intro-part-II.png
+PART_2_COVER := assets/cover-exchange-intro-part-II.png
 
 PART_3_PDF   := $(PARTS_A4_DIST_DIR)/exchange-intro-part-III-$(VERSION).pdf
 PART_3_BUILD := $(BUILD_DIR)/part-3
-PART_3_COVER := assets/cover_exchange_intro-part-III.png
+PART_3_COVER := assets/cover-exchange-intro-part-III.png
 
 PART_4_PDF   := $(PARTS_A4_DIST_DIR)/exchange-intro-part-IV-$(VERSION).pdf
 PART_4_BUILD := $(BUILD_DIR)/part-4
-PART_4_COVER := assets/cover_exchange_intro-part-IV.png
+PART_4_COVER := assets/cover-exchange-intro-part-IV.png
 # $(info EXCHANGE_INTRO_A4_PDF_BUILT: $(EXCHANGE_INTRO_A4_PDF_BUILT))
 
 # Source and Test Files
@@ -229,7 +230,7 @@ check-latex-engine:
 		exit 1; \
 	fi
 
-pdf-docs: check-latex-engine ## Build all PDF documentation variants in parallel
+pdf-docs: check-latex-engine cover ## Build all PDF documentation variants in parallel
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm $(DIST_DIR)/$(PROJECT)-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(EXCHANGE_INTRO_A4_PDF) $(EXCHANGE_INTRO_DARK_A4_PDF) $(EXCHANGE_INTRO_B5_PDF) $(EXCHANGE_INTRO_DARK_B5_PDF)
@@ -253,6 +254,12 @@ really-clean: clean ## Remove all generated files and node_modules (use with cau
 bundle-quiz:  ## Build the quiz bundle zip file
 	$(MAKE) -C knowledge-check/quiz-20-questions bundle-quiz
 
+cover:  ## Build the cover images for the book with version number injected
+	@echo -e "$(DARKYELLOW)- Building cover image ...$(NC)"
+	@sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-exchange-intro-template.html > $(ASSETS_DIR)/cover-exchange-intro.html
+	@${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-exchange-intro
+	@rm -f $(ASSETS_DIR)/cover-exchange-intro.html
+	@echo -e "$(GREEN)✓ Cover image for exchange-intro built under $(ASSETS_DIR)$(NC)"
 
 
 # ============================================================================================
@@ -344,7 +351,7 @@ $$($1_PDF): $$(PART_$(3)_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_COVER) | 
 	@rm -rf $$($1_BUILD)
 	@mkdir -p $$($1_BUILD)/expanded
 	@echo -e "$$(DARKYELLOW)  - Patching cover image in template for Part $(4)...$$(NC)"
-	@sed 's|assets/cover_exchange_intro\.png|$$($1_COVER)|g' $$(DOCS_DIR)/template_a4.tex > $$($1_BUILD)/template_a4.tex
+	@sed 's|assets/cover-exchange-intro\.png|$$($1_COVER)|g' $$(DOCS_DIR)/template_a4.tex > $$($1_BUILD)/template_a4.tex
 	@echo -e "$$(DARKYELLOW)  - Expanding shell command outputs in markdown sources...$$(NC)"
 	@printf '%s\0' $$(PART_$(3)_MD_SOURCES) \
 		| xargs -0 poetry run python $$(SCRIPTS_DIR)/expand-shell-outputs.py \
