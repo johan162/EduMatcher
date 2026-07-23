@@ -91,8 +91,13 @@ DOCS_DIR := .
 DIST_DIR := $(DOCS_DIR)/dist
 BUILD_DIR := $(DOCS_DIR)/.build
 SCRIPTS_DIR := $(DOCS_DIR)/../scripts
+LOCAL_SCRIPTS_DIR := $(DOCS_DIR)/scripts
 SITE_DIR := $(DOCS_DIR)/site
 ASSETS_DIR := $(DOCS_DIR)/assets
+
+# Cover data
+NUM_CHAPTERS := 42
+NUM_GLOSSARY := $(shell bash $(LOCAL_SCRIPTS_DIR)/count_gloss.sh)
 
 # Project settings
 PROJECT := exchange-intro
@@ -256,10 +261,32 @@ bundle-quiz:  ## Build the quiz bundle zip file
 
 cover:  ## Build the cover images for the book with version number injected
 	@echo -e "$(DARKYELLOW)- Building cover image ...$(NC)"
-	@sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-exchange-intro-template.html > $(ASSETS_DIR)/cover-exchange-intro.html
-	@${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-exchange-intro
+	@sed -e "s/@@VERSION@@/v$(VERSION)/g" \
+	-e  's/@@CHAPTERS@@/${NUM_CHAPTERS}/g' \
+	-e 's/@@GLOSSARY@@/${NUM_GLOSSARY}/g' \
+	$(ASSETS_DIR)/cover-exchange-intro-template.html > $(ASSETS_DIR)/cover-exchange-intro.html
+	@${SCRIPTS_DIR}/mkfigs.sh -q -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-exchange-intro
 	@rm -f $(ASSETS_DIR)/cover-exchange-intro.html
 	@echo -e "$(GREEN)✓ Cover image for exchange-intro built under $(ASSETS_DIR)$(NC)"
+
+cover-parts: ## Build cover for the split by PART of the book
+	@echo -e "$(DARKYELLOW)- Building cover images for each PART ...$(NC)"
+	@TITLE_I="Foundation \& History" 
+	@TITLE_II="Orders \& Matching"
+	@TITLE_III="Risk \& Compliance" 
+	@TITLE_IV="Technology \& Infra" 
+	@for part in I II III IV; do \
+	    _title="TITLE_$${part}" && \
+		echo -e "${BLUE}  PART $${part} - $${!_title} ...${NC}" && \
+		sed -e "s/@@VERSION@@/v$(VERSION)/g" \
+		-e "s/@@TITLE@@/PART $$part - $${!_title}/" \
+		-e 's/@@CHAPTERS@@/${NUM_CHAPTERS}/g' \
+		-e 's/@@GLOSSARY@@/${NUM_GLOSSARY}/g' \
+		$(ASSETS_DIR)/cover-exchange-intro-part-template.html > $(ASSETS_DIR)/cover-exchange-intro-part-$$part.html; \
+		${SCRIPTS_DIR}/mkfigs.sh -q -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-exchange-intro-part-$$part; \
+		rm -f $(ASSETS_DIR)/cover-exchange-intro-part-$$part.html; \
+	done
+	@echo -e "$(GREEN)✓ Cover images for each PART built under $(ASSETS_DIR)$(NC)"
 
 
 # ============================================================================================
