@@ -80,4 +80,5 @@ files = [
 files = [
   'src/90-backmatter/20-glossary.md',
   'src/90-backmatter/21-references.md',
+  'src/90-backmatter/30-back-cover.md',
 ]

@@ -95,6 +95,17 @@ LOCAL_SCRIPTS_DIR := $(DOCS_DIR)/scripts
 SITE_DIR := $(DOCS_DIR)/site
 ASSETS_DIR := $(DOCS_DIR)/assets
 
+
+# NUM_CHAPTERS and NUM_GLOSSARY are used when creating book covers
+NUM_FILES := $(shell ls src/* | wc -l)
+NUM_CHAPTERS := $(shell bc -e '$(NUM_FILES) - 18') # Subtract 18 for files in 'ls' that are not chapters
+NUM_GLOSSARY := $(shell $(LOCAL_SCRIPTS_DIR)/count_gloss.sh)
+
+# Debugging output for variable values
+# $(info NUM_FILES: $(NUM_FILES))
+# $(info NUM_CHAPTERS: $(NUM_CHAPTERS))
+# $(info NUM_GLOSSARY: $(NUM_GLOSSARY))
+
 # Cover data
 NUM_CHAPTERS := 42
 NUM_GLOSSARY := $(shell bash $(LOCAL_SCRIPTS_DIR)/count_gloss.sh)
@@ -235,6 +246,9 @@ check-latex-engine:
 		exit 1; \
 	fi
 
+pdfs: ## Build all PDF documentation variants in parallel
+	@$(MAKE) -j10 pdf-docs pdf-parts-a4
+
 pdf-docs: check-latex-engine cover ## Build all PDF documentation variants in parallel
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm $(DIST_DIR)/$(PROJECT)-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
@@ -242,7 +256,7 @@ pdf-docs: check-latex-engine cover ## Build all PDF documentation variants in pa
 	@zip -9 -j $(DIST_DIR)/$(PROJECT)-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)-*-$(VERSION).pdf
 	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
-pdf-parts-a4: check-latex-engine ## Build each book part as a separate A4 PDF booklet
+pdf-parts-a4: check-latex-engine cover-parts ## Build each book part as a separate A4 PDF booklet
 	@rm -f $(PARTS_A4_DIST_DIR)/exchange-intro-part-*-$(VERSION).pdf 2>/dev/null || true
 	@$(MAKE) -j4 $(PART_1_PDF) $(PART_2_PDF) $(PART_3_PDF) $(PART_4_PDF)
 	@zip -9 -j $(DIST_DIR)/exchange-intro-parts-a4-bundle-$(VERSION).zip $(PARTS_A4_DIST_DIR)/exchange-intro-part-*-$(VERSION).pdf

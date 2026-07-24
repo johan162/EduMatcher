@@ -33,6 +33,9 @@ local function is_glossary_or_references(text)
   return text == "Glossary" or text == "References"
 end
 
+-- Custom Pandoc filter to enforce book structure for the Exchange Intro build.
+-- Drop the top document title because the LaTeX template already provides one.
+-- Drop the hand-written TOC section from source markdown.
 function Header(el)
   local text = heading_text(el)
 
@@ -43,6 +46,7 @@ function Header(el)
 
   -- Drop the hand-written TOC section from source markdown.
   if el.level == 1 and text == "Table of Contents" then
+    print("Dropping hand-written TOC section from source markdown.")
     skipping_embedded_toc = true
     return {}
   end
@@ -55,12 +59,22 @@ function Header(el)
   end
 
   -- Render Preface as unnumbered front-matter chapter.
-  if el.level == 1 and text == "Preface" then
+  if el.level == 1 and text == "Preface to the Second Edition" then
     preface_started = true
     in_part = false
     return {
-      emit_raw("\\chapter*{Preface}"),
-      emit_raw("\\addcontentsline{toc}{chapter}{Preface}")
+      emit_raw("\\chapter*{Preface to the Second Edition}"),
+      emit_raw("\\addcontentsline{toc}{chapter}{Preface to the Second Edition}")
+    }
+  end
+
+  -- Render Preface as unnumbered front-matter chapter.
+  if el.level == 1 and text == "Preface to the First Edition" then
+    preface_started = true
+    in_part = false
+    return {
+      emit_raw("\\chapter*{Preface to the First Edition}"),
+      emit_raw("\\addcontentsline{toc}{chapter}{Preface to the First Edition}")
     }
   end
 
