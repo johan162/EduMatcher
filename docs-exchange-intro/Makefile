@@ -98,17 +98,13 @@ ASSETS_DIR := $(DOCS_DIR)/assets
 
 # NUM_CHAPTERS and NUM_GLOSSARY are used when creating book covers
 NUM_FILES := $(shell ls src/* | wc -l)
-NUM_CHAPTERS := $(shell bc -e '$(NUM_FILES) - 18') # Subtract 18 for files in 'ls' that are not chapters
+NUM_CHAPTERS := $(shell bc -e '$(NUM_FILES) - 19') # Subtract 19 for files in 'ls' that are not chapters
 NUM_GLOSSARY := $(shell $(LOCAL_SCRIPTS_DIR)/count_gloss.sh)
 
 # Debugging output for variable values
 # $(info NUM_FILES: $(NUM_FILES))
 # $(info NUM_CHAPTERS: $(NUM_CHAPTERS))
 # $(info NUM_GLOSSARY: $(NUM_GLOSSARY))
-
-# Cover data
-NUM_CHAPTERS := 42
-NUM_GLOSSARY := $(shell bash $(LOCAL_SCRIPTS_DIR)/count_gloss.sh)
 
 # Project settings
 PROJECT := exchange-intro
@@ -247,16 +243,16 @@ check-latex-engine:
 	fi
 
 pdfs: ## Build all PDF documentation variants in parallel
-	@$(MAKE) -j10 pdf-docs pdf-parts-a4
+	@$(MAKE) pdf-docs pdf-parts-a4
 
-pdf-docs: check-latex-engine cover ## Build all PDF documentation variants in parallel
+pdf-docs: check-latex-engine ## Build all PDF documentation variants in parallel
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm $(DIST_DIR)/$(PROJECT)-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(EXCHANGE_INTRO_A4_PDF) $(EXCHANGE_INTRO_DARK_A4_PDF) $(EXCHANGE_INTRO_B5_PDF) $(EXCHANGE_INTRO_DARK_B5_PDF)
 	@zip -9 -j $(DIST_DIR)/$(PROJECT)-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)-*-$(VERSION).pdf
 	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
-pdf-parts-a4: check-latex-engine cover-parts ## Build each book part as a separate A4 PDF booklet
+pdf-parts-a4: check-latex-engine ## Build each book part as a separate A4 PDF booklet
 	@rm -f $(PARTS_A4_DIST_DIR)/exchange-intro-part-*-$(VERSION).pdf 2>/dev/null || true
 	@$(MAKE) -j4 $(PART_1_PDF) $(PART_2_PDF) $(PART_3_PDF) $(PART_4_PDF)
 	@zip -9 -j $(DIST_DIR)/exchange-intro-parts-a4-bundle-$(VERSION).zip $(PARTS_A4_DIST_DIR)/exchange-intro-part-*-$(VERSION).pdf
@@ -275,9 +271,11 @@ bundle-quiz:  ## Build the quiz bundle zip file
 
 cover:  ## Build the cover images for the book with version number injected
 	@echo -e "$(DARKYELLOW)- Building cover image ...$(NC)"
+	@echo -e "$(DARKYELLOW)  - Injecting version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) into cover template...$(NC)"
+	@echo -e "$(DARKYELLOW)  - Injecting chapter count $(BRIGHTCYAN)$(NUM_CHAPTERS)$(DARKYELLOW) and glossary count $(BRIGHTCYAN)$(NUM_GLOSSARY)$(DARKYELLOW) into cover template...$(NC)"
 	@sed -e "s/@@VERSION@@/v$(VERSION)/g" \
-	-e  's/@@CHAPTERS@@/${NUM_CHAPTERS}/g' \
-	-e 's/@@GLOSSARY@@/${NUM_GLOSSARY}/g' \
+	-e  "s/@@CHAPTERS@@/${NUM_CHAPTERS}/g" \
+	-e "s/@@GLOSSARY@@/${NUM_GLOSSARY}/g" \
 	$(ASSETS_DIR)/cover-exchange-intro-template.html > $(ASSETS_DIR)/cover-exchange-intro.html
 	@${SCRIPTS_DIR}/mkfigs.sh -q -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-exchange-intro
 	@rm -f $(ASSETS_DIR)/cover-exchange-intro.html
@@ -289,6 +287,8 @@ cover-parts: ## Build cover for the split by PART of the book
 	@TITLE_II="Orders \& Matching"
 	@TITLE_III="Risk \& Compliance" 
 	@TITLE_IV="Technology \& Infra" 
+	@echo -e "$(DARKYELLOW)  - Injecting version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) into cover templates...$(NC)"
+	@echo -e "$(DARKYELLOW)  - Injecting chapter count $(BRIGHTCYAN)$(NUM_CHAPTERS)$(DARKYELLOW) and glossary count $(BRIGHTCYAN)$(NUM_GLOSSARY)$(DARKYELLOW) into cover template...$(NC)"
 	@for part in I II III IV; do \
 	    _title="TITLE_$${part}" && \
 		echo -e "${BLUE}  PART $${part} - $${!_title} ...${NC}" && \
@@ -300,8 +300,7 @@ cover-parts: ## Build cover for the split by PART of the book
 		${SCRIPTS_DIR}/mkfigs.sh -q -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-exchange-intro-part-$$part; \
 		rm -f $(ASSETS_DIR)/cover-exchange-intro-part-$$part.html; \
 	done
-	@echo -e "$(GREEN)✓ Cover images for each PART built under $(ASSETS_DIR)$(NC)"
-
+	@echo -e "$(GREEN)✓ Cover images for PART I,II,III,IV built under $(ASSETS_DIR)$(NC)"
 
 # ============================================================================================
 # Macro: BUILD_EXCHANGE_INTRO_PDF
