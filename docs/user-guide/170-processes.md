@@ -141,7 +141,7 @@ A complete EduMatcher session uses **ten core runtime processes** across three c
     ALF for order entry, BALF for binary order entry, CALF for
     market-data dissemination, and RALF for post-trade dissemination. For a
     single map of purpose, runtime status, and links to detailed chapters and
-    formal specs, see [External Protocols Overview](210-protocol-overview.md).
+    formal specs, see [External Protocols Overview](210-protocols-overview.md).
 
 !!! info "Why `pm-`?"
     All CLI commands share the `pm-` prefix, short for **Process for Matching**.
@@ -301,7 +301,7 @@ pm-engine [-v|-vv] [--config engine_config.yaml] [--log-level LEVEL] [-q]
 | `-v` / `--verbose`  | off        | Increase log verbosity (`-v` → `INFO`: startup/lifecycle messages; `-vv` → `DEBUG`: per-order/per-trade detail) |
 | `-q` / `--quiet`    | off        | Explicit `WARNING` (same as the default)                                |
 
-See [Running the Engine → Logging levels](040-running-the-engine.md#logging-levels)
+See [Running the Engine → Logging levels](040-running-the-exchange.md#logging-levels)
 for the full flag reference and example output.
 
 **Expected runtime input arguments:**
@@ -389,7 +389,7 @@ pm-alf-console --id <GW_ID>
 | Flag              | Required | Description                                           |
 |-------------------|----------|-------------------------------------------------------|
 | `--id`            | Yes      | Unique gateway identifier (e.g. `GW01`, `ALICE`)     |
-| `--drop-copy`     | No       | Enable the drop-copy relay on startup (equivalent to sending `DC\|STATE=ON` immediately after connecting); default off — see [Gateway → DC](050-gateway.md#dc-toggle-drop-copy-relay) |
+| `--drop-copy`     | No       | Enable the drop-copy relay on startup (equivalent to sending `DC\|STATE=ON` immediately after connecting); default off — see [Gateway → DC](050-gateway-reference.md#dc-toggle-drop-copy-relay) |
 | `--log-level`     | No       | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`| No       | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
 | `-q` / `--quiet`  | No       | Reduce output to warnings/errors                      |
@@ -444,7 +444,7 @@ is refused and the gateway exits.
 | `system.symbols.{own GW_ID}`       | Symbol list reply                              |
 | `trade.executed`                   | Global trade feed for last-price / P&L display |
 
-See the [Gateway Reference](050-gateway.md) for the full command list.
+See the [Gateway Reference](050-gateway-reference.md) for the full command list.
 
 
 
@@ -1047,7 +1047,7 @@ prints output, and exits.
 `index-daily`, `index-snapshots`, and `index-ids` query the level/EOD history
 that `pm-index`'s own JSONL file no longer stores — see
 [Statistics and Reporting](140-statistics-and-reporting.md#index-level-history)
-for the full reference and [Market Index](150-index.md#state-and-history) for
+for the full reference and [Market Index](150-market-index.md#state-and-history) for
 why this data moved here.
 
 **Examples:**
@@ -1122,7 +1122,7 @@ None.
 
 The scheduler does not subscribe to any PUB messages — it is fire-and-forget.
 
-See [Auctions & Scheduling](080-auctions-scheduling.md) for the full schedule configuration
+See [Auctions & Scheduling](080-session-scheduling.md) for the full schedule configuration
 and session-phase documentation.
 
 
@@ -1527,7 +1527,7 @@ No terminal input. External parties connect over TCP and send RALF lines:
 | `ERR`        | Protocol/entitlement/replay errors  |
 | `EXIT`       | Session termination reason          |
 
-For external usage and examples see [Post-Trade Dissemination](250-post-trade.md)
+For external usage and examples see [Post-Trade Dissemination](250-ralf-gateway.md)
 and [RALF Protocol Reference](930-app-ralf-protocol.md).
 
 
@@ -1642,7 +1642,7 @@ of instances can run at once (e.g. one per terminal, each with a different
 | `--count` | `0` | Exit after N messages (`0` = run until Ctrl-C) |
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 
-See [Drop-Copy Spy (pm-dc-spy)](252-dc-spy-cli.md) for full usage.
+See [Drop-Copy Spy (pm-dc-spy)](202-dc-spy-cli.md) for full usage.
 
 
 ## pm-index — Index Calculation Process
@@ -1717,7 +1717,7 @@ None. `pm-index` is a long-running background process after startup.
 | `data/indexes/<ID>_state.json`    | Divisor, last prices, and intraday OHLC checkpoint — rewritten after each EOD and corporate action                |
 | `data/indexes/<ID>_history.jsonl` | Append-only JSONL **structural/audit trail** with `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, and `DELIST` records only — level and EOD history is recorded by `pm-stats` in `data/stats.db` instead (see the pm-stats section) |
 
-See [Market Index (pm-index)](150-index.md) for configuration details, calculation explanation, and corporate action procedures.
+See [Market Index (pm-index)](150-market-index.md) for configuration details, calculation explanation, and corporate action procedures.
 
 
 
@@ -2053,7 +2053,7 @@ filter to a specific structural event kind.
 Like `pm-stats-cli`, this is a read-only offline tool. It does not connect to
 any ZeroMQ socket.
 
-See [pm-index-cli in the commands reference](160-commands.md)
+See [pm-index-cli in the commands reference](160-exchange-commands.md)
 for the full option reference, output column descriptions, and examples
 including CSV export and Python plotting.
 
@@ -2177,7 +2177,7 @@ CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:
 - `TRADE` (executed trades)
 - `STATE` (session and halt/resume state)
 
-See [Market Data Feed (CALF)](240-market-data-feed.md) for operational usage and
+See [Market Data Feed (CALF)](240-calf-gateway.md) for operational usage and
 [CALF Protocol Reference](920-app-calf-protocol.md) for the wire-level contract.
 
 ## pm-calf-spy (CALF Protocol Spy)
@@ -2212,17 +2212,17 @@ See [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) for full usage.
 
 ## See also
 
-- [Running the Engine](040-running-the-engine.md) — startup order, launch scripts, and verification
+- [Running the Engine](040-running-the-exchange.md) — startup order, launch scripts, and verification
 - [Configuration](010-configuration.md) — how each process is configured via `engine_config.yaml`
-- [Messages](270-messages.md) — the full ZeroMQ message catalog all processes share
+- [Messages](270-message-reference.md) — the full ZeroMQ message catalog all processes share
 - [Persistence](180-persistence.md) — which process writes which data file
 - [Drop Copy](200-drop-copy.md) — the engine's built-in :5557 drop-copy feed
-- [Post-Trade Dissemination](250-post-trade.md) — external RALF gateway usage
+- [Post-Trade Dissemination](250-ralf-gateway.md) — external RALF gateway usage
 - [RALF Protocol Reference](930-app-ralf-protocol.md) — official protocol appendix
-- [Market Data Feed (CALF)](240-market-data-feed.md) — external CALF gateway usage
+- [Market Data Feed (CALF)](240-calf-gateway.md) — external CALF gateway usage
 - [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) — read-only CALF inspection CLI
 - [RALF Protocol Spy (pm-ralf-spy)](251-ralf-spy-cli.md) — read-only RALF inspection CLI
 - [ALF TCP Gateway](220-alf-gateway.md) — external ALF order-entry gateway usage
 - [API Gateway (REST/WebSocket)](260-api-gateway.md) — REST/WebSocket gateway usage and endpoint reference
-- [Market Index (pm-index)](150-index.md) — index configuration, calculation, and corporate actions
+- [Market Index (pm-index)](150-market-index.md) — index configuration, calculation, and corporate actions
 - [Market-Maker Bot](100-mm-bot.md) — autonomous quoting process for a single symbol

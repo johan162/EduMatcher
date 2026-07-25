@@ -29,7 +29,7 @@ endif
 .EXTRA_PREREQS := $(firstword $(MAKEFILE_LIST))
 
 # Make behavior
-.DEFAULT_GOAL := docs
+.DEFAULT_GOAL := pdf-docs
 
 # Get full path to bash
 SHELL := $(shell which bash)

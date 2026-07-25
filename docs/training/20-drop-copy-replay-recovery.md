@@ -184,7 +184,7 @@ subscriber's socket briefly dropped messages?
 ## Further Reading
 
 - [Drop Copy](../user-guide/200-drop-copy.md)
-- [Messages](../user-guide/270-messages.md)
+- [Messages](../user-guide/270-message-reference.md)
 - [Persistence](../user-guide/180-persistence.md)
 
 **Next:** [21 - Automation with CommandClient & MM Bot Tuning](21-automation-commandclient-mm-bot.md)

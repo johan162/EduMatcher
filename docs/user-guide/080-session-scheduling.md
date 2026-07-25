@@ -1,4 +1,4 @@
-# Auctions & Session Scheduling
+# Session Scheduling and Auctions
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -446,8 +446,8 @@ expired if they did *not* fill.
 - [Configuration](010-configuration.md#session-schedule) — `schedule:` YAML keys and `sessions_enabled`
 - [Order Types](060-order-types.md#time-in-force-tif) — ATO and ATC time-in-force explained
 - [Processes](170-processes.md#pm-scheduler-session-scheduler) — how to start and configure `pm-scheduler`
-- [Running the Engine](040-running-the-engine.md) — the `--now` shortcut for rapid session cycling
+- [Running the Engine](040-running-the-exchange.md) — the `--now` shortcut for rapid session cycling
 - [Risk Controls](120-risk-controls.md) — circuit-breaker resumption modes that re-use the uncross algorithm
-- [Messages](270-messages.md) — `session.state`, `auction.result`, and `order.expired` message formats
+- [Messages](270-message-reference.md) — `session.state`, `auction.result`, and `order.expired` message formats
 
 

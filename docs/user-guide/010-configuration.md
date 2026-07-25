@@ -1,4 +1,4 @@
-# Engine Configuration
+# Configuration
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -51,9 +51,9 @@ Each protocol's configuration lives in a different part of `engine_config.yaml`:
 - **ALF** — configured under `gateways.alf`; used by `pm-engine` to authenticate order-entry connections from `pm-alf-console` and `pm-alf-gwy`, as well as `pm-balf-gwy` (the gateway id used in the BALF configurations must exist under `gateways.alf`). 
   Uses a pipe-delimited text format (`FIELD=VALUE|FIELD=VALUE`).
 - **BALF** — configured under the top-level `balf_gateway` key; used by `pm-balf-gwy`. Uses fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing overhead is undesirable. See [BALF Gateway](230-balf-gateway.md) for more usage and [BALF Protocol](910-app-balf-protocol.md) for the full specification.
-- **CALF** — configured under the top-level `market_data_gateway` key; used by `pm-md-gwy`. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See [Market Data Feed](240-market-data-feed.md) for usage and [CALF Protocol](920-app-calf-protocol.md) for the full protocol specification.
-- **RALF** — configured under the top-level `post_trade_gateway` key; used by `pm-ralf-gwy`. Provides a replayable audit feed of all executed trades, including the original order details, over a persistent TCP connection with sequence-based gap detection. See [Post Trade](250-post-trade.md) for usage and [RALF Protocol](930-app-ralf-protocol.md) for the full protocol specification.
-- A Full overview of all protocol and their intended usage can be found in [Protocols Overview](210-protocol-overview.md).
+- **CALF** — configured under the top-level `market_data_gateway` key; used by `pm-md-gwy`. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See [Market Data Feed](240-calf-gateway.md) for usage and [CALF Protocol](920-app-calf-protocol.md) for the full protocol specification.
+- **RALF** — configured under the top-level `post_trade_gateway` key; used by `pm-ralf-gwy`. Provides a replayable audit feed of all executed trades, including the original order details, over a persistent TCP connection with sequence-based gap detection. See [Post Trade](250-ralf-gateway.md) for usage and [RALF Protocol](930-app-ralf-protocol.md) for the full protocol specification.
+- A Full overview of all protocol and their intended usage can be found in [Protocols Overview](210-protocols-overview.md).
 
 ## File Location
 
@@ -2537,8 +2537,8 @@ parsed:
 
 ## See Also
 
-- [Running the Engine](040-running-the-engine.md) - startup order and common runtime workflows
-- [Gateway Commands](050-gateway.md) - ALF commands and gateway behavior
+- [Running the Engine](040-running-the-exchange.md) - startup order and common runtime workflows
+- [Gateway Commands](050-gateway-reference.md) - ALF commands and gateway behavior
 - [Risk Controls](120-risk-controls.md) - collar and circuit-breaker behavior in depth
 - [Persistence](180-persistence.md) - how GTC orders, book stats, and combos are saved and restored
 - [Processes](170-processes.md) - which process reads which config section

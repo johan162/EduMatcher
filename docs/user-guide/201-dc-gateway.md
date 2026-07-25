@@ -1,4 +1,4 @@
-# Drop-Copy TCP Gateway (`pm-dc-gwy`)
+# Drop-Copy Gateway (`pm-dc-gwy`)
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -19,7 +19,7 @@ plain TCP clients that cannot or should not speak ZeroMQ: a risk system, a
 clearing broker's ingestion pipeline, a compliance monitor, or any process on
 another host that only has a sockets library.
 
-It is the TCP counterpart to [`pm-dc-spy`](252-dc-spy-cli.md): both connect a
+It is the TCP counterpart to [`pm-dc-spy`](202-dc-spy-cli.md): both connect a
 `zmq.SUB` socket to port 5557 and read `drop_copy.event.<gateway_id>`
 messages. `pm-dc-spy` prints them to a terminal for a human. `pm-dc-gwy`
 relays them as DC1 text lines to any number of concurrently connected TCP
@@ -348,11 +348,11 @@ while True:
 
 | Scenario | Best choice |
 |----------|------------|
-| Ad-hoc inspection from a terminal, human-readable or JSON | [`pm-dc-spy`](252-dc-spy-cli.md) |
+| Ad-hoc inspection from a terminal, human-readable or JSON | [`pm-dc-spy`](202-dc-spy-cli.md) |
 | External process, any language, no ZeroMQ dependency allowed | `pm-dc-gwy` |
 | Process already has ZeroMQ / pyzmq available | Connect directly to port 5557 — see [Drop Copy](200-drop-copy.md) |
 | You already have an ALF trading session open and only want your own fills | `DC\|STATE=ON` on that session — see [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay) |
-| Role-gated (`CLEARING`/`AUDIT`) trade feed with replay-by-sequence | `pm-ralf-gwy` — see [Post-trade](250-post-trade.md) |
+| Role-gated (`CLEARING`/`AUDIT`) trade feed with replay-by-sequence | `pm-ralf-gwy` — see [Post-trade](250-ralf-gateway.md) |
 
 
 ## Troubleshooting
@@ -396,7 +396,7 @@ Expected output: `WELCOME|...` followed by a clean connection close.
 ## See also
 
 - [Drop Copy](200-drop-copy.md) — the engine's drop-copy feed (`:5557`) this gateway relays
-- [Drop-Copy Spy (pm-dc-spy)](252-dc-spy-cli.md) — read-only CLI for the same feed
+- [Drop-Copy Spy (pm-dc-spy)](202-dc-spy-cli.md) — read-only CLI for the same feed
 - [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay) — relay your own fills through an existing ALF session instead
 - [Processes](170-processes.md#pm-dc-gwy-drop-copy-tcp-gateway) — process topology and ZMQ message tables
-- [External Protocols Overview](210-protocol-overview.md) — protocol comparison and selection guide
+- [External Protocols Overview](210-protocols-overview.md) — protocol comparison and selection guide

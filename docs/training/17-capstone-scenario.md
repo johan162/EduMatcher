@@ -189,12 +189,12 @@ Answer these without looking at earlier chapters:
 Review map:
 
 - Q1: [Architecture Overview](../architecture/01-architecture.md)
-- Q2: [Gateway Commands](../user-guide/050-gateway.md)
+- Q2: [Gateway Commands](../user-guide/050-gateway-reference.md)
 - Q3: [MM Quotes Concept](../concepts/03-concepts-mm-quotes.md)
 - Q4: [Drop Copy](../user-guide/200-drop-copy.md)
 - Q5: [Order Types](../user-guide/060-order-types.md)
-- Q6: [Time-in-Force & Session Lifecycle](../user-guide/080-auctions-scheduling.md)
-- Q7: [Controlling the Exchange](../user-guide/160-commands.md)
+- Q6: [Time-in-Force & Session Lifecycle](../user-guide/080-session-scheduling.md)
+- Q7: [Controlling the Exchange](../user-guide/160-exchange-commands.md)
 
  
 

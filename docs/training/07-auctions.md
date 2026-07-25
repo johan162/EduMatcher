@@ -165,7 +165,7 @@ order filled at its own price instead?
 
 ## Further Reading
 
-- [Auctions & Scheduling](../user-guide/080-auctions-scheduling.md)
+- [Auctions & Scheduling](../user-guide/080-session-scheduling.md)
 - [Auction Equilibrium Concepts](../concepts/05-concepts-trading-day.md)
 - [Order Types](../user-guide/060-order-types.md)
 

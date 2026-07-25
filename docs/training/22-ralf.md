@@ -315,7 +315,7 @@ incidents versus routine noise.
 
 ## Further Reading
 
-- [Post-Trade Dissemination](../user-guide/250-post-trade.md)
+- [Post-Trade Dissemination](../user-guide/250-ralf-gateway.md)
 - [RALF Protocol Spy (pm-ralf-spy)](../user-guide/251-ralf-spy-cli.md)
 - [RALF Protocol Appendix](../user-guide/930-app-ralf-protocol.md)
 - [Protocol Support Library Examples](../user-guide/800-examples.md)

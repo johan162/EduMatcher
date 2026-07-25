@@ -141,7 +141,7 @@ their original priority in a busy book?
 
 ## Further Reading
 
-- [Gateway Commands](../user-guide/050-gateway.md)
+- [Gateway Commands](../user-guide/050-gateway-reference.md)
 - [ALF Protocol — AMEND](../user-guide/900-app-alf-protocol.md)
 
  

@@ -35,7 +35,7 @@ three levels:
 If you are new to the code base, start by reading these pages in order:
 
 1. [How an Exchange Works](../how-exchange-works.md)
-2. [Running the Exchange](../user-guide/040-running-the-engine.md)
+2. [Running the Exchange](../user-guide/040-running-the-exchange.md)
 3. [Architecture Overview](../architecture/01-architecture.md)
 4. [Verification](04-verification.md)
 
@@ -414,9 +414,9 @@ poetry run mkdocs build
 If you change:
 
 - **configuration semantics** → update `docs/user-guide/010-configuration.md`
-- **runtime commands or startup behavior** → update `docs/user-guide/040-running-the-engine.md`
-- **gateway commands** → update `docs/user-guide/050-gateway.md`
-- **message payloads or topics** → update `docs/user-guide/270-messages.md`
+- **runtime commands or startup behavior** → update `docs/user-guide/040-running-the-exchange.md`
+- **gateway commands** → update `docs/user-guide/050-gateway-reference.md`
+- **message payloads or topics** → update `docs/user-guide/270-message-reference.md`
 - **risk, MM quotes, persistence, or drop copy** → update the corresponding user-guide page
 - **developer workflow** → update this page and related developer docs
 

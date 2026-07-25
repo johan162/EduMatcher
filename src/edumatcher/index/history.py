@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 # Every index.update tick (including end-of-day closes) is instead
 # recorded by pm-stats in the index_level_snapshots / index_daily_stats
 # SQLite tables, which are built for efficient time-range queries.
-# See docs/user-guide/150-index.md and docs/user-guide/140-statistics-and-reporting.md.
+# See docs/user-guide/150-market-index.md and docs/user-guide/140-statistics-and-reporting.md.
 STRUCTURAL_RECORD_TYPES: frozenset[str] = frozenset(
     {"INIT", "CORP_ACTION", "DELIST", "ADD_CONSTITUENT"}
 )

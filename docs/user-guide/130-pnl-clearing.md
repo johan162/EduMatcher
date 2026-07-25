@@ -1319,5 +1319,5 @@ pm-clearing-cli pnl  # reads morning/clearing.db
 - [Statistics and Reporting](140-statistics-and-reporting.md) — `pm-stats-cli` for market data queries
 - [Audit Trail](190-audit.md) — `pm-audit-cli` for querying the full event log
 - [Processes](170-processes.md) — how `pm-clearing` connects to the engine
-- [Messages](270-messages.md) — `trade.executed` fields consumed by `pm-clearing`
+- [Messages](270-message-reference.md) — `trade.executed` fields consumed by `pm-clearing`
 - [Order Types](060-order-types.md) — which order types produce fills

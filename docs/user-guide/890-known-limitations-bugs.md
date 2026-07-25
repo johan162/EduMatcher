@@ -254,7 +254,7 @@ path and reuses data the engine already produces.
     Both options send **more** `order.fill` messages for sweeping orders (N
     instead of 1). For deep sweeps this increases publish volume and message
     bandwidth. Benchmark against the throughput targets in
-    [Running the Engine](040-running-the-engine.md) before adopting a fix.
+    [Running the Engine](040-running-the-exchange.md) before adopting a fix.
 
 ---
 

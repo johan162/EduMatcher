@@ -20,9 +20,9 @@ If you are already familiar with trading, use this quick routing table:
 
 | If you are... | Read this first | Then continue with |
 |---|---|---|
-| Hands-on user / instructor | [Getting Started](user-guide/000-getting-started.md) | [Configuration](user-guide/010-configuration.md) -> [Running the Engine](user-guide/040-running-the-engine.md) -> [Processes](user-guide/170-processes.md) |
-| Developer extending the system | [Architecture Overview](architecture/01-architecture.md) | [Architecture Walkthrough](architecture/02-architecture-guide.md) -> [Messages](user-guide/270-messages.md) -> [Developer Info](developer/01-dev-practice.md) |
-| Protocol reader | [Protocol Overview](user-guide/210-protocol-overview.md) | Choose protocol appendix and examples from there |
+| Hands-on user / instructor | [Getting Started](user-guide/000-getting-started.md) | [Configuration](user-guide/010-configuration.md) -> [Running the Engine](user-guide/040-running-the-exchange.md) -> [Processes](user-guide/170-processes.md) |
+| Developer extending the system | [Architecture Overview](architecture/01-architecture.md) | [Architecture Walkthrough](architecture/02-architecture-guide.md) -> [Messages](user-guide/270-message-reference.md) -> [Developer Info](developer/01-dev-practice.md) |
+| Protocol reader | [Protocol Overview](user-guide/210-protocols-overview.md) | Choose protocol appendix and examples from there |
 
 ```mermaid
 flowchart TD
@@ -101,7 +101,7 @@ If you want direct entry points, start with:
 ## Next Stops
 
 - [Configuration](user-guide/010-configuration.md)
-- [Commands](user-guide/160-commands.md)
-- [Running the Engine](user-guide/040-running-the-engine.md)
-- [Gateway Commands](user-guide/050-gateway.md)
-- [Protocol Overview](user-guide/210-protocol-overview.md)
+- [Commands](user-guide/160-exchange-commands.md)
+- [Running the Engine](user-guide/040-running-the-exchange.md)
+- [Gateway Commands](user-guide/050-gateway-reference.md)
+- [Protocol Overview](user-guide/210-protocols-overview.md)

@@ -340,7 +340,7 @@ events vs. price/quote state) rather than just their names.
 
 ## Further Reading
 
-- [Market Data Feed (CALF)](../user-guide/240-market-data-feed.md)
+- [Market Data Feed (CALF)](../user-guide/240-calf-gateway.md)
 - [CALF Protocol Spy (pm-calf-spy)](../user-guide/241-calf-spy-cli.md)
 - [CALF Protocol Appendix](../user-guide/920-app-calf-protocol.md)
 - [Protocol Support Library Examples](../user-guide/800-examples.md)

@@ -1,4 +1,4 @@
-# Index Admin CLI (`pm-index-admin-cli`)
+# Index Admin CLI
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -20,7 +20,7 @@
 actions (splits, cash dividends, share issuances and buy-backs) and
 constituent changes (add / delist) to a running `pm-index` process. It
 replaces the "write a short script" workaround described in
-[Market Index — Applying corporate actions](150-index.md#applying-corporate-actions):
+[Market Index — Applying corporate actions](150-market-index.md#applying-corporate-actions):
 every action that script could perform is now a documented subcommand with
 `--help` text, client-side validation, a confirmation prompt, and a
 `--dry-run` preview mode.
@@ -39,13 +39,11 @@ specifically its `index_corp_action()`, `index_delist()`,
 `index_add_constituent()`, and `index_history()` methods. No engine-side or
 `pm-index`-side code changes were needed to add this tool; it is a pure
 client addition. See
-[EduMatcher — Index Admin CLI Design Proposal](../../docs-design/EduMatcher-index-admin-cli.md)
-for the full design rationale.
 
 
 ## Why not `pm-index-cli`?
 
-[`pm-index-cli`](160-commands.md) already exists as a **read-only** query
+[`pm-index-cli`](160-exchange-commands.md) already exists as a **read-only** query
 tool over `pm-index`'s history/state JSONL files — it never touches the live
 ZMQ bus. Corporate actions are a live, mutating operation against a running
 process, which is a different responsibility, so it lives in a separate
@@ -68,7 +66,7 @@ ZAP/CURVE, no gateway allowlist, and no role check. It only verifies that the
 `gateway_id` field on an inbound message is non-empty before processing it —
 the field is used purely as an ack-routing key (which SUB topic to reply on),
 never as an identity or permission check. This is documented in
-[Exchange Commands — PUSH socket has no authentication](160-commands.md) for
+[Exchange Commands — PUSH socket has no authentication](160-exchange-commands.md) for
 the engine's own socket, and the index socket has even less: it doesn't even
 have the engine's payload-level `role: ADMIN` check.
 
@@ -243,7 +241,7 @@ pm-index-admin-cli --id OPS01 shares --index TECH10 --sym AAPL --new-shares 1520
 
 `pm-index` has no dedicated `BUYBACK` action — only `SHARES_ISSUANCE`, which
 always sets an absolute share count regardless of direction (see
-[Market Index — Supported corporate actions](150-index.md#supported-corporate-actions)).
+[Market Index — Supported corporate actions](150-market-index.md#supported-corporate-actions)).
 `--delta` is a CLI-side convenience: it looks up the constituent's last
 recorded `SHARES_ISSUANCE` value via `history`, applies the signed delta, and
 shows the computed absolute value before sending. If no prior share count is
@@ -319,7 +317,7 @@ pm-index-admin-cli --id OPS01 history --index TECH10 --limit 20
 
 This is the same underlying `index.history_request` used by
 `INDEX|HISTORY` in `pm-alf-console` (see
-[Market Index — Structural/audit history queries](150-index.md#structuralaudit-history-queries)),
+[Market Index — Structural/audit history queries](150-market-index.md#structuralaudit-history-queries)),
 wrapped here so you can confirm an action landed without switching tools.
 Unlike `pm-index-cli events`, which reads the JSONL file directly from disk
 and needs no running process, `history` here round-trips through the live
@@ -362,7 +360,7 @@ $ pm-index-admin-cli --id OPS01 --format json split --index TECH10 --sym AAPL --
 ## Typical operator workflow
 
 A full pre-market corporate-action sequence, applied before `PRE_OPEN` ends
-(see [Market Index — Apply corporate actions before the market opens](150-index.md#applying-corporate-actions)):
+(see [Market Index — Apply corporate actions before the market opens](150-market-index.md#applying-corporate-actions)):
 
 ```bash
 # Preview first
@@ -398,11 +396,9 @@ pm-index-admin-cli --id BATCH01 --yes dividend --index TECH10 --sym MSFT --amoun
 
 ## Further Reading
 
-- [Market Index](150-index.md) — `pm-index` process, corporate-action
+- [Market Index](150-market-index.md) — `pm-index` process, corporate-action
   semantics, divisor math, and the state/history file formats this tool
   writes to
-- [Exchange Commands](160-commands.md) — `pm-admin-cli`, `ExchangeCommandClient`,
+- [Exchange Commands](160-exchange-commands.md) — `pm-admin-cli`, `ExchangeCommandClient`,
   and the sibling `pm-index-cli` read-only query tool
 - [Processes](170-processes.md) — full process/command reference table
-- [EduMatcher — Index Admin CLI Design Proposal](../../docs-design/EduMatcher-index-admin-cli.md) —
-  full design rationale, including alternatives considered and open questions

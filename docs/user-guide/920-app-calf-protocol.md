@@ -2,7 +2,7 @@
 
 > **Status: Normative.** This appendix is the single source of truth for the CALF
 > `1.0.0` wire contract as implemented by `pm-md-gwy` (`md_gateway/`). For an
-> operational, tutorial-style guide see [Market Data Feed (CALF)](240-market-data-feed.md);
+> operational, tutorial-style guide see [Market Data Feed (CALF)](240-calf-gateway.md);
 > for the gateway's configuration block see
 > [Engine Config Specification §6.3](990-app-config-spec.md#63-market_data_gateway-pm-md-gwy-calf).
 > The key words MUST, MUST NOT, SHOULD, and MAY are used per RFC 2119.
@@ -66,9 +66,6 @@ behavior.
 - full order-by-order (Level 3) market data — `DEPTH` is Level 2
   (aggregated per price level), never per-order
 - `SYM=*` for `INDEX`, `DEPTH`, or `CB`
-- index-level circuit breakers on `CB` (symbol-level only; see
-  [EduMatcher-index-cb.md](../../docs-design/EduMatcher-index-cb.md) for the
-  separate index-level proposal)
 - multicast / UDP transport
 - entitlement matrix per field
 - durable historical replay from disk
@@ -1061,11 +1058,10 @@ If you are implementing a CALF client, the most important protocol truths are:
 
 ## See also
 
-- [Market Data Feed (CALF)](240-market-data-feed.md) — operational guide and client examples
+- [Market Data Feed (CALF)](240-calf-gateway.md) — operational guide and client examples
 - [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) — read-only CLI for inspecting the live wire format
 - [Processes](170-processes.md) — where `pm-md-gwy` sits in the process model
 - [Engine Config Specification](990-app-config-spec.md#63-market_data_gateway-pm-md-gwy-calf) — `market_data_gateway` field law
-- [External Protocols Overview](210-protocol-overview.md) — ALF/BALF/CALF/RALF at a glance
+- [External Protocols Overview](210-protocols-overview.md) — ALF/BALF/CALF/RALF at a glance
 - [Risk Controls](120-risk-controls.md) — circuit-breaker engine behavior behind the `CB` channel
-- [Market Index](150-index.md) — auction uncross mechanics behind the `AUCTION` channel
-- [EduMatcher-CALF-auction-cb.md](../../docs-design/EduMatcher-CALF-auction-cb.md) — design proposal for the `AUCTION` and `CB` channels
+- [Market Index](150-market-index.md) — auction uncross mechanics behind the `AUCTION` channel

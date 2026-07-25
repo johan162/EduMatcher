@@ -598,5 +598,5 @@ If you are writing another BALF client, the most important exact behaviors are:
 - [ALF TCP Gateway](220-alf-gateway.md) — text-protocol alternative when binary
   parsing is not required
 - [Configuration](010-configuration.md) — `balf_gateway:` section reference
-- [External Protocols Overview](210-protocol-overview.md) — protocol comparison
+- [External Protocols Overview](210-protocols-overview.md) — protocol comparison
   and selection guide

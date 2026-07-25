@@ -1,4 +1,4 @@
-# Market Making
+# Market Maker
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -13,7 +13,7 @@
 
     **Prerequisites**: [Configuration](010-configuration.md) — you need a gateway configured
     with `role: MARKET_MAKER` before the engine accepts quotes.
-    [Gateway Commands](050-gateway.md) — understand how to connect a gateway terminal.
+    [Gateway Commands](050-gateway-reference.md) — understand how to connect a gateway terminal.
 
 ---
 
@@ -1485,5 +1485,5 @@ sequenceDiagram
 - [Order Types](060-order-types.md) — the LIMIT orders that quote legs create under the hood
 - [Risk Controls](120-risk-controls.md) — how circuit breakers cancel quotes during a halt
 - [Persistence](180-persistence.md) — GTC quotes survive restarts; MM seeds are injected at startup
-- [Gateway Commands](050-gateway.md) — full QUOTE and QUOTE_CANCEL command syntax
-- [Messages](270-messages.md) — `quote.ack` and `quote.status` message payloads
+- [Gateway Commands](050-gateway-reference.md) — full QUOTE and QUOTE_CANCEL command syntax
+- [Messages](270-message-reference.md) — `quote.ack` and `quote.status` message payloads

@@ -266,7 +266,7 @@ gateway's orders **when the order itself doesn't specify one**:
 
 > NOTE — `sessions_enabled` default: the engine loader applies `true` when the key
 > is omitted from a *present* file. (A completely absent config file runs
-> unrestricted with sessions disabled — see [Auctions & Scheduling](080-auctions-scheduling.md).)
+> unrestricted with sessions disabled — see [Auctions & Scheduling](080-session-scheduling.md).)
 
 ### 5.4 `mm_obligation_defaults` (OPTIONAL) — `MMObligationDefaultsSpec`
 
@@ -502,5 +502,5 @@ block on every symbol.
 - [Configuration](010-configuration.md) — informative reference, generator, recipes
 - [Config Verifier (`pm-cverifier`)](020-config-verifier.md) — the reference validator
 - [Risk Controls](120-risk-controls.md) — collar and circuit-breaker behaviour
-- [Market Index (`pm-index`)](150-index.md) — index calculation using `indices`
-- [External Protocols Overview](210-protocol-overview.md) — the gateways that read the auxiliary blocks
+- [Market Index (`pm-index`)](150-market-index.md) — index calculation using `indices`
+- [External Protocols Overview](210-protocols-overview.md) — the gateways that read the auxiliary blocks

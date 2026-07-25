@@ -1,4 +1,4 @@
-# Post-Trade Dissemination (RALF)
+# RALF Gateway - Post-Trade Dissemination
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -266,7 +266,7 @@ EduMatcher offers several ways to obtain market and post-trade data.
 | **Internal ZMQ PUB** (`:5556`) | ZMQ binary | Internal Python processes | External clients |
 | **REST / WebSocket** (`pm-api-gwy`) | HTTP/JSON | Web dashboards; one-shot queries | High-frequency streaming |
 
-See [External Protocols Overview](210-protocol-overview.md) for the full
+See [External Protocols Overview](210-protocols-overview.md) for the full
 comparison table.
 
 
@@ -693,9 +693,9 @@ Outcomes:
 
 ## See also
 
-- [External Protocols Overview](210-protocol-overview.md) — ALF, BALF, CALF, RALF at a glance
+- [External Protocols Overview](210-protocols-overview.md) — ALF, BALF, CALF, RALF at a glance
 - [Appendix — RALF Protocol](930-app-ralf-protocol.md) — normative wire format and field tables
 - [RALF Protocol Spy (pm-ralf-spy)](251-ralf-spy-cli.md) — read-only CLI for watching the raw feed, human-readable or JSON
-- [Market Data Feed (CALF)](240-market-data-feed.md) — pre-trade streaming market data
+- [Market Data Feed (CALF)](240-calf-gateway.md) — pre-trade streaming market data
 - [Drop Copy](200-drop-copy.md)
 - [Processes](170-processes.md#pm-ralf-gwy-post-trade-dissemination-gateway)

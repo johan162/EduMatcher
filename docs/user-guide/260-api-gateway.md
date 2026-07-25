@@ -560,7 +560,7 @@ Behaviour notes:
     `INDEX|HISTORY` command (read) and
     [`pm-index-admin-cli`](152-index-admin-cli.md) (corporate
     actions/constituent changes, write) — not through this gateway.
-    [`pm-index-cli`](160-commands.md#pm-index-cli-index-structuralaudit-history-query-tool)
+    [`pm-index-cli`](160-exchange-commands.md#pm-index-cli-index-structuralaudit-history-query-tool)
     is unrelated to that socket: it is a read-only tool that parses
     `pm-index`'s structural/audit JSONL files directly from disk. Read access
     to index *statistics* (level history, daily OHLC) is available via

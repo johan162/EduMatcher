@@ -259,7 +259,7 @@ To change the drop copy port, edit `DROP_COPY_PUB_ADDR` in `config.py`.
 
 !!! tip "Quick observability: pm-dc-spy"
     For ad-hoc inspection you don't need to write a subscriber at all —
-    [`pm-dc-spy`](252-dc-spy-cli.md) is a read-only CLI that connects to
+    [`pm-dc-spy`](202-dc-spy-cli.md) is a read-only CLI that connects to
     port 5557 and prints every fill event, human-readable or as JSON:
 
     ```bash
@@ -330,7 +330,7 @@ DC|STATE=ON
 
 Once enabled, every fill for that gateway arrives asynchronously as a
 `DC_FILL` line — see
-[Gateway → DC](050-gateway.md#dc-toggle-drop-copy-relay) and
+[Gateway → DC](050-gateway-reference.md#dc-toggle-drop-copy-relay) and
 [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay) for the
 full command reference. Internally this is exactly the same ZMQ SUB
 connection to `drop_copy.event.{gateway_id}` described above — `pm-alf-gwy`
@@ -416,19 +416,19 @@ If you need a per-participant, sequenced, replayable fill feed for
 programmatic consumption, use the engine's drop copy feed on port 5557. If
 you need RALF's text-protocol trade feed with role-based entitlement
 checks, see [RALF protocol reference](930-app-ralf-protocol.md) and
-[Post-trade](250-post-trade.md).
+[Post-trade](250-ralf-gateway.md).
 
 
 
 ## See also
 
-- [Drop-Copy Spy (pm-dc-spy)](252-dc-spy-cli.md) — read-only CLI for inspecting this feed without writing a subscriber
+- [Drop-Copy Spy (pm-dc-spy)](202-dc-spy-cli.md) — read-only CLI for inspecting this feed without writing a subscriber
 - [Drop-Copy TCP Gateway (pm-dc-gwy)](201-dc-gateway.md) — plain-TCP relay of this feed for non-ZeroMQ external clients
-- [Gateway → DC](050-gateway.md#dc-toggle-drop-copy-relay) — relay this feed through your own `pm-alf-console` session
+- [Gateway → DC](050-gateway-reference.md#dc-toggle-drop-copy-relay) — relay this feed through your own `pm-alf-console` session
 - [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay) — relay this feed through your own `pm-alf-gwy` session
 - [Processes](170-processes.md) — full ZeroMQ topology
 - [Risk Controls](120-risk-controls.md) — halt, collar, and circuit breaker events
 - [Persistence](180-persistence.md) — durable audit trail as a complement to drop copy
-- [Messages](270-messages.md) — all message types used in EduMatcher
-- [Post-trade](250-post-trade.md) — RALF post-trade feed and channels
+- [Messages](270-message-reference.md) — all message types used in EduMatcher
+- [Post-trade](250-ralf-gateway.md) — RALF post-trade feed and channels
 - [RALF protocol reference](930-app-ralf-protocol.md) — RALF `DROP_COPY` channel wire format

@@ -2,7 +2,7 @@
 
 > **Status: Normative.** This appendix is the single source of truth for the ALF
 > wire contract as implemented by `pm-alf-console` and `pm-alf-gwy` (`alf_gwy/`).
-> For an operational, tutorial-style guide see [Gateway Reference](050-gateway.md)
+> For an operational, tutorial-style guide see [Gateway Reference](050-gateway-reference.md)
 > and [ALF TCP Gateway](220-alf-gateway.md); for the gateway's configuration block
 > see [Engine Config Specification §6.1](990-app-config-spec.md#61-alf_gateway-pm-alf-gwy).
 > The key words MUST, MUST NOT, SHOULD, and MAY are used per RFC 2119.
@@ -1188,9 +1188,9 @@ If you are writing another ALF producer, the most important exact behaviors are:
 
 ## See also
 
-- [Gateway](050-gateway.md) — the gateway terminal that implements this protocol
+- [Gateway](050-gateway-reference.md) — the gateway terminal that implements this protocol
 - [Order Types](060-order-types.md) — semantic descriptions of every order type referenced here
-- [Messages](270-messages.md) — the ZeroMQ messages that the gateway emits after parsing ALF commands
+- [Messages](270-message-reference.md) — the ZeroMQ messages that the gateway emits after parsing ALF commands
 - [Drop Copy](200-drop-copy.md) — the underlying feed `DC|STATE=ON` relays
 - [Drop-Copy TCP Gateway](201-dc-gateway.md) — standalone gateway for external, non-ALF drop-copy clients
 - [BALF Protocol Reference](910-app-balf-protocol.md) — binary encoding of the same order model

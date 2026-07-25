@@ -13,7 +13,7 @@
 
     **Prerequisites**: [Configuration](010-configuration.md) — you should have a
     working `engine_config.yaml` before following the steps on this page.
-    [Commands](160-commands.md) — for the operator console used in the
+    [Commands](160-exchange-commands.md) — for the operator console used in the
     monitoring section.
 
 
@@ -982,7 +982,7 @@ pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
 ```
 
 The target state must be a valid transition from the current session state
-(see [Auctions & Scheduling](080-auctions-scheduling.md) for the allowed
+(see [Auctions & Scheduling](080-session-scheduling.md) for the allowed
 state graph); an invalid transition is logged by the engine and silently
 ignored — the caller receives no rejection message.
 
@@ -1033,6 +1033,6 @@ with different defaults.
 
 - [Configuration](010-configuration.md) — full `engine_config.yaml` reference
 - [Processes](170-processes.md) — what every process does and which ports it uses
-- [Gateway](050-gateway.md) — how to connect a participant terminal and place orders
+- [Gateway](050-gateway-reference.md) — how to connect a participant terminal and place orders
 - [Persistence](180-persistence.md) — what data files survive a restart and how to manage them
-- [Auctions & Scheduling](080-auctions-scheduling.md) — how `pm-scheduler` drives session phases
+- [Auctions & Scheduling](080-session-scheduling.md) — how `pm-scheduler` drives session phases

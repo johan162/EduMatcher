@@ -151,7 +151,7 @@ price by trading. Shallow books are easier to move.
 
 **ECN (Electronic Communication Network):** An electronic trading system that automatically matches buy and sell orders, typically with narrower spreads than exchanges but less regulatory oversight.
 
-**Equilibrium Price (Auction Price):** The single price at which the maximum volume can trade in a call auction. See [Auctions & Session Scheduling](user-guide/080-auctions-scheduling.md).
+**Equilibrium Price (Auction Price):** The single price at which the maximum volume can trade in a call auction. See [Auctions & Session Scheduling](user-guide/080-session-scheduling.md).
 
 **Equity:** Ownership stake in a company. Equity holders (shareholders) have a residual claim on the company's assets and earnings after all creditors are paid.
 

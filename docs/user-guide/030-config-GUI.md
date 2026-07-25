@@ -264,14 +264,14 @@ gateway has the `MARKET_MAKER` role.
 | Tab | Persona | Configures | Reference chapter |
 |---|---|---|---|
 | **Basics** | Beginner | The symbol universe and the ALF gateway allowlist | [ALF gateway allowlist](010-configuration.md#alf-gateway-allowlist), [ALF gateway](220-alf-gateway.md) |
-| **Sessions & Schedule** | Beginner | Whether the scheduler drives the trading day, and the phase times | [Auctions & Session Scheduling](080-auctions-scheduling.md) |
+| **Sessions & Schedule** | Beginner | Whether the scheduler drives the trading day, and the phase times | [Auctions & Session Scheduling](080-session-scheduling.md) |
 | **Risk & Collars** | Intermediate | The global collar band, named risk levels, and collar enforcement | [Price collars](120-risk-controls.md#price-collars) |
 | **Circuit Breakers** | Intermediate | The halt ladder, reference window, and CB enforcement | [Circuit breakers](120-risk-controls.md#circuit-breakers) |
 | **Market Maker** | Beginner¹ | Obligation defaults and startup quote seeding | [Market Making](090-market-maker.md) |
 | **Symbols** | Intermediate | Per-symbol overrides for every setting, plus MM quotes | [Symbol universe](010-configuration.md#symbol-universe) |
-| **Indices** | Intermediate | Cap-weighted index definitions and constituents | [Market Index](150-index.md) |
-| **Combos** | Expert | Multi-leg startup seed orders | [Combo Orders](070-combos.md) |
-| **Auxiliary Gateways** | Intermediate | Post-Trade, Market-Data, BALF, and API gateway processes | [RALF](250-post-trade.md), [CALF](240-market-data-feed.md), [BALF](230-balf-gateway.md), [API](260-api-gateway.md) |
+| **Indices** | Intermediate | Cap-weighted index definitions and constituents | [Market Index](150-market-index.md) |
+| **Combos** | Expert | Multi-leg startup seed orders | [Combo Orders](070-combo-orders.md) |
+| **Auxiliary Gateways** | Intermediate | Post-Trade, Market-Data, BALF, and API gateway processes | [RALF](250-ralf-gateway.md), [CALF](240-calf-gateway.md), [BALF](230-balf-gateway.md), [API](260-api-gateway.md) |
 | **Engine Tuning** | Expert | Low-level runtime retention and throttling knobs | [`engine_tuning`](010-configuration.md#engine_tuning) |
 | **Review & Export** | Beginner | Diagnostics summary, YAML preview, download, and verify | [Config Verifier](020-config-verifier.md) |
 
@@ -333,7 +333,7 @@ The dialog collects:
 | **Symbol name** | Uppercased automatically; must be unique. |
 | **Reference price** | The opening mid-price. Derives `last_buy_price` / `last_sell_price` and becomes the collar's static reference on day one. |
 | **Tick decimals** (Intermediate+) | Price precision (0–8). Defaults to the global value. See [tick size](060-order-types.md). |
-| **Outstanding shares** | Required if the symbol will be an [index](150-index.md) constituent; a sensible default is pre-filled. |
+| **Outstanding shares** | Required if the symbol will be an [index](150-market-index.md) constituent; a sensible default is pre-filled. |
 | **Opening spread (ticks)** (Intermediate+) | Spread, in ticks, used to auto-derive the primary market maker's opening bid/ask around the reference price. |
 | **Quote size** (Intermediate+) | Quantity used for the auto-derived primary market maker quote. |
 | **Additional market makers** (Expert) | Extra bid/ask quote rows for MM gateways beyond the primary one. |
@@ -453,14 +453,14 @@ day"), the resumption mode, and the reference window for a single symbol.
 ### Sessions and schedule
 
 A trading day moves through phases — pre-open, opening auction, continuous
-trading, closing auction — driven by the [`pm-scheduler`](080-auctions-scheduling.md#the-session-scheduler-pm-scheduler)
+trading, closing auction — driven by the [`pm-scheduler`](080-session-scheduling.md#the-session-scheduler-pm-scheduler)
 process. The **Sessions & Schedule** tab (Beginner) toggles
 [`sessions_enabled`](010-configuration.md#sessions_enabled) and, from Intermediate,
-edits the [phase times](080-auctions-scheduling.md#configuring-the-schedule).
+edits the [phase times](080-session-scheduling.md#configuring-the-schedule).
 
 The GUI enforces that phase times are strictly increasing as you type — the same
 rule the engine applies — so an out-of-order schedule is caught immediately
-rather than at export. See [Session phases](080-auctions-scheduling.md#session-phases)
+rather than at export. See [Session phases](080-session-scheduling.md#session-phases)
 for what each phase means.
 
 !!! tip "Sessions imply a running scheduler"
@@ -625,14 +625,14 @@ Export is blocked while any row is unresolved.
 The **Indices** tab (Intermediate+) defines cap-weighted indices and their
 constituents. Each constituent must be a configured symbol with
 `outstanding_shares` set (the GUI flags any that are missing). The calculation
-model and field reference are in [Market Index](150-index.md).
+model and field reference are in [Market Index](150-market-index.md).
 
 ### Combos
 
 The **Combos** tab (Expert) builds multi-leg startup seed orders — pairs,
 spreads, hedged entries, and market-maker spreads. Prices are entered as decimal
 display values and converted to ticks per each leg symbol's precision. See
-[Combo Orders](070-combos.md) for the strategy background and
+[Combo Orders](070-combo-orders.md) for the strategy background and
 [the COMBO order type](060-order-types.md#combo) for lifecycle behaviour.
 
 ### Auxiliary gateways
@@ -642,8 +642,8 @@ services around the engine, each on its own sub-tab:
 
 | Sub-tab | Persona | Process | Reference |
 |---|---|---|---|
-| Post-Trade | Intermediate | RALF — fills, drop-copy, audit | [Post-Trade (RALF)](250-post-trade.md) |
-| Market-Data | Intermediate | CALF — top-of-book, trades, index | [Market Data Feed (CALF)](240-market-data-feed.md) |
+| Post-Trade | Intermediate | RALF — fills, drop-copy, audit | [Post-Trade (RALF)](250-ralf-gateway.md) |
+| Market-Data | Intermediate | CALF — top-of-book, trades, index | [Market Data Feed (CALF)](240-calf-gateway.md) |
 | BALF | Expert | Binary ALF gateway | [BALF Gateway](230-balf-gateway.md) |
 | API | Expert | REST/WebSocket gateway | [API Gateway](260-api-gateway.md) |
 
@@ -749,7 +749,7 @@ The **Review & Export** tab (Beginner) is the final pass:
       [server-side verification](#optional-server-side-verification).
 
 Once downloaded, the file is ready for the engine and its companion processes —
-see [Running the Engine](040-running-the-engine.md) and, for a first end-to-end
+see [Running the Engine](040-running-the-exchange.md) and, for a first end-to-end
 run, [Getting Started](000-getting-started.md).
 
 !!! note "📷 Figure 12 — Review & Export with YAML preview"
@@ -919,9 +919,9 @@ server can also serve the built UI, collapsing the two into one container.
 - [Engine Configuration](010-configuration.md) — the `engine_config.yaml` format and the `pm-config-gen` CLI
 - [Config Verifier (`pm-cverifier`)](020-config-verifier.md) — the authoritative validator behind the Verify button
 - [Risk Controls](120-risk-controls.md) — collars, circuit breakers, and day-one (IPO) behaviour
-- [Auctions & Session Scheduling](080-auctions-scheduling.md) — session phases and `pm-scheduler`
+- [Auctions & Session Scheduling](080-session-scheduling.md) — session phases and `pm-scheduler`
 - [Market Making](090-market-maker.md) — obligations, quote lifecycle, and startup seeding
 - [Order Types](060-order-types.md) — how orders interact with collars and circuit breakers
-- [Combo Orders](070-combos.md) and [Market Index](150-index.md) — the Combos and Indices tabs
+- [Combo Orders](070-combo-orders.md) and [Market Index](150-market-index.md) — the Combos and Indices tabs
 - [Example Engine Configs](810-example-configs.md) — reference configurations to import and study
-- [Running the Engine](040-running-the-engine.md) — using the file you exported
+- [Running the Engine](040-running-the-exchange.md) — using the file you exported
