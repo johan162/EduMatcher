@@ -149,10 +149,10 @@ TRAINING_GUIDE_MD_SOURCES := \
 TRAINING_GUIDE_PDF_DEPS := \
 	$(DOCS_DIR)/user-guide/pagebreaks.lua \
 	$(DOCS_DIR)/admonitions.lua \
-	$(DOCS_DIR)/training/template_a4.tex \
-	$(DOCS_DIR)/training/template_dark_a4.tex \
-	$(DOCS_DIR)/training/template_b5.tex \
-	$(DOCS_DIR)/training/template_dark_b5.tex \
+	$(DOCS_DIR)/training/template_a4.tex.in \
+	$(DOCS_DIR)/training/template_dark_a4.tex.in \
+	$(DOCS_DIR)/training/template_b5.tex.in \
+	$(DOCS_DIR)/training/template_dark_b5.tex.in \
 	$(DOCS_DIR)/assets/cover-training-guide.png
 
 
@@ -252,7 +252,7 @@ $(eval $(call DEFINE_TRAINING_GUIDE_VARS,TRAINING_GUIDE_DARK_B5))
 # # @sed -i.bak -E 's/Version: [0-9]+(\.[0-9]+)*(rc[0-9]{1,2})?/Version: $(VERSION)/g' $$($1_TEMPLATE)
 # ============================================================================================
 define BUILD_USER_GUIDE_PDF
-$$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE).in $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
+$$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
 	@echo -e "$(DARKYELLOW)- Updating version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) in LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW)...$(NC)"
 	@sed -e "s/@@VERSION@@/v$(VERSION)/g" $$($1_TEMPLATE).in > $$($1_TEMPLATE)
 	@rm -f $$($1_TEMPLATE).bak
@@ -311,9 +311,9 @@ $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_DARK_B5,b5))
 # Shared recipe for every Training Guide PDF variant. Call via $(eval $(call BUILD_TRAINING_GUIDE_PDF,...)).
 # ============================================================================================
 define BUILD_TRAINING_GUIDE_PDF
-$$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
+$$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_PDF_DEPS) $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
 	@echo -e "$(DARKYELLOW)- Updating version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) in LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW)...$(NC)"
-	@sed -i.bak -E 's/Version: [0-9]+(\.[0-9]+)*(rc[0-9]{1,2})?/Version: $(VERSION)/g' $$($1_TEMPLATE)
+	@sed -e "s/@@VERSION@@/v$(VERSION)/g" $$($1_TEMPLATE).in > $$($1_TEMPLATE)
 	@rm -f $$($1_TEMPLATE).bak
 	@echo -e "$$(DARKYELLOW)- Building $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$$(DARKYELLOW) via LaTeX report pipeline...$$(NC)"
 	@mkdir -p $$(TRAINING_GUIDE_BUILD_DIR)
@@ -353,6 +353,7 @@ $$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_PDF_DEPS) $$($1_TEMP
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log):$$(NC)" >&2; \
 		     tail -30 $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log) >&2; exit 1; }
 	@cp $$($1_PDF_BUILT) $$($1_PDF)
+	@rm -f $$($1_TEMPLATE)
 	@echo -e "$$(GREEN)✓ Training guide PDF built: $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$$(GREEN)$$(NC)"
 endef
 
