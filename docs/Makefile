@@ -138,10 +138,10 @@ USER_GUIDE_MD_SOURCES := \
 USER_GUIDE_PDF_DEPS := \
 	$(DOCS_DIR)/user-guide/pagebreaks.lua \
 	$(DOCS_DIR)/admonitions.lua \
-	$(DOCS_DIR)/user-guide/template_a4.tex \
-	$(DOCS_DIR)/user-guide/template_dark_a4.tex \
-	$(DOCS_DIR)/user-guide/template_b5.tex \
-	$(DOCS_DIR)/user-guide/template_dark_b5.tex 
+	$(DOCS_DIR)/user-guide/template_a4.tex.in \
+	$(DOCS_DIR)/user-guide/template_dark_a4.tex.in \
+	$(DOCS_DIR)/user-guide/template_b5.tex.in \
+	$(DOCS_DIR)/user-guide/template_dark_b5.tex.in
 
 TRAINING_GUIDE_MD_SOURCES := \
 	$(sort $(wildcard $(DOCS_DIR)/training/[0-9][0-9]-*.md))
@@ -249,11 +249,12 @@ $(eval $(call DEFINE_TRAINING_GUIDE_VARS,TRAINING_GUIDE_DARK_B5))
 # $(2) = paper format: a4 or b5  (passed to the pandoc Lua filter)
 # Note: Make variables used inside recipe lines are escaped as $$(VAR) so they survive
 # $(call) expansion and are resolved at recipe-execution time.
+# # @sed -i.bak -E 's/Version: [0-9]+(\.[0-9]+)*(rc[0-9]{1,2})?/Version: $(VERSION)/g' $$($1_TEMPLATE)
 # ============================================================================================
 define BUILD_USER_GUIDE_PDF
-$$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
+$$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE).in $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
 	@echo -e "$(DARKYELLOW)- Updating version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) in LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW)...$(NC)"
-	@sed -i.bak -E 's/Version: [0-9]+(\.[0-9]+)*(rc[0-9]{1,2})?/Version: $(VERSION)/g' $$($1_TEMPLATE)
+	@sed -e "s/@@VERSION@@/v$(VERSION)/g" $$($1_TEMPLATE).in > $$($1_TEMPLATE)
 	@rm -f $$($1_TEMPLATE).bak
 	@echo -e "$$(DARKYELLOW)- Building $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(DARKYELLOW) via LaTeX report pipeline...$$(NC)"
 	@mkdir -p $$(USER_GUIDE_BUILD_DIR)
@@ -293,6 +294,7 @@ $$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log):$$(NC)" >&2; \
 		     tail -30 $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log) >&2; exit 1; }
 	@cp $$($1_PDF_BUILT) $$($1_PDF)
+	@rm -f $$($1_TEMPLATE)
 	@echo -e "$$(GREEN)✓ User guide PDF built: $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(GREEN)$$(NC)"
 endef
 

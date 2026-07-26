@@ -1,11 +1,11 @@
-\documentclass[10pt,b5paper,twoside,openright]{book}
+\documentclass[11pt,a4paper,twoside,openright]{book}
 \raggedbottom
 
 \usepackage{fontspec}
 %% \setmainfont{DejaVu Serif}
 \setsansfont{DejaVu Sans}
 \setmonofont{DejaVu Sans Mono}[Scale=MatchLowercase]
-\usepackage[b5paper,top=1.6cm,left=0.5cm,right=0.5cm,bottom=1.6cm]{geometry}
+\usepackage[a4paper,top=2cm,left=2.7cm,right=1.5cm,bottom=1.8cm]{geometry}
 \usepackage{graphicx}
 \usepackage{calc}
 \usepackage{amsmath}
@@ -14,9 +14,6 @@
 \usepackage{array}
 \usepackage{amssymb}
 \usepackage{fancyhdr}
-
-
-
 
 
 \PassOptionsToPackage{hyphens}{url}
@@ -84,20 +81,11 @@
 \definecolor{brandgray}{HTML}{4B5563}
 
 % Modern chapter heading: accent rule + title + full-width rule
-\titleformat{\chapter}[display]
-  {\normalfont\sffamily}
-  {%
-    \color{brandblue}\rule{1.5cm}{3pt}\hspace{6pt}%
-    {\large\bfseries CHAPTER\ \thechapter}%
-  }
-  {8pt}
-  {\Huge\bfseries\color{brandblue}}
-  [\vspace{4pt}{\color{brandblue}\noindent\rule{\linewidth}{1.5pt}}\vspace{2pt}]
 \makeatletter
 \pretocmd{\section}{\phantomsection}{}{}
 \makeatother
 
-	\titleformat{\chapter}[display]
+\titleformat{\chapter}[display]
   {\normalfont\sffamily}
   {%
     \color{brandblue}\rule{1.5cm}{3pt}\hspace{6pt}%
@@ -114,7 +102,6 @@
 \fancyfoot[C]{\thepage}
 \setlength{\headheight}{14pt}
 
-
 \begin{document}
 
 
@@ -128,6 +115,7 @@
   }%
   \clearpage
 }
+
 % Cover verso / imprint page.
 % A bare \newpage does not ship out an empty page; TeX needs actual content.
 {%
@@ -135,7 +123,7 @@
   \null\vfill
   {\small\color{brandgray}%
   \textbf{EduMatcher User Guide}\\
-  For EduMatcher Version: 0.16.1 \\
+  For EduMatcher Version: @@VERSION@@ \\
   Copyright \textcopyright\ Johan Persson\\
   Generated on \today\\
    Prepared with \LaTeX\ from Markdown sources for duplex printing. 
@@ -148,7 +136,6 @@
 
 \frontmatter
 
-
 \pagenumbering{roman}
 \setcounter{page}{1}
 
@@ -157,7 +144,7 @@
   \vspace*{2.0cm}
   {\Huge\bfseries\color{brandblue}User Guide\par}
   \vspace{1.2cm}
-  {\Large \texttt{edumatcher}, Version: 0.16.1\par}
+  {\Large \texttt{edumatcher}, Version: @@VERSION@@\par}
   \vspace{1.2cm}
   {\Large An Educational Exchange Platform\par}
   \vfill
@@ -175,7 +162,7 @@
 \cleardoublepage
 
 \begingroup
-\setcounter{tocdepth}{1}
+\setcounter{tocdepth}{2}
 \renewcommand{\contentsname}{Contents}
 \tableofcontents
 \endgroup
