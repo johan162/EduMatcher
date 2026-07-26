@@ -818,8 +818,10 @@ class TestSchedulerRunScheduled:
 
         fake_sock = MagicMock()
         schedule = [("00:00", "PRE_OPEN"), ("01:00", "OPENING_AUCTION")]
-        # Pin "now" to noon so both schedule entries are always in the past
-        fixed_now = _dt(2000, 1, 1, 12, 0, 0)
+        # Pin "now" to noon so both schedule entries are always in the past.
+        # 2024-01-09 is a plain Tuesday (a working day in the default
+        # country, Sweden) so the working-day gate does not short-circuit.
+        fixed_now = _dt(2024, 1, 9, 12, 0, 0)
         with (
             patch("edumatcher.scheduler.main.time.sleep"),
             patch("edumatcher.scheduler.main.datetime") as mock_dt,
@@ -1102,27 +1104,31 @@ class TestSchedulerRunScheduledFuture:
         from edumatcher.scheduler.main import _run_scheduled
 
         fake_sock = MagicMock()
-        # Mock _time_today to return a time 1 second in the future
-        future_time = datetime.now().replace(microsecond=0)
+        # Mock _time_today to return a time 1 second in the future, pinned to
+        # a fixed Tuesday (a working day in the default country, Sweden) so
+        # this test is not flaky depending on which day it happens to run.
+        future_time = datetime(2024, 1, 9, 12, 0, 0)
         import time as _time
 
+        # _sleep_until_wallclock re-derives the remaining wait from
+        # time.time() (via _seconds_until_local) on every wake-up, so the
+        # fake clock must be driven by time.time(), not time.monotonic() —
+        # advance it past the target after a couple of checks.
         call_count = [0]
-        original_monotonic = _time.monotonic
+        original_time = _time.time
 
-        def fake_monotonic():
+        def fake_time():
             c = call_count[0]
             call_count[0] += 1
             if c < 2:
-                return original_monotonic()
-            # After 2 calls, advance clock past deadline
-            return original_monotonic() + 100.0
+                return original_time()
+            # After 2 calls, advance clock past the target.
+            return original_time() + 100.0
 
         with (
             patch("edumatcher.scheduler.main._time_today", return_value=future_time),
             patch("edumatcher.scheduler.main.datetime") as mock_dt,
-            patch(
-                "edumatcher.scheduler.main.time.monotonic", side_effect=fake_monotonic
-            ),
+            patch("edumatcher.scheduler.main.time.time", side_effect=fake_time),
             patch("edumatcher.scheduler.main.time.sleep"),
         ):
             # Set now to be 1 second before future_time

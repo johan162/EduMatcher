@@ -12,6 +12,8 @@ from tempfile import NamedTemporaryFile
 
 from dataclasses import replace
 
+import holidays
+
 from edumatcher.engine.config_loader import load_engine_config
 from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import ParticipantRole
@@ -231,6 +233,9 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
 
     _validate_schedule_order(args)
 
+    if args.country is not None:
+        _validate_country(args.country)
+
 
 def _parse_hhmm_to_minutes(value: str, flag_name: str) -> int:
     text = value.strip()
@@ -274,6 +279,25 @@ def _validate_schedule_order(args: argparse.Namespace) -> None:
                 f"Schedule times must be strictly increasing: {flag_a} ({value_a}) "
                 f"must be earlier than {flag_b} ({value_b})"
             )
+
+
+def _validate_country(country: str) -> None:
+    """Reject a --country value pm-scheduler's holiday calendar won't recognise.
+
+    pm-scheduler itself tolerates an unrecognised country by falling back to
+    the default (Sweden) with a warning rather than failing (so a stale
+    generated config never crashes the scheduler). Generation time is a
+    better place to catch a typo, though, so pm-config-gen fails fast instead
+    of silently emitting a config that won't do what was asked.
+    """
+    if not country.strip():
+        raise ValueError("--country must not be blank")
+    try:
+        holidays.country_holidays(country)
+    except NotImplementedError as exc:
+        raise ValueError(
+            f"--country {country!r} is not recognised by the holidays package"
+        ) from exc
 
 
 def _parse_seed_mm_mid_range(raw: str) -> tuple[float, float]:
@@ -1317,6 +1341,7 @@ def main() -> None:
             symbols=symbols,
             gateways=gateways,
             sessions_enabled=bool(args.sessions_enabled),
+            country=str(args.country) if args.country is not None else None,
             snapshot_interval_sec=float(args.snapshot_interval),
             quote_history_maxlen=int(args.quote_history_maxlen),
             drop_copy_buffer_size=int(args.drop_copy_buffer_size),

@@ -140,7 +140,9 @@ class TestA2ClosedLoopCatchUp:
     ) -> None:
         # After 09:30, the engine reports it is already CONTINUOUS -> no
         # catch-up transitions should be sent, only the state query.
-        mock_dt.now.return_value = datetime(2000, 1, 1, 12, 0, 0)
+        # 2024-01-09 is a plain Tuesday (a working day in the default
+        # country, Sweden) so the working-day gate does not short-circuit.
+        mock_dt.now.return_value = datetime(2024, 1, 9, 12, 0, 0)
         fake_push = MagicMock()
         fake_sub = MagicMock()
         fake_sub.poll.return_value = 1
@@ -163,7 +165,9 @@ class TestA2ClosedLoopCatchUp:
     ) -> None:
         # Engine restarted and is only at PRE_OPEN at 12:00 -> it should be
         # driven forward through OPENING_AUCTION and CONTINUOUS.
-        mock_dt.now.return_value = datetime(2000, 1, 1, 12, 0, 0)
+        # 2024-01-09 is a plain Tuesday (a working day in the default
+        # country, Sweden) so the working-day gate does not short-circuit.
+        mock_dt.now.return_value = datetime(2024, 1, 9, 12, 0, 0)
         fake_push = MagicMock()
         fake_sub = MagicMock()
         fake_sub.poll.return_value = 1

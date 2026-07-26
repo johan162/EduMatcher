@@ -29,10 +29,26 @@ Same-day behavior:
   started after some scheduled times have already passed, it brings the engine
   to the correct current phase (engine session states are sequential and
   dependent). Use ``--daily`` to keep the process running and repeat the
-  schedule every calendar day.
+  schedule every working day.
 
 Typical daily sequence:
   PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED
+
+Working days:
+  The scheduler only drives the daily schedule on working days — weekends and
+  bank holidays for the configured ``country`` (top-level ``country:`` field in
+  the config YAML, default ``"Sweden"``) are skipped entirely via the
+  ``python-holidays`` package. ``--daily`` mode waits through non-working days
+  and resumes on the next one; a single-shot run started on a non-working day
+  does nothing.
+
+Wall-clock re-checking:
+  Long waits (until a scheduled time, or overnight between trading days) are
+  never slept in one long ``time.sleep`` call. Instead the scheduler wakes at
+  least every ``WALLCLOCK_RECHECK_SEC`` seconds and re-derives the remaining
+  wait from the current wall-clock time, so a server time adjustment (NTP
+  sync, manual change, DST) is picked up promptly instead of only after a
+  single long sleep started under stale assumptions.
 """
 
 from __future__ import annotations
@@ -43,10 +59,11 @@ import signal
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
+import holidays
 import zmq
 
 from edumatcher.config import ENGINE_CONFIG_FILE, ENGINE_PUB_ADDR, ENGINE_PULL_ADDR
@@ -103,6 +120,16 @@ SCHEDULER_GATEWAY_ID = "SCHEDULER"
 # (sessions_enabled=true), so a schedule must be a valid transition path
 # starting from CLOSED.
 _ENGINE_START_STATE = SessionState.CLOSED
+
+# Country used for bank-holiday and local wall-clock calculations when the
+# config YAML has no top-level ``country:`` field.
+DEFAULT_COUNTRY = "Sweden"
+
+# Long waits (until a scheduled time, or overnight between trading days) are
+# re-derived from the wall clock at least this often, so the scheduler picks
+# up server time adjustments (NTP sync, manual change, DST) promptly instead
+# of trusting a single duration computed once at the start of a long sleep.
+WALLCLOCK_RECHECK_SEC = 30.0
 
 
 def _normalize_hhmm(raw: object) -> str | None:
@@ -188,6 +215,59 @@ def _load_schedule(config_path: Path | None) -> list[tuple[str, str]]:
     return DEFAULT_SCHEDULE
 
 
+def _load_country(config_path: Path | None) -> str:
+    """Load the top-level ``country:`` field from YAML, or ``DEFAULT_COUNTRY``.
+
+    Used to pick the bank-holiday calendar the scheduler runs against (review
+    finding: schedule must not run on weekends/bank holidays). Falls back to
+    ``DEFAULT_COUNTRY`` when the config is missing, unreadable, or has no
+    ``country`` field, or when the field is not a validly-recognised country
+    for ``python-holidays`` — the same conservative "never crash on bad config"
+    behavior as ``_load_schedule``.
+    """
+    country = DEFAULT_COUNTRY
+    if config_path and config_path.exists():
+        try:
+            import yaml
+
+            with open(config_path) as f:
+                data = yaml.safe_load(f) or {}
+            raw_country = data.get("country")
+            if raw_country is not None:
+                if isinstance(raw_country, str) and raw_country.strip():
+                    country = raw_country.strip()
+                else:
+                    log.warning(
+                        "ignoring invalid 'country' value %r; using default %r",
+                        raw_country,
+                        DEFAULT_COUNTRY,
+                    )
+        except Exception as exc:
+            log.warning("could not load country from %s: %s", config_path, exc)
+
+    if not _is_supported_country(country):
+        log.warning(
+            "unrecognised country %r for holiday calendar; using default %r",
+            country,
+            DEFAULT_COUNTRY,
+        )
+        return DEFAULT_COUNTRY
+    return country
+
+
+def _is_supported_country(country: str) -> bool:
+    """Return ``True`` if ``python-holidays`` recognises ``country``.
+
+    Accepts either a country name (``"Sweden"``) or an ISO 3166-1 alpha-2
+    code (``"SE"``).
+    """
+    try:
+        holidays.country_holidays(country)
+        return True
+    except NotImplementedError:
+        return False
+
+
 def _validate_schedule(schedule: list[tuple[str, str]]) -> list[str]:
     """Return a list of problems with the schedule (empty means valid).
 
@@ -262,20 +342,65 @@ def _seconds_until_local(target: datetime) -> float:
     return time.mktime(tm) - time.time()
 
 
-def _seconds_until_next_day() -> float:
-    """Seconds from now until 00:00 tomorrow (local time, DST-aware)."""
-    tomorrow = datetime.now() + timedelta(days=1)
-    midnight = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
-    return _seconds_until_local(midnight)
+def _holiday_calendar(country: str) -> holidays.HolidayBase:
+    """Return the ``python-holidays`` calendar for ``country``.
+
+    Callers should pass a country already validated by
+    :func:`_is_supported_country` (``_load_country`` guarantees this) —
+    unrecognised countries raise ``NotImplementedError`` here.
+    """
+    return holidays.country_holidays(country)
 
 
-def _interruptible_sleep(seconds: float, is_running: Callable[[], bool]) -> None:
-    """Sleep up to ``seconds`` in small increments, stopping early if requested."""
-    deadline = time.monotonic() + seconds
-    while is_running() and time.monotonic() < deadline:
-        # ``max(0.0, ...)`` guards against a negative duration if the clock
-        # advances between the loop check and this call (review finding L6).
-        time.sleep(max(0.0, min(1.0, deadline - time.monotonic())))
+def _is_working_day(day: date, country: str) -> bool:
+    """Return ``True`` if ``day`` is neither a weekend nor a bank holiday.
+
+    Weekends (Saturday/Sunday) are always excluded regardless of whether the
+    country's calendar also lists them as observances. Bank holidays are
+    looked up in the ``python-holidays`` calendar for ``country``.
+    """
+    if day.weekday() >= 5:  # Saturday=5, Sunday=6
+        return False
+    return day not in _holiday_calendar(country)
+
+
+def _next_working_day(day: date, country: str) -> date:
+    """Return the next working day strictly after ``day`` for ``country``."""
+    candidate = day + timedelta(days=1)
+    # Bounded: a bank-holiday calendar can never plausibly cover an entire
+    # year of consecutive non-working days, so this loop always terminates
+    # well before the guard trips.
+    for _ in range(366):
+        if _is_working_day(candidate, country):
+            return candidate
+        candidate += timedelta(days=1)
+    return candidate
+
+
+def _sleep_until_wallclock(
+    remaining_seconds: Callable[[], float],
+    is_running: Callable[[], bool],
+    max_chunk: float = WALLCLOCK_RECHECK_SEC,
+) -> None:
+    """Sleep until ``remaining_seconds()`` reaches zero, re-checking often.
+
+    The remaining duration is *re-derived from the wall clock on every
+    wake-up* (by calling ``remaining_seconds()`` again) rather than computed
+    once and counted down against ``time.monotonic()``. That matters for
+    waits pinned to an absolute local time: if the server's wall clock is
+    stepped (NTP sync, manual change, DST) while the scheduler sleeps, a
+    monotonic countdown started under the old assumption would fire at the
+    wrong moment, whereas re-deriving the remaining time from
+    ``datetime.now()`` at least every ``max_chunk`` seconds corrects for the
+    jump within one wake-up cycle. ``max_chunk`` also bounds every individual
+    ``time.sleep`` call, so the scheduler never sleeps more than
+    ``WALLCLOCK_RECHECK_SEC`` (30s) at a stretch.
+    """
+    while is_running():
+        remaining = remaining_seconds()
+        if remaining <= 0:
+            return
+        time.sleep(max(0.0, min(max_chunk, remaining)))
 
 
 def _no_wait() -> float:
@@ -284,8 +409,22 @@ def _no_wait() -> float:
 
 
 def _fixed_wait(seconds: float) -> Callable[[], float]:
-    """Return a pre-send wait of a fixed number of seconds (used by --now)."""
-    return lambda: seconds
+    """Return a pre-send wait counting down from a fixed duration (used by --now).
+
+    The returned callable computes remaining time against a monotonic
+    deadline fixed on first call, so repeated calls (as done by
+    ``_sleep_until_wallclock``) see a shrinking remainder rather than the
+    same constant forever.
+    """
+    deadline: float | None = None
+
+    def _remaining() -> float:
+        nonlocal deadline
+        if deadline is None:
+            deadline = time.monotonic() + seconds
+        return deadline - time.monotonic()
+
+    return _remaining
 
 
 def _wait_until(target: datetime) -> Callable[[], float]:
@@ -432,7 +571,12 @@ def _run_transitions(
         wait = step.wait()
         if wait > 0:
             log.info("Waiting %.0fs for %s", wait, label)
-            _interruptible_sleep(wait, is_running)
+            # Re-derive the remaining wait from ``step.wait()`` on every
+            # wake-up (at least every WALLCLOCK_RECHECK_SEC) rather than
+            # trusting the single duration captured above, so a wall-clock
+            # adjustment during a long wait is picked up promptly instead of
+            # only after sleeping out a now-stale duration.
+            _sleep_until_wallclock(step.wait, is_running)
             if not is_running():
                 log.info("Interrupted")
                 return False
@@ -470,6 +614,7 @@ def _run_scheduled(
     confirm_sock: zmq.Socket[bytes] | None = None,
     is_running: Callable[[], bool] | None = None,
     gateway_id: str = SCHEDULER_GATEWAY_ID,
+    country: str = DEFAULT_COUNTRY,
 ) -> None:
     """Run one day's schedule: catch up to the current phase, then time the rest.
 
@@ -479,8 +624,21 @@ def _run_scheduled(
     current phase before waiting on future transitions (review finding H1).
     When a confirmation socket is available the scheduler first asks the engine
     for its current state so it only replays what is actually missing (A2).
+
+    Does nothing (no transitions sent) if today is a weekend or a bank
+    holiday for ``country`` — the exchange does not open on non-working days.
     """
     running = is_running or (lambda: True)
+
+    today = datetime.now().date()
+    if not _is_working_day(today, country):
+        log.info(
+            "%s is not a working day for %s (weekend or bank holiday); "
+            "skipping today's schedule",
+            today.isoformat(),
+            country,
+        )
+        return
 
     log.debug("Schedule for today:")
     for hhmm, state in schedule:
@@ -533,20 +691,37 @@ def _run_forever(
     schedule: list[tuple[str, str]],
     confirm_sock: zmq.Socket[bytes] | None,
     is_running: Callable[[], bool],
+    country: str = DEFAULT_COUNTRY,
 ) -> None:
-    """Run the daily schedule repeatedly, once per calendar day (``--daily``)."""
+    """Run the daily schedule repeatedly, once per working day (``--daily``).
+
+    Weekends and bank holidays for ``country`` are skipped: ``_run_scheduled``
+    itself is a no-op on a non-working day, and the overnight wait is
+    extended to land on the next working day instead of just the next
+    calendar day. The overnight wait re-derives its remaining duration from
+    the wall clock at least every ``WALLCLOCK_RECHECK_SEC`` seconds (via
+    ``_sleep_until_wallclock``) instead of trusting a single monotonic
+    deadline computed once, so a server time adjustment during the (possibly
+    many-hour) overnight wait is picked up promptly.
+    """
     while is_running():
         _run_scheduled(
-            push_sock, schedule, confirm_sock=confirm_sock, is_running=is_running
+            push_sock,
+            schedule,
+            confirm_sock=confirm_sock,
+            is_running=is_running,
+            country=country,
         )
         if not is_running():
             break
-        secs = _seconds_until_next_day()
+
+        target_day = _next_working_day(datetime.now().date(), country)
+        target_midnight = datetime.combine(target_day, datetime.min.time())
         log.info(
-            "Day complete; sleeping %.1fh until the next trading day",
-            secs / 3600.0,
+            "Day complete; sleeping until the next working day (%s)",
+            target_day.isoformat(),
         )
-        _interruptible_sleep(secs, is_running)
+        _sleep_until_wallclock(_wait_until(target_midnight), is_running)
     log.info("Stopped.")
 
 
@@ -612,7 +787,11 @@ def main() -> None:
     parser.add_argument(
         "--daily",
         action="store_true",
-        help="Run continuously, repeating the schedule every calendar day",
+        help=(
+            "Run continuously, repeating the schedule every working day "
+            "(weekends and bank holidays for the configured country are "
+            "skipped)"
+        ),
     )
     parser.add_argument(
         "--config",
@@ -703,6 +882,8 @@ def main() -> None:
                 sys.exit(1)
 
             schedule = _load_schedule(config_path)
+            country = _load_country(config_path)
+            log.info("Using country %r for working-day/holiday calendar", country)
 
             # Refuse to start on a schedule the engine could never follow (M1).
             errors = _validate_schedule(schedule)
@@ -731,13 +912,20 @@ def main() -> None:
 
             try:
                 if args.daily:
-                    _run_forever(push_sock, schedule, confirm_sock, _is_running)
+                    _run_forever(
+                        push_sock,
+                        schedule,
+                        confirm_sock,
+                        _is_running,
+                        country=country,
+                    )
                 else:
                     _run_scheduled(
                         push_sock,
                         schedule,
                         confirm_sock=confirm_sock,
                         is_running=_is_running,
+                        country=country,
                     )
             finally:
                 if confirm_sock is not None:

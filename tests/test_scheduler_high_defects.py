@@ -67,7 +67,9 @@ class TestH1PastTransitionsDesync:
         """
         fake_sock = MagicMock()
         # Pin "now" to 23:59 so all five schedule entries are in the past.
-        fixed_now = datetime(2000, 1, 1, 23, 59, 0)
+        # 2024-01-09 is a plain Tuesday (a working day in the default
+        # country, Sweden) so the working-day gate does not short-circuit.
+        fixed_now = datetime(2024, 1, 9, 23, 59, 0)
 
         with (
             patch("edumatcher.scheduler.main.time.sleep"),
@@ -92,7 +94,9 @@ class TestH1PastTransitionsDesync:
         CONTINUOUS) are past; the engine should be brought to CONTINUOUS.
         """
         fake_sock = MagicMock()
-        fixed_now = datetime(2000, 1, 1, 10, 0, 0)
+        # 2024-01-09 is a plain Tuesday (a working day in the default
+        # country, Sweden) so the working-day gate does not short-circuit.
+        fixed_now = datetime(2024, 1, 9, 10, 0, 0)
 
         # Only the already-past portion of the day, to avoid waiting on future
         # entries (the point here is the catch-up, not the timed waits).

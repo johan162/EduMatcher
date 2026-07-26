@@ -888,6 +888,7 @@ The current parser recognizes these top-level keys:
 | `circuit_breaker_defaults` |                         No | Engine                          | Default circuit-breaker ladder                                            |
 | `market_maker_combos`      |                         No | Engine                          | Startup multi-symbol combo seeds                                          |
 | `schedule`                 |                         No | Scheduler, parsed by engine too | Session transition times                                                  |
+| `country`                  |                         No | `pm-scheduler`                  | Country used for the scheduler's bank-holiday/weekend calendar            |
 | `post_trade_gateway`       |                         No | `pm-ralf-gwy`                   | External RALF dissemination gateway settings                              |
 | `market_data_gateway`      |                         No | `pm-md-gwy`                     | External CALF dissemination gateway settings                              |
 | `balf_gateway`             |                         No | `pm-balf-gwy`                   | External BALF binary TCP gateway settings                                 |
@@ -917,7 +918,7 @@ touched by the engine itself.
 | `pm-md-gwy` | `md_gateway/config.py` | `market_data_gateway` | Own bind address/port/timeouts, replay window, and `depth_levels` for CALF subscribers |
 | `pm-api-gwy` | `api_gateway/config.py` | `api_gateways` | Named REST/WebSocket gateway instances, API credentials, rate limits, and timeouts |
 | `pm-index` | `index/config_loader.py` (wraps `engine/config_loader.py`) | `indices`, `symbols.<SYM>.outstanding_shares`, `symbols.<SYM>.last_buy_price` / `last_sell_price` | Index definitions (constituents, base value, publish interval) and the per-constituent share counts / reference prices needed to seed each index at startup |
-| `pm-scheduler` | `scheduler/main.py` | `schedule` | Session-phase transition times — re-reads the same block `pm-engine` reads, but as an independent process so the schedule can be driven or tested externally |
+| `pm-scheduler` | `scheduler/main.py` | `schedule`, `country` | Session-phase transition times — re-reads the same block `pm-engine` reads, but as an independent process so the schedule can be driven or tested externally — plus the country used to skip weekends and bank holidays |
 
 !!! note "Validation tooling reads everything"
     `pm-cverifier` is the exception: as a static linter it parses and
@@ -2208,6 +2209,32 @@ The default session path is:
 ```text
 PRE_OPEN -> OPENING_AUCTION -> CONTINUOUS -> CLOSING_AUCTION -> CLOSED
 ```
+
+### `country`
+
+```yaml
+country: Sweden
+```
+
+`country` is a top-level key — a sibling of `schedule`, not nested under it.
+`pm-scheduler` uses it to decide which calendar days are trading days: it
+will not run the daily schedule on a weekend or on that country's bank
+holidays, using the [`python-holidays`](https://pypi.org/project/holidays/)
+package to resolve the holiday calendar.
+
+| Aspect | Value |
+|---|---|
+| Accepted forms | Country name (`"Sweden"`) or ISO 3166-1 alpha-2 code (`"SE"`) |
+| Default when omitted | `"Sweden"` |
+| Behavior on an unrecognized value | Falls back to `"Sweden"` and logs a warning |
+| Weekends | Always treated as non-working days, regardless of the holiday calendar |
+
+Under `--daily`, a non-working day is skipped and the scheduler sleeps
+through to the next working day rather than the next calendar day. In
+single-shot mode (the default, no `--daily`), the scheduler simply sends no
+transitions and exits if started on a non-working day. See
+[Session Scheduling → Bank holidays and weekends](080-session-scheduling.md#bank-holidays-and-weekends)
+for the full behavior breakdown by run mode.
 
 
 ## Startup and Persistence Order

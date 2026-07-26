@@ -29,6 +29,7 @@ pyyaml = "^6.0.3"
 orjson = "^3.11.9"
 fastapi = ">=0.139.0"
 uvicorn = { version = ">=0.34", extras = ["standard"] }
+holidays = ">=0.60"
 
 [tool.poetry.group.dev.dependencies]
 mkdocs = "^1.6"

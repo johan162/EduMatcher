@@ -40,6 +40,10 @@ def render_yaml(
             ["sessions_enabled"],
         ),
         (
+            "Scheduler country",
+            ["country"],
+        ),
+        (
             "Engine behavior",
             ["enforce_collars", "enforce_circuit_breakers"],
         ),
@@ -176,6 +180,11 @@ _TOP_LEVEL_HINTS: dict[str, list[str]] = {
     "sessions_enabled": [
         "true lets pm-scheduler drive session transitions;",
         "false keeps the engine in continuous mode",
+    ],
+    "country": [
+        "country pm-scheduler uses for bank holidays and local wall-clock time;",
+        'accepts a country name (e.g. "Sweden") or ISO 3166-1 alpha-2 code (e.g. "SE")',
+        'defaults to "Sweden" when omitted',
     ],
     "enforce_collars": ["enables per-symbol collar checks on incoming orders"],
     "enforce_circuit_breakers": ["enables per-symbol circuit-breaker enforcement"],

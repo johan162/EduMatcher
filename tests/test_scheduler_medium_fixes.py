@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,7 +21,6 @@ from edumatcher.scheduler.main import (
     _confirm_transition,
     _dispatch_transition,
     _run_forever,
-    _seconds_until_next_day,
     _validate_schedule,
 )
 
@@ -78,20 +78,30 @@ class TestM1ValidateSchedule:
 
 
 class TestM2DailyRollover:
-    def test_seconds_until_next_day_is_bounded(self) -> None:
-        secs = _seconds_until_next_day()
-        # Upper bound allows for a 25-hour day on a DST "fall back" boundary,
-        # since the wait is now computed DST-aware (review finding L1).
-        assert 0 < secs <= 25 * 60 * 60
+    def test_seconds_until_next_working_day_is_bounded(self) -> None:
+        from datetime import datetime as _datetime
+        from edumatcher.scheduler.main import _next_working_day, _seconds_until_local
 
-    @patch("edumatcher.scheduler.main._seconds_until_next_day", return_value=10.0)
-    @patch("edumatcher.scheduler.main._interruptible_sleep")
+        today = _datetime.now().date()
+        next_day = _next_working_day(today, "Sweden")
+        target_midnight = _datetime.combine(next_day, _datetime.min.time())
+        secs = _seconds_until_local(target_midnight)
+        # Upper bound allows for a run of a few non-working days (a long
+        # holiday weekend) plus a 25-hour day on a DST "fall back" boundary,
+        # since the wait is computed DST-aware (review finding L1).
+        assert 0 < secs <= 8 * 24 * 60 * 60
+
+    @patch(
+        "edumatcher.scheduler.main._next_working_day",
+        return_value=date(2000, 1, 2),
+    )
+    @patch("edumatcher.scheduler.main._sleep_until_wallclock")
     @patch("edumatcher.scheduler.main._run_scheduled")
     def test_run_forever_repeats_until_stopped(
         self,
         mock_run_scheduled: MagicMock,
         mock_sleep: MagicMock,
-        mock_secs: MagicMock,
+        mock_next_working_day: MagicMock,
     ) -> None:
         # is_running(): True, True, True, then False -> exactly two day-runs
         # with one inter-day sleep between them.

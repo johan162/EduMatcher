@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 
 from edumatcher.config_gen.cli import main as config_gen_main
 from edumatcher.engine.config_loader import load_engine_config
@@ -66,6 +67,79 @@ def test_gateway_smp_emitted_and_parses(
     # NONE default rather than pm-config-gen spelling out a no-op field.
     assert cfg.fix_gateways["TRADER01"].smp_action.value == "NONE"
     assert out_file.read_text(encoding="utf-8").count("smp_action") == 1
+
+
+def test_country_emitted_and_parses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--country",
+            "Germany",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    # The engine loader ignores country (pm-scheduler-only), but the file
+    # must still parse and contain the value verbatim.
+    load_engine_config(out_file)
+    raw = yaml.safe_load(out_file.read_text(encoding="utf-8"))
+    assert raw["country"] == "Germany"
+
+
+def test_country_omitted_when_not_given(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    cfg = load_engine_config(out_file)
+    # country is scheduler-only and not modelled on EngineConfig; assert via
+    # the raw YAML key instead, being careful not to match the tmp_path
+    # (which embeds this test's own name and is echoed into the "# Command:"
+    # header comment).
+    raw = yaml.safe_load(out_file.read_text(encoding="utf-8"))
+    assert "country" not in raw
+    assert "AAPL" in cfg.symbols
+
+
+def test_country_unrecognised_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--country",
+                "Narnia",
+                "--dry-run",
+            ],
+        )
+
+    assert exc_info.value.code == 2
 
 
 def test_gateway_smp_unknown_gateway_errors(

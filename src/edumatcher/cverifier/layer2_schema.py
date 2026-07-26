@@ -1507,6 +1507,21 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
             )
         )
 
+    country = raw.get("country")
+    if country is not None and (not isinstance(country, str) or not country.strip()):
+        results.append(
+            CheckResult(
+                code="S065",
+                severity=Severity.ERROR,
+                message=f"'country' must be a non-empty string when provided. Got '{country}'.",
+                suggestion=(
+                    'Set country to a country name (e.g. "Sweden") or an '
+                    'ISO 3166-1 alpha-2 code (e.g. "SE").'
+                ),
+                path="country",
+            )
+        )
+
 
 def _check_mm_obligation_defaults_schema(
     raw: dict[str, Any], results: list[CheckResult]

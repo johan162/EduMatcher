@@ -79,6 +79,7 @@ class ConfigSpec:
     symbols: list[str]
     gateways: list[GatewaySpec]
     sessions_enabled: bool = False
+    country: str | None = None
     snapshot_interval_sec: float = DEFAULT_SNAPSHOT_INTERVAL_SEC
     quote_history_maxlen: int = DEFAULT_QUOTE_HISTORY_MAXLEN
     drop_copy_buffer_size: int = DEFAULT_DROP_COPY_BUFFER_SIZE
@@ -236,6 +237,9 @@ class ConfigBuilder:
                 "depth_snapshot_tolerance_ticks": self.spec.depth_snapshot_tolerance_ticks,
             },
         }
+
+        if self.spec.country is not None:
+            cfg["country"] = self.spec.country
 
         if self._should_emit_mm_defaults():
             cfg["mm_obligation_defaults"] = self._build_mm_defaults()

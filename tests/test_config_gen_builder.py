@@ -326,6 +326,27 @@ def test_builder_outstanding_shares_omitted_when_not_set() -> None:
     assert "outstanding_shares" not in payload["symbols"]["AAPL"]
 
 
+def test_builder_country_emitted() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+        country="Germany",
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert payload["country"] == "Germany"
+
+
+def test_builder_country_omitted_when_not_set() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert "country" not in payload
+
+
 def test_builder_index_section_emitted() -> None:
     spec = ConfigSpec(
         symbols=["AAPL", "MSFT", "TSLA"],

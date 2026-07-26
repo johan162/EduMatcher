@@ -1,4 +1,4 @@
-"""Layer 3 — Semantic / cross-field consistency checks (M001–M016).
+"""Layer 3 — Semantic / cross-field consistency checks (M001–M026).
 
 This layer works directly on the raw YAML mapping so that every problem is
 reported independently, even when several fields are wrong at once.  It does
@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+
+import holidays
 
 from edumatcher.cverifier.helpers import (
     all_gateway_ids,
@@ -46,6 +48,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_mm_obligation_symbols(raw, results)
     _check_mm_seeds(raw, results)
     _check_sessions_schedule(raw, results)
+    _check_country(raw, results)
     _check_enforce_flags(raw, results)
     _check_indices(raw, results)
     _check_combos(raw, results)
@@ -275,6 +278,46 @@ def _check_sessions_schedule(raw: dict[str, Any], results: list[CheckResult]) ->
             _check_schedule_completeness(schedule, results)
             # M025: present phases must form a legal transition chain from CLOSED
             _check_schedule_chain(schedule, results)
+
+
+# ---------------------------------------------------------------------------
+# country
+# ---------------------------------------------------------------------------
+
+
+def _check_country(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    """Flag a ``country`` value pm-scheduler's holiday calendar won't recognise.
+
+    Layer 2 (S065) already rejects a non-string/blank ``country``; this check
+    is semantic because it needs the ``python-holidays`` package to know
+    which strings are valid calendars. Severity is WARN, not ERROR, because
+    pm-scheduler itself does not fail on an unrecognised country — it logs a
+    warning and falls back to the default (Sweden) rather than crashing, so a
+    config with a typo here is degraded, not broken.
+    """
+    country = raw.get("country")
+    if not isinstance(country, str) or not country.strip():
+        return  # not a string / blank — Layer 2 (S065) already reports this
+
+    try:
+        holidays.country_holidays(country)
+    except NotImplementedError:
+        results.append(
+            CheckResult(
+                code="M026",
+                severity=Severity.WARN,
+                message=(
+                    f"'country' value '{country}' is not recognised by the "
+                    "holidays package. pm-scheduler will fall back to Sweden "
+                    "at runtime."
+                ),
+                suggestion=(
+                    'Set country to a country name (e.g. "Sweden") or an '
+                    'ISO 3166-1 alpha-2 code (e.g. "SE").'
+                ),
+                path="country",
+            )
+        )
 
 
 def _parse_hhmm(t: Any) -> int | None:

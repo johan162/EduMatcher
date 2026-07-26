@@ -675,6 +675,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--country",
+        type=str,
+        default=None,
+        metavar="COUNTRY",
+        help=(
+            "Country pm-scheduler uses for its bank-holiday/weekend calendar "
+            '(name, e.g. "Sweden", or ISO 3166-1 alpha-2 code, e.g. "SE"). '
+            'Defaults to "Sweden" when omitted.'
+        ),
+    )
+
+    parser.add_argument(
         "--index",
         action="append",
         default=[],

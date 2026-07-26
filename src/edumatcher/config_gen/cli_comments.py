@@ -40,6 +40,20 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         ]
     )
 
+    # country
+    lines.extend(
+        [
+            "country: Sweden",
+            "  Country pm-scheduler uses for two purposes: (1) deciding which calendar",
+            "  days are trading days -- the scheduler will not run the daily schedule on",
+            "  weekends or on that country's bank holidays (via the python-holidays",
+            "  package), and (2) the local timezone/wall-clock used to evaluate schedule",
+            '  times and bank holidays. Accepts either a country name (e.g. "Sweden") or',
+            '  an ISO 3166-1 alpha-2 code (e.g. "SE"). Defaults to "Sweden" when omitted.',
+            "",
+        ]
+    )
+
     lines.extend(
         [
             "engine_tuning:",
