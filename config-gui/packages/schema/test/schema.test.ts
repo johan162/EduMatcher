@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  COUNTRIES,
+  DEFAULT_COUNTRY,
   createBlankDraft,
   createGateway,
   createMmQuoteSeed,
@@ -14,6 +16,28 @@ describe("schema", () => {
   it("blank draft satisfies the Zod schema", () => {
     const result = engineConfigDraftSchema.safeParse(createBlankDraft());
     expect(result.success).toBe(true);
+  });
+
+  it("blank draft defaults country to Sweden", () => {
+    expect(createBlankDraft().country).toBe("Sweden");
+    expect(DEFAULT_COUNTRY).toBe("Sweden");
+  });
+
+  it("rejects a blank country", () => {
+    const draft = createBlankDraft();
+    draft.country = "";
+    expect(engineConfigDraftSchema.safeParse(draft).success).toBe(false);
+  });
+
+  it("country list is sourced from python-holidays and includes Sweden", () => {
+    expect(COUNTRIES.length).toBeGreaterThan(200);
+    expect(COUNTRIES).toContainEqual({ name: "Sweden", code: "SE" });
+    // Every code must be a unique, upper-case ISO 3166-1 alpha-2 code.
+    const codes = COUNTRIES.map((c) => c.code);
+    expect(new Set(codes).size).toBe(codes.length);
+    for (const code of codes) {
+      expect(code).toMatch(/^[A-Z]{2}$/);
+    }
   });
 
   it("derives an IPO quote straddling the reference price", () => {
@@ -37,8 +61,13 @@ describe("schema", () => {
     const draft = createBlankDraft();
     draft.symbols = { AAPL: { tickDecimals: 2, level: "CORE" } };
     draft.symbolOrder = ["AAPL"];
-    draft.gateways = [createGateway("TRADER01"), createGateway("MM01", "MARKET_MAKER")];
-    draft.riskControls.levels = { CORE: { staticBandPct: 0.18, dynamicBandPct: 0.02 } };
+    draft.gateways = [
+      createGateway("TRADER01"),
+      createGateway("MM01", "MARKET_MAKER"),
+    ];
+    draft.riskControls.levels = {
+      CORE: { staticBandPct: 0.18, dynamicBandPct: 0.02 },
+    };
     expect(engineConfigDraftSchema.safeParse(draft).success).toBe(true);
   });
 
@@ -48,7 +77,10 @@ describe("schema", () => {
     quote.bidPrice = 100;
     quote.askPrice = 101;
     draft.symbols = {
-      AAPL: { ...createSymbol(2, { lastBuyPrice: 100, lastSellPrice: 101 }), marketMakerQuotes: [quote] },
+      AAPL: {
+        ...createSymbol(2, { lastBuyPrice: 100, lastSellPrice: 101 }),
+        marketMakerQuotes: [quote],
+      },
     };
     draft.symbolOrder = ["AAPL"];
     draft.gateways = [createGateway("MM01", "MARKET_MAKER")];
@@ -56,12 +88,16 @@ describe("schema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.symbols.AAPL?.marketMakerQuotes).toHaveLength(1);
-      expect(result.data.symbols.AAPL?.marketMakerQuotes?.[0]?.gatewayId).toBe("MM01");
+      expect(result.data.symbols.AAPL?.marketMakerQuotes?.[0]?.gatewayId).toBe(
+        "MM01",
+      );
     }
   });
 
   it("derives disconnect behaviour from role", () => {
-    expect(createGateway("A", "MARKET_MAKER").disconnectBehaviour).toBe("CANCEL_QUOTES_ONLY");
+    expect(createGateway("A", "MARKET_MAKER").disconnectBehaviour).toBe(
+      "CANCEL_QUOTES_ONLY",
+    );
     expect(createGateway("B", "ADMIN").disconnectBehaviour).toBe("LEAVE_ALL");
     expect(createGateway("C", "TRADER").disconnectBehaviour).toBe("CANCEL_ALL");
   });
@@ -77,6 +113,9 @@ describe("schema", () => {
     const draft = createBlankDraft();
     expect(effectiveDefaultCollar(draft)).toBeUndefined();
     draft.riskControls.globalStaticBandPct = 0.2;
-    expect(effectiveDefaultCollar(draft)).toEqual({ staticBandPct: 0.2, dynamicBandPct: 0.02 });
+    expect(effectiveDefaultCollar(draft)).toEqual({
+      staticBandPct: 0.2,
+      dynamicBandPct: 0.02,
+    });
   });
 });

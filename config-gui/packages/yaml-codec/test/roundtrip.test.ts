@@ -7,7 +7,11 @@ import {
   createGateway,
   type EngineConfigDraft,
 } from "@edumatcher/schema";
-import { buildConfigDocument, generateYaml, parseYamlToDraft } from "../src/index.js";
+import {
+  buildConfigDocument,
+  generateYaml,
+  parseYamlToDraft,
+} from "../src/index.js";
 
 /** Minimal two-trader exchange (design ref: config-generator §10.2). */
 function twoTraderExchange(): EngineConfigDraft {
@@ -47,6 +51,39 @@ describe("buildConfigDocument", () => {
     });
   });
 
+  it("omits country when left at the default (Sweden)", () => {
+    const doc = buildConfigDocument(twoTraderExchange());
+    expect(doc.country).toBeUndefined();
+  });
+
+  it("emits and round-trips a non-default country", () => {
+    const draft = twoTraderExchange();
+    draft.country = "DE";
+    const doc = buildConfigDocument(draft) as any;
+    expect(doc.country).toBe("DE");
+
+    const text = generateYaml(draft);
+    expect(text).toContain("country: DE");
+    expect(text).toContain("# -- Scheduler country --");
+
+    const { draft: reparsed } = parseYamlToDraft(text);
+    expect(reparsed.country).toBe("DE");
+  });
+
+  it("parses a full country name from an imported file", () => {
+    const yamlText = [
+      "symbols:",
+      "  AAPL: {}",
+      "gateways:",
+      "  alf:",
+      "    - id: TRADER01",
+      "country: Germany",
+      "",
+    ].join("\n");
+    const { draft } = parseYamlToDraft(yamlText);
+    expect(draft.country).toBe("Germany");
+  });
+
   it("adds quote_refresh_policy and quote stubs for MARKET_MAKER gateways", () => {
     const draft = twoTraderExchange();
     draft.gateways.push(createGateway("MM01", "MARKET_MAKER"));
@@ -68,7 +105,9 @@ describe("buildConfigDocument", () => {
     mm.enforceMmObligation = true;
     mm.mmMaxSpreadTicks = 8;
     mm.mmMinQty = 300;
-    mm.mmObligations = { AAPL: { enforceMmObligation: true, maxSpreadTicks: 6, minQty: 500 } };
+    mm.mmObligations = {
+      AAPL: { enforceMmObligation: true, maxSpreadTicks: 6, minQty: 500 },
+    };
     draft.gateways.push(mm);
     const doc = buildConfigDocument(draft) as any;
     const mmOut = doc.gateways.alf.find((g: any) => g.id === "MM01");
@@ -111,9 +150,9 @@ describe("buildConfigDocument", () => {
     expect(trader.quote_refresh_policy).toBeUndefined();
 
     const { draft: reparsed } = parseYamlToDraft(generateYaml(draft));
-    expect(reparsed.gateways.find((g) => g.id === "MM01")!.quoteRefreshPolicy).toBe(
-      "NEVER_INACTIVATE",
-    );
+    expect(
+      reparsed.gateways.find((g) => g.id === "MM01")!.quoteRefreshPolicy,
+    ).toBe("NEVER_INACTIVATE");
   });
 
   it("seeds bid/ask around the mid-range when configured", () => {
@@ -130,7 +169,11 @@ describe("buildConfigDocument", () => {
 
   it("emits explicit last prices in preference to global seeding", () => {
     const draft = twoTraderExchange();
-    draft.symbols.AAPL = { tickDecimals: 2, lastBuyPrice: 191.86, lastSellPrice: 191.87 };
+    draft.symbols.AAPL = {
+      tickDecimals: 2,
+      lastBuyPrice: 191.86,
+      lastSellPrice: 191.87,
+    };
     draft.seeding.seedLastPrices = true; // would emit nulls if no explicit prices
     const doc = buildConfigDocument(draft) as any;
     expect(doc.symbols.AAPL.last_buy_price).toBe(191.86);
@@ -146,15 +189,39 @@ describe("buildConfigDocument", () => {
       lastBuyPrice: 191.86,
       lastSellPrice: 191.87,
       marketMakerQuotes: [
-        { gatewayId: "MM01", bidPrice: 191.85, askPrice: 191.87, bidQty: 1000, askQty: 1000, tif: "DAY", seedOnce: true },
-        { gatewayId: "MM02", bidPrice: 191.84, askPrice: 191.88, bidQty: 500, askQty: 500, tif: "DAY", seedOnce: false },
+        {
+          gatewayId: "MM01",
+          bidPrice: 191.85,
+          askPrice: 191.87,
+          bidQty: 1000,
+          askQty: 1000,
+          tif: "DAY",
+          seedOnce: true,
+        },
+        {
+          gatewayId: "MM02",
+          bidPrice: 191.84,
+          askPrice: 191.88,
+          bidQty: 500,
+          askQty: 500,
+          tif: "DAY",
+          seedOnce: false,
+        },
       ],
     };
     const doc = buildConfigDocument(draft) as any;
     const quotes = doc.symbols.AAPL.market_maker_quotes;
     expect(quotes).toHaveLength(2);
-    expect(quotes[0]).toMatchObject({ gateway_id: "MM01", bid_price: 191.85, ask_price: 191.87 });
-    expect(quotes[1]).toMatchObject({ gateway_id: "MM02", bid_qty: 500, seed_once: false });
+    expect(quotes[0]).toMatchObject({
+      gateway_id: "MM01",
+      bid_price: 191.85,
+      ask_price: 191.87,
+    });
+    expect(quotes[1]).toMatchObject({
+      gateway_id: "MM02",
+      bid_qty: 500,
+      seed_once: false,
+    });
   });
 
   it("round-trips explicit MM quotes through parse", () => {
@@ -165,14 +232,27 @@ describe("buildConfigDocument", () => {
       lastBuyPrice: 191.86,
       lastSellPrice: 191.87,
       marketMakerQuotes: [
-        { gatewayId: "MM01", bidPrice: 191.85, askPrice: 191.87, bidQty: 1000, askQty: 1000, tif: "DAY", seedOnce: true },
+        {
+          gatewayId: "MM01",
+          bidPrice: 191.85,
+          askPrice: 191.87,
+          bidQty: 1000,
+          askQty: 1000,
+          tif: "DAY",
+          seedOnce: true,
+        },
       ],
     };
     const text = generateYaml(draft);
     const { draft: reparsed } = parseYamlToDraft(text);
     const quotes = reparsed.symbols.AAPL!.marketMakerQuotes;
     expect(quotes).toHaveLength(1);
-    expect(quotes![0]).toMatchObject({ gatewayId: "MM01", bidPrice: 191.85, askPrice: 191.87, bidQty: 1000 });
+    expect(quotes![0]).toMatchObject({
+      gatewayId: "MM01",
+      bidPrice: 191.85,
+      askPrice: 191.87,
+      bidQty: 1000,
+    });
   });
 
   it("P1.4: emits and round-trips a per-symbol circuit_breaker.reference_window_ns", () => {
@@ -184,12 +264,16 @@ describe("buildConfigDocument", () => {
       circuitBreaker: { referenceWindowNs: 600_000_000_000, levels: {} },
     };
     const doc = buildConfigDocument(draft) as any;
-    expect(doc.symbols.AAPL.circuit_breaker.reference_window_ns).toBe(600_000_000_000);
+    expect(doc.symbols.AAPL.circuit_breaker.reference_window_ns).toBe(
+      600_000_000_000,
+    );
     // No levels emitted when only the window is overridden.
     expect(doc.symbols.AAPL.circuit_breaker.levels).toBeUndefined();
 
     const { draft: reparsed } = parseYamlToDraft(generateYaml(draft));
-    expect(reparsed.symbols.AAPL!.circuitBreaker!.referenceWindowNs).toBe(600_000_000_000);
+    expect(reparsed.symbols.AAPL!.circuitBreaker!.referenceWindowNs).toBe(
+      600_000_000_000,
+    );
   });
 
   it("P1.4: window override coexists with per-level shift overrides", () => {
@@ -198,14 +282,25 @@ describe("buildConfigDocument", () => {
       tickDecimals: 2,
       lastBuyPrice: 100,
       lastSellPrice: 100,
-      circuitBreaker: { referenceWindowNs: 120_000_000_000, levels: { L1: { priceShiftPct: 0.05 } } },
+      circuitBreaker: {
+        referenceWindowNs: 120_000_000_000,
+        levels: { L1: { priceShiftPct: 0.05 } },
+      },
     };
     const doc = buildConfigDocument(draft) as any;
-    expect(doc.symbols.AAPL.circuit_breaker.reference_window_ns).toBe(120_000_000_000);
-    expect(doc.symbols.AAPL.circuit_breaker.levels.L1.price_shift_pct).toBe(0.05);
+    expect(doc.symbols.AAPL.circuit_breaker.reference_window_ns).toBe(
+      120_000_000_000,
+    );
+    expect(doc.symbols.AAPL.circuit_breaker.levels.L1.price_shift_pct).toBe(
+      0.05,
+    );
     const { draft: reparsed } = parseYamlToDraft(generateYaml(draft));
-    expect(reparsed.symbols.AAPL!.circuitBreaker!.referenceWindowNs).toBe(120_000_000_000);
-    expect(reparsed.symbols.AAPL!.circuitBreaker!.levels.L1!.priceShiftPct).toBe(0.05);
+    expect(reparsed.symbols.AAPL!.circuitBreaker!.referenceWindowNs).toBe(
+      120_000_000_000,
+    );
+    expect(
+      reparsed.symbols.AAPL!.circuitBreaker!.levels.L1!.priceShiftPct,
+    ).toBe(0.05);
   });
 
   it("emits and round-trips per-symbol CB halt (cool-off) and resumption overrides", () => {
@@ -226,11 +321,16 @@ describe("buildConfigDocument", () => {
       halt_duration_ns: 120_000_000_000,
       resumption_mode: "CONTINUOUS",
     });
-    expect(doc.symbols.AAPL.circuit_breaker.levels.L3).toEqual({ halt_duration_ns: null });
+    expect(doc.symbols.AAPL.circuit_breaker.levels.L3).toEqual({
+      halt_duration_ns: null,
+    });
 
     const { draft: reparsed } = parseYamlToDraft(generateYaml(draft));
     const cb = reparsed.symbols.AAPL!.circuitBreaker!;
-    expect(cb.levels.L1).toEqual({ haltDurationNs: 120_000_000_000, resumptionMode: "CONTINUOUS" });
+    expect(cb.levels.L1).toEqual({
+      haltDurationNs: 120_000_000_000,
+      resumptionMode: "CONTINUOUS",
+    });
     expect(cb.levels.L3!.haltDurationNs).toBeNull();
   });
 
@@ -242,8 +342,22 @@ describe("buildConfigDocument", () => {
         comboType: "AON",
         tif: "DAY",
         legs: [
-          { symbol: "AAPL", side: "BUY", orderType: "LIMIT", quantity: 100, price: 209.5, smpAction: "NONE" },
-          { symbol: "AAPL", side: "SELL", orderType: "LIMIT", quantity: 50, price: 210.5, smpAction: "NONE" },
+          {
+            symbol: "AAPL",
+            side: "BUY",
+            orderType: "LIMIT",
+            quantity: 100,
+            price: 209.5,
+            smpAction: "NONE",
+          },
+          {
+            symbol: "AAPL",
+            side: "SELL",
+            orderType: "LIMIT",
+            quantity: 50,
+            price: 210.5,
+            smpAction: "NONE",
+          },
         ],
       },
     ];
@@ -289,7 +403,11 @@ describe("parseYamlToDraft round trip", () => {
     const text = generateYaml(draft);
     const { draft: reparsed } = parseYamlToDraft(text);
     expect(reparsed.symbolOrder).toEqual(["AAPL"]);
-    expect(reparsed.gateways.map((g) => g.id)).toEqual(["TRADER01", "TRADER02", "OPS01"]);
+    expect(reparsed.gateways.map((g) => g.id)).toEqual([
+      "TRADER01",
+      "TRADER02",
+      "OPS01",
+    ]);
     expect(reparsed.gateways[2]!.role).toBe("ADMIN");
     expect(reparsed.sessionsEnabled).toBe(true);
     expect(reparsed.quoteHistoryMaxlen).toBe(45);
@@ -326,11 +444,15 @@ describe("parseYamlToDraft round trip", () => {
     // Re-export keeps the imported behaviour rather than silently changing it.
     const regenerated = generateYaml(draft);
     const parsed = yaml.load(regenerated, { json: true }) as any;
-    expect(parsed.gateways.alf[0].disconnect_behaviour).toBe("CANCEL_QUOTES_ONLY");
+    expect(parsed.gateways.alf[0].disconnect_behaviour).toBe(
+      "CANCEL_QUOTES_ONLY",
+    );
   });
 
   it("newly created gateways still use role-derived disconnect defaults", () => {
-    expect(createGateway("T1", "TRADER").disconnectBehaviour).toBe("CANCEL_ALL");
+    expect(createGateway("T1", "TRADER").disconnectBehaviour).toBe(
+      "CANCEL_ALL",
+    );
     expect(createGateway("OPS", "ADMIN").disconnectBehaviour).toBe("LEAVE_ALL");
   });
 
@@ -353,7 +475,9 @@ describe("parseYamlToDraft round trip", () => {
       expect(q.bidPrice).not.toBeNull();
       expect(q.askPrice).not.toBeNull();
     }
-    expect(quotes.map((q) => q.gatewayId)).toEqual(expect.arrayContaining(["MM01", "MM02"]));
+    expect(quotes.map((q) => q.gatewayId)).toEqual(
+      expect.arrayContaining(["MM01", "MM02"]),
+    );
   });
 
   it("preserves unmapped top-level sections", () => {

@@ -103,7 +103,9 @@ export const gatewayConfigSchema = z.object({
   enforceMmObligation: z.boolean().optional(),
   mmMaxSpreadTicks: z.number().int().positive().optional(),
   mmMinQty: z.number().int().positive().optional(),
-  mmObligations: z.record(z.string(), gatewayMmObligationOverrideSchema).optional(),
+  mmObligations: z
+    .record(z.string(), gatewayMmObligationOverrideSchema)
+    .optional(),
 });
 
 export const riskLevelSchema = z.object({
@@ -199,6 +201,7 @@ export const apiGatewaySchema = z.object({
 
 export const engineConfigDraftSchema = z.object({
   sessionsEnabled: z.boolean(),
+  country: z.string().min(1),
   emitSchedule: z.boolean(),
   snapshotIntervalSec: z.number().positive(),
   quoteHistoryMaxlen: z.number().int().positive(),

@@ -7,6 +7,9 @@
  * hand and must be updated whenever `defaults.py` changes.
  */
 
+/** Country used for pm-scheduler's bank-holiday/weekend calendar when unset. */
+export const DEFAULT_COUNTRY = "Sweden";
+
 export const DEFAULT_SNAPSHOT_INTERVAL_SEC = 0.5;
 export const DEFAULT_QUOTE_HISTORY_MAXLEN = 30;
 export const DEFAULT_DROP_COPY_BUFFER_SIZE = 10_000;
@@ -26,9 +29,24 @@ export const DEFAULT_CB_LADDER: ReadonlyArray<{
   haltMinutes: number | null;
   resumptionMode: "AUCTION" | "CONTINUOUS";
 }> = [
-  { name: "L1", priceShiftPct: 0.07, haltMinutes: 5, resumptionMode: "AUCTION" },
-  { name: "L2", priceShiftPct: 0.13, haltMinutes: 15, resumptionMode: "AUCTION" },
-  { name: "L3", priceShiftPct: 0.2, haltMinutes: null, resumptionMode: "AUCTION" },
+  {
+    name: "L1",
+    priceShiftPct: 0.07,
+    haltMinutes: 5,
+    resumptionMode: "AUCTION",
+  },
+  {
+    name: "L2",
+    priceShiftPct: 0.13,
+    haltMinutes: 15,
+    resumptionMode: "AUCTION",
+  },
+  {
+    name: "L3",
+    priceShiftPct: 0.2,
+    haltMinutes: null,
+    resumptionMode: "AUCTION",
+  },
 ];
 
 export const DEFAULT_MM_SPREAD_TICKS = 20;

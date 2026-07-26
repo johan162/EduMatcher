@@ -5,6 +5,7 @@ import {
   DEFAULT_BALF_GATEWAY,
   DEFAULT_CB_LADDER,
   DEFAULT_CB_WINDOW_NS,
+  DEFAULT_COUNTRY,
   DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
   DEFAULT_DROP_COPY_BUFFER_SIZE,
   DEFAULT_DYNAMIC_BAND_PCT,
@@ -116,7 +117,9 @@ export function createBalfGateway(): BalfGatewayConfig {
   };
 }
 
-export function createApiGateway(name: string = DEFAULT_API_GATEWAY.name): ApiGatewayConfig {
+export function createApiGateway(
+  name: string = DEFAULT_API_GATEWAY.name,
+): ApiGatewayConfig {
   return {
     name,
     enabled: true,
@@ -151,7 +154,8 @@ export function createSymbol(
 ): SymbolConfig {
   const config: SymbolConfig = { tickDecimals };
   if (opts?.lastBuyPrice !== undefined) config.lastBuyPrice = opts.lastBuyPrice;
-  if (opts?.lastSellPrice !== undefined) config.lastSellPrice = opts.lastSellPrice;
+  if (opts?.lastSellPrice !== undefined)
+    config.lastSellPrice = opts.lastSellPrice;
   return config;
 }
 
@@ -218,6 +222,7 @@ export function createBlankDraft(): EngineConfigDraft {
   const cb = defaultCbLevels();
   return {
     sessionsEnabled: false,
+    country: DEFAULT_COUNTRY,
     emitSchedule: true,
     snapshotIntervalSec: DEFAULT_SNAPSHOT_INTERVAL_SEC,
     quoteHistoryMaxlen: DEFAULT_QUOTE_HISTORY_MAXLEN,
@@ -272,9 +277,9 @@ export function createBlankDraft(): EngineConfigDraft {
 }
 
 /** Effective static/dynamic band for the derived DEFAULT collar level. */
-export function effectiveDefaultCollar(draft: EngineConfigDraft):
-  | { staticBandPct: number; dynamicBandPct: number }
-  | undefined {
+export function effectiveDefaultCollar(
+  draft: EngineConfigDraft,
+): { staticBandPct: number; dynamicBandPct: number } | undefined {
   const { globalStaticBandPct, globalDynamicBandPct } = draft.riskControls;
   if (globalStaticBandPct === undefined && globalDynamicBandPct === undefined) {
     return undefined;

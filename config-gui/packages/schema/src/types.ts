@@ -60,7 +60,8 @@ export const COMBO_TYPES = ["AON"] as const;
 export type ComboType = (typeof COMBO_TYPES)[number];
 
 export const DUPLICATE_SESSION_POLICIES = ["REJECT_NEW", "EVICT_OLD"] as const;
-export type DuplicateSessionPolicy = (typeof DUPLICATE_SESSION_POLICIES)[number];
+export type DuplicateSessionPolicy =
+  (typeof DUPLICATE_SESSION_POLICIES)[number];
 
 export const API_LOG_LEVELS = ["debug", "info", "warning", "error"] as const;
 export type ApiLogLevel = (typeof API_LOG_LEVELS)[number];
@@ -287,6 +288,12 @@ export interface ApiGatewayConfig {
 
 export interface EngineConfigDraft {
   sessionsEnabled: boolean;
+  /**
+   * Country pm-scheduler uses for its bank-holiday/weekend calendar (name,
+   * e.g. "Sweden", or ISO 3166-1 alpha-2 code, e.g. "SE"). Defaults to
+   * "Sweden" -- see DEFAULT_COUNTRY in defaults.ts.
+   */
+  country: string;
   emitSchedule: boolean;
   snapshotIntervalSec: number;
   quoteHistoryMaxlen: number;
