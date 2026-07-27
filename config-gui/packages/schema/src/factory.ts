@@ -6,6 +6,7 @@ import {
   DEFAULT_CB_LADDER,
   DEFAULT_CB_WINDOW_NS,
   DEFAULT_COUNTRY,
+  DEFAULT_DC_GATEWAY,
   DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
   DEFAULT_DROP_COPY_BUFFER_SIZE,
   DEFAULT_DYNAMIC_BAND_PCT,
@@ -30,6 +31,7 @@ import type {
   BalfGatewayConfig,
   CbLevel,
   ComboConfig,
+  DcGatewayConfig,
   EngineConfigDraft,
   GatewayConfig,
   IndexConfig,
@@ -114,6 +116,18 @@ export function createBalfGateway(): BalfGatewayConfig {
     maxErrorsBeforeDisconnect: DEFAULT_BALF_GATEWAY.maxErrorsBeforeDisconnect,
     errorWindowSec: DEFAULT_BALF_GATEWAY.errorWindowSec,
     duplicateSessionPolicy: DEFAULT_BALF_GATEWAY.duplicateSessionPolicy,
+  };
+}
+
+export function createDcGateway(): DcGatewayConfig {
+  return {
+    enabled: false,
+    name: DEFAULT_DC_GATEWAY.name,
+    bindAddress: DEFAULT_DC_GATEWAY.bindAddress,
+    port: DEFAULT_DC_GATEWAY.port,
+    heartbeatIntervalSec: DEFAULT_DC_GATEWAY.heartbeatIntervalSec,
+    idleTimeoutSec: DEFAULT_DC_GATEWAY.idleTimeoutSec,
+    maxClientQueue: DEFAULT_DC_GATEWAY.maxClientQueue,
   };
 }
 
@@ -270,6 +284,7 @@ export function createBlankDraft(): EngineConfigDraft {
     postTradeGateway: createPostTradeGateway(),
     marketDataGateway: createMarketDataGateway(),
     balfGateway: createBalfGateway(),
+    dcGateway: createDcGateway(),
     apiGateways: [],
     output: { filename: "engine_config.yaml", commentDefaultFields: false },
     unmappedYaml: {},

@@ -413,6 +413,9 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
   if (draft.balfGateway.enabled) {
     cfg.balf_gateway = buildNetworkGateway(draft, "balf");
   }
+  if (draft.dcGateway.enabled) {
+    cfg.dc_gateway = buildNetworkGateway(draft, "dc");
+  }
   const apiGateways = buildApiGateways(draft);
   if (Object.keys(apiGateways).length > 0) cfg.api_gateways = apiGateways;
 
@@ -441,7 +444,7 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
 
 function buildNetworkGateway(
   draft: EngineConfigDraft,
-  which: "postTrade" | "marketData" | "balf",
+  which: "postTrade" | "marketData" | "balf" | "dc",
 ): PlainConfig {
   if (which === "postTrade") {
     const g = draft.postTradeGateway;
@@ -471,20 +474,32 @@ function buildNetworkGateway(
       depth_levels: g.depthLevels,
     };
   }
-  const g = draft.balfGateway;
+  if (which === "balf") {
+    const g = draft.balfGateway;
+    return {
+      name: g.name,
+      bind_address: g.bindAddress,
+      port: g.port,
+      heartbeat_interval_sec: g.heartbeatIntervalSec,
+      heartbeat_timeout_sec: g.heartbeatTimeoutSec,
+      idle_timeout_sec: g.idleTimeoutSec,
+      auth_timeout_sec: g.authTimeoutSec,
+      max_connections: g.maxConnections,
+      max_client_queue: g.maxClientQueue,
+      max_messages_per_second: g.maxMessagesPerSecond,
+      max_errors_before_disconnect: g.maxErrorsBeforeDisconnect,
+      error_window_sec: g.errorWindowSec,
+      duplicate_session_policy: g.duplicateSessionPolicy,
+    };
+  }
+  // which === "dc"
+  const dc = draft.dcGateway;
   return {
-    name: g.name,
-    bind_address: g.bindAddress,
-    port: g.port,
-    heartbeat_interval_sec: g.heartbeatIntervalSec,
-    heartbeat_timeout_sec: g.heartbeatTimeoutSec,
-    idle_timeout_sec: g.idleTimeoutSec,
-    auth_timeout_sec: g.authTimeoutSec,
-    max_connections: g.maxConnections,
-    max_client_queue: g.maxClientQueue,
-    max_messages_per_second: g.maxMessagesPerSecond,
-    max_errors_before_disconnect: g.maxErrorsBeforeDisconnect,
-    error_window_sec: g.errorWindowSec,
-    duplicate_session_policy: g.duplicateSessionPolicy,
+    name: dc.name,
+    bind_address: dc.bindAddress,
+    port: dc.port,
+    heartbeat_interval_sec: dc.heartbeatIntervalSec,
+    idle_timeout_sec: dc.idleTimeoutSec,
+    max_client_queue: dc.maxClientQueue,
   };
 }

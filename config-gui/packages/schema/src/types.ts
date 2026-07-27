@@ -259,6 +259,21 @@ export interface BalfGatewayConfig extends NetworkGatewayBase {
   duplicateSessionPolicy: DuplicateSessionPolicy;
 }
 
+/**
+ * Drop-copy TCP relay gateway (`pm-dc-gwy`). Exposes the engine's internal
+ * ZMQ drop-copy feed to plain-TCP DC1 clients (risk systems, clearing
+ * pipelines, compliance monitors). No authentication or replay-by-sequence.
+ */
+export interface DcGatewayConfig {
+  enabled: boolean;
+  name: string;
+  bindAddress: string;
+  port: number;
+  heartbeatIntervalSec: number;
+  idleTimeoutSec: number;
+  maxClientQueue: number;
+}
+
 export interface ApiCredential {
   apiKey: string;
   /** null = read-only market-data key. */
@@ -346,6 +361,7 @@ export interface EngineConfigDraft {
   postTradeGateway: PostTradeGatewayConfig;
   marketDataGateway: MarketDataGatewayConfig;
   balfGateway: BalfGatewayConfig;
+  dcGateway: DcGatewayConfig;
   apiGateways: ApiGatewayConfig[];
 
   output: {

@@ -222,6 +222,14 @@ const portCollision: Rule = (draft) => {
       path: "balfGateway.port",
     });
   }
+  if (draft.dcGateway.enabled) {
+    endpoints.push({
+      label: `dc_gateway '${draft.dcGateway.name}'`,
+      address: draft.dcGateway.bindAddress,
+      port: draft.dcGateway.port,
+      path: "dcGateway.port",
+    });
+  }
   for (const gw of draft.apiGateways) {
     if (gw.enabled) {
       endpoints.push({

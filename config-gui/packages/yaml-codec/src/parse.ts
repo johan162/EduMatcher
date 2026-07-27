@@ -41,6 +41,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   "post_trade_gateway",
   "market_data_gateway",
   "balf_gateway",
+  "dc_gateway",
   "api_gateways",
   "symbols",
   "market_maker_combos",
@@ -389,6 +390,19 @@ function parseNetworkGateways(raw: Dict, draft: EngineConfigDraft): void {
     const policy = asString(balf.duplicate_session_policy);
     if (policy === "REJECT_NEW" || policy === "EVICT_OLD")
       g.duplicateSessionPolicy = policy;
+  }
+
+  const dc = raw.dc_gateway;
+  if (isDict(dc)) {
+    const g = draft.dcGateway;
+    g.enabled = true;
+    g.name = asString(dc.name) ?? g.name;
+    g.bindAddress = asString(dc.bind_address) ?? g.bindAddress;
+    g.port = asNumber(dc.port) ?? g.port;
+    g.heartbeatIntervalSec =
+      asNumber(dc.heartbeat_interval_sec) ?? g.heartbeatIntervalSec;
+    g.idleTimeoutSec = asNumber(dc.idle_timeout_sec) ?? g.idleTimeoutSec;
+    g.maxClientQueue = asNumber(dc.max_client_queue) ?? g.maxClientQueue;
   }
 }
 

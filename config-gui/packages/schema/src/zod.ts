@@ -174,6 +174,16 @@ export const balfGatewaySchema = z.object({
   duplicateSessionPolicy: z.enum(DUPLICATE_SESSION_POLICIES),
 });
 
+export const dcGatewaySchema = z.object({
+  enabled: z.boolean(),
+  name: z.string().min(1),
+  bindAddress: z.string().min(1),
+  port: z.number().int().min(1).max(65535),
+  heartbeatIntervalSec: z.number().positive(),
+  idleTimeoutSec: z.number().positive(),
+  maxClientQueue: z.number().int().positive(),
+});
+
 export const apiCredentialSchema = z.object({
   apiKey: z.string(),
   gatewayId: z.string().nullable(),
@@ -243,6 +253,7 @@ export const engineConfigDraftSchema = z.object({
   postTradeGateway: postTradeGatewaySchema,
   marketDataGateway: marketDataGatewaySchema,
   balfGateway: balfGatewaySchema,
+  dcGateway: dcGatewaySchema,
   apiGateways: z.array(apiGatewaySchema),
   output: z.object({
     filename: z.string().min(1),

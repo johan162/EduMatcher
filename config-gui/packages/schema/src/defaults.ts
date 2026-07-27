@@ -98,6 +98,15 @@ export const DEFAULT_BALF_GATEWAY = {
   duplicateSessionPolicy: "REJECT_NEW" as "REJECT_NEW" | "EVICT_OLD",
 } as const;
 
+export const DEFAULT_DC_GATEWAY = {
+  name: "dc-gwy01",
+  bindAddress: "0.0.0.0",
+  port: 5590,
+  heartbeatIntervalSec: 5,
+  idleTimeoutSec: 30,
+  maxClientQueue: 10_000,
+} as const;
+
 export const DEFAULT_API_GATEWAY = {
   name: "default",
   host: "127.0.0.1",
