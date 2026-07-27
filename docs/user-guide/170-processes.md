@@ -1129,18 +1129,20 @@ and session-phase documentation.
 
 ## pm-ticker — Scrolling Market Ticker
 
-Prints a scrolling ticker-tape line at regular intervals — one line per snapshot
-containing all active symbols with live prices, OHLCV, and bid/ask spreads.
+Draws a bordered ticker box across the top rows of the terminal. The box has a
+header (the `EduMatcher` brand, today's total trade volume, and the current
+date/time) and a single ticker line listing all active symbols with live
+prices, OHLCV, and bid/ask spreads. The symbol line scrolls leftward like a
+classic ticker tape.
 
 ```bash
-pm-ticker [--interval 30] [--db data/stats.db] [--db-interval 900]
+pm-ticker [--db data/stats.db] [--db-interval 900]
 ```
 
 **Startup options:**
 
 | Flag            | Default         | Description                                        |
 |-----------------|-----------------|----------------------------------------------------|
-| `--interval`    | 30              | Seconds between printed ticker lines               |
 | `--db`          | `data/stats.db` | Path to the statistics SQLite database             |
 | `--db-interval` | 900             | Seconds between daily_stats DB re-queries (15 min) |
 | `--log-level`   | `WARNING`       | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
@@ -1151,10 +1153,17 @@ pm-ticker [--interval 30] [--db data/stats.db] [--db-interval 900]
 
 None.
 
-**Output format** (one line per interval, scrolls up naturally):
+**Display behaviour:**
+
+- The box redraws to the terminal width on resize.
+- If every symbol fits within the current width the line stays static; scrolling
+  only starts once the symbols are wider than the box.
+- Below a minimum width the ticker line is truncated with an ellipsis (`…`).
+
+**Ticker line format:**
 
 ```
-09:15:00  ◆  MSFT  415.00  +0.48%  H:418.00  L:412.00  Vol:52,400 (8T)  414.50/415.50  ◆  AAPL …
+AAPL  415.00  +0.48%  H:418.00  L:412.00  Vol:52,400 (8T)  414.50/415.50  ◆  MSFT …
 ```
 
 Each symbol segment shows:
