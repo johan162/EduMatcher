@@ -18,7 +18,7 @@
         <link rel="prev" href="../020-config-verifier/">
       
       
-        <link rel="next" href="../040-running-the-engine/">
+        <link rel="next" href="../040-running-the-exchange/">
       
       
         
@@ -1516,7 +1516,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -1544,7 +1544,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1600,7 +1600,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1628,7 +1628,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1824,7 +1824,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1880,7 +1880,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -2048,7 +2048,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -2132,7 +2160,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -2188,7 +2216,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -2244,34 +2272,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -2300,7 +2300,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -4180,7 +4180,7 @@ Suggested file: <code>images/config-gui/fig-02-persona-theme.png</code>.</p>
 <td><strong>Sessions &amp; Schedule</strong></td>
 <td>Beginner</td>
 <td>Whether the scheduler drives the trading day, and the phase times</td>
-<td><a href="../080-auctions-scheduling/">Auctions &amp; Session Scheduling</a></td>
+<td><a href="../080-session-scheduling/">Auctions &amp; Session Scheduling</a></td>
 </tr>
 <tr>
 <td><strong>Risk &amp; Collars</strong></td>
@@ -4210,19 +4210,19 @@ Suggested file: <code>images/config-gui/fig-02-persona-theme.png</code>.</p>
 <td><strong>Indices</strong></td>
 <td>Intermediate</td>
 <td>Cap-weighted index definitions and constituents</td>
-<td><a href="../150-index/">Market Index</a></td>
+<td><a href="../150-market-index/">Market Index</a></td>
 </tr>
 <tr>
 <td><strong>Combos</strong></td>
 <td>Expert</td>
 <td>Multi-leg startup seed orders</td>
-<td><a href="../070-combos/">Combo Orders</a></td>
+<td><a href="../070-combo-orders/">Combo Orders</a></td>
 </tr>
 <tr>
 <td><strong>Auxiliary Gateways</strong></td>
 <td>Intermediate</td>
 <td>Post-Trade, Market-Data, BALF, and API gateway processes</td>
-<td><a href="../250-post-trade/">RALF</a>, <a href="../240-market-data-feed/">CALF</a>, <a href="../230-balf-gateway/">BALF</a>, <a href="../260-api-gateway/">API</a></td>
+<td><a href="../250-ralf-gateway/">RALF</a>, <a href="../240-calf-gateway/">CALF</a>, <a href="../230-balf-gateway/">BALF</a>, <a href="../260-api-gateway/">API</a></td>
 </tr>
 <tr>
 <td><strong>Engine Tuning</strong></td>
@@ -4305,7 +4305,7 @@ all start consistent. See also
 </tr>
 <tr>
 <td><strong>Outstanding shares</strong></td>
-<td>Required if the symbol will be an <a href="../150-index/">index</a> constituent; a sensible default is pre-filled.</td>
+<td>Required if the symbol will be an <a href="../150-market-index/">index</a> constituent; a sensible default is pre-filled.</td>
 </tr>
 <tr>
 <td><strong>Opening spread (ticks)</strong> (Intermediate+)</td>
@@ -4476,13 +4476,13 @@ Suggested file: <code>images/config-gui/fig-07-circuit-breakers.png</code>.</p>
 </div>
 <h3 id="sessions-and-schedule">Sessions and schedule<a class="headerlink" href="#sessions-and-schedule" title="Permanent link">&para;</a></h3>
 <p>A trading day moves through phases — pre-open, opening auction, continuous
-trading, closing auction — driven by the <a href="../080-auctions-scheduling/#the-session-scheduler-pm-scheduler"><code>pm-scheduler</code></a>
+trading, closing auction — driven by the <a href="../080-session-scheduling/#the-session-scheduler-pm-scheduler"><code>pm-scheduler</code></a>
 process. The <strong>Sessions &amp; Schedule</strong> tab (Beginner) toggles
 <a href="../010-configuration/#sessions_enabled"><code>sessions_enabled</code></a> and, from Intermediate,
-edits the <a href="../080-auctions-scheduling/#configuring-the-schedule">phase times</a>.</p>
+edits the <a href="../080-session-scheduling/#configuring-the-schedule">phase times</a>.</p>
 <p>The GUI enforces that phase times are strictly increasing as you type — the same
 rule the engine applies — so an out-of-order schedule is caught immediately
-rather than at export. See <a href="../080-auctions-scheduling/#session-phases">Session phases</a>
+rather than at export. See <a href="../080-session-scheduling/#session-phases">Session phases</a>
 for what each phase means.</p>
 <div class="admonition tip">
 <p class="admonition-title">Sessions imply a running scheduler</p>
@@ -4646,12 +4646,12 @@ with a mix of statuses. Suggested file: <code>images/config-gui/fig-09-market-ma
 <p>The <strong>Indices</strong> tab (Intermediate+) defines cap-weighted indices and their
 constituents. Each constituent must be a configured symbol with
 <code>outstanding_shares</code> set (the GUI flags any that are missing). The calculation
-model and field reference are in <a href="../150-index/">Market Index</a>.</p>
+model and field reference are in <a href="../150-market-index/">Market Index</a>.</p>
 <h3 id="combos">Combos<a class="headerlink" href="#combos" title="Permanent link">&para;</a></h3>
 <p>The <strong>Combos</strong> tab (Expert) builds multi-leg startup seed orders — pairs,
 spreads, hedged entries, and market-maker spreads. Prices are entered as decimal
 display values and converted to ticks per each leg symbol's precision. See
-<a href="../070-combos/">Combo Orders</a> for the strategy background and
+<a href="../070-combo-orders/">Combo Orders</a> for the strategy background and
 <a href="../060-order-types/#combo">the COMBO order type</a> for lifecycle behaviour.</p>
 <h3 id="auxiliary-gateways">Auxiliary gateways<a class="headerlink" href="#auxiliary-gateways" title="Permanent link">&para;</a></h3>
 <p>The <strong>Auxiliary Gateways</strong> tab (Intermediate+) configures the optional network
@@ -4670,13 +4670,13 @@ services around the engine, each on its own sub-tab:</p>
 <td>Post-Trade</td>
 <td>Intermediate</td>
 <td>RALF — fills, drop-copy, audit</td>
-<td><a href="../250-post-trade/">Post-Trade (RALF)</a></td>
+<td><a href="../250-ralf-gateway/">Post-Trade (RALF)</a></td>
 </tr>
 <tr>
 <td>Market-Data</td>
 <td>Intermediate</td>
 <td>CALF — top-of-book, trades, index</td>
-<td><a href="../240-market-data-feed/">Market Data Feed (CALF)</a></td>
+<td><a href="../240-calf-gateway/">Market Data Feed (CALF)</a></td>
 </tr>
 <tr>
 <td>BALF</td>
@@ -4789,7 +4789,7 @@ Suggested file: <code>images/config-gui/fig-11-import.png</code>.</p>
 </li>
 </ol>
 <p>Once downloaded, the file is ready for the engine and its companion processes —
-see <a href="../040-running-the-engine/">Running the Engine</a> and, for a first end-to-end
+see <a href="../040-running-the-exchange/">Running the Engine</a> and, for a first end-to-end
 run, <a href="../000-getting-started/">Getting Started</a>.</p>
 <div class="admonition note">
 <p class="admonition-title">📷 Figure 12 — Review &amp; Export with YAML preview</p>
@@ -5047,12 +5047,12 @@ server can also serve the built UI, collapsing the two into one container.</p>
 <li><a href="../010-configuration/">Engine Configuration</a> — the <code>engine_config.yaml</code> format and the <code>pm-config-gen</code> CLI</li>
 <li><a href="../020-config-verifier/">Config Verifier (<code>pm-cverifier</code>)</a> — the authoritative validator behind the Verify button</li>
 <li><a href="../120-risk-controls/">Risk Controls</a> — collars, circuit breakers, and day-one (IPO) behaviour</li>
-<li><a href="../080-auctions-scheduling/">Auctions &amp; Session Scheduling</a> — session phases and <code>pm-scheduler</code></li>
+<li><a href="../080-session-scheduling/">Auctions &amp; Session Scheduling</a> — session phases and <code>pm-scheduler</code></li>
 <li><a href="../090-market-maker/">Market Making</a> — obligations, quote lifecycle, and startup seeding</li>
 <li><a href="../060-order-types/">Order Types</a> — how orders interact with collars and circuit breakers</li>
-<li><a href="../070-combos/">Combo Orders</a> and <a href="../150-index/">Market Index</a> — the Combos and Indices tabs</li>
+<li><a href="../070-combo-orders/">Combo Orders</a> and <a href="../150-market-index/">Market Index</a> — the Combos and Indices tabs</li>
 <li><a href="../810-example-configs/">Example Engine Configs</a> — reference configurations to import and study</li>
-<li><a href="../040-running-the-engine/">Running the Engine</a> — using the file you exported</li>
+<li><a href="../040-running-the-exchange/">Running the Engine</a> — using the file you exported</li>
 </ul>
 
 

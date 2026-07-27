@@ -18,7 +18,7 @@
         <link rel="prev" href="../200-drop-copy/">
       
       
-        <link rel="next" href="../210-protocol-overview/">
+        <link rel="next" href="../202-dc-spy-cli/">
       
       
         
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#drop-copy-tcp-gateway-pm-dc-gwy" class="md-skip">
+        <a href="#drop-copy-gateway-pm-dc-gwy" class="md-skip">
           Skip to content
         </a>
       
@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1017,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1045,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1297,7 +1297,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1778,7 +1778,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -1862,7 +1890,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -1918,7 +1946,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -1974,34 +2002,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -2030,7 +2030,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -3547,7 +3547,7 @@
   
 
 
-<h1 id="drop-copy-tcp-gateway-pm-dc-gwy">Drop-Copy TCP Gateway (<code>pm-dc-gwy</code>)<a class="headerlink" href="#drop-copy-tcp-gateway-pm-dc-gwy" title="Permanent link">&para;</a></h1>
+<h1 id="drop-copy-gateway-pm-dc-gwy">Drop-Copy Gateway (<code>pm-dc-gwy</code>)<a class="headerlink" href="#drop-copy-gateway-pm-dc-gwy" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
@@ -3566,7 +3566,7 @@
 plain TCP clients that cannot or should not speak ZeroMQ: a risk system, a
 clearing broker's ingestion pipeline, a compliance monitor, or any process on
 another host that only has a sockets library.</p>
-<p>It is the TCP counterpart to <a href="../252-dc-spy-cli/"><code>pm-dc-spy</code></a>: both connect a
+<p>It is the TCP counterpart to <a href="../202-dc-spy-cli/"><code>pm-dc-spy</code></a>: both connect a
 <code>zmq.SUB</code> socket to port 5557 and read <code>drop_copy.event.&lt;gateway_id&gt;</code>
 messages. <code>pm-dc-spy</code> prints them to a terminal for a human. <code>pm-dc-gwy</code>
 relays them as DC1 text lines to any number of concurrently connected TCP
@@ -3634,8 +3634,9 @@ a <code>pm-dc-gwy</code> connection does not "occupy" a trading identity.</p>
   port and limits.</li>
 </ul>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
-<p><code>pm-dc-gwy</code> reads an optional hand-edited <code>dc_gateway:</code> section from
-<code>engine_config.yaml</code>:</p>
+<p><code>pm-dc-gwy</code> reads an optional <code>dc_gateway:</code> section from <code>engine_config.yaml</code>.
+You can generate this section with <code>pm-config-gen --dc-gateway</code> (all fields are
+optional and default to the values shown below), or hand-edit it directly:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">dc_gateway</span><span class="p">:</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dc-gwy01&quot;</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span>
@@ -3689,13 +3690,6 @@ a <code>pm-dc-gwy</code> connection does not "occupy" a trading identity.</p>
 configurable via YAML — it always comes from the same <code>DROP_COPY_PUB_ADDR</code>
 constant the rest of the system uses. Override it per-run with <code>--engine-dc-pub</code>
 (see below) if you need to point at a non-default engine address.</p>
-<div class="admonition note">
-<p class="admonition-title">No <code>pm-config-gen</code> integration</p>
-<p>Unlike most gateway sections, <code>dc_gateway:</code> is not wired into
-<code>pm-config-gen</code>'s CLI flags, interactive builder, or config-check
-warnings. Hand-edit the YAML section directly, the same way you would for
-<code>alf_gateway:</code> or <code>post_trade_gateway:</code>.</p>
-</div>
 <div class="admonition note">
 <p class="admonition-title">TLS</p>
 <p><code>pm-dc-gwy</code> does not terminate TLS. For remote deployments, put it behind
@@ -4016,7 +4010,7 @@ order state fields like <code>REMAINING</code>/<code>STATUS</code>.</p>
 <tbody>
 <tr>
 <td>Ad-hoc inspection from a terminal, human-readable or JSON</td>
-<td><a href="../252-dc-spy-cli/"><code>pm-dc-spy</code></a></td>
+<td><a href="../202-dc-spy-cli/"><code>pm-dc-spy</code></a></td>
 </tr>
 <tr>
 <td>External process, any language, no ZeroMQ dependency allowed</td>
@@ -4032,7 +4026,7 @@ order state fields like <code>REMAINING</code>/<code>STATUS</code>.</p>
 </tr>
 <tr>
 <td>Role-gated (<code>CLEARING</code>/<code>AUDIT</code>) trade feed with replay-by-sequence</td>
-<td><code>pm-ralf-gwy</code> — see <a href="../250-post-trade/">Post-trade</a></td>
+<td><code>pm-ralf-gwy</code> — see <a href="../250-ralf-gateway/">Post-trade</a></td>
 </tr>
 </tbody>
 </table>
@@ -4091,10 +4085,10 @@ order state fields like <code>REMAINING</code>/<code>STATUS</code>.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../200-drop-copy/">Drop Copy</a> — the engine's drop-copy feed (<code>:5557</code>) this gateway relays</li>
-<li><a href="../252-dc-spy-cli/">Drop-Copy Spy (pm-dc-spy)</a> — read-only CLI for the same feed</li>
+<li><a href="../202-dc-spy-cli/">Drop-Copy Spy (pm-dc-spy)</a> — read-only CLI for the same feed</li>
 <li><a href="../220-alf-gateway/#dc-toggle-drop-copy-relay">ALF TCP Gateway → DC</a> — relay your own fills through an existing ALF session instead</li>
 <li><a href="../170-processes/#pm-dc-gwy-drop-copy-tcp-gateway">Processes</a> — process topology and ZMQ message tables</li>
-<li><a href="../210-protocol-overview/">External Protocols Overview</a> — protocol comparison and selection guide</li>
+<li><a href="../210-protocols-overview/">External Protocols Overview</a> — protocol comparison and selection guide</li>
 </ul>
 
 

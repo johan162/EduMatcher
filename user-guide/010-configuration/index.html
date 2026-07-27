@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#engine-configuration" class="md-skip">
+        <a href="#configuration" class="md-skip">
           Skip to content
         </a>
       
@@ -1509,6 +1509,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Session Schedule">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#country" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        country
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1831,7 +1848,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -1859,7 +1876,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1915,7 +1932,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1943,7 +1960,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -2139,7 +2156,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -2195,7 +2212,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -2363,7 +2380,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -2447,7 +2492,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -2503,7 +2548,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -2559,34 +2604,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -2615,7 +2632,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -4132,7 +4149,7 @@
   
 
 
-<h1 id="engine-configuration">Engine Configuration<a class="headerlink" href="#engine-configuration" title="Permanent link">&para;</a></h1>
+<h1 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
@@ -4151,8 +4168,8 @@
 engine uses it to define the symbol universe, authenticated ALF gateway IDs,
 session mode, risk controls, market-maker policy, per-symbol outstanding shares,
 and startup seeds. The scheduler uses only the optional <code>schedule</code> section.
-The optional <code>post_trade_gateway</code>, <code>market_data_gateway</code>, and <code>api_gateways</code>
-sections are read by <code>pm-ralf-gwy</code>, <code>pm-md-gwy</code>, and <code>pm-api-gwy</code>
+The optional <code>post_trade_gateway</code>, <code>market_data_gateway</code>, <code>dc_gateway</code>, and <code>api_gateways</code>
+sections are read by <code>pm-ralf-gwy</code>, <code>pm-md-gwy</code>, <code>pm-dc-gwy</code>, and <code>pm-api-gwy</code>
 respectively.</p>
 <p>If the config file is absent, <code>pm-engine</code> starts in unrestricted mode: any symbol
 and gateway can be used, and no startup seeds are loaded. If the config file is
@@ -4174,19 +4191,19 @@ same file format as <code>pm-config-gen</code> described below.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title"><code>gateways.alf</code> is the only sub-key under <code>gateways:</code></p>
-<p>The <code>gateways:</code> mapping only contains <code>alf</code>. BALF and CALF gateways are
-configured via separate <strong>top-level</strong> keys (<code>balf_gateway</code> and
-<code>market_data_gateway</code>) and are read by their own processes, not by
-<code>pm-engine</code>.</p>
+<p>The <code>gateways:</code> mapping only contains <code>alf</code>. BALF, CALF, and DC gateways are
+configured via separate <strong>top-level</strong> keys (<code>balf_gateway</code>, <code>market_data_gateway</code>,
+and <code>dc_gateway</code>) and are read by their own processes, not by <code>pm-engine</code>.</p>
 </div>
 <p>Each protocol's configuration lives in a different part of <code>engine_config.yaml</code>:</p>
 <ul>
 <li><strong>ALF</strong> — configured under <code>gateways.alf</code>; used by <code>pm-engine</code> to authenticate order-entry connections from <code>pm-alf-console</code> and <code>pm-alf-gwy</code>, as well as <code>pm-balf-gwy</code> (the gateway id used in the BALF configurations must exist under <code>gateways.alf</code>). 
   Uses a pipe-delimited text format (<code>FIELD=VALUE|FIELD=VALUE</code>).</li>
 <li><strong>BALF</strong> — configured under the top-level <code>balf_gateway</code> key; used by <code>pm-balf-gwy</code>. Uses fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing overhead is undesirable. See <a href="../230-balf-gateway/">BALF Gateway</a> for more usage and <a href="../910-app-balf-protocol/">BALF Protocol</a> for the full specification.</li>
-<li><strong>CALF</strong> — configured under the top-level <code>market_data_gateway</code> key; used by <code>pm-md-gwy</code>. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See <a href="../240-market-data-feed/">Market Data Feed</a> for usage and <a href="../920-app-calf-protocol/">CALF Protocol</a> for the full protocol specification.</li>
-<li><strong>RALF</strong> — configured under the top-level <code>post_trade_gateway</code> key; used by <code>pm-ralf-gwy</code>. Provides a replayable audit feed of all executed trades, including the original order details, over a persistent TCP connection with sequence-based gap detection. See <a href="../250-post-trade/">Post Trade</a> for usage and <a href="../930-app-ralf-protocol/">RALF Protocol</a> for the full protocol specification.</li>
-<li>A Full overview of all protocol and their intended usage can be found in <a href="../210-protocol-overview/">Protocols Overview</a>.</li>
+<li><strong>CALF</strong> — configured under the top-level <code>market_data_gateway</code> key; used by <code>pm-md-gwy</code>. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See <a href="../240-calf-gateway/">Market Data Feed</a> for usage and <a href="../920-app-calf-protocol/">CALF Protocol</a> for the full protocol specification.</li>
+<li><strong>RALF</strong> — configured under the top-level <code>post_trade_gateway</code> key; used by <code>pm-ralf-gwy</code>. Provides a replayable audit feed of all executed trades, including the original order details, over a persistent TCP connection with sequence-based gap detection. See <a href="../250-ralf-gateway/">Post Trade</a> for usage and <a href="../930-app-ralf-protocol/">RALF Protocol</a> for the full protocol specification.</li>
+<li><strong>DC1</strong> — configured under the top-level <code>dc_gateway</code> key; used by <code>pm-dc-gwy</code>. Relays the engine's internal drop-copy feed to plain TCP clients that cannot speak ZeroMQ, using the lightweight DC1 text protocol. See <a href="../201-dc-gateway/">Drop-Copy Gateway</a> for full usage and protocol details.</li>
+<li>A Full overview of all protocol and their intended usage can be found in <a href="../210-protocols-overview/">Protocols Overview</a>.</li>
 </ul>
 <h2 id="file-location">File Location<a class="headerlink" href="#file-location" title="Permanent link">&para;</a></h2>
 <p>By default, installed mode looks for <code>engine_config.yaml</code> in the current working
@@ -4867,6 +4884,61 @@ for each MM quote seed at generation time.</p>
 <td>enum</td>
 <td><code>REJECT_NEW</code></td>
 <td><code>balf_gateway.duplicate_session_policy</code>; <code>REJECT_NEW</code> or <code>EVICT_OLD</code></td>
+</tr>
+</tbody>
+</table>
+<p>Drop-copy gateway options:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--dc-gateway</code></td>
+<td>Flag</td>
+<td>off</td>
+<td>Emit top-level <code>dc_gateway</code> block for <code>pm-dc-gwy</code></td>
+</tr>
+<tr>
+<td><code>--dc-name</code></td>
+<td>string</td>
+<td><code>dc-gwy01</code></td>
+<td><code>dc_gateway.name</code></td>
+</tr>
+<tr>
+<td><code>--dc-bind-address</code></td>
+<td>string</td>
+<td><code>0.0.0.0</code></td>
+<td><code>dc_gateway.bind_address</code></td>
+</tr>
+<tr>
+<td><code>--dc-port</code></td>
+<td>int (<code>&gt; 0</code>)</td>
+<td><code>5590</code></td>
+<td><code>dc_gateway.port</code></td>
+</tr>
+<tr>
+<td><code>--dc-heartbeat-interval-sec</code></td>
+<td>int (<code>&gt; 0</code>)</td>
+<td><code>5</code></td>
+<td><code>dc_gateway.heartbeat_interval_sec</code></td>
+</tr>
+<tr>
+<td><code>--dc-idle-timeout-sec</code></td>
+<td>int (<code>&gt; 0</code>)</td>
+<td><code>30</code></td>
+<td><code>dc_gateway.idle_timeout_sec</code></td>
+</tr>
+<tr>
+<td><code>--dc-max-client-queue</code></td>
+<td>int (<code>&gt; 0</code>)</td>
+<td><code>10000</code></td>
+<td><code>dc_gateway.max_client_queue</code></td>
 </tr>
 </tbody>
 </table>
@@ -5677,6 +5749,12 @@ the generated YAML as the <code>description</code> field on each <code>gateways.
 <td>Session transition times</td>
 </tr>
 <tr>
+<td><code>country</code></td>
+<td style="text-align: right;">No</td>
+<td><code>pm-scheduler</code></td>
+<td>Country used for the scheduler's bank-holiday/weekend calendar</td>
+</tr>
+<tr>
 <td><code>post_trade_gateway</code></td>
 <td style="text-align: right;">No</td>
 <td><code>pm-ralf-gwy</code></td>
@@ -5693,6 +5771,12 @@ the generated YAML as the <code>description</code> field on each <code>gateways.
 <td style="text-align: right;">No</td>
 <td><code>pm-balf-gwy</code></td>
 <td>External BALF binary TCP gateway settings</td>
+</tr>
+<tr>
+<td><code>dc_gateway</code></td>
+<td style="text-align: right;">No</td>
+<td><code>pm-dc-gwy</code></td>
+<td>Drop-copy TCP relay gateway settings</td>
 </tr>
 <tr>
 <td><code>api_gateways</code></td>
@@ -5717,7 +5801,7 @@ all of it. Each auxiliary gateway or service opens the file independently at
 its own startup, ignores every top-level key it doesn't recognize, and parses
 only the section(s) it owns. <code>pm-engine</code> is the only process that reads most
 of the file — the gateway-specific blocks (<code>market_data_gateway</code>,
-<code>balf_gateway</code>, <code>post_trade_gateway</code>, <code>alf_gateway</code>, <code>api_gateways</code>) are never
+<code>balf_gateway</code>, <code>post_trade_gateway</code>, <code>dc_gateway</code>, <code>alf_gateway</code>, <code>api_gateways</code>) are never
 touched by the engine itself.</p>
 <table>
 <thead>
@@ -5760,6 +5844,12 @@ touched by the engine itself.</p>
 <td>Own bind address/port/timeouts, replay window, and <code>depth_levels</code> for CALF subscribers</td>
 </tr>
 <tr>
+<td><code>pm-dc-gwy</code></td>
+<td><code>dc_gwy/config.py</code></td>
+<td><code>dc_gateway</code></td>
+<td>Own bind address/port/timeouts and per-client queue limit for the drop-copy TCP relay</td>
+</tr>
+<tr>
 <td><code>pm-api-gwy</code></td>
 <td><code>api_gateway/config.py</code></td>
 <td><code>api_gateways</code></td>
@@ -5774,8 +5864,8 @@ touched by the engine itself.</p>
 <tr>
 <td><code>pm-scheduler</code></td>
 <td><code>scheduler/main.py</code></td>
-<td><code>schedule</code></td>
-<td>Session-phase transition times — re-reads the same block <code>pm-engine</code> reads, but as an independent process so the schedule can be driven or tested externally</td>
+<td><code>schedule</code>, <code>country</code></td>
+<td>Session-phase transition times — re-reads the same block <code>pm-engine</code> reads, but as an independent process so the schedule can be driven or tested externally — plus the country used to skip weekends and bank holidays</td>
 </tr>
 </tbody>
 </table>
@@ -7425,29 +7515,69 @@ delays.</p>
 <p>The default session path is:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-63-1" name="__codelineno-63-1" href="#__codelineno-63-1"></a>PRE_OPEN -&gt; OPENING_AUCTION -&gt; CONTINUOUS -&gt; CLOSING_AUCTION -&gt; CLOSED
 </code></pre></div>
+<h3 id="country"><code>country</code><a class="headerlink" href="#country" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-64-1" name="__codelineno-64-1" href="#__codelineno-64-1"></a><span class="nt">country</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Sweden</span>
+</code></pre></div>
+<p><code>country</code> is a top-level key — a sibling of <code>schedule</code>, not nested under it.
+<code>pm-scheduler</code> uses it to decide which calendar days are trading days: it
+will not run the daily schedule on a weekend or on that country's bank
+holidays, using the <a href="https://pypi.org/project/holidays/"><code>python-holidays</code></a>
+package to resolve the holiday calendar.</p>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Accepted forms</td>
+<td>Country name (<code>"Sweden"</code>) or ISO 3166-1 alpha-2 code (<code>"SE"</code>)</td>
+</tr>
+<tr>
+<td>Default when omitted</td>
+<td><code>"Sweden"</code></td>
+</tr>
+<tr>
+<td>Behavior on an unrecognized value</td>
+<td>Falls back to <code>"Sweden"</code> and logs a warning</td>
+</tr>
+<tr>
+<td>Weekends</td>
+<td>Always treated as non-working days, regardless of the holiday calendar</td>
+</tr>
+</tbody>
+</table>
+<p>Under <code>--daily</code>, a non-working day is skipped and the scheduler sleeps
+through to the next working day rather than the next calendar day. In
+single-shot mode (the default, no <code>--daily</code>), the scheduler simply sends no
+transitions and exits if started on a non-working day. See
+<a href="../080-session-scheduling/#bank-holidays-and-weekends">Session Scheduling → Bank holidays and weekends</a>
+for the full behavior breakdown by run mode.</p>
 <h2 id="startup-and-persistence-order">Startup and Persistence Order<a class="headerlink" href="#startup-and-persistence-order" title="Permanent link">&para;</a></h2>
 <p>The effective engine startup sequence is:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-64-1" name="__codelineno-64-1" href="#__codelineno-64-1"></a>Engine startup
-<a id="__codelineno-64-2" name="__codelineno-64-2" href="#__codelineno-64-2"></a>    |
-<a id="__codelineno-64-3" name="__codelineno-64-3" href="#__codelineno-64-3"></a>    +-- 1. Parse config if present
-<a id="__codelineno-64-4" name="__codelineno-64-4" href="#__codelineno-64-4"></a>    +-- 2. Bind main PULL/PUB sockets
-<a id="__codelineno-64-5" name="__codelineno-64-5" href="#__codelineno-64-5"></a>    +-- 3. Load persisted book stats from &lt;DATA_DIR&gt;/book_stats.json
-<a id="__codelineno-64-6" name="__codelineno-64-6" href="#__codelineno-64-6"></a>    +-- 4. Restore persisted GTC orders from &lt;DATA_DIR&gt;/gtc_orders.json
-<a id="__codelineno-64-7" name="__codelineno-64-7" href="#__codelineno-64-7"></a>    +-- 5. Restore persisted GTC combos from &lt;DATA_DIR&gt;/gtc_combos.json
-<a id="__codelineno-64-8" name="__codelineno-64-8" href="#__codelineno-64-8"></a>    +-- 6. Inject market_maker_quotes
-<a id="__codelineno-64-9" name="__codelineno-64-9" href="#__codelineno-64-9"></a>    +-- 7. Inject market_maker_combos
-<a id="__codelineno-64-10" name="__codelineno-64-10" href="#__codelineno-64-10"></a>    +-- 8. Bind drop-copy PUB :5557 if available
-<a id="__codelineno-64-11" name="__codelineno-64-11" href="#__codelineno-64-11"></a>    +-- 9. Publish initial book snapshots
+<div class="highlight"><pre><span></span><code><a id="__codelineno-65-1" name="__codelineno-65-1" href="#__codelineno-65-1"></a>Engine startup
+<a id="__codelineno-65-2" name="__codelineno-65-2" href="#__codelineno-65-2"></a>    |
+<a id="__codelineno-65-3" name="__codelineno-65-3" href="#__codelineno-65-3"></a>    +-- 1. Parse config if present
+<a id="__codelineno-65-4" name="__codelineno-65-4" href="#__codelineno-65-4"></a>    +-- 2. Bind main PULL/PUB sockets
+<a id="__codelineno-65-5" name="__codelineno-65-5" href="#__codelineno-65-5"></a>    +-- 3. Load persisted book stats from &lt;DATA_DIR&gt;/book_stats.json
+<a id="__codelineno-65-6" name="__codelineno-65-6" href="#__codelineno-65-6"></a>    +-- 4. Restore persisted GTC orders from &lt;DATA_DIR&gt;/gtc_orders.json
+<a id="__codelineno-65-7" name="__codelineno-65-7" href="#__codelineno-65-7"></a>    +-- 5. Restore persisted GTC combos from &lt;DATA_DIR&gt;/gtc_combos.json
+<a id="__codelineno-65-8" name="__codelineno-65-8" href="#__codelineno-65-8"></a>    +-- 6. Inject market_maker_quotes
+<a id="__codelineno-65-9" name="__codelineno-65-9" href="#__codelineno-65-9"></a>    +-- 7. Inject market_maker_combos
+<a id="__codelineno-65-10" name="__codelineno-65-10" href="#__codelineno-65-10"></a>    +-- 8. Bind drop-copy PUB :5557 if available
+<a id="__codelineno-65-11" name="__codelineno-65-11" href="#__codelineno-65-11"></a>    +-- 9. Publish initial book snapshots
 </code></pre></div>
 <p><code>&lt;DATA_DIR&gt;</code> resolves to <code>src/data/</code> in a source checkout, <code>~/.local/share/edumatcher</code>
 when installed, or <code>$EDUMATCHER_DATA_DIR</code> if that environment variable is set.</p>
 <p>This ordering means persisted GTC state comes back before config seed liquidity,
 and persisted book stats override <code>last_buy_price</code> / <code>last_sell_price</code> seeds.
 When changing seed behavior or symbol definitions, consider removing stale data:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-65-1" name="__codelineno-65-1" href="#__codelineno-65-1"></a><span class="c1"># from a source checkout:</span>
-<a id="__codelineno-65-2" name="__codelineno-65-2" href="#__codelineno-65-2"></a>rm<span class="w"> </span>-f<span class="w"> </span>src/data/gtc_orders.json<span class="w"> </span>src/data/book_stats.json<span class="w"> </span>src/data/gtc_combos.json
-<a id="__codelineno-65-3" name="__codelineno-65-3" href="#__codelineno-65-3"></a><span class="c1"># or, if EDUMATCHER_DATA_DIR is set:</span>
-<a id="__codelineno-65-4" name="__codelineno-65-4" href="#__codelineno-65-4"></a>rm<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>/gtc_orders.json<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>/book_stats.json<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>/gtc_combos.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-66-1" name="__codelineno-66-1" href="#__codelineno-66-1"></a><span class="c1"># from a source checkout:</span>
+<a id="__codelineno-66-2" name="__codelineno-66-2" href="#__codelineno-66-2"></a>rm<span class="w"> </span>-f<span class="w"> </span>src/data/gtc_orders.json<span class="w"> </span>src/data/book_stats.json<span class="w"> </span>src/data/gtc_combos.json
+<a id="__codelineno-66-3" name="__codelineno-66-3" href="#__codelineno-66-3"></a><span class="c1"># or, if EDUMATCHER_DATA_DIR is set:</span>
+<a id="__codelineno-66-4" name="__codelineno-66-4" href="#__codelineno-66-4"></a>rm<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>/gtc_orders.json<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>/book_stats.json<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>/gtc_combos.json
 </code></pre></div>
 <h2 id="adding-or-removing-symbols">Adding or Removing Symbols<a class="headerlink" href="#adding-or-removing-symbols" title="Permanent link">&para;</a></h2>
 <p>Adding a symbol is the configuration equivalent of an <strong>IPO (initial listing)</strong>:
@@ -7476,20 +7606,20 @@ listing.</p>
 </ul>
 <h2 id="validation-commands">Validation Commands<a class="headerlink" href="#validation-commands" title="Permanent link">&para;</a></h2>
 <p>For a quick parser check from a source checkout:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-66-1" name="__codelineno-66-1" href="#__codelineno-66-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;from pathlib import Path; from edumatcher.engine.config_loader import load_engine_config; print(load_engine_config(Path(&quot;engine_config.yaml&quot;)))&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-67-1" name="__codelineno-67-1" href="#__codelineno-67-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;from pathlib import Path; from edumatcher.engine.config_loader import load_engine_config; print(load_engine_config(Path(&quot;engine_config.yaml&quot;)))&#39;</span>
 </code></pre></div>
 <p>If the file is valid, this prints the parsed <code>EngineConfig</code> object.  On error
 you get a traceback ending with a descriptive message:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-67-1" name="__codelineno-67-1" href="#__codelineno-67-1"></a>ValueError: Engine config must have a &#39;symbols&#39; mapping
+<div class="highlight"><pre><span></span><code><a id="__codelineno-68-1" name="__codelineno-68-1" href="#__codelineno-68-1"></a>ValueError: Engine config must have a &#39;symbols&#39; mapping
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-68-1" name="__codelineno-68-1" href="#__codelineno-68-1"></a>ValueError: gateways.alf[0].disconnect_behaviour is invalid
+<div class="highlight"><pre><span></span><code><a id="__codelineno-69-1" name="__codelineno-69-1" href="#__codelineno-69-1"></a>ValueError: gateways.alf[0].disconnect_behaviour is invalid
 </code></pre></div>
 <p>For installed (pipx) users who do not have access to the <code>poetry run</code> environment,
 pass the config file to the engine directly — it validates on startup:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-69-1" name="__codelineno-69-1" href="#__codelineno-69-1"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-70-1" name="__codelineno-70-1" href="#__codelineno-70-1"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>For the focused config parser test suite:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-70-1" name="__codelineno-70-1" href="#__codelineno-70-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/test_config_loader.py<span class="w"> </span>tests/test_config_extensions.py
+<div class="highlight"><pre><span></span><code><a id="__codelineno-71-1" name="__codelineno-71-1" href="#__codelineno-71-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/test_config_loader.py<span class="w"> </span>tests/test_config_extensions.py
 </code></pre></div>
 <h2 id="formal-specification">Formal Specification<a class="headerlink" href="#formal-specification" title="Permanent link">&para;</a></h2>
 <p>This section is a complete machine-readable-style reference for every field
@@ -8439,8 +8569,8 @@ parsed:</p>
 <hr />
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../040-running-the-engine/">Running the Engine</a> - startup order and common runtime workflows</li>
-<li><a href="../050-gateway/">Gateway Commands</a> - ALF commands and gateway behavior</li>
+<li><a href="../040-running-the-exchange/">Running the Engine</a> - startup order and common runtime workflows</li>
+<li><a href="../050-gateway-reference/">Gateway Commands</a> - ALF commands and gateway behavior</li>
 <li><a href="../120-risk-controls/">Risk Controls</a> - collar and circuit-breaker behavior in depth</li>
 <li><a href="../180-persistence/">Persistence</a> - how GTC orders, book stats, and combos are saved and restored</li>
 <li><a href="../170-processes/">Processes</a> - which process reads which config section</li>

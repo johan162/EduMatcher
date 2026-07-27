@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1017,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1045,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1969,7 +1969,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -2025,7 +2025,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -2193,7 +2193,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -2277,7 +2305,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -2333,7 +2361,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -2389,34 +2417,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -2445,7 +2445,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -5362,9 +5362,9 @@ for the full <code>gateways.alf[].smp_action</code> field definition and
 for the normative schema entry, including how the same default extends to
 <code>market_maker_combos[].legs[]</code> config-seeded combos. Per-request field
 definitions live alongside each protocol's <code>NEW</code>/<code>COMBO</code>/<code>QUOTE</code> command
-reference: <a href="../050-gateway/#new-submit-an-order">Gateway Reference — <code>NEW</code></a>,
-<a href="../050-gateway/#new-combo-submit-a-multi-leg-order">Gateway Reference — <code>NEW (Combo)</code></a>,
-<a href="../070-combos/">Combos — <code>SMP=</code></a>, and
+reference: <a href="../050-gateway-reference/#new-submit-an-order">Gateway Reference — <code>NEW</code></a>,
+<a href="../050-gateway-reference/#new-combo-submit-a-multi-leg-order">Gateway Reference — <code>NEW (Combo)</code></a>,
+<a href="../070-combo-orders/">Combos — <code>SMP=</code></a>, and
 <a href="../260-api-gateway/">API Gateway</a> for the REST field.</p>
 <h2 id="market-maker-interaction">Market-maker interaction<a class="headerlink" href="#market-maker-interaction" title="Permanent link">&para;</a></h2>
 <p>When any halt fires — whether triggered by a circuit breaker, a per-symbol operator halt, or the exchange-wide ADMIN halt — <strong>all outstanding market-maker quote legs for the affected symbols are cancelled immediately</strong>. This protects market makers from having stale quotes executed against them during a disorderly market. The cancellation reason included in the <code>order.cancelled</code> message distinguishes the halt source:</p>
@@ -5396,9 +5396,9 @@ reference: <a href="../050-gateway/#new-submit-an-order">Gateway Reference — <
 <li><a href="../010-configuration/">Configuration</a> — full <code>engine_config.yaml</code> reference including collar, CB ladder, and <code>smp_action</code> config</li>
 <li><a href="../060-order-types/">Order Types</a> — how different order types behave under halt, and how SMP interacts with each type's sweep</li>
 <li><a href="../200-drop-copy/">Drop Copy</a> — how fill events are forwarded to risk systems</li>
-<li><a href="../080-auctions-scheduling/">Auctions &amp; Session Scheduling</a> — the equilibrium-price uncross algorithm that circuit-breaker resumption always runs</li>
-<li><a href="../050-gateway/">Gateway Reference</a> — <code>KILL</code> command for triggering the kill switch via the ALF terminal, and the <code>NEW</code>/<code>COMBO</code> <code>SMP=</code> field</li>
-<li><a href="../070-combos/">Combos</a> — per-leg <code>SMP=</code> on multi-leg orders</li>
+<li><a href="../080-session-scheduling/">Auctions &amp; Session Scheduling</a> — the equilibrium-price uncross algorithm that circuit-breaker resumption always runs</li>
+<li><a href="../050-gateway-reference/">Gateway Reference</a> — <code>KILL</code> command for triggering the kill switch via the ALF terminal, and the <code>NEW</code>/<code>COMBO</code> <code>SMP=</code> field</li>
+<li><a href="../070-combo-orders/">Combos</a> — per-leg <code>SMP=</code> on multi-leg orders</li>
 <li><a href="../100-mm-bot/">Market-Maker Bot</a> — why quoting gateways rely entirely on the <code>smp_action</code> gateway default</li>
 <li><a href="../990-app-config-spec/">Configuration Spec</a> — normative schema for <code>gateways.alf[].smp_action</code> and <code>ComboLegSpec.smp_action</code></li>
 </ul>

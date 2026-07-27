@@ -15,10 +15,10 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/241-calf-spy-cli/">
       
       
-        <link rel="prev" href="../240-market-data-feed/">
+        <link rel="prev" href="../240-calf-gateway/">
       
       
-        <link rel="next" href="../250-post-trade/">
+        <link rel="next" href="../250-ralf-gateway/">
       
       
         
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#calf-protocol-spy-pm-calf-spy" class="md-skip">
+        <a href="#calf-protocol-spy" class="md-skip">
           Skip to content
         </a>
       
@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1017,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1045,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1297,7 +1297,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1465,7 +1465,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -1549,7 +1577,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -1751,7 +1779,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -1807,34 +1835,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -1863,7 +1863,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -3380,7 +3380,7 @@
   
 
 
-<h1 id="calf-protocol-spy-pm-calf-spy">CALF Protocol Spy (<code>pm-calf-spy</code>)<a class="headerlink" href="#calf-protocol-spy-pm-calf-spy" title="Permanent link">&para;</a></h1>
+<h1 id="calf-protocol-spy">CALF Protocol Spy<a class="headerlink" href="#calf-protocol-spy" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
@@ -3416,7 +3416,7 @@ of concurrent TCP connections (up to <code>market_data_gateway.max_connections</
 and each <code>pm-calf-spy</code> process has its own independent subscription set.</p>
 <h2 id="why-not-the-example-subscriber">Why not the example subscriber?<a class="headerlink" href="#why-not-the-example-subscriber" title="Permanent link">&para;</a></h2>
 <p><code>docs/examples/calf/calf_subscriber.py</code> (see
-<a href="../240-market-data-feed/#python-subscriber-example">Market Data Feed — Python subscriber example</a>)
+<a href="../240-calf-gateway/#python-subscriber-example">Market Data Feed — Python subscriber example</a>)
 is a <em>library-style</em> example meant to be read and adapted: it hard-codes a
 fixed channel set (<code>TOP</code>, <code>TRADE</code>, <code>STATE</code>, <code>DEPTH</code>, optionally <code>INDEX</code>) and
 formats output for a specific demo. <code>pm-calf-spy</code> is a <em>general-purpose
@@ -3476,7 +3476,7 @@ handshake to succeed, but you will not see any live data until it is.</p>
 <tr>
 <td><code>--channels</code></td>
 <td><code>*</code></td>
-<td>Comma-separated channels, e.g. <code>TOP,TRADE,CB</code>. <code>*</code> subscribes to every channel in <code>WELCOME\|CH_SUPPORTED=</code> (falling back to <code>TOP,TRADE,STATE</code> if that field is absent — see <a href="../240-market-data-feed/#step-1-send-hello">pre-1.0.0 gateway note</a>)</td>
+<td>Comma-separated channels, e.g. <code>TOP,TRADE,CB</code>. <code>*</code> subscribes to every channel in <code>WELCOME\|CH_SUPPORTED=</code> (falling back to <code>TOP,TRADE,STATE</code> if that field is absent — see <a href="../240-calf-gateway/#step-1-send-hello">pre-1.0.0 gateway note</a>)</td>
 </tr>
 <tr>
 <td><code>--symbols</code></td>
@@ -3542,7 +3542,7 @@ handshake it has nothing more to say, so — unlike a real trading client that
 periodically sends orders or cancels — it would otherwise go completely
 silent for the rest of the session. <code>pm-md-gwy</code> disconnects any client that
 sends nothing at all for <code>market_data_gateway.idle_timeout_sec</code> (see
-<a href="../240-market-data-feed/">Market Data Feed — Configuration</a>), so a purely
+<a href="../240-calf-gateway/">Market Data Feed — Configuration</a>), so a purely
 receive-only client needs to generate outbound traffic of its own to avoid
 being dropped.</p>
 <p><code>pm-calf-spy</code> does this automatically: a background thread sends <code>PING</code>
@@ -3621,11 +3621,11 @@ same gateway — <code>pm-md-gwy</code> fans out independently per session.</p>
 </ul>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../240-market-data-feed/">Market Data Feed (CALF)</a> — operational guide, wire examples, and the Python/C example subscribers</li>
+<li><a href="../240-calf-gateway/">Market Data Feed (CALF)</a> — operational guide, wire examples, and the Python/C example subscribers</li>
 <li><a href="../920-app-calf-protocol/">Appendix — CALF Protocol</a> — normative wire format, full field tables, sequencing rules</li>
 <li><a href="../170-processes/#pm-calf-spy-calf-protocol-spy">Processes</a> — where <code>pm-calf-spy</code> sits in the process model</li>
 <li><a href="../../training/23-calf/">Training — CALF Market-Data Gateway Protocol</a> — hands-on exercises using <code>nc</code> and the example subscribers</li>
-<li><a href="../252-dc-spy-cli/">Drop-Copy Spy (pm-dc-spy)</a> — the analogous inspection tool for the per-participant fill feed</li>
+<li><a href="../202-dc-spy-cli/">Drop-Copy Spy (pm-dc-spy)</a> — the analogous inspection tool for the per-participant fill feed</li>
 </ul>
 
 

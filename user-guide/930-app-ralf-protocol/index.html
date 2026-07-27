@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1017,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1045,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1297,7 +1297,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1465,7 +1465,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -1549,7 +1577,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -1605,7 +1633,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -1661,34 +1689,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -1717,7 +1717,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -3511,7 +3511,7 @@
 <blockquote>
 <p><strong>Status: Normative.</strong> This appendix is the single source of truth for the RALF
 wire contract as implemented by <code>pm-ralf-gwy</code> (<code>ralf_gateway/</code>). For an operational,
-tutorial-style guide see <a href="../250-post-trade/">Post-Trade Dissemination</a>; for the
+tutorial-style guide see <a href="../250-ralf-gateway/">Post-Trade Dissemination</a>; for the
 gateway's configuration block see
 <a href="../990-app-config-spec/#64-post_trade_gateway-pm-ralf-gwy-ralf">Engine Config Specification §6.4</a>.</p>
 </blockquote>
@@ -4055,11 +4055,11 @@ interval. A session with no inbound activity for the idle timeout is dropped
 the corresponding engine events become available; they are <strong>not</strong> part of <code>RALF1</code>.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../250-post-trade/">Post-Trade Dissemination</a> — operational guide and client examples</li>
+<li><a href="../250-ralf-gateway/">Post-Trade Dissemination</a> — operational guide and client examples</li>
 <li><a href="../251-ralf-spy-cli/">RALF Protocol Spy (pm-ralf-spy)</a> — read-only CLI for inspecting the live wire format</li>
 <li><a href="../170-processes/#pm-ralf-gwy-post-trade-dissemination-gateway">Processes</a> — where <code>pm-ralf-gwy</code> sits</li>
 <li><a href="../990-app-config-spec/#64-post_trade_gateway-pm-ralf-gwy-ralf">Engine Config Specification</a> — <code>post_trade_gateway</code> field law</li>
-<li><a href="../210-protocol-overview/">External Protocols Overview</a> — ALF/BALF/CALF/RALF at a glance</li>
+<li><a href="../210-protocols-overview/">External Protocols Overview</a> — ALF/BALF/CALF/RALF at a glance</li>
 </ul>
 
 

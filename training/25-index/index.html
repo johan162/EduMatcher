@@ -930,7 +930,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/040-running-the-engine/" class="md-nav__link">
+      <a href="../../user-guide/040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -958,7 +958,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/050-gateway/" class="md-nav__link">
+      <a href="../../user-guide/050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1014,7 +1014,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/070-combos/" class="md-nav__link">
+      <a href="../../user-guide/070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1042,7 +1042,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/080-auctions-scheduling/" class="md-nav__link">
+      <a href="../../user-guide/080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1238,7 +1238,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/150-index/" class="md-nav__link">
+      <a href="../../user-guide/150-market-index/" class="md-nav__link">
         
   
   
@@ -1294,7 +1294,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/160-commands/" class="md-nav__link">
+      <a href="../../user-guide/160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1462,7 +1462,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/210-protocol-overview/" class="md-nav__link">
+      <a href="../../user-guide/202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -1546,7 +1574,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/240-market-data-feed/" class="md-nav__link">
+      <a href="../../user-guide/240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -1602,7 +1630,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/250-post-trade/" class="md-nav__link">
+      <a href="../../user-guide/250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -1658,34 +1686,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../../user-guide/260-api-gateway/" class="md-nav__link">
         
   
@@ -1714,7 +1714,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/270-messages/" class="md-nav__link">
+      <a href="../../user-guide/270-message-reference/" class="md-nav__link">
         
   
   
@@ -3806,7 +3806,7 @@ subcommand, and no ALF/CALF wire message — there is no <code>CORP_ACTION|...</
 line you can type at a gateway prompt. Instead, use the dedicated
 <a href="../../user-guide/152-index-admin-cli/"><code>pm-index-admin-cli</code></a> tool, which
 talks directly to <code>pm-index</code>'s PULL socket (port 5559). See
-<a href="../../user-guide/150-index/#applying-corporate-actions">Market Index → Applying corporate actions</a>.</p>
+<a href="../../user-guide/150-market-index/#applying-corporate-actions">Market Index → Applying corporate actions</a>.</p>
 </div>
 <p>Apply the split:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>split<span class="w"> </span><span class="se">\</span>
@@ -4140,9 +4140,9 @@ the divisor were recalculated the same way for all four corporate action
 types?</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../../user-guide/150-index/">Market Index — User Guide</a> — full reference for config fields, formulas, and history record types</li>
+<li><a href="../../user-guide/150-market-index/">Market Index — User Guide</a> — full reference for config fields, formulas, and history record types</li>
 <li><a href="../../user-guide/152-index-admin-cli/">Index Admin CLI</a> — full <code>pm-index-admin-cli</code> subcommand reference, <code>--dry-run</code>, and confirmation-prompt behaviour</li>
-<li><a href="../../user-guide/160-commands/">pm-index-cli reference</a> — <code>events</code>/<code>indices</code> subcommands, column descriptions, and output-format options</li>
+<li><a href="../../user-guide/160-exchange-commands/">pm-index-cli reference</a> — <code>events</code>/<code>indices</code> subcommands, column descriptions, and output-format options</li>
 <li><a href="../../user-guide/140-statistics-and-reporting/">Statistics and Reporting</a> — <code>pm-stats-cli index-daily</code> / <code>index-snapshots</code> / <code>index-ids</code> reference</li>
 <li><a href="../15-statistics-reporting/">Chapter 15 — Statistics &amp; Reporting</a> — starting <code>pm-stats</code> and querying its SQLite database</li>
 <li><a href="../../user-guide/010-configuration/#configuring-pm-index">Engine Configuration</a> — <code>indices:</code> YAML field reference</li>

@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1017,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1045,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1297,7 +1297,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1761,7 +1761,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -1845,7 +1873,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -1901,7 +1929,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -1957,34 +1985,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -2013,7 +2013,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -3663,7 +3663,7 @@ dedicated query tool.</p>
 <td><code>pm-index</code> (triggered by <a href="../152-index-admin-cli/"><code>pm-index-admin-cli</code></a> for <code>CORP_ACTION</code>/<code>ADD_CONSTITUENT</code>/<code>DELIST</code>)</td>
 <td>On structural events only (<code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code>)</td>
 <td>Structural/corporate-action audit trail — <strong>not</strong> level or EOD history (that lives in <code>stats.db</code>, written by <code>pm-stats</code>)</td>
-<td><strong><code>pm-index-cli</code></strong> (read-only) — see <a href="../150-index/">Market Index</a></td>
+<td><strong><code>pm-index-cli</code></strong> (read-only) — see <a href="../150-market-index/">Market Index</a></td>
 </tr>
 <tr>
 <td><code>indexes/&lt;ID&gt;_state.json</code></td>
@@ -3689,8 +3689,8 @@ accumulating stores each have their own chapter (linked in the table).</p>
 gateway of recently-inactivated MM quotes (filled or cancelled), used to
 answer the ALF <code>QLEGS|SHOW=RECENT</code> / <code>SHOW=ALL</code> subcommands and the
 equivalent <code>system.quote_legs_request</code> wire message — see
-<a href="../050-gateway/#qlegs-inspect-mm-quote-legs-and-fill-flags">Gateway → QLEGS</a>
-and <a href="../270-messages/#systemquote_legs_request-systemquote_legsgw_id">Messages → <code>system.quote_legs_request</code></a>.
+<a href="../050-gateway-reference/#qlegs-inspect-mm-quote-legs-and-fill-flags">Gateway → QLEGS</a>
+and <a href="../270-message-reference/#systemquote_legs_request-systemquote_legsgw_id">Messages → <code>system.quote_legs_request</code></a>.
 Unlike <code>gtc_orders.json</code>/<code>gtc_combos.json</code>, this history is <strong>not</strong> written
 to disk and does not survive an engine restart — a fresh engine process
 starts with empty history for every gateway. This is intentional: the
@@ -4087,7 +4087,7 @@ sample CSVs) but is never written to by any runtime process.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../060-order-types/#time-in-force-tif">Order Types — TIF</a> — GTC, ATO, and ATC lifetime rules</li>
-<li><a href="../080-auctions-scheduling/">Auctions &amp; Scheduling</a> — how ATO/ATC orders expire at phase transitions</li>
+<li><a href="../080-session-scheduling/">Auctions &amp; Scheduling</a> — how ATO/ATC orders expire at phase transitions</li>
 <li><a href="../170-processes/#pm-stats-statistics-recorder">Processes</a> — <code>pm-stats</code> writes <code>stats.db</code>; <code>pm-audit</code> writes <code>audit.log</code></li>
 <li><a href="../010-configuration/">Configuration</a> — <code>last_buy_price</code>/<code>last_sell_price</code> config seeds vs persisted values</li>
 </ul>

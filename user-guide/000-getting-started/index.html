@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#getting-started-with-edumatcher" class="md-skip">
+        <a href="#getting-started" class="md-skip">
           Skip to content
         </a>
       
@@ -1323,7 +1323,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -1351,7 +1351,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1407,7 +1407,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1435,7 +1435,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1631,7 +1631,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1687,7 +1687,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1855,7 +1855,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -1939,7 +1967,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -1995,7 +2023,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -2051,34 +2079,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -2107,7 +2107,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -3624,7 +3624,7 @@
   
 
 
-<h1 id="getting-started-with-edumatcher">Getting Started with EduMatcher<a class="headerlink" href="#getting-started-with-edumatcher" title="Permanent link">&para;</a></h1>
+<h1 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
@@ -3719,7 +3719,7 @@ macOS, Linux, or Windows.</p>
 </tbody>
 </table>
 <p><strong>Bootstrap with one command</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.16.1<span class="w"> </span>--snapshot
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.16.2<span class="w"> </span>--snapshot
 </code></pre></div>
 <p>This command downloads the VM setup scripts, launches a Multipass VM,
 installs EduMatcher in the VM, links all <code>pm-*</code> commands into
@@ -3735,7 +3735,7 @@ terminal to start <code>pm-alf-console</code>, <code>pm-viewer</code>, <code>pm-
 <p><strong>Useful bootstrap options</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Different VM name and version</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--name<span class="w"> </span>edumatcher-vm<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.16.1<span class="w"> </span>--snapshot
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--name<span class="w"> </span>edumatcher-vm<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.16.2<span class="w"> </span>--snapshot
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># Tune resources</span>
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
@@ -3744,7 +3744,7 @@ terminal to start <code>pm-alf-console</code>, <code>pm-viewer</code>, <code>pm-
 <p><strong>Optional: inspect script before execution</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.16.1<span class="w"> </span>--snapshot
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.16.2<span class="w"> </span>--snapshot
 </code></pre></div>
 <h3 id="end-user-student-mode-pipx-install-recommended">End-user / student mode — <code>pipx install</code> (recommended)<a class="headerlink" href="#end-user-student-mode-pipx-install-recommended" title="Permanent link">&para;</a></h3>
 <p>This is the quickest path if you just want to <em>run</em> an exchange session —
@@ -3907,13 +3907,13 @@ documented. All commands are shown in pipx form; in developer mode prepend
 <td><code>pm-engine</code></td>
 <td>Background</td>
 <td>Matching engine; central order-book writer</td>
-<td><a href="../170-processes/">Processes</a>, <a href="../040-running-the-engine/">Running the Engine</a>, <a href="../010-configuration/">Configuration</a></td>
+<td><a href="../170-processes/">Processes</a>, <a href="../040-running-the-exchange/">Running the Engine</a>, <a href="../010-configuration/">Configuration</a></td>
 </tr>
 <tr>
 <td><code>pm-alf-console</code></td>
 <td>Interactive terminal</td>
 <td>ALF participant terminal and order entry</td>
-<td><a href="../170-processes/">Processes</a>, <a href="../050-gateway/">Gateway</a>, <a href="../900-app-alf-protocol/">ALF Protocol</a></td>
+<td><a href="../170-processes/">Processes</a>, <a href="../050-gateway-reference/">Gateway</a>, <a href="../900-app-alf-protocol/">ALF Protocol</a></td>
 </tr>
 <tr>
 <td><code>pm-alf-gwy</code></td>
@@ -3925,7 +3925,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 <td><code>pm-scheduler</code></td>
 <td>Background</td>
 <td>Session phase transitions by schedule</td>
-<td><a href="../170-processes/">Processes</a>, <a href="../080-auctions-scheduling/">Auctions and Scheduling</a></td>
+<td><a href="../170-processes/">Processes</a>, <a href="../080-session-scheduling/">Auctions and Scheduling</a></td>
 </tr>
 <tr>
 <td><code>pm-viewer</code></td>
@@ -3937,7 +3937,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 <td><code>pm-orders</code></td>
 <td>Terminal display</td>
 <td>Live cross-gateway order status monitor</td>
-<td><a href="../170-processes/">Processes</a>, <a href="../270-messages/">Messages</a></td>
+<td><a href="../170-processes/">Processes</a>, <a href="../270-message-reference/">Messages</a></td>
 </tr>
 <tr>
 <td><code>pm-board</code></td>
@@ -3973,7 +3973,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 <td><code>pm-ralf-gwy</code></td>
 <td>Background</td>
 <td>External post-trade dissemination gateway (RALF)</td>
-<td><a href="../170-processes/">Processes</a>, <a href="../250-post-trade/">Post-Trade Dissemination</a>, <a href="../930-app-ralf-protocol/">RALF Protocol</a></td>
+<td><a href="../170-processes/">Processes</a>, <a href="../250-ralf-gateway/">Post-Trade Dissemination</a>, <a href="../930-app-ralf-protocol/">RALF Protocol</a></td>
 </tr>
 <tr>
 <td><code>pm-admin</code></td>
@@ -4003,7 +4003,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 <td><code>pm-md-gwy</code></td>
 <td>Background</td>
 <td>Market-data distribution gateway (CALF)</td>
-<td><a href="../170-processes/#pm-md-gwy-calf-market-data-gateway">Processes</a>, <a href="../240-market-data-feed/">Market Data Feed</a>, <a href="../920-app-calf-protocol/">CALF Protocol</a></td>
+<td><a href="../170-processes/#pm-md-gwy-calf-market-data-gateway">Processes</a>, <a href="../240-calf-gateway/">Market Data Feed</a>, <a href="../920-app-calf-protocol/">CALF Protocol</a></td>
 </tr>
 <tr>
 <td><code>pm-api-gwy</code></td>
@@ -4015,7 +4015,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 <td><code>pm-index</code></td>
 <td>Background</td>
 <td>Real-time cap-weighted index calculation and dissemination</td>
-<td><a href="../170-processes/#pm-index-index-calculation-process">Processes</a>, <a href="../150-index/">Market Index</a></td>
+<td><a href="../170-processes/#pm-index-index-calculation-process">Processes</a>, <a href="../150-market-index/">Market Index</a></td>
 </tr>
 <tr>
 <td><code>pm-balf-gwy</code></td>
@@ -4069,27 +4069,27 @@ documented. All commands are shown in pipx form; in developer mode prepend
 <tr>
 <td><code>pm-index-cli</code></td>
 <td>Read-only query interface for index history files</td>
-<td><a href="../170-processes/#pm-index-cli-index-structuralaudit-history-query-tool">Processes</a>, <a href="../160-commands/">Commands</a>, <a href="../150-index/#using-pm-index-cli-for-structuralaudit-records">Market Index</a></td>
+<td><a href="../170-processes/#pm-index-cli-index-structuralaudit-history-query-tool">Processes</a>, <a href="../160-exchange-commands/">Commands</a>, <a href="../150-market-index/#using-pm-index-cli-for-structuralaudit-records">Market Index</a></td>
 </tr>
 <tr>
 <td><code>pm-index-admin-cli</code></td>
 <td>Apply index corporate actions (splits, dividends, share issuance/buybacks) and constituent changes (add/delist)</td>
-<td><a href="../170-processes/#pm-index-admin-cli-index-corporate-action-constituent-change-cli">Processes</a>, <a href="../152-index-admin-cli/">Index Admin CLI</a>, <a href="../150-index/">Market Index</a></td>
+<td><a href="../170-processes/#pm-index-admin-cli-index-corporate-action-constituent-change-cli">Processes</a>, <a href="../152-index-admin-cli/">Index Admin CLI</a>, <a href="../150-market-index/">Market Index</a></td>
 </tr>
 <tr>
 <td><code>pm-calf-spy</code></td>
 <td>Spy on the CALF market-data protocol — connect to <code>pm-md-gwy</code> and print every line, human-readable or JSON</td>
-<td><a href="../170-processes/#pm-calf-spy-calf-protocol-spy">Processes</a>, <a href="../241-calf-spy-cli/">CALF Protocol Spy</a>, <a href="../240-market-data-feed/">Market Data Feed</a></td>
+<td><a href="../170-processes/#pm-calf-spy-calf-protocol-spy">Processes</a>, <a href="../241-calf-spy-cli/">CALF Protocol Spy</a>, <a href="../240-calf-gateway/">Market Data Feed</a></td>
 </tr>
 <tr>
 <td><code>pm-ralf-spy</code></td>
 <td>Spy on the RALF post-trade protocol — connect to <code>pm-ralf-gwy</code> and print every line, human-readable or JSON</td>
-<td><a href="../170-processes/#pm-ralf-spy-ralf-protocol-spy">Processes</a>, <a href="../251-ralf-spy-cli/">RALF Protocol Spy</a>, <a href="../250-post-trade/">Post-Trade Dissemination</a></td>
+<td><a href="../170-processes/#pm-ralf-spy-ralf-protocol-spy">Processes</a>, <a href="../251-ralf-spy-cli/">RALF Protocol Spy</a>, <a href="../250-ralf-gateway/">Post-Trade Dissemination</a></td>
 </tr>
 <tr>
 <td><code>pm-dc-spy</code></td>
 <td>Spy on the engine's drop-copy feed — connect directly to <code>:5557</code> and print every fill event, human-readable or JSON</td>
-<td><a href="../170-processes/#pm-dc-spy-drop-copy-spy">Processes</a>, <a href="../252-dc-spy-cli/">Drop-Copy Spy</a>, <a href="../200-drop-copy/">Drop Copy</a></td>
+<td><a href="../170-processes/#pm-dc-spy-drop-copy-spy">Processes</a>, <a href="../202-dc-spy-cli/">Drop-Copy Spy</a>, <a href="../200-drop-copy/">Drop Copy</a></td>
 </tr>
 <tr>
 <td><code>pm-setup</code></td>
@@ -4148,7 +4148,7 @@ set for quote operation and fill recognition:</p>
 <li>After any <code>FILL</code>, run <code>QLEGS|SYM=&lt;symbol&gt;|SHOW=ALL</code>.</li>
 <li>Read <code>Filled?</code>, <code>Rem</code>, and <code>Leg status</code> to decide whether to re-quote.</li>
 </ol>
-<p>See <a href="../050-gateway/#qlegs-inspect-mm-quote-legs-and-fill-flags">Gateway</a> for
+<p>See <a href="../050-gateway-reference/#qlegs-inspect-mm-quote-legs-and-fill-flags">Gateway</a> for
 full <code>QLEGS</code> behavior and <a href="../090-market-maker/">Market Making</a> for operator
 workflows and policy-specific behavior.</p>
 <h2 id="five-minute-minimum-session">Five-minute minimum session<a class="headerlink" href="#five-minute-minimum-session" title="Permanent link">&para;</a></h2>
@@ -4162,16 +4162,24 @@ and executes one trade. No configuration file is required — the engine starts 
 </div>
 <h3 id="step-1-start-the-engine">Step 1 — Start the engine<a class="headerlink" href="#step-1-start-the-engine" title="Permanent link">&para;</a></h3>
 <p>Open a terminal and run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-engine
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-engine<span class="w"> </span>-v
 </code></pre></div>
 <p>Expected output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[ENGINE] WARNING: no engine_config.yaml found — running in unrestricted mode (no symbol/gateway allowlist)
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>[ENGINE] Drop copy PUB bound on port 5557
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>[ENGINE] Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>2026-07-23 09:30:00,001 WARNING edumatcher.engine.main - Config file engine_config.yaml could not be read — running without symbol restrictions. (...)
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>2026-07-23 09:30:00,004 INFO edumatcher.engine.main - Drop copy PUB bound on port 5557
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>2026-07-23 09:30:00,004 INFO edumatcher.engine.main - Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 </code></pre></div>
 <p>With no config file the engine runs in <strong>unrestricted mode</strong> and session
 handling is <strong>disabled</strong>, so it starts directly in the <code>CONTINUOUS</code> state and
 matches orders immediately — there is no auction phase to advance past.</p>
+<div class="admonition note">
+<p class="admonition-title">Default log level is WARNING</p>
+<p>Like every other <code>pm-</code> process, <code>pm-engine</code> is quiet by default — only
+warnings and errors print. Pass <code>-v</code> for INFO (startup/lifecycle
+messages, shown above), <code>-vv</code> for DEBUG, or <code>--log-level LEVEL</code> for an
+explicit level. See <a href="../040-running-the-exchange/">Running the Engine</a> for
+the full flag reference.</p>
+</div>
 <p>The engine is now running. Leave this terminal open.</p>
 <h3 id="step-2-connect-participant-a-the-buyer">Step 2 — Connect Participant A (the buyer)<a class="headerlink" href="#step-2-connect-participant-a-the-buyer" title="Permanent link">&para;</a></h3>
 <p>Open a second terminal:</p>
@@ -4274,7 +4282,7 @@ grouped below by role.</p>
 <tr>
 <td>Run the matching engine (required for everything else)</td>
 <td><code>pm-engine</code></td>
-<td><a href="../040-running-the-engine/">Running the Engine</a></td>
+<td><a href="../040-running-the-exchange/">Running the Engine</a></td>
 </tr>
 </tbody>
 </table>
@@ -4291,7 +4299,7 @@ grouped below by role.</p>
 <tr>
 <td>Automate opening/closing auctions</td>
 <td><code>pm-scheduler</code></td>
-<td><a href="../080-auctions-scheduling/">Auctions and Scheduling</a></td>
+<td><a href="../080-session-scheduling/">Auctions and Scheduling</a></td>
 </tr>
 <tr>
 <td>Capture the full event log for later audit</td>
@@ -4348,7 +4356,7 @@ grouped below by role.</p>
 <tr>
 <td>Monitor live order status across gateways</td>
 <td><code>pm-orders</code></td>
-<td><a href="../270-messages/">Messages</a></td>
+<td><a href="../270-message-reference/">Messages</a></td>
 </tr>
 <tr>
 <td>Display a multi-symbol market board</td>
@@ -4363,12 +4371,12 @@ grouped below by role.</p>
 <tr>
 <td>Calculate and disseminate a cap-weighted index</td>
 <td><code>pm-index</code></td>
-<td><a href="../150-index/">Market Index</a></td>
+<td><a href="../150-market-index/">Market Index</a></td>
 </tr>
 <tr>
 <td>Query index history without SQL</td>
 <td><code>pm-index-cli</code></td>
-<td><a href="../150-index/#using-pm-index-cli-recommended">Market Index</a></td>
+<td><a href="../152-index-admin-cli/">Market Index</a></td>
 </tr>
 </tbody>
 </table>
@@ -4385,7 +4393,7 @@ grouped below by role.</p>
 <tr>
 <td>Distribute market data externally (CALF)</td>
 <td><code>pm-md-gwy</code></td>
-<td><a href="../240-market-data-feed/">Market Data Feed</a></td>
+<td><a href="../240-calf-gateway/">Market Data Feed</a></td>
 </tr>
 <tr>
 <td>Expose REST/WebSocket order entry &amp; market data</td>
@@ -4400,7 +4408,7 @@ grouped below by role.</p>
 <tr>
 <td>Feed external clearing/drop-copy consumers (RALF)</td>
 <td><code>pm-ralf-gwy</code></td>
-<td><a href="../250-post-trade/">Post-Trade Dissemination</a></td>
+<td><a href="../250-ralf-gateway/">Post-Trade Dissemination</a></td>
 </tr>
 <tr>
 <td>Feed compliance/risk systems directly (ZeroMQ)</td>
@@ -4629,14 +4637,14 @@ back to <code>poetry run</code> automatically when running from a source checkou
 <ul>
 <li><a href="../010-configuration/">Configuration</a> — full <code>engine_config.yaml</code> reference</li>
 <li><a href="../010-configuration/#generate-configs-with-pm-config-gen">Configuration generator</a> — build <code>engine_config.yaml</code> from CLI flags</li>
-<li><a href="../040-running-the-engine/">Running the Engine</a> — detailed startup, monitoring, and troubleshooting</li>
-<li><a href="../050-gateway/">Gateway Commands</a> — complete command reference for participants</li>
+<li><a href="../040-running-the-exchange/">Running the Engine</a> — detailed startup, monitoring, and troubleshooting</li>
+<li><a href="../050-gateway-reference/">Gateway Commands</a> — complete command reference for participants</li>
 <li><a href="../060-order-types/">Order Types</a> — LIMIT, MARKET, STOP, ICEBERG, TRAILING_STOP, OCO, COMBO</li>
 <li><a href="../090-market-maker/">Market Making</a> — QUOTE command, obligations, and MMP</li>
 <li><a href="../110-ai-traders/">AI Traders</a> — autonomous order flow with <code>pm-ai-trader</code> and <code>pm-ai-swarm</code></li>
 <li><a href="../100-mm-bot/">Market-Maker Bot</a> — automated quoting with <code>pm-mm-bot</code></li>
-<li><a href="../250-post-trade/">Post-Trade Dissemination</a> — external post-trade gateway with <code>pm-ralf-gwy</code></li>
-<li><a href="../210-protocol-overview/">External Protocols Overview</a> — where ALF, BALF, CALF, and RALF fit and how to choose between them</li>
+<li><a href="../250-ralf-gateway/">Post-Trade Dissemination</a> — external post-trade gateway with <code>pm-ralf-gwy</code></li>
+<li><a href="../210-protocols-overview/">External Protocols Overview</a> — where ALF, BALF, CALF, and RALF fit and how to choose between them</li>
 <li><a href="../930-app-ralf-protocol/">RALF Protocol</a> — protocol-level wire specification</li>
 </ul>
 

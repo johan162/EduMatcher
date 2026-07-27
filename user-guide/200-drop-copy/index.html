@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1017,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1045,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1297,7 +1297,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1761,7 +1761,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -1845,7 +1873,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -1901,7 +1929,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -1957,34 +1985,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -2013,7 +2013,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -3793,7 +3793,7 @@ which releases the ZMQ socket cleanly.</p>
 <div class="admonition tip">
 <p class="admonition-title">Quick observability: pm-dc-spy</p>
 <p>For ad-hoc inspection you don't need to write a subscriber at all —
-<a href="../252-dc-spy-cli/"><code>pm-dc-spy</code></a> is a read-only CLI that connects to
+<a href="../202-dc-spy-cli/"><code>pm-dc-spy</code></a> is a read-only CLI that connects to
 port 5557 and prints every fill event, human-readable or as JSON:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-dc-spy<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
 </code></pre></div>
@@ -3850,7 +3850,7 @@ you:</p>
 </code></pre></div>
 <p>Once enabled, every fill for that gateway arrives asynchronously as a
 <code>DC_FILL</code> line — see
-<a href="../050-gateway/#dc-toggle-drop-copy-relay">Gateway → DC</a> and
+<a href="../050-gateway-reference/#dc-toggle-drop-copy-relay">Gateway → DC</a> and
 <a href="../220-alf-gateway/#dc-toggle-drop-copy-relay">ALF TCP Gateway → DC</a> for the
 full command reference. Internally this is exactly the same ZMQ SUB
 connection to <code>drop_copy.event.{gateway_id}</code> described above — <code>pm-alf-gwy</code>
@@ -3926,18 +3926,18 @@ on this page:</p>
 programmatic consumption, use the engine's drop copy feed on port 5557. If
 you need RALF's text-protocol trade feed with role-based entitlement
 checks, see <a href="../930-app-ralf-protocol/">RALF protocol reference</a> and
-<a href="../250-post-trade/">Post-trade</a>.</p>
+<a href="../250-ralf-gateway/">Post-trade</a>.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../252-dc-spy-cli/">Drop-Copy Spy (pm-dc-spy)</a> — read-only CLI for inspecting this feed without writing a subscriber</li>
+<li><a href="../202-dc-spy-cli/">Drop-Copy Spy (pm-dc-spy)</a> — read-only CLI for inspecting this feed without writing a subscriber</li>
 <li><a href="../201-dc-gateway/">Drop-Copy TCP Gateway (pm-dc-gwy)</a> — plain-TCP relay of this feed for non-ZeroMQ external clients</li>
-<li><a href="../050-gateway/#dc-toggle-drop-copy-relay">Gateway → DC</a> — relay this feed through your own <code>pm-alf-console</code> session</li>
+<li><a href="../050-gateway-reference/#dc-toggle-drop-copy-relay">Gateway → DC</a> — relay this feed through your own <code>pm-alf-console</code> session</li>
 <li><a href="../220-alf-gateway/#dc-toggle-drop-copy-relay">ALF TCP Gateway → DC</a> — relay this feed through your own <code>pm-alf-gwy</code> session</li>
 <li><a href="../170-processes/">Processes</a> — full ZeroMQ topology</li>
 <li><a href="../120-risk-controls/">Risk Controls</a> — halt, collar, and circuit breaker events</li>
 <li><a href="../180-persistence/">Persistence</a> — durable audit trail as a complement to drop copy</li>
-<li><a href="../270-messages/">Messages</a> — all message types used in EduMatcher</li>
-<li><a href="../250-post-trade/">Post-trade</a> — RALF post-trade feed and channels</li>
+<li><a href="../270-message-reference/">Messages</a> — all message types used in EduMatcher</li>
+<li><a href="../250-ralf-gateway/">Post-trade</a> — RALF post-trade feed and channels</li>
 <li><a href="../930-app-ralf-protocol/">RALF protocol reference</a> — RALF <code>DROP_COPY</code> channel wire format</li>
 </ul>
 

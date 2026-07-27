@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1017,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1045,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1297,7 +1297,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1465,7 +1465,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -1549,7 +1577,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -1605,7 +1633,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -1661,34 +1689,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -1717,7 +1717,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -4253,7 +4253,7 @@
 <blockquote>
 <p><strong>Status: Normative.</strong> This appendix is the single source of truth for the ALF
 wire contract as implemented by <code>pm-alf-console</code> and <code>pm-alf-gwy</code> (<code>alf_gwy/</code>).
-For an operational, tutorial-style guide see <a href="../050-gateway/">Gateway Reference</a>
+For an operational, tutorial-style guide see <a href="../050-gateway-reference/">Gateway Reference</a>
 and <a href="../220-alf-gateway/">ALF TCP Gateway</a>; for the gateway's configuration block
 see <a href="../990-app-config-spec/#61-alf_gateway-pm-alf-gwy">Engine Config Specification §6.1</a>.
 The key words MUST, MUST NOT, SHOULD, and MAY are used per RFC 2119.</p>
@@ -5460,9 +5460,9 @@ configuration file (<code>engine_config.yaml</code>), under the <code>gateways.a
 </ol>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../050-gateway/">Gateway</a> — the gateway terminal that implements this protocol</li>
+<li><a href="../050-gateway-reference/">Gateway</a> — the gateway terminal that implements this protocol</li>
 <li><a href="../060-order-types/">Order Types</a> — semantic descriptions of every order type referenced here</li>
-<li><a href="../270-messages/">Messages</a> — the ZeroMQ messages that the gateway emits after parsing ALF commands</li>
+<li><a href="../270-message-reference/">Messages</a> — the ZeroMQ messages that the gateway emits after parsing ALF commands</li>
 <li><a href="../200-drop-copy/">Drop Copy</a> — the underlying feed <code>DC|STATE=ON</code> relays</li>
 <li><a href="../201-dc-gateway/">Drop-Copy TCP Gateway</a> — standalone gateway for external, non-ALF drop-copy clients</li>
 <li><a href="../910-app-balf-protocol/">BALF Protocol Reference</a> — binary encoding of the same order model</li>

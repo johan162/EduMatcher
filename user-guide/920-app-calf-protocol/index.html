@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1017,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1045,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1297,7 +1297,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1465,7 +1465,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -1549,7 +1577,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -1605,7 +1633,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -1661,34 +1689,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -1717,7 +1717,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -3833,7 +3833,7 @@
 <blockquote>
 <p><strong>Status: Normative.</strong> This appendix is the single source of truth for the CALF
 <code>1.0.0</code> wire contract as implemented by <code>pm-md-gwy</code> (<code>md_gateway/</code>). For an
-operational, tutorial-style guide see <a href="../240-market-data-feed/">Market Data Feed (CALF)</a>;
+operational, tutorial-style guide see <a href="../240-calf-gateway/">Market Data Feed (CALF)</a>;
 for the gateway's configuration block see
 <a href="../990-app-config-spec/#63-market_data_gateway-pm-md-gwy-calf">Engine Config Specification §6.3</a>.
 The key words MUST, MUST NOT, SHOULD, and MAY are used per RFC 2119.</p>
@@ -3901,9 +3901,6 @@ behavior.</p>
 <li>full order-by-order (Level 3) market data — <code>DEPTH</code> is Level 2
   (aggregated per price level), never per-order</li>
 <li><code>SYM=*</code> for <code>INDEX</code>, <code>DEPTH</code>, or <code>CB</code></li>
-<li>index-level circuit breakers on <code>CB</code> (symbol-level only; see
-  <a href="../../docs-design/EduMatcher-index-cb.md">EduMatcher-index-cb.md</a> for the
-  separate index-level proposal)</li>
 <li>multicast / UDP transport</li>
 <li>entitlement matrix per field</li>
 <li>durable historical replay from disk</li>
@@ -5502,14 +5499,13 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
 </ol>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../240-market-data-feed/">Market Data Feed (CALF)</a> — operational guide and client examples</li>
+<li><a href="../240-calf-gateway/">Market Data Feed (CALF)</a> — operational guide and client examples</li>
 <li><a href="../241-calf-spy-cli/">CALF Protocol Spy (pm-calf-spy)</a> — read-only CLI for inspecting the live wire format</li>
 <li><a href="../170-processes/">Processes</a> — where <code>pm-md-gwy</code> sits in the process model</li>
 <li><a href="../990-app-config-spec/#63-market_data_gateway-pm-md-gwy-calf">Engine Config Specification</a> — <code>market_data_gateway</code> field law</li>
-<li><a href="../210-protocol-overview/">External Protocols Overview</a> — ALF/BALF/CALF/RALF at a glance</li>
+<li><a href="../210-protocols-overview/">External Protocols Overview</a> — ALF/BALF/CALF/RALF at a glance</li>
 <li><a href="../120-risk-controls/">Risk Controls</a> — circuit-breaker engine behavior behind the <code>CB</code> channel</li>
-<li><a href="../150-index/">Market Index</a> — auction uncross mechanics behind the <code>AUCTION</code> channel</li>
-<li><a href="../../docs-design/EduMatcher-CALF-auction-cb.md">EduMatcher-CALF-auction-cb.md</a> — design proposal for the <code>AUCTION</code> and <code>CB</code> channels</li>
+<li><a href="../150-market-index/">Market Index</a> — auction uncross mechanics behind the <code>AUCTION</code> channel</li>
 </ul>
 
 

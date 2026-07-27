@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/090-market-maker/">
       
       
-        <link rel="prev" href="../080-auctions-scheduling/">
+        <link rel="prev" href="../080-session-scheduling/">
       
       
         <link rel="next" href="../100-mm-bot/">
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#market-making" class="md-skip">
+        <a href="#market-maker" class="md-skip">
           Skip to content
         </a>
       
@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1017,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1045,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -2380,7 +2380,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -2436,7 +2436,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -2604,7 +2604,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -2688,7 +2716,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -2744,7 +2772,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -2800,34 +2828,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -2856,7 +2856,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -4373,7 +4373,7 @@
   
 
 
-<h1 id="market-making">Market Making<a class="headerlink" href="#market-making" title="Permanent link">&para;</a></h1>
+<h1 id="market-maker">Market Maker<a class="headerlink" href="#market-maker" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
@@ -4388,7 +4388,7 @@
 </ul>
 <p><strong>Prerequisites</strong>: <a href="../010-configuration/">Configuration</a> — you need a gateway configured
 with <code>role: MARKET_MAKER</code> before the engine accepts quotes.
-<a href="../050-gateway/">Gateway Commands</a> — understand how to connect a gateway terminal.</p>
+<a href="../050-gateway-reference/">Gateway Commands</a> — understand how to connect a gateway terminal.</p>
 </div>
 <hr />
 <h2 id="what-is-a-market-maker">What is a market maker?<a class="headerlink" href="#what-is-a-market-maker" title="Permanent link">&para;</a></h2>
@@ -5703,8 +5703,8 @@ docs or code comments.</p>
 <li><a href="../060-order-types/">Order Types</a> — the LIMIT orders that quote legs create under the hood</li>
 <li><a href="../120-risk-controls/">Risk Controls</a> — how circuit breakers cancel quotes during a halt</li>
 <li><a href="../180-persistence/">Persistence</a> — GTC quotes survive restarts; MM seeds are injected at startup</li>
-<li><a href="../050-gateway/">Gateway Commands</a> — full QUOTE and QUOTE_CANCEL command syntax</li>
-<li><a href="../270-messages/">Messages</a> — <code>quote.ack</code> and <code>quote.status</code> message payloads</li>
+<li><a href="../050-gateway-reference/">Gateway Commands</a> — full QUOTE and QUOTE_CANCEL command syntax</li>
+<li><a href="../270-message-reference/">Messages</a> — <code>quote.ack</code> and <code>quote.status</code> message payloads</li>
 </ul>
 
 

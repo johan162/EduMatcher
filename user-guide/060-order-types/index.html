@@ -15,10 +15,10 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/060-order-types/">
       
       
-        <link rel="prev" href="../050-gateway/">
+        <link rel="prev" href="../050-gateway-reference/">
       
       
-        <link rel="next" href="../070-combos/">
+        <link rel="next" href="../070-combo-orders/">
       
       
         
@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -2223,7 +2223,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -2251,7 +2251,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -2447,7 +2447,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -2503,7 +2503,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -2671,7 +2671,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -2755,7 +2783,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -2811,7 +2839,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -2867,34 +2895,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -2923,7 +2923,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -4805,7 +4805,7 @@ hedged entries, statistical arbitrage) where the profit depends on the
 <em>relationship</em> between instruments, not on any single instrument's direction.
 Without combos, submitting legs separately exposes you to <strong>leg risk</strong> — one
 side fills while the other does not, leaving you with unintended directional
-exposure. See the <a href="../070-combos/">Combo Orders</a> page for full details, examples,
+exposure. See the <a href="../070-combo-orders/">Combo Orders</a> page for full details, examples,
 and the implied orders mechanism.</p>
 <h2 id="time-in-force-tif">Time-in-Force (TIF)<a class="headerlink" href="#time-in-force-tif" title="Permanent link">&para;</a></h2>
 <p><a href="#contents">Back to Contents</a></p>
@@ -5680,11 +5680,11 @@ Always use a unique label per OCO pair.</p>
 </table>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../070-combos/">Combos</a> — multi-symbol multi-leg strategies with cascade cancellation</li>
-<li><a href="../080-auctions-scheduling/">Auctions &amp; Scheduling</a> — which order types are accepted in each session phase</li>
+<li><a href="../070-combo-orders/">Combos</a> — multi-symbol multi-leg strategies with cascade cancellation</li>
+<li><a href="../080-session-scheduling/">Auctions &amp; Scheduling</a> — which order types are accepted in each session phase</li>
 <li><a href="../180-persistence/">Persistence</a> — how GTC orders survive engine restarts</li>
 <li><a href="../120-risk-controls/">Risk Controls</a> — how collars and halts affect order admission</li>
-<li><a href="../050-gateway/">Gateway</a> — the full command syntax for submitting these order types</li>
+<li><a href="../050-gateway-reference/">Gateway</a> — the full command syntax for submitting these order types</li>
 <li><a href="../900-app-alf-protocol/">ALF Protocol Reference</a> — formal grammar for all order fields</li>
 </ul>
 

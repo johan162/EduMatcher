@@ -15,10 +15,10 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/152-index-admin-cli/">
       
       
-        <link rel="prev" href="../150-index/">
+        <link rel="prev" href="../150-market-index/">
       
       
-        <link rel="next" href="../160-commands/">
+        <link rel="next" href="../160-exchange-commands/">
       
       
         
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#index-admin-cli-pm-index-admin-cli" class="md-skip">
+        <a href="#index-admin-cli" class="md-skip">
           Skip to content
         </a>
       
@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1017,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1045,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1526,7 +1526,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1694,7 +1694,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -1778,7 +1806,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -1834,7 +1862,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -1890,34 +1918,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -1946,7 +1946,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -3463,7 +3463,7 @@
   
 
 
-<h1 id="index-admin-cli-pm-index-admin-cli">Index Admin CLI (<code>pm-index-admin-cli</code>)<a class="headerlink" href="#index-admin-cli-pm-index-admin-cli" title="Permanent link">&para;</a></h1>
+<h1 id="index-admin-cli">Index Admin CLI<a class="headerlink" href="#index-admin-cli" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
@@ -3484,7 +3484,7 @@
 actions (splits, cash dividends, share issuances and buy-backs) and
 constituent changes (add / delist) to a running <code>pm-index</code> process. It
 replaces the "write a short script" workaround described in
-<a href="../150-index/#applying-corporate-actions">Market Index — Applying corporate actions</a>:
+<a href="../150-market-index/#applying-corporate-actions">Market Index — Applying corporate actions</a>:
 every action that script could perform is now a documented subcommand with
 <code>--help</code> text, client-side validation, a confirmation prompt, and a
 <code>--dry-run</code> preview mode.</p>
@@ -3498,11 +3498,9 @@ every action that script could perform is now a documented subcommand with
 specifically its <code>index_corp_action()</code>, <code>index_delist()</code>,
 <code>index_add_constituent()</code>, and <code>index_history()</code> methods. No engine-side or
 <code>pm-index</code>-side code changes were needed to add this tool; it is a pure
-client addition. See
-<a href="../../docs-design/EduMatcher-index-admin-cli.md">EduMatcher — Index Admin CLI Design Proposal</a>
-for the full design rationale.</p>
+client addition. See</p>
 <h2 id="why-not-pm-index-cli">Why not <code>pm-index-cli</code>?<a class="headerlink" href="#why-not-pm-index-cli" title="Permanent link">&para;</a></h2>
-<p><a href="../160-commands/"><code>pm-index-cli</code></a> already exists as a <strong>read-only</strong> query
+<p><a href="../160-exchange-commands/"><code>pm-index-cli</code></a> already exists as a <strong>read-only</strong> query
 tool over <code>pm-index</code>'s history/state JSONL files — it never touches the live
 ZMQ bus. Corporate actions are a live, mutating operation against a running
 process, which is a different responsibility, so it lives in a separate
@@ -3521,7 +3519,7 @@ ZAP/CURVE, no gateway allowlist, and no role check. It only verifies that the
 <code>gateway_id</code> field on an inbound message is non-empty before processing it —
 the field is used purely as an ack-routing key (which SUB topic to reply on),
 never as an identity or permission check. This is documented in
-<a href="../160-commands/">Exchange Commands — PUSH socket has no authentication</a> for
+<a href="../160-exchange-commands/">Exchange Commands — PUSH socket has no authentication</a> for
 the engine's own socket, and the index socket has even less: it doesn't even
 have the engine's payload-level <code>role: ADMIN</code> check.</p>
 <p>Practically, this means <code>--id</code> on <code>pm-index-admin-cli</code> is a free-text label,
@@ -3769,7 +3767,7 @@ without sending anything or prompting. Use it to check a <code>--ratio</code> pa
 </table>
 <p><code>pm-index</code> has no dedicated <code>BUYBACK</code> action — only <code>SHARES_ISSUANCE</code>, which
 always sets an absolute share count regardless of direction (see
-<a href="../150-index/#supported-corporate-actions">Market Index — Supported corporate actions</a>).
+<a href="../150-market-index/#supported-corporate-actions">Market Index — Supported corporate actions</a>).
 <code>--delta</code> is a CLI-side convenience: it looks up the constituent's last
 recorded <code>SHARES_ISSUANCE</code> value via <code>history</code>, applies the signed delta, and
 shows the computed absolute value before sending. If no prior share count is
@@ -3904,7 +3902,7 @@ out explicitly.</p>
 </table>
 <p>This is the same underlying <code>index.history_request</code> used by
 <code>INDEX|HISTORY</code> in <code>pm-alf-console</code> (see
-<a href="../150-index/#structuralaudit-history-queries">Market Index — Structural/audit history queries</a>),
+<a href="../150-market-index/#structuralaudit-history-queries">Market Index — Structural/audit history queries</a>),
 wrapped here so you can confirm an action landed without switching tools.
 Unlike <code>pm-index-cli events</code>, which reads the JSONL file directly from disk
 and needs no running process, <code>history</code> here round-trips through the live
@@ -3934,7 +3932,7 @@ for scripting:</p>
 </code></pre></div>
 <h2 id="typical-operator-workflow">Typical operator workflow<a class="headerlink" href="#typical-operator-workflow" title="Permanent link">&para;</a></h2>
 <p>A full pre-market corporate-action sequence, applied before <code>PRE_OPEN</code> ends
-(see <a href="../150-index/#applying-corporate-actions">Market Index — Apply corporate actions before the market opens</a>):</p>
+(see <a href="../150-market-index/#applying-corporate-actions">Market Index — Apply corporate actions before the market opens</a>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># Preview first</span>
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>split<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--ratio<span class="w"> </span><span class="m">4</span>:1<span class="w"> </span>--dry-run
 <a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
@@ -3963,14 +3961,12 @@ exit code:</p>
 </code></pre></div>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../150-index/">Market Index</a> — <code>pm-index</code> process, corporate-action
+<li><a href="../150-market-index/">Market Index</a> — <code>pm-index</code> process, corporate-action
   semantics, divisor math, and the state/history file formats this tool
   writes to</li>
-<li><a href="../160-commands/">Exchange Commands</a> — <code>pm-admin-cli</code>, <code>ExchangeCommandClient</code>,
+<li><a href="../160-exchange-commands/">Exchange Commands</a> — <code>pm-admin-cli</code>, <code>ExchangeCommandClient</code>,
   and the sibling <code>pm-index-cli</code> read-only query tool</li>
 <li><a href="../170-processes/">Processes</a> — full process/command reference table</li>
-<li><a href="../../docs-design/EduMatcher-index-admin-cli.md">EduMatcher — Index Admin CLI Design Proposal</a> —
-  full design rationale, including alternatives considered and open questions</li>
 </ul>
 
 

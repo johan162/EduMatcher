@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/220-alf-gateway/">
       
       
-        <link rel="prev" href="../210-protocol-overview/">
+        <link rel="prev" href="../210-protocols-overview/">
       
       
         <link rel="next" href="../230-balf-gateway/">
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#alf-tcp-gateway-pm-alf-gwy" class="md-skip">
+        <a href="#alf-gateway-order-entry" class="md-skip">
           Skip to content
         </a>
       
@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1017,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1045,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1297,7 +1297,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1465,7 +1465,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -2044,7 +2072,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -2100,7 +2128,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -2156,34 +2184,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -2212,7 +2212,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -3729,7 +3729,7 @@
   
 
 
-<h1 id="alf-tcp-gateway-pm-alf-gwy">ALF TCP Gateway (<code>pm-alf-gwy</code>)<a class="headerlink" href="#alf-tcp-gateway-pm-alf-gwy" title="Permanent link">&para;</a></h1>
+<h1 id="alf-gateway-order-entry">ALF Gateway - Order-Entry<a class="headerlink" href="#alf-gateway-order-entry" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
@@ -4272,7 +4272,7 @@ full source payload.</p>
 </tbody>
 </table>
 <p><code>pm-alf-gwy</code> forwards this straight to the engine's
-<a href="../270-messages/#systemquote_legs_request-systemquote_legsgw_id"><code>system.quote_legs_request</code></a>
+<a href="../270-message-reference/#systemquote_legs_request-systemquote_legsgw_id"><code>system.quote_legs_request</code></a>
 message and renders the reply. <code>ACTIVE</code> legs (<code>LEG</code> lines) carry live
 qty/remaining/status per leg, same as before. <code>RECENT</code> rows (<code>RECENT_LEG</code>
 lines) are quote-level summaries drawn from the engine's bounded, in-memory,
@@ -4282,9 +4282,9 @@ carrying that leg's final qty/remaining/filled/status snapshot at the
 moment it was cancelled — these are emitted only when the engine had that
 leg's final order state available at removal time, which is the common
 case for every normal inactivation path (see
-<a href="../270-messages/#systemquote_legs_request-systemquote_legsgw_id"><code>system.quote_legs_request</code></a>
+<a href="../270-message-reference/#systemquote_legs_request-systemquote_legsgw_id"><code>system.quote_legs_request</code></a>
 for when a leg's snapshot can be absent). See
-<a href="../050-gateway/#qlegs-inspect-mm-quote-legs-and-fill-flags">Gateway → QLEGS</a>
+<a href="../050-gateway-reference/#qlegs-inspect-mm-quote-legs-and-fill-flags">Gateway → QLEGS</a>
 for the full column semantics (shared with <code>pm-alf-console</code>'s <code>QLEGS</code>).</p>
 <p><strong>Multi-line response:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>QLEGS|COUNT=2|RECENT_COUNT=1|SHOW=ALL
@@ -4802,11 +4802,11 @@ then type <code>quit</code> to close.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../900-app-alf-protocol/">ALF Protocol Reference</a> — formal wire syntax and full field/enum definitions</li>
-<li><a href="../050-gateway/">Gateway Commands</a> — interactive command reference for <code>pm-alf-console</code></li>
+<li><a href="../050-gateway-reference/">Gateway Commands</a> — interactive command reference for <code>pm-alf-console</code></li>
 <li><a href="../200-drop-copy/">Drop Copy</a> — the engine's drop-copy feed (<code>:5557</code>) that <code>DC|STATE=ON</code> relays</li>
 <li><a href="../010-configuration/">Configuration</a> — <code>alf_gateway:</code> section and <code>gateways.alf</code> allowlist</li>
 <li><a href="../170-processes/#pm-alf-gwy-alf-tcp-gateway">Processes</a> — process topology and ZMQ message tables</li>
-<li><a href="../210-protocol-overview/">External Protocols Overview</a> — protocol comparison and selection guide</li>
+<li><a href="../210-protocols-overview/">External Protocols Overview</a> — protocol comparison and selection guide</li>
 </ul>
 
 

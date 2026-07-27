@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1017,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1045,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1297,7 +1297,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1465,7 +1465,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -1549,7 +1577,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -1605,7 +1633,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -1661,34 +1689,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../260-api-gateway/" class="md-nav__link">
         
   
@@ -1717,7 +1717,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -2299,6 +2299,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#510-country-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.10 country (OPTIONAL)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2365,6 +2376,17 @@
     <span class="md-ellipsis">
       
         6.5 api_gateways — pm-api-gwy (REST / WebSocket)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#66-dc_gateway-pm-dc-gwy-drop-copy-tcp-relay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.6 dc_gateway — pm-dc-gwy (drop-copy TCP relay)
       
     </span>
   </a>
@@ -3709,7 +3731,8 @@ governs. For worked examples, recipes, and rationale, see
 <a href="../010-configuration/">Configuration</a> (informative).</p>
 <p>The schema described here is derived from and MUST match the runtime loaders:
 <code>engine/config_loader.py</code>, <code>alf_gwy/config.py</code>, <code>balf_gwy/config.py</code>,
-<code>ralf_gateway/config.py</code>, <code>md_gateway/config.py</code>, and <code>api_gateway/config.py</code>.
+<code>ralf_gateway/config.py</code>, <code>md_gateway/config.py</code>, <code>api_gateway/config.py</code>, and
+<code>scheduler/main.py</code> (<code>schedule</code> and <code>country</code> only).
 <code>pm-cverifier</code> is the reference validator.</p>
 <hr />
 <h2 id="1-conventions">1. Conventions<a class="headerlink" href="#1-conventions" title="Permanent link">&para;</a></h2>
@@ -3817,6 +3840,11 @@ this document specifies the content of a <em>present</em> file.</p>
 <td><code>HHMM</code></td>
 <td>string</td>
 <td>wall-clock local time <code>"HH:MM"</code></td>
+</tr>
+<tr>
+<td><code>Country</code></td>
+<td>string</td>
+<td>country name (e.g. <code>"Sweden"</code>) or ISO 3166-1 alpha-2 code (e.g. <code>"SE"</code>); MUST be a country recognised by the <code>python-holidays</code> package</td>
 </tr>
 <tr>
 <td><code>Enum&lt;E&gt;</code></td>
@@ -3930,35 +3958,37 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="nt">market_maker_combos</span><span class="p">:</span><span class="w">        </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">List&lt;ComboSeedSpec&gt;</span><span class="w">              </span><span class="c1"># each: 2..10 legs</span>
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="nt">indices</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">List&lt;IndexSpec&gt;</span><span class="w">                  </span><span class="c1"># ≤ 5</span>
 <a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="nt">schedule</span><span class="p">:</span><span class="w">                   </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ScheduleSpec</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># ── AUXILIARY GATEWAY BLOCKS (each read by its own process) ─────────────────</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="nt">alf_gateway</span><span class="p">:</span><span class="w">                </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AlfGwyProcSpec</span><span class="w">        </span><span class="c1"># pm-alf-gwy</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="nt">balf_gateway</span><span class="p">:</span><span class="w">               </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BalfGwyProcSpec</span><span class="w">       </span><span class="c1"># pm-balf-gwy</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="nt">market_data_gateway</span><span class="p">:</span><span class="w">        </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MdGwyProcSpec</span><span class="w">         </span><span class="c1"># pm-md-gwy   (CALF)</span>
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="nt">post_trade_gateway</span><span class="p">:</span><span class="w">         </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RalfGwyProcSpec</span><span class="w">       </span><span class="c1"># pm-ralf-gwy (RALF)</span>
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="nt">api_gateways</span><span class="p">:</span><span class="w">               </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Map&lt;Str, ApiGwyProcSpec&gt;</span><span class="w">   </span><span class="c1"># pm-api-gwy (named instances)</span>
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="nt">SymbolSpec</span><span class="p">:</span>
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">  </span><span class="nt">level</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Str          ∈ key of risk_controls.levels</span>
-<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">  </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w">            </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Int = 2      ∈ 0..8</span>
-<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">  </span><span class="nt">outstanding_shares</span><span class="p">:</span><span class="w">       </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Int          ∈ &gt; 0</span><span class="w">        </span><span class="c1"># REQUIRED for index constituents</span>
-<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">  </span><span class="nt">last_buy_price</span><span class="p">:</span><span class="w">           </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Price</span>
-<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">  </span><span class="nt">last_sell_price</span><span class="p">:</span><span class="w">          </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Price</span>
-<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">  </span><span class="nt">market_maker_quotes</span><span class="p">:</span><span class="w">      </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">List&lt;MMQuoteSeedSpec&gt;</span>
-<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">  </span><span class="nt">collar</span><span class="p">:</span><span class="w">                   </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CollarSpec</span>
-<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">  </span><span class="nt">circuit_breaker</span><span class="p">:</span><span class="w">          </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CircuitBreakerSpec</span><span class="w">         </span><span class="c1"># per-symbol override</span>
-<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>
-<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="nt">AlfGatewaySpec</span><span class="p">:</span><span class="w">                              </span><span class="c1"># one entry of gateways.alf</span>
-<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="w">  </span><span class="nt">id</span><span class="p">:</span><span class="w">                       </span><span class="kt">!</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GatewayId</span>
-<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Str = &quot;&quot;</span>
-<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="w">  </span><span class="nt">role</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;Role&gt; = TRADER</span>
-<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="w">  </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w">    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;DisconnectBehaviour&gt; = CANCEL_QUOTES_ONLY</span>
-<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">  </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w">    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;QuoteRefreshPolicy&gt; = INACTIVATE_ON_ANY_FILL</span>
-<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="w">  </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w">   </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Bool  = &lt;mm_obligation_defaults.enforce_mm_obligation | false&gt;</span>
-<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a><span class="w">  </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w">     </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Ticks = &lt;mm_obligation_defaults.mm_max_spread_ticks | 10&gt;</span>
-<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="w">  </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Qty   = &lt;mm_obligation_defaults.mm_min_qty | 100&gt;</span>
-<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a><span class="w">  </span><span class="nt">mm_obligations</span><span class="p">:</span><span class="w">          </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Map&lt;Symbol, MMObligationSpec&gt;</span>
-<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a><span class="w">  </span><span class="nt">smp_action</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;SmpAction&gt; = NONE</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="nt">country</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Country = &quot;Sweden&quot;</span><span class="w">               </span><span class="c1"># read by pm-scheduler only</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="c1"># ── AUXILIARY GATEWAY BLOCKS (each read by its own process) ─────────────────</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="nt">alf_gateway</span><span class="p">:</span><span class="w">                </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AlfGwyProcSpec</span><span class="w">        </span><span class="c1"># pm-alf-gwy</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="nt">balf_gateway</span><span class="p">:</span><span class="w">               </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BalfGwyProcSpec</span><span class="w">       </span><span class="c1"># pm-balf-gwy</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="nt">market_data_gateway</span><span class="p">:</span><span class="w">        </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MdGwyProcSpec</span><span class="w">         </span><span class="c1"># pm-md-gwy   (CALF)</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="nt">post_trade_gateway</span><span class="p">:</span><span class="w">         </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RalfGwyProcSpec</span><span class="w">       </span><span class="c1"># pm-ralf-gwy (RALF)</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="nt">dc_gateway</span><span class="p">:</span><span class="w">                 </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DcGwyProcSpec</span><span class="w">         </span><span class="c1"># pm-dc-gwy   (drop-copy TCP relay)</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="nt">api_gateways</span><span class="p">:</span><span class="w">               </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Map&lt;Str, ApiGwyProcSpec&gt;</span><span class="w">   </span><span class="c1"># pm-api-gwy (named instances)</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="nt">SymbolSpec</span><span class="p">:</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">  </span><span class="nt">level</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Str          ∈ key of risk_controls.levels</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">  </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w">            </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Int = 2      ∈ 0..8</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">  </span><span class="nt">outstanding_shares</span><span class="p">:</span><span class="w">       </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Int          ∈ &gt; 0</span><span class="w">        </span><span class="c1"># REQUIRED for index constituents</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">  </span><span class="nt">last_buy_price</span><span class="p">:</span><span class="w">           </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Price</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">  </span><span class="nt">last_sell_price</span><span class="p">:</span><span class="w">          </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Price</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">  </span><span class="nt">market_maker_quotes</span><span class="p">:</span><span class="w">      </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">List&lt;MMQuoteSeedSpec&gt;</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="w">  </span><span class="nt">collar</span><span class="p">:</span><span class="w">                   </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CollarSpec</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="w">  </span><span class="nt">circuit_breaker</span><span class="p">:</span><span class="w">          </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CircuitBreakerSpec</span><span class="w">         </span><span class="c1"># per-symbol override</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="nt">AlfGatewaySpec</span><span class="p">:</span><span class="w">                              </span><span class="c1"># one entry of gateways.alf</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="w">  </span><span class="nt">id</span><span class="p">:</span><span class="w">                       </span><span class="kt">!</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GatewayId</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Str = &quot;&quot;</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">  </span><span class="nt">role</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;Role&gt; = TRADER</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="w">  </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w">    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;DisconnectBehaviour&gt; = CANCEL_QUOTES_ONLY</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a><span class="w">  </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w">    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;QuoteRefreshPolicy&gt; = INACTIVATE_ON_ANY_FILL</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="w">  </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w">   </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Bool  = &lt;mm_obligation_defaults.enforce_mm_obligation | false&gt;</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a><span class="w">  </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w">     </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Ticks = &lt;mm_obligation_defaults.mm_max_spread_ticks | 10&gt;</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a><span class="w">  </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Qty   = &lt;mm_obligation_defaults.mm_min_qty | 100&gt;</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a><span class="w">  </span><span class="nt">mm_obligations</span><span class="p">:</span><span class="w">          </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Map&lt;Symbol, MMObligationSpec&gt;</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a><span class="w">  </span><span class="nt">smp_action</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;SmpAction&gt; = NONE</span>
 </code></pre></div>
 <hr />
 <h2 id="4-domain-sub-structures">4. Domain sub-structures<a class="headerlink" href="#4-domain-sub-structures" title="Permanent link">&para;</a></h2>
@@ -4374,7 +4404,7 @@ gateway's orders <strong>when the order itself doesn't specify one</strong>:</p>
 <blockquote>
 <p>NOTE — <code>sessions_enabled</code> default: the engine loader applies <code>true</code> when the key
 is omitted from a <em>present</em> file. (A completely absent config file runs
-unrestricted with sessions disabled — see <a href="../080-auctions-scheduling/">Auctions &amp; Scheduling</a>.)</p>
+unrestricted with sessions disabled — see <a href="../080-session-scheduling/">Auctions &amp; Scheduling</a>.)</p>
 </blockquote>
 <h3 id="54-mm_obligation_defaults-optional-mmobligationdefaultsspec">5.4 <code>mm_obligation_defaults</code> (OPTIONAL) — <code>MMObligationDefaultsSpec</code><a class="headerlink" href="#54-mm_obligation_defaults-optional-mmobligationdefaultsspec" title="Permanent link">&para;</a></h3>
 <table>
@@ -4523,6 +4553,36 @@ merge, the built-in ladder applies: <code>L1 = 0.07 / 5 min</code>, <code>L2 = 0
 <h3 id="59-schedule-optional">5.9 <code>schedule</code> (OPTIONAL)<a class="headerlink" href="#59-schedule-optional" title="Permanent link">&para;</a></h3>
 <p><code>ScheduleSpec</code> — see §4.6. Consumed by <code>pm-engine</code> (when <code>sessions_enabled</code>) and,
 independently, by <code>pm-scheduler</code>.</p>
+<h3 id="510-country-optional">5.10 <code>country</code> (OPTIONAL)<a class="headerlink" href="#510-country-optional" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th style="text-align: center;">Req</th>
+<th>Default</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>country</code></td>
+<td><code>Country</code></td>
+<td style="text-align: center;">–</td>
+<td><code>"Sweden"</code></td>
+<td>MUST be a country name or ISO 3166-1 alpha-2 code recognised by <code>python-holidays</code>; an unrecognised value falls back to the default rather than being rejected</td>
+</tr>
+</tbody>
+</table>
+<p><code>country</code> is a top-level key, a sibling of <code>schedule</code> rather than nested under
+it. Unlike every other field in this document, an invalid <code>country</code> value does
+<strong>not</strong> abort loading (contrast §1.4's general rule and CV16 below) — the
+loader logs a warning and substitutes <code>"Sweden"</code>.</p>
+<p>Consumed <strong>only</strong> by <code>pm-scheduler</code> (<code>scheduler/main.py</code>); <code>pm-engine</code> never
+reads this key. <code>pm-scheduler</code> uses it to resolve the bank-holiday calendar
+(via <code>python-holidays</code>) that gates whether the daily <code>schedule</code> (§5.9) runs at
+all on a given calendar day — see
+<a href="../080-session-scheduling/#bank-holidays-and-weekends">Session Scheduling → Bank holidays and weekends</a>.</p>
 <hr />
 <h2 id="6-auxiliary-gateway-blocks">6. Auxiliary gateway blocks<a class="headerlink" href="#6-auxiliary-gateway-blocks" title="Permanent link">&para;</a></h2>
 <p>Each block below is read <strong>only</strong> by its own process; <code>pm-engine</code> ignores them.
@@ -5027,6 +5087,65 @@ be rejected.</p>
 <p><code>RateLimitSpec</code>: <code>writes_per_second</code> <code>Int &gt; 0 = 10</code>, <code>burst</code> <code>Int &gt; 0 = 20</code>.
 <code>TimeoutSpec</code>: <code>engine_auth_sec</code> <code>Secs &gt; 0 = 3.0</code>, <code>engine_reply_sec</code> <code>Secs &gt; 0 = 3.0</code>,
 <code>wait_ack_sec</code> <code>Secs &gt; 0 = 3.0</code>.</p>
+<h3 id="66-dc_gateway-pm-dc-gwy-drop-copy-tcp-relay">6.6 <code>dc_gateway</code> — <code>pm-dc-gwy</code> (drop-copy TCP relay)<a class="headerlink" href="#66-dc_gateway-pm-dc-gwy-drop-copy-tcp-relay" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th style="text-align: center;">Req</th>
+<th>Default</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td><code>Str</code></td>
+<td style="text-align: center;">–</td>
+<td><code>"dc-gwy01"</code></td>
+<td>non-empty; echoed in <code>WELCOME</code></td>
+</tr>
+<tr>
+<td><code>bind_address</code></td>
+<td><code>Str</code></td>
+<td style="text-align: center;">–</td>
+<td><code>"0.0.0.0"</code></td>
+<td>non-empty</td>
+</tr>
+<tr>
+<td><code>port</code></td>
+<td><code>Port</code></td>
+<td style="text-align: center;">–</td>
+<td><code>5590</code></td>
+<td><code>1..65535</code></td>
+</tr>
+<tr>
+<td><code>heartbeat_interval_sec</code></td>
+<td><code>Secs</code></td>
+<td style="text-align: center;">–</td>
+<td><code>5</code></td>
+<td><code>&gt; 0</code>; interval between <code>HB</code> lines</td>
+</tr>
+<tr>
+<td><code>idle_timeout_sec</code></td>
+<td><code>Secs</code></td>
+<td style="text-align: center;">–</td>
+<td><code>30</code></td>
+<td><code>&gt; 0</code>; inbound silence disconnect threshold</td>
+</tr>
+<tr>
+<td><code>max_client_queue</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>10000</code></td>
+<td><code>&gt; 0</code>; per-client outbound buffer before slow-client disconnect</td>
+</tr>
+</tbody>
+</table>
+<p>This block has no <code>enabled</code> key. The drop-copy source address (<code>tcp://127.0.0.1:5557</code>)
+is <strong>not</strong> configurable via YAML — use the <code>--engine-dc-pub</code> CLI flag on <code>pm-dc-gwy</code>
+to point at a non-default engine address.</p>
 <hr />
 <h2 id="7-cross-field-and-semantic-constraints">7. Cross-field and semantic constraints<a class="headerlink" href="#7-cross-field-and-semantic-constraints" title="Permanent link">&para;</a></h2>
 <p>A conforming document MUST satisfy all of the following. Violations MUST be
@@ -5099,6 +5218,10 @@ rejected at load.</p>
 <td>CV15</td>
 <td>(<code>pm-api-gwy</code>) The singular <code>api_gateway</code> key is not supported; a <code>gateway_id</code> credential MUST NOT be shared across two <code>api_gateways</code> instances.</td>
 </tr>
+<tr>
+<td>CV16</td>
+<td>(<code>pm-scheduler</code>) An unrecognised <code>country</code> value is the <strong>sole exception</strong> to the "MUST be rejected" rule in this section — the loader substitutes the default (<code>"Sweden"</code>) and logs a warning instead of aborting. <code>pm-scheduler</code> treats a calendar day as non-trading (and sends no <code>schedule</code> transitions) when it is a Saturday, a Sunday, or a <code>country</code> bank holiday.</td>
+</tr>
 </tbody>
 </table>
 <hr />
@@ -5106,8 +5229,9 @@ rejected at load.</p>
 <ol>
 <li><strong>Parse.</strong> Load the document as YAML; a non-mapping root is rejected (§1.2).</li>
 <li><strong>Section ownership.</strong> <code>pm-engine</code> reads the engine sections (§5) plus the
-   <code>SymbolSpec</code>/nested structures; each auxiliary process reads only its own block
-   (§6). No single process reads the whole file.</li>
+   <code>SymbolSpec</code>/nested structures — with one exception, <code>country</code> (§5.10), which
+   is read only by <code>pm-scheduler</code>; each auxiliary process reads only its own
+   block (§6). No single process reads the whole file.</li>
 <li><strong>Normalisation.</strong> Symbols, gateway ids, index ids, and enum values are
    upper-cased (§1.6).</li>
 <li><strong>Validation.</strong> Field-level constraints (§4–§6) are checked, then the
@@ -5137,8 +5261,8 @@ block on every symbol.</p>
 <li><a href="../010-configuration/">Configuration</a> — informative reference, generator, recipes</li>
 <li><a href="../020-config-verifier/">Config Verifier (<code>pm-cverifier</code>)</a> — the reference validator</li>
 <li><a href="../120-risk-controls/">Risk Controls</a> — collar and circuit-breaker behaviour</li>
-<li><a href="../150-index/">Market Index (<code>pm-index</code>)</a> — index calculation using <code>indices</code></li>
-<li><a href="../210-protocol-overview/">External Protocols Overview</a> — the gateways that read the auxiliary blocks</li>
+<li><a href="../150-market-index/">Market Index (<code>pm-index</code>)</a> — index calculation using <code>indices</code></li>
+<li><a href="../210-protocols-overview/">External Protocols Overview</a> — the gateways that read the auxiliary blocks</li>
 </ul>
 
 

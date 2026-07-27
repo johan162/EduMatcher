@@ -15,10 +15,10 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/260-api-gateway/">
       
       
-        <link rel="prev" href="../252-dc-spy-cli/">
+        <link rel="prev" href="../251-ralf-spy-cli/">
       
       
-        <link rel="next" href="../270-messages/">
+        <link rel="next" href="../270-message-reference/">
       
       
         
@@ -933,7 +933,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../040-running-the-engine/" class="md-nav__link">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
         
   
   
@@ -961,7 +961,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway/" class="md-nav__link">
+      <a href="../050-gateway-reference/" class="md-nav__link">
         
   
   
@@ -1017,7 +1017,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../070-combos/" class="md-nav__link">
+      <a href="../070-combo-orders/" class="md-nav__link">
         
   
   
@@ -1045,7 +1045,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../080-auctions-scheduling/" class="md-nav__link">
+      <a href="../080-session-scheduling/" class="md-nav__link">
         
   
   
@@ -1241,7 +1241,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../150-index/" class="md-nav__link">
+      <a href="../150-market-index/" class="md-nav__link">
         
   
   
@@ -1297,7 +1297,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../160-commands/" class="md-nav__link">
+      <a href="../160-exchange-commands/" class="md-nav__link">
         
   
   
@@ -1465,7 +1465,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../210-protocol-overview/" class="md-nav__link">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
         
   
   
@@ -1549,7 +1577,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../240-market-data-feed/" class="md-nav__link">
+      <a href="../240-calf-gateway/" class="md-nav__link">
         
   
   
@@ -1605,7 +1633,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../250-post-trade/" class="md-nav__link">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
         
   
   
@@ -1641,34 +1669,6 @@
     
   
     RALF Protocol Spy (pm-ralf-spy)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../252-dc-spy-cli/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Drop-Copy Spy (pm-dc-spy)
   
 
     
@@ -2063,7 +2063,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../270-messages/" class="md-nav__link">
+      <a href="../270-message-reference/" class="md-nav__link">
         
   
   
@@ -4548,7 +4548,7 @@ only via its ZMQ PULL socket (port <code>5559</code>) — used by <code>pm-alf-c
 <code>INDEX|HISTORY</code> command (read) and
 <a href="../152-index-admin-cli/"><code>pm-index-admin-cli</code></a> (corporate
 actions/constituent changes, write) — not through this gateway.
-<a href="../160-commands/#pm-index-cli-index-structuralaudit-history-query-tool"><code>pm-index-cli</code></a>
+<a href="../160-exchange-commands/#pm-index-cli-index-structuralaudit-history-query-tool"><code>pm-index-cli</code></a>
 is unrelated to that socket: it is a read-only tool that parses
 <code>pm-index</code>'s structural/audit JSONL files directly from disk. Read access
 to index <em>statistics</em> (level history, daily OHLC) is available via
