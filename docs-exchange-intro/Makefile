@@ -243,7 +243,7 @@ check-latex-engine:
 	fi
 
 pdfs: ## Build all PDF documentation variants in parallel
-	@$(MAKE) pdf-docs pdf-parts-a4
+	@$(MAKE) cover pdf-docs cover-parts pdf-parts-a4 bundle-quiz
 
 pdf-docs: check-latex-engine ## Build all PDF documentation variants in parallel
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
