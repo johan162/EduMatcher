@@ -634,6 +634,52 @@ def build_parser() -> argparse.ArgumentParser:
         help="balf_gateway.duplicate_session_policy override.",
     )
 
+    parser.add_argument(
+        "--dc-gateway",
+        action="store_true",
+        help="Emit a top-level dc_gateway section for pm-dc-gwy.",
+    )
+    parser.add_argument(
+        "--dc-name",
+        default=None,
+        metavar="NAME",
+        help="dc_gateway.name override.",
+    )
+    parser.add_argument(
+        "--dc-bind-address",
+        default=None,
+        metavar="ADDR",
+        help="dc_gateway.bind_address override.",
+    )
+    parser.add_argument(
+        "--dc-port",
+        type=int,
+        default=None,
+        metavar="N",
+        help="dc_gateway.port override (> 0).",
+    )
+    parser.add_argument(
+        "--dc-heartbeat-interval-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="dc_gateway.heartbeat_interval_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--dc-idle-timeout-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="dc_gateway.idle_timeout_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--dc-max-client-queue",
+        type=int,
+        default=None,
+        metavar="N",
+        help="dc_gateway.max_client_queue override (> 0).",
+    )
+
     sched_group = parser.add_mutually_exclusive_group()
     sched_group.add_argument(
         "--schedule",

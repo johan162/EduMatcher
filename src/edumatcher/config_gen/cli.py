@@ -22,6 +22,7 @@ from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
 from edumatcher.config_gen.builder import ApiCredentialSpec, ApiGatewaySpec
 from edumatcher.config_gen.builder import BalfGatewaySpec
 from edumatcher.config_gen.builder import ComboLegSpec, ComboSpec
+from edumatcher.config_gen.builder import DcGatewaySpec
 from edumatcher.config_gen.builder import IndexSpec
 from edumatcher.config_gen.builder import MarketDataGatewaySpec
 from edumatcher.config_gen.builder import PostTradeGatewaySpec
@@ -49,6 +50,12 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_BALF_GATEWAY_MAX_MESSAGES_PER_SECOND,
     DEFAULT_BALF_GATEWAY_NAME,
     DEFAULT_BALF_GATEWAY_PORT,
+    DEFAULT_DC_GATEWAY_BIND_ADDRESS,
+    DEFAULT_DC_GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_DC_GATEWAY_IDLE_TIMEOUT_SEC,
+    DEFAULT_DC_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_DC_GATEWAY_NAME,
+    DEFAULT_DC_GATEWAY_PORT,
     DEFAULT_INDEX_BASE_VALUE,
     DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
@@ -208,6 +215,18 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--balf-max-errors-before-disconnect must be > 0")
     if args.balf_error_window_sec is not None and args.balf_error_window_sec <= 0:
         raise ValueError("--balf-error-window-sec must be > 0")
+
+    if args.dc_port is not None and args.dc_port <= 0:
+        raise ValueError("--dc-port must be > 0")
+    if (
+        args.dc_heartbeat_interval_sec is not None
+        and args.dc_heartbeat_interval_sec <= 0
+    ):
+        raise ValueError("--dc-heartbeat-interval-sec must be > 0")
+    if args.dc_idle_timeout_sec is not None and args.dc_idle_timeout_sec <= 0:
+        raise ValueError("--dc-idle-timeout-sec must be > 0")
+    if args.dc_max_client_queue is not None and args.dc_max_client_queue <= 0:
+        raise ValueError("--dc-max-client-queue must be > 0")
 
     if args.static_band is not None and not (0 < args.static_band < 1):
         raise ValueError("--static-band must be in (0, 1)")
@@ -784,6 +803,40 @@ def _build_balf_gateway_spec(
         duplicate_session_policy=str(
             args.balf_duplicate_session_policy
             or DEFAULT_BALF_GATEWAY_DUPLICATE_SESSION_POLICY
+        ),
+    )
+
+
+def _build_dc_gateway_spec(
+    args: argparse.Namespace,
+) -> DcGatewaySpec | None:
+    emit = any(
+        value is not None
+        for value in (
+            args.dc_name,
+            args.dc_bind_address,
+            args.dc_port,
+            args.dc_heartbeat_interval_sec,
+            args.dc_idle_timeout_sec,
+            args.dc_max_client_queue,
+        )
+    ) or bool(args.dc_gateway)
+
+    if not emit:
+        return None
+
+    return DcGatewaySpec(
+        name=str(args.dc_name or DEFAULT_DC_GATEWAY_NAME),
+        bind_address=str(args.dc_bind_address or DEFAULT_DC_GATEWAY_BIND_ADDRESS),
+        port=int(args.dc_port or DEFAULT_DC_GATEWAY_PORT),
+        heartbeat_interval_sec=int(
+            args.dc_heartbeat_interval_sec or DEFAULT_DC_GATEWAY_HEARTBEAT_INTERVAL_SEC
+        ),
+        idle_timeout_sec=int(
+            args.dc_idle_timeout_sec or DEFAULT_DC_GATEWAY_IDLE_TIMEOUT_SEC
+        ),
+        max_client_queue=int(
+            args.dc_max_client_queue or DEFAULT_DC_GATEWAY_MAX_CLIENT_QUEUE
         ),
     )
 
@@ -1374,6 +1427,7 @@ def main() -> None:
             post_trade_gateway=_build_post_trade_gateway_spec(args),
             market_data_gateway=_build_market_data_gateway_spec(args),
             balf_gateway=_build_balf_gateway_spec(args),
+            dc_gateway=_build_dc_gateway_spec(args),
             api_gateways=_build_api_gateway_specs(args, gateways),
             indices=indices,
             combos=combos,

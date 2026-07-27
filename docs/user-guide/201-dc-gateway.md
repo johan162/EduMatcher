@@ -78,8 +78,9 @@ a `pm-dc-gwy` connection does not "occupy" a trading identity.
 
 ## Configuration
 
-`pm-dc-gwy` reads an optional hand-edited `dc_gateway:` section from
-`engine_config.yaml`:
+`pm-dc-gwy` reads an optional `dc_gateway:` section from `engine_config.yaml`.
+You can generate this section with `pm-config-gen --dc-gateway` (all fields are
+optional and default to the values shown below), or hand-edit it directly:
 
 ```yaml
 dc_gateway:
@@ -104,12 +105,6 @@ The drop-copy source address (`tcp://127.0.0.1:5557` by default) is **not**
 configurable via YAML — it always comes from the same `DROP_COPY_PUB_ADDR`
 constant the rest of the system uses. Override it per-run with `--engine-dc-pub`
 (see below) if you need to point at a non-default engine address.
-
-!!! note "No `pm-config-gen` integration"
-    Unlike most gateway sections, `dc_gateway:` is not wired into
-    `pm-config-gen`'s CLI flags, interactive builder, or config-check
-    warnings. Hand-edit the YAML section directly, the same way you would for
-    `alf_gateway:` or `post_trade_gateway:`.
 
 !!! note "TLS"
     `pm-dc-gwy` does not terminate TLS. For remote deployments, put it behind

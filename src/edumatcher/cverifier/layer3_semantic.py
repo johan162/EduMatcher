@@ -811,6 +811,7 @@ _SINGLETON_GATEWAY_PORTS = (
     ("balf_gateway", "pm-balf-gwy", 5560),
     ("post_trade_gateway", "pm-ralf-gwy", 5580),
     ("market_data_gateway", "pm-md-gwy", 5570),
+    ("dc_gateway", "pm-dc-gwy", 5590),
 )
 
 _DEFAULT_API_GATEWAY_PORT = 8080

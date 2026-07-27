@@ -128,6 +128,7 @@ alf_gateway:                ? AlfGwyProcSpec        # pm-alf-gwy
 balf_gateway:               ? BalfGwyProcSpec       # pm-balf-gwy
 market_data_gateway:        ? MdGwyProcSpec         # pm-md-gwy   (CALF)
 post_trade_gateway:         ? RalfGwyProcSpec       # pm-ralf-gwy (RALF)
+dc_gateway:                 ? DcGwyProcSpec         # pm-dc-gwy   (drop-copy TCP relay)
 api_gateways:               ? Map<Str, ApiGwyProcSpec>   # pm-api-gwy (named instances)
 
 SymbolSpec:
@@ -452,6 +453,21 @@ be rejected.
 `RateLimitSpec`: `writes_per_second` `Int > 0 = 10`, `burst` `Int > 0 = 20`.
 `TimeoutSpec`: `engine_auth_sec` `Secs > 0 = 3.0`, `engine_reply_sec` `Secs > 0 = 3.0`,
 `wait_ack_sec` `Secs > 0 = 3.0`.
+
+### 6.6 `dc_gateway` — `pm-dc-gwy` (drop-copy TCP relay)
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `name` | `Str` | – | `"dc-gwy01"` | non-empty; echoed in `WELCOME` |
+| `bind_address` | `Str` | – | `"0.0.0.0"` | non-empty |
+| `port` | `Port` | – | `5590` | `1..65535` |
+| `heartbeat_interval_sec` | `Secs` | – | `5` | `> 0`; interval between `HB` lines |
+| `idle_timeout_sec` | `Secs` | – | `30` | `> 0`; inbound silence disconnect threshold |
+| `max_client_queue` | `Int` | – | `10000` | `> 0`; per-client outbound buffer before slow-client disconnect |
+
+This block has no `enabled` key. The drop-copy source address (`tcp://127.0.0.1:5557`)
+is **not** configurable via YAML — use the `--engine-dc-pub` CLI flag on `pm-dc-gwy`
+to point at a non-default engine address.
 
 ---
 
