@@ -372,11 +372,17 @@ $(eval $(call BUILD_TRAINING_GUIDE_PDF,TRAINING_GUIDE_DARK_B5,b5))
 CHAPTERS_A4_DIR   := $(DIST_DIR)/chapters-a4
 CHAPTERS_A4_BUILD := $(USER_GUIDE_BUILD_DIR)/chapters-a4
 
+# $(info USER_GUIDE_A4_TEMPLATE: $(USER_GUIDE_A4_TEMPLATE))
+
+$(USER_GUIDE_A4_TEMPLATE): $(USER_GUIDE_A4_TEMPLATE).in
+	@echo -e "$(DARKYELLOW)- Generating LaTeX template for A4 chapter PDFs from $(BRIGHTCYAN)$(USER_GUIDE_A4_TEMPLATE).in$(DARKYELLOW) ...$(NC)"
+	@sed -e "s/@@VERSION@@/v$(VERSION)/g" $(USER_GUIDE_A4_TEMPLATE).in > $(USER_GUIDE_A4_TEMPLATE)
+
 # $(1) = absolute or relative path to a single user-guide .md source file.
 define BUILD_CHAPTER_PDF_A4
 $$(CHAPTERS_A4_DIR)/$(notdir $(basename $(1))).pdf: \
-		$(1) $$(USER_GUIDE_PDF_DEPS) $$(USER_GUIDE_A4_TEMPLATE) \
-		| $$(CHAPTERS_A4_DIR) $(NODE_MODULES_PATH)
+		$(1) $$(USER_GUIDE_PDF_DEPS) | $$(USER_GUIDE_A4_TEMPLATE) \
+		$$(CHAPTERS_A4_DIR) $(NODE_MODULES_PATH)
 	@echo -e "$$(DARKYELLOW)- Building chapter PDF: $$(BRIGHTCYAN)$(notdir $(1))$$(DARKYELLOW)...$$(NC)"
 	@mkdir -p $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/expanded/.mermaid-img
 	@poetry run python $$(SCRIPTS_DIR)/expand-shell-outputs.py \
@@ -429,6 +435,7 @@ $(CHAPTERS_A4_DIR): | $(DIST_DIR)
 	@mkdir -p $@
 
 chapters-pdf-a4: check-latex-engine $(CHAPTERS_A4_PDFS) ## Build a separate A4 PDF for each user-guide chapter into $(DIST_DIR)/chapters-a4/
+	@rm -f $(USER_GUIDE_A4_TEMPLATE)
 	@echo -e "$(GREEN)✓ All $(words $(USER_GUIDE_MD_SOURCES)) chapter PDFs built in $(BRIGHTCYAN)$(CHAPTERS_A4_DIR)$(GREEN)$(NC)"
 	
 chapters-pdf-a4-bundle: chapters-pdf-a4  ## Build a zip bundle of all A4 chapter PDFs into $(DIST_DIR)	
