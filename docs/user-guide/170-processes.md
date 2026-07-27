@@ -533,31 +533,34 @@ See [ALF TCP Gateway](220-alf-gateway.md) for operational usage, command referen
 
 ## pm-viewer — Order Book Viewer
 
-Live terminal view of a single symbol's order book.
+Live terminal view of a single symbol's order book. Draws a full-screen
+bordered box on the alternate terminal buffer that repaints cleanly on resize.
 
 ```bash
-pm-viewer --symbol AAPL [--depth 10]
+pm-viewer --symbol AAPL [--depth N] [--db data/stats.db]
 ```
 
 **Startup options:**
 
-| Flag              | Default  | Description                             |
-|-------------------|----------|-----------------------------------------|
-| `--symbol` / `-s` | required | Symbol to watch                         |
-| `--depth` / `-d`  | 10       | Number of price levels to show per side |
-| `--log-level`     | `WARNING`| Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
-| `-v` / `--verbose`| off      | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
-| `-q` / `--quiet`  | off      | Reduce output to warnings/errors        |
+| Flag              | Default          | Description                                                             |
+|-------------------|------------------|-------------------------------------------------------------------------|
+| `--symbol` / `-s` | required         | Symbol to watch                                                         |
+| `--depth` / `-d`  | fit to terminal  | Max price levels to display per side (default: fills available height)  |
+| `--db`            | `data/stats.db`  | Stats SQLite DB — seeds session OHLC and previous-close at startup      |
+| `--log-level`     | `WARNING`        | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`     |
+| `-v` / `--verbose`| off              | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                     |
+| `-q` / `--quiet`  | off              | Reduce output to warnings/errors                                        |
 
 **Expected runtime input arguments:**
 
 None.
 
 **Display**:
-- Left panel: top-N **bid** levels (price, total qty, number of orders)
-- Middle panel: top-N **ask** levels
-- Right panel: 5 most recent trades with timestamps
-- Header bar: symbol name, last trade price, last trade qty, refresh time
+- Two-line header: last price with directional colour/arrow, change / %, session OHLC seeded from `pm-stats` DB, previous-close, bid/ask, spread, volume, and a live clock
+- Three equal-height columns filling the terminal: **Bids** (with proportional depth bars), **Asks**, and **Trades** (newest first, uptick/downtick coloured)
+- Bids and asks show proportional depth micro-bars per price level
+- The frame border colour reflects the day's direction (green/red)
+- Repaints the full frame on every terminal resize — no leftover garbage
 
 !!! note "Iceberg orders"
     Iceberg orders only show their `displayed_qty` (the visible peak) in the viewer.
@@ -600,6 +603,8 @@ pm-orders [--gateway GW01]
 | Flag               | Default | Description                |
 |--------------------|---------|----------------------------|
 | `--gateway` / `-g` | (all)   | Filter to a single gateway |
+
+No `--log-level`, `-v`, or `-q` flags — `pm-orders` has no configurable logging.
 
 **Expected runtime input arguments:**
 
@@ -689,6 +694,45 @@ pm-audit --buffer-size 1 --flush-interval 0.1
 | Topic                                    | Purpose                                        |
 |------------------------------------------|------------------------------------------------|
 | *(empty prefix — receives all messages)* | Records everything published on the PUB socket |
+
+
+
+## pm-audit-cli — Audit Log Query CLI
+
+`pm-audit-cli` is a read-only offline tool: it reads JSONL files directly from disk, runs one query, prints output, and exits. No ZeroMQ connection required.
+
+```bash
+pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|csv] [--no-header] [--use-index PATH] COMMAND [options]
+```
+
+**Global options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--log-file PATH` | `data/audit.log` | Primary audit log file |
+| `--log-dir PATH` | directory of `--log-file` | Directory containing rotated log backups |
+| `--format` | `table` | Output format: `table`, `json`, or `csv` |
+| `--no-header` | off | Suppress header row in CSV output |
+| `--use-index PATH` | auto-detected | Path to SQLite index file (auto-detected from `--log-dir` when not specified; ignored for commands that don't support it) |
+
+**Subcommands:**
+
+| Subcommand | Default limit | Purpose | Key filters |
+|---|---:|---|---|
+| `events`   | 100  | Search log entries by topic, gateway, symbol, and time range | `--topic`, `--gateway`, `--symbol`, `--date`, `--from`, `--to`, `--reverse` |
+| `orders`   | 100  | Order lifecycle events for specific order IDs or filters     | `--id` (repeatable), `--gateway`, `--symbol`, `--date`, `--from`, `--to`  |
+| `trades`   | 100  | Trade executions                                             | `--symbol`, `--gateway`, `--buy-gateway`, `--sell-gateway`, `--min-price`, `--max-price`, `--min-qty`, `--date`, `--from`, `--to`, `--reverse` |
+| `topics`   | —    | List topics present in logs with event counts                | `--date`, `--from`, `--to`, `--prefix`, `--sort` (count\|alpha)            |
+| `gateways` | —    | Gateway activity summary                                     | `--date`, `--from`, `--to`, `--min-events`                                 |
+| `timeline` | 500  | Raw chronological event stream for session replay            | `--from`, `--to`, `--topic`, `--gateway`, `--symbol`                       |
+| `stats`    | —    | Summary statistics about audit log files                     | `--verbose`                                                                |
+| `index`    | —    | Build or update the optional SQLite index for faster queries | `--output PATH`                                                            |
+
+**No-row behaviour:**
+
+- `table`: prints `No rows found.`
+- `json`: prints `[]`
+- `csv`: prints only header row unless `--no-header` is set
 
 
 
@@ -783,6 +827,8 @@ output, and exits.
 | `dates` | 1000 | Available trade dates (optionally with totals) | `--gateway`, `--symbol`, `--from`, `--to`, `--with-totals` |
 | `health` | n/a | DB row counts, flush metadata, and WAL mode | none |
 | `reconcile` | n/a | Compares raw `trade_events` vs daily summary (both buy and sell sides; also reports summary-only keys) | `--gateway`, `--symbol`, `--from`, `--to`, `--retention-days` |
+| `sessions` | — | Gateway connection and disconnection history | `--gateway`, `--from`, `--to`, `--connected-only`, `--limit` (default 500) |
+| `eod`      | 100 | End-of-day sentinel events written by `pm-clearing` on `system.eod` | `--from`, `--to`, `--limit` |
 | `prune` | n/a | Deletes old `trade_events` rows by retention window | `--days`, `--dry-run` |
 
 **Sort options:**
@@ -1038,6 +1084,8 @@ prints output, and exits.
 | `daily`            | Daily OHLCV summary from `daily_stats`                 | `--date`, `--symbol`, `--limit`, `--wide`                          |
 | `snapshots`        | Intraday snapshots from `price_snapshots`               | `--symbol` (required), `--date`, `--from`, `--to`, `--limit`       |
 | `trades`           | Trade history from `trade_log`                          | `--symbol`, `--date`, `--from`, `--to`, `--limit`                  |
+| `order-events`     | Private order lifecycle events from the order_events table | `--gateway` (required), `--symbol`, `--event-type`, `--date`, `--from`, `--to`, `--limit` (default 500) |
+| `order-lifecycle`  | All events for a single order ID                           | `--gateway` (required), `--order-id` (required)                    |
 | `symbols`          | Discover symbols available in stats data                | `--date`                                                            |
 | `dates`            | Discover trading dates available in `daily_stats`        | `--symbol`                                                          |
 | `index-daily`      | Daily index OHLC rollup from `index_daily_stats`        | `--date`, `--index-id`, `--limit`, `--wide`                        |
@@ -1102,13 +1150,13 @@ pm-scheduler [--config engine_config.yaml] [--now] [--delay 3] [--daily] [--no-c
 | Flag               | Default              | Description                                                                         |
 |--------------------|----------------------|-------------------------------------------------------------------------------------|
 | `--config` / `-c`  | `engine_config.yaml` | Config file containing the `schedule` section                                       |
-| `--now`            | off                  | Skip wall-clock waiting; send all transitions immediately with a delay between each |
-| `--delay`          | 3                    | Seconds between transitions in `--now` mode (ignored, with a warning, outside `--now`) |
-| `--daily`          | off                  | Run continuously, repeating the schedule every calendar day                         |
-| `--no-confirm`     | off                  | Do not query/confirm session state via the engine before sending a transition       |
-| `--log-level`      | `WARNING`            | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                 |
-| `-v` / `--verbose` | off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                 |
-| `-q` / `--quiet`   | off                  | Reduce output to warnings/errors                                                     |
+| `--now`               | off                  | Skip wall-clock waiting; send all transitions immediately with a delay between each |
+| `--delay`             | `None` (effective default 3.0, only used with `--now`) | Seconds between transitions in `--now` mode (ignored, with a warning, outside `--now`) |
+| `--daily`             | off                  | Run continuously, repeating the schedule every calendar day                         |
+| `--no-confirm`        | off                  | Do not query/confirm session state via the engine before sending a transition       |
+| `--log-level`         | `WARNING`            | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                 |
+| `--verbose` / `-v`    | off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                 |
+| `-q` / `--quiet`      | off                  | Reduce output to warnings/errors                                                     |
 
 **Expected runtime input arguments:**
 
@@ -1567,6 +1615,9 @@ dropping it as an idle client.
 | `--ping-interval` | `60` | Seconds between `PING` keepalives sent to the gateway; `0` disables |
 | `--format` | `human` | `human` or `json` output |
 | `--count` | `0` | Exit after N data-carrying lines (`0` = run until Ctrl-C) |
+| `--raw` | off | Print raw protocol bytes instead of decoded fields |
+| `--no-color` | off | Disable ANSI colour in output |
+| `--show-heartbeats` | off | Include `HB` heartbeat lines in output (hidden by default) |
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 
 See [RALF Protocol Spy (pm-ralf-spy)](251-ralf-spy-cli.md) for full usage.
@@ -1649,6 +1700,8 @@ of instances can run at once (e.g. one per terminal, each with a different
 | `--replay-of` | *(none)* | Also subscribe to `drop_copy.replay.<RECIPIENT_ID>` to observe `DropCopyPublisher.replay()` calls |
 | `--format` | `human` | `human` or `json` output |
 | `--count` | `0` | Exit after N messages (`0` = run until Ctrl-C) |
+| `--raw` | off | Print raw bytes instead of decoded fields |
+| `--no-color` | off | Disable ANSI colour in output |
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 
 See [Drop-Copy Spy (pm-dc-spy)](202-dc-spy-cli.md) for full usage.
@@ -1934,6 +1987,35 @@ Subcommands and required arguments:
 
 
 
+## pm-cverifier — Config Verifier
+
+Validates `engine_config.yaml` across four layers: YAML syntax, JSON schema, semantic checks, and completeness checks. Produces a human-readable or JSON report and exits with a non-zero code if any findings meet or exceed the minimum severity threshold.
+
+```bash
+pm-cverifier [--format text|json] [--level info|warn|error] [--no-color] [--strict] CONFIG_FILE
+```
+
+**Startup options:**
+
+| Flag            | Default  | Description                                                          |
+|-----------------|----------|----------------------------------------------------------------------|
+| `CONFIG_FILE`   | required | Path to `engine_config.yaml`                                         |
+| `--format`      | `text`   | Output format: `text` or `json`                                      |
+| `--level`       | `info`   | Minimum severity to show: `info`, `warn`, or `error`                 |
+| `--no-color`    | off      | Disable ANSI colour in text output                                   |
+| `--strict`      | off      | Treat warnings as errors for CI exit-code purposes                   |
+
+**Expected runtime input arguments:**
+
+None. `pm-cverifier` reads the config file, prints its report, and exits.
+
+**Exit codes:**
+
+- `0` — no findings at or above the threshold (or `--strict` and no warnings/errors)
+- `1` — one or more findings at or above the threshold
+
+
+
 ## pm-setup — Session Bootstrap Tool
 
 Bootstraps a runnable EduMatcher session directory with sensible defaults.
@@ -1977,34 +2059,113 @@ pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --ses
 
 **Startup options:**
 
-| Flag                                                       | Required | Default     | Description                                               |
-|------------------------------------------------------------|----------|-------------|-----------------------------------------------------------|
-| `--symbols <SYM ...>`                                      | Yes      | —           | One or more symbols                                       |
-| `--gateways <GW_SPEC ...>`                                 | Yes      | —           | One or more gateway specs (`ID[:ROLE[:DISCONNECT]]`)      |
-| `--symbol-opts <SPEC>`                                     | No       | repeatable  | Per-symbol overrides (`SYMBOL:KEY=VALUE,...`)             |
-| `--sessions-enabled` / `--no-sessions-enabled`             | No       | disabled    | Enable/disable scheduler-driven sessions                  |
-| `--snapshot-interval <SECS>`                               | No       | default     | Snapshot interval in seconds (>0)                         |
-| `--no-collars`                                             | No       | off         | Disable collar enforcement                                |
-| `--no-circuit-breakers`                                    | No       | off         | Disable circuit-breaker enforcement                       |
-| `--static-band <PCT>`                                      | No       | unset       | Default static band in `(0,1)`                            |
-| `--dynamic-band <PCT>`                                     | No       | unset       | Default dynamic band in `(0,1)`                           |
-| `--risk-level <SPEC>`                                      | No       | repeatable  | `NAME:STATIC_PCT[:DYNAMIC_PCT]`                           |
-| `--cb-levels <CB_SPEC ...>`                                | No       | unset       | `NAME:SHIFT_PCT[:HALT_MINS]` entries                      |
-| `--cb-window-ns <NS>`                                      | No       | default     | Circuit-breaker reference window                          |
-| `--mm-spread-ticks <N>`                                    | No       | default     | Global MM max spread ticks                                |
-| `--mm-min-qty <N>`                                         | No       | default     | Global MM minimum quote qty                               |
-| `--enforce-mm-obligations` / `--no-enforce-mm-obligations` | No       | disabled    | Enable/disable MM obligations                             |
-| `--tick-decimals <N>`                                      | No       | default     | Default tick decimals (`0..8`)                            |
-| `--seed-last-prices`                                       | No       | off         | Emit null `last_buy_price`/`last_sell_price` placeholders |
-| `--schedule` / `--no-schedule`                             | No       | auto        | Force include/suppress schedule section                   |
-| `--pre-open <HH:MM>`                                       | No       | default     | Pre-open schedule time                                    |
-| `--opening-auction <HH:MM>`                                | No       | default     | Opening auction start time                                |
-| `--continuous <HH:MM>`                                     | No       | default     | Continuous trading start time                             |
-| `--closing-auction <HH:MM>`                                | No       | default     | Closing auction start time                                |
-| `--closing-end <HH:MM>`                                    | No       | default     | Closing auction end time                                  |
-| `--output <FILE>`                                          | No       | stdout mode | Output path                                               |
-| `--force`                                                  | No       | off         | Overwrite existing output file                            |
-| `--dry-run`                                                | No       | off         | Print generated YAML only; do not write file              |
+#### Required
+
+| Flag | Description |
+|---|---|
+| `--symbols SYM [SYM ...]` | One or more symbols |
+| `--gateways GW_SPEC [...]` | One or more gateway specs (`ID[:ROLE[:DISCONNECT]]`) |
+
+#### Gateway / symbol overrides
+
+| Flag | Description |
+|---|---|
+| `--gateway-smp GW_ID:SMP_ACTION` | Per-gateway self-match-prevention default (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`); repeatable |
+| `--symbol-opts SYMBOL:KEY=VALUE[,...]` | Per-symbol overrides; repeatable |
+| `--symbol-static-band SYM:PCT` | Per-symbol collar static band in (0,1); repeatable |
+| `--symbol-dynamic-band SYM:PCT` | Per-symbol collar dynamic band in (0,1); repeatable |
+| `--symbol-risk-level SYM:LEVEL` | Per-symbol risk level key; repeatable |
+| `--outstanding-shares SYM:N` | Per-symbol outstanding shares; repeatable |
+
+#### Session & engine tuning
+
+| Flag | Default | Description |
+|---|---|---|
+| `--sessions-enabled` / `--no-sessions-enabled` | disabled | Enable/disable scheduler-driven sessions |
+| `--snapshot-interval SECS` | `0.5` | Snapshot interval in seconds |
+| `--quote-history-maxlen N` | `30` | Quote history max length |
+| `--drop-copy-buffer-size N` | `10000` | Drop-copy buffer size |
+| `--recent-trades-maxlen N` | `20` | Recent trades max length |
+| `--depth-snapshot-tolerance-ticks N` | `100` | Depth snapshot tolerance in ticks |
+
+#### Collars & circuit breakers
+
+| Flag | Default | Description |
+|---|---|---|
+| `--no-collars` | off | Set `enforce_collars: false` |
+| `--no-circuit-breakers` | off | Set `enforce_circuit_breakers: false` |
+| `--static-band PCT` | unset | Default static collar band |
+| `--dynamic-band PCT` | unset | Default dynamic collar band |
+| `--risk-level NAME:STATIC_PCT[:DYNAMIC_PCT]` | — | Risk level definition; repeatable |
+| `--cb-levels NAME:SHIFT_PCT[:HALT_MINS[:RESUMPTION_MODE]]` | — | Circuit-breaker level definition; repeatable |
+| `--cb-window-ns NS` | `300000000000` | Circuit-breaker reference window in nanoseconds |
+
+#### Market-maker obligations
+
+| Flag | Default | Description |
+|---|---|---|
+| `--mm-spread-ticks N` | `20` | Global MM max spread ticks |
+| `--mm-min-qty N` | `100` | Global MM minimum quote quantity |
+| `--enforce-mm-obligations` / `--no-enforce-mm-obligations` | disabled | Enable/disable MM obligation enforcement |
+
+#### Symbols / seeding
+
+| Flag | Default | Description |
+|---|---|---|
+| `--tick-decimals N` | `2` | Default tick decimals (`0..8`) |
+| `--seed-last-prices` | off | Emit null last-price placeholders |
+| `--seed N` | — | RNG seed for generated training values |
+| `--seed-mm-mid-range MIN:MAX` | — | Seed MM quotes from a random midpoint |
+| `--seed-last-prices-from-mm` | off | Set last prices from the seeded MM midpoint |
+
+#### Gateway sections
+
+Each flag below enables a top-level YAML section for the corresponding gateway process.
+
+| Flag | Emits | Key sub-flags |
+|---|---|---|
+| `--post-trade-gateway` | `post_trade_gateway:` for `pm-ralf-gwy` | `--post-trade-name`, `--post-trade-bind-address`, `--post-trade-port`, `--post-trade-replay-retention-sec`, `--post-trade-heartbeat-interval-sec`, `--post-trade-idle-timeout-sec`, `--post-trade-max-client-queue`, `--post-trade-allowed-roles` |
+| `--market-data-gateway` | `market_data_gateway:` for `pm-md-gwy` | `--market-data-name`, `--market-data-bind-address`, `--market-data-port`, `--market-data-heartbeat-interval-sec`, `--market-data-idle-timeout-sec`, `--market-data-replay-window-sec`, `--market-data-max-symbols-per-client`, `--market-data-max-client-queue`, `--market-data-depth-levels`, `--market-data-enabled` / `--market-data-disabled` |
+| `--balf-gateway` | `balf_gateway:` for `pm-balf-gwy` | `--balf-name`, `--balf-bind-address`, `--balf-port`, `--balf-heartbeat-interval-sec`, `--balf-heartbeat-timeout-sec`, `--balf-idle-timeout-sec`, `--balf-auth-timeout-sec`, `--balf-max-connections`, `--balf-max-client-queue`, `--balf-max-messages-per-second`, `--balf-max-errors-before-disconnect`, `--balf-error-window-sec`, `--balf-duplicate-session-policy` |
+| `--api-gateway` | `api_gateways:` for `pm-api-gwy` | `--api-gateway-name`, `--api-gateway-instance NAME:GATEWAY[,GATEWAY...][:PORT]` (repeatable), `--api-gateway-host`, `--api-gateway-port`, `--api-gateway-log-level`, `--api-gateway-stats-db`, `--api-gateway-swagger-enabled` / `--api-gateway-swagger-disabled`, `--api-gateway-enabled` / `--api-gateway-disabled`, `--api-gateway-rate-limit-writes-per-second`, `--api-gateway-rate-limit-burst`, `--api-gateway-engine-auth-sec`, `--api-gateway-engine-reply-sec`, `--api-gateway-wait-ack-sec`; credential flags: `--api-key KEY:GATEWAY_ID[:DESCRIPTION]` (repeatable), `--api-gateway-generate-keys` / `--no-api-gateway-generate-keys`, `--api-gateway-readonly-key` |
+
+#### Index sections
+
+| Flag | Description |
+|---|---|
+| `--index INDEX_ID` | Add an index to the config; repeatable |
+| `--index-constituents SYM [SYM ...]` | Constituents for the last `--index` |
+| `--index-base-value N` | Base value for the last `--index` |
+| `--index-interval SEC` | Publish interval for the last `--index` |
+| `--index-history-file PATH` | History file path for the last `--index` |
+| `--index-state-file PATH` | State file path for the last `--index` |
+
+#### Schedule
+
+| Flag | Default | Description |
+|---|---|---|
+| `--schedule` / `--no-schedule` | auto | Force include/suppress schedule section |
+| `--pre-open HH:MM` | `09:00` | Pre-open schedule time |
+| `--opening-auction HH:MM` | `09:25` | Opening auction start time |
+| `--continuous HH:MM` | `09:30` | Continuous trading start time |
+| `--closing-auction HH:MM` | `16:00` | Closing auction start time |
+| `--closing-end HH:MM` | `16:05` | Closing auction end time |
+| `--country CODE` | — | Holiday calendar country code (ISO 3166-1 alpha-2) |
+
+#### Combos
+
+| Flag | Description |
+|---|---|
+| `--combo SPEC` | Add a pre-configured combo definition; repeatable |
+
+#### Output
+
+| Flag | Default | Description |
+|---|---|---|
+| `--output FILE` | stdout | Output YAML file path |
+| `--force` | off | Overwrite existing output file |
+| `--dry-run` | off | Print generated YAML; do not write file |
+| `--comment-default-config-fields` | off | Annotate YAML output with comment markers for default-valued fields |
 
 **Expected runtime input arguments:**
 
@@ -2186,6 +2347,23 @@ CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:
 - `TRADE` (executed trades)
 - `STATE` (session and halt/resume state)
 
+```bash
+pm-md-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5570] [--engine-pub tcp://127.0.0.1:5556] [--index-pub tcp://127.0.0.1:5558] [--log-level LEVEL] [-v|-vv] [-q]
+```
+
+**Startup options:**
+
+| Flag               | Default                 | Description                                                          |
+|--------------------|-------------------------|----------------------------------------------------------------------|
+| `--config` / `-c`  | `engine_config.yaml`    | Config file with optional `market_data_gateway:` section             |
+| `--bind`           | from config / `0.0.0.0` | TCP bind address for external clients                                |
+| `--port`           | from config / `5570`    | TCP listen port for CALF clients                                     |
+| `--engine-pub`     | `tcp://127.0.0.1:5556`  | Engine PUB address consumed by the gateway                           |
+| `--index-pub`      | `tcp://127.0.0.1:5558`  | Index PUB socket address (overrides config)                          |
+| `--log-level`      | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                 |
+| `-q` / `--quiet`   | off                     | Reduce output to warnings/errors                                     |
+
 See [Market Data Feed (CALF)](240-calf-gateway.md) for operational usage and
 [CALF Protocol Reference](920-app-calf-protocol.md) for the wire-level contract.
 
@@ -2215,6 +2393,9 @@ dropping it as an idle client.
 | `--ping-interval` | `60` | Seconds between `PING` keepalives sent to the gateway; `0` disables |
 | `--format` | `human` | `human` or `json` output |
 | `--count` | `0` | Exit after N data-carrying lines (`0` = run until Ctrl-C) |
+| `--raw` | off | Print raw protocol bytes instead of decoded fields |
+| `--no-color` | off | Disable ANSI colour in output |
+| `--show-heartbeats` | off | Include `HB` heartbeat lines in output (hidden by default) |
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 
 See [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) for full usage.
