@@ -20,7 +20,6 @@ def _make_ticker(tmp_path: Path):
     with patch("edumatcher.ticker.main.make_subscriber", return_value=fake_sock):
         proc = TickerProcess(
             db_path=tmp_path / "stats.db",
-            display_interval=30.0,
             db_interval=900.0,
         )
     return proc
@@ -54,9 +53,7 @@ class TestTickerProcess:
         from edumatcher.ticker.main import TickerProcess
 
         with patch("edumatcher.ticker.main.make_subscriber", return_value=fake_sock):
-            proc = TickerProcess(
-                db_path=db_path, display_interval=30.0, db_interval=900.0
-            )
+            proc = TickerProcess(db_path=db_path, db_interval=900.0)
         proc._refresh_db()
         assert "AAPL" in proc._daily
         assert "AAPL" in proc._symbols

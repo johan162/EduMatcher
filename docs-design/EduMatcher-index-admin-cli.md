@@ -58,7 +58,7 @@ client is the Python `ExchangeCommandClient` class
 retiring a constituent means writing a throwaway script — there is no
 `pm-alf-console` command, no `pm-admin-cli` subcommand, and no interactive
 tool at all, a gap already called out explicitly in
-[`docs/user-guide/150-index.md`](../docs/user-guide/150-index.md#applying-corporate-actions):
+[`docs/user-guide/150-market-index.md`](../docs/user-guide/150-market-index.md#applying-corporate-actions):
 
 > "Unlike `INDEX|HISTORY`, corporate actions have no `pm-alf-console`
 > command, no `pm-admin` / `pm-admin-cli` subcommand, and no CALF/ALF wire
@@ -698,7 +698,7 @@ new capability an operator didn't already have via
 
 Given EduMatcher's stated posture that this "is appropriate for a learning
 system running on localhost" (the same rationale already used in
-`docs/user-guide/160-commands.md` for the engine's own PUSH-socket
+`docs/user-guide/160-exchange-commands.md` for the engine's own PUSH-socket
 warning), this proposal recommends:
 
 - **`--id` remains a free-text label**, not validated against
@@ -762,14 +762,14 @@ warning), this proposal recommends:
 
 ## 11. Documentation Changes
 
-- **`docs/user-guide/150-index.md`**: replace the
+- **`docs/user-guide/150-market-index.md`**: replace the
   `!!! warning "No interactive command exists yet"` callout (currently at
   the section documenting corporate actions) with a description of
   `pm-index-admin-cli`, keeping the existing Python
   `ExchangeCommandClient` examples as the "if you're scripting this"
   alternative rather than removing them outright — both remain valid
   entry points, and the doc should say so.
-- **`docs/user-guide/160-commands.md`**: add `pm-index-admin-cli` to the
+- **`docs/user-guide/160-exchange-commands.md`**: add `pm-index-admin-cli` to the
   "Relationship to other tools" table alongside `pm-admin-cli`, and add a
   full command reference section mirroring the existing `pm-index-cli`
   reference section's structure and depth. Cross-reference the new
@@ -844,7 +844,7 @@ warning), this proposal recommends:
 - [ ] No changes were required to `pm-index`, `IndexCalculator`, or
       `ExchangeCommandClient` — confirming this is a pure client
       addition, as scoped in §3.2.
-- [ ] `docs/user-guide/150-index.md` and `160-commands.md` updated per
+- [ ] `docs/user-guide/150-market-index.md` and `160-exchange-commands.md` updated per
       §11, and the "No interactive command exists yet" warning removed.
 
 

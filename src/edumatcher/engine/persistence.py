@@ -48,11 +48,11 @@ def load_gtc_orders(path: Path) -> list[Order]:
     try:
         data = json.loads(path.read_text())
     except Exception as exc:
-        log.error("[PERSISTENCE] Cannot parse GTC orders file %s: %s", path, exc)
+        log.error("Cannot parse GTC orders file %s: %s", path, exc)
         return []
     if not isinstance(data, list):
         log.error(
-            "[PERSISTENCE] GTC orders file %s has unexpected root type %s — expected list",
+            "GTC orders file %s has unexpected root type %s — expected list",
             path,
             type(data).__name__,
         )
@@ -66,7 +66,7 @@ def load_gtc_orders(path: Path) -> list[Order]:
                 d.get("id", "<unknown>") if isinstance(d, dict) else "<not a dict>"
             )
             log.critical(
-                "[PERSISTENCE] Skipping corrupt GTC order at index %d (id=%r): %s — "
+                "Skipping corrupt GTC order at index %d (id=%r): %s — "
                 "check %s for manual recovery",
                 idx,
                 order_id,
@@ -161,11 +161,11 @@ def load_gtc_combos(path: Path) -> list[ComboOrder]:
     try:
         data = json.loads(path.read_text())
     except Exception as exc:
-        log.error("[PERSISTENCE] Cannot parse GTC combos file %s: %s", path, exc)
+        log.error("Cannot parse GTC combos file %s: %s", path, exc)
         return []
     if not isinstance(data, list):
         log.error(
-            "[PERSISTENCE] GTC combos file %s has unexpected root type %s — expected list",
+            "GTC combos file %s has unexpected root type %s — expected list",
             path,
             type(data).__name__,
         )
@@ -179,7 +179,7 @@ def load_gtc_combos(path: Path) -> list[ComboOrder]:
                 d.get("id", "<unknown>") if isinstance(d, dict) else "<not a dict>"
             )
             log.critical(
-                "[PERSISTENCE] Skipping corrupt GTC combo at index %d (id=%r): %s — "
+                "Skipping corrupt GTC combo at index %d (id=%r): %s — "
                 "check %s for manual recovery",
                 idx,
                 combo_id,

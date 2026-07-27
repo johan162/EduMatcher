@@ -1,4 +1,4 @@
-# BALF TCP Gateway (`pm-balf-gwy`)
+# BALF Gateway - Binary Order-Entry
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -842,5 +842,5 @@ EOF
 - [Configuration](010-configuration.md) — `balf_gateway:` section and
   `gateways.alf` allowlist
 - [Processes](170-processes.md) — process topology and ZMQ message tables
-- [External Protocols Overview](210-protocol-overview.md) — protocol comparison
+- [External Protocols Overview](210-protocols-overview.md) — protocol comparison
   and selection guide

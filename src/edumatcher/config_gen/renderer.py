@@ -40,6 +40,10 @@ def render_yaml(
             ["sessions_enabled"],
         ),
         (
+            "Scheduler country",
+            ["country"],
+        ),
+        (
             "Engine behavior",
             ["enforce_collars", "enforce_circuit_breakers"],
         ),
@@ -53,6 +57,7 @@ def render_yaml(
         ("ALF gateway allowlist", ["gateways"]),
         ("RALF post-trade gateway", ["post_trade_gateway"]),
         ("CALF market-data gateway", ["market_data_gateway"]),
+        ("Drop-copy gateway", ["dc_gateway"]),
         ("REST API gateways", ["api_gateways"]),
         ("Symbol universe", ["symbols"]),
         ("Startup market-maker combo seeds", ["market_maker_combos"]),
@@ -177,6 +182,11 @@ _TOP_LEVEL_HINTS: dict[str, list[str]] = {
         "true lets pm-scheduler drive session transitions;",
         "false keeps the engine in continuous mode",
     ],
+    "country": [
+        "country pm-scheduler uses for bank holidays and local wall-clock time;",
+        'accepts a country name (e.g. "Sweden") or ISO 3166-1 alpha-2 code (e.g. "SE")',
+        'defaults to "Sweden" when omitted',
+    ],
     "enforce_collars": ["enables per-symbol collar checks on incoming orders"],
     "enforce_circuit_breakers": ["enables per-symbol circuit-breaker enforcement"],
     "engine_tuning": [
@@ -189,6 +199,7 @@ _TOP_LEVEL_HINTS: dict[str, list[str]] = {
     "post_trade_gateway": ["RALF post-trade gateway settings"],
     "api_gateways": ["REST/WebSocket API gateway process settings"],
     "market_data_gateway": ["CALF market-data gateway settings"],
+    "dc_gateway": ["drop-copy TCP gateway settings (pm-dc-gwy)"],
     "symbols": ["symbol universe"],
     "market_maker_combos": ["startup market-maker combo seeds"],
     "schedule": ["session schedule"],

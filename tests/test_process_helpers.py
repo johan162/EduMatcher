@@ -360,7 +360,9 @@ class TestViewerMain:
 
         monkeypatch.setattr(
             "edumatcher.viewer.main.argparse.ArgumentParser.parse_args",
-            lambda _self: argparse.Namespace(symbol="aapl", depth=3),
+            lambda _self: argparse.Namespace(
+                symbol="aapl", depth=3, db="data/stats.db"
+            ),
         )
         monkeypatch.setattr(viewer_main, "make_subscriber", lambda *_args: sub)
         monkeypatch.setattr(viewer_main, "make_pusher", lambda *_args: push)
@@ -423,7 +425,9 @@ class TestViewerMain:
 
         monkeypatch.setattr(
             "edumatcher.viewer.main.argparse.ArgumentParser.parse_args",
-            lambda _self: argparse.Namespace(symbol="MSFT", depth=2),
+            lambda _self: argparse.Namespace(
+                symbol="MSFT", depth=2, db="data/stats.db"
+            ),
         )
         monkeypatch.setattr(viewer_main, "make_subscriber", lambda *_args: sub)
         monkeypatch.setattr(
@@ -494,7 +498,6 @@ class TestTickerMain:
         sub = _FakeSub()
         proc = ticker_main.TickerProcess(
             db_path=tmp_path / "stats.db",
-            display_interval=10.0,
             db_interval=30.0,
         )
         proc.sub.close()
@@ -524,10 +527,11 @@ class TestTickerMain:
         assert proc._live["AAPL"]["best_ask"] == 150.3
         assert proc._symbols == ["AAPL"]
 
-    def test_run_prints_waiting_then_stops(
+    def test_run_renders_waiting_then_stops(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         import edumatcher.ticker.main as ticker_main
+        from rich.console import Console
 
         class _FakeSub:
             def __init__(self) -> None:
@@ -547,22 +551,35 @@ class TestTickerMain:
             def join(self, timeout: float | None = None) -> None:
                 _ = timeout
 
+        frames: list[object] = []
+
+        class _FakeLive:
+            def __init__(self, **_kwargs: object) -> None:
+                return
+
+            def __enter__(self) -> "_FakeLive":
+                return self
+
+            def __exit__(self, *_args: object) -> None:
+                return None
+
+            def update(self, renderable: object) -> None:
+                frames.append(renderable)
+
+            def refresh(self) -> None:
+                return
+
         proc = ticker_main.TickerProcess(
             db_path=tmp_path / "stats.db",
-            display_interval=1.0,
             db_interval=5.0,
         )
         sub = _FakeSub()
         proc.sub.close()
         proc.sub = cast(Any, sub)
 
-        printed: list[object] = []
-
         monkeypatch.setattr("edumatcher.ticker.main.signal.signal", lambda *_args: None)
         monkeypatch.setattr("edumatcher.ticker.main.threading.Thread", _FakeThread)
-        monkeypatch.setattr(
-            ticker_main.console, "print", lambda msg, *a, **k: printed.append(msg)
-        )
+        monkeypatch.setattr(ticker_main, "Live", _FakeLive)
         monkeypatch.setattr(proc, "_refresh_db", lambda: None)
         monkeypatch.setattr("edumatcher.ticker.main.time.monotonic", lambda: 100.0)
 
@@ -574,7 +591,13 @@ class TestTickerMain:
         proc.run()
 
         assert sub.closed is True
-        assert any("waiting for market data" in str(msg) for msg in printed)
+        assert frames, "expected at least one rendered frame"
+
+        # With no symbols the box should render the waiting placeholder.
+        cap_console = Console(width=120)
+        with cap_console.capture() as captured:
+            cap_console.print(frames[-1])
+        assert "waiting for market data" in captured.get()
 
     def test_main_parses_args_and_runs_process(
         self, monkeypatch: pytest.MonkeyPatch
@@ -584,11 +607,8 @@ class TestTickerMain:
         captured: dict[str, object] = {}
 
         class _FakeProcess:
-            def __init__(
-                self, db_path: Path, display_interval: float, db_interval: float
-            ) -> None:
+            def __init__(self, db_path: Path, db_interval: float) -> None:
                 captured["db_path"] = db_path
-                captured["display_interval"] = display_interval
                 captured["db_interval"] = db_interval
 
             def run(self) -> None:
@@ -596,9 +616,7 @@ class TestTickerMain:
 
         monkeypatch.setattr(
             "edumatcher.ticker.main.argparse.ArgumentParser.parse_args",
-            lambda _self: argparse.Namespace(
-                db="/tmp/stats.db", interval=12.5, db_interval=44.0
-            ),
+            lambda _self: argparse.Namespace(db="/tmp/stats.db", db_interval=44.0),
         )
         monkeypatch.setattr(ticker_main, "TickerProcess", _FakeProcess)
 
@@ -606,5 +624,4 @@ class TestTickerMain:
 
         assert captured["ran"] is True
         assert captured["db_path"] == Path("/tmp/stats.db")
-        assert captured["display_interval"] == 12.5
         assert captured["db_interval"] == 44.0

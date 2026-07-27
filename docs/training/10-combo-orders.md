@@ -138,7 +138,7 @@ a pairs trade versus a take-profit/stop-loss pair?
 
 ## Further Reading
 
-- [Combo Orders](../user-guide/070-combos.md)
+- [Combo Orders](../user-guide/070-combo-orders.md)
 - [ALF Protocol — OCO and Combo Orders](../user-guide/900-app-alf-protocol.md)
 
  

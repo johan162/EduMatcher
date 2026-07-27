@@ -139,3 +139,37 @@ def test_renderer_injects_stub_hint_comments() -> None:
     # Comments must not break YAML parsing.
     parsed = yaml.safe_load(rendered)
     assert parsed["symbols"]["AAPL"]["market_maker_quotes"][0]["bid_price"] is None
+
+
+def test_renderer_emits_country_section_and_hint() -> None:
+    payload = {
+        "sessions_enabled": False,
+        "country": "Germany",
+        "enforce_collars": True,
+        "enforce_circuit_breakers": True,
+        "engine_tuning": {"snapshot_interval_sec": 0.5},
+        "gateways": {
+            "alf": [
+                {
+                    "id": "TRADER01",
+                    "role": "TRADER",
+                    "disconnect_behaviour": "CANCEL_ALL",
+                }
+            ]
+        },
+        "symbols": {"AAPL": {"tick_decimals": 2}},
+    }
+
+    rendered = render_yaml(
+        config=payload,
+        command="pm-config-gen --symbols AAPL --gateways TRADER01 --country Germany",
+        generated_version="1.1.0",
+        generated_date="2026-07-26",
+    )
+
+    assert "# -- Scheduler country --" in rendered
+    assert "country pm-scheduler uses for bank holidays" in rendered
+    assert 'defaults to "Sweden" when omitted' in rendered
+
+    parsed = yaml.safe_load(rendered)
+    assert parsed["country"] == "Germany"

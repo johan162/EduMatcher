@@ -1,11 +1,11 @@
-\documentclass[10pt,b5paper,twoside,openright]{book}
+\documentclass[11pt,a4paper]{book}
 \raggedbottom
 
 \usepackage{fontspec}
 %% \setmainfont{DejaVu Serif}
 \setsansfont{DejaVu Sans}
 \setmonofont{DejaVu Sans Mono}[Scale=MatchLowercase]
-\usepackage[b5paper,top=1.8cm,left=2cm,right=1cm,bottom=1.6cm]{geometry}
+\usepackage[a4paper,top=2cm,left=0.8cm,right=1cm,bottom=1.8cm]{geometry}
 \usepackage{graphicx}
 \usepackage{calc}
 \usepackage{amsmath}
@@ -14,9 +14,6 @@
 \usepackage{array}
 \usepackage{amssymb}
 \usepackage{fancyhdr}
-
-
-
 
 
 \PassOptionsToPackage{hyphens}{url}
@@ -40,9 +37,10 @@
 \usepackage{etoolbox}
 \usepackage[explicit]{titlesec}
 \usepackage[skins,breakable]{tcolorbox}
-\definecolor{codebg}{HTML}{F5F5F5}
+\definecolor{codebg}{HTML}{404040}
 \definecolor{codeborder}{HTML}{C0C0C0}
 \fvset{fontsize=\small}
+
 
 % Shaded background for verbatim: manual minipage with colorbox
 \newenvironment{shadedverbatim}{%
@@ -80,24 +78,17 @@
 % Pandoc 3.x may wrap images with \pandocbounded{...}.
 \providecommand{\pandocbounded}[1]{#1}
 
-\definecolor{brandblue}{HTML}{0E3A5D}
-\definecolor{brandgray}{HTML}{4B5563}
+\definecolor{brandblue}{HTML}{129ADD}
+\definecolor{brandgray}{HTML}{6B7583}
+\definecolor{lightorange}{HTML}{FFA500}
+\definecolor{darkorange}{HTML}{FF8C00}
 
 % Modern chapter heading: accent rule + title + full-width rule
-\titleformat{\chapter}[display]
-  {\normalfont\sffamily}
-  {%
-    \color{brandblue}\rule{1.5cm}{3pt}\hspace{6pt}%
-    {\large\bfseries CHAPTER\ \thechapter}%
-  }
-  {8pt}
-  {\Huge\bfseries\color{brandblue}}
-  [\vspace{4pt}{\color{brandblue}\noindent\rule{\linewidth}{1.5pt}}\vspace{2pt}]
 \makeatletter
 \pretocmd{\section}{\phantomsection}{}{}
 \makeatother
 
-	\titleformat{\chapter}[display]
+\titleformat{\chapter}[display]
   {\normalfont\sffamily}
   {%
     \color{brandblue}\rule{1.5cm}{3pt}\hspace{6pt}%
@@ -114,9 +105,12 @@
 \fancyfoot[C]{\thepage}
 \setlength{\headheight}{14pt}
 
+% Set background to dark gray and text to light gray
+% HTML: 2b2522
+\pagecolor[rgb]{0.17,0.15,0.14}
+\color[rgb]{0.80,0.80,0.80}
 
 \begin{document}
-
 
 {%
   \thispagestyle{empty}%
@@ -128,6 +122,7 @@
   }%
   \clearpage
 }
+
 % Cover verso / imprint page.
 % A bare \newpage does not ship out an empty page; TeX needs actual content.
 {%
@@ -135,7 +130,7 @@
   \null\vfill
   {\small\color{brandgray}%
   \textbf{EduMatcher Training Guide}\\
-  For EduMatcher Version: 0.16.1 \\
+  For EduMatcher Version: @@VERSION@@ \\
   Copyright \textcopyright\ Johan Persson\\
   Generated on \today\\
    Prepared with \LaTeX\ from Markdown sources for duplex printing. 
@@ -148,16 +143,15 @@
 
 \frontmatter
 
-
 \pagenumbering{roman}
 \setcounter{page}{1}
 
 \begin{titlepage}
   \centering
   \vspace*{2.0cm}
-  {\Huge\bfseries\color{brandblue}Training Guide\par}
+  {\Huge\bfseries\color{lightorange}Training Guide\par}
   \vspace{1.2cm}
-  {\Large \texttt{edumatcher}, Version: 0.16.1\par}
+  {\Large \texttt{edumatcher}, Version: @@VERSION@@\par}
   \vspace{1.2cm}
   {\Large An Educational Exchange Platform\par}
   \vfill

@@ -1,4 +1,4 @@
-# Market Data Feed (CALF)
+# CALF Gateway - Market Data Feed
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -1161,11 +1161,11 @@ ws.onmessage = (e) => {
 
 ## See also
 
-- [External Protocols Overview](210-protocol-overview.md) — ALF, BALF, CALF, RALF at a glance
+- [External Protocols Overview](210-protocols-overview.md) — ALF, BALF, CALF, RALF at a glance
 - [Appendix — CALF Protocol](920-app-calf-protocol.md) — normative wire format, full field tables, sequencing rules, including the `AUCTION` and `CB` message definitions
 - [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) — read-only CLI for watching the raw feed, human-readable or JSON
 - [Risk Controls](120-risk-controls.md) — circuit-breaker mechanics behind the `CB` channel and `STATE` halt/resume events
 - [API Gateway](260-api-gateway.md) — REST and WebSocket market data alternative
-- [Post-Trade Dissemination (RALF)](250-post-trade.md) — fills and post-trade events
-- [Messages Reference](270-messages.md#calf-tcp-protocol-pm-md-gwy) — CALF messages in the full message catalogue
+- [Post-Trade Dissemination (RALF)](250-ralf-gateway.md) — fills and post-trade events
+- [Messages Reference](270-message-reference.md#calf-tcp-protocol-pm-md-gwy) — CALF messages in the full message catalogue
 - [Processes](170-processes.md) — where `pm-md-gwy` sits in the process model

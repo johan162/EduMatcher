@@ -10,7 +10,7 @@
     - How to extend the framework with new commands as the exchange evolves
     - How to actively manage an exchange
 
-    **Prerequisites**: [Messages](270-messages.md) for the raw two-frame format.
+    **Prerequisites**: [Messages](270-message-reference.md) for the raw two-frame format.
     [Risk Controls](120-risk-controls.md#admin-role-operator-controls) for
     the halt/resume operational flow.
 
@@ -1158,8 +1158,8 @@ To add a new command:
 
 ## See also
 
-- [Messages](270-messages.md) — raw frame format for every message
+- [Messages](270-message-reference.md) — raw frame format for every message
 - [Risk Controls](120-risk-controls.md) — how halt state affects order matching
 - [Configuration — Role Privileges](010-configuration.md#role-privileges) — the permissions matrix
-- [Gateway Commands](050-gateway.md) — participant-facing CLI commands (TRADER / MM role)
-- [Auctions & Scheduling](080-auctions-scheduling.md) — valid session-state transitions
+- [Gateway Commands](050-gateway-reference.md) — participant-facing CLI commands (TRADER / MM role)
+- [Auctions & Scheduling](080-session-scheduling.md) — valid session-state transitions

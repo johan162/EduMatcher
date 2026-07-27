@@ -1,4 +1,4 @@
-# Engine Configuration
+# Configuration
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -18,8 +18,8 @@ The matching engine and session scheduler both read `engine_config.yaml`. The
 engine uses it to define the symbol universe, authenticated ALF gateway IDs,
 session mode, risk controls, market-maker policy, per-symbol outstanding shares,
 and startup seeds. The scheduler uses only the optional `schedule` section.
-The optional `post_trade_gateway`, `market_data_gateway`, and `api_gateways`
-sections are read by `pm-ralf-gwy`, `pm-md-gwy`, and `pm-api-gwy`
+The optional `post_trade_gateway`, `market_data_gateway`, `dc_gateway`, and `api_gateways`
+sections are read by `pm-ralf-gwy`, `pm-md-gwy`, `pm-dc-gwy`, and `pm-api-gwy`
 respectively.
 
 If the config file is absent, `pm-engine` starts in unrestricted mode: any symbol
@@ -41,19 +41,19 @@ comments. This page explains that shape in operational terms.
     same file format as `pm-config-gen` described below.
 
 !!! note "`gateways.alf` is the only sub-key under `gateways:`"
-    The `gateways:` mapping only contains `alf`. BALF and CALF gateways are
-    configured via separate **top-level** keys (`balf_gateway` and
-    `market_data_gateway`) and are read by their own processes, not by
-    `pm-engine`.
+    The `gateways:` mapping only contains `alf`. BALF, CALF, and DC gateways are
+    configured via separate **top-level** keys (`balf_gateway`, `market_data_gateway`,
+    and `dc_gateway`) and are read by their own processes, not by `pm-engine`.
 
 Each protocol's configuration lives in a different part of `engine_config.yaml`:
 
 - **ALF** — configured under `gateways.alf`; used by `pm-engine` to authenticate order-entry connections from `pm-alf-console` and `pm-alf-gwy`, as well as `pm-balf-gwy` (the gateway id used in the BALF configurations must exist under `gateways.alf`). 
   Uses a pipe-delimited text format (`FIELD=VALUE|FIELD=VALUE`).
 - **BALF** — configured under the top-level `balf_gateway` key; used by `pm-balf-gwy`. Uses fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing overhead is undesirable. See [BALF Gateway](230-balf-gateway.md) for more usage and [BALF Protocol](910-app-balf-protocol.md) for the full specification.
-- **CALF** — configured under the top-level `market_data_gateway` key; used by `pm-md-gwy`. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See [Market Data Feed](240-market-data-feed.md) for usage and [CALF Protocol](920-app-calf-protocol.md) for the full protocol specification.
-- **RALF** — configured under the top-level `post_trade_gateway` key; used by `pm-ralf-gwy`. Provides a replayable audit feed of all executed trades, including the original order details, over a persistent TCP connection with sequence-based gap detection. See [Post Trade](250-post-trade.md) for usage and [RALF Protocol](930-app-ralf-protocol.md) for the full protocol specification.
-- A Full overview of all protocol and their intended usage can be found in [Protocols Overview](210-protocol-overview.md).
+- **CALF** — configured under the top-level `market_data_gateway` key; used by `pm-md-gwy`. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See [Market Data Feed](240-calf-gateway.md) for usage and [CALF Protocol](920-app-calf-protocol.md) for the full protocol specification.
+- **RALF** — configured under the top-level `post_trade_gateway` key; used by `pm-ralf-gwy`. Provides a replayable audit feed of all executed trades, including the original order details, over a persistent TCP connection with sequence-based gap detection. See [Post Trade](250-ralf-gateway.md) for usage and [RALF Protocol](930-app-ralf-protocol.md) for the full protocol specification.
+- **DC1** — configured under the top-level `dc_gateway` key; used by `pm-dc-gwy`. Relays the engine's internal drop-copy feed to plain TCP clients that cannot speak ZeroMQ, using the lightweight DC1 text protocol. See [Drop-Copy Gateway](201-dc-gateway.md) for full usage and protocol details.
+- A Full overview of all protocol and their intended usage can be found in [Protocols Overview](210-protocols-overview.md).
 
 ## File Location
 
@@ -313,6 +313,18 @@ BALF gateway options:
 | `--balf-max-errors-before-disconnect` | int (`> 0`) | `10` | `balf_gateway.max_errors_before_disconnect` |
 | `--balf-error-window-sec` | int (`> 0`) | `60` | `balf_gateway.error_window_sec` |
 | `--balf-duplicate-session-policy` | enum | `REJECT_NEW` | `balf_gateway.duplicate_session_policy`; `REJECT_NEW` or `EVICT_OLD` |
+
+Drop-copy gateway options:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--dc-gateway` | Flag | off | Emit top-level `dc_gateway` block for `pm-dc-gwy` |
+| `--dc-name` | string | `dc-gwy01` | `dc_gateway.name` |
+| `--dc-bind-address` | string | `0.0.0.0` | `dc_gateway.bind_address` |
+| `--dc-port` | int (`> 0`) | `5590` | `dc_gateway.port` |
+| `--dc-heartbeat-interval-sec` | int (`> 0`) | `5` | `dc_gateway.heartbeat_interval_sec` |
+| `--dc-idle-timeout-sec` | int (`> 0`) | `30` | `dc_gateway.idle_timeout_sec` |
+| `--dc-max-client-queue` | int (`> 0`) | `10000` | `dc_gateway.max_client_queue` |
 
 API gateway options:
 
@@ -888,9 +900,11 @@ The current parser recognizes these top-level keys:
 | `circuit_breaker_defaults` |                         No | Engine                          | Default circuit-breaker ladder                                            |
 | `market_maker_combos`      |                         No | Engine                          | Startup multi-symbol combo seeds                                          |
 | `schedule`                 |                         No | Scheduler, parsed by engine too | Session transition times                                                  |
+| `country`                  |                         No | `pm-scheduler`                  | Country used for the scheduler's bank-holiday/weekend calendar            |
 | `post_trade_gateway`       |                         No | `pm-ralf-gwy`                   | External RALF dissemination gateway settings                              |
 | `market_data_gateway`      |                         No | `pm-md-gwy`                     | External CALF dissemination gateway settings                              |
 | `balf_gateway`             |                         No | `pm-balf-gwy`                   | External BALF binary TCP gateway settings                                 |
+| `dc_gateway`               |                         No | `pm-dc-gwy`                     | Drop-copy TCP relay gateway settings                                      |
 | `api_gateways`             |                         No | `pm-api-gwy`                | Named REST/WebSocket order-entry and market-data gateway process settings |
 | `indices`                  |                         No | `pm-index`                      | Index calculation process configurations                                  |
 
@@ -905,7 +919,7 @@ all of it. Each auxiliary gateway or service opens the file independently at
 its own startup, ignores every top-level key it doesn't recognize, and parses
 only the section(s) it owns. `pm-engine` is the only process that reads most
 of the file — the gateway-specific blocks (`market_data_gateway`,
-`balf_gateway`, `post_trade_gateway`, `alf_gateway`, `api_gateways`) are never
+`balf_gateway`, `post_trade_gateway`, `dc_gateway`, `alf_gateway`, `api_gateways`) are never
 touched by the engine itself.
 
 | Process | Loader module | Top-level section(s) read | What it needs it for |
@@ -915,9 +929,10 @@ touched by the engine itself.
 | `pm-balf-gwy` | `balf_gwy/config.py` | `balf_gateway`, `gateways.alf` | Own bind address/port/timeouts, plus the gateway ID allowlist, roles, and `disconnect_behaviour` for BALF sessions |
 | `pm-ralf-gwy` | `ralf_gateway/config.py` | `post_trade_gateway` | Own bind address/port/timeouts and `allowed_roles` for RALF (post-trade) subscribers |
 | `pm-md-gwy` | `md_gateway/config.py` | `market_data_gateway` | Own bind address/port/timeouts, replay window, and `depth_levels` for CALF subscribers |
+| `pm-dc-gwy` | `dc_gwy/config.py` | `dc_gateway` | Own bind address/port/timeouts and per-client queue limit for the drop-copy TCP relay |
 | `pm-api-gwy` | `api_gateway/config.py` | `api_gateways` | Named REST/WebSocket gateway instances, API credentials, rate limits, and timeouts |
 | `pm-index` | `index/config_loader.py` (wraps `engine/config_loader.py`) | `indices`, `symbols.<SYM>.outstanding_shares`, `symbols.<SYM>.last_buy_price` / `last_sell_price` | Index definitions (constituents, base value, publish interval) and the per-constituent share counts / reference prices needed to seed each index at startup |
-| `pm-scheduler` | `scheduler/main.py` | `schedule` | Session-phase transition times — re-reads the same block `pm-engine` reads, but as an independent process so the schedule can be driven or tested externally |
+| `pm-scheduler` | `scheduler/main.py` | `schedule`, `country` | Session-phase transition times — re-reads the same block `pm-engine` reads, but as an independent process so the schedule can be driven or tested externally — plus the country used to skip weekends and bank holidays |
 
 !!! note "Validation tooling reads everything"
     `pm-cverifier` is the exception: as a static linter it parses and
@@ -2209,6 +2224,32 @@ The default session path is:
 PRE_OPEN -> OPENING_AUCTION -> CONTINUOUS -> CLOSING_AUCTION -> CLOSED
 ```
 
+### `country`
+
+```yaml
+country: Sweden
+```
+
+`country` is a top-level key — a sibling of `schedule`, not nested under it.
+`pm-scheduler` uses it to decide which calendar days are trading days: it
+will not run the daily schedule on a weekend or on that country's bank
+holidays, using the [`python-holidays`](https://pypi.org/project/holidays/)
+package to resolve the holiday calendar.
+
+| Aspect | Value |
+|---|---|
+| Accepted forms | Country name (`"Sweden"`) or ISO 3166-1 alpha-2 code (`"SE"`) |
+| Default when omitted | `"Sweden"` |
+| Behavior on an unrecognized value | Falls back to `"Sweden"` and logs a warning |
+| Weekends | Always treated as non-working days, regardless of the holiday calendar |
+
+Under `--daily`, a non-working day is skipped and the scheduler sleeps
+through to the next working day rather than the next calendar day. In
+single-shot mode (the default, no `--daily`), the scheduler simply sends no
+transitions and exits if started on a non-working day. See
+[Session Scheduling → Bank holidays and weekends](080-session-scheduling.md#bank-holidays-and-weekends)
+for the full behavior breakdown by run mode.
+
 
 ## Startup and Persistence Order
 
@@ -2537,8 +2578,8 @@ parsed:
 
 ## See Also
 
-- [Running the Engine](040-running-the-engine.md) - startup order and common runtime workflows
-- [Gateway Commands](050-gateway.md) - ALF commands and gateway behavior
+- [Running the Engine](040-running-the-exchange.md) - startup order and common runtime workflows
+- [Gateway Commands](050-gateway-reference.md) - ALF commands and gateway behavior
 - [Risk Controls](120-risk-controls.md) - collar and circuit-breaker behavior in depth
 - [Persistence](180-persistence.md) - how GTC orders, book stats, and combos are saved and restored
 - [Processes](170-processes.md) - which process reads which config section

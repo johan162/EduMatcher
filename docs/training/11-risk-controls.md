@@ -301,7 +301,7 @@ designed to stop that per-order collars cannot?
 ## Further Reading
 
 - [Risk Controls](../user-guide/120-risk-controls.md)
-- [Controlling the Exchange](../user-guide/160-commands.md)
+- [Controlling the Exchange](../user-guide/160-exchange-commands.md)
 - [Processes](../user-guide/170-processes.md)
 - [Drop Copy](../user-guide/200-drop-copy.md)
 - [A Full Trading Day](../concepts/05-concepts-trading-day.md)

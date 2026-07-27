@@ -64,6 +64,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_balf_gateway(raw, results)
     _check_post_trade_gateway(raw, results)
     _check_market_data_gateway(raw, results)
+    _check_dc_gateway(raw, results)
     _check_api_gateway_sections(raw, results)
     return results
 
@@ -1507,6 +1508,21 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
             )
         )
 
+    country = raw.get("country")
+    if country is not None and (not isinstance(country, str) or not country.strip()):
+        results.append(
+            CheckResult(
+                code="S065",
+                severity=Severity.ERROR,
+                message=f"'country' must be a non-empty string when provided. Got '{country}'.",
+                suggestion=(
+                    'Set country to a country name (e.g. "Sweden") or an '
+                    'ISO 3166-1 alpha-2 code (e.g. "SE").'
+                ),
+                path="country",
+            )
+        )
+
 
 def _check_mm_obligation_defaults_schema(
     raw: dict[str, Any], results: list[CheckResult]
@@ -1883,3 +1899,101 @@ def _check_market_data_gateway(raw: dict[str, Any], results: list[CheckResult]) 
                 path="market_data_gateway",
             )
         )
+
+
+# ---------------------------------------------------------------------------
+# dc_gateway schema checks (S090–S094)
+# ---------------------------------------------------------------------------
+
+_DC_POSITIVE_INT_FIELDS = ("max_client_queue",)
+
+_DC_POSITIVE_INT_OR_FLOAT_FIELDS = (
+    "heartbeat_interval_sec",
+    "idle_timeout_sec",
+)
+
+
+def _check_dc_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    """Validate the optional dc_gateway section (S090–S094)."""
+    section = raw.get("dc_gateway")
+    if section is None:
+        return
+
+    if not isinstance(section, dict):
+        results.append(
+            CheckResult(
+                code="S090",
+                severity=Severity.ERROR,
+                message="'dc_gateway' must be a mapping.",
+                suggestion="Change dc_gateway to a mapping with field=value pairs.",
+                path="dc_gateway",
+            )
+        )
+        return
+
+    # port
+    port = section.get("port")
+    if port is not None:
+        if (
+            isinstance(port, bool)
+            or not isinstance(port, int)
+            or not (1 <= port <= 65535)
+        ):
+            results.append(
+                CheckResult(
+                    code="S091",
+                    severity=Severity.ERROR,
+                    message="'dc_gateway.port' must be an integer in 1\u201365535.",
+                    suggestion="Set port to a valid TCP port number, e.g. 5590.",
+                    path="dc_gateway.port",
+                )
+            )
+
+    # name / bind_address must be non-empty strings when present
+    for str_field in ("name", "bind_address"):
+        val = section.get(str_field)
+        if val is not None:
+            if not isinstance(val, str) or not val.strip():
+                results.append(
+                    CheckResult(
+                        code="S092",
+                        severity=Severity.ERROR,
+                        message=f"'dc_gateway.{str_field}' must be a non-empty string.",
+                        suggestion=f"Set {str_field} to a non-empty string value.",
+                        path=f"dc_gateway.{str_field}",
+                    )
+                )
+
+    # positive integer capacity fields
+    for field in _DC_POSITIVE_INT_FIELDS:
+        val = section.get(field)
+        if val is not None:
+            if isinstance(val, bool) or not isinstance(val, int) or val <= 0:
+                results.append(
+                    CheckResult(
+                        code="S093",
+                        severity=Severity.ERROR,
+                        message=f"'dc_gateway.{field}' must be a positive integer.",
+                        suggestion=f"Set {field} to an integer > 0.",
+                        path=f"dc_gateway.{field}",
+                    )
+                )
+
+    # positive numeric timeout/interval fields
+    for field in _DC_POSITIVE_INT_OR_FLOAT_FIELDS:
+        val = section.get(field)
+        if val is not None:
+            try:
+                fval = float(val)
+                if fval <= 0:
+                    raise ValueError("non-positive")
+            except (TypeError, ValueError):
+                results.append(
+                    CheckResult(
+                        code="S094",
+                        severity=Severity.ERROR,
+                        message=f"'dc_gateway.{field}' must be a positive number.",
+                        suggestion=f"Set {field} to a number > 0.",
+                        path=f"dc_gateway.{field}",
+                    )
+                )

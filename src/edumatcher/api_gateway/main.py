@@ -118,7 +118,7 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
         index_pull_addr=index_pull_addr,
         index_pub_addr=index_pub_addr,
         stats_db=Path(args.stats_db).expanduser() if args.stats_db else config.stats_db,
-        log_level=args.log_level or config.log_level,
+        log_level=args.log_level.lower() if args.log_level else config.log_level,
         swagger_enabled=config.swagger_enabled,
         credentials=config.credentials,
         rate_limit=config.rate_limit,
@@ -126,7 +126,7 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
     )
 
 
-def main() -> None:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher REST API gateway")
     from edumatcher.cli_version import add_version_argument
 
@@ -157,15 +157,55 @@ def main() -> None:
     )
     parser.add_argument(
         "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
         default=None,
-        choices=["debug", "info", "warning", "error"],
-        help="uvicorn logging level",
+        help="Logging level override (default: WARNING)",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase log verbosity (-v: INFO, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce output to warnings/errors",
+    )
+    return parser
+
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    log_level = getattr(args, "log_level", None)
+    verbose = getattr(args, "verbose", 0)
+    quiet = getattr(args, "quiet", False)
+
+    if log_level:
+        level_name = str(log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif verbose >= 2:
+        level = logging.DEBUG
+    elif verbose == 1:
+        level = logging.INFO
+    elif quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
     logging.basicConfig(
-        level=logging.INFO,
+        level=level,
         format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
     )
+    return int(level)
+
+
+def main() -> None:
+    parser = _build_parser()
+    args = parser.parse_args()
+    _configure_logging(args)
     try:
         config = _config_with_overrides(args)
     except Exception as exc:

@@ -17,7 +17,7 @@
     `engine_config.yaml` with your gateway ID and role configured before connecting.
     [Order Types](060-order-types.md) — understand what NEW, AMEND, OCO, and COMBO
     mean before using the commands here.
-    [Messages](270-messages.md) — for the raw two-frame format underlying every
+    [Messages](270-message-reference.md) — for the raw two-frame format underlying every
     gateway response.
 
 ## Background — Gateways in Real Exchange Architecture
@@ -1129,8 +1129,8 @@ the command prompt. You can continue typing while events arrive.
 - [Configuration](010-configuration.md#alf-gateway-allowlist) — gateway roles, allowlists, disconnect behaviour, and MM obligations
 - [Order Types](060-order-types.md) — full semantics for every order type accepted by the gateway
 - [ALF Protocol Reference](900-app-alf-protocol.md) — formal ABNF grammar and field rules for the pipe-delimited syntax
-- [Messages](270-messages.md) — the ZeroMQ messages the gateway publishes and subscribes to
+- [Messages](270-message-reference.md) — the ZeroMQ messages the gateway publishes and subscribes to
 - [Risk Controls](120-risk-controls.md) — how the engine enforces collars, halts, and kill switches on gateway flow
-- [Running the Engine](040-running-the-engine.md) — how to start `pm-alf-console` and verify the connection
-- [Index](150-index.md) — `pm-index` process, index composition, and the `index.update`/`index.history` feed behind the `INDEX` command
+- [Running the Engine](040-running-the-exchange.md) — how to start `pm-alf-console` and verify the connection
+- [Index](150-market-index.md) — `pm-index` process, index composition, and the `index.update`/`index.history` feed behind the `INDEX` command
 - [Statistics and Reporting](140-statistics-and-reporting.md) — `pm-stats-cli index-daily`/`index-snapshots` for level/EOD history (vs. `INDEX|HISTORY`'s structural records)

@@ -38,6 +38,12 @@ from .defaults import (
     DEFAULT_BALF_GATEWAY_NAME,
     DEFAULT_BALF_GATEWAY_PORT,
     DEFAULT_INDEX_BASE_VALUE,
+    DEFAULT_DC_GATEWAY_BIND_ADDRESS,
+    DEFAULT_DC_GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_DC_GATEWAY_IDLE_TIMEOUT_SEC,
+    DEFAULT_DC_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_DC_GATEWAY_NAME,
+    DEFAULT_DC_GATEWAY_PORT,
     DEFAULT_INDEX_DATA_DIR,
     DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
@@ -79,6 +85,7 @@ class ConfigSpec:
     symbols: list[str]
     gateways: list[GatewaySpec]
     sessions_enabled: bool = False
+    country: str | None = None
     snapshot_interval_sec: float = DEFAULT_SNAPSHOT_INTERVAL_SEC
     quote_history_maxlen: int = DEFAULT_QUOTE_HISTORY_MAXLEN
     drop_copy_buffer_size: int = DEFAULT_DROP_COPY_BUFFER_SIZE
@@ -111,6 +118,7 @@ class ConfigSpec:
     post_trade_gateway: PostTradeGatewaySpec | None = None
     market_data_gateway: MarketDataGatewaySpec | None = None
     balf_gateway: BalfGatewaySpec | None = None
+    dc_gateway: DcGatewaySpec | None = None
     api_gateways: tuple[ApiGatewaySpec, ...] = ()
     indices: tuple[IndexSpec, ...] = ()
     combos: list[ComboSpec] = field(default_factory=list)
@@ -159,6 +167,16 @@ class BalfGatewaySpec:
     )
     error_window_sec: int = DEFAULT_BALF_GATEWAY_ERROR_WINDOW_SEC
     duplicate_session_policy: str = DEFAULT_BALF_GATEWAY_DUPLICATE_SESSION_POLICY
+
+
+@dataclass(frozen=True)
+class DcGatewaySpec:
+    name: str = DEFAULT_DC_GATEWAY_NAME
+    bind_address: str = DEFAULT_DC_GATEWAY_BIND_ADDRESS
+    port: int = DEFAULT_DC_GATEWAY_PORT
+    heartbeat_interval_sec: int = DEFAULT_DC_GATEWAY_HEARTBEAT_INTERVAL_SEC
+    idle_timeout_sec: int = DEFAULT_DC_GATEWAY_IDLE_TIMEOUT_SEC
+    max_client_queue: int = DEFAULT_DC_GATEWAY_MAX_CLIENT_QUEUE
 
 
 @dataclass(frozen=True)
@@ -237,6 +255,9 @@ class ConfigBuilder:
             },
         }
 
+        if self.spec.country is not None:
+            cfg["country"] = self.spec.country
+
         if self._should_emit_mm_defaults():
             cfg["mm_obligation_defaults"] = self._build_mm_defaults()
 
@@ -254,6 +275,8 @@ class ConfigBuilder:
             cfg["market_data_gateway"] = self._build_market_data_gateway()
         if self.spec.balf_gateway is not None:
             cfg["balf_gateway"] = self._build_balf_gateway()
+        if self.spec.dc_gateway is not None:
+            cfg["dc_gateway"] = self._build_dc_gateway()
         if self.spec.api_gateways:
             cfg["api_gateways"] = self._build_api_gateways()
         cfg["symbols"] = self._build_symbols()
@@ -328,6 +351,20 @@ class ConfigBuilder:
             "max_errors_before_disconnect": spec.max_errors_before_disconnect,
             "error_window_sec": spec.error_window_sec,
             "duplicate_session_policy": spec.duplicate_session_policy,
+        }
+
+    def _build_dc_gateway(self) -> dict[str, Any]:
+        spec = self.spec.dc_gateway
+        if spec is None:
+            return {}
+
+        return {
+            "name": spec.name,
+            "bind_address": spec.bind_address,
+            "port": spec.port,
+            "heartbeat_interval_sec": spec.heartbeat_interval_sec,
+            "idle_timeout_sec": spec.idle_timeout_sec,
+            "max_client_queue": spec.max_client_queue,
         }
 
     def _build_api_gateways(self) -> dict[str, Any]:

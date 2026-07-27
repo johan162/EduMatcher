@@ -189,7 +189,7 @@ choice available?
 
 ## Further Reading
 
-- [Controlling the Exchange](../user-guide/160-commands.md)
+- [Controlling the Exchange](../user-guide/160-exchange-commands.md)
 - [Processes](../user-guide/170-processes.md)
 - [Risk Controls](../user-guide/120-risk-controls.md)
 

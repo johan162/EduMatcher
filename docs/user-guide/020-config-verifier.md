@@ -1,4 +1,4 @@
-# Config Verifier (`pm-cverifier`)
+# Configuration Verifier (`pm-cverifier`)
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -454,7 +454,7 @@ built-in L1/L2/L3 ladder is in effect).
 | `pm-config-gen` (see [Configuration](010-configuration.md)) | *Generate* an `engine_config.yaml` from CLI flags |
 | Config GUI (see [Config GUI](030-config-GUI.md))            | *Generate/edit* an `engine_config.yaml` visually, with a built-in "Verify with pm-cverifier" action |
 | `pm-cverifier`                   | *Verify* an existing config file before use         |
-| `pm-engine` (see [Running the Engine](040-running-the-engine.md)) | *Load* the config and start the matching engine |
+| `pm-engine` (see [Running the Engine](040-running-the-exchange.md)) | *Load* the config and start the matching engine |
 
 `pm-cverifier` is read-only and has no effect on the engine or any runtime state.
 It is safe to run at any time, including while the engine is running.

@@ -13,7 +13,7 @@ exclude_docs: |
   package.json
   package-lock.json
   mermaid-filter.err
-  README.md
+
 
 theme:
   name: material
@@ -91,35 +91,35 @@ nav:
     - Engine Configuration: user-guide/010-configuration.md
     - Config Verifier: user-guide/020-config-verifier.md
     - Configuration GUI: user-guide/030-config-GUI.md
-    - Running the Exchange: user-guide/040-running-the-engine.md
-    - Gateway Reference: user-guide/050-gateway.md
+    - Running the Exchange: user-guide/040-running-the-exchange.md
+    - Gateway Reference: user-guide/050-gateway-reference.md
     - Order Types: user-guide/060-order-types.md
-    - Combo Orders: user-guide/070-combos.md
-    - Auctions & Scheduling: user-guide/080-auctions-scheduling.md
+    - Combo Orders: user-guide/070-combo-orders.md
+    - Auctions & Scheduling: user-guide/080-session-scheduling.md
     - Market Making: user-guide/090-market-maker.md
     - Market-Maker Bot: user-guide/100-mm-bot.md
     - AI Traders: user-guide/110-ai-traders.md
     - Risk Controls: user-guide/120-risk-controls.md
     - P&L & Clearing: user-guide/130-pnl-clearing.md
     - Statistics and Reporting: user-guide/140-statistics-and-reporting.md
-    - Market Index: user-guide/150-index.md
+    - Market Index: user-guide/150-market-index.md
     - Index Admin CLI: user-guide/152-index-admin-cli.md
-    - Exchange Commands: user-guide/160-commands.md
+    - Exchange Commands: user-guide/160-exchange-commands.md
     - Processes: user-guide/170-processes.md
     - Persistence: user-guide/180-persistence.md
     - Audit Trail: user-guide/190-audit.md
     - Drop Copy: user-guide/200-drop-copy.md
     - Drop-Copy TCP Gateway (pm-dc-gwy): user-guide/201-dc-gateway.md
-    - External Protocols Overview: user-guide/210-protocol-overview.md
+    - Drop-Copy Spy (pm-dc-spy): user-guide/202-dc-spy-cli.md
+    - External Protocols Overview: user-guide/210-protocols-overview.md
     - ALF TCP Gateway: user-guide/220-alf-gateway.md
     - BALF TCP Gateway: user-guide/230-balf-gateway.md
-    - Market Data Feed (CALF): user-guide/240-market-data-feed.md
+    - Market Data Feed (CALF): user-guide/240-calf-gateway.md
     - CALF Protocol Spy (pm-calf-spy): user-guide/241-calf-spy-cli.md
-    - Post-Trade Dissemination (RALF): user-guide/250-post-trade.md
+    - Post-Trade Dissemination (RALF): user-guide/250-ralf-gateway.md
     - RALF Protocol Spy (pm-ralf-spy): user-guide/251-ralf-spy-cli.md
-    - Drop-Copy Spy (pm-dc-spy): user-guide/252-dc-spy-cli.md
     - API Gateway: user-guide/260-api-gateway.md
-    - Message Reference: user-guide/270-messages.md
+    - Message Reference: user-guide/270-message-reference.md
     - Examples: user-guide/800-examples.md
     - Example Engine Configs: user-guide/810-example-configs.md
     - Known Limitations & Bugs: user-guide/890-known-limitations-bugs.md

@@ -38,14 +38,14 @@ docs/
 │   └── mermaid-init.js                          - Render mermaid graphs
 └── user-guide                                   - The main user-guide
     ├── 010-configuration.md
-    ├── 160-commands.md
-    ├── 040-running-the-engine.md
+    ├── 160-exchange-commands.md
+    ├── 040-running-the-exchange.md
     ├── 060-order-types.md
-    ├── 070-combos.md
-    ├── 080-auctions-scheduling.md
+    ├── 070-combo-orders.md
+    ├── 080-session-scheduling.md
     ├── 130-pnl-clearing.md
-    ├── 050-gateway.md
-    ├── 270-messages.md
+    ├── 050-gateway-reference.md
+    ├── 270-message-reference.md
     ├── 170-processes.md
     ├── 180-persistence.md
     ├── 120-risk-controls.md

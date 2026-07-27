@@ -537,7 +537,7 @@ settlement file, and (3) check the audit integrity of the day's clearing?
 ## Further Reading
 
 - [P&L & Clearing](../user-guide/130-pnl-clearing.md)
-- [Messages](../user-guide/270-messages.md)
+- [Messages](../user-guide/270-message-reference.md)
 - [Statistics and Reporting](../user-guide/140-statistics-and-reporting.md)
 - [Your First Trade](../concepts/04-concepts-first-trade.md)
 

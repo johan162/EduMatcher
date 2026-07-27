@@ -8,7 +8,7 @@ Tests for:
   registered handler — previously such a topic just fell off the end of the
   if/elif chain with no log line and no counter increment.
 
-See docs/user-guide/270-messages.md (`system.quote_legs_request` /
+See docs/user-guide/270-message-reference.md (`system.quote_legs_request` /
 `system.quote_legs.{GW_ID}`) for the documented contract these tests pin
 down.
 """

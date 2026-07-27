@@ -1,4 +1,4 @@
-# Getting Started with EduMatcher
+# Getting Started
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -93,7 +93,7 @@ macOS, Linux, or Windows.
 **Bootstrap with one command**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.16.1 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.16.2 --snapshot
 ```
 
 This command downloads the VM setup scripts, launches a Multipass VM,
@@ -117,7 +117,7 @@ terminal to start `pm-alf-console`, `pm-viewer`, `pm-clearing`, and `pm-audit`.
 ```bash
 # Different VM name and version
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
-    bash -s -- --name edumatcher-vm --version 0.16.1 --snapshot
+    bash -s -- --name edumatcher-vm --version 0.16.2 --snapshot
 
 # Tune resources
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
@@ -129,7 +129,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_se
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.16.1 --snapshot
+bash curl_setup_vm.sh --version 0.16.2 --snapshot
 ```
 
 ### End-user / student mode — `pipx install` (recommended)
@@ -287,25 +287,25 @@ documented. All commands are shown in pipx form; in developer mode prepend
 
 | Command | Interactivity | Purpose | More information |
 |---|---|---|---|
-| `pm-engine` | Background | Matching engine; central order-book writer | [Processes](170-processes.md), [Running the Engine](040-running-the-engine.md), [Configuration](010-configuration.md) |
-| `pm-alf-console` | Interactive terminal | ALF participant terminal and order entry | [Processes](170-processes.md), [Gateway](050-gateway.md), [ALF Protocol](900-app-alf-protocol.md) |
+| `pm-engine` | Background | Matching engine; central order-book writer | [Processes](170-processes.md), [Running the Engine](040-running-the-exchange.md), [Configuration](010-configuration.md) |
+| `pm-alf-console` | Interactive terminal | ALF participant terminal and order entry | [Processes](170-processes.md), [Gateway](050-gateway-reference.md), [ALF Protocol](900-app-alf-protocol.md) |
 | `pm-alf-gwy` | Background | External ALF TCP gateway — order entry for bots/remote clients over TCP :5565 | [Processes](170-processes.md#pm-alf-gwy-alf-tcp-gateway), [ALF TCP Gateway](220-alf-gateway.md), [ALF Protocol](900-app-alf-protocol.md) |
-| `pm-scheduler` | Background | Session phase transitions by schedule | [Processes](170-processes.md), [Auctions and Scheduling](080-auctions-scheduling.md) |
+| `pm-scheduler` | Background | Session phase transitions by schedule | [Processes](170-processes.md), [Auctions and Scheduling](080-session-scheduling.md) |
 | `pm-viewer` | Terminal display | Single-symbol live order book view | [Processes](170-processes.md), [Order Types](060-order-types.md) |
-| `pm-orders` | Terminal display | Live cross-gateway order status monitor | [Processes](170-processes.md), [Messages](270-messages.md) |
+| `pm-orders` | Terminal display | Live cross-gateway order status monitor | [Processes](170-processes.md), [Messages](270-message-reference.md) |
 | `pm-board` | Terminal display | Multi-symbol market board display | [Processes](170-processes.md) |
 | `pm-ticker` | Terminal display | Scrolling ticker with live plus OHLCV context | [Processes](170-processes.md), [Statistics and Reporting](140-statistics-and-reporting.md) |
 | `pm-stats` | Background | Persist market statistics to SQLite | [Processes](170-processes.md), [Statistics and Reporting](140-statistics-and-reporting.md) |
 | `pm-clearing` | Terminal display | Trade recording and running P&L | [Processes](170-processes.md), [P&L and Clearing](130-pnl-clearing.md) |
 | `pm-audit` | Background | Full event log capture from the bus | [Processes](170-processes.md), [Persistence](180-persistence.md) |
-| `pm-ralf-gwy` | Background | External post-trade dissemination gateway (RALF) | [Processes](170-processes.md), [Post-Trade Dissemination](250-post-trade.md), [RALF Protocol](930-app-ralf-protocol.md) |
+| `pm-ralf-gwy` | Background | External post-trade dissemination gateway (RALF) | [Processes](170-processes.md), [Post-Trade Dissemination](250-ralf-gateway.md), [RALF Protocol](930-app-ralf-protocol.md) |
 | `pm-admin` | Interactive terminal | Interactive operational console | [Processes](170-processes.md), [Risk Controls](120-risk-controls.md) |
 | `pm-ai-trader` | Background | Single autonomous trading bot gateway | [Processes](170-processes.md), [AI Traders](110-ai-traders.md) |
 | `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](170-processes.md), [AI Traders](110-ai-traders.md) |
 | `pm-mm-bot` | Background | Autonomous market-maker quoting bot | [Processes](170-processes.md), [Market-Maker Bot](100-mm-bot.md) |
-| `pm-md-gwy` | Background | Market-data distribution gateway (CALF) | [Processes](170-processes.md#pm-md-gwy-calf-market-data-gateway), [Market Data Feed](240-market-data-feed.md), [CALF Protocol](920-app-calf-protocol.md) |
+| `pm-md-gwy` | Background | Market-data distribution gateway (CALF) | [Processes](170-processes.md#pm-md-gwy-calf-market-data-gateway), [Market Data Feed](240-calf-gateway.md), [CALF Protocol](920-app-calf-protocol.md) |
 | `pm-api-gwy` | Background | REST/WebSocket order-entry and market-data API gateway | [Processes](170-processes.md#pm-api-gwy-restwebsocket-api-gateway), [API Gateway](260-api-gateway.md) |
-| `pm-index` | Background | Real-time cap-weighted index calculation and dissemination | [Processes](170-processes.md#pm-index-index-calculation-process), [Market Index](150-index.md) |
+| `pm-index` | Background | Real-time cap-weighted index calculation and dissemination | [Processes](170-processes.md#pm-index-index-calculation-process), [Market Index](150-market-index.md) |
 | `pm-balf-gwy` | Background | Binary order-entry gateway (BALF) over TCP | [Processes](170-processes.md), [BALF Gateway](230-balf-gateway.md), [BALF Protocol](910-app-balf-protocol.md) |
 | `pm-dc-gwy` | Background | External drop-copy gateway (DC1) — relays :5557 fills over TCP for non-ZeroMQ clients | [Processes](170-processes.md#pm-dc-gwy-drop-copy-tcp-gateway), [Drop-Copy TCP Gateway](201-dc-gateway.md), [Drop Copy](200-drop-copy.md) |
 
@@ -318,11 +318,11 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-stats-cli` | Query `stats.db` without writing SQL | [Processes](170-processes.md#pm-stats-cli-statistics-query-cli), [Statistics and Reporting](140-statistics-and-reporting.md) |
 | `pm-clearing-cli` | Query `clearing.db` without writing SQL | [Processes](170-processes.md#pm-clearing-cli-clearing-query-cli), [P&L & Clearing](130-pnl-clearing.md) |
 | `pm-audit-cli` | Query audit log files without shell pipelines | [Processes](170-processes.md#pm-audit-event-logger), [Audit Trail](190-audit.md) |
-| `pm-index-cli` | Read-only query interface for index history files | [Processes](170-processes.md#pm-index-cli-index-structuralaudit-history-query-tool), [Commands](160-commands.md), [Market Index](150-index.md#using-pm-index-cli-for-structuralaudit-records) |
-| `pm-index-admin-cli` | Apply index corporate actions (splits, dividends, share issuance/buybacks) and constituent changes (add/delist) | [Processes](170-processes.md#pm-index-admin-cli-index-corporate-action-constituent-change-cli), [Index Admin CLI](152-index-admin-cli.md), [Market Index](150-index.md) |
-| `pm-calf-spy` | Spy on the CALF market-data protocol — connect to `pm-md-gwy` and print every line, human-readable or JSON | [Processes](170-processes.md#pm-calf-spy-calf-protocol-spy), [CALF Protocol Spy](241-calf-spy-cli.md), [Market Data Feed](240-market-data-feed.md) |
-| `pm-ralf-spy` | Spy on the RALF post-trade protocol — connect to `pm-ralf-gwy` and print every line, human-readable or JSON | [Processes](170-processes.md#pm-ralf-spy-ralf-protocol-spy), [RALF Protocol Spy](251-ralf-spy-cli.md), [Post-Trade Dissemination](250-post-trade.md) |
-| `pm-dc-spy` | Spy on the engine's drop-copy feed — connect directly to `:5557` and print every fill event, human-readable or JSON | [Processes](170-processes.md#pm-dc-spy-drop-copy-spy), [Drop-Copy Spy](252-dc-spy-cli.md), [Drop Copy](200-drop-copy.md) |
+| `pm-index-cli` | Read-only query interface for index history files | [Processes](170-processes.md#pm-index-cli-index-structuralaudit-history-query-tool), [Commands](160-exchange-commands.md), [Market Index](150-market-index.md#using-pm-index-cli-for-structuralaudit-records) |
+| `pm-index-admin-cli` | Apply index corporate actions (splits, dividends, share issuance/buybacks) and constituent changes (add/delist) | [Processes](170-processes.md#pm-index-admin-cli-index-corporate-action-constituent-change-cli), [Index Admin CLI](152-index-admin-cli.md), [Market Index](150-market-index.md) |
+| `pm-calf-spy` | Spy on the CALF market-data protocol — connect to `pm-md-gwy` and print every line, human-readable or JSON | [Processes](170-processes.md#pm-calf-spy-calf-protocol-spy), [CALF Protocol Spy](241-calf-spy-cli.md), [Market Data Feed](240-calf-gateway.md) |
+| `pm-ralf-spy` | Spy on the RALF post-trade protocol — connect to `pm-ralf-gwy` and print every line, human-readable or JSON | [Processes](170-processes.md#pm-ralf-spy-ralf-protocol-spy), [RALF Protocol Spy](251-ralf-spy-cli.md), [Post-Trade Dissemination](250-ralf-gateway.md) |
+| `pm-dc-spy` | Spy on the engine's drop-copy feed — connect directly to `:5557` and print every fill event, human-readable or JSON | [Processes](170-processes.md#pm-dc-spy-drop-copy-spy), [Drop-Copy Spy](202-dc-spy-cli.md), [Drop Copy](200-drop-copy.md) |
 | `pm-setup` |  Bootstrap local session directory and defaults | [Processes](170-processes.md), [Installation](000-getting-started.md#installation) |
 | `pm-config-gen` | Generate `engine_config.yaml` from CLI options | [Processes](170-processes.md), [Configuration generator](010-configuration.md#generate-configs-with-pm-config-gen) |
 
@@ -350,7 +350,7 @@ Recommended manual loop:
 2. After any `FILL`, run `QLEGS|SYM=<symbol>|SHOW=ALL`.
 3. Read `Filled?`, `Rem`, and `Leg status` to decide whether to re-quote.
 
-See [Gateway](050-gateway.md#qlegs-inspect-mm-quote-legs-and-fill-flags) for
+See [Gateway](050-gateway-reference.md#qlegs-inspect-mm-quote-legs-and-fill-flags) for
 full `QLEGS` behavior and [Market Making](090-market-maker.md) for operator
 workflows and policy-specific behavior.
 
@@ -371,20 +371,27 @@ and executes one trade. No configuration file is required — the engine starts 
 Open a terminal and run:
 
 ```bash
-pm-engine
+pm-engine -v
 ```
 
 Expected output:
 
 ```
-[ENGINE] WARNING: no engine_config.yaml found — running in unrestricted mode (no symbol/gateway allowlist)
-[ENGINE] Drop copy PUB bound on port 5557
-[ENGINE] Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
+2026-07-23 09:30:00,001 WARNING edumatcher.engine.main - Config file engine_config.yaml could not be read — running without symbol restrictions. (...)
+2026-07-23 09:30:00,004 INFO edumatcher.engine.main - Drop copy PUB bound on port 5557
+2026-07-23 09:30:00,004 INFO edumatcher.engine.main - Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 ```
 
 With no config file the engine runs in **unrestricted mode** and session
 handling is **disabled**, so it starts directly in the `CONTINUOUS` state and
 matches orders immediately — there is no auction phase to advance past.
+
+!!! note "Default log level is WARNING"
+    Like every other `pm-` process, `pm-engine` is quiet by default — only
+    warnings and errors print. Pass `-v` for INFO (startup/lifecycle
+    messages, shown above), `-vv` for DEBUG, or `--log-level LEVEL` for an
+    explicit level. See [Running the Engine](040-running-the-exchange.md) for
+    the full flag reference.
 
 The engine is now running. Leave this terminal open.
 
@@ -524,13 +531,13 @@ grouped below by role.
 
 | When you want to…                                       | Start this process | More information                                |
 |-------------------------------------------------------------|-----------------------|------------------------------------------------------|
-| Run the matching engine (required for everything else)   | `pm-engine`         | [Running the Engine](040-running-the-engine.md) |
+| Run the matching engine (required for everything else)   | `pm-engine`         | [Running the Engine](040-running-the-exchange.md) |
 
 ### Recommended core
 
 | When you want to…                            | Start this process             | More information                                      |
 |----------------------------------------------|----------------------------------|--------------------------------------------------------|
-| Automate opening/closing auctions            | `pm-scheduler`                  | [Auctions and Scheduling](080-auctions-scheduling.md) |
+| Automate opening/closing auctions            | `pm-scheduler`                  | [Auctions and Scheduling](080-session-scheduling.md) |
 | Capture the full event log for later audit   | `pm-audit`                      | [Audit Trail](190-audit.md)                           |
 | Watch P&L update in real time                | `pm-clearing`                   | [P&L and Clearing](130-pnl-clearing.md)               |
 | Use operator commands (halt/resume/session)  | `pm-admin` (interactive REPL)   | [Risk Controls](120-risk-controls.md)                 |
@@ -544,20 +551,20 @@ grouped below by role.
 | Query clearing and P&L data without SQL           | `pm-clearing-cli pnl`                   | [P&L and Clearing](130-pnl-clearing.md)                     |
 | Query audit logs without shell pipelines          | `pm-audit-cli events --date 2026-06-14` | [Audit Trail](190-audit.md)                                 |
 | Watch a single symbol's live order book           | `pm-viewer`                              | [Order Types](060-order-types.md)                           |
-| Monitor live order status across gateways         | `pm-orders`                              | [Messages](270-messages.md)                                 |
+| Monitor live order status across gateways         | `pm-orders`                              | [Messages](270-message-reference.md)                                 |
 | Display a multi-symbol market board               | `pm-board`                               | [Processes](170-processes.md)                               |
 | Show a scrolling ticker with OHLCV context        | `pm-ticker`                               | [Statistics and Reporting](140-statistics-and-reporting.md) |
-| Calculate and disseminate a cap-weighted index    | `pm-index`                               | [Market Index](150-index.md)                                |
-| Query index history without SQL                  | `pm-index-cli`                           | [Market Index](150-index.md#using-pm-index-cli-recommended) |
+| Calculate and disseminate a cap-weighted index    | `pm-index`                               | [Market Index](150-market-index.md)                                |
+| Query index history without SQL                  | `pm-index-cli`                           | [Market Index](152-index-admin-cli.md) |
 
 ### Gateways
 
 | When you want to…                                    | Start this process                      | More information                                 |
 |-----------------------------------------------------------|--------------------------------------------|--------------------------------------------------------|
-| Distribute market data externally (CALF)             | `pm-md-gwy`                             | [Market Data Feed](240-market-data-feed.md)     |
+| Distribute market data externally (CALF)             | `pm-md-gwy`                             | [Market Data Feed](240-calf-gateway.md)     |
 | Expose REST/WebSocket order entry & market data      | `pm-api-gwy`                             | [API Gateway](260-api-gateway.md)                |
 | Accept binary order entry over TCP (BALF)            | `pm-balf-gwy`                           | [BALF Gateway](230-balf-gateway.md)              |
-| Feed external clearing/drop-copy consumers (RALF)    | `pm-ralf-gwy`                           | [Post-Trade Dissemination](250-post-trade.md)    |
+| Feed external clearing/drop-copy consumers (RALF)    | `pm-ralf-gwy`                           | [Post-Trade Dissemination](250-ralf-gateway.md)    |
 | Feed compliance/risk systems directly (ZeroMQ)       | Subscribe to `:5557` (drop-copy socket) | [Drop Copy](200-drop-copy.md)                    |
 | Feed compliance/risk systems directly (plain TCP, no ZeroMQ) | `pm-dc-gwy`                     | [Drop-Copy TCP Gateway](201-dc-gateway.md)       |
 
@@ -675,12 +682,12 @@ Use the table below to decide what to read based on your goal.
 
 - [Configuration](010-configuration.md) — full `engine_config.yaml` reference
 - [Configuration generator](010-configuration.md#generate-configs-with-pm-config-gen) — build `engine_config.yaml` from CLI flags
-- [Running the Engine](040-running-the-engine.md) — detailed startup, monitoring, and troubleshooting
-- [Gateway Commands](050-gateway.md) — complete command reference for participants
+- [Running the Engine](040-running-the-exchange.md) — detailed startup, monitoring, and troubleshooting
+- [Gateway Commands](050-gateway-reference.md) — complete command reference for participants
 - [Order Types](060-order-types.md) — LIMIT, MARKET, STOP, ICEBERG, TRAILING_STOP, OCO, COMBO
 - [Market Making](090-market-maker.md) — QUOTE command, obligations, and MMP
 - [AI Traders](110-ai-traders.md) — autonomous order flow with `pm-ai-trader` and `pm-ai-swarm`
 - [Market-Maker Bot](100-mm-bot.md) — automated quoting with `pm-mm-bot`
-- [Post-Trade Dissemination](250-post-trade.md) — external post-trade gateway with `pm-ralf-gwy`
-- [External Protocols Overview](210-protocol-overview.md) — where ALF, BALF, CALF, and RALF fit and how to choose between them
+- [Post-Trade Dissemination](250-ralf-gateway.md) — external post-trade gateway with `pm-ralf-gwy`
+- [External Protocols Overview](210-protocols-overview.md) — where ALF, BALF, CALF, and RALF fit and how to choose between them
 - [RALF Protocol](930-app-ralf-protocol.md) — protocol-level wire specification

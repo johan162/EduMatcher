@@ -40,6 +40,20 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         ]
     )
 
+    # country
+    lines.extend(
+        [
+            "country: Sweden",
+            "  Country pm-scheduler uses for two purposes: (1) deciding which calendar",
+            "  days are trading days -- the scheduler will not run the daily schedule on",
+            "  weekends or on that country's bank holidays (via the python-holidays",
+            "  package), and (2) the local timezone/wall-clock used to evaluate schedule",
+            '  times and bank holidays. Accepts either a country name (e.g. "Sweden") or',
+            '  an ISO 3166-1 alpha-2 code (e.g. "SE"). Defaults to "Sweden" when omitted.',
+            "",
+        ]
+    )
+
     lines.extend(
         [
             "engine_tuning:",
@@ -260,11 +274,24 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         ]
     )
 
+    # dc_gateway
+    lines.extend(
+        [
+            "dc_gateway:",
+            "  name: dc-gwy01",
+            "  bind_address: 0.0.0.0",
+            "  port: 5590",
+            "  heartbeat_interval_sec: 5",
+            "  idle_timeout_sec: 30",
+            "  max_client_queue: 10000",
+            "",
+        ]
+    )
+
     # indices
     lines.extend(
         [
             "indices:",
-            "  - id: EDU100",
             "    description: Broad technology benchmark",
             "    base_value: 1000.0",
             "    publish_interval_sec: 1.0",
@@ -613,6 +640,26 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  Per-client outbound queue cap before overload handling is triggered.",
             "depth_levels: 10",
             "  Number of aggregated price levels per side included in DEPTH channel snapshots and updates.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "dc_gateway entries",
+            "" + "-" * 18,
+            "name: dc-gwy01",
+            "  Service name echoed in WELCOME messages to connecting DC1 clients.",
+            "bind_address: 0.0.0.0",
+            "  Network interface/address the drop-copy TCP gateway listens on.",
+            "port: 5590",
+            "  TCP port DC1 clients connect to for live fill notifications.",
+            "heartbeat_interval_sec: 5",
+            "  Seconds between HB keepalive lines when no other outbound traffic is pending.",
+            "idle_timeout_sec: 30",
+            "  Disconnect threshold when a connected client sends no traffic for this many seconds.",
+            "max_client_queue: 10000",
+            "  Per-client outbound line buffer capacity before the client is treated as slow and dropped.",
             "",
         ]
     )

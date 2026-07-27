@@ -1,4 +1,4 @@
-# External Protocols Overview
+# Protocols Overview
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -61,7 +61,7 @@ Use ALF when you need:
 Where to read more:
 
 - ALF TCP gateway operational guide: [ALF TCP Gateway](220-alf-gateway.md)
-- Gateway behavior and operator workflow: [Gateway Commands](050-gateway.md)
+- Gateway behavior and operator workflow: [Gateway Commands](050-gateway-reference.md)
 - Process-level role of both ALF processes: [Processes](170-processes.md#pm-alf-gwy-alf-tcp-gateway)
 - Engine configuration of allowed ALF IDs/roles: [Configuration](010-configuration.md#alf-gateway-allowlist)
 - Formal wire syntax and semantics: [Appendix - ALF Protocol](900-app-alf-protocol.md)
@@ -110,7 +110,7 @@ Where to read more:
 
 - Market-data concepts and channel model: [Market Data Feed (CALF)](../concepts/06-concepts-market-data-feed.md)
 - Runtime process and architecture placement: [Processes](170-processes.md#pm-md-gwy-calf-market-data-gateway)
-- Operational client onboarding and examples: [Market Data Feed (CALF)](240-market-data-feed.md)
+- Operational client onboarding and examples: [Market Data Feed (CALF)](240-calf-gateway.md)
 - Formal wire protocol reference: [Appendix - CALF Protocol](920-app-calf-protocol.md)
 
 
@@ -128,7 +128,7 @@ Use RALF when you need:
 
 Where to read more:
 
-- Operational deployment and runbook: [Post-Trade Dissemination (RALF)](250-post-trade.md)
+- Operational deployment and runbook: [Post-Trade Dissemination (RALF)](250-ralf-gateway.md)
 - Process-level role in runtime topology: [Processes](170-processes.md#pm-ralf-gwy-post-trade-dissemination-gateway)
 - RALF gateway configuration details: [Configuration](010-configuration.md#configuring-pm-ralf-gwy)
 - Formal wire protocol reference: [Appendix - RALF Protocol](930-app-ralf-protocol.md)
@@ -151,8 +151,8 @@ Where to read more:
 - [Processes](170-processes.md)
 - [ALF TCP Gateway](220-alf-gateway.md)
 - [BALF TCP Gateway](230-balf-gateway.md)
-- [Market Data Feed (CALF)](240-market-data-feed.md)
-- [Post-Trade Dissemination (RALF)](250-post-trade.md)
+- [Market Data Feed (CALF)](240-calf-gateway.md)
+- [Post-Trade Dissemination (RALF)](250-ralf-gateway.md)
 - [Appendix - ALF Protocol](900-app-alf-protocol.md)
 - [Appendix - BALF Protocol](910-app-balf-protocol.md)
 - [Appendix - CALF Protocol](920-app-calf-protocol.md)

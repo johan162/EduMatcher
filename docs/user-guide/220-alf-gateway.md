@@ -1,4 +1,4 @@
-# ALF TCP Gateway (`pm-alf-gwy`)
+# ALF Gateway - Order-Entry
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -467,7 +467,7 @@ QLEGS|SYM=AAPL|SHOW=ALL
 | `SHOW` | No       | `ACTIVE`    | `ACTIVE` = currently live legs, `RECENT` = recently-inactivated quotes, `ALL` = both |
 
 `pm-alf-gwy` forwards this straight to the engine's
-[`system.quote_legs_request`](270-messages.md#systemquote_legs_request-systemquote_legsgw_id)
+[`system.quote_legs_request`](270-message-reference.md#systemquote_legs_request-systemquote_legsgw_id)
 message and renders the reply. `ACTIVE` legs (`LEG` lines) carry live
 qty/remaining/status per leg, same as before. `RECENT` rows (`RECENT_LEG`
 lines) are quote-level summaries drawn from the engine's bounded, in-memory,
@@ -477,9 +477,9 @@ carrying that leg's final qty/remaining/filled/status snapshot at the
 moment it was cancelled — these are emitted only when the engine had that
 leg's final order state available at removal time, which is the common
 case for every normal inactivation path (see
-[`system.quote_legs_request`](270-messages.md#systemquote_legs_request-systemquote_legsgw_id)
+[`system.quote_legs_request`](270-message-reference.md#systemquote_legs_request-systemquote_legsgw_id)
 for when a leg's snapshot can be absent). See
-[Gateway → QLEGS](050-gateway.md#qlegs-inspect-mm-quote-legs-and-fill-flags)
+[Gateway → QLEGS](050-gateway-reference.md#qlegs-inspect-mm-quote-legs-and-fill-flags)
 for the full column semantics (shared with `pm-alf-console`'s `QLEGS`).
 
 **Multi-line response:**
@@ -864,8 +864,8 @@ Expected output ends with `BYE` or a clean connection close immediately after `W
 ## See also
 
 - [ALF Protocol Reference](900-app-alf-protocol.md) — formal wire syntax and full field/enum definitions
-- [Gateway Commands](050-gateway.md) — interactive command reference for `pm-alf-console`
+- [Gateway Commands](050-gateway-reference.md) — interactive command reference for `pm-alf-console`
 - [Drop Copy](200-drop-copy.md) — the engine's drop-copy feed (`:5557`) that `DC|STATE=ON` relays
 - [Configuration](010-configuration.md) — `alf_gateway:` section and `gateways.alf` allowlist
 - [Processes](170-processes.md#pm-alf-gwy-alf-tcp-gateway) — process topology and ZMQ message tables
-- [External Protocols Overview](210-protocol-overview.md) — protocol comparison and selection guide
+- [External Protocols Overview](210-protocols-overview.md) — protocol comparison and selection guide

@@ -29,6 +29,7 @@ import {
 
 const KNOWN_TOP_LEVEL_KEYS = new Set([
   "sessions_enabled",
+  "country",
   "enforce_collars",
   "enforce_circuit_breakers",
   "engine_tuning",
@@ -40,6 +41,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   "post_trade_gateway",
   "market_data_gateway",
   "balf_gateway",
+  "dc_gateway",
   "api_gateways",
   "symbols",
   "market_maker_combos",
@@ -77,12 +79,15 @@ export function parseYamlToDraft(text: string): ImportResult {
   const unmapped: string[] = [];
 
   draft.sessionsEnabled = asBool(raw.sessions_enabled, draft.sessionsEnabled);
+  draft.country = asString(raw.country) ?? draft.country;
   draft.enforceCollars = asBool(raw.enforce_collars, draft.enforceCollars);
   draft.enforceCircuitBreakers = asBool(
     raw.enforce_circuit_breakers,
     draft.enforceCircuitBreakers,
   );
-  const engineTuning = isDict(raw.engine_tuning) ? raw.engine_tuning : undefined;
+  const engineTuning = isDict(raw.engine_tuning)
+    ? raw.engine_tuning
+    : undefined;
   draft.snapshotIntervalSec =
     asNumber(engineTuning?.snapshot_interval_sec) ??
     asNumber(raw.snapshot_interval_sec) ??
@@ -185,8 +190,10 @@ function parseSymbols(node: unknown, draft: EngineConfigDraft): void {
     if (level) config.level = level;
     const outstanding = asNumber(value.outstanding_shares);
     if (outstanding !== undefined) config.outstandingShares = outstanding;
-    if ("last_buy_price" in value) config.lastBuyPrice = asNumber(value.last_buy_price) ?? null;
-    if ("last_sell_price" in value) config.lastSellPrice = asNumber(value.last_sell_price) ?? null;
+    if ("last_buy_price" in value)
+      config.lastBuyPrice = asNumber(value.last_buy_price) ?? null;
+    if ("last_sell_price" in value)
+      config.lastSellPrice = asNumber(value.last_sell_price) ?? null;
     if (isDict(value.collar)) {
       config.collar = {
         staticBandPct: asNumber(value.collar.static_band_pct),
@@ -202,7 +209,8 @@ function parseSymbols(node: unknown, draft: EngineConfigDraft): void {
           const partial: Partial<CbLevel> = {};
           const shift = asNumber(lvl.price_shift_pct);
           if (shift !== undefined) partial.priceShiftPct = shift;
-          if ("halt_duration_ns" in lvl) partial.haltDurationNs = asNumber(lvl.halt_duration_ns) ?? null;
+          if ("halt_duration_ns" in lvl)
+            partial.haltDurationNs = asNumber(lvl.halt_duration_ns) ?? null;
           const mode = asString(lvl.resumption_mode);
           if (mode) partial.resumptionMode = mode as ResumptionMode;
           levels[name] = partial;
@@ -211,7 +219,8 @@ function parseSymbols(node: unknown, draft: EngineConfigDraft): void {
       const windowNs = asNumber(cbRaw.reference_window_ns);
       if (windowNs !== undefined || Object.keys(levels).length > 0) {
         config.circuitBreaker = { levels };
-        if (windowNs !== undefined) config.circuitBreaker.referenceWindowNs = windowNs;
+        if (windowNs !== undefined)
+          config.circuitBreaker.referenceWindowNs = windowNs;
       }
     }
     if (Array.isArray(value.market_maker_quotes)) {
@@ -248,7 +257,8 @@ function parseMmDefaults(node: unknown, draft: EngineConfigDraft): void {
     draft.mmObligationDefaults.enforceMmObligation,
   );
   draft.mmObligationDefaults.mmMaxSpreadTicks =
-    asNumber(node.mm_max_spread_ticks) ?? draft.mmObligationDefaults.mmMaxSpreadTicks;
+    asNumber(node.mm_max_spread_ticks) ??
+    draft.mmObligationDefaults.mmMaxSpreadTicks;
   draft.mmObligationDefaults.mmMinQty =
     asNumber(node.mm_min_qty) ?? draft.mmObligationDefaults.mmMinQty;
 
@@ -291,7 +301,10 @@ function parseRiskControls(node: unknown, draft: EngineConfigDraft): void {
   if (defaultLevel) draft.riskControls.defaultLevel = defaultLevel;
 }
 
-function parseCircuitBreakerDefaults(node: unknown, draft: EngineConfigDraft): void {
+function parseCircuitBreakerDefaults(
+  node: unknown,
+  draft: EngineConfigDraft,
+): void {
   if (!isDict(node) || !isDict(node.levels)) return;
   draft.circuitBreakerDefaults.enabled = true;
   draft.circuitBreakerDefaults.windowNs =
@@ -302,8 +315,12 @@ function parseCircuitBreakerDefaults(node: unknown, draft: EngineConfigDraft): v
     if (!isDict(value)) continue;
     levels[name] = {
       priceShiftPct: asNumber(value.price_shift_pct) ?? 0.07,
-      haltDurationNs: "halt_duration_ns" in value ? (asNumber(value.halt_duration_ns) ?? null) : null,
-      resumptionMode: (asString(value.resumption_mode) as ResumptionMode) ?? "AUCTION",
+      haltDurationNs:
+        "halt_duration_ns" in value
+          ? (asNumber(value.halt_duration_ns) ?? null)
+          : null,
+      resumptionMode:
+        (asString(value.resumption_mode) as ResumptionMode) ?? "AUCTION",
     };
     order.push(name);
   }
@@ -319,12 +336,16 @@ function parseNetworkGateways(raw: Dict, draft: EngineConfigDraft): void {
     g.name = asString(pt.name) ?? g.name;
     g.bindAddress = asString(pt.bind_address) ?? g.bindAddress;
     g.port = asNumber(pt.port) ?? g.port;
-    g.replayRetentionSec = asNumber(pt.replay_retention_sec) ?? g.replayRetentionSec;
-    g.heartbeatIntervalSec = asNumber(pt.heartbeat_interval_sec) ?? g.heartbeatIntervalSec;
+    g.replayRetentionSec =
+      asNumber(pt.replay_retention_sec) ?? g.replayRetentionSec;
+    g.heartbeatIntervalSec =
+      asNumber(pt.heartbeat_interval_sec) ?? g.heartbeatIntervalSec;
     g.idleTimeoutSec = asNumber(pt.idle_timeout_sec) ?? g.idleTimeoutSec;
     g.maxClientQueue = asNumber(pt.max_client_queue) ?? g.maxClientQueue;
     if (Array.isArray(pt.allowed_roles)) {
-      g.allowedRoles = pt.allowed_roles.filter((r): r is string => typeof r === "string");
+      g.allowedRoles = pt.allowed_roles.filter(
+        (r): r is string => typeof r === "string",
+      );
     }
   }
 
@@ -335,10 +356,12 @@ function parseNetworkGateways(raw: Dict, draft: EngineConfigDraft): void {
     g.name = asString(md.name) ?? g.name;
     g.bindAddress = asString(md.bind_address) ?? g.bindAddress;
     g.port = asNumber(md.port) ?? g.port;
-    g.heartbeatIntervalSec = asNumber(md.heartbeat_interval_sec) ?? g.heartbeatIntervalSec;
+    g.heartbeatIntervalSec =
+      asNumber(md.heartbeat_interval_sec) ?? g.heartbeatIntervalSec;
     g.idleTimeoutSec = asNumber(md.idle_timeout_sec) ?? g.idleTimeoutSec;
     g.replayWindowSec = asNumber(md.replay_window_sec) ?? g.replayWindowSec;
-    g.maxSymbolsPerClient = asNumber(md.max_symbols_per_client) ?? g.maxSymbolsPerClient;
+    g.maxSymbolsPerClient =
+      asNumber(md.max_symbols_per_client) ?? g.maxSymbolsPerClient;
     g.maxClientQueue = asNumber(md.max_client_queue) ?? g.maxClientQueue;
     g.depthLevels = asNumber(md.depth_levels) ?? g.depthLevels;
   }
@@ -350,18 +373,36 @@ function parseNetworkGateways(raw: Dict, draft: EngineConfigDraft): void {
     g.name = asString(balf.name) ?? g.name;
     g.bindAddress = asString(balf.bind_address) ?? g.bindAddress;
     g.port = asNumber(balf.port) ?? g.port;
-    g.heartbeatIntervalSec = asNumber(balf.heartbeat_interval_sec) ?? g.heartbeatIntervalSec;
-    g.heartbeatTimeoutSec = asNumber(balf.heartbeat_timeout_sec) ?? g.heartbeatTimeoutSec;
+    g.heartbeatIntervalSec =
+      asNumber(balf.heartbeat_interval_sec) ?? g.heartbeatIntervalSec;
+    g.heartbeatTimeoutSec =
+      asNumber(balf.heartbeat_timeout_sec) ?? g.heartbeatTimeoutSec;
     g.idleTimeoutSec = asNumber(balf.idle_timeout_sec) ?? g.idleTimeoutSec;
     g.authTimeoutSec = asNumber(balf.auth_timeout_sec) ?? g.authTimeoutSec;
     g.maxConnections = asNumber(balf.max_connections) ?? g.maxConnections;
     g.maxClientQueue = asNumber(balf.max_client_queue) ?? g.maxClientQueue;
-    g.maxMessagesPerSecond = asNumber(balf.max_messages_per_second) ?? g.maxMessagesPerSecond;
+    g.maxMessagesPerSecond =
+      asNumber(balf.max_messages_per_second) ?? g.maxMessagesPerSecond;
     g.maxErrorsBeforeDisconnect =
-      asNumber(balf.max_errors_before_disconnect) ?? g.maxErrorsBeforeDisconnect;
+      asNumber(balf.max_errors_before_disconnect) ??
+      g.maxErrorsBeforeDisconnect;
     g.errorWindowSec = asNumber(balf.error_window_sec) ?? g.errorWindowSec;
     const policy = asString(balf.duplicate_session_policy);
-    if (policy === "REJECT_NEW" || policy === "EVICT_OLD") g.duplicateSessionPolicy = policy;
+    if (policy === "REJECT_NEW" || policy === "EVICT_OLD")
+      g.duplicateSessionPolicy = policy;
+  }
+
+  const dc = raw.dc_gateway;
+  if (isDict(dc)) {
+    const g = draft.dcGateway;
+    g.enabled = true;
+    g.name = asString(dc.name) ?? g.name;
+    g.bindAddress = asString(dc.bind_address) ?? g.bindAddress;
+    g.port = asNumber(dc.port) ?? g.port;
+    g.heartbeatIntervalSec =
+      asNumber(dc.heartbeat_interval_sec) ?? g.heartbeatIntervalSec;
+    g.idleTimeoutSec = asNumber(dc.idle_timeout_sec) ?? g.idleTimeoutSec;
+    g.maxClientQueue = asNumber(dc.max_client_queue) ?? g.maxClientQueue;
   }
 }
 
@@ -385,7 +426,8 @@ function parseApiGateways(node: unknown, draft: EngineConfigDraft): void {
       host: asString(value.host) ?? "127.0.0.1",
       port: asNumber(value.port) ?? 8080,
       swaggerEnabled: asBool(value.swagger_enabled, true),
-      logLevel: (asString(value.log_level) as ApiGatewayConfig["logLevel"]) ?? "info",
+      logLevel:
+        (asString(value.log_level) as ApiGatewayConfig["logLevel"]) ?? "info",
       statsDb: asString(value.stats_db) ?? "data/stats.db",
       gatewayIds: credentials
         .map((c) => c.gatewayId)
@@ -442,11 +484,17 @@ function parseCombos(node: unknown, draft: EngineConfigDraft): void {
           return {
             symbol,
             side: (asString(leg.side) as "BUY" | "SELL") ?? "BUY",
-            orderType: (asString(leg.order_type) as ComboConfig["legs"][number]["orderType"]) ?? "LIMIT",
+            orderType:
+              (asString(
+                leg.order_type,
+              ) as ComboConfig["legs"][number]["orderType"]) ?? "LIMIT",
             quantity: asNumber(leg.quantity) ?? 0,
             price: priceTicks === undefined ? null : priceTicks / factor,
             stopPrice: stopTicks === undefined ? null : stopTicks / factor,
-            smpAction: (asString(leg.smp_action) as ComboConfig["legs"][number]["smpAction"]) ?? "NONE",
+            smpAction:
+              (asString(
+                leg.smp_action,
+              ) as ComboConfig["legs"][number]["smpAction"]) ?? "NONE",
           };
         })
       : [];
@@ -465,9 +513,11 @@ function parseSchedule(node: unknown, draft: EngineConfigDraft): void {
   draft.emitSchedule = true;
   draft.schedule = {
     preOpen: asString(node.pre_open) ?? draft.schedule.preOpen,
-    openingAuction: asString(node.opening_auction_start) ?? draft.schedule.openingAuction,
+    openingAuction:
+      asString(node.opening_auction_start) ?? draft.schedule.openingAuction,
     continuous: asString(node.continuous_start) ?? draft.schedule.continuous,
-    closingAuction: asString(node.closing_auction_start) ?? draft.schedule.closingAuction,
+    closingAuction:
+      asString(node.closing_auction_start) ?? draft.schedule.closingAuction,
     closingEnd: asString(node.closing_auction_end) ?? draft.schedule.closingEnd,
   };
 }

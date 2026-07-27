@@ -383,7 +383,7 @@ pm-audit-cli orders [options]
 !!! warning "`qty` does not show the fill quantity for order.fill events"
     The `qty` column looks for a `filled_qty` key as its second choice, but
     `order.fill.{GW_ID}` payloads actually use the key `fill_qty` (see
-    [Messages — order.fill](270-messages.md#orderfillgw_id)). Since neither
+    [Messages — order.fill](270-message-reference.md#orderfillgw_id)). Since neither
     `quantity` nor `filled_qty` is present on a fill event, `qty` falls
     through to `remaining_qty` instead — the quantity left on the order, not
     the quantity filled in that event. Use `timeline` (which shows the full

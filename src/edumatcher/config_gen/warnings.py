@@ -39,6 +39,9 @@ def _network_endpoints(spec: ConfigSpec) -> list[tuple[str, str, int]]:
         endpoints.append(
             (f"balf_gateway '{balf_gw.name}'", balf_gw.bind_address, balf_gw.port)
         )
+    if spec.dc_gateway is not None:
+        dc_gw = spec.dc_gateway
+        endpoints.append((f"dc_gateway '{dc_gw.name}'", dc_gw.bind_address, dc_gw.port))
     for api_gw in spec.api_gateways:
         if api_gw.enabled:
             endpoints.append((f"api_gateway '{api_gw.name}'", api_gw.host, api_gw.port))

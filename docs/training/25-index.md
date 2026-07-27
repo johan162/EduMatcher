@@ -231,7 +231,7 @@ was destroyed.
     line you can type at a gateway prompt. Instead, use the dedicated
     [`pm-index-admin-cli`](../user-guide/152-index-admin-cli.md) tool, which
     talks directly to `pm-index`'s PULL socket (port 5559). See
-    [Market Index → Applying corporate actions](../user-guide/150-index.md#applying-corporate-actions).
+    [Market Index → Applying corporate actions](../user-guide/150-market-index.md#applying-corporate-actions).
 
 Apply the split:
 
@@ -635,9 +635,9 @@ types?
 
 ## See Also
 
-- [Market Index — User Guide](../user-guide/150-index.md) — full reference for config fields, formulas, and history record types
+- [Market Index — User Guide](../user-guide/150-market-index.md) — full reference for config fields, formulas, and history record types
 - [Index Admin CLI](../user-guide/152-index-admin-cli.md) — full `pm-index-admin-cli` subcommand reference, `--dry-run`, and confirmation-prompt behaviour
-- [pm-index-cli reference](../user-guide/160-commands.md) — `events`/`indices` subcommands, column descriptions, and output-format options
+- [pm-index-cli reference](../user-guide/160-exchange-commands.md) — `events`/`indices` subcommands, column descriptions, and output-format options
 - [Statistics and Reporting](../user-guide/140-statistics-and-reporting.md) — `pm-stats-cli index-daily` / `index-snapshots` / `index-ids` reference
 - [Chapter 15 — Statistics & Reporting](15-statistics-reporting.md) — starting `pm-stats` and querying its SQLite database
 - [Engine Configuration](../user-guide/010-configuration.md#configuring-pm-index) — `indices:` YAML field reference

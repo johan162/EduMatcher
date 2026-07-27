@@ -66,7 +66,7 @@ multipass version
 Run the curl bootstrap script (pinned to this release):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.16.1 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.16.2 --snapshot
 ```
 
 This command will:
@@ -81,7 +81,7 @@ This command will:
     ```bash
     curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
     less curl_setup_vm.sh
-    bash curl_setup_vm.sh --version 0.16.1 --snapshot
+    bash curl_setup_vm.sh --version 0.16.2 --snapshot
     ```
 
 ### Step 3: Enter the VM and verify commands
@@ -124,7 +124,7 @@ multipass purge
 ### Relevant User Guide chapters
 
 - [Getting Started](../user-guide/000-getting-started.md) (see VM bootstrap mode)
-- [Running the Engine](../user-guide/040-running-the-engine.md)
+- [Running the Engine](../user-guide/040-running-the-exchange.md)
 - [Processes](../user-guide/170-processes.md)
 - [Examples](../user-guide/800-examples.md)
 
@@ -301,7 +301,7 @@ sessions ended up pointing at two different data directories?
 ## Further Reading
 
 - [Getting Started](../user-guide/000-getting-started.md)
-- [Running the Engine](../user-guide/040-running-the-engine.md)
+- [Running the Engine](../user-guide/040-running-the-exchange.md)
 - [Processes](../user-guide/170-processes.md)
 
 **Next:** [01 — Configuring & Starting Up](01-configuring-startup.md)

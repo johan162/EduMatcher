@@ -353,7 +353,7 @@ remaining constituents continue smoothly.
 
 Every corporate action and constituent change is written to the `history_file`
 as a `CORP_ACTION`, `ADD_CONSTITUENT`, or `DELIST` record — queryable with
-[`pm-index-cli`](160-commands.md#pm-index-cli-index-structuralaudit-history-query-tool).
+[`pm-index-cli`](160-exchange-commands.md#pm-index-cli-index-structuralaudit-history-query-tool).
 
 
 ## State and History
@@ -552,7 +552,7 @@ pm-index-cli --config engine_config.yaml indices
 pm-index-cli --data-dir /custom/path/indexes events --index EDU100
 ```
 
-See the [pm-index-cli reference](160-commands.md) for all subcommands, column
+See the [pm-index-cli reference](160-exchange-commands.md) for all subcommands, column
 descriptions, and output-format options.
 
 ### Querying level/EOD history with `pm-stats-cli`

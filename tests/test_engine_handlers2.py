@@ -435,7 +435,7 @@ class TestVerboseLogging:
     def test_verbose_new_order_prints_no_error(
         self, monkeypatch, tmp_path, caplog
     ) -> None:
-        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine.main")
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
         _connect(engine)
         engine._handle_new_order(_order())
@@ -444,7 +444,7 @@ class TestVerboseLogging:
     def test_verbose_cancel_prints_no_error(
         self, monkeypatch, tmp_path, caplog
     ) -> None:
-        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine.main")
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
         _connect(engine)
         engine._handle_new_order(_order())
@@ -454,7 +454,7 @@ class TestVerboseLogging:
         assert "CANCELLED" in caplog.text
 
     def test_verbose_amend_prints_no_error(self, monkeypatch, tmp_path, caplog) -> None:
-        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine.main")
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
         _connect(engine)
         engine._handle_new_order(_order(qty=100))
@@ -466,7 +466,7 @@ class TestVerboseLogging:
     def test_verbose_gateway_connect_prints_no_error(
         self, monkeypatch, tmp_path, caplog
     ) -> None:
-        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine.main")
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
         engine._handle_gateway_connect({"gateway_id": "GW01"})
         assert "Gateway connected" in caplog.text

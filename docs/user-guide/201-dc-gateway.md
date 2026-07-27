@@ -1,4 +1,4 @@
-# Drop-Copy TCP Gateway (`pm-dc-gwy`)
+# Drop-Copy Gateway (`pm-dc-gwy`)
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -19,7 +19,7 @@ plain TCP clients that cannot or should not speak ZeroMQ: a risk system, a
 clearing broker's ingestion pipeline, a compliance monitor, or any process on
 another host that only has a sockets library.
 
-It is the TCP counterpart to [`pm-dc-spy`](252-dc-spy-cli.md): both connect a
+It is the TCP counterpart to [`pm-dc-spy`](202-dc-spy-cli.md): both connect a
 `zmq.SUB` socket to port 5557 and read `drop_copy.event.<gateway_id>`
 messages. `pm-dc-spy` prints them to a terminal for a human. `pm-dc-gwy`
 relays them as DC1 text lines to any number of concurrently connected TCP
@@ -78,8 +78,9 @@ a `pm-dc-gwy` connection does not "occupy" a trading identity.
 
 ## Configuration
 
-`pm-dc-gwy` reads an optional hand-edited `dc_gateway:` section from
-`engine_config.yaml`:
+`pm-dc-gwy` reads an optional `dc_gateway:` section from `engine_config.yaml`.
+You can generate this section with `pm-config-gen --dc-gateway` (all fields are
+optional and default to the values shown below), or hand-edit it directly:
 
 ```yaml
 dc_gateway:
@@ -104,12 +105,6 @@ The drop-copy source address (`tcp://127.0.0.1:5557` by default) is **not**
 configurable via YAML — it always comes from the same `DROP_COPY_PUB_ADDR`
 constant the rest of the system uses. Override it per-run with `--engine-dc-pub`
 (see below) if you need to point at a non-default engine address.
-
-!!! note "No `pm-config-gen` integration"
-    Unlike most gateway sections, `dc_gateway:` is not wired into
-    `pm-config-gen`'s CLI flags, interactive builder, or config-check
-    warnings. Hand-edit the YAML section directly, the same way you would for
-    `alf_gateway:` or `post_trade_gateway:`.
 
 !!! note "TLS"
     `pm-dc-gwy` does not terminate TLS. For remote deployments, put it behind
@@ -348,11 +343,11 @@ while True:
 
 | Scenario | Best choice |
 |----------|------------|
-| Ad-hoc inspection from a terminal, human-readable or JSON | [`pm-dc-spy`](252-dc-spy-cli.md) |
+| Ad-hoc inspection from a terminal, human-readable or JSON | [`pm-dc-spy`](202-dc-spy-cli.md) |
 | External process, any language, no ZeroMQ dependency allowed | `pm-dc-gwy` |
 | Process already has ZeroMQ / pyzmq available | Connect directly to port 5557 — see [Drop Copy](200-drop-copy.md) |
 | You already have an ALF trading session open and only want your own fills | `DC\|STATE=ON` on that session — see [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay) |
-| Role-gated (`CLEARING`/`AUDIT`) trade feed with replay-by-sequence | `pm-ralf-gwy` — see [Post-trade](250-post-trade.md) |
+| Role-gated (`CLEARING`/`AUDIT`) trade feed with replay-by-sequence | `pm-ralf-gwy` — see [Post-trade](250-ralf-gateway.md) |
 
 
 ## Troubleshooting
@@ -396,7 +391,7 @@ Expected output: `WELCOME|...` followed by a clean connection close.
 ## See also
 
 - [Drop Copy](200-drop-copy.md) — the engine's drop-copy feed (`:5557`) this gateway relays
-- [Drop-Copy Spy (pm-dc-spy)](252-dc-spy-cli.md) — read-only CLI for the same feed
+- [Drop-Copy Spy (pm-dc-spy)](202-dc-spy-cli.md) — read-only CLI for the same feed
 - [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay) — relay your own fills through an existing ALF session instead
 - [Processes](170-processes.md#pm-dc-gwy-drop-copy-tcp-gateway) — process topology and ZMQ message tables
-- [External Protocols Overview](210-protocol-overview.md) — protocol comparison and selection guide
+- [External Protocols Overview](210-protocols-overview.md) — protocol comparison and selection guide

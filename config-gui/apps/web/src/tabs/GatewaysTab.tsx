@@ -25,19 +25,21 @@ export function GatewaysTab() {
     <Panel
       tabId="gateways"
       title="Auxiliary Gateways"
-      intro="Optional network services around the engine: post-trade (fills/drop-copy), market-data (snapshots), BALF (binary access), and the REST/WebSocket API gateway. Enable only what your scenario needs. Ports are collision-checked across all gateways."
+      intro="Optional network services around the engine: post-trade (fills/drop-copy), market-data (snapshots), BALF (binary access), drop-copy TCP relay, and the REST/WebSocket API gateway. Enable only what your scenario needs. Ports are collision-checked across all gateways."
     >
       <Tabs.Root defaultValue="post-trade" className="mt-2">
         <Tabs.List className="mb-4 flex flex-wrap gap-1 border-b border-border">
           <Tabs.Trigger value="post-trade" className={TAB_TRIGGER}>Post-Trade</Tabs.Trigger>
           <Tabs.Trigger value="market-data" className={TAB_TRIGGER}>Market-Data</Tabs.Trigger>
           {canSee("E") && <Tabs.Trigger value="balf" className={TAB_TRIGGER}>BALF</Tabs.Trigger>}
+          {canSee("E") && <Tabs.Trigger value="dc" className={TAB_TRIGGER}>Drop-Copy</Tabs.Trigger>}
           {canSee("E") && <Tabs.Trigger value="api" className={TAB_TRIGGER}>API</Tabs.Trigger>}
         </Tabs.List>
 
         <Tabs.Content value="post-trade"><PostTradePanel /></Tabs.Content>
         <Tabs.Content value="market-data"><MarketDataPanel /></Tabs.Content>
         {canSee("E") && <Tabs.Content value="balf"><BalfPanel /></Tabs.Content>}
+        {canSee("E") && <Tabs.Content value="dc"><DcPanel /></Tabs.Content>}
         {canSee("E") && <Tabs.Content value="api"><ApiPanel /></Tabs.Content>}
       </Tabs.Root>
     </Panel>
@@ -139,6 +141,50 @@ function BalfPanel() {
               options={DUPLICATE_SESSION_POLICIES.map((p) => ({ value: p, label: p }))}
             />
           </FieldRow>
+        </>
+      )}
+    </div>
+  );
+}
+
+function DcPanel() {
+  const g = useDraftStore((s) => s.draft.dcGateway);
+  const update = useDraftStore((s) => s.update);
+  const set = (fn: (gw: typeof g) => void) => update((d) => fn(d.dcGateway));
+
+  return (
+    <div>
+      <EnableRow
+        enabled={g.enabled}
+        onToggle={(v) => set((gw) => (gw.enabled = v))}
+        label="Enable drop-copy gateway"
+        flag="--dc-gateway"
+      />
+      {g.enabled && (
+        <>
+          <TextField label="Name" value={g.name} onChange={(v) => set((gw) => (gw.name = v))} />
+          <TextField label="Bind address" value={g.bindAddress} onChange={(v) => set((gw) => (gw.bindAddress = v))} />
+          <NumField
+            label="Port"
+            path="dcGateway.port"
+            value={g.port}
+            onChange={(v) => set((gw) => (gw.port = v ?? gw.port))}
+          />
+          <NumField
+            label="Heartbeat interval (sec)"
+            value={g.heartbeatIntervalSec}
+            onChange={(v) => set((gw) => (gw.heartbeatIntervalSec = v ?? gw.heartbeatIntervalSec))}
+          />
+          <NumField
+            label="Idle timeout (sec)"
+            value={g.idleTimeoutSec}
+            onChange={(v) => set((gw) => (gw.idleTimeoutSec = v ?? gw.idleTimeoutSec))}
+          />
+          <NumField
+            label="Max client queue"
+            value={g.maxClientQueue}
+            onChange={(v) => set((gw) => (gw.maxClientQueue = v ?? gw.maxClientQueue))}
+          />
         </>
       )}
     </div>

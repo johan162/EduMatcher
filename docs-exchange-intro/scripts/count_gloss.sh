@@ -11,6 +11,6 @@ NUM_GLOSSARY=`grep -n '^\*\*[A-Za-z_ /()0-9-]*:\*\*' "$GLOSSARY_FILE" | wc -l`
 # Strip leading whitespace from the count
 NUM_GLOSSARY=$(echo "$NUM_GLOSSARY" | sed 's/^[ \t]*//')
 
-echo -e "${WHITE}Number of glossary entries: ${YELLOW}$NUM_GLOSSARY${NC}"
+echo "$NUM_GLOSSARY"
 
 

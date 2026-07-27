@@ -20,6 +20,15 @@
 #     true  = engine starts CLOSED and pm-scheduler drives the trading-day timeline.
 #     false = engine starts in CONTINUOUS and ignores scheduler session transitions.
 #
+#   country: Sweden
+#     Country used by pm-scheduler for two purposes: (1) deciding which
+#     calendar days are trading days — the scheduler will not run the daily
+#     schedule on weekends or on that country's bank holidays (via the
+#     python-holidays package), and (2) the local timezone/wall-clock used to
+#     evaluate schedule times and bank holidays. Accepts either a country name
+#     (e.g. "Sweden") or an ISO 3166-1 alpha-2 code (e.g. "SE"). Defaults to
+#     "Sweden" when omitted.
+#
 #   engine_tuning:
 #     snapshot_interval_sec: 0.5
 #       Minimum interval between published book snapshots for a dirty symbol.
@@ -495,6 +504,9 @@
 #   closing_auction_end: 16:05
 #     End of closing auction and completion of the trading session timeline.
 #     Times are HH:MM in local server time and are applied in trading-day order.
+#     pm-scheduler only runs this schedule on working days (see `country`
+#     above) — it will not start the daily transitions on a weekend or a
+#     bank holiday for the configured country.
 #
 #   indices entries
 #   ---------------
@@ -520,6 +532,12 @@
 # true lets pm-scheduler drive session transitions;
 # false keeps the engine in continuous mode
 sessions_enabled: false
+
+# -- Scheduler country --
+# country pm-scheduler uses for bank holidays and local wall-clock time;
+# accepts a country name (e.g. "Sweden") or ISO 3166-1 alpha-2 code (e.g. "SE")
+# defaults to "Sweden" when omitted
+# country: Sweden
 
 # -- Engine behavior --
 # enables per-symbol collar checks on incoming orders

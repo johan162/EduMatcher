@@ -5,6 +5,8 @@ import {
   DEFAULT_BALF_GATEWAY,
   DEFAULT_CB_LADDER,
   DEFAULT_CB_WINDOW_NS,
+  DEFAULT_COUNTRY,
+  DEFAULT_DC_GATEWAY,
   DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
   DEFAULT_DROP_COPY_BUFFER_SIZE,
   DEFAULT_DYNAMIC_BAND_PCT,
@@ -29,6 +31,7 @@ import type {
   BalfGatewayConfig,
   CbLevel,
   ComboConfig,
+  DcGatewayConfig,
   EngineConfigDraft,
   GatewayConfig,
   IndexConfig,
@@ -116,7 +119,21 @@ export function createBalfGateway(): BalfGatewayConfig {
   };
 }
 
-export function createApiGateway(name: string = DEFAULT_API_GATEWAY.name): ApiGatewayConfig {
+export function createDcGateway(): DcGatewayConfig {
+  return {
+    enabled: false,
+    name: DEFAULT_DC_GATEWAY.name,
+    bindAddress: DEFAULT_DC_GATEWAY.bindAddress,
+    port: DEFAULT_DC_GATEWAY.port,
+    heartbeatIntervalSec: DEFAULT_DC_GATEWAY.heartbeatIntervalSec,
+    idleTimeoutSec: DEFAULT_DC_GATEWAY.idleTimeoutSec,
+    maxClientQueue: DEFAULT_DC_GATEWAY.maxClientQueue,
+  };
+}
+
+export function createApiGateway(
+  name: string = DEFAULT_API_GATEWAY.name,
+): ApiGatewayConfig {
   return {
     name,
     enabled: true,
@@ -151,7 +168,8 @@ export function createSymbol(
 ): SymbolConfig {
   const config: SymbolConfig = { tickDecimals };
   if (opts?.lastBuyPrice !== undefined) config.lastBuyPrice = opts.lastBuyPrice;
-  if (opts?.lastSellPrice !== undefined) config.lastSellPrice = opts.lastSellPrice;
+  if (opts?.lastSellPrice !== undefined)
+    config.lastSellPrice = opts.lastSellPrice;
   return config;
 }
 
@@ -218,6 +236,7 @@ export function createBlankDraft(): EngineConfigDraft {
   const cb = defaultCbLevels();
   return {
     sessionsEnabled: false,
+    country: DEFAULT_COUNTRY,
     emitSchedule: true,
     snapshotIntervalSec: DEFAULT_SNAPSHOT_INTERVAL_SEC,
     quoteHistoryMaxlen: DEFAULT_QUOTE_HISTORY_MAXLEN,
@@ -265,6 +284,7 @@ export function createBlankDraft(): EngineConfigDraft {
     postTradeGateway: createPostTradeGateway(),
     marketDataGateway: createMarketDataGateway(),
     balfGateway: createBalfGateway(),
+    dcGateway: createDcGateway(),
     apiGateways: [],
     output: { filename: "engine_config.yaml", commentDefaultFields: false },
     unmappedYaml: {},
@@ -272,9 +292,9 @@ export function createBlankDraft(): EngineConfigDraft {
 }
 
 /** Effective static/dynamic band for the derived DEFAULT collar level. */
-export function effectiveDefaultCollar(draft: EngineConfigDraft):
-  | { staticBandPct: number; dynamicBandPct: number }
-  | undefined {
+export function effectiveDefaultCollar(
+  draft: EngineConfigDraft,
+): { staticBandPct: number; dynamicBandPct: number } | undefined {
   const { globalStaticBandPct, globalDynamicBandPct } = draft.riskControls;
   if (globalStaticBandPct === undefined && globalDynamicBandPct === undefined) {
     return undefined;

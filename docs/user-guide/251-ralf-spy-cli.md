@@ -43,7 +43,7 @@ set.
 ## Why not `ralf_subscriber.py`?
 
 `docs/examples/ralf/ralf_subscriber.py` (see
-[Post-Trade Dissemination — Python subscriber example](250-post-trade.md))
+[Post-Trade Dissemination — Python subscriber example](250-ralf-gateway.md))
 is a *library-style* example meant to be read and adapted: it demonstrates
 gap detection, dedup, and a specific role/channel selection for a tutorial
 walkthrough. `pm-ralf-spy` is a *general-purpose inspection tool*: any role,
@@ -242,8 +242,8 @@ independently per session.
 
 ## See also
 
-- [Post-Trade Dissemination (RALF)](250-post-trade.md) — operational guide, wire examples, and the Python/C example subscribers
+- [Post-Trade Dissemination (RALF)](250-ralf-gateway.md) — operational guide, wire examples, and the Python/C example subscribers
 - [Appendix — RALF Protocol](930-app-ralf-protocol.md) — normative wire format, full field tables, sequencing rules
 - [Processes](170-processes.md#pm-ralf-spy-ralf-protocol-spy) — where `pm-ralf-spy` sits in the process model
 - [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) — the analogous inspection tool for the pre-trade market-data feed
-- [Drop-Copy Spy (pm-dc-spy)](252-dc-spy-cli.md) — the analogous inspection tool for the engine's raw drop-copy feed (distinct from RALF's `DROP_COPY` channel — see [comparison](200-drop-copy.md#ralf-drop_copy-channel-vs-this-feed))
+- [Drop-Copy Spy (pm-dc-spy)](202-dc-spy-cli.md) — the analogous inspection tool for the engine's raw drop-copy feed (distinct from RALF's `DROP_COPY` channel — see [comparison](200-drop-copy.md#ralf-drop_copy-channel-vs-this-feed))

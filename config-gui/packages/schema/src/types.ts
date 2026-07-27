@@ -60,7 +60,8 @@ export const COMBO_TYPES = ["AON"] as const;
 export type ComboType = (typeof COMBO_TYPES)[number];
 
 export const DUPLICATE_SESSION_POLICIES = ["REJECT_NEW", "EVICT_OLD"] as const;
-export type DuplicateSessionPolicy = (typeof DUPLICATE_SESSION_POLICIES)[number];
+export type DuplicateSessionPolicy =
+  (typeof DUPLICATE_SESSION_POLICIES)[number];
 
 export const API_LOG_LEVELS = ["debug", "info", "warning", "error"] as const;
 export type ApiLogLevel = (typeof API_LOG_LEVELS)[number];
@@ -258,6 +259,21 @@ export interface BalfGatewayConfig extends NetworkGatewayBase {
   duplicateSessionPolicy: DuplicateSessionPolicy;
 }
 
+/**
+ * Drop-copy TCP relay gateway (`pm-dc-gwy`). Exposes the engine's internal
+ * ZMQ drop-copy feed to plain-TCP DC1 clients (risk systems, clearing
+ * pipelines, compliance monitors). No authentication or replay-by-sequence.
+ */
+export interface DcGatewayConfig {
+  enabled: boolean;
+  name: string;
+  bindAddress: string;
+  port: number;
+  heartbeatIntervalSec: number;
+  idleTimeoutSec: number;
+  maxClientQueue: number;
+}
+
 export interface ApiCredential {
   apiKey: string;
   /** null = read-only market-data key. */
@@ -287,6 +303,12 @@ export interface ApiGatewayConfig {
 
 export interface EngineConfigDraft {
   sessionsEnabled: boolean;
+  /**
+   * Country pm-scheduler uses for its bank-holiday/weekend calendar (name,
+   * e.g. "Sweden", or ISO 3166-1 alpha-2 code, e.g. "SE"). Defaults to
+   * "Sweden" -- see DEFAULT_COUNTRY in defaults.ts.
+   */
+  country: string;
   emitSchedule: boolean;
   snapshotIntervalSec: number;
   quoteHistoryMaxlen: number;
@@ -339,6 +361,7 @@ export interface EngineConfigDraft {
   postTradeGateway: PostTradeGatewayConfig;
   marketDataGateway: MarketDataGatewayConfig;
   balfGateway: BalfGatewayConfig;
+  dcGateway: DcGatewayConfig;
   apiGateways: ApiGatewayConfig[];
 
   output: {

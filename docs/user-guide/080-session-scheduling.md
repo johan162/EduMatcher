@@ -1,4 +1,4 @@
-# Auctions & Session Scheduling
+# Session Scheduling and Auctions
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -135,7 +135,8 @@ stdout (the engine's `logging` output stream, not stderr).
 
 The scheduler is a standalone process that sends `session.transition`
 messages to the engine at configured wall-clock times over a ZeroMQ PUSH
-socket.
+socket. It only does so on working days — see
+[Bank holidays and weekends](#bank-holidays-and-weekends) below.
 
 ### Starting the scheduler
 
@@ -185,6 +186,10 @@ schedule:
 
 Times are `HH:MM` in local time.
 
+The schedule only runs on working days for the configured `country` — a
+sibling top-level key, not nested under `schedule:`. See
+[Bank holidays and weekends](#bank-holidays-and-weekends) below.
+
 ### Session handling toggle
 
 Session gating in the engine is controlled by `sessions_enabled`:
@@ -210,6 +215,62 @@ time-based session control.
     file. See [Configuration → `sessions_enabled`](010-configuration.md#sessions_enabled)
     for the full scenario table.
 
+### Bank holidays and weekends
+
+`pm-scheduler` only drives the daily schedule on **working days**. Before
+running (or repeating, under `--daily`) today's timeline, it checks whether
+today is a weekend (Saturday/Sunday) or a bank holiday for a configured
+`country`, using the [`python-holidays`](https://pypi.org/project/holidays/)
+package:
+
+```yaml
+country: Sweden
+```
+
+- `country` accepts either a country name (`"Sweden"`) or an ISO 3166-1
+  alpha-2 code (`"SE"`).
+- If omitted, or if the value is not a country `python-holidays` recognizes,
+  it **falls back to `"Sweden"`** and logs a warning.
+- Weekends are always treated as non-working days, regardless of what the
+  holiday calendar itself lists.
+
+Behavior on a non-working day depends on the run mode:
+
+| Mode                     | Behavior on a non-working day                                                             |
+|---------------------------|---------------------------------------------------------------------------------------------|
+| Single-shot (default)     | Sends no transitions and exits immediately — today's schedule is skipped entirely.         |
+| `--daily`                 | Skips today, then sleeps through to the **next working day** (not just the next calendar day) before running the schedule again. |
+| `--now`                   | Unaffected — `--now` ignores wall-clock scheduling (and therefore the working-day check) entirely, since it's intended for testing/demos. |
+
+```yaml
+# Germany's holiday calendar instead of the default (Sweden)
+country: DE
+```
+
+```text
+2026-12-25 is not a working day for Sweden (weekend or bank holiday); skipping today's schedule
+```
+
+(shown with `-v`/`--verbose`, since it's an `INFO`-level log line)
+
+!!! note "Why this matters for `--daily`"
+    Before this check existed, a scheduler left running continuously with
+    `--daily` would happily drive `CLOSED → PRE_OPEN → … → CLOSED` on a
+    Sunday or on Christmas Day. With `country` configured, those days are
+    skipped and the engine simply stays `CLOSED` until the next working day's
+    schedule starts.
+
+### Wall-clock re-checking
+
+Long waits — whether counting down to a scheduled transition time or sleeping
+overnight between trading days under `--daily` — are never slept out in a
+single call. Instead, `pm-scheduler` wakes at least every **30 seconds** and
+re-derives the remaining wait from the current local wall-clock time. This
+means a server time adjustment (NTP sync, manual clock change, DST) made
+while the scheduler is waiting is picked up within 30 seconds, rather than
+only being noticed after a long sleep computed under now-stale assumptions
+finally elapses.
+
 ### Built-in default schedule
 
 If no config file provides a `schedule` section, `pm-scheduler` uses:
@@ -230,20 +291,23 @@ useful for integration testing and demos where you want to exercise the full
 auction lifecycle in seconds rather than hours.
 
 ```bash
-poetry run pm-scheduler --now --delay 2
+poetry run pm-scheduler --now --delay 2 -v
 ```
+
+`-v` is needed to see the transition log below — like every other `pm-`
+process, `pm-scheduler` is quiet by default (`WARNING` and above only); `-v`
+raises the level to `INFO`.
 
 Output:
 
 ```
-[SCHEDULER] --now mode: sending all transitions with 2.0s delays
-
-[SCHEDULER] → PRE_OPEN
-[SCHEDULER] → OPENING_AUCTION
-[SCHEDULER] → CONTINUOUS
-[SCHEDULER] → CLOSING_AUCTION
-[SCHEDULER] → CLOSED
-[SCHEDULER] Done.
+2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - --now mode: sending all transitions with 2.0s delays
+2026-07-23 09:30:00,001 INFO edumatcher.scheduler.main - -> PRE_OPEN
+2026-07-23 09:30:02,003 INFO edumatcher.scheduler.main - -> OPENING_AUCTION
+2026-07-23 09:30:04,005 INFO edumatcher.scheduler.main - -> CONTINUOUS
+2026-07-23 09:30:06,007 INFO edumatcher.scheduler.main - -> CLOSING_AUCTION
+2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - -> CLOSED
+2026-07-23 09:30:08,009 INFO edumatcher.scheduler.main - Done.
 ```
 
 
@@ -440,11 +504,11 @@ expired if they did *not* fill.
 
 ## See also
 
-- [Configuration](010-configuration.md#session-schedule) — `schedule:` YAML keys and `sessions_enabled`
+- [Configuration](010-configuration.md#session-schedule) — `schedule:` YAML keys, `country`, and `sessions_enabled`
 - [Order Types](060-order-types.md#time-in-force-tif) — ATO and ATC time-in-force explained
 - [Processes](170-processes.md#pm-scheduler-session-scheduler) — how to start and configure `pm-scheduler`
-- [Running the Engine](040-running-the-engine.md) — the `--now` shortcut for rapid session cycling
+- [Running the Engine](040-running-the-exchange.md) — the `--now` shortcut for rapid session cycling
 - [Risk Controls](120-risk-controls.md) — circuit-breaker resumption modes that re-use the uncross algorithm
-- [Messages](270-messages.md) — `session.state`, `auction.result`, and `order.expired` message formats
+- [Messages](270-message-reference.md) — `session.state`, `auction.result`, and `order.expired` message formats
 
 

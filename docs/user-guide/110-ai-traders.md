@@ -10,7 +10,7 @@
     - How to configure your engine to allow AI gateway IDs
     - How to set up a realistic classroom simulation
 
-    **Prerequisites**: [Running the Engine](040-running-the-engine.md) — the engine must be running
+    **Prerequisites**: [Running the Engine](040-running-the-exchange.md) — the engine must be running
     before AI traders can connect.
     [Configuration](010-configuration.md) — AI traders connect as regular gateways; their IDs
     must be listed in `engine_config.yaml` (or the engine must be in unrestricted mode).
@@ -409,7 +409,7 @@ fill, individual rejection, and reasons for skipping a trading decision
 ## See also
 
 - [Market-Maker Bot (pm-mm-bot)](100-mm-bot.md) — autonomous market-maker process; complements AI traders by providing liquidity
-- [Running the Engine](040-running-the-engine.md) — startup order and launch scripts
+- [Running the Engine](040-running-the-exchange.md) — startup order and launch scripts
 - [Configuration](010-configuration.md) — how to register gateway IDs and symbols
 - [Order Types](060-order-types.md) — AI bots submit LIMIT DAY orders only
 - [Risk Controls](120-risk-controls.md) — price collars and halts that affect bot activity

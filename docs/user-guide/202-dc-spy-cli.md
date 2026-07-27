@@ -1,4 +1,4 @@
-# Drop-Copy Spy (`pm-dc-spy`)
+# Drop-Copy Spy
 
 !!! note "Learning objectives"
     After reading this page you will understand:

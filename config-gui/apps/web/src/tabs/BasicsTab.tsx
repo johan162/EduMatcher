@@ -13,6 +13,7 @@ import { uppercaseId } from "@/lib/format";
 import { Panel, Section } from "@/components/layout/Panel";
 import { FieldRow } from "@/components/fields/FieldRow";
 import { TextInput } from "@/components/fields/inputs";
+import { CountryCombobox } from "@/components/fields/CountryCombobox";
 import { Select } from "@/components/ui/Select";
 import { SymbolEditorDialog } from "@/components/symbols/SymbolEditorDialog";
 import { GatewayAdvancedDialog } from "@/components/gateways/GatewayAdvancedDialog";
@@ -23,8 +24,12 @@ export function BasicsTab() {
   const { canSee } = usePersona();
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingSymbol, setEditingSymbol] = useState<string | undefined>(undefined);
-  const [advancedGatewayId, setAdvancedGatewayId] = useState<string | null>(null);
+  const [editingSymbol, setEditingSymbol] = useState<string | undefined>(
+    undefined,
+  );
+  const [advancedGatewayId, setAdvancedGatewayId] = useState<string | null>(
+    null,
+  );
 
   const openCreate = () => {
     setEditingSymbol(undefined);
@@ -53,6 +58,30 @@ export function BasicsTab() {
       title="Basics"
       intro="Define the instruments that trade on your exchange and the gateway sessions that connect to it. At least one symbol and one gateway are required."
     >
+      <Section
+        title="Country"
+        description="Sets pm-scheduler's local calendar. Later settings that depend on locale (for example, a timezone for countries spanning more than one) will live here too."
+      >
+        <FieldRow
+          label="Country"
+          path="country"
+          htmlFor="country"
+          help={{
+            text: "Country pm-scheduler uses for its bank-holiday and weekend calendar: the scheduler will not run the daily schedule on a weekend or on that country's bank holidays. Type a country name or ISO code -- suggestions appear after 3 characters.",
+            cliFlag: "--country",
+            docHref: "../docs/user-guide/080-session-scheduling.md",
+          }}
+        >
+          <CountryCombobox
+            id="country"
+            aria-label="Country"
+            value={draft.country}
+            onChange={(v) => update((d) => (d.country = v))}
+            placeholder="e.g. Sweden or SE"
+          />
+        </FieldRow>
+      </Section>
+
       <Section
         title="Symbols"
         description="Each symbol is a structured instrument with required reference prices. Use Add symbol to create one; edit any row to adjust prices and (for higher personas) precision, shares, and market-maker quotes."
@@ -90,14 +119,22 @@ export function BasicsTab() {
                     return (
                       <tr key={symbol} className="border-t border-border">
                         <td className="px-3 py-1.5 font-medium">{symbol}</td>
-                        <td className="px-3 py-1.5">{cfg.lastBuyPrice ?? "—"}</td>
-                        <td className="px-3 py-1.5">{cfg.lastSellPrice ?? "—"}</td>
+                        <td className="px-3 py-1.5">
+                          {cfg.lastBuyPrice ?? "—"}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          {cfg.lastSellPrice ?? "—"}
+                        </td>
                         {canSee("I") && (
-                          <td className="px-3 py-1.5">{cfg.marketMakerQuotes?.length ?? 0}</td>
+                          <td className="px-3 py-1.5">
+                            {cfg.marketMakerQuotes?.length ?? 0}
+                          </td>
                         )}
                         <td className="px-3 py-1.5">
                           {missing ? (
-                            <span className="text-warning">⚠ prices missing</span>
+                            <span className="text-warning">
+                              ⚠ prices missing
+                            </span>
                           ) : (
                             <span className="text-success">✓ complete</span>
                           )}
@@ -186,7 +223,9 @@ export function BasicsTab() {
                           }
                           onBlur={() =>
                             update((d) => {
-                              d.gateways[index]!.id = uppercaseId(d.gateways[index]!.id);
+                              d.gateways[index]!.id = uppercaseId(
+                                d.gateways[index]!.id,
+                              );
                             })
                           }
                           className="w-32"
@@ -199,15 +238,20 @@ export function BasicsTab() {
                           onValueChange={(v) =>
                             update((d) => {
                               const g = d.gateways[index]!;
-                              const previousDefault = defaultDisconnectBehaviour(g.role);
+                              const previousDefault =
+                                defaultDisconnectBehaviour(g.role);
                               g.role = v as ParticipantRole;
                               // Keep disconnect in sync when it was still at the role default.
                               if (g.disconnectBehaviour === previousDefault) {
-                                g.disconnectBehaviour = defaultDisconnectBehaviour(g.role);
+                                g.disconnectBehaviour =
+                                  defaultDisconnectBehaviour(g.role);
                               }
                             })
                           }
-                          options={PARTICIPANT_ROLES.map((r) => ({ value: r, label: r }))}
+                          options={PARTICIPANT_ROLES.map((r) => ({
+                            value: r,
+                            label: r,
+                          }))}
                         />
                       </td>
                       {canSee("I") && (
@@ -217,10 +261,14 @@ export function BasicsTab() {
                             value={gateway.disconnectBehaviour}
                             onValueChange={(v) =>
                               update((d) => {
-                                d.gateways[index]!.disconnectBehaviour = v as DisconnectBehaviour;
+                                d.gateways[index]!.disconnectBehaviour =
+                                  v as DisconnectBehaviour;
                               })
                             }
-                            options={DISCONNECT_BEHAVIOURS.map((b) => ({ value: b, label: b }))}
+                            options={DISCONNECT_BEHAVIOURS.map((b) => ({
+                              value: b,
+                              label: b,
+                            }))}
                           />
                         </td>
                       )}
@@ -267,7 +315,10 @@ export function BasicsTab() {
                   ))}
                   {draft.gateways.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-3 py-3 text-center text-fg-subtle">
+                      <td
+                        colSpan={5}
+                        className="px-3 py-3 text-center text-fg-subtle"
+                      >
                         No gateways yet.
                       </td>
                     </tr>

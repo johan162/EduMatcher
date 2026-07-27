@@ -463,6 +463,33 @@ class TestLayer2RuntimeAndMMDefaults:
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S064" in _codes(results)
 
+    def test_s065_country_not_string(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "country: 42\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S065" in _codes(results)
+
+    def test_s065_country_blank(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            'country: ""\n'
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S065" in _codes(results)
+
+    def test_s065_country_valid_string_ok(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "country: Sweden\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S065" not in _codes(results)
+
     def test_s070_mm_defaults_not_mapping(self) -> None:
         raw = _raw(
             "symbols:\n  AAPL: {}\n"
@@ -1118,6 +1145,40 @@ class TestLayer3Sessions:
         assert layer3_semantic._parse_hhmm(123) is None
         assert layer3_semantic._parse_hhmm("09") is None
         assert layer3_semantic._parse_hhmm("aa:bb") is None
+
+
+class TestLayer3Country:
+    def test_m026_country_unrecognised(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "country: Narnia\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M026" in _codes(results)
+
+    def test_m026_country_recognised_by_name_ok(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "country: Sweden\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M026" not in _codes(results)
+
+    def test_m026_country_recognised_by_iso_code_ok(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "country: DE\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M026" not in _codes(results)
+
+    def test_m026_country_absent_ok(self) -> None:
+        raw = _raw("symbols:\n  AAPL: {}\ngateways:\n  alf:\n    - id: GW01\n")
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M026" not in _codes(results)
 
 
 class TestLayer3EnforceFlags:

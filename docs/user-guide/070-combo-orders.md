@@ -327,7 +327,7 @@ This cancels all child legs atomically. Fills that already occurred are not reve
 Child orders appear in the `ORDERS` command's output like any other resting
 order (the `ORDERS` response does not currently include a parent-combo-ID
 column). To follow a combo's overall progress, watch for `combo.ack` and
-`combo.status` events on your gateway — see [Messages](270-messages.md).
+`combo.status` events on your gateway — see [Messages](270-message-reference.md).
 
 
 
@@ -510,5 +510,5 @@ problems real exchanges spend years solving.
 - [Implied Orders](../concepts/07-concepts-implied-orders.md) - A crash course in implied (or synthetic) orders
 - [Order Types](060-order-types.md) — the individual order types used as combo legs
 - [Persistence](180-persistence.md) — how GTC combos are saved and restored across sessions
-- [Messages](270-messages.md) — `combo.ack`, `combo.status`, `order.fill`, and cascade-cancel events
-- [Gateway](050-gateway.md) — the full COMBO and CANCEL|COMBO_ID= command syntax
+- [Messages](270-message-reference.md) — `combo.ack`, `combo.status`, `order.fill`, and cascade-cancel events
+- [Gateway](050-gateway-reference.md) — the full COMBO and CANCEL|COMBO_ID= command syntax

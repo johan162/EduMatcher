@@ -18,7 +18,10 @@ else
 	SED_INPLACE := -i
 endif
 
-.PHONY: docs pdf-docs pdf-training chapters-pdf-a4 clean really-clean serve check-latex-engine
+.PHONY: docs pdf-docs pdf-training chapters-pdf-a4 clean really-clean serve check-latex-engine \
+	cover-user-guide cover-training-guide covers \
+	docs-container-build docs-container-start docs-container-stop docs-container-restart docs-container-status docs-container-logs \
+	help _covers covers cover-user-guide cover-training-guide
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
 # NOTE: This requires GNU Make 4.3+ and MacOS ships with vGNU Make 3.81 due to licensing issues
@@ -26,7 +29,7 @@ endif
 .EXTRA_PREREQS := $(firstword $(MAKEFILE_LIST))
 
 # Make behavior
-.DEFAULT_GOAL := docs
+.DEFAULT_GOAL := pdf-docs
 
 # Get full path to bash
 SHELL := $(shell which bash)
@@ -98,6 +101,7 @@ DIST_DIR := ./dist
 BUILD_DIR := .build
 SCRIPTS_DIR := ../scripts
 SITE_DIR := ../site
+ASSETS_DIR := $(DOCS_DIR)/assets
 
 # Documentation Container Server configuration
 SERVER_HOST := 0.0.0.0
@@ -134,10 +138,10 @@ USER_GUIDE_MD_SOURCES := \
 USER_GUIDE_PDF_DEPS := \
 	$(DOCS_DIR)/user-guide/pagebreaks.lua \
 	$(DOCS_DIR)/admonitions.lua \
-	$(DOCS_DIR)/user-guide/template_a4.tex \
-	$(DOCS_DIR)/user-guide/template_dark_a4.tex \
-	$(DOCS_DIR)/user-guide/template_b5.tex \
-	$(DOCS_DIR)/user-guide/template_dark_b5.tex 
+	$(DOCS_DIR)/user-guide/template_a4.tex.in \
+	$(DOCS_DIR)/user-guide/template_dark_a4.tex.in \
+	$(DOCS_DIR)/user-guide/template_b5.tex.in \
+	$(DOCS_DIR)/user-guide/template_dark_b5.tex.in
 
 TRAINING_GUIDE_MD_SOURCES := \
 	$(sort $(wildcard $(DOCS_DIR)/training/[0-9][0-9]-*.md))
@@ -145,10 +149,10 @@ TRAINING_GUIDE_MD_SOURCES := \
 TRAINING_GUIDE_PDF_DEPS := \
 	$(DOCS_DIR)/user-guide/pagebreaks.lua \
 	$(DOCS_DIR)/admonitions.lua \
-	$(DOCS_DIR)/training/template_a4.tex \
-	$(DOCS_DIR)/training/template_dark_a4.tex \
-	$(DOCS_DIR)/training/template_b5.tex \
-	$(DOCS_DIR)/training/template_dark_b5.tex \
+	$(DOCS_DIR)/training/template_a4.tex.in \
+	$(DOCS_DIR)/training/template_dark_a4.tex.in \
+	$(DOCS_DIR)/training/template_b5.tex.in \
+	$(DOCS_DIR)/training/template_dark_b5.tex.in \
 	$(DOCS_DIR)/assets/cover-training-guide.png
 
 
@@ -245,11 +249,12 @@ $(eval $(call DEFINE_TRAINING_GUIDE_VARS,TRAINING_GUIDE_DARK_B5))
 # $(2) = paper format: a4 or b5  (passed to the pandoc Lua filter)
 # Note: Make variables used inside recipe lines are escaped as $$(VAR) so they survive
 # $(call) expansion and are resolved at recipe-execution time.
+# # @sed -i.bak -E 's/Version: [0-9]+(\.[0-9]+)*(rc[0-9]{1,2})?/Version: $(VERSION)/g' $$($1_TEMPLATE)
 # ============================================================================================
 define BUILD_USER_GUIDE_PDF
-$$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
+$$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
 	@echo -e "$(DARKYELLOW)- Updating version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) in LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW)...$(NC)"
-	@sed -i.bak -E 's/Version: [0-9]+(\.[0-9]+)*(rc[0-9]{1,2})?/Version: $(VERSION)/g' $$($1_TEMPLATE)
+	@sed -e "s/@@VERSION@@/v$(VERSION)/g" $$($1_TEMPLATE).in > $$($1_TEMPLATE)
 	@rm -f $$($1_TEMPLATE).bak
 	@echo -e "$$(DARKYELLOW)- Building $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(DARKYELLOW) via LaTeX report pipeline...$$(NC)"
 	@mkdir -p $$(USER_GUIDE_BUILD_DIR)
@@ -289,6 +294,7 @@ $$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log):$$(NC)" >&2; \
 		     tail -30 $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log) >&2; exit 1; }
 	@cp $$($1_PDF_BUILT) $$($1_PDF)
+	@rm -f $$($1_TEMPLATE)
 	@echo -e "$$(GREEN)✓ User guide PDF built: $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(GREEN)$$(NC)"
 endef
 
@@ -305,9 +311,9 @@ $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_DARK_B5,b5))
 # Shared recipe for every Training Guide PDF variant. Call via $(eval $(call BUILD_TRAINING_GUIDE_PDF,...)).
 # ============================================================================================
 define BUILD_TRAINING_GUIDE_PDF
-$$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
+$$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_PDF_DEPS) $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
 	@echo -e "$(DARKYELLOW)- Updating version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) in LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW)...$(NC)"
-	@sed -i.bak -E 's/Version: [0-9]+(\.[0-9]+)*(rc[0-9]{1,2})?/Version: $(VERSION)/g' $$($1_TEMPLATE)
+	@sed -e "s/@@VERSION@@/v$(VERSION)/g" $$($1_TEMPLATE).in > $$($1_TEMPLATE)
 	@rm -f $$($1_TEMPLATE).bak
 	@echo -e "$$(DARKYELLOW)- Building $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$$(DARKYELLOW) via LaTeX report pipeline...$$(NC)"
 	@mkdir -p $$(TRAINING_GUIDE_BUILD_DIR)
@@ -347,6 +353,7 @@ $$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_PDF_DEPS) $$($1_TEMP
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log):$$(NC)" >&2; \
 		     tail -30 $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log) >&2; exit 1; }
 	@cp $$($1_PDF_BUILT) $$($1_PDF)
+	@rm -f $$($1_TEMPLATE)
 	@echo -e "$$(GREEN)✓ Training guide PDF built: $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$$(GREEN)$$(NC)"
 endef
 
@@ -365,11 +372,17 @@ $(eval $(call BUILD_TRAINING_GUIDE_PDF,TRAINING_GUIDE_DARK_B5,b5))
 CHAPTERS_A4_DIR   := $(DIST_DIR)/chapters-a4
 CHAPTERS_A4_BUILD := $(USER_GUIDE_BUILD_DIR)/chapters-a4
 
+# $(info USER_GUIDE_A4_TEMPLATE: $(USER_GUIDE_A4_TEMPLATE))
+
+$(USER_GUIDE_A4_TEMPLATE): $(USER_GUIDE_A4_TEMPLATE).in
+	@echo -e "$(DARKYELLOW)- Generating LaTeX template for A4 chapter PDFs from $(BRIGHTCYAN)$(USER_GUIDE_A4_TEMPLATE).in$(DARKYELLOW) ...$(NC)"
+	@sed -e "s/@@VERSION@@/v$(VERSION)/g" $(USER_GUIDE_A4_TEMPLATE).in > $(USER_GUIDE_A4_TEMPLATE)
+
 # $(1) = absolute or relative path to a single user-guide .md source file.
 define BUILD_CHAPTER_PDF_A4
 $$(CHAPTERS_A4_DIR)/$(notdir $(basename $(1))).pdf: \
-		$(1) $$(USER_GUIDE_PDF_DEPS) $$(USER_GUIDE_A4_TEMPLATE) \
-		| $$(CHAPTERS_A4_DIR) $(NODE_MODULES_PATH)
+		$(1) $$(USER_GUIDE_PDF_DEPS) | $$(USER_GUIDE_A4_TEMPLATE) \
+		$$(CHAPTERS_A4_DIR) $(NODE_MODULES_PATH)
 	@echo -e "$$(DARKYELLOW)- Building chapter PDF: $$(BRIGHTCYAN)$(notdir $(1))$$(DARKYELLOW)...$$(NC)"
 	@mkdir -p $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/expanded/.mermaid-img
 	@poetry run python $$(SCRIPTS_DIR)/expand-shell-outputs.py \
@@ -422,6 +435,7 @@ $(CHAPTERS_A4_DIR): | $(DIST_DIR)
 	@mkdir -p $@
 
 chapters-pdf-a4: check-latex-engine $(CHAPTERS_A4_PDFS) ## Build a separate A4 PDF for each user-guide chapter into $(DIST_DIR)/chapters-a4/
+	@rm -f $(USER_GUIDE_A4_TEMPLATE)
 	@echo -e "$(GREEN)✓ All $(words $(USER_GUIDE_MD_SOURCES)) chapter PDFs built in $(BRIGHTCYAN)$(CHAPTERS_A4_DIR)$(GREEN)$(NC)"
 	
 chapters-pdf-a4-bundle: chapters-pdf-a4  ## Build a zip bundle of all A4 chapter PDFs into $(DIST_DIR)	
@@ -466,14 +480,14 @@ check-latex-engine:
 		exit 1; \
 	fi
 
-pdf-docs: check-latex-engine  ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
+pdf-docs: check-latex-engine  cover-user-guide ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm -rf $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
 	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
 	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
-pdf-training: check-latex-engine  ## Build the training guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
+pdf-training: check-latex-engine  cover-training-guide ## Build the training guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(TRAINING_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm -rf $(DIST_DIR)/$(PROJECT)_training-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(TRAINING_GUIDE_A4_PDF) $(TRAINING_GUIDE_DARK_A4_PDF) $(TRAINING_GUIDE_B5_PDF) $(TRAINING_GUIDE_DARK_B5_PDF)
@@ -481,6 +495,25 @@ pdf-training: check-latex-engine  ## Build the training guide in all PDF variant
 	@zip -9 -j $(DIST_DIR)/$(PROJECT)_training-guide-bundle-$(VERSION).zip $(TRAINING_GUIDE_A4_PDF) $(TRAINING_GUIDE_DARK_A4_PDF) $(TRAINING_GUIDE_B5_PDF) $(TRAINING_GUIDE_DARK_B5_PDF)
 	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_training-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
+cover-user-guide:  ## Build the cover images for all User Guide PDF variants (A4 light/dark, B5 light/dark)
+	@echo -e "$(DARKYELLOW)- Building cover images for user-guide PDF variants...$(NC)"
+	@sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-user-guide-template.html > $(ASSETS_DIR)/cover-user-guide.html
+	@${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-user-guide
+	@rm -f $(ASSETS_DIR)/cover-user-guide.html
+	@echo -e "$(GREEN)✓ Cover image for user-guide built under $(ASSETS_DIR)$(NC)"
+
+cover-training-guide:  ## Build the cover images for all Training Guide PDF variants (A4 light/dark, B5 light/dark)
+	@echo -e "$(DARKYELLOW)- Building cover images for training-guide PDF variants...$(NC)"
+	@sed "s/@@VERSION@@/v$(VERSION)/g" $(ASSETS_DIR)/cover-training-guide-template.html > $(ASSETS_DIR)/cover-training-guide.html
+	@${SCRIPTS_DIR}/mkfigs.sh -o $(ASSETS_DIR) -s $(ASSETS_DIR) cover-training-guide
+	@rm -f $(ASSETS_DIR)/cover-training-guide.html
+	@echo -e "$(GREEN)✓ Cover image for training-guide built under $(ASSETS_DIR)$(NC)"
+
+_covers: cover-user-guide cover-training-guide  
+	@:
+
+covers: _covers  ## Build the cover images in parallel for all User Guide and Training Guide PDF variants
+	@${MAKE} -j2 _covers	
 
 $(DIST_DIR) : ## Ensure the dist directory exists
 	@mkdir -p $(DIST_DIR)

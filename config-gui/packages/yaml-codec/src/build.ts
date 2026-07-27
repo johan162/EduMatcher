@@ -10,6 +10,7 @@
  */
 
 import {
+  DEFAULT_COUNTRY,
   DEFAULT_DYNAMIC_BAND_PCT,
   DEFAULT_INDEX_DATA_DIR,
   DEFAULT_MM_STUB_QTY,
@@ -59,7 +60,8 @@ function buildMmDefaults(draft: EngineConfigDraft): PlainConfig {
     }
     symbolOverrides[symbol] = {
       enforce_mm_obligation:
-        mm.enforceMmObligation ?? draft.mmObligationDefaults.enforceMmObligation,
+        mm.enforceMmObligation ??
+        draft.mmObligationDefaults.enforceMmObligation,
       mm_max_spread_ticks:
         mm.mmMaxSpreadTicks ?? draft.mmObligationDefaults.mmMaxSpreadTicks,
       mm_min_qty: mm.mmMinQty ?? draft.mmObligationDefaults.mmMinQty,
@@ -133,13 +135,15 @@ function buildGateways(draft: EngineConfigDraft): PlainConfig[] {
     if (gw.description) payload.description = gw.description;
     // quote_refresh_policy only applies to market makers; default preserved.
     if (gw.role === "MARKET_MAKER") {
-      payload.quote_refresh_policy = gw.quoteRefreshPolicy ?? "INACTIVATE_ON_ANY_FILL";
+      payload.quote_refresh_policy =
+        gw.quoteRefreshPolicy ?? "INACTIVATE_ON_ANY_FILL";
     }
     // Per-gateway flat MM obligation overrides — emitted only when explicitly set.
     if (gw.enforceMmObligation !== undefined) {
       payload.enforce_mm_obligation = gw.enforceMmObligation;
     }
-    if (gw.mmMaxSpreadTicks !== undefined) payload.mm_max_spread_ticks = gw.mmMaxSpreadTicks;
+    if (gw.mmMaxSpreadTicks !== undefined)
+      payload.mm_max_spread_ticks = gw.mmMaxSpreadTicks;
     if (gw.mmMinQty !== undefined) payload.mm_min_qty = gw.mmMinQty;
     // Per-symbol obligation overrides (nested keys: max_spread_ticks / min_qty).
     if (gw.mmObligations && Object.keys(gw.mmObligations).length > 0) {
@@ -149,7 +153,8 @@ function buildGateways(draft: EngineConfigDraft): PlainConfig[] {
         if (override.enforceMmObligation !== undefined) {
           entry.enforce_mm_obligation = override.enforceMmObligation;
         }
-        if (override.maxSpreadTicks !== undefined) entry.max_spread_ticks = override.maxSpreadTicks;
+        if (override.maxSpreadTicks !== undefined)
+          entry.max_spread_ticks = override.maxSpreadTicks;
         if (override.minQty !== undefined) entry.min_qty = override.minQty;
         obligations[symbol] = entry;
       }
@@ -164,7 +169,8 @@ function buildMmQuoteSeed(
   tickDecimals: number,
   midpoint: number | null,
 ): PlainConfig {
-  const prices = midpoint === null ? null : quoteAroundMidpoint(midpoint, tickDecimals);
+  const prices =
+    midpoint === null ? null : quoteAroundMidpoint(midpoint, tickDecimals);
   return {
     gateway_id: gatewayId,
     bid_price: prices?.bidPrice ?? null,
@@ -190,8 +196,10 @@ function buildSymbol(
   const midpoint = seededMidpoint(draft, draft.tickDecimals);
   // Explicit per-symbol last prices always win over global seeding.
   if (config.lastBuyPrice !== undefined || config.lastSellPrice !== undefined) {
-    if (config.lastBuyPrice !== undefined) payload.last_buy_price = config.lastBuyPrice;
-    if (config.lastSellPrice !== undefined) payload.last_sell_price = config.lastSellPrice;
+    if (config.lastBuyPrice !== undefined)
+      payload.last_buy_price = config.lastBuyPrice;
+    if (config.lastSellPrice !== undefined)
+      payload.last_sell_price = config.lastSellPrice;
   } else if (draft.seeding.seedLastPricesFromMm && midpoint !== null) {
     payload.last_buy_price = midpoint;
     payload.last_sell_price = midpoint;
@@ -200,7 +208,10 @@ function buildSymbol(
     payload.last_sell_price = null;
   }
 
-  if (config.collar?.staticBandPct !== undefined || config.collar?.dynamicBandPct !== undefined) {
+  if (
+    config.collar?.staticBandPct !== undefined ||
+    config.collar?.dynamicBandPct !== undefined
+  ) {
     const collar: PlainConfig = {};
     if (config.collar.staticBandPct !== undefined) {
       collar.static_band_pct = config.collar.staticBandPct;
@@ -216,16 +227,20 @@ function buildSymbol(
     const hasWindow = config.circuitBreaker.referenceWindowNs !== undefined;
     if (hasLevels || hasWindow) {
       const cb: PlainConfig = {};
-      if (hasWindow) cb.reference_window_ns = config.circuitBreaker.referenceWindowNs;
+      if (hasWindow)
+        cb.reference_window_ns = config.circuitBreaker.referenceWindowNs;
       if (hasLevels) {
         const cbLevels: PlainConfig = {};
         for (const name of Object.keys(config.circuitBreaker.levels).sort()) {
           const lvl = config.circuitBreaker.levels[name];
           if (!lvl) continue;
           const lvlPayload: PlainConfig = {};
-          if (lvl.priceShiftPct !== undefined) lvlPayload.price_shift_pct = lvl.priceShiftPct;
-          if (lvl.haltDurationNs !== undefined) lvlPayload.halt_duration_ns = lvl.haltDurationNs;
-          if (lvl.resumptionMode !== undefined) lvlPayload.resumption_mode = lvl.resumptionMode;
+          if (lvl.priceShiftPct !== undefined)
+            lvlPayload.price_shift_pct = lvl.priceShiftPct;
+          if (lvl.haltDurationNs !== undefined)
+            lvlPayload.halt_duration_ns = lvl.haltDurationNs;
+          if (lvl.resumptionMode !== undefined)
+            lvlPayload.resumption_mode = lvl.resumptionMode;
           cbLevels[name] = lvlPayload;
         }
         cb.levels = cbLevels;
@@ -280,13 +295,18 @@ function buildIndices(draft: EngineConfigDraft): PlainConfig[] {
     description: idx.description || `Index ${idx.id}`,
     base_value: idx.baseValue,
     publish_interval_sec: idx.publishIntervalSec,
-    history_file: idx.historyFile || `${DEFAULT_INDEX_DATA_DIR}/${idx.id}_history.jsonl`,
-    state_file: idx.stateFile || `${DEFAULT_INDEX_DATA_DIR}/${idx.id}_state.json`,
+    history_file:
+      idx.historyFile || `${DEFAULT_INDEX_DATA_DIR}/${idx.id}_history.jsonl`,
+    state_file:
+      idx.stateFile || `${DEFAULT_INDEX_DATA_DIR}/${idx.id}_state.json`,
     constituents: [...idx.constituents],
   }));
 }
 
-function effectiveTickDecimals(draft: EngineConfigDraft, symbol: string): number {
+function effectiveTickDecimals(
+  draft: EngineConfigDraft,
+  symbol: string,
+): number {
   return draft.symbols[symbol]?.tickDecimals ?? draft.tickDecimals;
 }
 
@@ -302,7 +322,10 @@ function buildCombos(draft: EngineConfigDraft): PlainConfig[] {
         side: leg.side,
         order_type: leg.orderType,
         quantity: leg.quantity,
-        price: leg.price === null || leg.price === undefined ? null : priceToTicks(leg.price, td),
+        price:
+          leg.price === null || leg.price === undefined
+            ? null
+            : priceToTicks(leg.price, td),
         stop_price:
           leg.stopPrice === null || leg.stopPrice === undefined
             ? null
@@ -358,6 +381,13 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
     },
   };
 
+  // Mirrors builder.py: only emit country when it differs from the
+  // scheduler's own built-in default, so a config left at "Sweden" stays as
+  // minimal as pm-config-gen would produce it.
+  if (draft.country !== DEFAULT_COUNTRY) {
+    cfg.country = draft.country;
+  }
+
   if (shouldEmitMmDefaults(draft)) {
     cfg.mm_obligation_defaults = buildMmDefaults(draft);
   }
@@ -382,6 +412,9 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
   }
   if (draft.balfGateway.enabled) {
     cfg.balf_gateway = buildNetworkGateway(draft, "balf");
+  }
+  if (draft.dcGateway.enabled) {
+    cfg.dc_gateway = buildNetworkGateway(draft, "dc");
   }
   const apiGateways = buildApiGateways(draft);
   if (Object.keys(apiGateways).length > 0) cfg.api_gateways = apiGateways;
@@ -411,7 +444,7 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
 
 function buildNetworkGateway(
   draft: EngineConfigDraft,
-  which: "postTrade" | "marketData" | "balf",
+  which: "postTrade" | "marketData" | "balf" | "dc",
 ): PlainConfig {
   if (which === "postTrade") {
     const g = draft.postTradeGateway;
@@ -441,20 +474,32 @@ function buildNetworkGateway(
       depth_levels: g.depthLevels,
     };
   }
-  const g = draft.balfGateway;
+  if (which === "balf") {
+    const g = draft.balfGateway;
+    return {
+      name: g.name,
+      bind_address: g.bindAddress,
+      port: g.port,
+      heartbeat_interval_sec: g.heartbeatIntervalSec,
+      heartbeat_timeout_sec: g.heartbeatTimeoutSec,
+      idle_timeout_sec: g.idleTimeoutSec,
+      auth_timeout_sec: g.authTimeoutSec,
+      max_connections: g.maxConnections,
+      max_client_queue: g.maxClientQueue,
+      max_messages_per_second: g.maxMessagesPerSecond,
+      max_errors_before_disconnect: g.maxErrorsBeforeDisconnect,
+      error_window_sec: g.errorWindowSec,
+      duplicate_session_policy: g.duplicateSessionPolicy,
+    };
+  }
+  // which === "dc"
+  const dc = draft.dcGateway;
   return {
-    name: g.name,
-    bind_address: g.bindAddress,
-    port: g.port,
-    heartbeat_interval_sec: g.heartbeatIntervalSec,
-    heartbeat_timeout_sec: g.heartbeatTimeoutSec,
-    idle_timeout_sec: g.idleTimeoutSec,
-    auth_timeout_sec: g.authTimeoutSec,
-    max_connections: g.maxConnections,
-    max_client_queue: g.maxClientQueue,
-    max_messages_per_second: g.maxMessagesPerSecond,
-    max_errors_before_disconnect: g.maxErrorsBeforeDisconnect,
-    error_window_sec: g.errorWindowSec,
-    duplicate_session_policy: g.duplicateSessionPolicy,
+    name: dc.name,
+    bind_address: dc.bindAddress,
+    port: dc.port,
+    heartbeat_interval_sec: dc.heartbeatIntervalSec,
+    idle_timeout_sec: dc.idleTimeoutSec,
+    max_client_queue: dc.maxClientQueue,
   };
 }

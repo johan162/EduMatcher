@@ -8,7 +8,8 @@ governs. For worked examples, recipes, and rationale, see
 
 The schema described here is derived from and MUST match the runtime loaders:
 `engine/config_loader.py`, `alf_gwy/config.py`, `balf_gwy/config.py`,
-`ralf_gateway/config.py`, `md_gateway/config.py`, and `api_gateway/config.py`.
+`ralf_gateway/config.py`, `md_gateway/config.py`, `api_gateway/config.py`, and
+`scheduler/main.py` (`schedule` and `country` only).
 `pm-cverifier` is the reference validator.
 
 ---
@@ -55,6 +56,7 @@ Field tables and the schema tree (§3) use these type names:
 | `Secs` | number | duration in seconds; `> 0` |
 | `Port` | integer | TCP port; `> 0` (BALF: `1..65535`) |
 | `HHMM` | string | wall-clock local time `"HH:MM"` |
+| `Country` | string | country name (e.g. `"Sweden"`) or ISO 3166-1 alpha-2 code (e.g. `"SE"`); MUST be a country recognised by the `python-holidays` package |
 | `Enum<E>` | string | one member of enum `E` (§2); **case-insensitive**, stored upper-case |
 | `List<T>` | sequence | ordered list of `T` |
 | `Map<K,V>` | mapping | keyed collection; keys of type `K`, values of type `V` |
@@ -119,12 +121,14 @@ circuit_breaker_defaults:   ? CircuitBreakerSpec
 market_maker_combos:        ? List<ComboSeedSpec>              # each: 2..10 legs
 indices:                    ? List<IndexSpec>                  # ≤ 5
 schedule:                   ? ScheduleSpec
+country:                    ? Country = "Sweden"               # read by pm-scheduler only
 
 # ── AUXILIARY GATEWAY BLOCKS (each read by its own process) ─────────────────
 alf_gateway:                ? AlfGwyProcSpec        # pm-alf-gwy
 balf_gateway:               ? BalfGwyProcSpec       # pm-balf-gwy
 market_data_gateway:        ? MdGwyProcSpec         # pm-md-gwy   (CALF)
 post_trade_gateway:         ? RalfGwyProcSpec       # pm-ralf-gwy (RALF)
+dc_gateway:                 ? DcGwyProcSpec         # pm-dc-gwy   (drop-copy TCP relay)
 api_gateways:               ? Map<Str, ApiGwyProcSpec>   # pm-api-gwy (named instances)
 
 SymbolSpec:
@@ -266,7 +270,7 @@ gateway's orders **when the order itself doesn't specify one**:
 
 > NOTE — `sessions_enabled` default: the engine loader applies `true` when the key
 > is omitted from a *present* file. (A completely absent config file runs
-> unrestricted with sessions disabled — see [Auctions & Scheduling](080-auctions-scheduling.md).)
+> unrestricted with sessions disabled — see [Auctions & Scheduling](080-session-scheduling.md).)
 
 ### 5.4 `mm_obligation_defaults` (OPTIONAL) — `MMObligationDefaultsSpec`
 
@@ -321,6 +325,23 @@ merge, the built-in ladder applies: `L1 = 0.07 / 5 min`, `L2 = 0.13 / 15 min`,
 
 `ScheduleSpec` — see §4.6. Consumed by `pm-engine` (when `sessions_enabled`) and,
 independently, by `pm-scheduler`.
+
+### 5.10 `country` (OPTIONAL)
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `country` | `Country` | – | `"Sweden"` | MUST be a country name or ISO 3166-1 alpha-2 code recognised by `python-holidays`; an unrecognised value falls back to the default rather than being rejected |
+
+`country` is a top-level key, a sibling of `schedule` rather than nested under
+it. Unlike every other field in this document, an invalid `country` value does
+**not** abort loading (contrast §1.4's general rule and CV16 below) — the
+loader logs a warning and substitutes `"Sweden"`.
+
+Consumed **only** by `pm-scheduler` (`scheduler/main.py`); `pm-engine` never
+reads this key. `pm-scheduler` uses it to resolve the bank-holiday calendar
+(via `python-holidays`) that gates whether the daily `schedule` (§5.9) runs at
+all on a given calendar day — see
+[Session Scheduling → Bank holidays and weekends](080-session-scheduling.md#bank-holidays-and-weekends).
 
 ---
 
@@ -433,6 +454,21 @@ be rejected.
 `TimeoutSpec`: `engine_auth_sec` `Secs > 0 = 3.0`, `engine_reply_sec` `Secs > 0 = 3.0`,
 `wait_ack_sec` `Secs > 0 = 3.0`.
 
+### 6.6 `dc_gateway` — `pm-dc-gwy` (drop-copy TCP relay)
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `name` | `Str` | – | `"dc-gwy01"` | non-empty; echoed in `WELCOME` |
+| `bind_address` | `Str` | – | `"0.0.0.0"` | non-empty |
+| `port` | `Port` | – | `5590` | `1..65535` |
+| `heartbeat_interval_sec` | `Secs` | – | `5` | `> 0`; interval between `HB` lines |
+| `idle_timeout_sec` | `Secs` | – | `30` | `> 0`; inbound silence disconnect threshold |
+| `max_client_queue` | `Int` | – | `10000` | `> 0`; per-client outbound buffer before slow-client disconnect |
+
+This block has no `enabled` key. The drop-copy source address (`tcp://127.0.0.1:5557`)
+is **not** configurable via YAML — use the `--engine-dc-pub` CLI flag on `pm-dc-gwy`
+to point at a non-default engine address.
+
 ---
 
 ## 7. Cross-field and semantic constraints
@@ -457,6 +493,7 @@ rejected at load.
 | CV13 | `symbols.<S>.tick_decimals` ∈ 0..8; `outstanding_shares`, when present, `> 0`. |
 | CV14 | (`pm-alf-gwy`, `pm-balf-gwy`) No `gateways.alf` id may be a prefix of another id. |
 | CV15 | (`pm-api-gwy`) The singular `api_gateway` key is not supported; a `gateway_id` credential MUST NOT be shared across two `api_gateways` instances. |
+| CV16 | (`pm-scheduler`) An unrecognised `country` value is the **sole exception** to the "MUST be rejected" rule in this section — the loader substitutes the default (`"Sweden"`) and logs a warning instead of aborting. `pm-scheduler` treats a calendar day as non-trading (and sends no `schedule` transitions) when it is a Saturday, a Sunday, or a `country` bank holiday. |
 
 ---
 
@@ -464,8 +501,9 @@ rejected at load.
 
 1. **Parse.** Load the document as YAML; a non-mapping root is rejected (§1.2).
 2. **Section ownership.** `pm-engine` reads the engine sections (§5) plus the
-   `SymbolSpec`/nested structures; each auxiliary process reads only its own block
-   (§6). No single process reads the whole file.
+   `SymbolSpec`/nested structures — with one exception, `country` (§5.10), which
+   is read only by `pm-scheduler`; each auxiliary process reads only its own
+   block (§6). No single process reads the whole file.
 3. **Normalisation.** Symbols, gateway ids, index ids, and enum values are
    upper-cased (§1.6).
 4. **Validation.** Field-level constraints (§4–§6) are checked, then the
@@ -502,5 +540,5 @@ block on every symbol.
 - [Configuration](010-configuration.md) — informative reference, generator, recipes
 - [Config Verifier (`pm-cverifier`)](020-config-verifier.md) — the reference validator
 - [Risk Controls](120-risk-controls.md) — collar and circuit-breaker behaviour
-- [Market Index (`pm-index`)](150-index.md) — index calculation using `indices`
-- [External Protocols Overview](210-protocol-overview.md) — the gateways that read the auxiliary blocks
+- [Market Index (`pm-index`)](150-market-index.md) — index calculation using `indices`
+- [External Protocols Overview](210-protocols-overview.md) — the gateways that read the auxiliary blocks

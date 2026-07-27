@@ -1,9 +1,9 @@
-## The Opening and Closing Auction
+# The Opening and Closing Auction
 
 
 Trading does not simply start at 9:30am and stop at 4:00pm (for US equities). The transition between closed and open trading is managed through a **call auction**, also called a **fixing** or **uncross**.
 
-### The Problem an Auction Solves
+## The Problem an Auction Solves
 
 Imagine the exchange has been closed overnight. Many participants have new orders to submit. If the exchange simply opened and started matching immediately, the first few orders would define the opening price, which would be arbitrary and potentially far from "fair value" based on overnight news.
 
@@ -19,7 +19,7 @@ Instead, exchanges run an **opening auction**:
 
 The result is a fair opening price that reflects the overnight information available to all participants simultaneously, rather than favouring whoever happened to submit their order a few milliseconds earlier.
 
-### Finding the Equilibrium Price
+## Finding the Equilibrium Price
 
 The equilibrium price is the price that maximises total traded volume, the **maximum executable volume rule**. For each candidate price, the algorithm calculates:
 - How many buy orders would trade at that price or better (buyers willing to pay at least that much)
@@ -55,7 +55,7 @@ The equilibrium price is **$151** , the single price at which the most volume (1
 
 **Auction imbalance messaging:** Exchanges often publish the **imbalance**, how many more shares are on the buy side than the sell side at the indicative price, to help participants decide whether to submit offsetting orders before the uncross. NYSE publishes closing auction imbalances starting at 3:45pm, giving participants 15 minutes to respond before the 4:00pm uncross.
 
-### Auction-Only Order Types
+## Auction-Only Order Types
 
 The order types introduced in the *Order Types* chapter are the vocabulary of *continuous* trading. Auctions add a small, specialised vocabulary of their own, order types that exist specifically to participate in an uncross and that behave differently, or do not exist at all, during continuous matching. A developer implementing an auction must handle these as distinct types with their own eligibility rules, not as ordinary limit orders that happen to arrive during the call period.
 
@@ -75,7 +75,7 @@ The order types introduced in the *Order Types* chapter are the vocabulary of *c
 
 **A note on cut-off times.** Auction order types have entry and cancellation deadlines that differ from continuous-session rules, for example, on the major US venues, MOC and LOC orders have historically had a late-afternoon entry cut-off (in the region of 3:50pm Eastern), after which they may be entered or modified only to offset a published imbalance, and not freely cancelled. These exact times are set by exchange rule, are periodically revised, and differ between venues; treat any specific time in this book as illustrative and verify against the current rulebook of the venue you are building for.
 
-### The Named Crosses: Opening Cross and Closing Cross
+## The Named Crosses: Opening Cross and Closing Cross
 
 Real venues brand and specify their auctions as named mechanisms, and an engineer reading exchange documentation will meet the names rather than the generic term "uncross." The mechanics are the equilibrium algorithm described above; the names denote the specific rule set, order types, and imbalance dissemination each venue attaches to it.
 
@@ -85,11 +85,11 @@ Real venues brand and specify their auctions as named mechanisms, and an enginee
 
 **Why the closing print is worth this much machinery.** The reason both venues invest so heavily in a robust, well-policed close is the same reason the next section on manipulation exists: an enormous quantity of economic activity references the closing price specifically. Index funds must trade at the close to track their benchmark; derivatives settle against it; fund NAVs are struck at it; performance is measured against it. A closing price is not merely the last number of the day, it is a contractually and financially load-bearing benchmark, which is exactly what makes it a target.
 
-### The Closing Auction
+## The Closing Auction
 
 The closing auction works identically but at the end of the day, establishing the official **closing price**. This is one of the most important prices in the market, it is used to benchmark fund performance, price derivatives, and compute official valuations of positions. The NYSE closing auction is one of the most liquidity-rich events in the US equity market: it regularly accounts for 10–15% of a stock's entire day's trading volume, compressed into a few seconds of uncrossing [NYSE Closing Auction Dynamics, 2023]. On some benchmark index rebalancing days the proportion is even higher, as index funds must trade at exactly the closing price to match their benchmarks.
 
-### Manipulating the Close, and Why the Auction Is Policed
+## Manipulating the Close, and Why the Auction Is Policed
 
 Because so much value references the closing price, the close is a standing target for manipulation. The generic abuse is called **marking the close** (or, for a benchmark fixing more generally, **banging the fix**): entering orders near the end of the auction period not to trade on their merits but to push the official price in a direction that benefits a position held elsewhere, a large derivatives position expiring against the close, an index-tracking obligation, a fund's month-end valuation, or simply a book that is marked to the closing price.
 

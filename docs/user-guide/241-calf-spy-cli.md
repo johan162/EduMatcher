@@ -1,4 +1,4 @@
-# CALF Protocol Spy (`pm-calf-spy`)
+# CALF Protocol Spy
 
 !!! note "Learning objectives"
     After reading this page you will understand:
@@ -42,7 +42,7 @@ and each `pm-calf-spy` process has its own independent subscription set.
 ## Why not the example subscriber?
 
 `docs/examples/calf/calf_subscriber.py` (see
-[Market Data Feed — Python subscriber example](240-market-data-feed.md#python-subscriber-example))
+[Market Data Feed — Python subscriber example](240-calf-gateway.md#python-subscriber-example))
 is a *library-style* example meant to be read and adapted: it hard-codes a
 fixed channel set (`TOP`, `TRADE`, `STATE`, `DEPTH`, optionally `INDEX`) and
 formats output for a specific demo. `pm-calf-spy` is a *general-purpose
@@ -76,7 +76,7 @@ handshake to succeed, but you will not see any live data until it is.
 
 | Flag | Default | Description |
 |---|---|---|
-| `--channels` | `*` | Comma-separated channels, e.g. `TOP,TRADE,CB`. `*` subscribes to every channel in `WELCOME\|CH_SUPPORTED=` (falling back to `TOP,TRADE,STATE` if that field is absent — see [pre-1.0.0 gateway note](240-market-data-feed.md#step-1-send-hello)) |
+| `--channels` | `*` | Comma-separated channels, e.g. `TOP,TRADE,CB`. `*` subscribes to every channel in `WELCOME\|CH_SUPPORTED=` (falling back to `TOP,TRADE,STATE` if that field is absent — see [pre-1.0.0 gateway note](240-calf-gateway.md#step-1-send-hello)) |
 | `--symbols` | `*` | Comma-separated symbols, e.g. `AAPL,MSFT`. `*` requests the wildcard for every channel that allows it (`TOP`, `TRADE`, `STATE`, `AUCTION`) |
 | `--resume` | *(none)* | One-shot `CH:SYM:LASTSEQ`, e.g. `TOP:AAPL:1042` — requests single-stream replay on connect (mirrors `HELLO\|RESUME=1\|CH=..\|SYM=..\|LASTSEQ=..`) |
 
@@ -109,7 +109,7 @@ handshake it has nothing more to say, so — unlike a real trading client that
 periodically sends orders or cancels — it would otherwise go completely
 silent for the rest of the session. `pm-md-gwy` disconnects any client that
 sends nothing at all for `market_data_gateway.idle_timeout_sec` (see
-[Market Data Feed — Configuration](240-market-data-feed.md)), so a purely
+[Market Data Feed — Configuration](240-calf-gateway.md)), so a purely
 receive-only client needs to generate outbound traffic of its own to avoid
 being dropped.
 
@@ -217,8 +217,8 @@ same gateway — `pm-md-gwy` fans out independently per session.
 
 ## See also
 
-- [Market Data Feed (CALF)](240-market-data-feed.md) — operational guide, wire examples, and the Python/C example subscribers
+- [Market Data Feed (CALF)](240-calf-gateway.md) — operational guide, wire examples, and the Python/C example subscribers
 - [Appendix — CALF Protocol](920-app-calf-protocol.md) — normative wire format, full field tables, sequencing rules
 - [Processes](170-processes.md#pm-calf-spy-calf-protocol-spy) — where `pm-calf-spy` sits in the process model
 - [Training — CALF Market-Data Gateway Protocol](../training/23-calf.md) — hands-on exercises using `nc` and the example subscribers
-- [Drop-Copy Spy (pm-dc-spy)](252-dc-spy-cli.md) — the analogous inspection tool for the per-participant fill feed
+- [Drop-Copy Spy (pm-dc-spy)](202-dc-spy-cli.md) — the analogous inspection tool for the per-participant fill feed

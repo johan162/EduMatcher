@@ -1,3 +1,33 @@
+## [v0.16.2] - 2026-07-27
+
+Release Type: minor
+
+### 📋 Summary
+This release adds country-aware schedule and holiday handling across configuration and tooling, while improving consistency in process logging and reducing churn from generated documentation artifacts. It also refreshes user-guide and Exchange Intro build workflows with dynamic cover generation and cleaner chapter organization. Finally the look & feel of the orderbook viewer and ticker is greatly improved.
+
+### ✨ Additions
+- Added top-level `country` field support in engine configuration, config generator, and config validator
+- Added country specification support in Config GUI
+- Added country-aware holiday handling in scheduler startup to avoid opening on bank holidays for the configured country
+- Added support for dc-gateway configuration in config-gen and config GUI
+
+### 🚀 Improvements
+- Improved engine and scheduler logging conventions to align with other processes
+- Improved look & feel of orderbook viewer pm-viewer
+- Improved look & feel of ticker pm-ticker
+
+### 📚 Documentation
+- Added information om country specification to schedule chapter
+- Improved user-guide chapter ordering and naming for clearer navigation
+- Improved process description
+
+### 🛠 Internal
+- Updated docs build workflows to stop committing generated intermediate files
+- Updated Makefile and docs build targets to support the revised template and cover generation process
+- Added dynamic cover page generation for Exchange Intro split outputs with new `cover-parts` target
+- Updated Exchange Intro docs pipeline with auto-generated cover assets and intermediate template handling
+- Refactored CLI startup options handling in API-gateway
+
 ## [v0.16.1] - 2026-07-19
 
 Release Type: major

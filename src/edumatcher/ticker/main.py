@@ -1,8 +1,8 @@
 """
-Ticker Process — scrolling terminal market data display.
+Ticker Process — old-fashioned scrolling market ticker in the terminal.
 
 Usage:
-  poetry run pm-ticker [--db data/stats.db] [--interval 30] [--db-interval 900]
+  poetry run pm-ticker [--db data/stats.db] [--db-interval 900]
 
 Subscribes to:
   book.*  — live last price, best bid/ask per symbol
@@ -11,13 +11,17 @@ Queries:
   daily_stats table in the statistics SQLite DB every --db-interval seconds
   (default 900 = 15 minutes) for OHLCV, VWAP, and trade count.
 
-Output:
-  One rich colour line is printed every --interval seconds (default 30):
+Display:
+  A bordered box is drawn across the top rows of the terminal. It holds a
+  header (the "EduMatcher" brand, today's total trade volume and the current
+  date/time) and a single ticker line that scrolls the symbols leftward like
+  a classic ticker tape.
 
-    09:15:00  ◆  MSFT  415.00  +0.48%  H:418.00  L:412.00  Vol:52,400 (8T)  414.50/415.50  ◆  AAPL …
-
-  Lines scroll up naturally as new ones appear — giving a classic terminal
-  ticker-tape effect.  Each line is a complete point-in-time snapshot.
+  • If every symbol fits within the current width the line stays static and
+    does not scroll.
+  • Scrolling only starts once the symbols are wider than the box.
+  • The box re-draws to the terminal width on resize; below a minimum width
+    the ticker line is truncated with an ellipsis ("…").
 """
 
 from __future__ import annotations
@@ -36,7 +40,12 @@ from pathlib import Path
 from typing import Any
 
 import zmq
-from rich.console import Console
+from rich import box
+from rich.console import Console, Group
+from rich.live import Live
+from rich.panel import Panel
+from rich.rule import Rule
+from rich.table import Table
 from rich.text import Text
 
 from edumatcher.config import ENGINE_PUB_ADDR, STATS_DB_FILE
@@ -47,10 +56,16 @@ from edumatcher.models.message import decode
 # Defaults
 # ---------------------------------------------------------------------------
 
-_DISPLAY_INTERVAL_DEFAULT = 30  # seconds between printed ticker lines
 _DB_REFRESH_DEFAULT = 900  # seconds between daily_stats re-queries (15 min)
-_MAIN_LOOP_SLEEP_SEC = 0.1  # main-loop polling granularity
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+
+_SCROLL_FPS = 12  # marquee refresh rate
+_SCROLL_STEP = 1  # columns advanced per frame while scrolling
+_MIN_TICKER_WIDTH = 24  # below this inner width the line is ellipsised
+_BOX_HEIGHT = 5  # header + rule + ticker + top/bottom border
+_FRAME_PADDING = 4  # 2 border cells + 2 horizontal padding cells
+_SEP = "  \u25c6  "  # inter-symbol separator (also the marquee wrap gap)
+_GAP_LEN = len(_SEP)
 
 console = Console(highlight=False)
 log = logging.getLogger(__name__)
@@ -85,7 +100,7 @@ def _query_daily_stats(
 
 
 # ---------------------------------------------------------------------------
-# Line builder
+# Line builders
 # ---------------------------------------------------------------------------
 
 
@@ -149,20 +164,116 @@ def _format_symbol(
     return frag
 
 
+def _build_ticker_text(
+    symbols: list[str],
+    daily: dict[str, dict[str, Any]],
+    live: dict[str, dict[str, Any]],
+) -> Text:
+    """Concatenate every symbol into one Text, joined by the ◆ separator."""
+    line = Text()
+    for i, sym in enumerate(symbols):
+        if i > 0:
+            line.append(_SEP, style="dim")
+        line.append_text(_format_symbol(sym, daily.get(sym, {}), live.get(sym, {})))
+    return line
+
+
 def _build_line(
     symbols: list[str],
     daily: dict[str, dict[str, Any]],
     live: dict[str, dict[str, Any]],
 ) -> Text:
-    """Compose one rich Text ticker line for all symbols."""
+    """Compose one timestamped ticker line for all symbols.
+
+    Retained as a stable helper: a leading ``HH:MM:SS`` timestamp followed by
+    the symbol run produced by :func:`_build_ticker_text`.
+    """
     line = Text()
-    ts = datetime.now().strftime("%H:%M:%S")
-    line.append(f"{ts}  ", style="dim")
-    for i, sym in enumerate(symbols):
-        if i > 0:
-            line.append("  ◆  ", style="dim")
-        line.append_text(_format_symbol(sym, daily.get(sym, {}), live.get(sym, {})))
+    line.append(f"{datetime.now().strftime('%H:%M:%S')}  ", style="dim")
+    line.append_text(_build_ticker_text(symbols, daily, live))
     return line
+
+
+# ---------------------------------------------------------------------------
+# Marquee / framing
+# ---------------------------------------------------------------------------
+
+
+def _marquee_window(full: Text, width: int, offset: int) -> Text:
+    """Return a ``width``-column slice of ``full`` starting at ``offset``.
+
+    A separator gap is appended so the run repeats seamlessly, and the text
+    is tiled enough times to always cover ``offset + width`` before slicing —
+    giving a continuous left-scrolling marquee.
+    """
+    one = full.copy()
+    one.append(_SEP, style="dim")
+    period = len(one.plain)
+    if period <= 0 or width <= 0:
+        return Text("")
+    copies = (offset + width) // period + 2
+    loop = Text()
+    for _ in range(copies):
+        loop.append_text(one)
+    window = loop.divide([offset, offset + width])[1]
+    window.no_wrap = True
+    window.overflow = "crop"
+    return window
+
+
+def _fit_static(full: Text, inner: int) -> Text:
+    """Non-scrolling content: the full run, ellipsised if too narrow to fit."""
+    if full.cell_len <= inner:
+        text = full
+    else:
+        text = full.copy()
+        text.truncate(max(1, inner), overflow="ellipsis")
+    text.no_wrap = True
+    text.overflow = "crop"
+    return text
+
+
+def _build_header(total_volume: int, symbol_count: int, now: datetime) -> Table:
+    """The header row: brand + total volume + symbol count on the left, the
+    live date/time pinned to the right."""
+    grid = Table.grid(expand=True)
+    grid.add_column(no_wrap=True, overflow="ellipsis")  # brand / stats
+    grid.add_column(ratio=1)  # elastic spacer
+    grid.add_column(no_wrap=True, justify="right")  # clock
+
+    left = Text.assemble(
+        (" EduMatcher ", "bold white on blue"),
+        ("  ", ""),
+        ("Total Vol ", "grey62"),
+        (f"{total_volume:,}", "bold white"),
+        ("   \u2502   ", "grey35"),
+        ("Symbols ", "grey62"),
+        (f"{symbol_count}", "white"),
+    )
+    right = Text(now.strftime("%Y-%m-%d %H:%M:%S"), style="bold cyan")
+    grid.add_row(left, Text(""), right)
+    return grid
+
+
+def _build_panel(
+    total_volume: int, symbol_count: int, now: datetime, ticker_line: Text
+) -> Panel:
+    """Assemble the full top-of-screen ticker box."""
+    return Panel(
+        Group(
+            _build_header(total_volume, symbol_count, now),
+            Rule(style="grey35"),
+            ticker_line,
+        ),
+        box=box.ROUNDED,
+        border_style="blue",
+        padding=(0, 1),
+        height=_BOX_HEIGHT,
+        title=Text(" pm-ticker ", style="grey58"),
+        title_align="left",
+        subtitle=Text("Ctrl-C to quit", style="grey42"),
+        subtitle_align="right",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -174,11 +285,9 @@ class TickerProcess:
     def __init__(
         self,
         db_path: Path,
-        display_interval: float,
         db_interval: float,
     ) -> None:
         self._db_path = db_path
-        self._display_interval = display_interval
         self._db_interval = db_interval
         self._running = True
         self._lock = threading.Lock()
@@ -189,6 +298,9 @@ class TickerProcess:
         self._daily: dict[str, dict[str, Any]] = {}
         # Stable sorted list of known symbols
         self._symbols: list[str] = []
+
+        # Marquee horizontal scroll offset (columns)
+        self._scroll_offset = 0
 
         self._last_db_refresh = 0.0
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
@@ -244,7 +356,6 @@ class TickerProcess:
         except Exception as exc:
             self._dbg_count("db_refresh_errors")
             log.warning("ticker DB read error: %s", exc)
-            console.print(f"[TICKER] DB read error: {exc}", style="dim red")
 
     # ------------------------------------------------------------------
     # ZMQ receive thread
@@ -290,6 +401,40 @@ class TickerProcess:
         log.info("ticker receive loop stopped")
 
     # ------------------------------------------------------------------
+    # Rendering
+    # ------------------------------------------------------------------
+
+    def _render(
+        self,
+        symbols: list[str],
+        daily: dict[str, dict[str, Any]],
+        live: dict[str, dict[str, Any]],
+    ) -> Panel:
+        """Build the ticker box for the current terminal width, advancing the
+        marquee offset only when the content is wider than the box."""
+        inner = max(1, console.size.width - _FRAME_PADDING)
+        now = datetime.now()
+        total_volume = sum(int(d.get("volume") or 0) for d in daily.values())
+
+        if symbols:
+            full = _build_ticker_text(symbols, daily, live)
+            if full.cell_len > inner and inner >= _MIN_TICKER_WIDTH:
+                period = full.cell_len + _GAP_LEN
+                self._scroll_offset = (self._scroll_offset + _SCROLL_STEP) % max(
+                    1, period
+                )
+                ticker = _marquee_window(full, inner, self._scroll_offset)
+            else:
+                self._scroll_offset = 0
+                ticker = _fit_static(full, inner)
+        else:
+            self._scroll_offset = 0
+            ticker = Text("waiting for market data…", style="dim italic")
+            ticker.no_wrap = True
+
+        return _build_panel(total_volume, len(symbols), now, ticker)
+
+    # ------------------------------------------------------------------
     # Main loop
     # ------------------------------------------------------------------
 
@@ -297,62 +442,52 @@ class TickerProcess:
         signal.signal(signal.SIGINT, lambda *_: self._stop())
         signal.signal(signal.SIGTERM, lambda *_: self._stop())
         log.info(
-            "starting ticker runtime db=%s interval=%s db_interval=%s",
+            "starting ticker runtime db=%s db_interval=%s",
             self._db_path,
-            self._display_interval,
             self._db_interval,
         )
 
         t = threading.Thread(target=self._receive, daemon=True)
         t.start()
+
+        # Initial DB load so the box shows data immediately if available.
+        self._refresh_db()
+        self._last_db_refresh = time.monotonic()
+
+        frame_interval = 1.0 / _SCROLL_FPS
+
+        # screen=True paints on the alternate screen buffer and repaints the
+        # whole box at the current terminal size every frame, so resizes never
+        # leave stale columns behind. transient=True restores the normal
+        # terminal (and scrollback) on exit.
         try:
-            console.print(
-                "[bold cyan]◆ EduMatcher Ticker[/bold cyan]  —  "
-                f"display every [bold]{self._display_interval}s[/bold], "
-                f"DB refresh every [bold]{self._db_interval}s[/bold]  "
-                "(Ctrl-C to stop)",
-            )
+            with Live(
+                console=console, auto_refresh=False, screen=True, transient=True
+            ) as live:
+                while self._running:
+                    now = time.monotonic()
+                    if now - self._last_db_refresh >= self._db_interval:
+                        self._refresh_db()
+                        self._last_db_refresh = now
 
-            # Initial DB load — show data immediately if available
-            self._refresh_db()
-            self._last_db_refresh = time.monotonic()
-
-            # Print first line right away (set last_display far enough in the past)
-            last_display = time.monotonic() - self._display_interval
-
-            while self._running:
-                now = time.monotonic()
-
-                # Periodic DB refresh
-                if now - self._last_db_refresh >= self._db_interval:
-                    self._refresh_db()
-                    self._last_db_refresh = now
-
-                # Print ticker line
-                if now - last_display >= self._display_interval:
                     with self._lock:
                         syms = list(self._symbols)
                         daily = dict(self._daily)
-                        live = dict(self._live)
-                    if syms:
-                        console.print(_build_line(syms, daily, live))
-                        self._dbg_count("lines_printed")
-                    else:
-                        console.print(
-                            f"[dim]{datetime.now().strftime('%H:%M:%S')}  "
-                            "waiting for market data…[/dim]"
-                        )
-                        self._dbg_count("lines_waiting")
-                    last_display = now
+                        live_data = dict(self._live)
 
-                self._flush_debug_summary()
-                time.sleep(_MAIN_LOOP_SLEEP_SEC)
+                    live.update(self._render(syms, daily, live_data))
+                    live.refresh()
+                    self._dbg_count("frames_rendered")
+                    self._flush_debug_summary()
+                    time.sleep(frame_interval)
+        except KeyboardInterrupt:
+            pass
         finally:
             self._running = False  # ensure _receive exits even on exception
             t.join(timeout=2.0)  # wait for thread before touching the socket
             self.sub.close()  # safe: _receive is no longer polling
             self._flush_debug_summary(force=True)
-        console.print("\n[TICKER] Stopped.", style="dim")
+        console.print("[TICKER] Stopped.", style="dim")
         log.info("ticker shutdown complete")
 
     def _stop(self) -> None:
@@ -371,7 +506,6 @@ def main() -> None:
     log.info("starting pm-ticker with log level %s", logging.getLevelName(log_level))
     TickerProcess(
         db_path=Path(args.db),
-        display_interval=args.interval,
         db_interval=args.db_interval,
     ).run()
 
@@ -386,13 +520,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default=str(STATS_DB_FILE),
         metavar="PATH",
         help=f"Statistics SQLite database (default: {STATS_DB_FILE})",
-    )
-    parser.add_argument(
-        "--interval",
-        type=float,
-        default=_DISPLAY_INTERVAL_DEFAULT,
-        metavar="SEC",
-        help=f"Seconds between printed ticker lines (default: {_DISPLAY_INTERVAL_DEFAULT})",
     )
     parser.add_argument(
         "--db-interval",

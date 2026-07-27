@@ -11,7 +11,7 @@ Automatically adds chapter and section numbers to the user-guide documentation d
 1. **Chapter numbering**: Files are numbered based on their filename prefix:
    - `000-getting-started.md` → Chapter 1
    - `010-configuration.md` → Chapter 2
-   - `160-commands.md` → Chapter 3
+   - `160-exchange-commands.md` → Chapter 16
    - etc.
 
 2. **Section numbering**: Headers within each chapter are numbered hierarchically:

@@ -367,7 +367,7 @@ hedged entries, statistical arbitrage) where the profit depends on the
 *relationship* between instruments, not on any single instrument's direction.
 Without combos, submitting legs separately exposes you to **leg risk** — one
 side fills while the other does not, leaving you with unintended directional
-exposure. See the [Combo Orders](070-combos.md) page for full details, examples,
+exposure. See the [Combo Orders](070-combo-orders.md) page for full details, examples,
 and the implied orders mechanism.
 
 
@@ -1203,9 +1203,9 @@ CANCEL|OCO_ID=TPS
 
 ## See also
 
-- [Combos](070-combos.md) — multi-symbol multi-leg strategies with cascade cancellation
-- [Auctions & Scheduling](080-auctions-scheduling.md) — which order types are accepted in each session phase
+- [Combos](070-combo-orders.md) — multi-symbol multi-leg strategies with cascade cancellation
+- [Auctions & Scheduling](080-session-scheduling.md) — which order types are accepted in each session phase
 - [Persistence](180-persistence.md) — how GTC orders survive engine restarts
 - [Risk Controls](120-risk-controls.md) — how collars and halts affect order admission
-- [Gateway](050-gateway.md) — the full command syntax for submitting these order types
+- [Gateway](050-gateway-reference.md) — the full command syntax for submitting these order types
 - [ALF Protocol Reference](900-app-alf-protocol.md) — formal grammar for all order fields

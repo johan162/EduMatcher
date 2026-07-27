@@ -187,7 +187,7 @@ high-volume book/viewer traffic?
 
 ## Further Reading
 
-- [Messages](../user-guide/270-messages.md)
+- [Messages](../user-guide/270-message-reference.md)
 - [Drop Copy](../user-guide/200-drop-copy.md)
 - [Processes](../user-guide/170-processes.md)
 - [CALF Protocol Reference](../user-guide/920-app-calf-protocol.md)

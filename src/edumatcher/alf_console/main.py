@@ -494,7 +494,7 @@ class Gateway:
         ``_dc_sub_sock`` otherwise -- see ``_set_drop_copy``. Printed as a
         ``DC_FILL``-style line for consistency with the wire message
         pm-alf-gwy sends its own TCP clients for the same event (see
-        docs/user-guide/270-messages.md).
+        docs/user-guide/270-message-reference.md).
         """
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         seq = payload.get("seq", "?")
