@@ -1,8 +1,37 @@
-Version: 1.0.0
+Version: 1.1.0
 
 Date: 2026-07-28
 
 Status: Design Proposal
+
+> **Changelog v1.1.0**
+> - **Retention default changed from unbounded to 30 days** (§6.5, §7.7).
+>   `pm-log-srv --retention-days` (config `retention_days`) now defaults
+>   to `30` instead of `null`/unset. Operational logging is disposable in
+>   a way `pm-audit`'s/`pm-stats`' own deliberately-forever stores are
+>   not, so a bounded default better matches this store's actual risk (an
+>   unbounded `log.db` growing forever on a long-lived, unattended
+>   deployment) than the "keep everything unless told otherwise" posture
+>   that makes sense for a compliance/market-data record. Setting
+>   `retention_days: null` (or `--retention-days 0`) still opts back into
+>   unbounded retention for anyone who wants it.
+> - **New: fallback-to-file behavior when `pm-log-srv` is unreachable for
+>   an extended period** (§8.2, §8.6, §9.6, §10). Previously, a
+>   `TcpLogHandler` that lost its connection to `pm-log-srv` reconnected
+>   indefinitely with backoff and dropped records once its local queue
+>   filled — logging simply degraded for as long as the server stayed
+>   down, with no durable record of what was dropped. This revision adds
+>   a bounded grace window (`failover_timeout_sec`, default 30s,
+>   `--log-failover-timeout`/config `log_server.client.failover_timeout_sec`,
+>   §7.7): if the server hasn't come back by the time the window expires,
+>   the handler switches, one-way, to a local `logs/<client>.log` file for
+>   the rest of that process's life instead of continuing to drop
+>   records. New `pm-log-cli diagnose` heuristic (§9.6) recognizes this
+>   signature (a clean LALF disconnect with no further rows from that
+>   process, while other processes keep logging normally) and tells the
+>   operator to check the corresponding fallback file. New open question
+>   (§13, item 4) on whether this should ever be a two-way transition
+>   instead of one-way.
 
 # EduMatcher — Centralized Log Server (`pm-log-srv`) and CLI (`pm-log-cli`) Design
 
@@ -568,13 +597,21 @@ has for itself.
 Unlike `pm-audit` (a durable-forever compliance record by design) or
 `pm-stats` (bounded by one row per symbol per day/15-minutes),
 `log_events` can grow without bound at DEBUG-heavy verbosity over a long
-session. `pm-log-srv` supports an optional `--retention-days N` (config
-`retention_days`, §7.7, default: unset/unbounded, matching this project's
-general preference for explicit opt-in over surprising default deletion)
-that, when set, prunes `log_events` rows older than `N` days once per
-hour in the background. `pm-log-cli` additionally exposes a manual
-`prune` subcommand (§9.1) for the same operation on demand, mirroring
-`pm-clearing-cli`'s own `prune` command
+session. `pm-log-srv` supports `--retention-days N` (config
+`retention_days`, §7.7, **default `30`**) that prunes `log_events` rows
+older than `N` days once per hour in the background. Operational logging
+is qualitatively different from `pm-audit`'s compliance record or
+`pm-stats`' market history — both of those default to keeping everything
+forever because losing a fill or a price is unrecoverable and
+consequential, whereas losing a 45-day-old DEBUG line is not. A bounded
+default keeps `log.db` from growing without limit on a long-lived
+deployment with no one paying attention to it, which is a more likely
+failure mode for this particular store than for `pm-audit`/`pm-stats`.
+Setting `retention_days: null` (or `--retention-days 0`) explicitly opts
+back into unbounded retention for anyone who wants it — the default is a
+starting point, not a hard limit. `pm-log-cli` additionally exposes a
+manual `prune` subcommand (§9.1) for the same operation on demand,
+mirroring `pm-clearing-cli`'s own `prune` command
 (`docs/user-guide/170-processes.md`'s process table already lists this as
 an existing pattern for a query-CLI to also own light maintenance
 duties).
@@ -666,7 +703,8 @@ CREATE TABLE IF NOT EXISTS server_stats (
 4. Upsert `server_stats` row `id=1`, setting `started_at` to now.
 5. Bind the TCP listen socket. Log (to its own stdout/file — `pm-log-srv`
    cannot sensibly log to itself, §8.1 note) that it is ready.
-6. If `--retention-days` is set, start the background pruning task (§6.5).
+6. Start the background pruning task (§6.5) unless `--retention-days 0`
+   (or config `retention_days: null`) explicitly disabled it.
 7. Enter the accept loop.
 
 ### 7.3 Per-client handler loop
@@ -752,12 +790,16 @@ log_server:
   host: 127.0.0.1
   port: 5600
   db_path: data/log.db
-  retention_days: null        # unset = unbounded retention
+  retention_days: 30          # null (or --retention-days 0) = unbounded retention
   max_message_bytes: 65536
   max_client_queue: 10000
   write_batch_size: 50
   write_batch_interval_ms: 100
   heartbeat_interval_sec: 5
+  client:
+    connect_timeout_sec: 0.5
+    failover_timeout_sec: 30    # §8.6 — grace window before a client falls back to logs/<process>.log
+    failover_dir: logs
 ```
 
 Placed as a new top-level `log_server:` block, the same shape as
@@ -765,7 +807,16 @@ Placed as a new top-level `log_server:` block, the same shape as
 present once per `engine_config.yaml` — there is exactly one log server
 per deployment, the same cardinality as `market_data_gateway` (contrast
 with `api_gateways:`, which is a named map supporting several instances;
-a log server has no equivalent need for more than one).
+a log server has no equivalent need for more than one). The nested
+`client:` sub-block is deliberately part of this same top-level block
+rather than duplicated per-process: every `pm-*` process reads its own
+`TcpLogHandler` defaults (§8.2, §8.6) from here, the same way every
+process already reads its own `market_data_gateway.port` to know where to
+find `pm-md-gwy` — one shared source of truth for "how a client should
+behave," not 19 independently-configured copies. `--log-failover-timeout`
+(§8.5) overrides `log_server.client.failover_timeout_sec` for that one
+invocation only, the same override relationship every other `pm-*`
+CLI-flag-vs-config pair already has (§7.2, step 1).
 
 ## 8. Hooking Into the Existing Python `logging` Setup
 
@@ -803,27 +854,39 @@ goes" (a `Handler`, which is exactly what's being added here).
 
 ```python
 class TcpLogHandler(logging.Handler):
-    """Formats and ships LogRecords to pm-log-srv over LALF (§5)."""
+    """Formats and ships LogRecords to pm-log-srv over LALF (§5).
+
+    Falls back to a per-process log file (§8.6) if the server cannot
+    be reached again within failover_timeout_sec of first noticing the
+    connection is down.
+    """
 
     def __init__(self, host: str, port: int, client: str,
                  instance: str | None = None,
                  queue_maxsize: int = 2000,
-                 connect_timeout_sec: float = 0.5) -> None:
+                 connect_timeout_sec: float = 0.5,
+                 failover_timeout_sec: float = 30.0,
+                 failover_dir: str = "logs") -> None:
         super().__init__()
         # Connects once, lazily, on the first emitted record; a
         # background thread owns the actual socket and the send queue
         # so that a slow or dead log server can never block the
         # calling thread's log.warning(...) call itself (see overflow
-        # policy below).
+        # policy below). The same background thread tracks how long
+        # the connection has been down and triggers failover (§8.6)
+        # once failover_timeout_sec is exceeded.
         ...
 
     def emit(self, record: logging.LogRecord) -> None:
         # Never raises: formats the record, encodes a LOG frame (§5.4),
         # and puts it on the internal queue. If the queue is full
-        # (server unreachable/slow and queue_maxsize exceeded), the
-        # record is dropped and a monotonic drop counter is
-        # incremented — never blocks, per logging.Handler's own
-        # contract that emit() should not raise or stall the caller.
+        # (server unreachable/slow and queue_maxsize exceeded) and
+        # failover has not yet triggered, the record is dropped and a
+        # monotonic drop counter is incremented. Once failover has
+        # triggered (§8.6), emit() instead writes straight through to
+        # the fallback FileHandler — never blocks either way, per
+        # logging.Handler's own contract that emit() should not raise
+        # or stall the caller.
         ...
 ```
 
@@ -836,23 +899,30 @@ Key design decisions, each with a direct precedent or rationale:
   thread is doing the actual logging). `TcpLogHandler` is, in effect, a
   `QueueHandler` with a purpose-built `QueueListener` that speaks LALF
   instead of delegating to another `Handler`.
-- **Bounded queue with silent drop, not blocking, on overflow.** A
-  logging call must never be able to stall or crash the process it's
-  instrumenting — that would make observability tooling a new source of
-  outages, the opposite of its purpose. `queue_maxsize` (default `2000`)
-  bounds memory; drops are tracked (`TcpLogHandler.dropped_count`) and
-  the handler periodically emits (to its own fallback stream, never
-  recursively through itself) a `records dropped: N since last report`
-  line if `dropped_count` is nonzero, so silent data loss is at least
-  visible somewhere.
-- **Reconnect with backoff, transparent to the caller.** If the
-  connection to `pm-log-srv` drops mid-session (server restarted, network
-  blip), the background thread reconnects with a simple capped
-  exponential backoff (mirrors `pm-terminal-bridge`'s own CALF reconnect
-  posture in [EduMatcher-Terminal-GUI.md](EduMatcher-Terminal-GUI.md)
-  §6.6 — the general shape "reconnect quietly, don't tear down the
-  caller's session" recurs throughout this codebase's client designs) and
-  resends a fresh `HELLO` (§5.10 — no resume needed).
+- **Bounded queue with drop, not blocking, during the failover grace
+  window.** A logging call must never be able to stall or crash the
+  process it's instrumenting — that would make observability tooling a
+  new source of outages, the opposite of its purpose. `queue_maxsize`
+  (default `2000`) bounds memory while the handler is still trying to
+  reconnect (§8.6); drops during this window are tracked
+  (`TcpLogHandler.dropped_count`) and reported the same way as before —
+  see §8.6 for what happens once the grace window itself expires, which
+  is a qualitatively different outcome from a drop.
+- **Reconnect with backoff, transparent to the caller, up to a bounded
+  grace window.** If the connection to `pm-log-srv` drops mid-session
+  (server restarted, network blip), the background thread reconnects
+  with a simple capped exponential backoff (mirrors
+  `pm-terminal-bridge`'s own CALF reconnect posture in
+  [EduMatcher-Terminal-GUI.md](EduMatcher-Terminal-GUI.md) §6.6 — the
+  general shape "reconnect quietly, don't tear down the caller's
+  session" recurs throughout this codebase's client designs) and resends
+  a fresh `HELLO` (§5.10 — no resume needed). Unlike the terminal
+  bridge's CALF uplink, which reconnects indefinitely because there is
+  nowhere else for its data to go, `TcpLogHandler` gives up reconnecting
+  to the server after `failover_timeout_sec` (default `30`) and switches
+  to file-based logging instead (§8.6) — the log record has to go
+  *somewhere*, and unlike a market-data tick, a log line is still fully
+  useful written to a local file instead of dropped.
 
 ### 8.3 Auto-detection algorithm
 
@@ -916,28 +986,106 @@ have printed them to stdout, no more and no less.
 ```
 --log-target {server,stdout,file}   # default: server (auto-detected, §8.3), explicit override always wins
 --log-file PATH                      # required when --log-target file; ignored otherwise
+--log-failover-timeout SEC           # default: 30 — grace window before falling back to file (§8.6)
 ```
 
-Two new flags, added to every process's existing `_build_parser()`
+Three new flags, added to every process's existing `_build_parser()`
 alongside `--log-level`/`-v`/`-q` — mechanical, repeated across ~19
 files, no change to the flags that already exist there. `--log-target
 file` writes to `PATH` via a standard `logging.FileHandler`, entirely
 independent of `pm-log-srv` — the explicit escape hatch this document's
-goal (§3.1, item 4) calls for.
+goal (§3.1, item 4) calls for. `--log-failover-timeout` only has an
+effect when `--log-target` resolved to `server` (whether by explicit flag
+or by auto-detection, §8.3) — it has no meaning for `stdout`/`file`
+targets, which never talk to `pm-log-srv` in the first place and so have
+nothing to fail over from. Setting it to `0` disables the grace window
+entirely (fail over on the very first detected disconnect) rather than
+disabling failover altogether — there is no flag to force "keep dropping
+forever," since §8.6 treats that as strictly worse than writing to a
+fallback file in every case.
 
 ### 8.6 Behaviour when the server disappears mid-session
 
-Already covered structurally by §8.2's background-thread reconnect logic:
-the owning process keeps running and keeps calling `log.info(...)`/etc.
-exactly as before; records queue up to `queue_maxsize`, then start
-dropping (with the periodic "dropped: N" notice, §8.2) until the
-background thread's reconnect attempt succeeds or the process exits.
-**Losing the log server is never a reason for any other `pm-*` process to
-slow down, block, or exit** — logging infrastructure failing is always
-a strictly lower-severity event than the trading system itself failing,
-and this design treats it that way at every layer (server backpressure
-in §5.8 slows producers gracefully rather than dropping; client-side
-drop-with-notice in §8.2 never blocks the instrumented process).
+Three phases, not two — this revision adds a durable last resort on top
+of what was previously just "reconnect or drop":
+
+1. **0 to `failover_timeout_sec` (default 30s) after the connection is
+   first noticed down:** exactly as §8.2 describes — the background
+   thread reconnects with capped exponential backoff, `log.info(...)`/etc.
+   calls keep queuing normally, and only actually drop a record if
+   `queue_maxsize` fills before either the grace window expires or the
+   server comes back. This window absorbs the common case — a brief
+   server restart or blip — without ever touching disk.
+2. **Reconnect succeeds within the grace window:** the queued backlog
+   (up to `queue_maxsize`) drains to the server over LALF as usual, the
+   drop counter (if nonzero) is reported once (§8.2), and nothing else
+   changes — from the log server's perspective this looks like any other
+   client reconnect (§5.10).
+3. **`failover_timeout_sec` elapses with no successful reconnect:** the
+   handler stops attempting LALF delivery for the remainder of this
+   process's life and switches to a local **fallback log file** instead.
+   This is a one-way transition in this revision (§13 covers why
+   switching back is deliberately not attempted) — once a process has
+   failed over to file logging, it stays on file logging until it exits,
+   rather than periodically re-probing for the server in the background
+   and risking a confusing, silently-resumed split where some of a
+   session's records are in `log.db` and some are only in the fallback
+   file with no indication which is which mid-stream.
+
+**Fallback file location and naming.** `$EDUMATCHER_DATA_DIR/logs/<client>[-<instance>].log`
+— e.g. `logs/pm-md-gwy.log`, or `logs/pm-alf-console-TRADER01.log` when
+`--instance`/`--id` disambiguates multiple instances of the same process
+(§5.3's `INSTANCE` field). The `logs/` directory is created on first use
+if absent, sitting alongside `log.db` under `$EDUMATCHER_DATA_DIR` — the
+same base directory `stats.db`/`audit.log` already use
+(`docs/user-guide/000-getting-started.md`'s `EDUMATCHER_DATA_DIR` table),
+so a fallback file is not a new, separately-configured location to go
+hunting for. A process that fails over appends to this file with a
+standard `logging.FileHandler` (same formatter §5.4's `LOG` payload would
+otherwise have carried: timestamp, level, logger name, message), and logs
+one clearly-marked line at the moment of failover itself —
+`pm-log-srv unreachable for 30s, falling back to logs/pm-md-gwy.log` —
+written to *both* the process's stderr and the start of the fallback file,
+so the failover is visible in whichever place someone happens to be
+watching, not just discoverable after the fact by noticing the file
+exists.
+
+**Why a grace window and not immediate failover, and why file and not
+just "keep dropping."** An immediate switch to file logging on the very
+first dropped connection would defeat the purpose of reconnect-with-backoff
+entirely (§8.2) — most disconnects are transient, and flapping between
+LALF and file on every brief blip would scatter one session's log across
+multiple destinations for no benefit. Waiting `failover_timeout_sec`
+before giving up treats a 30-second-and-counting outage as qualitatively
+different from a one-second one: at that point `pm-log-srv` is most
+likely down for a real reason (crashed, never started, misconfigured
+host/port), not blipping, and continuing to silently drop records for
+the rest of a potentially hours-long session is a worse outcome than
+writing them somewhere durable, even if that somewhere is a plain local
+file instead of the centralized store. This keeps the same operating
+principle §8.6 already established: **losing the log server is never a
+reason for any other `pm-*` process to slow down, block, or exit** — it
+is now also never a reason for that process's logging to go dark for the
+rest of its life, either. Logging infrastructure failing is always a
+strictly lower-severity event than the trading system itself failing, and
+every layer of this design treats it that way (server backpressure in
+§5.8 slows producers gracefully rather than dropping; the client-side
+grace-window-then-file behaviour here never blocks the instrumented
+process and never leaves it with nowhere to log).
+
+**What this means for `pm-log-cli`.** Records written to a fallback file
+during an outage are, by construction, not in `log.db` and therefore not
+visible to `pm-log-cli` (§9) until/unless someone manually inspects or
+imports that file — there is no automatic backfill of a fallback file
+into `log.db` once the server comes back (the process has already moved
+on to file-only logging for the rest of its life, per point 3 above, and
+a *new* process start after the server recovers would auto-detect it
+fresh via §8.3 as normal). `pm-log-cli diagnose`'s "process silence"
+heuristic (§9.6) is the intended way to notice this after the fact from
+the query side: a process that stops appearing in `log_events` for an
+extended period, without a corresponding `disconnected_at` in
+`processes`, is exactly the signature a fallback event leaves — worth a
+seventh heuristic, added in §9.6.
 
 ### 8.7 Files to change
 
@@ -1055,6 +1203,7 @@ inspectable answer (§3.2's non-goal is explicit about this).
 | **Clock skew** | `server_ts - client_ts` for a given `process` consistently (median over the window) exceeding `clock_skew_threshold_sec` (default `2`) | "`pm-mm-bot`'s log timestamps are consistently ~3.1s behind `pm-log-srv`'s clock — verify the two machines' clocks are synchronized if running cross-host (see `EduMatcher-Cross-host-connection.md`)" |
 | **Truncated-message rate** | Any `truncated=1` rows in the queried window | "`pm-ai-swarm` sent 3 oversized log messages that were truncated — if this recurs, consider raising `log_server.max_message_bytes`" |
 | **Exception clustering by logger** | `has_exception=1` rows grouped by `logger`, surfacing the single logger with the most tracebacks in the window | "Most exceptions in this window come from `edumatcher.md_gateway.gateway` (12 of 15) — start troubleshooting there" |
+| **Likely fallback-to-file event** | A `processes` row with `disconnected_at` set (clean LALF disconnect, not the still-open-but-stalled case the silence heuristic above covers) whose `process` name generates no further `log_events` rows for the remainder of the queried window, combined with `server_stats`/`processes` evidence `pm-log-srv` itself had no outage in that window (i.e. other processes kept logging normally) | "`pm-md-gwy` disconnected from `pm-log-srv` at 14:32:07 and has not reconnected — this matches the §8.6 file-failover signature; check `logs/pm-md-gwy.log` for what it logged after that point, since it is no longer visible to this database" |
 
 Each finding in the report cites the exact `pm-log-cli query` invocation
 that would reproduce it (as in the examples above), so a user can always
@@ -1122,18 +1271,29 @@ for further processing, exactly as this feature was asked for.
   warn about (§"Recommended startup sequence" in
   `docs/user-guide/170-processes.md`) — a missed log line was, at worst,
   printed to a terminal instead of stored, not silently destroyed.
+- **Fallback files (§8.6) sit outside `pm-log-srv`'s own retention policy
+  entirely.** `retention_days` (§6.5, default 30) only prunes `log_events`
+  rows in `log.db` — it has no effect on anything written to
+  `logs/<client>.log` after a failover, since that file was, by design,
+  written by a process that has given up talking to `pm-log-srv` at all.
+  A long-running deployment that experiences occasional server outages
+  will accumulate fallback files under `logs/` that nothing in this
+  design automatically ages out; treat them the same as any other
+  hand-rotated log file (or wire up standard `logrotate`-style external
+  housekeeping) rather than expecting `pm-log-cli prune` to reach them —
+  it only ever touches `log.db` (§9.1).
 
 ## 11. Testing Strategy
 
 | Layer | Tool | What's covered |
 |---|---|---|
 | `logclient/protocol.py` | pytest | LALF header-line encode/decode round-trip, `LEN`-prefixed payload framing with embedded pipes/newlines/Unicode in the message body (§5.2 — this is the one case worth extra test weight, since it's the whole reason LALF isn't just CALF-with-a-new-channel) |
-| `logclient/handler.py` (`TcpLogHandler`) | pytest + a fake LALF TCP server | `emit()` never blocks even when the fake server never reads (queue fills, drops start, `dropped_count` increments); reconnect-with-backoff after a simulated disconnect; correct `LOG` frame fields for a record with `exc_info` set |
+| `logclient/handler.py` (`TcpLogHandler`) | pytest + a fake LALF TCP server | `emit()` never blocks even when the fake server never reads (queue fills, drops start, `dropped_count` increments); reconnect-with-backoff after a simulated disconnect; correct `LOG` frame fields for a record with `exc_info` set; **§8.6 failover**: reconnect succeeding within `failover_timeout_sec` drains the queue over LALF with no fallback file created; reconnect never succeeding past `failover_timeout_sec` creates `logs/<client>.log`, writes the "falling back" marker line to both stderr and the file, and routes every subsequent `emit()` to the file with zero further LALF attempts (one-way transition, §8.6) |
 | `logclient/discovery.py` | pytest | All five branches of §8.3's algorithm: explicit `stdout`/`file` skip detection; server present → `TcpLogHandler` attached; server absent + default → silent stdout fallback; server absent + explicit `--log-target server` → stderr message + stdout fallback |
 | `log_srv/server.py` | pytest + real `asyncio` TCP client fixtures | `HELLO`/`WELCOME` handshake incl. rejection paths (bad `PROTO`, missing fields, `HELLO` timeout); concurrent connections writing simultaneously commit correctly (no lost rows, no `SQLITE_BUSY` surfaced to a client); backpressure (§5.8) actually slows a fast-sending fake client once `max_client_queue` is exceeded; retention pruning deletes exactly the rows older than the cutoff and nothing else |
 | `log_cli/queries.py` | pytest against a pre-seeded `log.db` fixture | Every flag combination in §9.3 produces the expected `WHERE` clause and row set; `tail`'s `seq >` polling never re-shows a row; `--format json` output is valid JSONL |
-| `log_cli/diagnose.py` | pytest against hand-crafted `log_events` fixtures, one per heuristic | Each of §9.6's six heuristics fires on a fixture engineered to trigger it and does **not** fire on a fixture that should be clean — false-positive avoidance is as important to test here as true-positive detection, since these are meant to be trusted recommendations |
-| End-to-end | A script starting `pm-log-srv` + two or three real `pm-*` processes against a scratch `engine_config.yaml` | Every started process's stdout-equivalent output actually lands in `log.db`; killing `pm-log-srv` mid-session and restarting it causes the affected processes to reconnect and resume without themselves crashing or blocking (§8.6); `pm-log-cli diagnose` against a session with a deliberately induced error spike (e.g. pointing a gateway at a wrong port) flags it |
+| `log_cli/diagnose.py` | pytest against hand-crafted `log_events`/`processes` fixtures, one per heuristic | Each of §9.6's seven heuristics fires on a fixture engineered to trigger it and does **not** fire on a fixture that should be clean — false-positive avoidance is as important to test here as true-positive detection, since these are meant to be trusted recommendations. The fallback-to-file heuristic specifically needs a fixture distinguishing it from the plain silence heuristic: a cleanly `disconnected_at`-set process with no further rows (should fire) vs. a still-open, merely-slow-to-heartbeat process (should fire the *other* heuristic instead, not this one) |
+| End-to-end | A script starting `pm-log-srv` + two or three real `pm-*` processes against a scratch `engine_config.yaml` | Every started process's stdout-equivalent output actually lands in `log.db`; killing `pm-log-srv` mid-session and **restarting it within `failover_timeout_sec`** causes the affected processes to reconnect and resume over LALF without themselves crashing or blocking, with no fallback file created (§8.6); killing `pm-log-srv` and **keeping it down past `failover_timeout_sec`** causes each affected process to create its own `logs/<process>.log`, keep running normally, and never attempt LALF again for the rest of that run; `pm-log-cli diagnose` against a session with a deliberately induced error spike (e.g. pointing a gateway at a wrong port) flags it, and against a session with an induced failover event flags that too, distinct from a merely-quiet process |
 
 ## 12. Implementation Plan
 
@@ -1141,11 +1301,12 @@ for further processing, exactly as this feature was asked for.
 |---|---|
 | 1 | LALF protocol module (`logclient/protocol.py`, §5) with full round-trip tests, independent of any networking code |
 | 2 | `pm-log-srv` core: accept loop, `HELLO`/`WELCOME`, schema (§6.6), single-writer batching (§7.3, §7.4) — no backpressure or retention yet, just correct ingestion |
-| 3 | `TcpLogHandler` + auto-detection (§8.2, §8.3), wired into **one** process first (`pm-api-gwy`, the best-understood entrypoint from prior design work) as a proof of the whole pipe end-to-end |
-| 4 | Roll `--log-target`/`--log-file` and the `TcpLogHandler` wiring out to the remaining ~18 `pm-*` entrypoints (§8.7) — mechanical, low-risk once Phase 3 validates the pattern once |
-| 5 | `pm-log-cli`: `query`/`tail`/`processes`/`stats` (§9.2–9.5) against a real `log.db` populated by Phases 2–4 |
-| 6 | Backpressure (§5.8) and retention pruning (§6.5) in `pm-log-srv`, plus `pm-log-cli prune` |
-| 7 | `pm-log-cli diagnose` (§9.6) — deliberately last, since it is the one component that needs a representative, populated `log.db` (ideally from a real multi-process session) to validate its thresholds against, not just unit fixtures |
+| 3 | `TcpLogHandler` + auto-detection (§8.2, §8.3), wired into **one** process first (`pm-api-gwy`, the best-understood entrypoint from prior design work) as a proof of the whole pipe end-to-end — reconnect-with-backoff included, file failover (§8.6) not yet |
+| 4 | File failover (§8.6): the `failover_timeout_sec` grace-window timer, the one-way switch to `logs/<client>.log`, and the stderr/file marker line — added to the one process wired in Phase 3 before rolling out further, since this is the riskiest new behavior to get right (a bug here could mean silently losing logs in a way today's plain stdout fallback never could) |
+| 5 | Roll `--log-target`/`--log-file`/`--log-failover-timeout` and the full `TcpLogHandler` wiring out to the remaining ~18 `pm-*` entrypoints (§8.7) — mechanical, low-risk once Phases 3–4 validate the pattern once |
+| 6 | `pm-log-cli`: `query`/`tail`/`processes`/`stats` (§9.2–9.5) against a real `log.db` populated by Phases 2–5 |
+| 7 | Backpressure (§5.8) and retention pruning (§6.5, now defaulting to 30 days) in `pm-log-srv`, plus `pm-log-cli prune` |
+| 8 | `pm-log-cli diagnose` (§9.6) — deliberately last, since it is the one component that needs a representative, populated `log.db` (ideally from a real multi-process session, including at least one deliberately-induced failover event) to validate its thresholds against, not just unit fixtures |
 
 ## 13. Open Questions
 
@@ -1179,6 +1340,23 @@ for further processing, exactly as this feature was asked for.
    collector, but no authentication exists yet (§10) — fine for a single
    trusted LAN, not something to expose more broadly without revisiting
    §5.1/§10 first.
+4. **Should file failover (§8.6) ever attempt to switch back to `pm-log-srv`
+   once it recovers, instead of being one-way for the rest of the
+   process's life?** This revision deliberately keeps it one-way: once a
+   process has fallen back to `logs/<client>.log`, it stays there until it
+   exits, rather than periodically re-probing and potentially resuming
+   LALF delivery mid-session. The one-way choice avoids a confusing
+   "some of this session's logs are in `log.db`, some are only in a file,
+   and the split point silently moved twice" outcome, at the cost of never
+   automatically returning to the centralized store once failed over —
+   the operator has to notice (via `pm-log-cli diagnose`'s new heuristic,
+   §9.6) and restart the affected process to get it re-detected fresh via
+   §8.3. Whether that trade-off is right for a long-lived process that
+   fails over early in an otherwise-long session is genuinely debatable;
+   flagged here rather than resolved, since reasonable arguments exist on
+   both sides and it is easy to change later without touching the wire
+   protocol (§5) or the schema (§6) at all — purely a `TcpLogHandler`
+   internal behavior (§8.2).
 
 ## 14. Summary
 
@@ -1206,10 +1384,26 @@ requires no per-process configuration beyond what already lives in
 that is absent, slow, or disappears mid-session never blocks, slows, or
 crashes the trading process it's instrumenting (§8.2, §8.6, §10) — logging
 infrastructure failing is treated, at every layer of this design, as
-strictly lower-severity than the trading system it observes. `pm-log-cli`
-rounds this out with the same `query`/`tail`/`--format human|json`
-conventions `pm-audit-cli`/`pm-stats-cli` already established, plus a
-`diagnose` subcommand (§9.6) whose recommendations are deliberately
-small, fixed, and auditable rule-based heuristics rather than an opaque
-model — appropriate for a teaching system where "why was this flagged"
-should always have a one-sentence, inspectable answer.
+strictly lower-severity than the trading system it observes. Losing the
+server for longer than a short grace window (`failover_timeout_sec`,
+default 30s) is not treated as a reason to start silently dropping
+records either: past that point, `TcpLogHandler` falls back to a durable
+per-process file under `logs/<client>.log` (§8.6) for the remainder of
+that process's life, so a genuinely down log server degrades a session's
+observability rather than creating gaps in it. `log_events` itself
+defaults to a bounded 30-day retention (§6.5) rather than growing
+unbounded like `pm-audit`'s/`pm-stats`' own deliberately-forever stores —
+operational logging is disposable in a way trading history and market
+statistics are not, and the schema and `pm-log-srv --retention-days` flag
+both reflect that distinction, while still allowing unbounded retention
+for anyone who explicitly wants it. `pm-log-cli` rounds this out with the
+same `query`/`tail`/`--format human|json` conventions
+`pm-audit-cli`/`pm-stats-cli` already established, plus a `diagnose`
+subcommand (§9.6) whose recommendations are deliberately small, fixed,
+and auditable rule-based heuristics rather than an opaque model —
+including one that specifically recognizes the file-failover signature
+described above, so an operator querying `log.db` after the fact can tell
+"this process stopped logging" apart from "this process's later logs
+are sitting in a local file instead" — appropriate for a teaching system
+where "why was this flagged" should always have a one-sentence,
+inspectable answer.
