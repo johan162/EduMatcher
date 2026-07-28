@@ -6,7 +6,7 @@
     - Which `engine_config.yaml` sections are required when a config file exists
     - How to generate a starter config with `pm-config-gen`
     - Which fields the current engine and scheduler parsers recognize
-    - How to configure the optional `pm-ralf-gwy`, `pm-md-gwy`, and `pm-api-gwy` blocks
+    - How to configure the optional `pm-ralf-gwy`, `pm-md-gwy`, `pm-balf-gwy`, `pm-dc-gwy`, `pm-index`, `pm-log-srv`, and `pm-api-gwy` blocks
     - How to configure symbols, gateways, risk controls, market-maker seeds, combo seeds, and schedules
     - How to choose between minimal, medium, and fully featured configurations
     - Which checks to perform before using a config in a class, demo, or test
@@ -18,9 +18,9 @@ The matching engine and session scheduler both read `engine_config.yaml`. The
 engine uses it to define the symbol universe, authenticated ALF gateway IDs,
 session mode, risk controls, market-maker policy, per-symbol outstanding shares,
 and startup seeds. The scheduler uses only the optional `schedule` section.
-The optional `post_trade_gateway`, `market_data_gateway`, `dc_gateway`, and `api_gateways`
-sections are read by `pm-ralf-gwy`, `pm-md-gwy`, `pm-dc-gwy`, and `pm-api-gwy`
-respectively.
+The optional `post_trade_gateway`, `market_data_gateway`, `dc_gateway`,
+`log_server`, and `api_gateways` sections are read by `pm-ralf-gwy`,
+`pm-md-gwy`, `pm-dc-gwy`, `pm-log-srv`, and `pm-api-gwy` respectively.
 
 If the config file is absent, `pm-engine` starts in unrestricted mode: any symbol
 and gateway can be used, and no startup seeds are loaded. If the config file is
@@ -41,9 +41,10 @@ comments. This page explains that shape in operational terms.
     same file format as `pm-config-gen` described below.
 
 !!! note "`gateways.alf` is the only sub-key under `gateways:`"
-    The `gateways:` mapping only contains `alf`. BALF, CALF, and DC gateways are
-    configured via separate **top-level** keys (`balf_gateway`, `market_data_gateway`,
-    and `dc_gateway`) and are read by their own processes, not by `pm-engine`.
+    The `gateways:` mapping only contains `alf`. BALF, CALF, DC, and the
+    centralized log server are configured via separate **top-level** keys
+    (`balf_gateway`, `market_data_gateway`, `dc_gateway`, and `log_server`)
+    and are read by their own processes, not by `pm-engine`.
 
 Each protocol's configuration lives in a different part of `engine_config.yaml`:
 
@@ -53,6 +54,7 @@ Each protocol's configuration lives in a different part of `engine_config.yaml`:
 - **CALF** — configured under the top-level `market_data_gateway` key; used by `pm-md-gwy`. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See [Market Data Feed](240-calf-gateway.md) for usage and [CALF Protocol](920-app-calf-protocol.md) for the full protocol specification.
 - **RALF** — configured under the top-level `post_trade_gateway` key; used by `pm-ralf-gwy`. Provides a replayable audit feed of all executed trades, including the original order details, over a persistent TCP connection with sequence-based gap detection. See [Post Trade](250-ralf-gateway.md) for usage and [RALF Protocol](930-app-ralf-protocol.md) for the full protocol specification.
 - **DC1** — configured under the top-level `dc_gateway` key; used by `pm-dc-gwy`. Relays the engine's internal drop-copy feed to plain TCP clients that cannot speak ZeroMQ, using the lightweight DC1 text protocol. See [Drop-Copy Gateway](201-dc-gateway.md) for full usage and protocol details.
+- **LALF** — configured under the top-level `log_server` key; used by `pm-log-srv`. Collects operational `logging`-module output from every other `pm-*` process over a persistent TCP connection into a queryable SQLite database. See [Centralized Log Server](280-log-srv.md) for usage and [LALF Protocol Reference](940-app-lalf-protocol.md) for the full protocol specification.
 - A Full overview of all protocol and their intended usage can be found in [Protocols Overview](210-protocols-overview.md).
 
 ## File Location
@@ -325,6 +327,23 @@ Drop-copy gateway options:
 | `--dc-heartbeat-interval-sec` | int (`> 0`) | `5` | `dc_gateway.heartbeat_interval_sec` |
 | `--dc-idle-timeout-sec` | int (`> 0`) | `30` | `dc_gateway.idle_timeout_sec` |
 | `--dc-max-client-queue` | int (`> 0`) | `10000` | `dc_gateway.max_client_queue` |
+
+Log server options:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--log-server` | Flag | off | Emit top-level `log_server` block for `pm-log-srv` |
+| `--log-server-enabled` / `--log-server-disabled` | Flag pair | unset (`true` when emitted) | Set `log_server.enabled` |
+| `--log-server-name` | string | `log-srv01` | `log_server.name` |
+| `--log-server-bind-address` | string | `0.0.0.0` | `log_server.bind_address` |
+| `--log-server-port` | int (`> 0`) | `5600` | `log_server.port` |
+| `--log-server-db-path` | path | `data/log.db` | `log_server.db_path` |
+| `--log-server-retention-days` | int (`>= 0`) | `30` | `log_server.retention_days`; `0` means unbounded retention |
+| `--log-server-max-message-bytes` | int (`> 0`) | `65536` | `log_server.max_message_bytes` |
+| `--log-server-max-client-queue` | int (`> 0`) | `10000` | `log_server.max_client_queue` |
+| `--log-server-write-batch-size` | int (`> 0`) | `50` | `log_server.write_batch_size` |
+| `--log-server-write-batch-interval-ms` | int (`> 0`) | `100` | `log_server.write_batch_interval_ms` |
+| `--log-server-heartbeat-interval-sec` | int (`> 0`) | `5` | `log_server.heartbeat_interval_sec` |
 
 API gateway options:
 
@@ -905,6 +924,7 @@ The current parser recognizes these top-level keys:
 | `market_data_gateway`      |                         No | `pm-md-gwy`                     | External CALF dissemination gateway settings                              |
 | `balf_gateway`             |                         No | `pm-balf-gwy`                   | External BALF binary TCP gateway settings                                 |
 | `dc_gateway`               |                         No | `pm-dc-gwy`                     | Drop-copy TCP relay gateway settings                                      |
+| `log_server`               |                         No | `pm-log-srv`                    | Centralized LALF log-collector settings                                   |
 | `api_gateways`             |                         No | `pm-api-gwy`                | Named REST/WebSocket order-entry and market-data gateway process settings |
 | `indices`                  |                         No | `pm-index`                      | Index calculation process configurations                                  |
 
@@ -919,8 +939,8 @@ all of it. Each auxiliary gateway or service opens the file independently at
 its own startup, ignores every top-level key it doesn't recognize, and parses
 only the section(s) it owns. `pm-engine` is the only process that reads most
 of the file — the gateway-specific blocks (`market_data_gateway`,
-`balf_gateway`, `post_trade_gateway`, `dc_gateway`, `alf_gateway`, `api_gateways`) are never
-touched by the engine itself.
+`balf_gateway`, `post_trade_gateway`, `dc_gateway`, `log_server`,
+`alf_gateway`, `api_gateways`) are never touched by the engine itself.
 
 | Process | Loader module | Top-level section(s) read | What it needs it for |
 |---|---|---|---|
@@ -930,6 +950,7 @@ touched by the engine itself.
 | `pm-ralf-gwy` | `ralf_gateway/config.py` | `post_trade_gateway` | Own bind address/port/timeouts and `allowed_roles` for RALF (post-trade) subscribers |
 | `pm-md-gwy` | `md_gateway/config.py` | `market_data_gateway` | Own bind address/port/timeouts, replay window, and `depth_levels` for CALF subscribers |
 | `pm-dc-gwy` | `dc_gwy/config.py` | `dc_gateway` | Own bind address/port/timeouts and per-client queue limit for the drop-copy TCP relay |
+| `pm-log-srv` | `log_srv/config.py` | `log_server` | Own bind address/port/retention/throughput knobs for the centralized LALF log collector |
 | `pm-api-gwy` | `api_gateway/config.py` | `api_gateways` | Named REST/WebSocket gateway instances, API credentials, rate limits, and timeouts |
 | `pm-index` | `index/config_loader.py` (wraps `engine/config_loader.py`) | `indices`, `symbols.<SYM>.outstanding_shares`, `symbols.<SYM>.last_buy_price` / `last_sell_price` | Index definitions (constituents, base value, publish interval) and the per-constituent share counts / reference prices needed to seed each index at startup |
 | `pm-scheduler` | `scheduler/main.py` | `schedule`, `country` | Session-phase transition times — re-reads the same block `pm-engine` reads, but as an independent process so the schedule can be driven or tested externally — plus the country used to skip weekends and bank holidays |
@@ -1233,8 +1254,13 @@ log_server:
 Every CLI flag on `pm-log-srv` (`--host`, `--port`, `--db`,
 `--retention-days`, `--max-message-bytes`) overrides the corresponding
 config field for that invocation only — the same CLI-flag-over-config
-precedence every other `pm-*` process uses. This block is not currently
-generated by `pm-config-gen`; write it by hand or copy the example above.
+precedence every other `pm-*` process uses.
+
+If you prefer to generate this block instead of writing it by hand,
+`pm-config-gen` can emit it with `--log-server` and the associated
+`--log-server-*` options — see "Log server options" in
+[Generate Configs with pm-config-gen](#generate-configs-with-pm-config-gen)
+above.
 
 
 ## Minimal Example

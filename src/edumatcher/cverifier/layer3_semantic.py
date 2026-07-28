@@ -812,6 +812,7 @@ _SINGLETON_GATEWAY_PORTS = (
     ("post_trade_gateway", "pm-ralf-gwy", 5580),
     ("market_data_gateway", "pm-md-gwy", 5570),
     ("dc_gateway", "pm-dc-gwy", 5590),
+    ("log_server", "pm-log-srv", 5600),
 )
 
 _DEFAULT_API_GATEWAY_PORT = 8080
@@ -861,9 +862,9 @@ def _check_gateway_port_collisions(
 
     Previously this only checked balf_gateway against post_trade_gateway and
     market_data_gateway. It now checks every pair across alf_gateway,
-    balf_gateway, post_trade_gateway, market_data_gateway, and every named
-    api_gateways.<name> instance — the full set of independently-configurable
-    TCP listeners in engine_config.yaml.
+    balf_gateway, post_trade_gateway, market_data_gateway, dc_gateway,
+    log_server, and every named api_gateways.<name> instance — the full set
+    of independently-configurable TCP listeners in engine_config.yaml.
     """
     entries = _collect_gateway_ports(raw)
     seen: dict[int, str] = {}

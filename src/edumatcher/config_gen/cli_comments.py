@@ -288,6 +288,25 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         ]
     )
 
+    # log_server
+    lines.extend(
+        [
+            "log_server:",
+            "  enabled: true",
+            "  name: log-srv01",
+            "  bind_address: 0.0.0.0",
+            "  port: 5600",
+            "  db_path: data/log.db",
+            "  retention_days: 30",
+            "  max_message_bytes: 65536",
+            "  max_client_queue: 10000",
+            "  write_batch_size: 50",
+            "  write_batch_interval_ms: 100",
+            "  heartbeat_interval_sec: 5",
+            "",
+        ]
+    )
+
     # indices
     lines.extend(
         [
@@ -660,6 +679,36 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  Disconnect threshold when a connected client sends no traffic for this many seconds.",
             "max_client_queue: 10000",
             "  Per-client outbound line buffer capacity before the client is treated as slow and dropped.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "log_server entries",
+            "" + "-" * 18,
+            "enabled: true",
+            "  Master switch — lets pm-log-srv refuse to accept connections when set to false.",
+            "name: log-srv01",
+            "  Server name echoed in the LALF WELCOME|SRV= field.",
+            "bind_address: 0.0.0.0",
+            "  Network interface/address the centralized log collector listens on (127.0.0.1 for loopback-only).",
+            "port: 5600",
+            "  TCP port LALF clients (every other pm-* process) connect to for centralized logging.",
+            "db_path: data/log.db",
+            "  SQLite database path where log_events/processes/server_stats are stored.",
+            "retention_days: 30",
+            "  Days before old log_events rows are pruned, once per hour; 0 or null means unbounded retention.",
+            "max_message_bytes: 65536",
+            "  Maximum LOG payload size before truncation; oversized messages are truncated and stored, never dropped.",
+            "max_client_queue: 10000",
+            "  Per-connection outbound backlog limit before backpressure is applied.",
+            "write_batch_size: 50",
+            "  Maximum rows per SQLite transaction in the background writer thread.",
+            "write_batch_interval_ms: 100",
+            "  Maximum time between writer-thread flushes, whichever comes first with write_batch_size.",
+            "heartbeat_interval_sec: 5",
+            "  Interval a connected client must send HB within (echoed as WELCOME|HBINT=).",
             "",
         ]
     )

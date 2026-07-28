@@ -680,6 +680,96 @@ def build_parser() -> argparse.ArgumentParser:
         help="dc_gateway.max_client_queue override (> 0).",
     )
 
+    parser.add_argument(
+        "--log-server",
+        action="store_true",
+        help="Emit a top-level log_server section for pm-log-srv.",
+    )
+    parser.add_argument(
+        "--log-server-enabled",
+        dest="log_server_enabled",
+        action="store_true",
+        default=None,
+        help="Set log_server.enabled: true.",
+    )
+    parser.add_argument(
+        "--log-server-disabled",
+        dest="log_server_enabled",
+        action="store_false",
+        default=None,
+        help="Set log_server.enabled: false.",
+    )
+    parser.add_argument(
+        "--log-server-name",
+        default=None,
+        metavar="NAME",
+        help="log_server.name override.",
+    )
+    parser.add_argument(
+        "--log-server-bind-address",
+        default=None,
+        metavar="ADDR",
+        help="log_server.bind_address override.",
+    )
+    parser.add_argument(
+        "--log-server-port",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.port override (> 0).",
+    )
+    parser.add_argument(
+        "--log-server-db-path",
+        default=None,
+        metavar="PATH",
+        help="log_server.db_path override.",
+    )
+    parser.add_argument(
+        "--log-server-retention-days",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "log_server.retention_days override (>= 0; 0 means unbounded "
+            "retention, same as omitting the field with retention disabled)."
+        ),
+    )
+    parser.add_argument(
+        "--log-server-max-message-bytes",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.max_message_bytes override (> 0).",
+    )
+    parser.add_argument(
+        "--log-server-max-client-queue",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.max_client_queue override (> 0).",
+    )
+    parser.add_argument(
+        "--log-server-write-batch-size",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.write_batch_size override (> 0).",
+    )
+    parser.add_argument(
+        "--log-server-write-batch-interval-ms",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.write_batch_interval_ms override (> 0).",
+    )
+    parser.add_argument(
+        "--log-server-heartbeat-interval-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.heartbeat_interval_sec override (> 0).",
+    )
+
     sched_group = parser.add_mutually_exclusive_group()
     sched_group.add_argument(
         "--schedule",

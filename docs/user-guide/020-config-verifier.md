@@ -16,8 +16,9 @@
 guide and [App Config Spec](990-app-config-spec.md) for the normative field
 reference) covers symbols, gateways, risk controls, collar bands,
 circuit breakers, market-maker obligations, session schedules, combo seeds,
-index definitions, and five optional gateway subsystems (`alf_gateway`,
-`balf_gateway`, `post_trade_gateway`, `market_data_gateway`, `api_gateways`).
+index definitions, and seven optional gateway subsystems (`alf_gateway`,
+`balf_gateway`, `post_trade_gateway`, `market_data_gateway`, `dc_gateway`,
+`log_server`, `api_gateways`).
 Getting all of this right by hand is error-prone.
 
 The current engine loader (`load_engine_config()`) reports only the *first* hard
@@ -193,7 +194,7 @@ reporting scripts.
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
-### Layer 2 — Schema (`S001`–`S086`)
+### Layer 2 — Schema (`S001`–`S101`)
 
 **Top-level structure**
 
@@ -349,6 +350,33 @@ key `api_gateway` instead of `api_gateways` — see the [App Config Spec](990-ap
 | `S054` | `balf_gateway.duplicate_session_policy` not `REJECT_NEW` or `EVICT_OLD`  |
 | `S085` | `balf_gateway` fails runtime-loader validation for a reason not covered by `S050`–`S054` (drift safety net; only fires when none of those already reported) |
 
+**Drop-copy gateway fields (`dc_gateway`)**
+
+| Code   | Condition                                                                 |
+|--------|---------------------------------------------------------------------------|
+| `S090` | `dc_gateway` is present but not a mapping                                 |
+| `S091` | `dc_gateway.port` not an integer in `1..65535`                            |
+| `S092` | `dc_gateway.name` or `.bind_address` blank or not a string                |
+| `S093` | `dc_gateway.max_client_queue` not a positive integer                      |
+| `S094` | `dc_gateway.heartbeat_interval_sec` or `.idle_timeout_sec` not a positive number |
+
+**Log server fields (`log_server`)**
+
+| Code    | Condition                                                                 |
+|---------|---------------------------------------------------------------------------|
+| `S095`  | `log_server` is present but not a mapping                                 |
+| `S096`  | `log_server.enabled` present but not a boolean                             |
+| `S097`  | `log_server.port` not an integer in `1..65535`                             |
+| `S098`  | `log_server.name`, `.bind_address`, or `.db_path` blank or not a string    |
+| `S099`  | `log_server.max_message_bytes`, `.max_client_queue`, `.write_batch_size`, `.write_batch_interval_ms`, or `.heartbeat_interval_sec` not a positive integer |
+| `S100`  | `log_server.retention_days` present but not a non-negative integer (or `null`) |
+| `S101`  | `log_server` fails runtime-loader validation for a reason not covered by `S095`–`S100` (drift safety net; only fires when none of those already reported) |
+
+`log_server.retention_days` follows the same convention documented in
+[Configuring `pm-log-srv`](010-configuration.md#configuring-pm-log-srv): `0`
+and `null` both mean unbounded retention, so `S100` only fires on a negative
+value or a non-integer type, never on `0`.
+
 ### Layer 3 — Semantic (`M001`–`M025`)
 
 `M014` is currently emitted during the schema pass because CB threshold ordering
@@ -373,7 +401,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M015` | ERROR    | Combo leg references symbol not in `symbols`                  |
 | `M016` | WARN     | `post_trade_gateway` configured but no ADMIN gateway          |
 | `M017` | WARN     | `balf_gateway.heartbeat_timeout_sec <= heartbeat_interval_sec` |
-| `M018` | ERROR    | Two configured gateway sections (`alf_gateway`, `balf_gateway`, `post_trade_gateway`, `market_data_gateway`, or any `api_gateways.<name>`) are bound to the same port |
+| `M018` | ERROR    | Two configured gateway sections (`alf_gateway`, `balf_gateway`, `post_trade_gateway`, `market_data_gateway`, `dc_gateway`, `log_server`, or any `api_gateways.<name>`) are bound to the same port |
 | `M019` | ERROR    | `mm_obligation_defaults.symbols` references an unknown symbol |
 | `M020` | ERROR    | MM seed `gateway_id` exists but is not a `MARKET_MAKER` gateway |
 | `M021` | ERROR    | A `schedule` time value isn't a quoted `"HH:MM"` string (e.g. YAML mis-parsed it as a sexagesimal integer) |

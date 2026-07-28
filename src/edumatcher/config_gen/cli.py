@@ -24,6 +24,7 @@ from edumatcher.config_gen.builder import BalfGatewaySpec
 from edumatcher.config_gen.builder import ComboLegSpec, ComboSpec
 from edumatcher.config_gen.builder import DcGatewaySpec
 from edumatcher.config_gen.builder import IndexSpec
+from edumatcher.config_gen.builder import LogServerSpec
 from edumatcher.config_gen.builder import MarketDataGatewaySpec
 from edumatcher.config_gen.builder import PostTradeGatewaySpec
 from edumatcher.config_gen.cb_spec import CbSpec, parse_cb_spec
@@ -56,6 +57,16 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_DC_GATEWAY_MAX_CLIENT_QUEUE,
     DEFAULT_DC_GATEWAY_NAME,
     DEFAULT_DC_GATEWAY_PORT,
+    DEFAULT_LOG_SERVER_BIND_ADDRESS,
+    DEFAULT_LOG_SERVER_DB_PATH,
+    DEFAULT_LOG_SERVER_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_LOG_SERVER_MAX_CLIENT_QUEUE,
+    DEFAULT_LOG_SERVER_MAX_MESSAGE_BYTES,
+    DEFAULT_LOG_SERVER_NAME,
+    DEFAULT_LOG_SERVER_PORT,
+    DEFAULT_LOG_SERVER_RETENTION_DAYS,
+    DEFAULT_LOG_SERVER_WRITE_BATCH_INTERVAL_MS,
+    DEFAULT_LOG_SERVER_WRITE_BATCH_SIZE,
     DEFAULT_INDEX_BASE_VALUE,
     DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
@@ -227,6 +238,39 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--dc-idle-timeout-sec must be > 0")
     if args.dc_max_client_queue is not None and args.dc_max_client_queue <= 0:
         raise ValueError("--dc-max-client-queue must be > 0")
+
+    if args.log_server_port is not None and args.log_server_port <= 0:
+        raise ValueError("--log-server-port must be > 0")
+    if (
+        args.log_server_retention_days is not None
+        and args.log_server_retention_days < 0
+    ):
+        raise ValueError("--log-server-retention-days must be >= 0")
+    if (
+        args.log_server_max_message_bytes is not None
+        and args.log_server_max_message_bytes <= 0
+    ):
+        raise ValueError("--log-server-max-message-bytes must be > 0")
+    if (
+        args.log_server_max_client_queue is not None
+        and args.log_server_max_client_queue <= 0
+    ):
+        raise ValueError("--log-server-max-client-queue must be > 0")
+    if (
+        args.log_server_write_batch_size is not None
+        and args.log_server_write_batch_size <= 0
+    ):
+        raise ValueError("--log-server-write-batch-size must be > 0")
+    if (
+        args.log_server_write_batch_interval_ms is not None
+        and args.log_server_write_batch_interval_ms <= 0
+    ):
+        raise ValueError("--log-server-write-batch-interval-ms must be > 0")
+    if (
+        args.log_server_heartbeat_interval_sec is not None
+        and args.log_server_heartbeat_interval_sec <= 0
+    ):
+        raise ValueError("--log-server-heartbeat-interval-sec must be > 0")
 
     if args.static_band is not None and not (0 < args.static_band < 1):
         raise ValueError("--static-band must be in (0, 1)")
@@ -841,6 +885,68 @@ def _build_dc_gateway_spec(
     )
 
 
+def _build_log_server_spec(
+    args: argparse.Namespace,
+) -> LogServerSpec | None:
+    emit = any(
+        value is not None
+        for value in (
+            args.log_server_enabled,
+            args.log_server_name,
+            args.log_server_bind_address,
+            args.log_server_port,
+            args.log_server_db_path,
+            args.log_server_retention_days,
+            args.log_server_max_message_bytes,
+            args.log_server_max_client_queue,
+            args.log_server_write_batch_size,
+            args.log_server_write_batch_interval_ms,
+            args.log_server_heartbeat_interval_sec,
+        )
+    ) or bool(args.log_server)
+
+    if not emit:
+        return None
+
+    enabled = (
+        bool(args.log_server_enabled) if args.log_server_enabled is not None else True
+    )
+
+    retention_days = (
+        int(args.log_server_retention_days)
+        if args.log_server_retention_days is not None
+        else DEFAULT_LOG_SERVER_RETENTION_DAYS
+    )
+
+    return LogServerSpec(
+        enabled=enabled,
+        name=str(args.log_server_name or DEFAULT_LOG_SERVER_NAME),
+        bind_address=str(
+            args.log_server_bind_address or DEFAULT_LOG_SERVER_BIND_ADDRESS
+        ),
+        port=int(args.log_server_port or DEFAULT_LOG_SERVER_PORT),
+        db_path=str(args.log_server_db_path or DEFAULT_LOG_SERVER_DB_PATH),
+        retention_days=retention_days,
+        max_message_bytes=int(
+            args.log_server_max_message_bytes or DEFAULT_LOG_SERVER_MAX_MESSAGE_BYTES
+        ),
+        max_client_queue=int(
+            args.log_server_max_client_queue or DEFAULT_LOG_SERVER_MAX_CLIENT_QUEUE
+        ),
+        write_batch_size=int(
+            args.log_server_write_batch_size or DEFAULT_LOG_SERVER_WRITE_BATCH_SIZE
+        ),
+        write_batch_interval_ms=int(
+            args.log_server_write_batch_interval_ms
+            or DEFAULT_LOG_SERVER_WRITE_BATCH_INTERVAL_MS
+        ),
+        heartbeat_interval_sec=int(
+            args.log_server_heartbeat_interval_sec
+            or DEFAULT_LOG_SERVER_HEARTBEAT_INTERVAL_SEC
+        ),
+    )
+
+
 def _build_api_gateway_specs(
     args: argparse.Namespace,
     gateways: list[GatewaySpec],
@@ -1428,6 +1534,7 @@ def main() -> None:
             market_data_gateway=_build_market_data_gateway_spec(args),
             balf_gateway=_build_balf_gateway_spec(args),
             dc_gateway=_build_dc_gateway_spec(args),
+            log_server=_build_log_server_spec(args),
             api_gateways=_build_api_gateway_specs(args, gateways),
             indices=indices,
             combos=combos,

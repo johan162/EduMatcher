@@ -8,8 +8,8 @@ governs. For worked examples, recipes, and rationale, see
 
 The schema described here is derived from and MUST match the runtime loaders:
 `engine/config_loader.py`, `alf_gwy/config.py`, `balf_gwy/config.py`,
-`ralf_gateway/config.py`, `md_gateway/config.py`, `api_gateway/config.py`, and
-`scheduler/main.py` (`schedule` and `country` only).
+`ralf_gateway/config.py`, `md_gateway/config.py`, `api_gateway/config.py`,
+`log_srv/config.py`, and `scheduler/main.py` (`schedule` and `country` only).
 `pm-cverifier` is the reference validator.
 
 ---
@@ -130,6 +130,7 @@ market_data_gateway:        ? MdGwyProcSpec         # pm-md-gwy   (CALF)
 post_trade_gateway:         ? RalfGwyProcSpec       # pm-ralf-gwy (RALF)
 dc_gateway:                 ? DcGwyProcSpec         # pm-dc-gwy   (drop-copy TCP relay)
 api_gateways:               ? Map<Str, ApiGwyProcSpec>   # pm-api-gwy (named instances)
+log_server:                 ? LogSrvProcSpec        # pm-log-srv  (centralized LALF log collector)
 
 SymbolSpec:
   level:                    ? Str          ∈ key of risk_controls.levels
@@ -469,6 +470,29 @@ This block has no `enabled` key. The drop-copy source address (`tcp://127.0.0.1:
 is **not** configurable via YAML — use the `--engine-dc-pub` CLI flag on `pm-dc-gwy`
 to point at a non-default engine address.
 
+### 6.7 `log_server` — `pm-log-srv` (centralized LALF log collector) — `LogSrvProcSpec`
+
+| Field | Type | Req | Default | Constraints |
+|-------|------|:---:|---------|-------------|
+| `enabled` | `Bool` | – | `true` | master switch; `pm-log-srv` refuses to accept connections when `false` |
+| `name` | `Str` | – | `"log-srv01"` | echoed in the LALF `WELCOME\|SRV=` field |
+| `bind_address` | `Str` | – | `"0.0.0.0"` | TCP listen interface (`127.0.0.1` for loopback-only) |
+| `port` | `Port` | – | `5600` | `> 0` |
+| `db_path` | `Path` | – | resolved `data/log.db` | SQLite database path where `log_events`/`processes`/`server_stats` are stored |
+| `retention_days` | `Int` \| `null` | – | `30` | `>= 0` or `null`; `0` is normalised to `null` (both mean unbounded retention — pruning disabled); pruning otherwise runs once per hour |
+| `max_message_bytes` | `Int` | – | `65536` | `> 0`; maximum `LOG` payload size before truncation — oversized messages are truncated and stored, never dropped |
+| `max_client_queue` | `Int` | – | `10000` | `> 0`; per-connection outbound backlog limit before backpressure is applied |
+| `write_batch_size` | `Int` | – | `50` | `> 0`; maximum rows per SQLite transaction in the background writer thread |
+| `write_batch_interval_ms` | `Int` | – | `100` | `> 0`; maximum time between writer-thread flushes, whichever comes first with `write_batch_size` |
+| `heartbeat_interval_sec` | `Int` | – | `5` | `> 0`; interval a connected client must send `HB` within (echoed as `WELCOME\|HBINT=`) |
+
+This block has no interaction with `gateways.alf` or any other engine section —
+`pm-log-srv` is a standalone LALF collector, unrelated to the ZeroMQ bus, and does
+not consume any engine-section fields. See [Configuring pm-log-srv](010-configuration.md#configuring-pm-log-srv)
+for worked examples and [Centralized Log Server](280-log-srv.md) for the operational
+guide; the wire protocol it serves is normatively specified in the
+[LALF Protocol Reference](940-app-lalf-protocol.md).
+
 ---
 
 ## 7. Cross-field and semantic constraints
@@ -494,6 +518,7 @@ rejected at load.
 | CV14 | (`pm-alf-gwy`, `pm-balf-gwy`) No `gateways.alf` id may be a prefix of another id. |
 | CV15 | (`pm-api-gwy`) The singular `api_gateway` key is not supported; a `gateway_id` credential MUST NOT be shared across two `api_gateways` instances. |
 | CV16 | (`pm-scheduler`) An unrecognised `country` value is the **sole exception** to the "MUST be rejected" rule in this section — the loader substitutes the default (`"Sweden"`) and logs a warning instead of aborting. `pm-scheduler` treats a calendar day as non-trading (and sends no `schedule` transitions) when it is a Saturday, a Sunday, or a `country` bank holiday. |
+| CV17 | (`pm-log-srv`) `log_server.retention_days`, when present, MUST be `>= 0` or `null`; `port`, `max_message_bytes`, `max_client_queue`, `write_batch_size`, `write_batch_interval_ms`, and `heartbeat_interval_sec` MUST each be `> 0`. |
 
 ---
 
@@ -542,3 +567,5 @@ block on every symbol.
 - [Risk Controls](120-risk-controls.md) — collar and circuit-breaker behaviour
 - [Market Index (`pm-index`)](150-market-index.md) — index calculation using `indices`
 - [External Protocols Overview](210-protocols-overview.md) — the gateways that read the auxiliary blocks
+- [Centralized Log Server](280-log-srv.md) — `pm-log-srv`/`pm-log-cli` operational guide
+- [LALF Protocol Reference](940-app-lalf-protocol.md) — the wire protocol `pm-log-srv` serves

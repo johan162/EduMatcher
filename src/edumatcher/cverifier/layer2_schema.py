@@ -8,6 +8,7 @@ from typing import Any, cast
 from edumatcher.alf_gwy.config import validate_alf_gateway_section
 from edumatcher.api_gateway.config import validate_api_gateway_sections
 from edumatcher.balf_gwy.config import validate_balf_gateway_section
+from edumatcher.log_srv.config import validate_log_server_section
 from edumatcher.md_gateway.config import validate_market_data_gateway_section
 from edumatcher.models.combo import ComboLeg, ComboType
 from edumatcher.models.order import TIF
@@ -65,6 +66,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_post_trade_gateway(raw, results)
     _check_market_data_gateway(raw, results)
     _check_dc_gateway(raw, results)
+    _check_log_server(raw, results)
     _check_api_gateway_sections(raw, results)
     return results
 
@@ -1997,3 +1999,140 @@ def _check_dc_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None:
                         path=f"dc_gateway.{field}",
                     )
                 )
+
+
+# ---------------------------------------------------------------------------
+# log_server schema checks (S095–S099)
+# ---------------------------------------------------------------------------
+
+_LOG_SERVER_POSITIVE_INT_FIELDS = (
+    "max_message_bytes",
+    "max_client_queue",
+    "write_batch_size",
+    "write_batch_interval_ms",
+    "heartbeat_interval_sec",
+)
+
+
+def _check_log_server(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    """Validate the optional log_server section (S095–S099)."""
+    section = raw.get("log_server")
+    if section is None:
+        return
+
+    if not isinstance(section, dict):
+        results.append(
+            CheckResult(
+                code="S095",
+                severity=Severity.ERROR,
+                message="'log_server' must be a mapping.",
+                suggestion="Change log_server to a mapping with field=value pairs.",
+                path="log_server",
+            )
+        )
+        return
+
+    # enabled: must be a real bool when present
+    enabled = section.get("enabled")
+    if enabled is not None and not isinstance(enabled, bool):
+        results.append(
+            CheckResult(
+                code="S096",
+                severity=Severity.ERROR,
+                message="'log_server.enabled' must be a boolean.",
+                suggestion="Set enabled to true or false (without quotes).",
+                path="log_server.enabled",
+            )
+        )
+
+    # port
+    port = section.get("port")
+    if port is not None:
+        if (
+            isinstance(port, bool)
+            or not isinstance(port, int)
+            or not (1 <= port <= 65535)
+        ):
+            results.append(
+                CheckResult(
+                    code="S097",
+                    severity=Severity.ERROR,
+                    message="'log_server.port' must be an integer in 1–65535.",
+                    suggestion="Set port to a valid TCP port number, e.g. 5600.",
+                    path="log_server.port",
+                )
+            )
+
+    # name / bind_address / db_path must be non-empty strings when present
+    for str_field in ("name", "bind_address", "db_path"):
+        val = section.get(str_field)
+        if val is not None:
+            if not isinstance(val, str) or not val.strip():
+                results.append(
+                    CheckResult(
+                        code="S098",
+                        severity=Severity.ERROR,
+                        message=f"'log_server.{str_field}' must be a non-empty string.",
+                        suggestion=f"Set {str_field} to a non-empty string value.",
+                        path=f"log_server.{str_field}",
+                    )
+                )
+
+    # positive integer fields (throughput / capacity / timing knobs)
+    for field in _LOG_SERVER_POSITIVE_INT_FIELDS:
+        val = section.get(field)
+        if val is not None:
+            if isinstance(val, bool) or not isinstance(val, int) or val <= 0:
+                results.append(
+                    CheckResult(
+                        code="S099",
+                        severity=Severity.ERROR,
+                        message=f"'log_server.{field}' must be a positive integer.",
+                        suggestion=f"Set {field} to an integer > 0.",
+                        path=f"log_server.{field}",
+                    )
+                )
+
+    # retention_days: nullable non-negative integer (null/0 both mean
+    # "unbounded retention" — see log_srv/config.py's own normalisation).
+    retention_days = section.get("retention_days")
+    if retention_days is not None:
+        if (
+            isinstance(retention_days, bool)
+            or not isinstance(retention_days, int)
+            or retention_days < 0
+        ):
+            results.append(
+                CheckResult(
+                    code="S100",
+                    severity=Severity.ERROR,
+                    message=(
+                        "'log_server.retention_days' must be a non-negative "
+                        "integer or null."
+                    ),
+                    suggestion=(
+                        "Set retention_days to an integer >= 0, or omit/null "
+                        "it for unbounded retention."
+                    ),
+                    path="log_server.retention_days",
+                )
+            )
+
+    # Cross-check against the runtime loader's own validator so this layer
+    # stays in lockstep with edumatcher.log_srv.config._load_log_server_config_from_raw
+    # even if a future field is added there but not mirrored above.
+    try:
+        validate_log_server_section({"log_server": section})
+    except ValueError as exc:
+        results.append(
+            CheckResult(
+                code="S101",
+                severity=Severity.ERROR,
+                message=f"'log_server' section is invalid: {exc}",
+                suggestion=(
+                    "Match the pm-log-srv loader schema for log_server "
+                    "(mapping shape and positive integer limits)."
+                ),
+                path="log_server",
+            )
+        )
