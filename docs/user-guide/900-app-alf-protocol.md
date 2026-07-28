@@ -262,17 +262,34 @@ as-is even if the gateway has a non-`NONE` default configured.
 
 ## Command families
 
-ALF commands fall into three groups:
+ALF commands fall into five groups:
 
-| Group                                        | Commands                                                                      |
-|----------------------------------------------|-------------------------------------------------------------------------------|
-| Trading commands forwarded to the engine     | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `KILL`, `SYMBOLS`, `QBOOT` |
-| Gateway-local informational commands         | `STATUS`, `ORDERS`, `POS`, `QLEGS`, `HELP`                                    |
-| Drop-copy relay control (gateway-local)      | `DC`                                                                          |
-| Session-control commands for the CLI process | `EXIT`, `QUIT`                                                                |
+| Group                                            | Commands                                                                        |
+|---------------------------------------------------|--------------------------------------------------------------------------------|
+| Trading commands forwarded to the engine           | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `KILL`, `SYMBOLS`, `ORDERS`, `QBOOT`, `SESSION` |
+| Client-local informational commands                | `STATUS`, `POS`, `HELP`                                                         |
+| Divergent between clients (see note below)         | `QLEGS`                                                                         |
+| Drop-copy relay control (gateway-local)            | `DC`                                                                            |
+| Session-control commands for the CLI process       | `EXIT`, `QUIT`                                                                  |
 
 If you are writing another interface that wants to submit orders, the most
 important commands are the **trading commands**.
+
+!!! note "`QLEGS` behaves differently in each client"
+    Every other command in the "trading commands" row above is a genuine
+    engine round trip in **both** `pm-alf-console` and `pm-alf-gwy`. `QLEGS`
+    is the one exception: in `pm-alf-console` it renders entirely from a
+    local, session-scoped cache built by observing this session's own
+    quote/fill/cancel events and never contacts the engine, while
+    `pm-alf-gwy` forwards it to the engine's `system.quote_legs_request` and
+    renders the engine's authoritative reply. The command syntax and output
+    columns are identical either way — see the [`QLEGS`](#qlegs) section
+    below and [ALF TCP Gateway → QLEGS](220-alf-gateway.md#qlegs-quote-leg-snapshot-active-recent)
+    for the `pm-alf-gwy` wire format.
+
+    `STATUS` and `POS` are `pm-alf-console`-only: `pm-alf-gwy` rejects both
+    with `ERR|CODE=UNKNOWN_COMMAND` since it has no interactive terminal to
+    print a summary to.
 
 
 
@@ -1006,6 +1023,29 @@ SYMBOLS
 
 Requests the currently active symbols from the engine.
 
+### `SESSION`
+
+```text
+SESSION
+```
+
+Requests the engine's current trading session state (`PRE_OPEN`,
+`OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED`) without waiting
+for the next unsolicited session-phase-change broadcast. Useful right after
+connecting, so a client can discover the current phase instead of only
+learning about it on the *next* transition.
+
+The reply reuses the same message shape as the unsolicited session-state
+broadcast, with `PREV_STATE` left empty (a query has no previous state to
+report) and an added `SESSIONS_ENABLED` field:
+
+```text
+SESSION|STATE=CONTINUOUS|PREV_STATE=|SESSIONS_ENABLED=TRUE
+```
+
+See [`system.session_state_request`](270-message-reference.md#systemsession_state_request)
+for the underlying engine message.
+
 ### `QBOOT`
 
 ```text
@@ -1031,15 +1071,23 @@ QLEGS|SHOW=<ACTIVE|RECENT|ALL>
 QLEGS|SYM=<symbol>|SHOW=<ACTIVE|RECENT|ALL>
 ```
 
-Prints the gateway's local quote-leg projection for market-maker quote
-lifecycle monitoring. This command is read-only and does not send modify or
-cancel actions to the engine.
+Shows market-maker quote legs with explicit fill state, remaining size, and
+latest lifecycle status in one place. The command syntax, filtering, and
+output columns are identical across both ALF clients, but **the two clients
+answer it differently**:
 
-`QLEGS` is designed to reduce cognitive load when operating a market-maker
-gateway by showing quote legs with explicit fill state, remaining size, and
-latest lifecycle status in one place.
+- **`pm-alf-console`**: read-only, purely local. It renders from this
+  session's own in-memory quote-leg projection, built by observing the
+  `QUOTE_ACK`/`FILL`/`ORDER`/quote-status events this session has already
+  received — it never sends a request to the engine for this command.
+- **`pm-alf-gwy`**: forwards the command as `system.quote_legs_request` to
+  the engine and renders the engine's authoritative reply — see
+  [ALF TCP Gateway → QLEGS](220-alf-gateway.md#qlegs-quote-leg-snapshot-active-recent)
+  for the wire-level request/response shape.
 
-Field behavior:
+Neither variant sends modify or cancel actions to the engine.
+
+Field behavior (same in both clients):
 
 - `SYM` (optional): limit output to one symbol.
 - `SHOW` (optional): controls filtering mode; defaults to `ACTIVE`.
@@ -1079,11 +1127,15 @@ MM_AAPL_01> QLEGS|SHOW=RECENT
 
 Important notes:
 
-- `QLEGS` is a gateway-local view built from quote acknowledgements and order
-  lifecycle events observed by this gateway session.
-- On reconnect, the local view is rebuilt from current order snapshots and new
-  events; use `QBOOT` when you need protocol-level startup bootstrap state for
-  active quote slots owned by this gateway.
+- On `pm-alf-console`, the local view is rebuilt on reconnect from current
+  order snapshots and new events, but only reflects what this session has
+  observed since (re)connecting.
+- On `pm-alf-gwy`, `QLEGS` always reflects the engine's current authoritative
+  state, including a bounded, in-memory, per-gateway history of
+  recently-inactivated quotes for the `RECENT`/`ALL` rows.
+- Use `QBOOT` on either client when you need protocol-level startup
+  bootstrap state for active quote slots owned by this gateway (unlike
+  `QLEGS` on `pm-alf-console`, `QBOOT` always asks the engine).
 
 ### `HELP`
 
@@ -1180,11 +1232,16 @@ If you are writing another ALF producer, the most important exact behaviors are:
    ALF combo form.
 9. `QBOOT` is the protocol-level way to discover active quote bootstrap state
    for the current gateway (optionally filtered by symbol).
-10. `QLEGS` is a gateway-local monitoring view for quote legs; use
-    `SHOW=ALL` after fills to inspect both live and recently completed legs.
+10. `QLEGS` is a monitoring view for quote legs; use `SHOW=ALL` after fills
+    to inspect both live and recently completed legs. It is the one command
+    whose mechanics differ by client — local cache on `pm-alf-console`,
+    engine round trip on `pm-alf-gwy` — see the [`QLEGS`](#qlegs) section.
 11. `DC` is handled entirely gateway-side and is never forwarded to the
     engine as an order-entry message; `DC_FILL` is sent only by the gateway
     and is not part of the client-side command grammar.
+12. `SESSION` is an on-demand engine round trip in both clients; its reply
+    reuses the same message shape as the unsolicited session-state broadcast,
+    with `PREV_STATE` empty and an added `SESSIONS_ENABLED` field.
 
 ## See also
 

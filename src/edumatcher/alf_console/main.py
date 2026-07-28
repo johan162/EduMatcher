@@ -36,6 +36,7 @@ Commands
   ORDERS                   — print table of this session's orders
   POS                      — print current positions with P&L
   SYMBOLS                  — list all active instruments in the engine
+  SESSION                  — query the engine's current trading session state
     INDEX                    — show current index level
     INDEX|HISTORY|INDEX=<id>[|FROM=YYYY-MM-DD|TO=YYYY-MM-DD] — query index structural/audit history
                                 (corporate actions, constituent changes — not level ticks;
@@ -84,6 +85,7 @@ from edumatcher.models.message import (
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
     make_quote_new_msg,
+    make_session_state_request_msg,
     make_symbols_request_msg,
     make_index_history_request_msg,
     make_oco_order_msg,
@@ -113,6 +115,7 @@ from .display import (
     print_positions,
     print_quote_bootstrap,
     print_quote_legs,
+    print_session_status,
     print_status,
     print_symbols_table,
 )
@@ -226,6 +229,7 @@ class Gateway:
             f"risk.kill_switch_ack.{self.gateway_id}",
             f"system.symbols.{self.gateway_id}",
             f"system.quote_bootstrap.{self.gateway_id}",
+            f"system.session_status.{self.gateway_id}",
             f"system.gateway_auth.{self.gateway_id}",
             "trade.executed",
         )
@@ -619,6 +623,11 @@ class Gateway:
                     "[dim]No active instruments yet — submit an order to create a book.[/dim]"
                 )
 
+        elif "system.session_status" in topic:
+            state = str(payload.get("state", "?"))
+            sessions_enabled = bool(payload.get("sessions_enabled", True))
+            print_session_status(state, sessions_enabled)
+
         elif "system.quote_bootstrap" in topic:
             quotes = payload.get("quotes", [])
             if isinstance(quotes, list):
@@ -924,6 +933,12 @@ class Gateway:
 
         if cmd == "SYMBOLS":
             self.push_sock.send_multipart(make_symbols_request_msg(self.gateway_id))
+            return
+
+        if cmd == "SESSION":
+            self.push_sock.send_multipart(
+                make_session_state_request_msg(self.gateway_id)
+            )
             return
 
         if cmd == "INDEX":

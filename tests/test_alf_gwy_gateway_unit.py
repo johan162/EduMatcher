@@ -503,3 +503,66 @@ def test_poll_engine_events_respects_budget(
     gateway._poll_engine_events()
 
     assert len(fake_sub._queue) == 1
+
+
+def test_session_query_sends_session_state_request(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+
+    gateway._handle_client_line(session, "SESSION")
+
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    assert fake_push.sent
+    topic = fake_push.sent[-1][0].decode("utf-8")
+    assert topic == "system.session_state_request"
+    peer.close()
+
+
+def test_session_status_response_routed_to_querying_client(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    gateway._clients[session.sock.fileno()] = session
+    gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "system.session_status.TRADER01",
+            {"state": "CONTINUOUS", "sessions_enabled": True},
+        )
+    )
+
+    gateway._poll_engine_events()
+
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "SESSION"
+    assert frame.fields["STATE"] == "CONTINUOUS"
+    assert frame.fields["PREV_STATE"] == ""
+    assert frame.fields["SESSIONS_ENABLED"] == "TRUE"
+    peer.close()
+
+
+def test_session_status_response_dropped_when_client_disconnected(
+    gateway: AlfGateway,
+) -> None:
+    # No session registered for TRADER01 -- response must be silently dropped,
+    # matching the QLEGS/QBOOT/symbols response pattern.
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(
+        encode(
+            "system.session_status.TRADER01",
+            {"state": "CLOSED", "sessions_enabled": True},
+        )
+    )
+
+    gateway._poll_engine_events()  # should not raise
