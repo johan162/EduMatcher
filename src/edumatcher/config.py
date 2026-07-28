@@ -89,6 +89,21 @@ AUDIT_INDEX_DB_FILE = DATA_DIR / "audit_index.db"
 CLEARING_REPORT_FILE = DATA_DIR / "clearing_report.csv"
 CLEARING_DB_FILE = DATA_DIR / "clearing.db"
 STATS_DB_FILE = DATA_DIR / "stats.db"
+LOG_DB_FILE = DATA_DIR / "log.db"
+LOG_FALLBACK_DIR = DATA_DIR / "logs"
+
+# ---------------------------------------------------------------------------
+# pm-log-srv (LALF log server) endpoint
+# ---------------------------------------------------------------------------
+# See docs-design/EduMatcher-log-srv.md for the full design and the LALF
+# protocol (§15). Only a host/port default lives here, matching how
+# ENGINE_PULL_ADDR/ENGINE_PUB_ADDR are plain module-level constants rather
+# than going through the YAML config loader — pm-log-srv's own config.py
+# (mirroring md_gateway/config.py) is the actual source of truth for a
+# running server; this default is only used when no engine_config.yaml
+# log_server: block and no CLI override are present.
+LOG_SRV_HOST = "127.0.0.1"
+LOG_SRV_PORT = 5600
 
 
 # ---------------------------------------------------------------------------

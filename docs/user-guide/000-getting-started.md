@@ -308,6 +308,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-index` | Background | Real-time cap-weighted index calculation and dissemination | [Processes](170-processes.md#pm-index-index-calculation-process), [Market Index](150-market-index.md) |
 | `pm-balf-gwy` | Background | Binary order-entry gateway (BALF) over TCP | [Processes](170-processes.md), [BALF Gateway](230-balf-gateway.md), [BALF Protocol](910-app-balf-protocol.md) |
 | `pm-dc-gwy` | Background | External drop-copy gateway (DC1) — relays :5557 fills over TCP for non-ZeroMQ clients | [Processes](170-processes.md#pm-dc-gwy-drop-copy-tcp-gateway), [Drop-Copy TCP Gateway](201-dc-gateway.md), [Drop Copy](200-drop-copy.md) |
+| `pm-log-srv` | Background | Centralized LALF log collector — receives logging from every `pm-*` process over TCP :5600 into `log.db` | [Processes](170-processes.md#pm-log-srv-centralized-log-server), [Centralized Log Server](280-log-srv.md), [Configuration](010-configuration.md#configuring-pm-log-srv) |
 
 ### CLI utilities (runnable)
 
@@ -323,6 +324,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-calf-spy` | Spy on the CALF market-data protocol — connect to `pm-md-gwy` and print every line, human-readable or JSON | [Processes](170-processes.md#pm-calf-spy-calf-protocol-spy), [CALF Protocol Spy](241-calf-spy-cli.md), [Market Data Feed](240-calf-gateway.md) |
 | `pm-ralf-spy` | Spy on the RALF post-trade protocol — connect to `pm-ralf-gwy` and print every line, human-readable or JSON | [Processes](170-processes.md#pm-ralf-spy-ralf-protocol-spy), [RALF Protocol Spy](251-ralf-spy-cli.md), [Post-Trade Dissemination](250-ralf-gateway.md) |
 | `pm-dc-spy` | Spy on the engine's drop-copy feed — connect directly to `:5557` and print every fill event, human-readable or JSON | [Processes](170-processes.md#pm-dc-spy-drop-copy-spy), [Drop-Copy Spy](202-dc-spy-cli.md), [Drop Copy](200-drop-copy.md) |
+| `pm-log-cli` | Query, tail, and troubleshoot `log.db` — includes a rule-based `diagnose` subcommand and manual `prune` | [Processes](170-processes.md#pm-log-cli-log-server-querytroubleshooting-cli), [Centralized Log Server](280-log-srv.md), [Configuration](010-configuration.md#configuring-pm-log-srv) |
 | `pm-setup` |  Bootstrap local session directory and defaults | [Processes](170-processes.md), [Installation](000-getting-started.md#installation) |
 | `pm-config-gen` | Generate `engine_config.yaml` from CLI options | [Processes](170-processes.md), [Configuration generator](010-configuration.md#generate-configs-with-pm-config-gen) |
 
@@ -556,6 +558,8 @@ grouped below by role.
 | Show a scrolling ticker with OHLCV context        | `pm-ticker`                               | [Statistics and Reporting](140-statistics-and-reporting.md) |
 | Calculate and disseminate a cap-weighted index    | `pm-index`                               | [Market Index](150-market-index.md)                                |
 | Query index history without SQL                  | `pm-index-cli`                           | [Market Index](152-index-admin-cli.md) |
+| Collect every process's logging into one queryable place | `pm-log-srv`                     | [Processes](170-processes.md#pm-log-srv-centralized-log-server)  |
+| Query, tail, or troubleshoot collected logs without SQL | `pm-log-cli query`                 | [Processes](170-processes.md#pm-log-cli-log-server-querytroubleshooting-cli) |
 
 ### Gateways
 

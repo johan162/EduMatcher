@@ -85,6 +85,8 @@ pm-api-gwy = "edumatcher.api_gateway.main:main"
 pm-setup    = "edumatcher.setup_cmd:main"
 pm-config-gen = "edumatcher.config_gen.cli:main"
 pm-cverifier  = "edumatcher.cverifier.cli:main"
+pm-log-srv  = "edumatcher.log_srv.main:main"
+pm-log-cli  = "edumatcher.log_cli.main:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

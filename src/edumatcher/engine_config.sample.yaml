@@ -183,6 +183,19 @@
 #     max_client_queue: 10000
 #     depth_levels: 10
 #
+#   log_server:
+#     enabled: true
+#     name: log-srv01
+#     bind_address: 0.0.0.0
+#     port: 5600
+#     db_path: data/log.db
+#     retention_days: 30
+#     max_message_bytes: 65536
+#     max_client_queue: 10000
+#     write_batch_size: 50
+#     write_batch_interval_ms: 100
+#     heartbeat_interval_sec: 5
+#
 #   indices:
 #     - id: EDU100
 #       description: Broad technology benchmark
@@ -458,6 +471,32 @@
 #     Per-client outbound queue cap before overload handling is triggered.
 #   depth_levels: 10
 #     Number of aggregated price levels per side included in DEPTH channel snapshots and updates.
+#
+#   log_server entries
+#   ------------------
+#   enabled: true
+#     Master switch that lets pm-log-srv start accepting LALF connections.
+#   name: log-srv01
+#     Service name shown in logs, telemetry, and WELCOME.SRV.
+#   bind_address: 0.0.0.0
+#     Network interface/address the log server listens on for incoming LALF clients.
+#   port: 5600
+#     TCP port pm-* processes connect to for LALF logging (docs-design/EduMatcher-log-srv.md §15).
+#   db_path: data/log.db
+#     SQLite database path where log_events/processes/server_stats are stored.
+#   retention_days: 30
+#     Prune log_events rows older than this many days, once per hour.
+#     null (or 0 via --retention-days) means unbounded retention.
+#   max_message_bytes: 65536
+#     Maximum LOG payload size in bytes before truncation (truncated, not dropped).
+#   max_client_queue: 10000
+#     Per-connection outbound backlog limit before backpressure is applied.
+#   write_batch_size: 50
+#     Maximum rows per SQLite transaction in the background writer thread.
+#   write_batch_interval_ms: 100
+#     Maximum time between writer-thread flushes, whichever comes first with write_batch_size.
+#   heartbeat_interval_sec: 5
+#     Interval a connected client must send HB within (echoed as WELCOME.HBINT).
 #
 #   api_gateways entries
 #   --------------------

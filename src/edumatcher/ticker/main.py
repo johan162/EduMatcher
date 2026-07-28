@@ -178,7 +178,7 @@ def _build_ticker_text(
     return line
 
 
-def _build_line(
+def _build_line(  # pyright: ignore[reportUnusedFunction]
     symbols: list[str],
     daily: dict[str, dict[str, Any]],
     live: dict[str, dict[str, Any]],
