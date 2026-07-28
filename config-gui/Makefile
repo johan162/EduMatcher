@@ -127,6 +127,14 @@ help: ## Show this help message
 	@$(call print_section,Distribute,dist)
 	@echo ""
 
+# Bump version in "TopBar.tsx" file (for display in the GUI) when updating the version in package.json
+bump-version: ## Update version in TopBar.tsx to match package.json
+	@echo -e "$(YELLOW)- Bumping version in TopBar.tsx to match package.json...$(NC)"
+	@TOPBAR_FILE=apps/web/src/components/layout/TopBar.tsx; \
+	VERSION=$(shell node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0"); \
+	sed -i.bak -E "s/v[0-9]+\.[0-9]+\.[0-9]+/v$$VERSION/" "$$TOPBAR_FILE" && rm -f "$$TOPBAR_FILE.bak"
+	@echo -e "$(GREEN)✓ Version updated in TopBar.tsx to v$(VERSION)$(NC)"
+
 # --------------------------------------------------------------------------------------------
 # Local npm workflow
 # --------------------------------------------------------------------------------------------
@@ -139,12 +147,12 @@ install: check-npm ## Install a full local npm workspace environment
 	fi
 	@echo -e "$(GREEN)✓ Environment ready$(NC)"
 
-build: check-npm ## Build all workspaces (production — minified, no sourcemaps)
+build: check-npm bump-version  ## Build all workspaces (production — minified, no sourcemaps)
 	@echo -e "$(YELLOW)- Building all workspaces...$(NC)"
 	@$(NPM) run build
 	@echo -e "$(GREEN)✓ Build completed$(NC)"
 
-build-debug: check-npm ## Build frontend in development mode (sourcemaps, no minification)
+build-debug: check-npm bump-version ## Build frontend in development mode (sourcemaps, no minification)
 	@echo -e "$(YELLOW)- Building packages...$(NC)"
 	@$(NPM) run build --workspaces --if-present --workspace @edumatcher/schema \
 		--workspace @edumatcher/yaml-codec \
@@ -167,13 +175,13 @@ lint: check-npm ## Run lint command
 format: check-npm ## Format source files with Prettier
 	@$(NPM) run format
 
-dev: check-npm ## Run server and web dev processes together
+dev: check-npm bump-version ## Run server and web dev processes together
 	@$(NPM) run dev
 
-dev-web: check-npm ## Run only web dev server (Vite)
+dev-web: check-npm bump-version ## Run only web dev server (Vite)
 	@$(NPM) run dev:web
 
-dev-server: check-npm ## Run only backend dev server (Fastify)
+dev-server: check-npm bump-version ## Run only backend dev server (Fastify)
 	@$(NPM) run dev:server
 
 # --------------------------------------------------------------------------------------------
@@ -190,7 +198,12 @@ cnt-build: check-container ## Build container image via compose (podman/docker)
 	    --build-arg NO_PROXY="$${NO_PROXY:-}"
 	@echo -e "$(GREEN)✓ Container image built$(NC)"
 
-up: check-container-env ## Start container stack (detached) with build
+
+proxy-up: check-container-env ## Start a local proxy container for development (optional)
+	@echo -e "$(YELLOW)- Starting local proxy container...$(NC)"
+	HTTP_PROXY=http://host.containers.internal:9000 HTTPS_PROXY=http://host.containers.internal:9000 NO_PROXY=localhost,127.0.0.1  $(MAKE) up
+
+up: check-container-env bump-version ## Start container stack (detached) with build
 	@echo -e "$(YELLOW)- Starting container stack...$(NC)"
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
 	@$(DOCKER_COMPOSE) up -d --build \
@@ -230,7 +243,7 @@ ps: check-container ## Show container stack status
 # --------------------------------------------------------------------------------------------
 # Distributable package
 # --------------------------------------------------------------------------------------------
-dist: check-container-env ## Build a distributable: container image + exported OCI tarball in dist
+dist: check-container-env bump-version ## Build a distributable: container image + exported OCI tarball in dist
 	@echo -e "$(YELLOW)- Building distributable package v$(VERSION)...$(NC)"
 	@echo -e "$(BLUE)- Runtime:  $(CONTAINER_RUNTIME)$(NC)"
 	@echo -e "$(BLUE)- Image:    $(IMAGE)$(NC)"
