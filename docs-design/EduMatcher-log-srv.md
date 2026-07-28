@@ -1,0 +1,1215 @@
+Version: 1.0.0
+
+Date: 2026-07-28
+
+Status: Design Proposal
+
+# EduMatcher — Centralized Log Server (`pm-log-srv`) and CLI (`pm-log-cli`) Design
+
+
+
+## Table of Contents
+
+- [EduMatcher — Centralized Log Server (`pm-log-srv`) and CLI (`pm-log-cli`) Design](#edumatcher--centralized-log-server-pm-log-srv-and-cli-pm-log-cli-design)
+  - [Table of Contents](#table-of-contents)
+  - [1. Motivation](#1-motivation)
+  - [2. Problem Statement](#2-problem-statement)
+  - [3. Goals and Non-Goals](#3-goals-and-non-goals)
+    - [3.1 Goals](#31-goals)
+    - [3.2 Non-Goals](#32-non-goals)
+  - [4. Architecture Overview](#4-architecture-overview)
+    - [4.1 Topology](#41-topology)
+    - [4.2 Why a dedicated TCP protocol instead of reusing CALF or the ZMQ bus](#42-why-a-dedicated-tcp-protocol-instead-of-reusing-calf-or-the-zmq-bus)
+    - [4.3 Why SQLite instead of flat files or a syslog forwarder](#43-why-sqlite-instead-of-flat-files-or-a-syslog-forwarder)
+  - [5. The LALF Wire Protocol (Logging ALF)](#5-the-lalf-wire-protocol-logging-alf)
+    - [5.1 Transport and session model](#51-transport-and-session-model)
+    - [5.2 Line structure and the message-body problem](#52-line-structure-and-the-message-body-problem)
+    - [5.3 `HELLO` / `WELCOME`](#53-hello--welcome)
+    - [5.4 `LOG` — the one client-to-server data message](#54-log--the-one-client-to-server-data-message)
+    - [5.5 `ACK` / `ERR`](#55-ack--err)
+    - [5.6 `HB` / `PING` / `PONG`](#56-hb--ping--pong)
+    - [5.7 `EXIT`](#57-exit)
+    - [5.8 Backpressure and slow clients](#58-backpressure-and-slow-clients)
+    - [5.9 Worked session example](#59-worked-session-example)
+    - [5.10 What LALF deliberately does not have](#510-what-lalf-deliberately-does-not-have)
+  - [6. SQLite Schema](#6-sqlite-schema)
+    - [6.1 Design principles](#61-design-principles)
+    - [6.2 `log_events`](#62-log_events)
+    - [6.3 `processes`](#63-processes)
+    - [6.4 `server_stats`](#64-server_stats)
+    - [6.5 Retention and pruning](#65-retention-and-pruning)
+    - [6.6 Full schema SQL](#66-full-schema-sql)
+  - [7. `pm-log-srv` Process Design](#7-pm-log-srv-process-design)
+    - [7.1 Responsibilities](#71-responsibilities)
+    - [7.2 Startup sequence](#72-startup-sequence)
+    - [7.3 Per-client handler loop](#73-per-client-handler-loop)
+    - [7.4 Write path and durability](#74-write-path-and-durability)
+    - [7.5 Discovery: how a process finds `pm-log-srv`](#75-discovery-how-a-process-finds-pm-log-srv)
+    - [7.6 CLI flags](#76-cli-flags)
+    - [7.7 Config reference](#77-config-reference)
+  - [8. Hooking Into the Existing Python `logging` Setup](#8-hooking-into-the-existing-python-logging-setup)
+    - [8.1 Today's pattern, unchanged](#81-todays-pattern-unchanged)
+    - [8.2 `TcpLogHandler`](#82-tcploghandler)
+    - [8.3 Auto-detection algorithm](#83-auto-detection-algorithm)
+    - [8.4 `_configure_logging` after this change](#84-_configure_logging-after-this-change)
+    - [8.5 New/changed CLI flags shared by every `pm-*` process](#85-newchanged-cli-flags-shared-by-every-pm-process)
+    - [8.6 Behaviour when the server disappears mid-session](#86-behaviour-when-the-server-disappears-mid-session)
+    - [8.7 Files to change](#87-files-to-change)
+  - [9. `pm-log-cli`](#9-pm-log-cli)
+    - [9.1 Subcommand overview](#91-subcommand-overview)
+    - [9.2 `tail`](#92-tail)
+    - [9.3 `query`](#93-query)
+    - [9.4 `processes`](#94-processes)
+    - [9.5 `stats`](#95-stats)
+    - [9.6 `diagnose`](#96-diagnose)
+    - [9.7 Output formats](#97-output-formats)
+    - [9.8 Exit codes](#98-exit-codes)
+  - [10. Security and Operational Notes](#10-security-and-operational-notes)
+  - [11. Testing Strategy](#11-testing-strategy)
+  - [12. Implementation Plan](#12-implementation-plan)
+  - [13. Open Questions](#13-open-questions)
+  - [14. Summary](#14-summary)
+
+
+
+## 1. Motivation
+
+A full EduMatcher session is, per the process architecture
+([Processes](../docs/user-guide/170-processes.md)), a dozen-plus independent
+`pm-*` processes: the engine, gateways, `pm-stats`, `pm-audit`, bots,
+viewers, admin tools. Every one of them already logs — each has its own
+`_configure_logging()` that calls `logging.basicConfig(stream=sys.stdout)`
+with a `--log-level`/`-v`/`-q` flag set (e.g.
+`src/edumatcher/api_gateway/main.py`) — but each process's log output goes
+to its own terminal or its own redirected file. There is no single place to
+ask "what did every process log in the last five minutes," and
+correlating an issue that spans, say, `pm-engine` and `pm-md-gwy` means
+manually lining up timestamps across two separate terminal scrollbacks or
+log files.
+
+This is the same problem `pm-audit` already solved for **trading events**
+(a durable, queryable record of every order/fill, see
+[Audit](../docs/user-guide/190-audit.md)) and `pm-stats` solved for
+**market statistics** (OHLCV and index history to SQLite, see
+[Statistics & Reporting](../docs/user-guide/140-statistics-and-reporting.md)).
+Neither captures **process-level operational logging** — startup messages,
+warnings, stack traces, connection retries — which today only exists as
+ephemeral stdout/file text with no cross-process query surface.
+
+This document specifies `pm-log-srv`, a small always-on process that
+collects logging from every other `pm-*` process over a dedicated TCP
+protocol and stores it in a queryable SQLite database, and `pm-log-cli`,
+a read-only query/troubleshooting client for that database — the same
+"dedicated collector process + SQLite + read-only CLI" shape `pm-stats`/
+`pm-stats-cli` and `pm-audit`/`pm-audit-cli` already established.
+
+## 2. Problem Statement
+
+- There is no cross-process view of operational logging. Diagnosing a
+  problem that touches multiple processes means opening multiple
+  terminals/files and manually correlating timestamps.
+- Nothing is durable. If a process's terminal is closed or its stdout was
+  never redirected, whatever it logged is gone. `pm-audit`/`pm-stats`
+  solved this for trading/market data; operational logs have no equivalent.
+- There is no structured query surface. Finding "every ERROR from any
+  gateway in the last hour" today means `grep`-ing however many log files
+  happen to exist, if they exist at all.
+- Every process already uses Python's standard `logging` module in a
+  consistent, well-established pattern (§8.1) — the natural integration
+  point is a `logging.Handler`, not a rewrite of how any process logs.
+- A process should not have to be told where the log server is by hand in
+  the common case: if `pm-log-srv` is already running when a process
+  starts, that process should discover and use it automatically, the same
+  spirit as `pm-stats`/`pm-audit` needing no special wiring to start
+  receiving engine events once they subscribe. Explicit `--log-target
+  file`/`--log-target stdout` must still override this, since some
+  invocations (a quick one-off CLI tool, a CI job with no log server
+  running) should never block on or depend on a log server being present.
+
+## 3. Goals and Non-Goals
+
+### 3.1 Goals
+
+- A single new process, `pm-log-srv`, that accepts long-lived TCP
+  connections from any number of `pm-*` processes and appends every log
+  record it receives to a local SQLite database, following the same
+  "small dedicated collector" shape as `pm-stats`/`pm-audit`.
+- A small, dependency-free, newline-delimited TCP wire protocol
+  (**LALF** — Logging ALF, §5) that any `pm-*` process, or in principle any
+  external tool in any language, can speak — mirroring CALF's own
+  `HELLO`/`WELCOME`/line-protocol design (§4.2) rather than inventing an
+  unrelated shape.
+- A `logging.Handler` subclass (`TcpLogHandler`, §8.2) that plugs into the
+  exact `_configure_logging()` pattern every `pm-*` process already uses,
+  so adopting this requires a small, mechanical, repeated change across
+  ~19 process entrypoints, not a rewrite of any process's logging calls.
+- Automatic discovery: at startup, a process briefly probes for a running
+  `pm-log-srv` on the configured host/port and switches its root logger to
+  `TcpLogHandler` if found, falling back to today's stdout behaviour
+  otherwise (§8.3) — with an explicit `--log-target
+  server|stdout|file` flag (§8.5) that always wins over auto-detection.
+- A read-only query/troubleshooting CLI, `pm-log-cli`, mirroring
+  `pm-audit-cli`'s/`pm-stats-cli`'s subcommand and `--format
+  human|json` conventions (§9), including a `diagnose` subcommand that
+  applies a small set of documented, rule-based heuristics against stored
+  logs and reports likely causes and concrete system-adjustment
+  recommendations (§9.6).
+
+### 3.2 Non-Goals
+
+- Not a replacement for `pm-audit` or `pm-stats`. Trading events (orders,
+  fills) and market statistics (OHLCV, index levels) have their own
+  purpose-built collectors already; `pm-log-srv` is for operational
+  `logging`-module output only — think "what would otherwise have gone to
+  a terminal or a log file," not "what happened in the order book."
+  §10 covers where the line is when a process logs something
+  trade-adjacent (e.g. a rejected order at WARNING level).
+- No log shipping off the local machine, no distributed/multi-host
+  aggregation, no authentication, no encryption at the transport layer —
+  same trusted-network assumption CALF makes today (§10 of the normative
+  [CALF Protocol Reference](../docs/user-guide/920-app-calf-protocol.md)).
+  A future need for either belongs in a follow-up revision, not this one.
+- No log level reconfiguration pushed *from* the server *to* clients (no
+  "set pm-engine to DEBUG remotely"). Each process's log level remains a
+  local, `--log-level`/`-v`/`-q`-controlled decision (§8.4); `pm-log-srv`
+  only receives what a process already decided to emit.
+- No real machine-learning anomaly detection in `pm-log-cli diagnose`
+  (§9.6). The recommendations feature is deliberately a small, documented,
+  rule-based heuristic set — transparent and auditable, in keeping with
+  this being an educational system, not a production observability
+  product.
+- No change to what or how any process logs today (message text, logger
+  names, log levels chosen). This document changes **where the records
+  go**, not what gets recorded.
+
+## 4. Architecture Overview
+
+### 4.1 Topology
+
+```mermaid
+flowchart LR
+    subgraph procs["Any pm-* process"]
+        ENGINE["pm-engine"]
+        MDGWY["pm-md-gwy"]
+        APIGWY["pm-api-gwy"]
+        STATS["pm-stats"]
+        OTHER["...every other pm-* process"]
+    end
+
+    ENGINE -->|"LALF over TCP :5600\nHELLO/LOG/HB"| LOGSRV["pm-log-srv"]
+    MDGWY -->|"LALF over TCP :5600"| LOGSRV
+    APIGWY -->|"LALF over TCP :5600"| LOGSRV
+    STATS -->|"LALF over TCP :5600"| LOGSRV
+    OTHER -->|"LALF over TCP :5600"| LOGSRV
+
+    LOGSRV -->|"appends"| DB[("log.db\n(SQLite)")]
+    CLI["pm-log-cli"] -->|"read-only SQL"| DB
+```
+
+`pm-log-srv` is the only new backend process. It has exactly one
+responsibility: accept LALF connections, validate and append `LOG`
+records to `log.db`. It never talks to the ZeroMQ bus, the engine, or any
+gateway directly — from the rest of the system's point of view it is a
+passive sink that happens to be reachable over TCP, structurally identical
+in spirit to how `pm-stats`/`pm-audit` are passive ZMQ subscribers that
+happen to write to their own SQLite/JSONL stores. `pm-log-cli` never talks
+to `pm-log-srv` directly either — like `pm-stats-cli`/`pm-audit-cli`, it
+queries the database file directly, read-only, so a busy or even-crashed
+log server never blocks troubleshooting (§7.1, §10).
+
+### 4.2 Why a dedicated TCP protocol instead of reusing CALF or the ZMQ bus
+
+| Option | Trade-off |
+|---|---|
+| **New line protocol, LALF (chosen)** | A few hours of new, small protocol work, but a natural fit: logging is a push-only, high-volume, best-effort stream from many producers to one consumer — closer to CALF's shape (long-lived TCP, `HELLO`/`WELCOME`, line-delimited) than to the ZMQ bus's shape (pub/sub over the *trading* event stream). Every `pm-*` process, including ones with no other reason to touch the ZMQ bus (e.g. `pm-log-cli` itself, or a future non-Python client), can speak it with nothing more than a TCP socket. |
+| Reuse CALF, adding a `LOG` channel | Would mean every log line, from every process, flows through `pm-md-gwy` — a market-data gateway with no other reason to know about `pm-engine`'s or `pm-stats`'s internal logging. Conflates two unrelated concerns in one already-load-bearing gateway, and CALF's `SYM=`-keyed channel model doesn't fit log records at all (§5.2 explains why logging needs a different framing anyway). |
+| Publish log lines onto the existing ZMQ PUB/SUB bus (:5556) | Would mean every subscriber on the main event bus — including bots and viewers that only care about trading events — receives every log line from every process whether they want it or not, and PUB/SUB's documented "no delivery guarantee, drops if a subscriber is slow" behaviour (§"The two bus patterns used here" in [Processes](../docs/user-guide/170-processes.md)) is the wrong guarantee for logging, where a slow collector should apply backpressure to a chatty logger (§5.8), not silently drop its output. |
+| Write straight to a shared SQLite file from every process (no server at all) | SQLite's single-writer model makes many concurrent writers from independent processes fragile (`SQLITE_BUSY` contention) without a serializing front-end; a dedicated server that owns the one writer connection avoids this entirely (§7.1, §7.4) — the same reason `pm-stats`/`pm-audit` are each a single collector process rather than every publisher writing its own row directly. |
+
+### 4.3 Why SQLite instead of flat files or a syslog forwarder
+
+`pm-stats` and `pm-audit` already established the two possible shapes in
+this codebase — `pm-stats` uses SQLite (queryable, indexed, `pm-stats-cli`
+can filter/aggregate with real `WHERE`/`ORDER BY`), `pm-audit` uses JSONL
+flat files (append-friendly, but `pm-audit-cli` has to scan and filter in
+Python, see `docs/user-guide/190-audit.md` §"How pm-audit-cli reads
+events"). Logging is a better fit for the SQLite shape: `pm-log-cli`'s core
+job is filtered, indexed lookups across potentially millions of rows
+(`--process`, `--level`, `--since`/`--until`, free-text search, §9.3), and
+`diagnose` (§9.6) needs aggregate queries (`GROUP BY level, process`, rate
+computations) that are natural SQL and painful to hand-roll over flat
+files at scale. A syslog forwarder (`rsyslog`/`journald`) was considered
+and rejected: it would add an external system dependency this
+self-contained, batteries-included project doesn't otherwise have anywhere
+(`pm-stats`/`pm-audit`/CALF/RALF are all first-party, dependency-free by
+design), and would not give `pm-log-cli` the "designed for exactly this
+schema" query surface a purpose-built SQLite schema does (§6).
+
+## 5. The LALF Wire Protocol (Logging ALF)
+
+### 5.1 Transport and session model
+
+| Property | Value |
+|---|---|
+| Transport | TCP |
+| Default port | `5600` |
+| Encoding | UTF-8 |
+| Delimiter | `\n` for header lines; explicit byte-length-prefixed payload for message bodies (§5.2) |
+| Max header line length | 4096 bytes including newline, same ceiling CALF uses |
+| Max payload length | 65536 bytes (config `max_message_bytes`, §7.7); longer messages are truncated with a `TRUNC=1` marker (§5.4) |
+
+A LALF client connection is long-lived, exactly like CALF's (normative
+[CALF Protocol Reference](../docs/user-guide/920-app-calf-protocol.md),
+"Transport and session model"):
+
+- Client must send `HELLO` within 5 seconds of TCP connect or the server
+  closes the socket.
+- Server replies with `WELCOME` on success, or `ERR` + close on rejection.
+- Client may then send any number of `LOG` messages, plus periodic `HB`.
+- Client sends `EXIT` (or simply closes the socket) to end the session.
+
+Unlike CALF, LALF has **no subscription model** — there is nothing to
+`SUB`/`UNSUB` to, because the data flows in exactly one direction (client
+→ server) and every connected client is, definitionally, only ever
+sending its own process's log records. This asymmetry is why LALF is a
+distinct protocol rather than a CALF channel (§4.2): CALF's whole design
+(channels, wildcards, snapshot/replay) exists to serve *subscribers*
+asking for a slice of a shared feed; LALF has no shared feed to slice —
+every client is a producer, not a consumer, of exactly one stream (§5.4).
+
+### 5.2 Line structure and the message-body problem
+
+CALF's `KEY=VALUE|KEY=VALUE` grammar works because every CALF field is a
+constrained token — a symbol, a price, an enum, a sequence number — none
+of which can contain `|`, `\n`, or arbitrary Unicode. A log message
+**is** arbitrary text: it can contain pipes, embedded newlines (a
+multi-line stack trace), quotes, or any Unicode a developer's `f-string`
+happens to produce. Reusing CALF's grammar unmodified for the message
+body would require an escaping scheme CALF has never needed and that
+would be easy to get subtly wrong (what happens when the message text
+itself contains the escape character?).
+
+LALF avoids the problem structurally instead of solving it with escaping:
+**every message is a fixed-field header line, followed by exactly `LEN`
+raw bytes of UTF-8 payload, followed by the header line's own
+terminating `\n`.**
+
+```text
+<MSGTYPE>|KEY=VALUE|KEY=VALUE|...|LEN=<n>\n<n raw UTF-8 bytes, no trailing newline required>
+```
+
+The header line is parsed exactly like a CALF line (split on `|`, then
+`=`); the payload that follows is read as a fixed number of bytes,
+never scanned for a delimiter, so it may contain anything — pipes,
+newlines, control characters — with zero escaping. `LEN` is mandatory on
+every message type that carries a payload (`LOG`, §5.4) and absent on
+every message type that doesn't (`HELLO`, `WELCOME`, `HB`, `PING`, `PONG`,
+`EXIT`, `ACK`, `ERR` — all of these are header-only, exactly like most
+CALF messages already are). A message with no `LEN` field has no payload
+bytes to read at all — the parser moves straight to the next header line.
+
+### 5.3 `HELLO` / `WELCOME`
+
+```text
+HELLO|CLIENT=pm-api-gwy|PID=48213|HOST=trader-laptop|PROTO=LALF1
+```
+
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `CLIENT` | Yes | string | Process name, matching its `pm-*` command name (e.g. `pm-api-gwy`, `pm-engine`) |
+| `PID` | Yes | int | OS process ID of the connecting client |
+| `HOST` | Yes | string | Hostname the client is running on (matches CALF-style deployments — see `EduMatcher-Cross-host-connection.md` for the multi-host case) |
+| `PROTO` | Yes | string | Always `LALF1` in this revision |
+| `INSTANCE` | No | string | Optional disambiguator when multiple instances of the same `CLIENT` run at once (e.g. `--instance` value for a named `api_gateways` entry, or a gateway's `--id`) |
+
+```text
+WELCOME|PROTO=LALF1|SRV=log-srv01|HBINT=5|SESSION=a1b2c3d4
+```
+
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `PROTO` | Yes | string | Echoes `LALF1` |
+| `SRV` | Yes | string | Configured name of this `pm-log-srv` instance |
+| `HBINT` | Yes | int | Heartbeat interval in seconds the client should honour (§5.6) |
+| `SESSION` | Yes | string | Opaque per-connection session ID, included in every DB row this connection writes (§6.2) purely as a debugging aid — it is not a security token and carries no privilege |
+
+`PROTO` mismatch, a missing required `HELLO` field, or no `HELLO` within
+5 seconds all result in `ERR` + connection close, mirroring CALF's own
+`HELLO` handling exactly.
+
+### 5.4 `LOG` — the one client-to-server data message
+
+```text
+LOG|SEQ=1042|TS=2026-07-28T14:32:07.511Z|LEVEL=WARNING|LOGGER=edumatcher.md_gateway.gateway|LEN=57
+slow client detected on channel DEPTH, symbol AAPL, dropping
+```
+
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `SEQ` | Yes | int | Monotonic per-connection sequence number, starting at 1; lets the server detect gaps (dropped TCP segments would be a bug, but this makes it detectable rather than silent) |
+| `TS` | Yes | string | UTC ISO-8601 with milliseconds, set by the **client** at the moment `logging` emitted the record (`LogRecord.created`) — not when the server received it; §6.2 stores both |
+| `LEVEL` | Yes | enum | One of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` — Python `logging`'s own level names, uppercase, unchanged |
+| `LOGGER` | Yes | string | The originating logger name (`LogRecord.name`, e.g. `edumatcher.md_gateway.gateway`) — lets `pm-log-cli` filter by subsystem within one process, not just by process |
+| `MODULE` | No | string | `LogRecord.module` — bare filename without extension, when available |
+| `LINE` | No | int | `LogRecord.lineno`, when available |
+| `EXC` | No | bool (`1`/absent) | Set when this record carries a formatted exception/traceback in its payload (`LogRecord.exc_info` was not `None`) — lets `pm-log-cli` filter for "records with a traceback attached" without a text search (§9.3, §9.6) |
+| `LEN` | Yes | int | Byte length of the UTF-8 payload that follows this header line's `\n` (§5.2) |
+
+The payload is the fully formatted log message — `record.getMessage()`,
+with the formatted exception/traceback appended (`\n`-joined) when `EXC=1`
+— exactly what would otherwise have been written to stdout by
+`logging.basicConfig`'s default formatter, so nothing about message
+*content* changes versus today (§3.2's non-goal).
+
+### 5.5 `ACK` / `ERR`
+
+```text
+ACK|SEQ=1042
+ERR|CODE=INVALID_LEVEL|MSG=unknown LEVEL value: TRACE
+ERR|CODE=PAYLOAD_TOO_LARGE|MSG=message exceeds max_message_bytes=65536, truncated
+```
+
+The server does **not** `ACK` every `LOG` message individually — at
+realistic logging rates, per-message acknowledgment would be pure
+overhead for a fire-and-forget stream (§5.8 covers the one case where the
+server does need to signal the client: backpressure). `ACK` is reserved
+for `HELLO`'s implicit success (carried by `WELCOME` itself, so no
+separate `ACK` is needed there) and is otherwise unused in this revision —
+listed here for protocol completeness and because a future revision
+extending LALF with a request/response query path (§13) would need it.
+
+`ERR` codes defined in this revision:
+
+| Code | Meaning | Client should |
+|---|---|---|
+| `INVALID_LEVEL` | `LEVEL` not one of the five valid values | Fix and resend; this indicates a `TcpLogHandler` bug, not a transient condition |
+| `MISSING_FIELD` | A required header field absent | Same as above |
+| `PAYLOAD_TOO_LARGE` | `LEN` exceeds `max_message_bytes` | Server truncates and stores anyway (with `TRUNC=1` recorded, §6.2) rather than dropping the record entirely — an oversized log message is still more useful truncated than lost. `ERR` here is advisory, not a session-ending condition. |
+| `PROTO_MISMATCH` | `HELLO|PROTO=` was not `LALF1` | Close connection; upgrade client, identical semantics to CALF's own `PROTO_MISMATCH` |
+| `HELLO_TIMEOUT` | No `HELLO` within 5 seconds | Connection already closed by the time this is observable client-side |
+
+### 5.6 `HB` / `PING` / `PONG`
+
+```text
+HB|TS=2026-07-28T14:32:10.000Z
+PING
+PONG
+```
+
+Identical purpose to CALF's own heartbeat: the client sends `HB` every
+`HBINT` seconds (from `WELCOME`) whether or not it has logged anything
+recently, so the server can distinguish "quiet process" from "dead
+connection." `PING`/`PONG` are available for either side to use as a
+liveness check outside the regular `HBINT` cadence — mirrors CALF's own
+`PING`/`PONG` exactly, same rationale.
+
+### 5.7 `EXIT`
+
+```text
+EXIT
+```
+
+Graceful, client-initiated session end — the server flushes any buffered
+rows for this connection (§7.4) and closes the socket. A process exiting
+via signal (no time to send `EXIT`) is handled the same as any other TCP
+disconnect: the server notices the closed socket, marks the process
+`disconnected` in `processes` (§6.3), and moves on — there is nothing to
+recover, since every `LOG` message already received was durably written
+(§7.4).
+
+### 5.8 Backpressure and slow clients
+
+Unlike CALF (where the *gateway* can be the bottleneck relative to many
+subscribers), for LALF the **server** is the single point every client
+writes into, so the failure mode to design for is a burst of `LOG`
+messages arriving faster than SQLite can durably append them (§7.4). The
+server's per-connection read loop applies simple TCP-level backpressure:
+if its internal write queue for a connection exceeds `max_client_queue`
+(config, default `10000`, matching `market_data_gateway.max_client_queue`'s
+naming convention), it stops reading from that socket's TCP buffer until
+the queue drains — the OS's own TCP flow control then naturally slows the
+client's `send()` calls, which is exactly the "producer feels the
+backpressure" property the ZMQ PUB/SUB bus explicitly lacks (§4.2). No
+`LOG` message is ever silently dropped by `pm-log-srv` itself; the
+`TcpLogHandler` client side has its own, separate, and explicit
+overflow policy (§8.2) for the case where the *client's* local queue fills
+before the server can accept more.
+
+### 5.9 Worked session example
+
+```text
+C: HELLO|CLIENT=pm-md-gwy|PID=51002|HOST=trader-laptop|PROTO=LALF1
+S: WELCOME|PROTO=LALF1|SRV=log-srv01|HBINT=5|SESSION=7f3a9c21
+C: LOG|SEQ=1|TS=2026-07-28T09:30:00.010Z|LEVEL=INFO|LOGGER=edumatcher.md_gateway.gateway|LEN=29
+   md-gwy01 listening on :5570
+C: LOG|SEQ=2|TS=2026-07-28T09:30:05.221Z|LEVEL=WARNING|LOGGER=edumatcher.md_gateway.gateway|LEN=57
+   slow client detected on channel DEPTH, symbol AAPL, dropping
+C: HB|TS=2026-07-28T09:30:05.500Z
+C: LOG|SEQ=3|TS=2026-07-28T09:31:12.004Z|LEVEL=ERROR|LOGGER=edumatcher.md_gateway.gateway|EXC=1|LEN=612
+   unhandled exception in _poll_engine_events
+   Traceback (most recent call last):
+     File ".../gateway.py", line 412, in _poll_engine_events
+       ...
+   ConnectionResetError: [Errno 54] Connection reset by peer
+C: EXIT
+```
+
+### 5.10 What LALF deliberately does not have
+
+- **No replay/resume.** CALF's `RESUME=1`/`LASTSEQ=` exists because a
+  *subscriber* reconnecting needs to backfill a gap in a shared feed it
+  cares about. A LALF client reconnecting after a drop has nothing to
+  backfill — the records it would have sent during the gap were never
+  generated in the first place (they weren't buffered anywhere client-side
+  beyond `TcpLogHandler`'s own small queue, §8.2) — so there is no
+  server-side history for the *client* to resume; it simply reconnects,
+  `HELLO`s again, and resumes sending new records with `SEQ` restarting at
+  1 for the new connection (`SESSION` in `WELCOME` disambiguates old vs.
+  new connections in storage, §6.2).
+- **No query/read path on this same socket.** `pm-log-cli` never speaks
+  LALF at all — it reads `log.db` directly (§4.1, §7.1), the same
+  separation `pm-stats-cli`/`pm-audit-cli` already use relative to
+  `pm-stats`/`pm-audit`. Keeping LALF strictly write-only keeps the
+  protocol, and the server's per-connection state machine, small.
+- **No authentication.** Same trusted-network assumption as CALF today
+  (§10).
+
+## 6. SQLite Schema
+
+### 6.1 Design principles
+
+Follows `pm-stats`' own schema conventions (`src/edumatcher/stats/main.py`,
+`SCHEMA` constant) rather than inventing new ones: append-only event
+tables with an `INTEGER PRIMARY KEY AUTOINCREMENT` surrogate key where
+insertion order matters, composite indexes shaped `(filter_column, ts)` to
+match the query patterns `pm-log-cli` actually needs (§9), and TEXT
+columns for timestamps in the same UTC ISO-8601-with-milliseconds format
+every other EduMatcher SQLite store already uses (`daily_stats.date`,
+`price_snapshots.ts`, etc.).
+
+### 6.2 `log_events`
+
+The one row-per-log-record table — the append-only heart of the database.
+
+| Column | Type | Notes |
+|---|---|---|
+| `seq` | `INTEGER PRIMARY KEY AUTOINCREMENT` | Global row ID, insertion order across every process/connection |
+| `client_ts` | `TEXT NOT NULL` | `LOG.TS` — when the client's `logging` call actually fired |
+| `server_ts` | `TEXT NOT NULL` | Wall-clock time `pm-log-srv` received and wrote this row — lets `pm-log-cli diagnose` (§9.6) detect a client that is falling behind (growing `server_ts - client_ts` skew) as its own heuristic |
+| `process` | `TEXT NOT NULL` | `HELLO.CLIENT` (e.g. `pm-md-gwy`) |
+| `instance` | `TEXT` | `HELLO.INSTANCE`, when given |
+| `pid` | `INTEGER NOT NULL` | `HELLO.PID` |
+| `host` | `TEXT NOT NULL` | `HELLO.HOST` |
+| `session` | `TEXT NOT NULL` | `WELCOME.SESSION` for the connection this row arrived on — disambiguates two connections from the same `(process, pid)` pair (e.g. a quick restart reusing a recycled PID) |
+| `level` | `TEXT NOT NULL` | One of `DEBUG`/`INFO`/`WARNING`/`ERROR`/`CRITICAL` |
+| `logger` | `TEXT NOT NULL` | `LOG.LOGGER` |
+| `module` | `TEXT` | `LOG.MODULE`, when given |
+| `line` | `INTEGER` | `LOG.LINE`, when given |
+| `has_exception` | `INTEGER NOT NULL DEFAULT 0` | `1` iff `LOG.EXC=1` |
+| `truncated` | `INTEGER NOT NULL DEFAULT 0` | `1` iff the payload was cut to `max_message_bytes` (§5.5) |
+| `message` | `TEXT NOT NULL` | The full payload — formatted message, plus traceback text when `has_exception=1` |
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_le_process_ts ON log_events(process, client_ts);
+CREATE INDEX IF NOT EXISTS idx_le_level_ts   ON log_events(level, client_ts);
+CREATE INDEX IF NOT EXISTS idx_le_logger_ts  ON log_events(logger, client_ts);
+CREATE INDEX IF NOT EXISTS idx_le_session    ON log_events(session);
+```
+
+Four indexes, matching the four ways `pm-log-cli query`/`tail` filter
+(§9.2, §9.3): by process, by level, by logger, and by session (used
+internally by `processes`-joined queries, §9.4). No full-text index on
+`message` in this revision — `pm-log-cli`'s `--grep` (§9.3) uses SQLite's
+`LIKE`, which is adequate at the data volumes a teaching exchange
+generates; see §13 for the `FTS5` follow-up this rules in, not out.
+
+### 6.3 `processes`
+
+One row per LALF **connection** (not per process name) — a lightweight
+session registry, closer in spirit to `pm-api-gwy`'s `GET
+/admin/gateways` connected-gateway list than to anything in `pm-stats`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `session` | `TEXT PRIMARY KEY` | Matches `log_events.session` |
+| `process` | `TEXT NOT NULL` | |
+| `instance` | `TEXT` | |
+| `pid` | `INTEGER NOT NULL` | |
+| `host` | `TEXT NOT NULL` | |
+| `connected_at` | `TEXT NOT NULL` | `server_ts` of this connection's `HELLO` |
+| `last_seen_at` | `TEXT NOT NULL` | `server_ts` of the most recent `LOG` or `HB` from this connection; updated on every message, not just `HB`, so a chatty process's `last_seen_at` is always current without a separate write |
+| `disconnected_at` | `TEXT` | `NULL` while the TCP connection is open; set when the socket closes (§5.7) |
+| `log_count` | `INTEGER NOT NULL DEFAULT 0` | Running count of `LOG` messages from this session — cheap denormalization so `pm-log-cli processes` (§9.4) doesn't need a `COUNT(*)` scan over `log_events` for a summary view |
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_proc_process ON processes(process, connected_at);
+```
+
+### 6.4 `server_stats`
+
+A single-row table (`id` always `1`) for `pm-log-srv`'s own operational
+counters — how many rows it has ever written, how many `ERR`s it has
+sent, when it started. Exists so `pm-log-cli stats` (§9.5) can report on
+the log server's own health, not just the logs it collected — the same
+self-observability instinct `pm-api-gwy`'s `GET /api/v1/status` already
+has for itself.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `INTEGER PRIMARY KEY CHECK (id = 1)` | Enforces single-row |
+| `started_at` | `TEXT NOT NULL` | This `pm-log-srv` process's own start time |
+| `total_log_events` | `INTEGER NOT NULL DEFAULT 0` | Lifetime count, survives restarts (durable in `log.db`, unlike an in-memory counter) |
+| `total_connections` | `INTEGER NOT NULL DEFAULT 0` | Lifetime count of `HELLO`s accepted |
+| `total_truncated` | `INTEGER NOT NULL DEFAULT 0` | Lifetime count of oversized-payload truncations (§5.5) |
+| `total_errors_sent` | `INTEGER NOT NULL DEFAULT 0` | Lifetime count of `ERR` replies sent to any client |
+
+### 6.5 Retention and pruning
+
+Unlike `pm-audit` (a durable-forever compliance record by design) or
+`pm-stats` (bounded by one row per symbol per day/15-minutes),
+`log_events` can grow without bound at DEBUG-heavy verbosity over a long
+session. `pm-log-srv` supports an optional `--retention-days N` (config
+`retention_days`, §7.7, default: unset/unbounded, matching this project's
+general preference for explicit opt-in over surprising default deletion)
+that, when set, prunes `log_events` rows older than `N` days once per
+hour in the background. `pm-log-cli` additionally exposes a manual
+`prune` subcommand (§9.1) for the same operation on demand, mirroring
+`pm-clearing-cli`'s own `prune` command
+(`docs/user-guide/170-processes.md`'s process table already lists this as
+an existing pattern for a query-CLI to also own light maintenance
+duties).
+
+### 6.6 Full schema SQL
+
+```sql
+CREATE TABLE IF NOT EXISTS log_events (
+    seq             INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_ts       TEXT NOT NULL,
+    server_ts       TEXT NOT NULL,
+    process         TEXT NOT NULL,
+    instance        TEXT,
+    pid             INTEGER NOT NULL,
+    host            TEXT NOT NULL,
+    session         TEXT NOT NULL,
+    level           TEXT NOT NULL,
+    logger          TEXT NOT NULL,
+    module          TEXT,
+    line            INTEGER,
+    has_exception   INTEGER NOT NULL DEFAULT 0,
+    truncated       INTEGER NOT NULL DEFAULT 0,
+    message         TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_le_process_ts ON log_events(process, client_ts);
+CREATE INDEX IF NOT EXISTS idx_le_level_ts   ON log_events(level, client_ts);
+CREATE INDEX IF NOT EXISTS idx_le_logger_ts  ON log_events(logger, client_ts);
+CREATE INDEX IF NOT EXISTS idx_le_session    ON log_events(session);
+
+CREATE TABLE IF NOT EXISTS processes (
+    session         TEXT PRIMARY KEY,
+    process         TEXT NOT NULL,
+    instance        TEXT,
+    pid             INTEGER NOT NULL,
+    host            TEXT NOT NULL,
+    connected_at    TEXT NOT NULL,
+    last_seen_at    TEXT NOT NULL,
+    disconnected_at TEXT,
+    log_count       INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_proc_process ON processes(process, connected_at);
+
+CREATE TABLE IF NOT EXISTS server_stats (
+    id                  INTEGER PRIMARY KEY CHECK (id = 1),
+    started_at          TEXT NOT NULL,
+    total_log_events    INTEGER NOT NULL DEFAULT 0,
+    total_connections   INTEGER NOT NULL DEFAULT 0,
+    total_truncated     INTEGER NOT NULL DEFAULT 0,
+    total_errors_sent   INTEGER NOT NULL DEFAULT 0
+);
+```
+
+## 7. `pm-log-srv` Process Design
+
+### 7.1 Responsibilities
+
+- Bind one TCP listen socket (`bind_address:port`, default `0.0.0.0:5600`,
+  §7.7) and accept any number of concurrent LALF connections.
+- Speak the LALF session lifecycle (§5) on each connection: `HELLO` within
+  5 seconds or close; `WELCOME` on success; accept `LOG`/`HB`/`PING`/`EXIT`
+  thereafter.
+- Own the single writer connection to `log.db`, serializing all inserts
+  from all concurrent client connections through it (§7.4) — this is the
+  one piece of shared mutable state in the whole process, deliberately
+  kept as small and simple as possible.
+- Update `processes` on connect, on every message (`last_seen_at`), and on
+  disconnect.
+- Apply per-connection backpressure (§5.8) and, when configured,
+  background retention pruning (§6.5).
+- Serve nothing else. No HTTP, no query API, no authentication surface —
+  `pm-log-cli` reads `log.db` directly (§4.1, §9), so the server's only
+  job is ingestion.
+
+### 7.2 Startup sequence
+
+1. Resolve config the same way every other `pm-*` process does: CLI flags
+   override `engine_config.yaml`'s `log_server:` block (§7.7) override
+   built-in defaults — identical precedence order to, e.g.,
+   `api_gateway`'s `_config_with_overrides` (`src/edumatcher/api_gateway/main.py`).
+2. Open (creating if absent) `log.db` at the configured path (default
+   `$EDUMATCHER_DATA_DIR/log.db`, matching `stats.db`'s and `audit.log`'s
+   own placement convention, `docs/user-guide/000-getting-started.md`'s
+   `EDUMATCHER_DATA_DIR` table).
+3. Run `CREATE TABLE IF NOT EXISTS`/`CREATE INDEX IF NOT EXISTS` for every
+   table in §6.6 — idempotent, safe to run on every startup against an
+   existing database, same pattern `pm-stats`' own `SCHEMA` constant uses.
+4. Upsert `server_stats` row `id=1`, setting `started_at` to now.
+5. Bind the TCP listen socket. Log (to its own stdout/file — `pm-log-srv`
+   cannot sensibly log to itself, §8.1 note) that it is ready.
+6. If `--retention-days` is set, start the background pruning task (§6.5).
+7. Enter the accept loop.
+
+### 7.3 Per-client handler loop
+
+One `asyncio` task per connection (matching `api_gateway/engine_client.py`'s
+existing `asyncio` usage elsewhere in this codebase — no new async
+framework introduced):
+
+1. Read the `HELLO` line; validate `PROTO=LALF1` and required fields; on
+   failure, send `ERR` and close.
+2. On success, generate a `SESSION` id, upsert a `processes` row, send
+   `WELCOME`.
+3. Loop reading header lines. For `LOG`, read exactly `LEN` further bytes
+   as the payload, validate `LEVEL`, then enqueue the row for the shared
+   writer (§7.4); update `processes.last_seen_at`/`log_count`. For `HB`,
+   update `last_seen_at` only. For `PING`, reply `PONG`. For `EXIT` or a
+   closed socket, flush any of this connection's still-queued rows, mark
+   `disconnected_at`, and end the task.
+4. If no message (including `HB`) arrives within `2 × HBINT` seconds,
+   treat the connection as dead: close it and mark `disconnected_at`, the
+   same "missed heartbeat" timeout logic CALF's gateway already uses for
+   its own clients.
+
+### 7.4 Write path and durability
+
+All handler tasks enqueue completed `LOG` rows onto one shared
+`asyncio.Queue`; a single dedicated writer task drains that queue and
+performs the actual SQLite `INSERT`s, batching up to `write_batch_size`
+rows (config, default `50`) or `write_batch_interval_ms` (default `100`)
+milliseconds, whichever comes first, in one transaction — standard
+batching to keep SQLite's per-transaction fsync cost from dominating at
+high log rates, without introducing a second process or a message queue
+dependency. This single-writer-task design is what makes §5.8's
+backpressure meaningful: if the writer falls behind, the shared queue
+grows, and *every* connection's per-connection queue-size check (§5.8)
+starts throttling together, which is the correct behaviour — a slow disk
+should slow every logger equally, not silently drop some processes'
+records while others keep flowing.
+
+### 7.5 Discovery: how a process finds `pm-log-srv`
+
+`pm-log-srv`'s host/port are configuration, not magic network discovery
+(mDNS, broadcast, etc. are explicitly out of scope — this is a
+single-machine, `127.0.0.1`-by-default educational tool, same trust model
+as every other `pm-*` process). What "automatic" means here (§3.1, §8.3)
+is: every `pm-*` process already knows, from its own resolved config
+(`engine_config.yaml`'s top-level `log_server:` block, §7.7, present once
+and shared by every process the same way `market_data_gateway:` is), where
+a log server *would* be if one were running — it does not need to be told
+per-invocation. What it does not know in advance is whether one actually
+**is** running right now, which is what the startup probe (§8.3) checks.
+
+### 7.6 CLI flags
+
+```
+pm-log-srv [--host ADDR] [--port PORT] [--db PATH]
+           [--retention-days N] [--max-message-bytes N]
+           [--log-level LEVEL] [-v] [-q]
+```
+
+Same flag naming conventions as every other gateway (`--host`/`--port`
+mirror `pm-api-gwy`'s own flags exactly; `--log-level`/`-v`/`-q` are the
+identical triple every `pm-*` process already has, §8.1) plus one flag
+specific to this process's own job: `--db` (default resolved per §7.2
+step 2).
+
+**A deliberate irony, addressed directly:** `pm-log-srv` is itself a
+`pm-*` process and therefore has its own `_configure_logging()` — but it
+obviously cannot send its own operational logs to itself over LALF (there
+would be nothing listening for its own bootstrap messages before it has
+finished starting, and a crash in the write path would have no channel
+left to report itself through). `pm-log-srv` is the **one process in the
+system that always logs to stdout/file only**, never to another LALF
+server — its `_configure_logging()` omits the `TcpLogHandler`
+auto-detection step entirely (§8.3 lists this as the sole hard-coded
+exception).
+
+### 7.7 Config reference
+
+```yaml
+log_server:
+  enabled: true
+  host: 127.0.0.1
+  port: 5600
+  db_path: data/log.db
+  retention_days: null        # unset = unbounded retention
+  max_message_bytes: 65536
+  max_client_queue: 10000
+  write_batch_size: 50
+  write_batch_interval_ms: 100
+  heartbeat_interval_sec: 5
+```
+
+Placed as a new top-level `log_server:` block, the same shape as
+`market_data_gateway:`/`api_gateways:` (`docs/user-guide/010-configuration.md`),
+present once per `engine_config.yaml` — there is exactly one log server
+per deployment, the same cardinality as `market_data_gateway` (contrast
+with `api_gateways:`, which is a named map supporting several instances;
+a log server has no equivalent need for more than one).
+
+## 8. Hooking Into the Existing Python `logging` Setup
+
+### 8.1 Today's pattern, unchanged
+
+Every `pm-*` process already follows the same shape (verified directly
+against `src/edumatcher/api_gateway/main.py`, and present with only
+cosmetic variation in the other ~18 entrypoints under `src/edumatcher/*/main.py`):
+
+```python
+log = logging.getLogger(__name__)
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(...)
+    parser.add_argument("--log-level", choices=[...], default=None, ...)
+    parser.add_argument("-v", "--verbose", action="count", default=0, ...)
+    parser.add_argument("-q", "--quiet", action="store_true", ...)
+    return parser
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    # ... resolve level from --log-level / -v / -q ...
+    logging.basicConfig(level=level, format="...", stream=sys.stdout)
+    return int(level)
+```
+
+This document's entire integration surface is: **add a `TcpLogHandler` to
+the root logger, in `_configure_logging()`, in place of (or alongside)
+`logging.basicConfig`'s `StreamHandler`** — nothing about how any module
+calls `log.info(...)`/`log.warning(...)`/etc. anywhere else in the
+codebase changes at all, since Python's `logging` module was designed
+from the start to decouple "what gets logged" (unchanged) from "where it
+goes" (a `Handler`, which is exactly what's being added here).
+
+### 8.2 `TcpLogHandler`
+
+```python
+class TcpLogHandler(logging.Handler):
+    """Formats and ships LogRecords to pm-log-srv over LALF (§5)."""
+
+    def __init__(self, host: str, port: int, client: str,
+                 instance: str | None = None,
+                 queue_maxsize: int = 2000,
+                 connect_timeout_sec: float = 0.5) -> None:
+        super().__init__()
+        # Connects once, lazily, on the first emitted record; a
+        # background thread owns the actual socket and the send queue
+        # so that a slow or dead log server can never block the
+        # calling thread's log.warning(...) call itself (see overflow
+        # policy below).
+        ...
+
+    def emit(self, record: logging.LogRecord) -> None:
+        # Never raises: formats the record, encodes a LOG frame (§5.4),
+        # and puts it on the internal queue. If the queue is full
+        # (server unreachable/slow and queue_maxsize exceeded), the
+        # record is dropped and a monotonic drop counter is
+        # incremented — never blocks, per logging.Handler's own
+        # contract that emit() should not raise or stall the caller.
+        ...
+```
+
+Key design decisions, each with a direct precedent or rationale:
+
+- **A background thread owns the socket, `emit()` never blocks.** This
+  mirrors the standard-library's own `logging.handlers.QueueHandler` +
+  `QueueListener` pattern (the recommended way to keep any slow handler —
+  a network handler chief among them — off the hot path of whatever
+  thread is doing the actual logging). `TcpLogHandler` is, in effect, a
+  `QueueHandler` with a purpose-built `QueueListener` that speaks LALF
+  instead of delegating to another `Handler`.
+- **Bounded queue with silent drop, not blocking, on overflow.** A
+  logging call must never be able to stall or crash the process it's
+  instrumenting — that would make observability tooling a new source of
+  outages, the opposite of its purpose. `queue_maxsize` (default `2000`)
+  bounds memory; drops are tracked (`TcpLogHandler.dropped_count`) and
+  the handler periodically emits (to its own fallback stream, never
+  recursively through itself) a `records dropped: N since last report`
+  line if `dropped_count` is nonzero, so silent data loss is at least
+  visible somewhere.
+- **Reconnect with backoff, transparent to the caller.** If the
+  connection to `pm-log-srv` drops mid-session (server restarted, network
+  blip), the background thread reconnects with a simple capped
+  exponential backoff (mirrors `pm-terminal-bridge`'s own CALF reconnect
+  posture in [EduMatcher-Terminal-GUI.md](EduMatcher-Terminal-GUI.md)
+  §6.6 — the general shape "reconnect quietly, don't tear down the
+  caller's session" recurs throughout this codebase's client designs) and
+  resends a fresh `HELLO` (§5.10 — no resume needed).
+
+### 8.3 Auto-detection algorithm
+
+Run once, synchronously, during `_configure_logging()`, **before** any
+handler is attached — this is the one place in the whole design where a
+short, bounded block is acceptable, because it happens once at startup,
+not on every log call:
+
+1. If `--log-target` (§8.5) is explicitly `stdout` or `file`, skip
+   detection entirely and configure that handler — an explicit flag
+   always wins, unconditionally (§3.1).
+2. If `--log-target` is unset (the default) or explicitly `server`: open a
+   TCP connection to `log_server.host:log_server.port` (from resolved
+   config, §7.5) with a short connect timeout (`connect_timeout_sec`,
+   default `0.5s` — long enough to not misfire on a merely-busy server,
+   short enough that a genuinely absent server doesn't stall every
+   process's startup by more than half a second).
+3. **Connection succeeds:** send `HELLO`, wait (same short timeout) for
+   `WELCOME`. On receiving it, attach `TcpLogHandler` to the root logger
+   and proceed — this is "detected running, sending automatically" (§3.1's
+   requirement). On timeout or `ERR` waiting for `WELCOME`, fall through
+   to step 4 exactly as if the connection itself had failed.
+4. **Connection fails or times out, and `--log-target` was unset (not
+   explicitly `server`):** fall back to today's behaviour —
+   `logging.basicConfig(stream=sys.stdout)`, unchanged. No warning spam,
+   no retry loop at startup — a process should start up exactly as
+   quickly and quietly as it does today when there is no log server to
+   find, since "no log server running" is an entirely normal, common
+   condition (e.g. running a single gateway ad hoc for a quick test).
+5. **Connection fails and `--log-target server` was given explicitly:**
+   this is a real error the user should see — print a clear message to
+   stderr (`pm-log-srv not reachable at <host>:<port>, falling back to
+   stdout` — falls back rather than refusing to start, since a process
+   that can't log anywhere is worse than one that logs to the "wrong"
+   place) and proceed with the stdout fallback, exit code unaffected
+   (logging configuration failures should never be the reason a trading
+   process refuses to start, §10).
+
+### 8.4 `_configure_logging` after this change
+
+```python
+def _configure_logging(args: argparse.Namespace) -> int:
+    level = _resolve_level(args)  # unchanged from today
+    client_name = "pm-api-gwy"    # this process's own pm-* name
+    instance = getattr(args, "instance", None)
+
+    handler = _resolve_handler(args, client_name, instance)  # §8.3
+    logging.basicConfig(level=level, format="...", handlers=[handler])
+    return int(level)
+```
+
+`_resolve_level()` is exactly today's existing `--log-level`/`-v`/`-q`
+logic (`src/edumatcher/api_gateway/main.py` lines 180–195), untouched —
+this document changes the **handler**, never the **level** resolution
+(§3.2). Log level remains a purely local, per-process decision; a DEBUG-
+level process sends DEBUG records to `pm-log-srv` exactly as it would
+have printed them to stdout, no more and no less.
+
+### 8.5 New/changed CLI flags shared by every `pm-*` process
+
+```
+--log-target {server,stdout,file}   # default: server (auto-detected, §8.3), explicit override always wins
+--log-file PATH                      # required when --log-target file; ignored otherwise
+```
+
+Two new flags, added to every process's existing `_build_parser()`
+alongside `--log-level`/`-v`/`-q` — mechanical, repeated across ~19
+files, no change to the flags that already exist there. `--log-target
+file` writes to `PATH` via a standard `logging.FileHandler`, entirely
+independent of `pm-log-srv` — the explicit escape hatch this document's
+goal (§3.1, item 4) calls for.
+
+### 8.6 Behaviour when the server disappears mid-session
+
+Already covered structurally by §8.2's background-thread reconnect logic:
+the owning process keeps running and keeps calling `log.info(...)`/etc.
+exactly as before; records queue up to `queue_maxsize`, then start
+dropping (with the periodic "dropped: N" notice, §8.2) until the
+background thread's reconnect attempt succeeds or the process exits.
+**Losing the log server is never a reason for any other `pm-*` process to
+slow down, block, or exit** — logging infrastructure failing is always
+a strictly lower-severity event than the trading system itself failing,
+and this design treats it that way at every layer (server backpressure
+in §5.8 slows producers gracefully rather than dropping; client-side
+drop-with-notice in §8.2 never blocks the instrumented process).
+
+### 8.7 Files to change
+
+| File | Change |
+|---|---|
+| `src/edumatcher/logclient/handler.py` (new) | `TcpLogHandler` (§8.2) |
+| `src/edumatcher/logclient/protocol.py` (new) | LALF line encode/decode (§5) — the Python-side equivalent of `md_gateway/protocol.py`'s CALF grammar module, reused by both `TcpLogHandler` and `pm-log-srv` itself |
+| `src/edumatcher/logclient/discovery.py` (new) | The auto-detection probe (§8.3), shared by every process |
+| `src/edumatcher/*/main.py` (~19 files) | `_build_parser()` gains `--log-target`/`--log-file` (§8.5); `_configure_logging()` calls into `logclient.discovery` instead of hard-coding `StreamHandler` (§8.4) |
+| `src/edumatcher/log_srv/main.py` (new) | `pm-log-srv` entrypoint (§7) |
+| `src/edumatcher/log_srv/server.py` (new) | Accept loop, per-connection handler task, shared writer task (§7.3, §7.4) |
+| `src/edumatcher/log_srv/schema.py` (new) | `SCHEMA` constant (§6.6), mirroring `stats/main.py`'s own `SCHEMA` constant shape |
+| `src/edumatcher/log_cli/main.py` (new) | `pm-log-cli` entrypoint (§9) |
+| `src/edumatcher/log_cli/queries.py` (new) | The SQL behind every subcommand in §9 |
+| `src/edumatcher/log_cli/diagnose.py` (new) | The rule-based heuristics behind `diagnose` (§9.6) |
+
+## 9. `pm-log-cli`
+
+Mirrors `pm-audit-cli`/`pm-stats-cli`'s own subcommand-plus-`--format`
+shape (`docs/user-guide/190-audit.md`) rather than inventing new CLI
+conventions.
+
+### 9.1 Subcommand overview
+
+```
+pm-log-cli tail       [options]   # follow new log_events rows in real time
+pm-log-cli query      [options]   # filtered historical search
+pm-log-cli processes  [options]   # list connected/recently-connected pm-* processes
+pm-log-cli stats      [options]   # server + database health summary
+pm-log-cli diagnose   [options]   # rule-based troubleshooting report (§9.6)
+pm-log-cli prune      [options]   # manual retention pruning (§6.5)
+```
+
+Every subcommand takes `--db PATH` (default resolved the same way
+`pm-log-srv --db` is, §7.6) since `pm-log-cli` reads `log.db` directly and
+never talks to `pm-log-srv` over the network (§4.1, §5.10) — a busy,
+overloaded, or even currently-down log server never prevents
+troubleshooting with the data it already collected.
+
+### 9.2 `tail`
+
+```
+pm-log-cli tail [--process NAME] [--level LEVEL] [--logger PATTERN] [--format human|json]
+```
+
+Polls for new `seq` values past the highest one already shown (a `WHERE
+seq > :last_seen` query on a short interval — SQLite has no native
+"subscribe to new rows" primitive, so this is deliberately simple
+polling, not a push mechanism) and prints them as they arrive, filtered
+the same way `query` is (§9.3). The nearest existing precedent is
+`pm-audit-cli`'s own live-tail mode over its JSONL files
+(`docs/user-guide/190-audit.md`).
+
+### 9.3 `query`
+
+```
+pm-log-cli query [--process NAME] [--level LEVEL[,LEVEL...]] [--logger PATTERN]
+                  [--since TS] [--until TS] [--grep TEXT] [--has-exception]
+                  [--limit N] [--reverse] [--format human|json]
+```
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--process NAME` | all | Exact match against `log_events.process` |
+| `--level LEVEL[,...]` | all | One or more of `DEBUG,INFO,WARNING,ERROR,CRITICAL`; comma-separated means "any of" |
+| `--logger PATTERN` | all | SQL `LIKE` pattern against `log_events.logger` (e.g. `edumatcher.md_gateway.%`) |
+| `--since` / `--until` | unbounded | ISO-8601 timestamp bounds against `client_ts`, same flag names and semantics as `pm-audit-cli`'s own `--from`/`--to`-equivalent range filters |
+| `--grep TEXT` | none | Case-insensitive `LIKE '%TEXT%'` against `message` (§6.1 notes this is not full-text search — see §13 for the `FTS5` follow-up) |
+| `--has-exception` | off | Only rows with `has_exception=1` |
+| `--limit N` | `500` | Same default as `pm-audit-cli`'s own `--limit` |
+| `--reverse` | off | Oldest-first instead of the default newest-first, same flag as `pm-audit-cli` |
+| `--format` | `human` | `human` (aligned, colorized by level) or `json` (one JSON object per line — JSONL, easy to pipe into `jq` or a Python script, matching the terminal doc's and `pm-audit-cli`'s own `--format json` shape) |
+
+### 9.4 `processes`
+
+```
+pm-log-cli processes [--active] [--format human|json]
+```
+
+Lists rows from `processes` (§6.3) — `--active` restricts to rows with
+`disconnected_at IS NULL`. Shows `process`, `instance`, `pid`, `host`,
+`connected_at`, `last_seen_at`, `log_count` — a quick "what's currently
+sending logs" view, the CLI-side equivalent of `pm-api-gwy`'s own `GET
+/admin/gateways`.
+
+### 9.5 `stats`
+
+```
+pm-log-cli stats [--format human|json]
+```
+
+Reports `server_stats` (§6.4) plus a handful of cheap aggregate queries
+computed on demand: total row count, rows per level, rows per process,
+database file size on disk. A quick "is logging healthy" dashboard,
+analogous to `pm-api-gwy`'s own `GET /api/v1/status`.
+
+### 9.6 `diagnose`
+
+```
+pm-log-cli diagnose [--since TS] [--process NAME] [--format human|json]
+```
+
+The troubleshooting/recommendation feature requested. Deliberately a
+small, fixed, **documented and auditable** set of rule-based heuristics —
+every rule below is a plain SQL aggregate query plus a fixed threshold,
+not a statistical or ML model, in keeping with this being a teaching
+system where "why did it flag this" should always have a one-sentence,
+inspectable answer (§3.2's non-goal is explicit about this).
+
+| Heuristic | Query shape | Recommendation text (example) |
+|---|---|---|
+| **Error-rate spike** | `ERROR`/`CRITICAL` count in the most recent 5-minute window vs. the preceding hour's per-5-minute average, flagged when the recent window exceeds `error_spike_multiplier` (config, default `5×`) the baseline | "`pm-md-gwy` logged 34 ERRORs in the last 5 minutes vs. a baseline of ~2 — check its connection to `pm-engine` and review the most recent tracebacks with `pm-log-cli query --process pm-md-gwy --level ERROR --has-exception`" |
+| **Repeated identical warning** | Same `(process, logger, message)` triple at `WARNING`+ appearing `>= repeated_warning_threshold` (default `20`) times in the queried window | "`pm-api-gwy` logged `ENGINE_TIMEOUT` 47 times in the last hour — the engine may be overloaded or `timeouts.engine_reply_sec` may be set too low for current load; consider raising it in `engine_config.yaml`" |
+| **Process silence after prior activity** | A `processes` row with `disconnected_at IS NULL` (still connected) but `last_seen_at` older than `silence_threshold_sec` (default `30`, i.e. 6 missed heartbeats at the default 5s interval) | "`pm-stats` has not logged or heartbeated in 42s despite an open connection — it may be stuck; check whether its process is still responsive" |
+| **Clock skew** | `server_ts - client_ts` for a given `process` consistently (median over the window) exceeding `clock_skew_threshold_sec` (default `2`) | "`pm-mm-bot`'s log timestamps are consistently ~3.1s behind `pm-log-srv`'s clock — verify the two machines' clocks are synchronized if running cross-host (see `EduMatcher-Cross-host-connection.md`)" |
+| **Truncated-message rate** | Any `truncated=1` rows in the queried window | "`pm-ai-swarm` sent 3 oversized log messages that were truncated — if this recurs, consider raising `log_server.max_message_bytes`" |
+| **Exception clustering by logger** | `has_exception=1` rows grouped by `logger`, surfacing the single logger with the most tracebacks in the window | "Most exceptions in this window come from `edumatcher.md_gateway.gateway` (12 of 15) — start troubleshooting there" |
+
+Each finding in the report cites the exact `pm-log-cli query` invocation
+that would reproduce it (as in the examples above), so a user can always
+drill from "here's what's flagged" to "here are the actual log lines"
+without `diagnose` needing its own separate detail view. When no
+heuristic fires, `diagnose` reports "no issues detected in the queried
+window" rather than printing nothing, so a clean run is visibly a clean
+run.
+
+### 9.7 Output formats
+
+`human`: aligned columns, level-colored (red `ERROR`/`CRITICAL`, yellow
+`WARNING`, default `INFO`/`DEBUG`), truncating long messages to terminal
+width with a `…` marker and a hint to use `--format json` for the full
+text — same convention `pm-calf-spy`/`pm-audit-cli` already use for their
+own `human` mode.
+
+`json`: one JSON object per line (JSONL) for `tail`/`query`/`processes`;
+a single JSON object for `stats`/`diagnose` (a report, not a row stream) —
+matches `pm-audit-cli --format json`'s own shape and is pipeline-friendly
+for further processing, exactly as this feature was asked for.
+
+### 9.8 Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success |
+| `1` | Database error (e.g. `log.db` not found/not initialized — `pm-log-srv` has never run) |
+| `2` | Argument error (invalid date format, conflicting flags) — same convention `pm-audit-cli` uses |
+| `3` | `diagnose` found at least one issue (only meaningful for scripting; `query`/`tail`/`stats`/`processes` never use this code) |
+
+## 10. Security and Operational Notes
+
+- No authentication, no encryption — same trusted-network, single-machine
+  assumption CALF makes today (§3.2, §5.1). `pm-log-srv` should bind to
+  `127.0.0.1` by default (§7.7) and only be bound to a wider interface
+  deliberately, exactly the posture already recommended for `pm-md-gwy`.
+- **Log messages can leak sensitive data if a developer logs it.** This is
+  not new — it is exactly as true of today's stdout logging — but a
+  centralized, durable, queryable store makes an accidentally-logged
+  secret (an API key in a debug line, say) easier to *find* later than it
+  would be scattered across ephemeral terminals. This is a discipline
+  concern for whoever writes `log.debug(...)` calls, not something
+  `pm-log-srv` can enforce; noted here so it is a conscious tradeoff, not
+  a surprise.
+- `pm-log-srv` never receives trading credentials, API keys, or order
+  data directly — it only receives whatever text another process's
+  `logging` calls already produce. It has no access to `stats.db`,
+  `audit.log`, or the ZeroMQ bus (§4.1).
+- **Where the audit/logging line sits.** `pm-audit` remains the durable,
+  compliance-grade record of trading events (orders, fills) — nothing in
+  this design changes that or duplicates it. A gateway logging, say,
+  `log.warning("order REJECTED: %s", reason)` at the moment it also
+  reports that rejection to `pm-audit` via the engine's own event stream
+  is normal and expected overlap (the same event visible from two
+  angles, operational vs. compliance) — not a sign either system is doing
+  the other's job.
+- `pm-log-srv` should be started early (alongside `pm-stats`/`pm-audit`
+  in the recommended startup sequence, `docs/user-guide/170-processes.md`)
+  if centralized logging for the whole session is wanted, but — unlike
+  `pm-stats`/`pm-audit` — starting it late costs nothing irrecoverable:
+  every process degrades to stdout automatically (§8.3) and simply picks
+  up centralized logging retroactively is *not* possible (there is no
+  replay, §5.10), but nothing is lost in the sense `pm-stats`/`pm-audit`
+  warn about (§"Recommended startup sequence" in
+  `docs/user-guide/170-processes.md`) — a missed log line was, at worst,
+  printed to a terminal instead of stored, not silently destroyed.
+
+## 11. Testing Strategy
+
+| Layer | Tool | What's covered |
+|---|---|---|
+| `logclient/protocol.py` | pytest | LALF header-line encode/decode round-trip, `LEN`-prefixed payload framing with embedded pipes/newlines/Unicode in the message body (§5.2 — this is the one case worth extra test weight, since it's the whole reason LALF isn't just CALF-with-a-new-channel) |
+| `logclient/handler.py` (`TcpLogHandler`) | pytest + a fake LALF TCP server | `emit()` never blocks even when the fake server never reads (queue fills, drops start, `dropped_count` increments); reconnect-with-backoff after a simulated disconnect; correct `LOG` frame fields for a record with `exc_info` set |
+| `logclient/discovery.py` | pytest | All five branches of §8.3's algorithm: explicit `stdout`/`file` skip detection; server present → `TcpLogHandler` attached; server absent + default → silent stdout fallback; server absent + explicit `--log-target server` → stderr message + stdout fallback |
+| `log_srv/server.py` | pytest + real `asyncio` TCP client fixtures | `HELLO`/`WELCOME` handshake incl. rejection paths (bad `PROTO`, missing fields, `HELLO` timeout); concurrent connections writing simultaneously commit correctly (no lost rows, no `SQLITE_BUSY` surfaced to a client); backpressure (§5.8) actually slows a fast-sending fake client once `max_client_queue` is exceeded; retention pruning deletes exactly the rows older than the cutoff and nothing else |
+| `log_cli/queries.py` | pytest against a pre-seeded `log.db` fixture | Every flag combination in §9.3 produces the expected `WHERE` clause and row set; `tail`'s `seq >` polling never re-shows a row; `--format json` output is valid JSONL |
+| `log_cli/diagnose.py` | pytest against hand-crafted `log_events` fixtures, one per heuristic | Each of §9.6's six heuristics fires on a fixture engineered to trigger it and does **not** fire on a fixture that should be clean — false-positive avoidance is as important to test here as true-positive detection, since these are meant to be trusted recommendations |
+| End-to-end | A script starting `pm-log-srv` + two or three real `pm-*` processes against a scratch `engine_config.yaml` | Every started process's stdout-equivalent output actually lands in `log.db`; killing `pm-log-srv` mid-session and restarting it causes the affected processes to reconnect and resume without themselves crashing or blocking (§8.6); `pm-log-cli diagnose` against a session with a deliberately induced error spike (e.g. pointing a gateway at a wrong port) flags it |
+
+## 12. Implementation Plan
+
+| Phase | Scope |
+|---|---|
+| 1 | LALF protocol module (`logclient/protocol.py`, §5) with full round-trip tests, independent of any networking code |
+| 2 | `pm-log-srv` core: accept loop, `HELLO`/`WELCOME`, schema (§6.6), single-writer batching (§7.3, §7.4) — no backpressure or retention yet, just correct ingestion |
+| 3 | `TcpLogHandler` + auto-detection (§8.2, §8.3), wired into **one** process first (`pm-api-gwy`, the best-understood entrypoint from prior design work) as a proof of the whole pipe end-to-end |
+| 4 | Roll `--log-target`/`--log-file` and the `TcpLogHandler` wiring out to the remaining ~18 `pm-*` entrypoints (§8.7) — mechanical, low-risk once Phase 3 validates the pattern once |
+| 5 | `pm-log-cli`: `query`/`tail`/`processes`/`stats` (§9.2–9.5) against a real `log.db` populated by Phases 2–4 |
+| 6 | Backpressure (§5.8) and retention pruning (§6.5) in `pm-log-srv`, plus `pm-log-cli prune` |
+| 7 | `pm-log-cli diagnose` (§9.6) — deliberately last, since it is the one component that needs a representative, populated `log.db` (ideally from a real multi-process session) to validate its thresholds against, not just unit fixtures |
+
+## 13. Open Questions
+
+1. **Should `LOG` support structured (key/value) extra fields beyond the
+   fixed header set (§5.4)?** Python's `logging` supports arbitrary
+   `extra={}` dicts on a log call. This revision only carries the fixed
+   fields every `pm-*` process's current logging already produces
+   (level, logger, message, module/line, exception flag) — it does not
+   thread arbitrary `extra` key/value pairs through to `log_events` as
+   separate queryable columns. If a future need arises (e.g. tagging
+   every log line from a gateway with its `gateway_id`, queryable
+   independent of parsing it out of the message text), LALF's `LOG`
+   header can grow optional fields the same additive way CALF's `WELCOME`
+   grew `CH_SUPPORTED` (`EduMatcher-CALF-Extensions.md` §3.2) — not a
+   redesign, but not built out here either.
+2. **`--grep`'s plain `LIKE` (§9.3, §6.1) vs. SQLite `FTS5`.** At the data
+   volumes a single teaching-exchange session generates, `LIKE '%...%'`
+   over an indexed-by-other-columns table is almost certainly fast
+   enough. If a long-running, DEBUG-heavy, multi-day session ever makes
+   this noticeably slow, `FTS5` is a well-trodden, additive SQLite
+   extension for exactly this — a schema migration (`log_events_fts`
+   virtual table alongside, not instead of, `log_events`), not a
+   redesign. Flagged rather than built preemptively, since it's unclear
+   this system will ever hit the volume where it matters.
+3. **Multi-host logging.** Today's design assumes `pm-log-srv` and every
+   `pm-*` process share one machine (or at least one LAN reachable at the
+   configured `host:port`, same assumption
+   [EduMatcher-Cross-host-connection.md](EduMatcher-Cross-host-connection.md)
+   already documents for other EduMatcher processes). Nothing here
+   prevents pointing a remote process's `log_server.host` at a central
+   collector, but no authentication exists yet (§10) — fine for a single
+   trusted LAN, not something to expose more broadly without revisiting
+   §5.1/§10 first.
+
+## 14. Summary
+
+`pm-log-srv` gives EduMatcher what `pm-audit` already gives trading
+events and `pm-stats` already gives market statistics: a dedicated
+collector process, a purpose-built SQLite schema (§6), and a read-only
+query CLI (`pm-log-cli`, §9) — applied this time to the operational
+`logging`-module output every `pm-*` process already produces today but
+which has, until now, had no durable or cross-process query surface at
+all. The wire protocol, LALF (§5), deliberately mirrors CALF's own
+long-lived-TCP, `HELLO`/`WELCOME`, line-delimited shape rather than
+inventing something unrelated, differing only where logging's own nature
+requires it — a single write-only `LOG` message type, and a
+length-prefixed payload framing that sidesteps the escaping problem an
+arbitrary log message would otherwise create in CALF's pipe-delimited
+grammar (§5.2). Integration with the ~19 existing `pm-*` process
+entrypoints is a small, mechanical, repeated change — a new
+`TcpLogHandler` (§8.2) slotted into each process's existing
+`_configure_logging()` — that changes only *where* log records go, never
+what any module logs or at what level (§3.2). Automatic discovery (§8.3)
+means the common case ("start `pm-log-srv` first, then everything else")
+requires no per-process configuration beyond what already lives in
+`engine_config.yaml`'s new `log_server:` block, while an explicit
+`--log-target stdout|file` flag always overrides it, and a log server
+that is absent, slow, or disappears mid-session never blocks, slows, or
+crashes the trading process it's instrumenting (§8.2, §8.6, §10) — logging
+infrastructure failing is treated, at every layer of this design, as
+strictly lower-severity than the trading system it observes. `pm-log-cli`
+rounds this out with the same `query`/`tail`/`--format human|json`
+conventions `pm-audit-cli`/`pm-stats-cli` already established, plus a
+`diagnose` subcommand (§9.6) whose recommendations are deliberately
+small, fixed, and auditable rule-based heuristics rather than an opaque
+model — appropriate for a teaching system where "why was this flagged"
+should always have a one-sentence, inspectable answer.
