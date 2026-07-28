@@ -1,9 +1,24 @@
-Version: 1.1.0
+Version: 1.2.0
 
 Date: 2026-07-28
 
 Status: Design Proposal
 
+> **Changelog v1.2.0**
+> - **New §15, Appendix: LALF Protocol Reference (Normative).** Restates
+>   the LALF wire protocol (§5) as a rigorous, testable specification in
+>   the same house style as the existing normative
+>   [ALF](../docs/user-guide/900-app-alf-protocol.md)/[CALF](../docs/user-guide/920-app-calf-protocol.md)
+>   protocol references: a Status/RFC 2119 banner, "What LALF is," scope
+>   and conformance, a transport/session-model property table, a formal
+>   wire-format/parsing-behavior/TCP-stream-requirement section, per-message
+>   Direction/Purpose/field-table/wire-example subsections for all nine
+>   LALF message types, a configuration reference, an implementation
+>   pitfalls section, a terse numbered conformance-notes list, and
+>   cross-references back into this document and to ALF/CALF. §5 now
+>   points forward to §15 as the governing specification where the two
+>   sections might otherwise be read as disagreeing.
+>
 > **Changelog v1.1.0**
 > - **Retention default changed from unbounded to 30 days** (§6.5, §7.7).
 >   `pm-log-srv --retention-days` (config `retention_days`) now defaults
@@ -98,6 +113,24 @@ Status: Design Proposal
   - [12. Implementation Plan](#12-implementation-plan)
   - [13. Open Questions](#13-open-questions)
   - [14. Summary](#14-summary)
+  - [15. Appendix: LALF Protocol Reference (Normative)](#15-appendix-lalf-protocol-reference-normative)
+    - [15.1 What LALF is](#151-what-lalf-is)
+    - [15.2 Scope & conformance](#152-scope--conformance)
+    - [15.3 Transport and session model](#153-transport-and-session-model)
+    - [15.4 Wire format](#154-wire-format)
+    - [15.5 `HELLO`](#155-hello)
+    - [15.6 `WELCOME`](#156-welcome)
+    - [15.7 `LOG`](#157-log)
+    - [15.8 `ACK`](#158-ack)
+    - [15.9 `ERR`](#159-err)
+    - [15.10 `HB`](#1510-hb)
+    - [15.11 `PING` / `PONG`](#1511-ping--pong)
+    - [15.12 `EXIT`](#1512-exit)
+    - [15.13 Backpressure](#1513-backpressure)
+    - [15.14 Configuration reference](#1514-configuration-reference)
+    - [15.15 What to watch out for during implementation](#1515-what-to-watch-out-for-during-implementation)
+    - [15.16 Conformance notes](#1516-conformance-notes)
+    - [15.17 See also](#1517-see-also)
 
 
 
@@ -275,6 +308,12 @@ design), and would not give `pm-log-cli` the "designed for exactly this
 schema" query surface a purpose-built SQLite schema does (§6).
 
 ## 5. The LALF Wire Protocol (Logging ALF)
+
+> This section is the design narrative — *why* LALF looks the way it
+> does. §15 restates the same protocol as a rigorous, normative
+> specification in the style of the existing
+> [ALF](../docs/user-guide/900-app-alf-protocol.md)/[CALF](../docs/user-guide/920-app-calf-protocol.md)
+> protocol references; where the two disagree, §15 governs.
 
 ### 5.1 Transport and session model
 
@@ -1407,3 +1446,401 @@ described above, so an operator querying `log.db` after the fact can tell
 are sitting in a local file instead" — appropriate for a teaching system
 where "why was this flagged" should always have a one-sentence,
 inspectable answer.
+
+## 15. Appendix: LALF Protocol Reference (Normative)
+
+> **Status: Normative.** This appendix is the authoritative wire-level
+> specification of LALF 1 (`PROTO=LALF1`). Where anything in §5 (a design
+> narrative aimed at explaining *why* LALF looks the way it does) and this
+> appendix (a terse specification of exactly what a conforming
+> implementation must do) appear to differ, this appendix governs
+> implementation and test behavior. The key words **MUST**, **MUST NOT**,
+> **SHOULD**, **SHOULD NOT**, and **MAY** are to be interpreted as
+> described in RFC 2119. This appendix follows the same conventions as the
+> normative [ALF Protocol Reference](../docs/user-guide/900-app-alf-protocol.md)
+> and [CALF Protocol Reference](../docs/user-guide/920-app-calf-protocol.md),
+> to which it should be read as a sibling, not a subset.
+
+### 15.1 What LALF is
+
+LALF ("Logging ALF") is a small, newline-delimited, line-oriented TCP
+protocol, one member of the same "\*ALF" family as ALF, BALF, and CALF: a
+client establishes one long-lived TCP connection, exchanges a `HELLO`/
+`WELCOME` handshake, and then streams typed, `KEY=VALUE`-framed messages
+until the connection ends. It departs from its siblings in exactly one
+structural respect, required by what it carries: every LALF client is a
+producer of exactly one thing — its own process's log records — so LALF
+is unidirectional and subscription-free where ALF/CALF are
+request/response or publish/subscribe. §15.2 and §15.4 state precisely
+what this means for conformance.
+
+### 15.2 Scope & conformance
+
+**Supported by this revision (LALF1):**
+
+- One TCP connection per client process, carrying that process's own log
+  records only, from `HELLO` to session end.
+- Nine message types: `HELLO`, `WELCOME`, `LOG`, `ACK`, `ERR`, `HB`,
+  `PING`, `PONG`, `EXIT` (§15.5–§15.13).
+- A fixed, non-extensible-in-this-revision `LOG` header field set
+  (§15.7) plus an explicit `LEN`-prefixed binary-safe payload (§15.4).
+- Server-side backpressure via TCP flow control (§15.14); no
+  application-level flow-control message type.
+
+**Out of scope for this revision:**
+
+- Replay, resume, or any form of gap recovery on reconnect (§5.10). A
+  reconnecting client MUST start a new session (fresh `HELLO`, `SEQ`
+  restarting at 1) and MUST NOT expect the server to have retained
+  anything about a prior connection beyond what is durably in `log_events`
+  (§6.2).
+- Any read/query path on the LALF socket itself. A LALF server MUST NOT
+  expose a mechanism for retrieving previously stored records over this
+  protocol; that is `pm-log-cli`'s job, against the database directly
+  (§4.1, §9, §15.15).
+- Authentication, authorization, and transport encryption. LALF assumes
+  the same trusted-network posture as CALF (§10 of the normative
+  [CALF Protocol Reference](../docs/user-guide/920-app-calf-protocol.md)).
+- Multi-host routing, service discovery, or multi-server fan-out. A LALF
+  client speaks to exactly one `pm-log-srv` at a time, at a statically
+  configured `host:port` (§7.5).
+
+### 15.3 Transport and session model
+
+| Property | Value |
+|---|---|
+| Transport | TCP, one connection per client process |
+| Default port | `5600` |
+| Encoding | UTF-8 for all header lines and payload bytes |
+| Header line delimiter | `\n` (LF); a bare LF terminates every header line, matching ALF/CALF |
+| Payload framing | Explicit byte count (`LEN=<n>`), not delimiter-based (§15.4) |
+| Max header line length | 4096 bytes including the terminating `\n` |
+| Max payload length | `max_message_bytes`, default 65536 bytes; a server MUST truncate (not reject) an oversized payload and MUST record `truncated=1` for the stored row (§6.2, §15.9) |
+| Handshake timeout | A server MUST close the connection if no valid `HELLO` is received within 5 seconds of accept |
+| Heartbeat interval | `HBINT` seconds, server-assigned in `WELCOME` (§15.6), default `5` |
+| Idle/dead-connection timeout | A server MUST treat a connection as dead, and close it, if no message of any kind (including `HB`) arrives within `2 × HBINT` seconds |
+| Session cardinality | Exactly one `HELLO`/`WELCOME` per TCP connection; a second `HELLO` on an already-established connection is a protocol violation (`ERR|CODE=PROTO_MISMATCH`, §15.11) |
+| Direction | Unidirectional data flow: client → server for `LOG`; both directions carry only control/liveness messages (`HB`/`PING`/`PONG`/`ACK`/`ERR`/`EXIT`) |
+| Subscriptions | None. LALF has no `SUB`/`UNSUB`, no channel model, and no `SYM=`-style filtering — every connected client's data is, by construction, exactly its own log stream |
+
+### 15.4 Wire format
+
+**Line structure.** Every LALF message begins with a header line of the
+form:
+
+```text
+<MSGTYPE>|KEY=VALUE|KEY=VALUE|...\n
+```
+
+identical in shape to a CALF line: `MSGTYPE` is an uppercase token, each
+subsequent field is a `KEY=VALUE` pair separated by `|`, and the line is
+terminated by a single `\n`. A message type that carries a payload (only
+`LOG`, in this revision, §15.7) MUST include a `LEN` field as its final
+`KEY=VALUE` pair, whose value is the exact number of UTF-8 bytes that
+immediately follow the header line's terminating `\n`. A receiver MUST
+read exactly `LEN` bytes as the payload — it MUST NOT scan those bytes
+for a delimiter, and the payload MUST NOT be assumed to end with its own
+trailing `\n` (§5.2 explains the rationale: a log message is arbitrary
+text and cannot be assumed free of `|`, `\n`, or any other byte value that
+would collide with a delimiter-based grammar).
+
+**Parsing behavior.** A conforming parser MUST:
+
+1. Read bytes up to and including the next `\n` as one header line.
+2. Split the header line on `|`; the first token is `MSGTYPE`, every
+   subsequent token MUST parse as `KEY=VALUE` (split on the first `=`).
+3. If the parsed fields include `LEN`, read exactly that many further
+   bytes as the payload before considering the message complete and
+   before parsing the next header line. A connection that closes before
+   `LEN` bytes have arrived MUST be treated as an incomplete message, not
+   a valid zero-length one.
+4. If the parsed fields do not include `LEN`, the message has no payload;
+   the parser proceeds directly to the next header line.
+5. Reject (via `ERR`, §15.11) any header line exceeding 4096 bytes before
+   its terminating `\n` is found, any unrecognized `MSGTYPE`, and any
+   message missing a field marked required in §15.5–§15.13.
+
+**TCP stream requirement.** As with ALF and CALF, LALF has no concept of
+message boundaries below the TCP layer other than the framing described
+above — a LALF implementation MUST treat the connection as one continuous
+byte stream and MUST NOT assume any correspondence between `send()`/
+`recv()` calls on either side and logical message boundaries. A single
+`recv()` may deliver part of a header line, a whole message, or several
+messages concatenated; a conforming implementation buffers and re-frames
+accordingly, exactly as required of ALF/CALF implementations.
+
+### 15.5 `HELLO`
+
+**Direction:** client → server, exactly once, as the first message on a
+new connection.
+
+**Purpose:** identifies the connecting process and negotiates protocol
+version; MUST precede any other message type.
+
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `CLIENT` | Yes | string | Process name, matching the connecting `pm-*` command name |
+| `PID` | Yes | int | OS process ID of the connecting client |
+| `HOST` | Yes | string | Hostname the client is running on |
+| `PROTO` | Yes | string | MUST be `LALF1` in this revision |
+| `INSTANCE` | No | string | Disambiguator when multiple instances of the same `CLIENT` connect concurrently |
+
+```text
+HELLO|CLIENT=pm-api-gwy|PID=48213|HOST=trader-laptop|PROTO=LALF1
+```
+
+A server receiving a second `HELLO` on a connection that has already
+completed a handshake MUST respond `ERR|CODE=PROTO_MISMATCH` and close
+the connection.
+
+### 15.6 `WELCOME`
+
+**Direction:** server → client, exactly once, in direct reply to a valid
+`HELLO`.
+
+**Purpose:** confirms the session is established and communicates
+server-assigned session parameters the client MUST honor for the
+remainder of the connection.
+
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `PROTO` | Yes | string | Echoes `LALF1` |
+| `SRV` | Yes | string | Configured name of the responding `pm-log-srv` instance |
+| `HBINT` | Yes | int | Heartbeat interval in seconds; the client MUST send `HB` at least this often (§15.9) |
+| `SESSION` | Yes | string | Opaque per-connection session identifier, included in every stored row for this connection (§6.2); not a security token |
+
+```text
+WELCOME|PROTO=LALF1|SRV=log-srv01|HBINT=5|SESSION=a1b2c3d4
+```
+
+A `WELCOME` is the sole positive acknowledgment of a `HELLO`; there is no
+separate `ACK` for the handshake (§15.8).
+
+### 15.7 `LOG`
+
+**Direction:** client → server, any number of times after `WELCOME`. This
+is the only message type in LALF that carries a payload, and the only
+message type a conforming server is required to durably store.
+
+**Purpose:** carries one formatted log record, header fields plus a
+length-prefixed message body.
+
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `SEQ` | Yes | int | Monotonic per-connection sequence number, starting at 1 |
+| `TS` | Yes | string | UTC ISO-8601 timestamp with milliseconds, set by the client at emission time (`LogRecord.created`) |
+| `LEVEL` | Yes | enum | One of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `LOGGER` | Yes | string | Originating logger name (`LogRecord.name`) |
+| `MODULE` | No | string | `LogRecord.module`, when available |
+| `LINE` | No | int | `LogRecord.lineno`, when available |
+| `EXC` | No | bool (`1` or absent) | Set when the payload includes a formatted exception/traceback |
+| `LEN` | Yes | int | Byte length of the UTF-8 payload following this header line's `\n` |
+
+```text
+LOG|SEQ=1042|TS=2026-07-28T14:32:07.511Z|LEVEL=WARNING|LOGGER=edumatcher.md_gateway.gateway|LEN=57
+slow client detected on channel DEPTH, symbol AAPL, dropping
+```
+
+A server MUST reject (`ERR|CODE=INVALID_LEVEL`) any `LOG` whose `LEVEL`
+is not one of the five listed values, and MUST reject
+(`ERR|CODE=MISSING_FIELD`) any `LOG` missing `SEQ`, `TS`, `LEVEL`,
+`LOGGER`, or `LEN`. A server MUST NOT reject a `LOG` solely for exceeding
+`max_message_bytes`; it MUST instead truncate the stored payload to that
+limit, record `truncated=1` (§6.2), and MAY send an advisory
+`ERR|CODE=PAYLOAD_TOO_LARGE` (§15.8, §15.11) — this is the one `ERR` code
+in this revision that does not imply the client did anything to fix
+before continuing.
+
+### 15.8 `ACK`
+
+**Direction:** server → client.
+
+**Purpose:** reserved for future use. A server MUST NOT send `ACK` for
+individual `LOG` messages in this revision — `LOG` is fire-and-forget by
+design (§5.5, §5.8), and per-message acknowledgment would be pure
+overhead at realistic logging rates. `HELLO` success is communicated
+exclusively via `WELCOME` (§15.6); no separate `ACK` follows it. `ACK` is
+defined here only so its wire shape is reserved and unambiguous for a
+future revision that adds a request/response exchange to LALF (§13, item
+1).
+
+```text
+ACK|SEQ=1042
+```
+
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `SEQ` | Yes | int | Echoes the `SEQ` of the message being acknowledged |
+
+### 15.9 `ERR`
+
+**Direction:** server → client.
+
+**Purpose:** reports a protocol violation or an advisory condition on a
+message the client sent. Whether `ERR` precedes a connection close
+depends on the code (see table).
+
+```text
+ERR|CODE=INVALID_LEVEL|MSG=unknown LEVEL value: TRACE
+```
+
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `CODE` | Yes | enum | One of the codes below |
+| `MSG` | Yes | string | Free-text, human-readable detail; MUST NOT be parsed programmatically beyond logging/display |
+
+| Code | Meaning | Session-ending? |
+|---|---|---|
+| `INVALID_LEVEL` | `LOG.LEVEL` not one of the five valid values | No — indicates a client bug; client SHOULD fix and MAY continue sending subsequent `LOG` messages on the same connection |
+| `MISSING_FIELD` | A required header field absent on the message | No, same as `INVALID_LEVEL` |
+| `PAYLOAD_TOO_LARGE` | `LOG.LEN` exceeded `max_message_bytes` | No — advisory only; the server has already truncated and stored the record (§15.7) |
+| `PROTO_MISMATCH` | `HELLO.PROTO` was not `LALF1`, or a second `HELLO` was sent on an established connection | Yes — server MUST close the connection after sending this `ERR` |
+| `HELLO_TIMEOUT` | No `HELLO` received within 5 seconds of accept | Yes — connection is already closed; not observable as a received `ERR` by the client in practice |
+
+### 15.10 `HB`
+
+**Direction:** client → server, periodically.
+
+**Purpose:** liveness signal sent at least every `HBINT` seconds (from
+`WELCOME`, §15.6), whether or not the client has sent any `LOG` in that
+interval, so the server can distinguish a quiet-but-alive client from a
+dead connection (§15.3's idle-timeout rule).
+
+```text
+HB|TS=2026-07-28T14:32:10.000Z
+```
+
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `TS` | Yes | string | UTC ISO-8601 timestamp with milliseconds, at the moment this `HB` was sent |
+
+### 15.11 `PING` / `PONG`
+
+**Direction:** either direction; `PING` MAY be sent by client or server at
+any time after `WELCOME`, and the receiver MUST reply with `PONG` as soon
+as possible.
+
+**Purpose:** an on-demand liveness check independent of the regular `HB`
+cadence — for example, a `pm-log-srv` operator tool verifying a specific
+connection is still responsive without waiting for the next scheduled
+heartbeat.
+
+```text
+PING
+PONG
+```
+
+Neither message carries fields. A `PONG` is a direct, unsolicited-content
+reply to a `PING` and carries no correlation identifier in this revision
+(a connection has, at any time, at most one outstanding `PING` it is
+waiting on).
+
+### 15.12 `EXIT`
+
+**Direction:** client → server.
+
+**Purpose:** graceful, client-initiated end of session.
+
+```text
+EXIT
+```
+
+On receiving `EXIT`, a server MUST flush any buffered rows already
+accepted for that connection (§7.4) before closing the socket. A client
+disconnecting without sending `EXIT` (process killed by signal, crash) is
+not a protocol violation; the server MUST treat the closed socket
+identically to an explicit `EXIT` for the purpose of flushing buffered
+rows and marking the connection's `processes` row disconnected (§6.3).
+
+### 15.13 Backpressure
+
+LALF defines no application-level flow-control message. A server
+experiencing a write bottleneck (§7.4) MUST apply backpressure by
+ceasing to read from a connection's TCP receive buffer once its
+per-connection internal queue exceeds `max_client_queue` (§7.7), relying
+on standard TCP flow control to slow the client's `send()` calls. A
+server MUST NOT silently discard a `LOG` message it has already accepted
+from the TCP layer solely due to write-path load; the sole exception is
+oversized-payload truncation (§15.7, `PAYLOAD_TOO_LARGE`), which is a
+per-message content limit, not a load-shedding mechanism.
+
+### 15.14 Configuration reference
+
+The wire-level parameters referenced throughout this appendix are exposed
+as `pm-log-srv` configuration (full block in §7.7) and are not
+negotiated on the wire beyond `WELCOME.HBINT`:
+
+| Parameter | Wire effect | Config key |
+|---|---|---|
+| Listen port | Default port clients connect to (§15.3) | `log_server.port` (default `5600`) |
+| Handshake timeout | §15.3's 5-second `HELLO` deadline | Fixed at 5s in this revision, not separately configurable |
+| Heartbeat interval | Value sent in `WELCOME.HBINT` (§15.6) | `log_server.heartbeat_interval_sec` (default `5`) |
+| Idle timeout | §15.3's `2 × HBINT` dead-connection rule | Derived, not independently configurable |
+| Max header line length | §15.3, §15.4 | Fixed at 4096 bytes, matching CALF |
+| Max payload length | `LOG.LEN` ceiling before truncation (§15.7) | `log_server.max_message_bytes` (default `65536`) |
+| Per-connection queue limit | Backpressure trigger (§15.13) | `log_server.max_client_queue` (default `10000`) |
+
+### 15.15 What to watch out for during implementation
+
+- **Do not treat `LOG`'s payload as line-oriented.** The single most
+  common implementation mistake mirrors the reason LALF exists at all
+  (§5.2): reading the payload with a line-based `readline()`-style call
+  instead of reading exactly `LEN` bytes will silently truncate any log
+  message containing an embedded `\n` (i.e., any formatted traceback,
+  §15.7's worked example in §5.9). Always read the payload as a fixed
+  byte count.
+- **`SEQ` is per-connection, not global.** A reconnecting client MUST
+  restart `SEQ` at 1; a server MUST NOT interpret a lower `SEQ` on a new
+  connection as a gap or a duplicate — `SESSION` (§15.6), not `SEQ`
+  alone, is what disambiguates rows from different connections in
+  storage (§6.2).
+- **`ERR` is not always fatal.** Unlike `PROTO_MISMATCH`/`HELLO_TIMEOUT`,
+  `INVALID_LEVEL`/`MISSING_FIELD`/`PAYLOAD_TOO_LARGE` do not end the
+  session (§15.9's table) — an implementation that closes the connection
+  on every `ERR` will disconnect a client over one malformed `LOG` line
+  instead of continuing to accept its subsequent, valid ones.
+- **`pm-log-srv` itself never speaks LALF as a client to another
+  instance.** It is the one `pm-*` process whose own `_configure_logging()`
+  hard-codes stdout/file only (§7.6) — there is nothing paradoxical about
+  this in the protocol itself, but it is easy to forget when mechanically
+  rolling `TcpLogHandler` wiring out across every entrypoint (§8.7).
+- **A missing `LEN` means no payload, not a zero-length one.** Only `LOG`
+  carries `LEN` in this revision; every other message type MUST be
+  parsed as header-only. An implementation that defaults to expecting a
+  payload after every message type will stall waiting for bytes that are
+  never sent.
+
+### 15.16 Conformance notes
+
+1. Every LALF session begins with exactly one `HELLO` and, on success,
+   exactly one `WELCOME`; a second `HELLO` on the same connection is a
+   protocol violation.
+2. `LOG` is the only message type that carries a payload, and its `LEN`
+   field is mandatory; every other message type is header-only with no
+   `LEN` field.
+3. Payload bytes are read by exact count, never scanned for a delimiter;
+   they may contain any UTF-8 byte sequence, including `|`, `\n`, and
+   embedded control characters, without escaping.
+4. `LOG` is fire-and-forget: a server never sends a per-message `ACK` for
+   it, and a client never waits for one before sending the next `LOG`.
+5. Oversized payloads are truncated and stored, never dropped; only a
+   malformed or incomplete message is refused outright.
+6. `SEQ` numbering, and any gap-detection built on it, is scoped to a
+   single TCP connection and MUST be reset on reconnect; LALF defines no
+   cross-connection replay or resume (§5.10).
+7. A client MUST send `HB` at least every `HBINT` seconds; a server MUST
+   consider a connection dead after `2 × HBINT` seconds of total silence
+   (no message of any kind, `HB` included).
+8. LALF has no subscription, filtering, or channel model of any kind —
+   every connected client's data is exactly and only its own log stream.
+9. LALF defines no read/query path; retrieval of stored records happens
+   entirely outside this protocol, against `log.db` directly (§9).
+
+### 15.17 See also
+
+- [§5 — The LALF Wire Protocol (Logging ALF)](#5-the-lalf-wire-protocol-logging-alf) — the design narrative this appendix formalizes, including the rationale for each structural choice.
+- [§6 — SQLite Schema](#6-sqlite-schema) — how accepted `LOG` fields map to stored columns.
+- [§7 — `pm-log-srv` Process Design](#7-pm-log-srv-process-design) — the server-side implementation this appendix's requirements bind.
+- [§8 — Hooking Into the Existing Python `logging` Setup](#8-hooking-into-the-existing-python-logging-setup) — the client-side implementation (`TcpLogHandler`) this appendix's requirements bind.
+- [ALF Protocol Reference](../docs/user-guide/900-app-alf-protocol.md) — the normative sibling document this appendix's structure and conventions follow.
+- [CALF Protocol Reference](../docs/user-guide/920-app-calf-protocol.md) — the normative sibling document LALF's transport/session model and line-oriented framing are most directly modeled on.
