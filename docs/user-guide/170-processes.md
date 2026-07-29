@@ -632,20 +632,23 @@ Status colours: green=NEW, yellow=PARTIAL, bright green=FILLED, red=REJECTED/CAN
 Records every message on the bus to a rotating log file.
 
 ```bash
-pm-audit [--log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--log-level LEVEL] [-v|-vv] [-q]
+pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
 
 | Flag                  | Default          | Description                                                  |
 |-----------------------|------------------|--------------------------------------------------------------|
-| `--log-file`          | `data/audit.log` | Output log file path                                         |
+| `--audit-log-file`    | `data/audit.log` | Audit-trail output log file path                              |
 | `--terminal` / `-t`   | off              | Also print each entry to stdout                              |
 | `--buffer-size`       | 100              | Number of messages to buffer in memory before writing to disk |
 | `--flush-interval`    | 10.0             | Maximum seconds to wait before flushing buffer to disk       |
 | `--log-level`         | `WARNING`        | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`    | off              | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)         |
 | `-q` / `--quiet`      | off              | Reduce output to warnings/errors                             |
+| `--log-target`        | `server`         | Where operational log records go: `server` (auto-detected), `stdout`, or `file` |
+| `--log-file`          | none             | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | 30 (from config) | Seconds to wait before falling back to a local log file if `pm-log-srv` becomes unreachable |
 
 **Expected runtime input arguments:**
 

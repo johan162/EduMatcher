@@ -5,9 +5,11 @@ resolved settings, a loader that reads the optional ``log_server:`` block
 from ``engine_config.yaml`` (docs-design/EduMatcher-log-srv.md §7.7), and a
 validator usable by ``pm-config-gen``/config-validation tooling. The nested
 ``client:`` sub-block from §7.7 (``connect_timeout_sec``/
-``failover_timeout_sec``/``failover_dir``) is phase-2 territory — it only
-matters once ``TcpLogHandler`` exists to read it — so it is deliberately
-not modeled here yet; only the server-side fields are.
+``failover_timeout_sec``/``failover_dir``) is modeled by
+:class:`LogClientConfig` / :func:`load_log_client_config` below, read by
+every ``pm-*`` process's own ``TcpLogHandler`` auto-detection (§8.3) —
+kept in this same module since both blocks live under the one
+``log_server:`` YAML key.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import yaml
 from edumatcher.config import (
     ENGINE_CONFIG_FILE,
     LOG_DB_FILE,
+    LOG_FALLBACK_DIR,
     LOG_SRV_HOST,
     LOG_SRV_PORT,
     LOG_SRV_PUB_PORT,
@@ -29,6 +32,10 @@ from edumatcher.config import (
 from edumatcher.logclient.protocol import DEFAULT_MAX_MESSAGE_BYTES
 
 DEFAULT_RETENTION_DAYS = 30  # §6.5 — null/0 opts back into unbounded retention
+
+# §7.7/§8.2/§8.6 client-side defaults.
+DEFAULT_CONNECT_TIMEOUT_SEC = 0.5
+DEFAULT_FAILOVER_TIMEOUT_SEC = 30.0
 
 # LALF-PS defaults. A 30 s lease with the documented "renew at half the lease"
 # guidance means a crashed viewer is reaped within 30 s while a healthy one
@@ -86,6 +93,81 @@ class LogServerConfig:
     def pull_addr(self) -> str:
         """ZeroMQ bind address for the LALF-PS control PULL socket."""
         return f"tcp://{self.bind_address}:{self.pull_port}"
+
+
+@dataclass(frozen=True)
+class LogClientConfig:
+    """Client-side defaults for ``TcpLogHandler`` (§7.7's nested ``client:`` block).
+
+    Read by every ``pm-*`` process's own auto-detection (§8.3) — one
+    shared source of truth for "how a client should behave" rather than
+    19 independently-configured copies (§7.7).
+    """
+
+    connect_timeout_sec: float = DEFAULT_CONNECT_TIMEOUT_SEC
+    failover_timeout_sec: float = DEFAULT_FAILOVER_TIMEOUT_SEC
+    failover_dir: Path = LOG_FALLBACK_DIR
+
+
+def _as_float(raw: object, field: str) -> float:
+    if isinstance(raw, bool):
+        raise ValueError(f"log_server.client.{field} must be a number")
+    if not isinstance(raw, (int, str, float)):
+        raise ValueError(f"log_server.client.{field} must be a number")
+    try:
+        return float(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"log_server.client.{field} must be a number") from exc
+
+
+def _load_log_client_config_from_raw(raw: dict[str, Any]) -> LogClientConfig:
+    ls_raw = raw.get("log_server")
+    if ls_raw is None or not isinstance(ls_raw, dict):
+        return LogClientConfig()
+
+    client_raw = ls_raw.get("client")
+    if client_raw is None:
+        return LogClientConfig()
+    if not isinstance(client_raw, dict):
+        raise ValueError("log_server.client must be a mapping")
+
+    connect_timeout_sec = _as_float(
+        client_raw.get("connect_timeout_sec", DEFAULT_CONNECT_TIMEOUT_SEC),
+        "connect_timeout_sec",
+    )
+    failover_timeout_sec = _as_float(
+        client_raw.get("failover_timeout_sec", DEFAULT_FAILOVER_TIMEOUT_SEC),
+        "failover_timeout_sec",
+    )
+    failover_dir = Path(str(client_raw.get("failover_dir", str(LOG_FALLBACK_DIR))))
+
+    if connect_timeout_sec <= 0:
+        raise ValueError("log_server.client.connect_timeout_sec must be > 0")
+    if failover_timeout_sec < 0:
+        raise ValueError("log_server.client.failover_timeout_sec must be >= 0")
+
+    return LogClientConfig(
+        connect_timeout_sec=connect_timeout_sec,
+        failover_timeout_sec=failover_timeout_sec,
+        failover_dir=failover_dir,
+    )
+
+
+def load_log_client_config(path: Path) -> LogClientConfig:
+    """Load the optional ``log_server.client`` block from engine config YAML."""
+    if not path.exists():
+        return LogClientConfig()
+
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        return LogClientConfig()
+
+    return _load_log_client_config_from_raw(raw)
+
+
+def load_default_log_client_config() -> LogClientConfig:
+    """Load the client config from the resolved default engine config file path."""
+    return load_log_client_config(ENGINE_CONFIG_FILE)
 
 
 def _as_int(raw: object, field: str) -> int:
@@ -255,6 +337,7 @@ def load_log_server_config(path: Path) -> LogServerConfig:
 def validate_log_server_section(raw: dict[str, Any]) -> None:
     """Validate the log_server section using runtime loader semantics."""
     _load_log_server_config_from_raw(raw)
+    _load_log_client_config_from_raw(raw)
 
 
 def load_default_log_server_config() -> LogServerConfig:

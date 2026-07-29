@@ -206,11 +206,12 @@ def main() -> None:
         return
 
     log.debug(
-        "resolved log-srv config: bind=%s port=%s db=%s retention_days=%s "
+        "resolved log-srv config: bind=%s port=%s db=%s (cwd=%s) retention_days=%s "
         "max_message_bytes=%s pubsub=%s pub_port=%s pull_port=%s lease_sec=%s",
         config.bind_address,
         config.port,
-        config.db_path,
+        Path(config.db_path).resolve(),
+        Path.cwd(),
         config.retention_days,
         config.max_message_bytes,
         config.pubsub_enabled,

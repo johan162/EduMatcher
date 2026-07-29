@@ -247,7 +247,7 @@ pm-orders
 # Audit log (all events, every message written to data/audit.log)
 pm-audit                    # quiet — writes file only
 pm-audit --terminal         # also prints to stdout
-pm-audit --log-file /tmp/my_audit.log
+pm-audit --audit-log-file /tmp/my_audit.log
 
 # P&L and trade settlement
 pm-clearing

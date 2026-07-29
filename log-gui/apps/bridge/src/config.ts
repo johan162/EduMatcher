@@ -1,5 +1,9 @@
 /** Bridge configuration read from the environment (design §20). */
 
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
 import { LOG_LEVELS, type LogLevel } from "@edumatcher/log-types";
 
 export interface BridgeConfig {
@@ -39,6 +43,36 @@ export interface BridgeConfig {
   };
 }
 
+// Mirrors edumatcher.config._resolve_data_dir()'s priority order exactly
+// (EDUMATCHER_DATA_DIR env var, then source-tree <repo>/src/data, then an
+// installed-package home-directory fallback) so the bridge and pm-log-srv
+// agree on log.db's location without either side needing to configure the
+// other — see the v1.1.0 design-doc changelog for why this matters (§20).
+//
+// This file lives at <repo>/log-gui/apps/bridge/src/config.ts, four levels
+// below the repo root, in every way this bridge is ever run (dev via tsx,
+// or the production container, which never reaches this branch at all
+// since its Dockerfile always sets LOG_DB_PATH/ACK_STORE_PATH explicitly) —
+// so that fixed relative distance is safe to hard-code, unlike a typical
+// compiled-output path that can shift between dev and build.
+//
+// The Python side's "source tree?" check is structural (does <repo>/src
+// exist as a directory at all), not "does src/data exist yet" — mirrored
+// here by checking for <repo>/src itself, so a first-ever run before
+// anything has written to src/data still resolves to the same place
+// pm-log-srv would pick, rather than falling through to the home
+// directory just because nothing has been created there yet.
+const _thisFileDir = dirname(fileURLToPath(import.meta.url));
+const _repoRoot = resolve(_thisFileDir, "..", "..", "..", "..");
+const _repoSrcDir = join(_repoRoot, "src");
+
+function resolveDataDir(): string {
+  const envDir = process.env.EDUMATCHER_DATA_DIR;
+  if (envDir) return resolve(envDir.replace(/^~/, homedir()));
+  if (existsSync(_repoSrcDir)) return join(_repoSrcDir, "data");
+  return join(homedir(), ".local", "share", "edumatcher");
+}
+
 function intFromEnv(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -67,10 +101,10 @@ export function loadBridgeConfig(): BridgeConfig {
       leaseSec: intFromEnv("LEASE_SEC", 30),
     },
     logDb: {
-      path: process.env.LOG_DB_PATH ?? "data/log.db",
+      path: process.env.LOG_DB_PATH ?? join(resolveDataDir(), "log.db"),
     },
     ackStore: {
-      path: process.env.ACK_STORE_PATH ?? "data/log-ui-acks.db",
+      path: process.env.ACK_STORE_PATH ?? join(resolveDataDir(), "log-ui-acks.db"),
     },
     issues: {
       retentionDays: intFromEnv("ISSUES_RETENTION_DAYS", 7),

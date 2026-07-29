@@ -11,6 +11,7 @@ import helmet from "@fastify/helmet";
 import fastifyStatic from "@fastify/static";
 import websocketPlugin from "@fastify/websocket";
 import Fastify from "fastify";
+import { resolve } from "node:path";
 import type { ServerFrame, ServerState } from "@edumatcher/log-types";
 import { AckStore } from "./ack-store.js";
 import { loadBridgeConfig } from "./config.js";
@@ -33,6 +34,10 @@ const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" } });
 await app.register(helmet, { contentSecurityPolicy: false });
 await app.register(cors, { origin: config.corsOrigin });
 await app.register(websocketPlugin);
+
+app.log.info(
+  `Resolved paths — log.db: ${resolve(config.logDb.path)}, ack store: ${resolve(config.ackStore.path)}, cwd: ${process.cwd()}`,
+);
 
 const logDb = new LogDb(config.logDb.path);
 logDb.open();

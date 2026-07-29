@@ -100,10 +100,15 @@ export class LalfPsUplink extends EventEmitter<UplinkEvents> {
     const pubAddr = `tcp://${this.opts.host}:${this.opts.pubPort}`;
     const pullAddr = `tcp://${this.opts.host}:${this.opts.pullPort}`;
 
+    // The server always publishes per-subscriber topics as
+    // `log.<msgtype>.<sub_id>` (e.g. `log.event.<sub_id>`,
+    // `log.subscribe_ack.<sub_id>`) — never `log.<sub_id>` bare — so the
+    // filter has to be the "log." prefix shared by every message type
+    // (including "log.server_state"), not `log.${subId}`. handleMessage()
+    // below still discards anything not addressed to this subId.
     this.sub = new zmq.Subscriber();
     this.sub.connect(pubAddr);
-    this.sub.subscribe(`log.${this.subId}`);
-    this.sub.subscribe("log.server_state");
+    this.sub.subscribe("log.");
 
     this.push = new zmq.Push();
     this.push.connect(pullAddr);

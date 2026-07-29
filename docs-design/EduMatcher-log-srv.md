@@ -1,8 +1,50 @@
-Version: 1.2.0
+Version: 1.3.0
 
-Date: 2026-07-28
+Date: 2026-07-29
 
-Status: Design Proposal
+Status: Implemented (phase 3, partial) — `TcpLogHandler`/auto-detection/file
+failover shipped in `logclient/`, wired into `pm-audit` as the first process
+
+> **Changelog v1.3.0 — implementation notes**
+>
+> Phase 3 of §12's implementation plan (`TcpLogHandler` + auto-detection,
+> §8.2/§8.3) was implemented, including Phase 4's file failover (§8.6) —
+> both phases were built together rather than sequentially, since failover
+> is small enough and tightly-enough coupled to the reconnect loop that
+> splitting them across two passes would have meant touching the same
+> `_run()` loop twice for no real benefit. Two points where the real build
+> resolved something this document had left open, or diverged in a small,
+> motivated way:
+>
+> - **First process wired is `pm-audit`, not `pm-api-gwy`.** §12's phase 3
+>   row recommended `pm-api-gwy` as "the best-understood entrypoint from
+>   prior design work." `pm-audit` was chosen instead — at the explicit
+>   request of whoever kicked off this phase of work, on the reasoning
+>   that `pm-audit` is a simpler process to use as a test-bed for getting
+>   the shared `logclient` library correct before rolling it out further.
+>   Nothing about the design changed as a result; §8's integration surface
+>   (add a handler to `_configure_logging()`, nothing else) is identical
+>   regardless of which process goes first, and `pm-api-gwy` (along with
+>   the remaining ~17 entrypoints) is still phase 5 work.
+> - **`pm-audit` already had its own `--log-file` flag for an unrelated
+>   feature — its trade-event audit trail (`AuditProcess.logger`, a
+>   JSONL file of bus messages, wired up long before this design
+>   existed) — which collided with §8.5's new `--log-file` (the
+>   operational-log fallback path). Resolved by renaming the pre-existing
+>   flag to `--audit-log-file`** and giving `--log-file` its §8.5 meaning
+>   unchanged, so every `pm-*` process's operational-logging flags stay
+>   named identically as more entrypoints are wired up in phase 5 — the
+>   one-off rename only affects `pm-audit`, whose audit-trail feature is
+>   unique to it anyway. `pm-audit-cli`'s own, separate `--log-file` (a
+>   different program, reading the audit trail back off disk) was left
+>   untouched, since it was never in conflict.
+>
+> `log_srv/config.py`'s client sub-block (`connect_timeout_sec`/
+> `failover_timeout_sec`/`failover_dir`, §7.7) — noted in `log_srv/config.py`'s
+> own docstring as deliberately unmodeled until a `TcpLogHandler` existed to
+> read it — is now modeled as `LogClientConfig`/`load_log_client_config()` in
+> that same file, loaded once per process via
+> `load_default_log_client_config()`.
 
 > **Changelog v1.2.0**
 > - **New §15, Appendix: LALF Protocol Reference (Normative).** Restates
@@ -1133,7 +1175,8 @@ seventh heuristic, added in §9.6.
 | `src/edumatcher/logclient/handler.py` (new) | `TcpLogHandler` (§8.2) |
 | `src/edumatcher/logclient/protocol.py` (new) | LALF line encode/decode (§5) — the Python-side equivalent of `md_gateway/protocol.py`'s CALF grammar module, reused by both `TcpLogHandler` and `pm-log-srv` itself |
 | `src/edumatcher/logclient/discovery.py` (new) | The auto-detection probe (§8.3), shared by every process |
-| `src/edumatcher/*/main.py` (~19 files) | `_build_parser()` gains `--log-target`/`--log-file` (§8.5); `_configure_logging()` calls into `logclient.discovery` instead of hard-coding `StreamHandler` (§8.4) |
+| `src/edumatcher/log_srv/config.py` | `LogClientConfig`/`load_log_client_config()` (§7.7's nested `client:` block) — **done (v1.3.0)**, the one piece this file's own docstring had flagged as deliberately unmodeled until now |
+| `src/edumatcher/*/main.py` (~19 files) | `_build_parser()` gains `--log-target`/`--log-file` (§8.5); `_configure_logging()` calls into `logclient.discovery` instead of hard-coding `StreamHandler` (§8.4) — **done (v1.3.0) for `pm-audit` only** (whose pre-existing `--log-file` was renamed `--audit-log-file`, see changelog); remaining ~18 entrypoints are phase 5 |
 | `src/edumatcher/log_srv/main.py` (new) | `pm-log-srv` entrypoint (§7) |
 | `src/edumatcher/log_srv/server.py` (new) | Accept loop, per-connection handler task, shared writer task (§7.3, §7.4) |
 | `src/edumatcher/log_srv/schema.py` (new) | `SCHEMA` constant (§6.6), mirroring `stats/main.py`'s own `SCHEMA` constant shape |
@@ -1340,8 +1383,8 @@ for further processing, exactly as this feature was asked for.
 |---|---|
 | 1 | LALF protocol module (`logclient/protocol.py`, §5) with full round-trip tests, independent of any networking code |
 | 2 | `pm-log-srv` core: accept loop, `HELLO`/`WELCOME`, schema (§6.6), single-writer batching (§7.3, §7.4) — no backpressure or retention yet, just correct ingestion |
-| 3 | `TcpLogHandler` + auto-detection (§8.2, §8.3), wired into **one** process first (`pm-api-gwy`, the best-understood entrypoint from prior design work) as a proof of the whole pipe end-to-end — reconnect-with-backoff included, file failover (§8.6) not yet |
-| 4 | File failover (§8.6): the `failover_timeout_sec` grace-window timer, the one-way switch to `logs/<client>.log`, and the stderr/file marker line — added to the one process wired in Phase 3 before rolling out further, since this is the riskiest new behavior to get right (a bug here could mean silently losing logs in a way today's plain stdout fallback never could) |
+| 3 | ~~`TcpLogHandler` + auto-detection (§8.2, §8.3), wired into **one** process first (`pm-api-gwy`, the best-understood entrypoint from prior design work)~~ **Done (v1.3.0): wired into `pm-audit` instead — see changelog.** Reconnect-with-backoff included |
+| 4 | ~~File failover (§8.6)~~ **Done (v1.3.0), built together with phase 3 — see changelog.** |
 | 5 | Roll `--log-target`/`--log-file`/`--log-failover-timeout` and the full `TcpLogHandler` wiring out to the remaining ~18 `pm-*` entrypoints (§8.7) — mechanical, low-risk once Phases 3–4 validate the pattern once |
 | 6 | `pm-log-cli`: `query`/`tail`/`processes`/`stats` (§9.2–9.5) against a real `log.db` populated by Phases 2–5 |
 | 7 | Backpressure (§5.8) and retention pruning (§6.5, now defaulting to 30 days) in `pm-log-srv`, plus `pm-log-cli prune` |

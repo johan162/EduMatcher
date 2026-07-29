@@ -173,11 +173,12 @@ class LogServer:
             signal.signal(signal.SIGTERM, lambda *_: self.stop())
 
         log.info(
-            "pm-log-srv %r listening on %s:%s db=%s retention_days=%s",
+            "pm-log-srv %r listening on %s:%s db=%s (cwd=%s) retention_days=%s",
             self.config.name,
             self.config.bind_address,
             self.config.port,
-            self.config.db_path,
+            Path(self.config.db_path).resolve(),
+            Path.cwd(),
             self.config.retention_days,
         )
 

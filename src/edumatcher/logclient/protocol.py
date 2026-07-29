@@ -139,6 +139,62 @@ def build_header_line(msg_type: str, fields: dict[str, str] | None = None) -> by
     return ("|".join(tokens) + "\n").encode("utf-8")
 
 
+def build_hello_frame(
+    *,
+    client: str,
+    pid: int,
+    host: str,
+    instance: str | None = None,
+) -> bytes:
+    """Build a ``HELLO`` frame (§5.3, §15.5) — the first message on a connection."""
+    fields: dict[str, str] = {
+        "CLIENT": client,
+        "PID": str(pid),
+        "HOST": host,
+        "PROTO": PROTO_VERSION,
+    }
+    if instance is not None:
+        fields["INSTANCE"] = instance
+    return build_header_line("HELLO", fields)
+
+
+def build_hb_frame(ts: str) -> bytes:
+    """Build an ``HB`` (heartbeat) frame (§5.6, §15.10)."""
+    return build_header_line("HB", {"TS": ts})
+
+
+def build_exit_frame() -> bytes:
+    """Build an ``EXIT`` frame (§5.7, §15.12) — graceful, client-initiated end."""
+    return build_header_line("EXIT")
+
+
+@dataclass(frozen=True)
+class WelcomeInfo:
+    """Parsed ``WELCOME`` fields (§5.3, §15.6)."""
+
+    srv: str
+    hbint: int
+    session: str
+
+
+def parse_welcome(fields: dict[str, str]) -> WelcomeInfo:
+    """Parse a ``WELCOME`` header line's fields into a :class:`WelcomeInfo`.
+
+    Raises :class:`LalfProtocolError` if a required field is missing or
+    ``HBINT`` is not a valid integer.
+    """
+    missing = [k for k in ("PROTO", "SRV", "HBINT", "SESSION") if k not in fields]
+    if missing:
+        raise LalfProtocolError(f"WELCOME missing fields: {','.join(missing)}")
+    if fields["PROTO"] != PROTO_VERSION:
+        raise LalfProtocolError(f"WELCOME PROTO mismatch: {fields['PROTO']!r}")
+    try:
+        hbint = int(fields["HBINT"])
+    except (TypeError, ValueError) as exc:
+        raise LalfProtocolError(f"invalid HBINT: {fields['HBINT']!r}") from exc
+    return WelcomeInfo(srv=fields["SRV"], hbint=hbint, session=fields["SESSION"])
+
+
 def build_log_frame(
     *,
     seq: int,

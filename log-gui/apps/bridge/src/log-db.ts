@@ -30,6 +30,7 @@ import type {
   TimeseriesResponse,
 } from "@edumatcher/log-types";
 import { existsSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 
 const QUERY_COLUMNS = [
   "seq",
@@ -79,7 +80,7 @@ export class LogDb {
   open(): boolean {
     if (this.db) return true;
     if (!existsSync(this.path)) {
-      this.lastError = `log.db not found at ${this.path}`;
+      this.lastError = `log.db not found at ${resolve(this.path)} (cwd=${process.cwd()})`;
       return false;
     }
     try {
