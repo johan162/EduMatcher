@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/990-app-config-spec/">
       
       
-        <link rel="prev" href="../930-app-ralf-protocol/">
+        <link rel="prev" href="../940-app-lalf-protocol/">
       
       
         <link rel="next" href="../../training/">
@@ -1745,6 +1745,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../280-log-srv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -1921,6 +1949,34 @@
     
   
     Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../940-app-lalf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: LALF Protocol
   
 
     
@@ -2387,6 +2443,17 @@
     <span class="md-ellipsis">
       
         6.6 dc_gateway — pm-dc-gwy (drop-copy TCP relay)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#67-log_server-pm-log-srv-centralized-lalf-log-collector-logsrvprocspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.7 log_server — pm-log-srv (centralized LALF log collector) — LogSrvProcSpec
       
     </span>
   </a>
@@ -3731,8 +3798,8 @@ governs. For worked examples, recipes, and rationale, see
 <a href="../010-configuration/">Configuration</a> (informative).</p>
 <p>The schema described here is derived from and MUST match the runtime loaders:
 <code>engine/config_loader.py</code>, <code>alf_gwy/config.py</code>, <code>balf_gwy/config.py</code>,
-<code>ralf_gateway/config.py</code>, <code>md_gateway/config.py</code>, <code>api_gateway/config.py</code>, and
-<code>scheduler/main.py</code> (<code>schedule</code> and <code>country</code> only).
+<code>ralf_gateway/config.py</code>, <code>md_gateway/config.py</code>, <code>api_gateway/config.py</code>,
+<code>log_srv/config.py</code>, and <code>scheduler/main.py</code> (<code>schedule</code> and <code>country</code> only).
 <code>pm-cverifier</code> is the reference validator.</p>
 <hr />
 <h2 id="1-conventions">1. Conventions<a class="headerlink" href="#1-conventions" title="Permanent link">&para;</a></h2>
@@ -3967,28 +4034,29 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 <a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="nt">post_trade_gateway</span><span class="p">:</span><span class="w">         </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RalfGwyProcSpec</span><span class="w">       </span><span class="c1"># pm-ralf-gwy (RALF)</span>
 <a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="nt">dc_gateway</span><span class="p">:</span><span class="w">                 </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DcGwyProcSpec</span><span class="w">         </span><span class="c1"># pm-dc-gwy   (drop-copy TCP relay)</span>
 <a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="nt">api_gateways</span><span class="p">:</span><span class="w">               </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Map&lt;Str, ApiGwyProcSpec&gt;</span><span class="w">   </span><span class="c1"># pm-api-gwy (named instances)</span>
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
-<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="nt">SymbolSpec</span><span class="p">:</span>
-<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">  </span><span class="nt">level</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Str          ∈ key of risk_controls.levels</span>
-<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">  </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w">            </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Int = 2      ∈ 0..8</span>
-<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">  </span><span class="nt">outstanding_shares</span><span class="p">:</span><span class="w">       </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Int          ∈ &gt; 0</span><span class="w">        </span><span class="c1"># REQUIRED for index constituents</span>
-<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">  </span><span class="nt">last_buy_price</span><span class="p">:</span><span class="w">           </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Price</span>
-<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">  </span><span class="nt">last_sell_price</span><span class="p">:</span><span class="w">          </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Price</span>
-<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">  </span><span class="nt">market_maker_quotes</span><span class="p">:</span><span class="w">      </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">List&lt;MMQuoteSeedSpec&gt;</span>
-<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="w">  </span><span class="nt">collar</span><span class="p">:</span><span class="w">                   </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CollarSpec</span>
-<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="w">  </span><span class="nt">circuit_breaker</span><span class="p">:</span><span class="w">          </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CircuitBreakerSpec</span><span class="w">         </span><span class="c1"># per-symbol override</span>
-<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>
-<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="nt">AlfGatewaySpec</span><span class="p">:</span><span class="w">                              </span><span class="c1"># one entry of gateways.alf</span>
-<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="w">  </span><span class="nt">id</span><span class="p">:</span><span class="w">                       </span><span class="kt">!</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GatewayId</span>
-<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Str = &quot;&quot;</span>
-<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">  </span><span class="nt">role</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;Role&gt; = TRADER</span>
-<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="w">  </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w">    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;DisconnectBehaviour&gt; = CANCEL_QUOTES_ONLY</span>
-<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a><span class="w">  </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w">    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;QuoteRefreshPolicy&gt; = INACTIVATE_ON_ANY_FILL</span>
-<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="w">  </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w">   </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Bool  = &lt;mm_obligation_defaults.enforce_mm_obligation | false&gt;</span>
-<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a><span class="w">  </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w">     </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Ticks = &lt;mm_obligation_defaults.mm_max_spread_ticks | 10&gt;</span>
-<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a><span class="w">  </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Qty   = &lt;mm_obligation_defaults.mm_min_qty | 100&gt;</span>
-<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a><span class="w">  </span><span class="nt">mm_obligations</span><span class="p">:</span><span class="w">          </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Map&lt;Symbol, MMObligationSpec&gt;</span>
-<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a><span class="w">  </span><span class="nt">smp_action</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;SmpAction&gt; = NONE</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="nt">log_server</span><span class="p">:</span><span class="w">                 </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LogSrvProcSpec</span><span class="w">        </span><span class="c1"># pm-log-srv  (centralized LALF log collector)</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="nt">SymbolSpec</span><span class="p">:</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">  </span><span class="nt">level</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Str          ∈ key of risk_controls.levels</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">  </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w">            </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Int = 2      ∈ 0..8</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">  </span><span class="nt">outstanding_shares</span><span class="p">:</span><span class="w">       </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Int          ∈ &gt; 0</span><span class="w">        </span><span class="c1"># REQUIRED for index constituents</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">  </span><span class="nt">last_buy_price</span><span class="p">:</span><span class="w">           </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Price</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">  </span><span class="nt">last_sell_price</span><span class="p">:</span><span class="w">          </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Price</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="w">  </span><span class="nt">market_maker_quotes</span><span class="p">:</span><span class="w">      </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">List&lt;MMQuoteSeedSpec&gt;</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="w">  </span><span class="nt">collar</span><span class="p">:</span><span class="w">                   </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CollarSpec</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="w">  </span><span class="nt">circuit_breaker</span><span class="p">:</span><span class="w">          </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CircuitBreakerSpec</span><span class="w">         </span><span class="c1"># per-symbol override</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="nt">AlfGatewaySpec</span><span class="p">:</span><span class="w">                              </span><span class="c1"># one entry of gateways.alf</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="w">  </span><span class="nt">id</span><span class="p">:</span><span class="w">                       </span><span class="kt">!</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GatewayId</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Str = &quot;&quot;</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="w">  </span><span class="nt">role</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;Role&gt; = TRADER</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a><span class="w">  </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w">    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;DisconnectBehaviour&gt; = CANCEL_QUOTES_ONLY</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="w">  </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w">    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;QuoteRefreshPolicy&gt; = INACTIVATE_ON_ANY_FILL</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a><span class="w">  </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w">   </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Bool  = &lt;mm_obligation_defaults.enforce_mm_obligation | false&gt;</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a><span class="w">  </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w">     </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Ticks = &lt;mm_obligation_defaults.mm_max_spread_ticks | 10&gt;</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a><span class="w">  </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Qty   = &lt;mm_obligation_defaults.mm_min_qty | 100&gt;</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a><span class="w">  </span><span class="nt">mm_obligations</span><span class="p">:</span><span class="w">          </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Map&lt;Symbol, MMObligationSpec&gt;</span>
+<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a><span class="w">  </span><span class="nt">smp_action</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;SmpAction&gt; = NONE</span>
 </code></pre></div>
 <hr />
 <h2 id="4-domain-sub-structures">4. Domain sub-structures<a class="headerlink" href="#4-domain-sub-structures" title="Permanent link">&para;</a></h2>
@@ -5146,6 +5214,189 @@ be rejected.</p>
 <p>This block has no <code>enabled</code> key. The drop-copy source address (<code>tcp://127.0.0.1:5557</code>)
 is <strong>not</strong> configurable via YAML — use the <code>--engine-dc-pub</code> CLI flag on <code>pm-dc-gwy</code>
 to point at a non-default engine address.</p>
+<h3 id="67-log_server-pm-log-srv-centralized-lalf-log-collector-logsrvprocspec">6.7 <code>log_server</code> — <code>pm-log-srv</code> (centralized LALF log collector) — <code>LogSrvProcSpec</code><a class="headerlink" href="#67-log_server-pm-log-srv-centralized-lalf-log-collector-logsrvprocspec" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th style="text-align: center;">Req</th>
+<th>Default</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enabled</code></td>
+<td><code>Bool</code></td>
+<td style="text-align: center;">–</td>
+<td><code>true</code></td>
+<td>master switch; <code>pm-log-srv</code> refuses to accept connections when <code>false</code></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td><code>Str</code></td>
+<td style="text-align: center;">–</td>
+<td><code>"log-srv01"</code></td>
+<td>echoed in the LALF <code>WELCOME\|SRV=</code> field</td>
+</tr>
+<tr>
+<td><code>bind_address</code></td>
+<td><code>Str</code></td>
+<td style="text-align: center;">–</td>
+<td><code>"0.0.0.0"</code></td>
+<td>TCP listen interface (<code>127.0.0.1</code> for loopback-only)</td>
+</tr>
+<tr>
+<td><code>port</code></td>
+<td><code>Port</code></td>
+<td style="text-align: center;">–</td>
+<td><code>5600</code></td>
+<td><code>&gt; 0</code></td>
+</tr>
+<tr>
+<td><code>db_path</code></td>
+<td><code>Path</code></td>
+<td style="text-align: center;">–</td>
+<td>resolved <code>data/log.db</code></td>
+<td>SQLite database path where <code>log_events</code>/<code>processes</code>/<code>server_stats</code> are stored</td>
+</tr>
+<tr>
+<td><code>retention_days</code></td>
+<td><code>Int</code> | <code>null</code></td>
+<td style="text-align: center;">–</td>
+<td><code>30</code></td>
+<td><code>&gt;= 0</code> or <code>null</code>; <code>0</code> is normalised to <code>null</code> (both mean unbounded retention — pruning disabled); pruning otherwise runs once per hour</td>
+</tr>
+<tr>
+<td><code>max_message_bytes</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>65536</code></td>
+<td><code>&gt; 0</code>; maximum <code>LOG</code> payload size before truncation — oversized messages are truncated and stored, never dropped</td>
+</tr>
+<tr>
+<td><code>max_client_queue</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>10000</code></td>
+<td><code>&gt; 0</code>; per-connection outbound backlog limit before backpressure is applied</td>
+</tr>
+<tr>
+<td><code>write_batch_size</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>50</code></td>
+<td><code>&gt; 0</code>; maximum rows per SQLite transaction in the background writer thread</td>
+</tr>
+<tr>
+<td><code>write_batch_interval_ms</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>100</code></td>
+<td><code>&gt; 0</code>; maximum time between writer-thread flushes, whichever comes first with <code>write_batch_size</code></td>
+</tr>
+<tr>
+<td><code>heartbeat_interval_sec</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>5</code></td>
+<td><code>&gt; 0</code>; how often a connected client must send something (<code>LOG</code> or <code>HB</code>) to stay alive; the server disconnects after 2× this interval of silence and advertises the value in <code>WELCOME\|HBINT=</code> (the server itself never sends <code>HB</code>). Doubles as the publish interval for the LALF-PS <code>log.server_state</code> tick</td>
+</tr>
+<tr>
+<td><code>pubsub_enabled</code></td>
+<td><code>Bool</code></td>
+<td style="text-align: center;">–</td>
+<td><code>true</code></td>
+<td>master switch for LALF-PS, the ZeroMQ log-distribution interface; when <code>false</code> no ZeroMQ socket is bound and <code>pm-log-srv</code> runs as a pure TCP collector</td>
+</tr>
+<tr>
+<td><code>pub_port</code></td>
+<td><code>Port</code></td>
+<td style="text-align: center;">–</td>
+<td><code>5601</code></td>
+<td><code>&gt; 0</code>; must differ from <code>port</code> and <code>pull_port</code>; ZeroMQ <code>PUB</code> port carrying live rows, notify ticks, backfill chunks and control acks</td>
+</tr>
+<tr>
+<td><code>pull_port</code></td>
+<td><code>Port</code></td>
+<td style="text-align: center;">–</td>
+<td><code>5602</code></td>
+<td><code>&gt; 0</code>; must differ from <code>port</code> and <code>pub_port</code>; ZeroMQ <code>PULL</code> port receiving subscriber control requests</td>
+</tr>
+<tr>
+<td><code>lease_sec</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>30</code></td>
+<td><code>&gt; 0</code>; default subscription lease TTL — a subscriber that stops sending <code>log.renew</code> within this window is reaped and its buffers discarded</td>
+</tr>
+<tr>
+<td><code>max_lease_sec</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>300</code></td>
+<td><code>&gt;= lease_sec</code>; upper bound on a subscriber's requested <code>lease_sec</code>, which is clamped rather than rejected</td>
+</tr>
+<tr>
+<td><code>max_subscribers</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>32</code></td>
+<td><code>&gt; 0</code>; maximum concurrent leased subscriptions before <code>log.subscribe</code> is answered with <code>TOO_MANY_SUBS</code></td>
+</tr>
+<tr>
+<td><code>notify_interval_ms</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>250</code></td>
+<td><code>&gt; 0</code>; coalescing window for <code>NOTIFY</code>-mode ticks, and the floor on a subscriber's requested <code>notify_interval_ms</code></td>
+</tr>
+<tr>
+<td><code>backfill_chunk_rows</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>500</code></td>
+<td><code>&gt; 0</code>; rows per <code>log.backfill</code> chunk, and the maximum rows per live <code>log.event</code> message</td>
+</tr>
+<tr>
+<td><code>max_backfill_minutes</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>1440</code></td>
+<td><code>&gt; 0</code>; largest "last n minutes" window a subscriber may request; a larger request is rejected with <code>INVALID_WINDOW</code></td>
+</tr>
+<tr>
+<td><code>max_backfill_rows</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>100000</code></td>
+<td><code>&gt; 0</code>; hard cap on the rows returned by one backfill; the final chunk sets <code>truncated: true</code> when it bites</td>
+</tr>
+<tr>
+<td><code>max_pending_rows</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>20000</code></td>
+<td><code>&gt; 0</code>; per-subscription <code>STREAM</code> buffer cap — a subscriber that is alive but too slow loses its oldest buffered rows, reported back to it as <code>dropped</code></td>
+</tr>
+<tr>
+<td><code>pub_sndhwm</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>10000</code></td>
+<td><code>&gt; 0</code>; ZeroMQ send high-water mark on the <code>PUB</code> socket</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>pubsub_*</code>/<code>pub_*</code>/<code>pull_*</code>/<code>lease_*</code>/<code>backfill_*</code> fields configure LALF-PS,
+described in full in <a href="../280-log-srv/#lalf-ps-the-zeromq-log-distribution-interface">Centralized Log Server</a>.</p>
+<p>This block has no interaction with <code>gateways.alf</code> or any other engine section —
+<code>pm-log-srv</code> is a standalone LALF collector, unrelated to the ZeroMQ bus, and does
+not consume any engine-section fields. See <a href="../010-configuration/#configuring-pm-log-srv">Configuring pm-log-srv</a>
+for worked examples and <a href="../280-log-srv/">Centralized Log Server</a> for the operational
+guide; the wire protocol it serves is normatively specified in the
+<a href="../940-app-lalf-protocol/">LALF Protocol Reference</a>.</p>
 <hr />
 <h2 id="7-cross-field-and-semantic-constraints">7. Cross-field and semantic constraints<a class="headerlink" href="#7-cross-field-and-semantic-constraints" title="Permanent link">&para;</a></h2>
 <p>A conforming document MUST satisfy all of the following. Violations MUST be
@@ -5222,6 +5473,10 @@ rejected at load.</p>
 <td>CV16</td>
 <td>(<code>pm-scheduler</code>) An unrecognised <code>country</code> value is the <strong>sole exception</strong> to the "MUST be rejected" rule in this section — the loader substitutes the default (<code>"Sweden"</code>) and logs a warning instead of aborting. <code>pm-scheduler</code> treats a calendar day as non-trading (and sends no <code>schedule</code> transitions) when it is a Saturday, a Sunday, or a <code>country</code> bank holiday.</td>
 </tr>
+<tr>
+<td>CV17</td>
+<td>(<code>pm-log-srv</code>) <code>log_server.retention_days</code>, when present, MUST be <code>&gt;= 0</code> or <code>null</code>; <code>port</code>, <code>max_message_bytes</code>, <code>max_client_queue</code>, <code>write_batch_size</code>, <code>write_batch_interval_ms</code>, and <code>heartbeat_interval_sec</code> MUST each be <code>&gt; 0</code>.</td>
+</tr>
 </tbody>
 </table>
 <hr />
@@ -5263,6 +5518,8 @@ block on every symbol.</p>
 <li><a href="../120-risk-controls/">Risk Controls</a> — collar and circuit-breaker behaviour</li>
 <li><a href="../150-market-index/">Market Index (<code>pm-index</code>)</a> — index calculation using <code>indices</code></li>
 <li><a href="../210-protocols-overview/">External Protocols Overview</a> — the gateways that read the auxiliary blocks</li>
+<li><a href="../280-log-srv/">Centralized Log Server</a> — <code>pm-log-srv</code>/<code>pm-log-cli</code> operational guide</li>
+<li><a href="../940-app-lalf-protocol/">LALF Protocol Reference</a> — the wire protocol <code>pm-log-srv</code> serves</li>
 </ul>
 
 

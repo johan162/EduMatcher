@@ -1,0 +1,5137 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/280-log-srv/">
+      
+      
+        <link rel="prev" href="../270-message-reference/">
+      
+      
+        <link rel="next" href="../800-examples/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Centralized Log Server - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#centralized-log-server" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Centralized Log Server
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../000-getting-started/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../training/" class="md-tabs__link">
+          
+  
+  
+  Training
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/07-concepts-implied-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implied Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../000-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../010-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../020-config-verifier/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config Verifier
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../030-config-GUI/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration GUI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../050-gateway-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../060-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../070-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../080-session-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../090-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../100-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market-Maker Bot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../110-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../120-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../130-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../140-statistics-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../150-market-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../152-index-admin-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index Admin CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../160-exchange-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exchange Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../170-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../180-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../190-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Trail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../200-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../201-dc-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy TCP Gateway (pm-dc-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Protocols Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../220-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../230-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../240-calf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../241-calf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CALF Protocol Spy (pm-calf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-Trade Dissemination (RALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../251-ralf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RALF Protocol Spy (pm-ralf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../260-api-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../270-message-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-directory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Directory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pm-log-srv-log-collector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-log-srv — Log Collector
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="pm-log-srv — Log Collector">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#startup-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Startup options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retention
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lalf-the-wire-protocol-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LALF — The Wire Protocol at a Glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lalf-ps-the-zeromq-log-distribution-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LALF-PS — The ZeroMQ Log Distribution Interface
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LALF-PS — The ZeroMQ Log Distribution Interface">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#socket-topology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Socket topology
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sub_id-the-routing-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        sub_id — the routing key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#two-modes-stream-and-notify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two modes: STREAM and NOTIFY
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filtering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backfill-the-last-n-minutes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backfill — "the last n minutes"
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#liveness-why-leases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Liveness — why leases
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-other-failure-a-subscriber-that-is-slow-not-dead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The other failure: a subscriber that is slow, not dead
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#server-liveness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server liveness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ordering-durability-and-the-slow-joiner-race" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ordering, durability and the slow-joiner race
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-replies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error replies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-minimal-subscriber" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A minimal subscriber
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tuning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tuning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pm-log-cli-querytroubleshooting-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-log-cli — Query/Troubleshooting Tool
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="pm-log-cli — Query/Troubleshooting Tool">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#global-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#query-filtered-historical-search" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        query — Filtered historical search
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tail-follow-new-rows-in-real-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tail — Follow new rows in real time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#processes-connectedrecently-connected-processes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        processes — Connected/recently-connected processes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stats-server-database-health-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        stats — Server + database health summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#diagnose-rule-based-troubleshooting-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        diagnose — Rule-based troubleshooting report
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prune-manual-retention-pruning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        prune — Manual retention pruning
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cookbook-common-log-server-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cookbook — Common Log-Server Workflows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cookbook — Common Log-Server Workflows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#watching-a-live-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Watching a live session
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#investigating-an-error-after-the-fact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Investigating an error after the fact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checking-whether-every-process-is-still-reporting-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking whether every process is still reporting in
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#free-text-searching-across-the-whole-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Free-text searching across the whole system
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exporting-for-external-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exporting for external analysis
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#routine-maintenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Routine maintenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See Also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../800-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../810-example-configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../890-known-limitations-bugs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Limitations & Bugs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../900-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../910-app-balf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../920-app-calf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../930-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../940-app-lalf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: LALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../990-app-config-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: Engine Config Specification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/00-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    00 — Installation & Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/01-configuring-startup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    01 — Configuring & Starting Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/02-setting-up-MM-bots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    02 — Setting Up Market-Maker Liquidity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/03-the-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    03 — The First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/04-amending-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04 — Amending Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/05-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05 — Order Types Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/06-time-in-force-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    06 — Time-in-Force & Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/07-auctions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    07 — Auctions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/08-cancelling-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    08 — Cancelling & Managing Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/09-market-making/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    09 — Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/10-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10 — Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/11-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11 — Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/12-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12 — P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/13-market-data-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13 — Market Data & Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/14-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14 — AI Traders & Swarm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/15-statistics-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15 — Statistics & Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/16-persistence-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16 — Persistence & Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/17-capstone-scenario/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17 — Capstone Scenario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/18-exchange-observer-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18 — Exchange Observer Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/19-advanced-admin-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    19 — Advanced Admin Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/20-drop-copy-replay-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20 — Drop-Copy Replay & Recovery Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/21-automation-commandclient-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21 — Automation with CommandClient & MM Bot Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/22-ralf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/24-api-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24 — API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/25-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/26-alf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 - ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/27-balf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27 - BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/05-vm-runtime-image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Runtime Image
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="centralized-log-server">Centralized Log Server<a class="headerlink" href="#centralized-log-server" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will understand:</p>
+<ul>
+<li>Why a centralized log server matters and what <code>pm-log-srv</code> records</li>
+<li>How to start <code>pm-log-srv</code> and where <code>log.db</code> lives</li>
+<li>The LALF wire protocol at a glance and how auto-detection works</li>
+<li>How LALF-PS distributes logs over ZeroMQ to live viewers, and why a
+  blind <code>PUB</code> socket forces the lease-based liveness design it uses</li>
+<li>All <code>pm-log-cli</code> subcommands, options, and output formats</li>
+<li>A practical cookbook of query workflows grouped by purpose</li>
+<li>How to read a <code>diagnose</code> report and act on its recommendations</li>
+</ul>
+</div>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>Every EduMatcher process — the engine, gateways, <code>pm-stats</code>, <code>pm-audit</code>,
+bots, viewers, admin tools — already logs through Python's standard
+<code>logging</code> module. Until now, each process's log output went only to its own
+terminal or its own redirected file: there was no single place to ask "what
+did every process log in the last five minutes," and correlating an issue
+spanning two processes meant manually lining up timestamps across separate
+terminal scrollbacks.</p>
+<p><code>pm-log-srv</code> solves this the same way <code>pm-audit</code> already solved it for
+trading events and <code>pm-stats</code> solved it for market statistics: a dedicated
+collector process, a purpose-built SQLite schema, and a read-only query CLI.</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Role</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>pm-log-srv</code></strong></td>
+<td>Collector — accepts logging from every <code>pm-*</code> process over TCP and appends it to a queryable SQLite database</td>
+<td>Long-running process</td>
+</tr>
+<tr>
+<td><strong><code>pm-log-cli</code></strong></td>
+<td>Query/troubleshooting tool — reads <code>log.db</code> and prints structured output, including a rule-based <code>diagnose</code> report</td>
+<td>One-shot CLI</td>
+</tr>
+<tr>
+<td><strong>LALF-PS</strong></td>
+<td>Distribution interface — the ZeroMQ <code>PUB</code>/<code>PULL</code> pair <code>pm-log-srv</code> binds so live viewers can be pushed rows as they land instead of polling <code>log.db</code></td>
+<td>Interface, not a process</td>
+</tr>
+</tbody>
+</table>
+<p>The collector and the query tool are completely independent. <code>pm-log-cli</code>
+reads <code>log.db</code> directly from disk and works even when <code>pm-log-srv</code> is not
+currently running — the same posture <code>pm-audit-cli</code>/<code>pm-stats-cli</code> already
+take relative to their own recorder processes.</p>
+<pre class="mermaid"><code>flowchart LR
+    subgraph procs["Any pm-* process"]
+        ENGINE["pm-engine"]
+        MDGWY["pm-md-gwy"]
+        APIGWY["pm-api-gwy"]
+        OTHER["...every other pm-* process"]
+    end
+
+    ENGINE --&gt;|"LALF over TCP :5600"| LOGSRV["pm-log-srv"]
+    MDGWY --&gt;|"LALF over TCP :5600"| LOGSRV
+    APIGWY --&gt;|"LALF over TCP :5600"| LOGSRV
+    OTHER --&gt;|"LALF over TCP :5600"| LOGSRV
+
+    LOGSRV --&gt;|"appends"| DB[("log.db\n(SQLite)")]
+    CLI["pm-log-cli"] --&gt;|"read-only SQL"| DB
+    LOGSRV --&gt;|"LALF-PS PUB :5601"| VIEW["Log viewer / UI"]
+    VIEW --&gt;|"LALF-PS PUSH :5602"| LOGSRV</code></pre>
+<p>There are therefore two distinct ways to get logging <em>out</em> of
+<code>pm-log-srv</code>, and they suit different jobs:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>pm-log-cli</code></th>
+<th>LALF-PS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Transport</td>
+<td>Direct read-only SQL against <code>log.db</code></td>
+<td>ZeroMQ <code>PUB</code>/<code>PULL</code></td>
+</tr>
+<tr>
+<td>Works when the server is stopped</td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Latency</td>
+<td>Whatever your polling interval is</td>
+<td>Pushed on commit</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>Ad-hoc investigation, scripting, export</td>
+<td>Live viewers, dashboards, anything long-lived and interactive</td>
+</tr>
+</tbody>
+</table>
+<p><code>pm-log-srv</code> is not a replacement for <code>pm-audit</code> or <code>pm-stats</code>. Trading
+events (orders, fills) and market statistics have their own purpose-built
+collectors; <code>pm-log-srv</code> is for operational <code>logging</code>-module output only —
+think "what would otherwise have gone to a terminal or a log file."</p>
+<div class="admonition note">
+<p class="admonition-title">Phased rollout</p>
+<p>As of this revision, <code>pm-log-srv</code> and <code>pm-log-cli</code> are fully implemented
+and usable standalone — you can start the server and point a test client
+at it today. Automatically wiring every existing <code>pm-*</code> process's own
+logging into a <code>TcpLogHandler</code> (so it auto-detects and uses a running
+<code>pm-log-srv</code> with zero configuration) is a follow-up phase of this
+feature and has not yet been rolled out to every entrypoint. Until then,
+use <code>pm-log-srv</code>/<code>pm-log-cli</code> to inspect logging emitted by any client
+that already speaks LALF (see the wire protocol reference below if you
+are writing one).</p>
+</div>
+<h2 id="data-directory">Data Directory<a class="headerlink" href="#data-directory" title="Permanent link">&para;</a></h2>
+<p><code>log.db</code> is stored in the same data directory used by all other EduMatcher
+persistent files:</p>
+<table>
+<thead>
+<tr>
+<th>Running mode</th>
+<th>Default location</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source checkout (<code>poetry run pm-log-srv</code>)</td>
+<td><code>&lt;repo&gt;/src/data/log.db</code></td>
+</tr>
+<tr>
+<td>Installed (<code>pm-log-srv</code> on PATH)</td>
+<td><code>~/.local/share/edumatcher/log.db</code></td>
+</tr>
+</tbody>
+</table>
+<p>Override with <code>EDUMATCHER_DATA_DIR</code> or <code>--db</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/sessions/morning&quot;</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-log-srv<span class="w">  </span><span class="c1"># writes to $HOME/sessions/morning/log.db</span>
+</code></pre></div>
+<h2 id="pm-log-srv-log-collector">pm-log-srv — Log Collector<a class="headerlink" href="#pm-log-srv-log-collector" title="Permanent link">&para;</a></h2>
+<p><code>pm-log-srv</code> binds a TCP listen socket, accepts any number of concurrent
+LALF connections, and appends every accepted <code>LOG</code> record to <code>log.db</code>. It
+never talks to the engine's ZeroMQ bus, to the engine, or to any gateway
+— its own ZeroMQ sockets (LALF-PS, below) carry log distribution only and
+are entirely separate from the trading bus on <code>:5555</code>/<code>:5556</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-log-srv<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<h3 id="startup-options">Startup options<a class="headerlink" href="#startup-options" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--host ADDR</code></td>
+<td>from config / <code>0.0.0.0</code></td>
+<td>TCP bind address</td>
+</tr>
+<tr>
+<td><code>--port PORT</code></td>
+<td>from config / <code>5600</code></td>
+<td>TCP listen port for LALF clients</td>
+</tr>
+<tr>
+<td><code>--db PATH</code></td>
+<td>from config / <code>data/log.db</code></td>
+<td>SQLite database path</td>
+</tr>
+<tr>
+<td><code>--retention-days N</code></td>
+<td>from config / <code>30</code></td>
+<td>Prune <code>log_events</code> rows older than N days, once per hour. <code>0</code> disables pruning (unbounded retention)</td>
+</tr>
+<tr>
+<td><code>--max-message-bytes N</code></td>
+<td>from config / <code>65536</code></td>
+<td>Maximum <code>LOG</code> payload size before truncation — oversized messages are truncated and stored, never dropped</td>
+</tr>
+<tr>
+<td><code>--pub-port PORT</code></td>
+<td>from config / <code>5601</code></td>
+<td>LALF-PS ZeroMQ <code>PUB</code> bind port (log distribution out)</td>
+</tr>
+<tr>
+<td><code>--pull-port PORT</code></td>
+<td>from config / <code>5602</code></td>
+<td>LALF-PS ZeroMQ <code>PULL</code> bind port (subscriber control in)</td>
+</tr>
+<tr>
+<td><code>--lease-sec N</code></td>
+<td>from config / <code>30</code></td>
+<td>Subscription lease TTL; a subscriber that stops renewing is reaped after this long</td>
+</tr>
+<tr>
+<td><code>--no-pubsub</code></td>
+<td>off</td>
+<td>Disable LALF-PS entirely — bind no ZeroMQ sockets and run as a pure TCP collector</td>
+</tr>
+<tr>
+<td><code>--config PATH</code> / <code>-c</code></td>
+<td><code>engine_config.yaml</code></td>
+<td>Engine config YAML path, read for the optional <code>log_server:</code> block</td>
+</tr>
+<tr>
+<td><code>--log-level LEVEL</code></td>
+<td><code>WARNING</code></td>
+<td>Explicit level: <code>CRITICAL</code>, <code>ERROR</code>, <code>WARNING</code>, <code>INFO</code>, <code>DEBUG</code></td>
+</tr>
+<tr>
+<td><code>-v</code> / <code>--verbose</code></td>
+<td>off</td>
+<td>Increase verbosity (<code>-v</code> → <code>INFO</code>, <code>-vv</code> → <code>DEBUG</code>)</td>
+</tr>
+<tr>
+<td><code>-q</code> / <code>--quiet</code></td>
+<td>off</td>
+<td>Reduce log output to warnings/errors</td>
+</tr>
+</tbody>
+</table>
+<p>CLI flags override the corresponding field in <code>engine_config.yaml</code>'s
+<code>log_server:</code> block for that invocation only. See
+<a href="../010-configuration/#configuring-pm-log-srv">Configuration — Configuring pm-log-srv</a>
+for the full config field reference.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Start with defaults — binds 0.0.0.0:5600, writes to data/log.db</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>pm-log-srv
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Loopback-only, custom port, verbose startup logging</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>pm-log-srv<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5600</span><span class="w"> </span>-v
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># Unbounded retention (never prune)</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>pm-log-srv<span class="w"> </span>--retention-days<span class="w"> </span><span class="m">0</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1"># Point at a specific database for a scratch/test session</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>pm-log-srv<span class="w"> </span>--db<span class="w"> </span>/tmp/session.db
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="c1"># Collector only — no ZeroMQ sockets bound at all</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>pm-log-srv<span class="w"> </span>--no-pubsub
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="c1"># Move LALF-PS off the default ports (e.g. two servers on one host)</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>pm-log-srv<span class="w"> </span>--port<span class="w"> </span><span class="m">5700</span><span class="w"> </span>--pub-port<span class="w"> </span><span class="m">5701</span><span class="w"> </span>--pull-port<span class="w"> </span><span class="m">5702</span>
+</code></pre></div>
+<p>Expected startup output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>2026-07-29 09:30:00,180 INFO edumatcher.log_srv.main - starting pm-log-srv with log level INFO
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>2026-07-29 09:30:00,206 INFO edumatcher.log_srv.server - pm-log-srv &#39;log-srv01&#39; listening on 127.0.0.1:5600 db=data/log.db retention_days=30
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>2026-07-29 09:30:00,211 INFO edumatcher.log_srv.pubsub - LALF-PS interface up: PUB=tcp://127.0.0.1:5601 PULL=tcp://127.0.0.1:5602 lease=30s max_subscribers=32
+</code></pre></div>
+<p><code>pm-log-srv</code> occupies a contiguous three-port block: <code>5600</code> for LALF/TCP
+collection, <code>5601</code> for the LALF-PS <code>PUB</code>, <code>5602</code> for the LALF-PS <code>PULL</code>.
+All three must differ; the server refuses to start otherwise.</p>
+<p><code>pm-log-srv</code> is the one <code>pm-*</code> process that always logs to stdout/file only
+— it never sends its own operational logging to another <code>pm-log-srv</code>
+instance (there is nothing listening for its own bootstrap messages before
+it has finished starting).</p>
+<h3 id="retention">Retention<a class="headerlink" href="#retention" title="Permanent link">&para;</a></h3>
+<p><code>log_events</code> defaults to a bounded 30-day retention rather than growing
+unbounded like <code>pm-audit</code>'s/<code>pm-stats</code>' own deliberately-forever stores —
+operational logging is disposable in a way trading history and market
+statistics are not. Pruning runs automatically once per hour in the
+background; <code>pm-log-cli prune</code> (below) is also available for pruning on
+demand.</p>
+<h2 id="lalf-the-wire-protocol-at-a-glance">LALF — The Wire Protocol at a Glance<a class="headerlink" href="#lalf-the-wire-protocol-at-a-glance" title="Permanent link">&para;</a></h2>
+<p>Every <code>pm-*</code> process (or, in principle, any TCP client in any language)
+speaks LALF ("Logging ALF") to <code>pm-log-srv</code>: a long-lived TCP connection,
+one <code>HELLO</code>/<code>WELCOME</code> handshake, and then a stream of <code>LOG</code> messages until
+the connection ends.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>C: HELLO|CLIENT=pm-md-gwy|PID=51002|HOST=trader-laptop|PROTO=LALF1
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>S: WELCOME|PROTO=LALF1|SRV=log-srv01|HBINT=5|SESSION=7f3a9c21
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>C: LOG|SEQ=1|TS=2026-07-28T09:30:00.010Z|LEVEL=INFO|LOGGER=edumatcher.md_gateway.gateway|LEN=29
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>   md-gwy01 listening on :5570
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>C: HB|TS=2026-07-28T09:30:05.500Z
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>C: EXIT
+</code></pre></div>
+<p>For the full normative wire specification — every message type, field table,
+error code, and conformance rule — see the
+<a href="../940-app-lalf-protocol/">LALF Protocol Reference</a>.</p>
+<h2 id="lalf-ps-the-zeromq-log-distribution-interface">LALF-PS — The ZeroMQ Log Distribution Interface<a class="headerlink" href="#lalf-ps-the-zeromq-log-distribution-interface" title="Permanent link">&para;</a></h2>
+<p>LALF brings logging <em>in</em>. <strong>LALF-PS</strong> ("LALF Pub/Sub") sends it back
+<em>out</em>, over ZeroMQ, to anything that wants to watch the system live: a log
+viewer, a filter/search UI, a dashboard, an alerting shim.</p>
+<p>The alternative — having each viewer poll <code>log.db</code> on a timer — is what
+LALF-PS exists to avoid. Polling forces an unpleasant trade: poll often
+and you burn CPU re-running the same query against a growing table for
+nothing most of the time; poll rarely and your viewer lags reality by
+however long the interval is. Neither is a good foundation for a UI whose
+whole job is to show you what is happening <em>now</em>. LALF-PS pushes instead,
+the moment a row is committed.</p>
+<h3 id="socket-topology">Socket topology<a class="headerlink" href="#socket-topology" title="Permanent link">&para;</a></h3>
+<p><code>pm-log-srv</code> binds two ZeroMQ sockets. The shape is deliberately
+identical to <code>pm-index</code>'s own <code>PUB</code>/<code>PULL</code> pair, so a client written
+against one needs no new socket vocabulary for the other.</p>
+<table>
+<thead>
+<tr>
+<th>Socket</th>
+<th>Bound by</th>
+<th>Default address</th>
+<th>Carries</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PUB</code></td>
+<td><code>pm-log-srv</code></td>
+<td><code>tcp://…:5601</code></td>
+<td>Everything outbound: live rows, notification ticks, backfill chunks, control acks, errors, server state</td>
+</tr>
+<tr>
+<td><code>PULL</code></td>
+<td><code>pm-log-srv</code></td>
+<td><code>tcp://…:5602</code></td>
+<td>Everything inbound: subscribe, renew, unsubscribe, backfill, status</td>
+</tr>
+</tbody>
+</table>
+<p>A subscriber holds the mirror image: a <code>SUB</code> connected to <code>:5601</code> and a
+<code>PUSH</code> connected to <code>:5602</code>.</p>
+<pre class="mermaid"><code>flowchart LR
+    subgraph SRV["pm-log-srv"]
+        TCP["LALF TCP :5600"]
+        W["writer thread\n(SQLite, batched)"]
+        HUB["LALF-PS hub\n(subscriptions, leases, backfill)"]
+        PUB["PUB :5601"]
+        PULL["PULL :5602"]
+    end
+
+    PROC["pm-* processes"] --&gt;|"LOG"| TCP
+    TCP --&gt; W
+    W --&gt;|"committed rows + seq"| HUB
+    HUB --&gt; PUB
+    PULL --&gt; HUB
+
+    PUB --&gt;|"rows / ticks / chunks"| V["Log viewer (SUB)"]
+    V --&gt;|"control (PUSH)"| PULL</code></pre>
+<p>Every message is the same two-frame envelope used everywhere else on the
+bus — frame 0 is the topic string, frame 1 is a JSON payload — so ZeroMQ's
+prefix filter does the routing in the kernel before your process ever sees
+a byte.</p>
+<h3 id="sub_id-the-routing-key"><code>sub_id</code> — the routing key<a class="headerlink" href="#sub_id-the-routing-key" title="Permanent link">&para;</a></h3>
+<p>Every control message carries a subscriber-chosen <code>sub_id</code>. It plays
+exactly the role <code>gateway_id</code> plays elsewhere on the bus: the server
+appends it to each reply topic, so a subscriber needs only two <code>SUBSCRIBE</code>
+prefixes to receive everything relevant to it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;log.&quot;</span><span class="p">)</span>               <span class="c1"># simplest: everything</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># or, more precisely:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;log.event.</span><span class="si">{</span><span class="n">sub_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;log.backfill.</span><span class="si">{</span><span class="n">sub_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;log.server_state&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Pick something stable and unique — <code>logview-&lt;pid&gt;</code>, <code>dashboard-01</code>. Two
+live subscribers sharing a <code>sub_id</code> will each receive the other's traffic
+and fight over one lease, because to the server they <em>are</em> one
+subscription.</p>
+<h3 id="two-modes-stream-and-notify">Two modes: <code>STREAM</code> and <code>NOTIFY</code><a class="headerlink" href="#two-modes-stream-and-notify" title="Permanent link">&para;</a></h3>
+<p>A subscription declares up front what it wants delivered, because the two
+plausible kinds of log UI want opposite things.</p>
+<p><strong><code>STREAM</code></strong> — full rows are pushed as they are committed, on
+<code>log.event.{sub_id}</code>. This is what a live tail wants: the viewer never
+touches <code>log.db</code> at all and can run on a different host from the database.
+The cost is bus traffic proportional to the log volume that passes your
+filter, which is exactly why the filter matters.</p>
+<p><strong><code>NOTIFY</code></strong> — the server publishes only a small tick on
+<code>log.notify.{sub_id}</code> saying "<em>n</em> matching rows arrived, the highest is
+seq <em>X</em>", with a per-level breakdown and no row bodies whatsoever. This
+suits a UI that already reads <code>log.db</code> itself and just needs to know when
+to refresh, or one that only lights up an indicator on new errors. Ticks
+are coalesced over <code>notify_interval_ms</code> (default 250 ms), so a burst of a
+thousand rows produces one message rather than a thousand.</p>
+<p>You can change your mind at any time by re-sending <code>log.subscribe</code> with a
+different <code>mode</code> — see idempotency, below.</p>
+<h3 id="filtering">Filtering<a class="headerlink" href="#filtering" title="Permanent link">&para;</a></h3>
+<p>Both modes take the same optional <code>filter</code> object, and the server applies
+it identically to live rows and to backfill rows. That last point matters
+more than it sounds: it is what guarantees a viewer sees no gap and no
+duplication at the seam where its historical window meets the live stream.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>min_level</code></td>
+<td>string</td>
+<td><code>DEBUG</code> / <code>INFO</code> / <code>WARNING</code> / <code>ERROR</code> / <code>CRITICAL</code> — rows below are excluded</td>
+</tr>
+<tr>
+<td><code>processes</code></td>
+<td>array</td>
+<td>Exact process-name match, e.g. <code>["pm-engine", "pm-md-gwy"]</code></td>
+</tr>
+<tr>
+<td><code>loggers</code></td>
+<td>array</td>
+<td><strong>Prefix</strong> match, so <code>["edumatcher.engine"]</code> also matches <code>edumatcher.engine.book</code></td>
+</tr>
+<tr>
+<td><code>sessions</code></td>
+<td>array</td>
+<td>Exact LALF session-id match, to follow one connection of one process</td>
+</tr>
+<tr>
+<td><code>contains</code></td>
+<td>string</td>
+<td>Case-insensitive substring on the message body</td>
+</tr>
+<tr>
+<td><code>exceptions_only</code></td>
+<td>boolean</td>
+<td>Only rows carrying a traceback</td>
+</tr>
+</tbody>
+</table>
+<p>All present fields are ANDed. An omitted field constrains nothing, and an
+absent <code>filter</code> matches everything. A malformed filter is rejected with
+<code>INVALID_FILTER</code> rather than silently degrading to "match everything" —
+a filter that quietly stops filtering is how a viewer ends up flooded.</p>
+<p>Filter server-side rather than client-side wherever you can. A
+<code>min_level: "WARNING"</code> filter on a busy system can be the difference
+between a few messages a minute and a few thousand.</p>
+<h3 id="backfill-the-last-n-minutes">Backfill — "the last <em>n</em> minutes"<a class="headerlink" href="#backfill-the-last-n-minutes" title="Permanent link">&para;</a></h3>
+<p>A log viewer is nearly useless if it starts empty and only shows you what
+happens from now on; the interesting thing usually already happened. Two
+ways to prime it:</p>
+<ul>
+<li>Pass <code>backfill_minutes</code> on <code>log.subscribe</code>, and the server starts the
+  replay immediately after acknowledging the subscription.</li>
+<li>Send <code>log.backfill_request</code> at any time afterwards — to widen the
+  window, or to re-fetch with a different filter without disturbing the
+  live subscription.</li>
+</ul>
+<p>Either way the response arrives as a sequence of <code>log.backfill.{sub_id}</code>
+messages sharing one <code>request_id</code>, in ascending <code>seq</code> order, with the last
+one setting <code>done: true</code>. <strong>Keep reading until you see <code>done</code>.</strong> An empty
+window still produces exactly one chunk with <code>rows: []</code> and <code>done: true</code>,
+so you never wait forever on a quiet system.</p>
+<p>Chunking is not a nicety. A busy hour can be hundreds of thousands of
+rows; sending that as one response would mean both a multi-megabyte
+ZeroMQ frame and a SQLite scan long enough to stall the server's main
+loop — which would stall LALF collection, which would back-pressure every
+<code>pm-*</code> process in the system. The server instead emits at most one
+bounded chunk per loop iteration, so an arbitrarily large window costs a
+bounded amount of work per pass.</p>
+<p>Two limits apply: <code>max_backfill_minutes</code> (default 1440, i.e. 24 h) caps
+the window and rejects anything larger with <code>INVALID_WINDOW</code>;
+<code>max_backfill_rows</code> (default 100 000) caps the volume, and when it bites
+the final chunk sets <code>truncated: true</code> so you know history was cut short
+rather than genuinely exhausted.</p>
+<h3 id="liveness-why-leases">Liveness — why leases<a class="headerlink" href="#liveness-why-leases" title="Permanent link">&para;</a></h3>
+<p>This is the part of the design that is not obvious, so it is worth being
+explicit about the problem.</p>
+<p>A ZeroMQ <code>PUB</code> socket is <strong>blind</strong>. It never learns who is attached,
+subscribers come and go without the publisher being told, and publishing
+into the void succeeds silently. There is no publish-side event that
+means "my subscriber died" — nothing analogous to the TCP <code>recv()</code>
+returning zero bytes that tells the LALF side a producer has gone. A
+naive implementation would happily keep filtering rows, formatting
+messages and accumulating per-subscriber state for a viewer that was
+killed an hour ago.</p>
+<p>LALF-PS therefore makes every subscription an explicit <strong>lease</strong>:</p>
+<ol>
+<li><code>log.subscribe</code> creates the subscription with a TTL. The server
+   <em>clamps</em> your requested <code>lease_sec</code> to its <code>max_lease_sec</code> rather than
+   rejecting it, and tells you what you actually got in the ack — along
+   with <code>renew_before_sec</code>, which is always half the granted lease.</li>
+<li>The subscriber sends <code>log.renew</code> every <code>renew_before_sec</code>. This is the
+   <em>only</em> signal that keeps the subscription alive. (A
+   <code>log.backfill_request</code> also counts as proof of life, so a subscriber
+   pulling a large window cannot expire mid-transfer.)</li>
+<li>If no renewal arrives before the deadline, the server reaps the
+   subscription: filter state gone, buffered rows discarded, any in-flight
+   backfill job cancelled.</li>
+<li>A final <code>log.lease_expired.{sub_id}</code> is published on the way out. This
+   is for the case where the subscriber is not dead but merely wedged — it
+   tells such a client unambiguously that it must re-subscribe, instead of
+   sitting forever waiting for rows that will never come.</li>
+</ol>
+<p>A crashed viewer therefore costs the server at most one lease period of
+buffering, and the mechanism is transport-independent: it would work
+identically over any fan-out that lacks peer visibility.</p>
+<div class="admonition tip">
+<p class="admonition-title">Choosing a lease</p>
+<p>Shorter leases reap faster but cost more control traffic; the default
+30 s means a dead viewer is forgotten within 30 s at a cost of one
+small <code>PUSH</code> every 15 s. Raise it for a viewer on a flaky link, lower
+it if you run many short-lived subscribers.</p>
+</div>
+<h3 id="the-other-failure-a-subscriber-that-is-slow-not-dead">The other failure: a subscriber that is slow, not dead<a class="headerlink" href="#the-other-failure-a-subscriber-that-is-slow-not-dead" title="Permanent link">&para;</a></h3>
+<p>Leases handle death. They do not handle a subscriber that is alive and
+renewing but simply cannot read as fast as the system logs — and left
+alone, that subscriber would grow the server's memory without bound.</p>
+<p>Two bounds apply. Each subscription's row buffer is capped at
+<code>max_pending_rows</code> (default 20 000): past that, the <strong>oldest</strong> buffered
+rows are shed and a running <code>dropped</code> counter is reported in every
+subsequent <code>log.event</code>. Separately, the <code>PUB</code> socket carries a bounded
+<code>pub_sndhwm</code> (default 10 000) so ZeroMQ's own queue for a wedged-but-
+connected peer cannot grow indefinitely either.</p>
+<p><code>dropped</code> climbing is the signal that a viewer is not keeping up and its
+view has gaps. The cures, in order of preference: tighten the filter,
+switch to <code>NOTIFY</code>, or re-backfill to close the gap.</p>
+<h3 id="server-liveness">Server liveness<a class="headerlink" href="#server-liveness" title="Permanent link">&para;</a></h3>
+<p><code>log.server_state</code> is published on the un-suffixed topic — no <code>sub_id</code> —
+every <code>heartbeat_interval_sec</code>, plus once with <code>state: "DOWN"</code> at
+shutdown. Any client can subscribe to it without having subscribed to
+anything else, which makes it the natural way for a UI to show
+"log server up/down" and to read the server's counters before deciding
+what to ask for.</p>
+<p>Absence of <code>log.server_state</code> for more than a couple of intervals is how
+a subscriber distinguishes "the <em>server</em> went away" from "<em>my
+subscription</em> went away" — two situations that need different responses.</p>
+<h3 id="ordering-durability-and-the-slow-joiner-race">Ordering, durability and the slow-joiner race<a class="headerlink" href="#ordering-durability-and-the-slow-joiner-race" title="Permanent link">&para;</a></h3>
+<p>Three guarantees worth stating plainly:</p>
+<p><strong>Rows are published after commit, never before.</strong> The server publishes
+only once the SQLite transaction that assigned each row's <code>seq</code> has
+committed. A subscriber can therefore never observe a row that a
+subsequent crash would have rolled back: the live stream and <code>log.db</code> can
+never disagree.</p>
+<p><strong><code>seq</code> is the ordering key.</strong> It is monotonic and server-assigned; rows
+arrive in ascending <code>seq</code> within and across messages, in both live and
+backfill paths. Use it, not timestamps — <code>client_ts</code> comes from the
+producing process's own clock and two processes' clocks need not agree.</p>
+<p><strong>The first ack can be lost.</strong> This is ZeroMQ's classic <em>slow joiner</em>
+behaviour: <code>connect()</code> completes asynchronously, so a message published
+in the moments after your <code>SUB</code> socket connects may be dropped before
+delivery. LALF-PS handles this by making <code>log.subscribe</code> <strong>idempotent</strong> —
+re-sending it for an existing <code>sub_id</code> replaces the mode and filter,
+renews the lease, and re-emits the ack, while preserving the lifetime
+counters. If you have not seen your ack within a second, simply send
+<code>log.subscribe</code> again.</p>
+<h3 id="error-replies">Error replies<a class="headerlink" href="#error-replies" title="Permanent link">&para;</a></h3>
+<p>Every rejected request is answered on <code>log.error.{sub_id}</code> with a
+machine-readable <code>code</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BAD_REQUEST</code></td>
+<td>Unsupported topic or malformed payload</td>
+<td>Fix the request; do not retry as-is</td>
+</tr>
+<tr>
+<td><code>UNKNOWN_SUB</code></td>
+<td>No such subscription — never created, or already reaped</td>
+<td>Send <code>log.subscribe</code></td>
+</tr>
+<tr>
+<td><code>TOO_MANY_SUBS</code></td>
+<td>Server is at <code>max_subscribers</code></td>
+<td>Back off and retry, or raise the limit</td>
+</tr>
+<tr>
+<td><code>INVALID_FILTER</code></td>
+<td>Malformed <code>filter</code> object</td>
+<td>Fix the filter</td>
+</tr>
+<tr>
+<td><code>INVALID_MODE</code></td>
+<td><code>mode</code> was neither <code>STREAM</code> nor <code>NOTIFY</code></td>
+<td>Fix the mode</td>
+</tr>
+<tr>
+<td><code>INVALID_WINDOW</code></td>
+<td><code>minutes</code> absent, non-positive, or above <code>max_backfill_minutes</code></td>
+<td>Request a smaller window</td>
+</tr>
+<tr>
+<td><code>INTERNAL</code></td>
+<td>Server-side failure, e.g. a backfill query error</td>
+<td>Retry; check the server's stdout logging</td>
+</tr>
+</tbody>
+</table>
+<p>A control message arriving with no usable <code>sub_id</code> is dropped and logged
+server-side — there is no reply topic to answer on.</p>
+<h3 id="a-minimal-subscriber">A minimal subscriber<a class="headerlink" href="#a-minimal-subscriber" title="Permanent link">&para;</a></h3>
+<p>The whole interface in one file. This connects, backfills the last five
+minutes of warnings and above, then tails live while keeping its lease
+alive.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">zmq</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">LOG_SRV_PUB_ADDR</span><span class="p">,</span> <span class="n">LOG_SRV_PULL_ADDR</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.models.message</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">decode</span><span class="p">,</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="n">make_log_renew_msg</span><span class="p">,</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">make_log_subscribe_msg</span><span class="p">,</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">make_log_unsubscribe_msg</span><span class="p">,</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="p">)</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="n">SUB_ID</span> <span class="o">=</span> <span class="s2">&quot;logview-demo&quot;</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="n">ctx</span> <span class="o">=</span> <span class="n">zmq</span><span class="o">.</span><span class="n">Context</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="n">sub</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUB</span><span class="p">)</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="n">sub</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">LOG_SRV_PUB_ADDR</span><span class="p">)</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;log.&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="n">push</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">PUSH</span><span class="p">)</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a><span class="n">push</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">LOG_SRV_PULL_ADDR</span><span class="p">)</span>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.2</span><span class="p">)</span>  <span class="c1"># let both connections settle before the first publish</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a><span class="n">push</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span>
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>    <span class="n">make_log_subscribe_msg</span><span class="p">(</span>
+<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>        <span class="n">SUB_ID</span><span class="p">,</span>
+<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;STREAM&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>        <span class="n">log_filter</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;min_level&quot;</span><span class="p">:</span> <span class="s2">&quot;WARNING&quot;</span><span class="p">},</span>
+<a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a>        <span class="n">backfill_minutes</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+<a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a>    <span class="p">)</span>
+<a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a><span class="p">)</span>
+<a id="__codelineno-6-30" name="__codelineno-6-30" href="#__codelineno-6-30"></a>
+<a id="__codelineno-6-31" name="__codelineno-6-31" href="#__codelineno-6-31"></a><span class="n">renew_every</span> <span class="o">=</span> <span class="mf">15.0</span>          <span class="c1"># updated from the ack&#39;s renew_before_sec</span>
+<a id="__codelineno-6-32" name="__codelineno-6-32" href="#__codelineno-6-32"></a><span class="n">next_renew</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">+</span> <span class="n">renew_every</span>
+<a id="__codelineno-6-33" name="__codelineno-6-33" href="#__codelineno-6-33"></a><span class="n">poller</span> <span class="o">=</span> <span class="n">zmq</span><span class="o">.</span><span class="n">Poller</span><span class="p">()</span>
+<a id="__codelineno-6-34" name="__codelineno-6-34" href="#__codelineno-6-34"></a><span class="n">poller</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">sub</span><span class="p">,</span> <span class="n">zmq</span><span class="o">.</span><span class="n">POLLIN</span><span class="p">)</span>
+<a id="__codelineno-6-35" name="__codelineno-6-35" href="#__codelineno-6-35"></a>
+<a id="__codelineno-6-36" name="__codelineno-6-36" href="#__codelineno-6-36"></a><span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-6-37" name="__codelineno-6-37" href="#__codelineno-6-37"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+<a id="__codelineno-6-38" name="__codelineno-6-38" href="#__codelineno-6-38"></a>        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">dict</span><span class="p">(</span><span class="n">poller</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">250</span><span class="p">)):</span>
+<a id="__codelineno-6-39" name="__codelineno-6-39" href="#__codelineno-6-39"></a>            <span class="n">topic</span><span class="p">,</span> <span class="n">payload</span> <span class="o">=</span> <span class="n">decode</span><span class="p">(</span><span class="n">sub</span><span class="o">.</span><span class="n">recv_multipart</span><span class="p">())</span>
+<a id="__codelineno-6-40" name="__codelineno-6-40" href="#__codelineno-6-40"></a>
+<a id="__codelineno-6-41" name="__codelineno-6-41" href="#__codelineno-6-41"></a>            <span class="k">if</span> <span class="n">topic</span> <span class="o">==</span> <span class="sa">f</span><span class="s2">&quot;log.subscribe_ack.</span><span class="si">{</span><span class="n">SUB_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span>
+<a id="__codelineno-6-42" name="__codelineno-6-42" href="#__codelineno-6-42"></a>                <span class="c1"># Always trust the ack over what you asked for: the server</span>
+<a id="__codelineno-6-43" name="__codelineno-6-43" href="#__codelineno-6-43"></a>                <span class="c1"># clamps the lease and normalises the filter.</span>
+<a id="__codelineno-6-44" name="__codelineno-6-44" href="#__codelineno-6-44"></a>                <span class="n">renew_every</span> <span class="o">=</span> <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;renew_before_sec&quot;</span><span class="p">]</span>
+<a id="__codelineno-6-45" name="__codelineno-6-45" href="#__codelineno-6-45"></a>                <span class="n">next_renew</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">+</span> <span class="n">renew_every</span>
+<a id="__codelineno-6-46" name="__codelineno-6-46" href="#__codelineno-6-46"></a>
+<a id="__codelineno-6-47" name="__codelineno-6-47" href="#__codelineno-6-47"></a>            <span class="k">elif</span> <span class="n">topic</span> <span class="ow">in</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;log.event.</span><span class="si">{</span><span class="n">SUB_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;log.backfill.</span><span class="si">{</span><span class="n">SUB_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">):</span>
+<a id="__codelineno-6-48" name="__codelineno-6-48" href="#__codelineno-6-48"></a>                <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;rows&quot;</span><span class="p">]:</span>
+<a id="__codelineno-6-49" name="__codelineno-6-49" href="#__codelineno-6-49"></a>                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;client_ts&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;level&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">&lt;8</span><span class="si">}</span><span class="s2"> &quot;</span>
+<a id="__codelineno-6-50" name="__codelineno-6-50" href="#__codelineno-6-50"></a>                          <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;process&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">&lt;12</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-51" name="__codelineno-6-51" href="#__codelineno-6-51"></a>                <span class="k">if</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dropped&quot;</span><span class="p">):</span>
+<a id="__codelineno-6-52" name="__codelineno-6-52" href="#__codelineno-6-52"></a>                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;!! </span><span class="si">{</span><span class="n">payload</span><span class="p">[</span><span class="s1">&#39;dropped&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> rows dropped — not keeping up&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-53" name="__codelineno-6-53" href="#__codelineno-6-53"></a>
+<a id="__codelineno-6-54" name="__codelineno-6-54" href="#__codelineno-6-54"></a>            <span class="k">elif</span> <span class="n">topic</span> <span class="o">==</span> <span class="sa">f</span><span class="s2">&quot;log.lease_expired.</span><span class="si">{</span><span class="n">SUB_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span>
+<a id="__codelineno-6-55" name="__codelineno-6-55" href="#__codelineno-6-55"></a>                <span class="c1"># We were reaped. Re-subscribing is always safe.</span>
+<a id="__codelineno-6-56" name="__codelineno-6-56" href="#__codelineno-6-56"></a>                <span class="n">push</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span>
+<a id="__codelineno-6-57" name="__codelineno-6-57" href="#__codelineno-6-57"></a>                    <span class="n">make_log_subscribe_msg</span><span class="p">(</span><span class="n">SUB_ID</span><span class="p">,</span> <span class="s2">&quot;STREAM&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-58" name="__codelineno-6-58" href="#__codelineno-6-58"></a>                                           <span class="p">{</span><span class="s2">&quot;min_level&quot;</span><span class="p">:</span> <span class="s2">&quot;WARNING&quot;</span><span class="p">})</span>
+<a id="__codelineno-6-59" name="__codelineno-6-59" href="#__codelineno-6-59"></a>                <span class="p">)</span>
+<a id="__codelineno-6-60" name="__codelineno-6-60" href="#__codelineno-6-60"></a>
+<a id="__codelineno-6-61" name="__codelineno-6-61" href="#__codelineno-6-61"></a>            <span class="k">elif</span> <span class="n">topic</span> <span class="o">==</span> <span class="s2">&quot;log.server_state&quot;</span> <span class="ow">and</span> <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;state&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;DOWN&quot;</span><span class="p">:</span>
+<a id="__codelineno-6-62" name="__codelineno-6-62" href="#__codelineno-6-62"></a>                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;pm-log-srv is shutting down&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-63" name="__codelineno-6-63" href="#__codelineno-6-63"></a>
+<a id="__codelineno-6-64" name="__codelineno-6-64" href="#__codelineno-6-64"></a>        <span class="k">if</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="n">next_renew</span><span class="p">:</span>
+<a id="__codelineno-6-65" name="__codelineno-6-65" href="#__codelineno-6-65"></a>            <span class="n">push</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span><span class="n">make_log_renew_msg</span><span class="p">(</span><span class="n">SUB_ID</span><span class="p">))</span>
+<a id="__codelineno-6-66" name="__codelineno-6-66" href="#__codelineno-6-66"></a>            <span class="n">next_renew</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">+</span> <span class="n">renew_every</span>
+<a id="__codelineno-6-67" name="__codelineno-6-67" href="#__codelineno-6-67"></a><span class="k">finally</span><span class="p">:</span>
+<a id="__codelineno-6-68" name="__codelineno-6-68" href="#__codelineno-6-68"></a>    <span class="n">push</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span><span class="n">make_log_unsubscribe_msg</span><span class="p">(</span><span class="n">SUB_ID</span><span class="p">))</span>
+<a id="__codelineno-6-69" name="__codelineno-6-69" href="#__codelineno-6-69"></a>    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
+</code></pre></div>
+<p>For a <code>NOTIFY</code>-mode client, replace the <code>mode</code> and handle
+<code>log.notify.{SUB_ID}</code> instead — the payload gives you <code>count</code>, a <code>levels</code>
+breakdown and <code>last_seq</code>, and you read the actual rows from <code>log.db</code>
+yourself with <code>WHERE seq &gt; &lt;your watermark&gt;</code>.</p>
+<h3 id="tuning">Tuning<a class="headerlink" href="#tuning" title="Permanent link">&para;</a></h3>
+<p>All of these live in the <code>log_server:</code> block of <code>engine_config.yaml</code>; see
+<a href="../990-app-config-spec/#67-log_server-pm-log-srv-centralized-lalf-log-collector-logsrvprocspec">the config spec</a>
+for the authoritative table.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Raise it when…</th>
+<th>Lower it when…</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lease_sec</code></td>
+<td><code>30</code></td>
+<td>Subscribers sit on a flaky or high-latency link</td>
+<td>You want dead viewers reaped faster</td>
+</tr>
+<tr>
+<td><code>max_subscribers</code></td>
+<td><code>32</code></td>
+<td>You genuinely run many viewers</td>
+<td>You want a hard guard against runaway clients</td>
+</tr>
+<tr>
+<td><code>notify_interval_ms</code></td>
+<td><code>250</code></td>
+<td>Notify traffic is itself becoming noise</td>
+<td>A UI needs snappier refreshes</td>
+</tr>
+<tr>
+<td><code>backfill_chunk_rows</code></td>
+<td><code>500</code></td>
+<td>Backfills feel slow and the network is fast</td>
+<td>Individual messages are too large for your consumer</td>
+</tr>
+<tr>
+<td><code>max_backfill_minutes</code></td>
+<td><code>1440</code></td>
+<td>Users legitimately want multi-day windows</td>
+<td>You want to protect the server from expensive scans</td>
+</tr>
+<tr>
+<td><code>max_pending_rows</code></td>
+<td><code>20000</code></td>
+<td>Subscribers are bursty but do catch up</td>
+<td>Memory matters more than gap-free delivery</td>
+</tr>
+</tbody>
+</table>
+<h3 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No <code>log.subscribe_ack</code> ever arrives</td>
+<td>Slow-joiner race, or wrong <code>SUBSCRIBE</code> prefix</td>
+<td>Re-send <code>log.subscribe</code> (it is idempotent); check you subscribed to <code>log.</code> or the exact reply topics</td>
+</tr>
+<tr>
+<td>Ack arrives, then nothing</td>
+<td>Filter is stricter than you think, or the system really is quiet</td>
+<td>Inspect the <strong>normalised</strong> <code>filter</code> in the ack; send <code>log.status_request</code>; try <code>min_level: "DEBUG"</code></td>
+</tr>
+<tr>
+<td><code>UNKNOWN_SUB</code> on renew</td>
+<td>Your lease already expired</td>
+<td>Re-send <code>log.subscribe</code>; renew at <code>renew_before_sec</code>, not at <code>lease_sec</code></td>
+</tr>
+<tr>
+<td><code>dropped</code> climbing in <code>log.event</code></td>
+<td>Subscriber is slower than the log volume</td>
+<td>Tighten the filter, switch to <code>NOTIFY</code>, or re-backfill</td>
+</tr>
+<tr>
+<td>Backfill seems to never end</td>
+<td>You stopped reading before <code>done: true</code></td>
+<td>Keep consuming chunks until <code>done</code>; correlate by <code>request_id</code></td>
+</tr>
+<tr>
+<td><code>truncated: true</code> on the last chunk</td>
+<td>Window held more rows than <code>max_backfill_rows</code></td>
+<td>Narrow the window or the filter, or raise the limit</td>
+</tr>
+<tr>
+<td>Nothing at all on <code>:5601</code></td>
+<td>LALF-PS disabled or on other ports</td>
+<td>Check <code>--no-pubsub</code> / <code>pubsub_enabled</code>, and the <code>pub_port</code>/<code>pull_port</code> settings</td>
+</tr>
+<tr>
+<td>Server refuses to start, port error</td>
+<td><code>port</code>, <code>pub_port</code> and <code>pull_port</code> are not all distinct</td>
+<td>Give each a different port</td>
+</tr>
+</tbody>
+</table>
+<p>For the complete normative field tables of every LALF-PS message, see
+<a href="../270-message-reference/#lalf-ps-messages-log-subscriber-pm-log-srv">Message Reference — LALF-PS messages</a>.</p>
+<h2 id="pm-log-cli-querytroubleshooting-tool">pm-log-cli — Query/Troubleshooting Tool<a class="headerlink" href="#pm-log-cli-querytroubleshooting-tool" title="Permanent link">&para;</a></h2>
+<p><code>pm-log-cli</code> is a read-only command-line tool for querying and
+troubleshooting <code>log.db</code> — no LALF/TCP connection is made, so a busy, slow,
+or currently-stopped <code>pm-log-srv</code> never blocks you from inspecting data it
+already collected.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-log-cli<span class="w"> </span><span class="o">[</span>global-options<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>command-options<span class="o">]</span>
+</code></pre></div>
+<h3 id="global-options">Global options<a class="headerlink" href="#global-options" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--db PATH</code></td>
+<td><code>data/log.db</code></td>
+<td>SQLite database path</td>
+</tr>
+<tr>
+<td><code>--format human\|json</code></td>
+<td><code>human</code></td>
+<td>Output format</td>
+</tr>
+</tbody>
+</table>
+<p><code>--format</code> is accepted both before and after the subcommand — both
+<code>pm-log-cli --format json query</code> and <code>pm-log-cli query --format json</code> work,
+since a value given after the subcommand always wins if both are present.</p>
+<p><strong>Output formats:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>human</code></td>
+<td>Interactive terminal — aligned columns, level-colored when the terminal supports it</td>
+</tr>
+<tr>
+<td><code>json</code></td>
+<td>Automation, scripts, downstream processing — one JSON object per row for <code>tail</code>/<code>query</code>/<code>processes</code>, a single JSON object for <code>stats</code>/<code>diagnose</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>No-result behaviour:</strong></p>
+<ul>
+<li><code>human</code>: prints <code>No matching log events found.</code></li>
+<li><code>json</code>: prints nothing (an empty stream of lines) for row-based commands</li>
+</ul>
+<h3 id="exit-codes">Exit codes<a class="headerlink" href="#exit-codes" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0</code></td>
+<td>Success</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>Database error — <code>log.db</code> not found or not readable (has <code>pm-log-srv</code> ever run?)</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td>Argument error (invalid flag combination)</td>
+</tr>
+<tr>
+<td><code>3</code></td>
+<td><code>diagnose</code> found at least one issue (only meaningful for scripting; <code>query</code>/<code>tail</code>/<code>stats</code>/<code>processes</code>/<code>prune</code> never use this code)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="query-filtered-historical-search"><code>query</code> — Filtered historical search<a class="headerlink" href="#query-filtered-historical-search" title="Permanent link">&para;</a></h3>
+<p>The most flexible command — filter by process, level, logger, time range,
+free text, or exception presence.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--process NAME</code></td>
+<td>(all)</td>
+<td>Exact match against the process name</td>
+</tr>
+<tr>
+<td><code>--level LEVEL[,LEVEL...]</code></td>
+<td>(all)</td>
+<td>One or more of <code>DEBUG,INFO,WARNING,ERROR,CRITICAL</code></td>
+</tr>
+<tr>
+<td><code>--logger PATTERN</code></td>
+<td>(all)</td>
+<td>SQL <code>LIKE</code> pattern against the logger name (e.g. <code>edumatcher.md_gateway.%</code>)</td>
+</tr>
+<tr>
+<td><code>--since ISO_TS</code></td>
+<td>(none)</td>
+<td>Start of time range against <code>client_ts</code></td>
+</tr>
+<tr>
+<td><code>--until ISO_TS</code></td>
+<td>(none)</td>
+<td>End of time range against <code>client_ts</code></td>
+</tr>
+<tr>
+<td><code>--grep TEXT</code></td>
+<td>(none)</td>
+<td>Case-insensitive substring search against the message</td>
+</tr>
+<tr>
+<td><code>--has-exception</code></td>
+<td>off</td>
+<td>Only rows with a formatted exception/traceback attached</td>
+</tr>
+<tr>
+<td><code>--limit N</code></td>
+<td><code>500</code></td>
+<td>Maximum rows returned</td>
+</tr>
+<tr>
+<td><code>--reverse</code></td>
+<td>off</td>
+<td>Oldest-first instead of newest-first</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Output columns:</strong> <code>seq</code>, <code>client_ts</code>, <code>process</code>, <code>instance</code>, <code>level</code>,
+<code>logger</code>, <code>message</code>.</p>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Every ERROR/CRITICAL from a specific process</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--process<span class="w"> </span>pm-md-gwy<span class="w"> </span>--level<span class="w"> </span>ERROR,CRITICAL
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># Rows with an attached traceback, most recent first</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--has-exception<span class="w"> </span>--limit<span class="w"> </span><span class="m">20</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># Free-text search across every process&#39;s messages</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--grep<span class="w"> </span><span class="s2">&quot;Connection reset&quot;</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="c1"># One process&#39;s logging for a specific subsystem</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--process<span class="w"> </span>pm-api-gwy<span class="w"> </span>--logger<span class="w"> </span><span class="s2">&quot;edumatcher.api_gateway.%&quot;</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="c1"># A specific time window, oldest first</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--since<span class="w"> </span><span class="m">2026</span>-07-28T09:30:00.000Z<span class="w"> </span>--until<span class="w"> </span><span class="m">2026</span>-07-28T09:35:00.000Z<span class="w"> </span>--reverse
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="c1"># Export as JSON for further processing</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--process<span class="w"> </span>pm-engine<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>--limit<span class="w"> </span><span class="m">5000</span><span class="w"> </span>&gt;<span class="w"> </span>engine_log.json
+</code></pre></div>
+<h3 id="tail-follow-new-rows-in-real-time"><code>tail</code> — Follow new rows in real time<a class="headerlink" href="#tail-follow-new-rows-in-real-time" title="Permanent link">&para;</a></h3>
+<p>Polls for new rows past the highest sequence number already shown and
+prints them as they arrive. There is no push-based subscription — <code>tail</code>
+polls on <code>--interval</code> seconds.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-log-cli<span class="w"> </span>tail<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--process NAME</code></td>
+<td>(all)</td>
+<td>Filter by process name</td>
+</tr>
+<tr>
+<td><code>--level LEVEL[,LEVEL...]</code></td>
+<td>(all)</td>
+<td>Filter by one or more levels</td>
+</tr>
+<tr>
+<td><code>--logger PATTERN</code></td>
+<td>(all)</td>
+<td>SQL <code>LIKE</code> pattern on logger</td>
+</tr>
+<tr>
+<td><code>--interval SEC</code></td>
+<td><code>1.0</code></td>
+<td>Polling interval</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Follow everything as it arrives</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-log-cli<span class="w"> </span>tail
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Follow only one process&#39;s warnings and above</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>pm-log-cli<span class="w"> </span>tail<span class="w"> </span>--process<span class="w"> </span>pm-md-gwy<span class="w"> </span>--level<span class="w"> </span>WARNING,ERROR,CRITICAL
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Follow as JSON for piping into another tool</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>pm-log-cli<span class="w"> </span>tail<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>.
+</code></pre></div>
+<p>Stop with Ctrl-C.</p>
+<h3 id="processes-connectedrecently-connected-processes"><code>processes</code> — Connected/recently-connected processes<a class="headerlink" href="#processes-connectedrecently-connected-processes" title="Permanent link">&para;</a></h3>
+<p>Lists rows from the connection registry — a quick "what's currently sending
+logs" view.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-log-cli<span class="w"> </span>processes<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--active</code></td>
+<td>off</td>
+<td>Only currently-connected sessions (no <code>disconnected_at</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Output columns:</strong> <code>process</code>, <code>instance</code>, <code>pid</code>, <code>host</code>, <code>connected_at</code>,
+<code>last_seen_at</code>, <code>log_count</code>.</p>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Every session seen, connected or not</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-log-cli<span class="w"> </span>processes
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1"># Only processes still connected right now</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>pm-log-cli<span class="w"> </span>processes<span class="w"> </span>--active
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="c1"># Export as JSON for a dashboard</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>pm-log-cli<span class="w"> </span>processes<span class="w"> </span>--format<span class="w"> </span>json
+</code></pre></div>
+<h3 id="stats-server-database-health-summary"><code>stats</code> — Server + database health summary<a class="headerlink" href="#stats-server-database-health-summary" title="Permanent link">&para;</a></h3>
+<p>Reports <code>pm-log-srv</code>'s own lifetime counters plus a handful of cheap
+aggregate queries over <code>log.db</code> — a quick "is logging healthy" dashboard.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-log-cli<span class="w"> </span>stats
+</code></pre></div>
+<p><strong>Example output:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-log-srv Statistics
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>========================================
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>  Started at:        2026-07-28T22:26:30.202Z
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>  Total log events:  3
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>  Total connections: 1
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>  Total truncated:   0
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>  Total errors sent: 0
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>  Rows in log.db:    3
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>  DB file size:      45,056 bytes
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>  By level:
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>    ERROR      1
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a>    INFO       1
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a>    WARNING    1
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a>
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a>  By process:
+<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a>    pm-md-gwy            3
+</code></pre></div>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># Quick health check</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>pm-log-cli<span class="w"> </span>stats
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># Machine-readable for monitoring/automation</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>pm-log-cli<span class="w"> </span>stats<span class="w"> </span>--format<span class="w"> </span>json
+</code></pre></div>
+<h3 id="diagnose-rule-based-troubleshooting-report"><code>diagnose</code> — Rule-based troubleshooting report<a class="headerlink" href="#diagnose-rule-based-troubleshooting-report" title="Permanent link">&para;</a></h3>
+<p>Applies a small, fixed, documented set of rule-based heuristics against
+stored logs and reports likely causes plus concrete, reproducible
+recommendations. Every heuristic is a plain SQL aggregate query plus a fixed
+threshold, not a statistical or ML model — "why did it flag this" always
+has a one-sentence, inspectable answer.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-log-cli<span class="w"> </span>diagnose<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--since ISO_TS</code></td>
+<td>(all)</td>
+<td>Restrict to events since this time</td>
+</tr>
+<tr>
+<td><code>--process NAME</code></td>
+<td>(all)</td>
+<td>Restrict to a specific process</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The seven heuristics:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Heuristic</th>
+<th>What it detects</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Error-rate spike</td>
+<td>ERROR/CRITICAL count in the last 5 minutes far exceeds the preceding hour's baseline for a process</td>
+</tr>
+<tr>
+<td>Repeated identical warning</td>
+<td>The same <code>(process, logger, message)</code> triple repeats many times in the queried window</td>
+</tr>
+<tr>
+<td>Process silence</td>
+<td>A still-connected session has not logged or heartbeated recently despite an open connection</td>
+</tr>
+<tr>
+<td>Clock skew</td>
+<td>A process's <code>client_ts</code> is consistently ahead of or behind <code>pm-log-srv</code>'s own clock</td>
+</tr>
+<tr>
+<td>Truncated-message rate</td>
+<td>A process sent one or more oversized log messages that were truncated</td>
+</tr>
+<tr>
+<td>Exception clustering</td>
+<td>Most tracebacks in the window come from one specific logger</td>
+</tr>
+<tr>
+<td>Likely fallback-to-file event</td>
+<td>A process cleanly disconnected and never reconnected, distinct from a merely-stalled-but-open session</td>
+</tr>
+</tbody>
+</table>
+<p>Each finding cites the exact <code>pm-log-cli query</code> invocation that would
+reproduce it, so you can always drill from "here's what's flagged" to "here
+are the actual log lines." When no heuristic fires, <code>diagnose</code> reports "no
+issues detected" rather than printing nothing — a clean run is visibly a
+clean run. Exit code <code>3</code> signals at least one finding, useful for scripting
+a periodic health check.</p>
+<p><strong>Example output (an issue found):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[WARNING] repeated_warning: pm-api-gwy logged &quot;ENGINE_TIMEOUT&quot; 47 times in the last hour
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>  Recommendation: Investigate why edumatcher.api_gateway.engine_client keeps repeating this message; it may indicate a stuck retry loop or a persistent misconfiguration.
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>  Reproduce with: pm-log-cli query --process pm-api-gwy --logger &#39;edumatcher.api_gateway.engine_client&#39; --grep &#39;ENGINE_TIMEOUT&#39;
+</code></pre></div>
+<p><strong>Example output (clean session):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>No issues detected in the queried window.
+</code></pre></div>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># Full-database health check</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>pm-log-cli<span class="w"> </span>diagnose
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="c1"># Restrict to one process</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>pm-log-cli<span class="w"> </span>diagnose<span class="w"> </span>--process<span class="w"> </span>pm-md-gwy
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="c1"># Restrict to the last hour</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>pm-log-cli<span class="w"> </span>diagnose<span class="w"> </span>--since<span class="w"> </span><span class="m">2026</span>-07-28T13:00:00.000Z
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="c1"># Scripted health check — non-zero exit means something was flagged</span>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a>pm-log-cli<span class="w"> </span>diagnose<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;logging issues detected, see above&quot;</span>
+</code></pre></div>
+<h3 id="prune-manual-retention-pruning"><code>prune</code> — Manual retention pruning<a class="headerlink" href="#prune-manual-retention-pruning" title="Permanent link">&para;</a></h3>
+<p>Deletes <code>log_events</code> rows older than a given number of days — the same
+operation <code>pm-log-srv</code> already runs automatically once per hour, exposed
+here for on-demand use (e.g. before archiving <code>log.db</code>, or to shrink it
+immediately rather than waiting for the next scheduled pass).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-log-cli<span class="w"> </span>prune<span class="w"> </span><span class="o">[</span>--days<span class="w"> </span>N<span class="o">]</span>
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--days N</code></td>
+<td><code>30</code></td>
+<td>Delete rows with <code>client_ts</code> older than N days</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># Prune using the default 30-day window</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>pm-log-cli<span class="w"> </span>prune
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="c1"># Aggressive pruning before archiving</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>pm-log-cli<span class="w"> </span>prune<span class="w"> </span>--days<span class="w"> </span><span class="m">7</span>
+</code></pre></div>
+<p><code>prune</code> is the one subcommand that opens <code>log.db</code> for writing rather than
+read-only, since it needs to delete rows; it is still safe to run while
+<code>pm-log-srv</code> is running, since SQLite serializes the two writers.</p>
+<h2 id="cookbook-common-log-server-workflows">Cookbook — Common Log-Server Workflows<a class="headerlink" href="#cookbook-common-log-server-workflows" title="Permanent link">&para;</a></h2>
+<p>Examples below are grouped by the kind of question you're trying to answer.</p>
+<h3 id="watching-a-live-session">Watching a live session<a class="headerlink" href="#watching-a-live-session" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># Follow everything as it happens</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>pm-log-cli<span class="w"> </span>tail
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="c1"># Follow just the warnings and errors across every process</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>pm-log-cli<span class="w"> </span>tail<span class="w"> </span>--level<span class="w"> </span>WARNING,ERROR,CRITICAL
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="c1"># Follow one specific gateway</span>
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>pm-log-cli<span class="w"> </span>tail<span class="w"> </span>--process<span class="w"> </span>pm-md-gwy
+</code></pre></div>
+<p><code>pm-log-cli tail</code> polls <code>log.db</code>, which is exactly right for a terminal
+you are watching for a few minutes. For anything long-lived and
+interactive — a viewer window, a dashboard — subscribe over
+<a href="#lalf-ps-the-zeromq-log-distribution-interface">LALF-PS</a> instead and be
+pushed rows as they land.</p>
+<h3 id="investigating-an-error-after-the-fact">Investigating an error after the fact<a class="headerlink" href="#investigating-an-error-after-the-fact" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># All errors in the last hour</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--level<span class="w"> </span>ERROR,CRITICAL<span class="w"> </span>--since<span class="w"> </span><span class="m">2026</span>-07-28T13:00:00.000Z
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="c1"># All rows with an attached traceback</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--has-exception
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="c1"># Full traceback text for one specific event, exported for a support ticket</span>
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--process<span class="w"> </span>pm-md-gwy<span class="w"> </span>--has-exception<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span>
+</code></pre></div>
+<h3 id="checking-whether-every-process-is-still-reporting-in">Checking whether every process is still reporting in<a class="headerlink" href="#checking-whether-every-process-is-still-reporting-in" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># Everything currently connected</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>pm-log-cli<span class="w"> </span>processes<span class="w"> </span>--active
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="c1"># Everything ever seen, to spot a process that connected once and vanished</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>pm-log-cli<span class="w"> </span>processes
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="c1"># Automated health check — flags process silence and fallback-to-file events</span>
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>pm-log-cli<span class="w"> </span>diagnose
+</code></pre></div>
+<h3 id="free-text-searching-across-the-whole-system">Free-text searching across the whole system<a class="headerlink" href="#free-text-searching-across-the-whole-system" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># Find every mention of a specific error string, any process</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--grep<span class="w"> </span><span class="s2">&quot;Connection reset&quot;</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="c1"># Narrow to one subsystem&#39;s loggers</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--grep<span class="w"> </span><span class="s2">&quot;timeout&quot;</span><span class="w"> </span>--logger<span class="w"> </span><span class="s2">&quot;edumatcher.api_gateway.%&quot;</span>
+</code></pre></div>
+<h3 id="exporting-for-external-analysis">Exporting for external analysis<a class="headerlink" href="#exporting-for-external-analysis" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Export a whole day&#39;s logging for one process</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--process<span class="w"> </span>pm-engine<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">  </span>--since<span class="w"> </span><span class="m">2026</span>-07-28T00:00:00.000Z<span class="w"> </span>--until<span class="w"> </span><span class="m">2026</span>-07-28T23:59:59.000Z<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">  </span>--format<span class="w"> </span>json<span class="w"> </span>--limit<span class="w"> </span><span class="m">100000</span><span class="w"> </span>&gt;<span class="w"> </span>pm-engine_2026-07-28.json
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="c1"># Export the full stats snapshot for a dashboard</span>
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>pm-log-cli<span class="w"> </span>stats<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>&gt;<span class="w"> </span>log_stats.json
+</code></pre></div>
+<h3 id="routine-maintenance">Routine maintenance<a class="headerlink" href="#routine-maintenance" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># Quick health check before end of day</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>pm-log-cli<span class="w"> </span>stats
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>pm-log-cli<span class="w"> </span>diagnose
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="c1"># Prune early if log.db is getting large before its scheduled hourly prune</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>pm-log-cli<span class="w"> </span>prune<span class="w"> </span>--days<span class="w"> </span><span class="m">30</span>
+</code></pre></div>
+<h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Exit code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0</code></td>
+<td>Success</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>Database not found or not readable — has <code>pm-log-srv</code> ever run?</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td>Argument error</td>
+</tr>
+<tr>
+<td><code>3</code></td>
+<td><code>diagnose</code> found at least one issue</td>
+</tr>
+</tbody>
+</table>
+<p>Unlike <code>pm-audit-cli</code>, <code>pm-log-cli</code> has no separate index-building step and
+no rotated-file discovery — <code>log.db</code> is a single SQLite file and every
+subcommand reads (or, for <code>prune</code>, writes) it directly.</p>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../940-app-lalf-protocol/">LALF Protocol Reference</a> — normative wire specification for anyone implementing a LALF client</li>
+<li><a href="../270-message-reference/#lalf-ps-messages-log-subscriber-pm-log-srv">Message Reference — LALF-PS messages</a> — normative field tables for every LALF-PS message</li>
+<li><a href="../170-processes/#pm-log-srv-centralized-log-server">Processes — pm-log-srv / pm-log-cli</a> — startup reference tables in the process overview</li>
+<li><a href="../010-configuration/#configuring-pm-log-srv">Configuration — Configuring pm-log-srv</a> — the <code>log_server:</code> config block field reference</li>
+<li><a href="../190-audit/">Audit Trail</a> — the equivalent dedicated-collector pattern for trading events (<code>pm-audit</code>/<code>pm-audit-cli</code>)</li>
+<li><a href="../140-statistics-and-reporting/">Statistics and Reporting</a> — the equivalent dedicated-collector pattern for market data (<code>pm-stats</code>/<code>pm-stats-cli</code>)</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

@@ -1043,10 +1043,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#layer-2-schema-s001s086" class="md-nav__link">
+  <a href="#layer-2-schema-s001s103" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Layer 2 — Schema (S001–S086)
+        Layer 2 — Schema (S001–S103)
       
     </span>
   </a>
@@ -1969,6 +1969,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../280-log-srv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -2145,6 +2173,34 @@
     
   
     Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../940-app-lalf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: LALF Protocol
   
 
     
@@ -3475,8 +3531,9 @@
 guide and <a href="../990-app-config-spec/">App Config Spec</a> for the normative field
 reference) covers symbols, gateways, risk controls, collar bands,
 circuit breakers, market-maker obligations, session schedules, combo seeds,
-index definitions, and five optional gateway subsystems (<code>alf_gateway</code>,
-<code>balf_gateway</code>, <code>post_trade_gateway</code>, <code>market_data_gateway</code>, <code>api_gateways</code>).
+index definitions, and seven optional gateway subsystems (<code>alf_gateway</code>,
+<code>balf_gateway</code>, <code>post_trade_gateway</code>, <code>market_data_gateway</code>, <code>dc_gateway</code>,
+<code>log_server</code>, <code>api_gateways</code>).
 Getting all of this right by hand is error-prone.</p>
 <p>The current engine loader (<code>load_engine_config()</code>) reports only the <em>first</em> hard
 error it encounters before aborting.  This means operators spend time in a
@@ -3680,7 +3737,7 @@ reporting scripts.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="layer-2-schema-s001s086">Layer 2 — Schema (<code>S001</code>–<code>S086</code>)<a class="headerlink" href="#layer-2-schema-s001s086" title="Permanent link">&para;</a></h3>
+<h3 id="layer-2-schema-s001s103">Layer 2 — Schema (<code>S001</code>–<code>S103</code>)<a class="headerlink" href="#layer-2-schema-s001s103" title="Permanent link">&para;</a></h3>
 <p><strong>Top-level structure</strong></p>
 <table>
 <thead>
@@ -4148,6 +4205,103 @@ key <code>api_gateway</code> instead of <code>api_gateways</code> — see the <a
 </tr>
 </tbody>
 </table>
+<p><strong>Drop-copy gateway fields (<code>dc_gateway</code>)</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S090</code></td>
+<td><code>dc_gateway</code> is present but not a mapping</td>
+</tr>
+<tr>
+<td><code>S091</code></td>
+<td><code>dc_gateway.port</code> not an integer in <code>1..65535</code></td>
+</tr>
+<tr>
+<td><code>S092</code></td>
+<td><code>dc_gateway.name</code> or <code>.bind_address</code> blank or not a string</td>
+</tr>
+<tr>
+<td><code>S093</code></td>
+<td><code>dc_gateway.max_client_queue</code> not a positive integer</td>
+</tr>
+<tr>
+<td><code>S094</code></td>
+<td><code>dc_gateway.heartbeat_interval_sec</code> or <code>.idle_timeout_sec</code> not a positive number</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Log server fields (<code>log_server</code>)</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S095</code></td>
+<td><code>log_server</code> is present but not a mapping</td>
+</tr>
+<tr>
+<td><code>S096</code></td>
+<td><code>log_server.enabled</code> or <code>.pubsub_enabled</code> present but not a boolean</td>
+</tr>
+<tr>
+<td><code>S097</code></td>
+<td><code>log_server.port</code>, <code>.pub_port</code>, or <code>.pull_port</code> not an integer in <code>1..65535</code></td>
+</tr>
+<tr>
+<td><code>S098</code></td>
+<td><code>log_server.name</code>, <code>.bind_address</code>, or <code>.db_path</code> blank or not a string</td>
+</tr>
+<tr>
+<td><code>S099</code></td>
+<td><code>log_server.max_message_bytes</code>, <code>.max_client_queue</code>, <code>.write_batch_size</code>, <code>.write_batch_interval_ms</code>, <code>.heartbeat_interval_sec</code>, <code>.lease_sec</code>, <code>.max_lease_sec</code>, <code>.max_subscribers</code>, <code>.notify_interval_ms</code>, <code>.backfill_chunk_rows</code>, <code>.max_backfill_minutes</code>, <code>.max_backfill_rows</code>, <code>.max_pending_rows</code>, or <code>.pub_sndhwm</code> not a positive integer</td>
+</tr>
+<tr>
+<td><code>S100</code></td>
+<td><code>log_server.retention_days</code> present but not a non-negative integer (or <code>null</code>)</td>
+</tr>
+<tr>
+<td><code>S101</code></td>
+<td><code>log_server</code> fails runtime-loader validation for a reason not covered by <code>S095</code>–<code>S103</code> (drift safety net; only fires when none of those already reported)</td>
+</tr>
+<tr>
+<td><code>S102</code></td>
+<td>Two of <code>log_server.port</code>, <code>.pub_port</code>, <code>.pull_port</code> resolve to the same port</td>
+</tr>
+<tr>
+<td><code>S103</code></td>
+<td><code>log_server.max_lease_sec</code> is below <code>log_server.lease_sec</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>log_server.retention_days</code> follows the same convention documented in
+<a href="../010-configuration/#configuring-pm-log-srv">Configuring <code>pm-log-srv</code></a>: <code>0</code>
+and <code>null</code> both mean unbounded retention, so <code>S100</code> only fires on a negative
+value or a non-integer type, never on <code>0</code>.</p>
+<p><code>S102</code> and <code>S103</code> cover the two LALF-PS rules that involve more than one
+field, and both are conditions <code>pm-log-srv</code> refuses to start on:</p>
+<ul>
+<li><strong><code>S102</code></strong> — <code>pm-log-srv</code> binds three listeners: LALF/TCP on <code>port</code>, and
+  the LALF-PS ZeroMQ <code>PUB</code>/<code>PULL</code> sockets on <code>pub_port</code>/<code>pull_port</code>. The
+  check compares <em>effective</em> values, applying each field's own default when
+  the key is omitted, so writing <code>pub_port: 5600</code> collides with the default
+  LALF port just as surely as two explicit duplicates would.</li>
+<li><strong><code>S103</code></strong> — <code>max_lease_sec</code> is the ceiling applied to a subscriber's
+  requested <code>lease_sec</code>. A ceiling below the server's own default lease
+  would make that default unreachable, which is incoherent rather than
+  merely unusual.</li>
+</ul>
+<p>See <a href="../280-log-srv/#lalf-ps-the-zeromq-log-distribution-interface">LALF-PS</a>
+for what these fields do.</p>
 <h3 id="layer-3-semantic-m001m025">Layer 3 — Semantic (<code>M001</code>–<code>M025</code>)<a class="headerlink" href="#layer-3-semantic-m001m025" title="Permanent link">&para;</a></h3>
 <p><code>M014</code> is currently emitted during the schema pass because CB threshold ordering
 is validated while parsing <code>circuit_breaker_defaults</code>.</p>
@@ -4248,7 +4402,7 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <tr>
 <td><code>M018</code></td>
 <td>ERROR</td>
-<td>Two configured gateway sections (<code>alf_gateway</code>, <code>balf_gateway</code>, <code>post_trade_gateway</code>, <code>market_data_gateway</code>, or any <code>api_gateways.&lt;name&gt;</code>) are bound to the same port</td>
+<td>Two configured listeners are bound to the same port. Covers <code>alf_gateway</code>, <code>balf_gateway</code>, <code>post_trade_gateway</code>, <code>market_data_gateway</code>, <code>dc_gateway</code>, every <code>api_gateways.&lt;name&gt;</code>, and all three of <code>log_server</code>'s own ports — <code>port</code> (LALF/TCP) plus <code>pub_port</code>/<code>pull_port</code> (LALF-PS), the latter two skipped when <code>pubsub_enabled: false</code> since a disabled interface binds nothing</td>
 </tr>
 <tr>
 <td><code>M019</code></td>

@@ -1745,6 +1745,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../280-log-srv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -2764,6 +2792,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SESSION
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#qboot" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2936,6 +2975,34 @@
     
   
     Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../940-app-lalf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: LALF Protocol
   
 
     
@@ -4531,7 +4598,7 @@ has none configured) — see
 is different from sending <code>SMP=NONE</code> explicitly, which is always honoured
 as-is even if the gateway has a non-<code>NONE</code> default configured.</p>
 <h2 id="command-families">Command families<a class="headerlink" href="#command-families" title="Permanent link">&para;</a></h2>
-<p>ALF commands fall into three groups:</p>
+<p>ALF commands fall into five groups:</p>
 <table>
 <thead>
 <tr>
@@ -4542,11 +4609,15 @@ as-is even if the gateway has a non-<code>NONE</code> default configured.</p>
 <tbody>
 <tr>
 <td>Trading commands forwarded to the engine</td>
-<td><code>NEW</code>, <code>AMEND</code>, <code>CANCEL</code>, <code>QUOTE</code>, <code>QUOTE_CANCEL</code>, <code>KILL</code>, <code>SYMBOLS</code>, <code>QBOOT</code></td>
+<td><code>NEW</code>, <code>AMEND</code>, <code>CANCEL</code>, <code>QUOTE</code>, <code>QUOTE_CANCEL</code>, <code>KILL</code>, <code>SYMBOLS</code>, <code>ORDERS</code>, <code>QBOOT</code>, <code>SESSION</code></td>
 </tr>
 <tr>
-<td>Gateway-local informational commands</td>
-<td><code>STATUS</code>, <code>ORDERS</code>, <code>POS</code>, <code>QLEGS</code>, <code>HELP</code></td>
+<td>Client-local informational commands</td>
+<td><code>STATUS</code>, <code>POS</code>, <code>HELP</code></td>
+</tr>
+<tr>
+<td>Divergent between clients (see note below)</td>
+<td><code>QLEGS</code></td>
 </tr>
 <tr>
 <td>Drop-copy relay control (gateway-local)</td>
@@ -4560,6 +4631,22 @@ as-is even if the gateway has a non-<code>NONE</code> default configured.</p>
 </table>
 <p>If you are writing another interface that wants to submit orders, the most
 important commands are the <strong>trading commands</strong>.</p>
+<div class="admonition note">
+<p class="admonition-title"><code>QLEGS</code> behaves differently in each client</p>
+<p>Every other command in the "trading commands" row above is a genuine
+engine round trip in <strong>both</strong> <code>pm-alf-console</code> and <code>pm-alf-gwy</code>. <code>QLEGS</code>
+is the one exception: in <code>pm-alf-console</code> it renders entirely from a
+local, session-scoped cache built by observing this session's own
+quote/fill/cancel events and never contacts the engine, while
+<code>pm-alf-gwy</code> forwards it to the engine's <code>system.quote_legs_request</code> and
+renders the engine's authoritative reply. The command syntax and output
+columns are identical either way — see the <a href="#qlegs"><code>QLEGS</code></a> section
+below and <a href="../220-alf-gateway/#qlegs-quote-leg-snapshot-active-recent">ALF TCP Gateway → QLEGS</a>
+for the <code>pm-alf-gwy</code> wire format.</p>
+<p><code>STATUS</code> and <code>POS</code> are <code>pm-alf-console</code>-only: <code>pm-alf-gwy</code> rejects both
+with <code>ERR|CODE=UNKNOWN_COMMAND</code> since it has no interactive terminal to
+print a summary to.</p>
+</div>
 <h2 id="single-leg-new-orders">Single-leg <code>NEW</code> orders<a class="headerlink" href="#single-leg-new-orders" title="Permanent link">&para;</a></h2>
 <h3 id="generic-form">Generic form<a class="headerlink" href="#generic-form" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>NEW|SYM=&lt;symbol&gt;|SIDE=&lt;BUY|SELL&gt;|TYPE=&lt;order-type&gt;|QTY=&lt;quantity&gt;[|...]
@@ -5259,9 +5346,24 @@ last update time.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-58-1" name="__codelineno-58-1" href="#__codelineno-58-1"></a>SYMBOLS
 </code></pre></div>
 <p>Requests the currently active symbols from the engine.</p>
+<h3 id="session"><code>SESSION</code><a class="headerlink" href="#session" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-59-1" name="__codelineno-59-1" href="#__codelineno-59-1"></a>SESSION
+</code></pre></div>
+<p>Requests the engine's current trading session state (<code>PRE_OPEN</code>,
+<code>OPENING_AUCTION</code>, <code>CONTINUOUS</code>, <code>CLOSING_AUCTION</code>, <code>CLOSED</code>) without waiting
+for the next unsolicited session-phase-change broadcast. Useful right after
+connecting, so a client can discover the current phase instead of only
+learning about it on the <em>next</em> transition.</p>
+<p>The reply reuses the same message shape as the unsolicited session-state
+broadcast, with <code>PREV_STATE</code> left empty (a query has no previous state to
+report) and an added <code>SESSIONS_ENABLED</code> field:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-60-1" name="__codelineno-60-1" href="#__codelineno-60-1"></a>SESSION|STATE=CONTINUOUS|PREV_STATE=|SESSIONS_ENABLED=TRUE
+</code></pre></div>
+<p>See <a href="../270-message-reference/#systemsession_state_request"><code>system.session_state_request</code></a>
+for the underlying engine message.</p>
 <h3 id="qboot"><code>QBOOT</code><a class="headerlink" href="#qboot" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-59-1" name="__codelineno-59-1" href="#__codelineno-59-1"></a>QBOOT
-<a id="__codelineno-59-2" name="__codelineno-59-2" href="#__codelineno-59-2"></a>QBOOT|SYM=&lt;symbol&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-61-1" name="__codelineno-61-1" href="#__codelineno-61-1"></a>QBOOT
+<a id="__codelineno-61-2" name="__codelineno-61-2" href="#__codelineno-61-2"></a>QBOOT|SYM=&lt;symbol&gt;
 </code></pre></div>
 <p>Requests active quote bootstrap state for the current gateway from the engine.</p>
 <p>This is intended for MM startup/reconnect flows where quote legs may have been
@@ -5270,18 +5372,27 @@ table of active quote bootstrap entries including quote id, symbol, state,
 bid/ask prices, and remaining quantities.</p>
 <p>Use <code>QBOOT|SYM=&lt;symbol&gt;</code> when you only need one symbol.</p>
 <h3 id="qlegs"><code>QLEGS</code><a class="headerlink" href="#qlegs" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-60-1" name="__codelineno-60-1" href="#__codelineno-60-1"></a>QLEGS
-<a id="__codelineno-60-2" name="__codelineno-60-2" href="#__codelineno-60-2"></a>QLEGS|SYM=&lt;symbol&gt;
-<a id="__codelineno-60-3" name="__codelineno-60-3" href="#__codelineno-60-3"></a>QLEGS|SHOW=&lt;ACTIVE|RECENT|ALL&gt;
-<a id="__codelineno-60-4" name="__codelineno-60-4" href="#__codelineno-60-4"></a>QLEGS|SYM=&lt;symbol&gt;|SHOW=&lt;ACTIVE|RECENT|ALL&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-62-1" name="__codelineno-62-1" href="#__codelineno-62-1"></a>QLEGS
+<a id="__codelineno-62-2" name="__codelineno-62-2" href="#__codelineno-62-2"></a>QLEGS|SYM=&lt;symbol&gt;
+<a id="__codelineno-62-3" name="__codelineno-62-3" href="#__codelineno-62-3"></a>QLEGS|SHOW=&lt;ACTIVE|RECENT|ALL&gt;
+<a id="__codelineno-62-4" name="__codelineno-62-4" href="#__codelineno-62-4"></a>QLEGS|SYM=&lt;symbol&gt;|SHOW=&lt;ACTIVE|RECENT|ALL&gt;
 </code></pre></div>
-<p>Prints the gateway's local quote-leg projection for market-maker quote
-lifecycle monitoring. This command is read-only and does not send modify or
-cancel actions to the engine.</p>
-<p><code>QLEGS</code> is designed to reduce cognitive load when operating a market-maker
-gateway by showing quote legs with explicit fill state, remaining size, and
-latest lifecycle status in one place.</p>
-<p>Field behavior:</p>
+<p>Shows market-maker quote legs with explicit fill state, remaining size, and
+latest lifecycle status in one place. The command syntax, filtering, and
+output columns are identical across both ALF clients, but <strong>the two clients
+answer it differently</strong>:</p>
+<ul>
+<li><strong><code>pm-alf-console</code></strong>: read-only, purely local. It renders from this
+  session's own in-memory quote-leg projection, built by observing the
+  <code>QUOTE_ACK</code>/<code>FILL</code>/<code>ORDER</code>/quote-status events this session has already
+  received — it never sends a request to the engine for this command.</li>
+<li><strong><code>pm-alf-gwy</code></strong>: forwards the command as <code>system.quote_legs_request</code> to
+  the engine and renders the engine's authoritative reply — see
+  <a href="../220-alf-gateway/#qlegs-quote-leg-snapshot-active-recent">ALF TCP Gateway → QLEGS</a>
+  for the wire-level request/response shape.</li>
+</ul>
+<p>Neither variant sends modify or cancel actions to the engine.</p>
+<p>Field behavior (same in both clients):</p>
 <ul>
 <li><code>SYM</code> (optional): limit output to one symbol.</li>
 <li><code>SHOW</code> (optional): controls filtering mode; defaults to <code>ACTIVE</code>.</li>
@@ -5304,33 +5415,37 @@ latest lifecycle status in one place.</p>
    re-quoting.</li>
 </ol>
 <p>Examples:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-61-1" name="__codelineno-61-1" href="#__codelineno-61-1"></a>MM_AAPL_01&gt; QLEGS
-<a id="__codelineno-61-2" name="__codelineno-61-2" href="#__codelineno-61-2"></a># show currently active quote legs across all symbols
-<a id="__codelineno-61-3" name="__codelineno-61-3" href="#__codelineno-61-3"></a>
-<a id="__codelineno-61-4" name="__codelineno-61-4" href="#__codelineno-61-4"></a>MM_AAPL_01&gt; QLEGS|SYM=AAPL
-<a id="__codelineno-61-5" name="__codelineno-61-5" href="#__codelineno-61-5"></a># show currently active quote legs for AAPL only
-<a id="__codelineno-61-6" name="__codelineno-61-6" href="#__codelineno-61-6"></a>
-<a id="__codelineno-61-7" name="__codelineno-61-7" href="#__codelineno-61-7"></a>MM_AAPL_01&gt; QLEGS|SYM=AAPL|SHOW=ALL
-<a id="__codelineno-61-8" name="__codelineno-61-8" href="#__codelineno-61-8"></a># show both active and recently completed/cancelled AAPL quote legs
-<a id="__codelineno-61-9" name="__codelineno-61-9" href="#__codelineno-61-9"></a>
-<a id="__codelineno-61-10" name="__codelineno-61-10" href="#__codelineno-61-10"></a>MM_AAPL_01&gt; QLEGS|SHOW=RECENT
-<a id="__codelineno-61-11" name="__codelineno-61-11" href="#__codelineno-61-11"></a># show recent completed quote legs across all symbols
+<div class="highlight"><pre><span></span><code><a id="__codelineno-63-1" name="__codelineno-63-1" href="#__codelineno-63-1"></a>MM_AAPL_01&gt; QLEGS
+<a id="__codelineno-63-2" name="__codelineno-63-2" href="#__codelineno-63-2"></a># show currently active quote legs across all symbols
+<a id="__codelineno-63-3" name="__codelineno-63-3" href="#__codelineno-63-3"></a>
+<a id="__codelineno-63-4" name="__codelineno-63-4" href="#__codelineno-63-4"></a>MM_AAPL_01&gt; QLEGS|SYM=AAPL
+<a id="__codelineno-63-5" name="__codelineno-63-5" href="#__codelineno-63-5"></a># show currently active quote legs for AAPL only
+<a id="__codelineno-63-6" name="__codelineno-63-6" href="#__codelineno-63-6"></a>
+<a id="__codelineno-63-7" name="__codelineno-63-7" href="#__codelineno-63-7"></a>MM_AAPL_01&gt; QLEGS|SYM=AAPL|SHOW=ALL
+<a id="__codelineno-63-8" name="__codelineno-63-8" href="#__codelineno-63-8"></a># show both active and recently completed/cancelled AAPL quote legs
+<a id="__codelineno-63-9" name="__codelineno-63-9" href="#__codelineno-63-9"></a>
+<a id="__codelineno-63-10" name="__codelineno-63-10" href="#__codelineno-63-10"></a>MM_AAPL_01&gt; QLEGS|SHOW=RECENT
+<a id="__codelineno-63-11" name="__codelineno-63-11" href="#__codelineno-63-11"></a># show recent completed quote legs across all symbols
 </code></pre></div>
 <p>Important notes:</p>
 <ul>
-<li><code>QLEGS</code> is a gateway-local view built from quote acknowledgements and order
-  lifecycle events observed by this gateway session.</li>
-<li>On reconnect, the local view is rebuilt from current order snapshots and new
-  events; use <code>QBOOT</code> when you need protocol-level startup bootstrap state for
-  active quote slots owned by this gateway.</li>
+<li>On <code>pm-alf-console</code>, the local view is rebuilt on reconnect from current
+  order snapshots and new events, but only reflects what this session has
+  observed since (re)connecting.</li>
+<li>On <code>pm-alf-gwy</code>, <code>QLEGS</code> always reflects the engine's current authoritative
+  state, including a bounded, in-memory, per-gateway history of
+  recently-inactivated quotes for the <code>RECENT</code>/<code>ALL</code> rows.</li>
+<li>Use <code>QBOOT</code> on either client when you need protocol-level startup
+  bootstrap state for active quote slots owned by this gateway (unlike
+  <code>QLEGS</code> on <code>pm-alf-console</code>, <code>QBOOT</code> always asks the engine).</li>
 </ul>
 <h3 id="help"><code>HELP</code><a class="headerlink" href="#help" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-62-1" name="__codelineno-62-1" href="#__codelineno-62-1"></a>HELP
+<div class="highlight"><pre><span></span><code><a id="__codelineno-64-1" name="__codelineno-64-1" href="#__codelineno-64-1"></a>HELP
 </code></pre></div>
 <p>Prints the gateway help text.</p>
 <h3 id="exit-quit"><code>EXIT</code> / <code>QUIT</code><a class="headerlink" href="#exit-quit" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-63-1" name="__codelineno-63-1" href="#__codelineno-63-1"></a>EXIT
-<a id="__codelineno-63-2" name="__codelineno-63-2" href="#__codelineno-63-2"></a>QUIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-65-1" name="__codelineno-65-1" href="#__codelineno-65-1"></a>EXIT
+<a id="__codelineno-65-2" name="__codelineno-65-2" href="#__codelineno-65-2"></a>QUIT
 </code></pre></div>
 <p>Stops the gateway process.</p>
 <h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
@@ -5408,16 +5523,16 @@ configuration file (<code>engine_config.yaml</code>), under the <code>gateways.a
 </tbody>
 </table>
 <p><strong>Example:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-64-1" name="__codelineno-64-1" href="#__codelineno-64-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-64-2" name="__codelineno-64-2" href="#__codelineno-64-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-64-3" name="__codelineno-64-3" href="#__codelineno-64-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-64-4" name="__codelineno-64-4" href="#__codelineno-64-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Human trader workstation</span>
-<a id="__codelineno-64-5" name="__codelineno-64-5" href="#__codelineno-64-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER</span>
-<a id="__codelineno-64-6" name="__codelineno-64-6" href="#__codelineno-64-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_ALL</span>
-<a id="__codelineno-64-7" name="__codelineno-64-7" href="#__codelineno-64-7"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
-<a id="__codelineno-64-8" name="__codelineno-64-8" href="#__codelineno-64-8"></a><span class="w">      </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
-<a id="__codelineno-64-9" name="__codelineno-64-9" href="#__codelineno-64-9"></a><span class="w">      </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<a id="__codelineno-64-10" name="__codelineno-64-10" href="#__codelineno-64-10"></a><span class="w">      </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-66-1" name="__codelineno-66-1" href="#__codelineno-66-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-66-2" name="__codelineno-66-2" href="#__codelineno-66-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-66-3" name="__codelineno-66-3" href="#__codelineno-66-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-66-4" name="__codelineno-66-4" href="#__codelineno-66-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Human trader workstation</span>
+<a id="__codelineno-66-5" name="__codelineno-66-5" href="#__codelineno-66-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER</span>
+<a id="__codelineno-66-6" name="__codelineno-66-6" href="#__codelineno-66-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_ALL</span>
+<a id="__codelineno-66-7" name="__codelineno-66-7" href="#__codelineno-66-7"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
+<a id="__codelineno-66-8" name="__codelineno-66-8" href="#__codelineno-66-8"></a><span class="w">      </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-66-9" name="__codelineno-66-9" href="#__codelineno-66-9"></a><span class="w">      </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-66-10" name="__codelineno-66-10" href="#__codelineno-66-10"></a><span class="w">      </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
 </code></pre></div>
 <h2 id="what-to-watch-out-for-during-implementation">What to watch out for during implementation<a class="headerlink" href="#what-to-watch-out-for-during-implementation" title="Permanent link">&para;</a></h2>
 <ul>
@@ -5452,11 +5567,16 @@ configuration file (<code>engine_config.yaml</code>), under the <code>gateways.a
    ALF combo form.</li>
 <li><code>QBOOT</code> is the protocol-level way to discover active quote bootstrap state
    for the current gateway (optionally filtered by symbol).</li>
-<li><code>QLEGS</code> is a gateway-local monitoring view for quote legs; use
-    <code>SHOW=ALL</code> after fills to inspect both live and recently completed legs.</li>
+<li><code>QLEGS</code> is a monitoring view for quote legs; use <code>SHOW=ALL</code> after fills
+    to inspect both live and recently completed legs. It is the one command
+    whose mechanics differ by client — local cache on <code>pm-alf-console</code>,
+    engine round trip on <code>pm-alf-gwy</code> — see the <a href="#qlegs"><code>QLEGS</code></a> section.</li>
 <li><code>DC</code> is handled entirely gateway-side and is never forwarded to the
     engine as an order-entry message; <code>DC_FILL</code> is sent only by the gateway
     and is not part of the client-side command grammar.</li>
+<li><code>SESSION</code> is an on-demand engine round trip in both clients; its reply
+    reuses the same message shape as the unsolicited session-state broadcast,
+    with <code>PREV_STATE</code> empty and an added <code>SESSIONS_ENABLED</code> field.</li>
 </ol>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>

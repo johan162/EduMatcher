@@ -18,7 +18,7 @@
         <link rel="prev" href="../260-api-gateway/">
       
       
-        <link rel="next" href="../800-examples/">
+        <link rel="next" href="../280-log-srv/">
       
       
         
@@ -2663,6 +2663,177 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#lalf-ps-messages-log-subscriber-pm-log-srv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LALF-PS messages (log subscriber ↔ pm-log-srv)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LALF-PS messages (log subscriber ↔ pm-log-srv)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#message-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-row-filter-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The row filter object
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logsubscribe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log.subscribe
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logrenew" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log.renew
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logunsubscribe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log.unsubscribe
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logbackfill_request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log.backfill_request
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logbackfillsub_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log.backfill.{SUB_ID}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logeventsub_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log.event.{SUB_ID}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lognotifysub_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log.notify.{SUB_ID}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logstatus_request-logstatussub_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log.status_request / log.status.{SUB_ID}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#loglease_expiredsub_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log.lease_expired.{SUB_ID}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logerrorsub_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log.error.{SUB_ID}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logserver_state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log.server_state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#log-row-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Log row schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#subscription-filter-summary" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2699,6 +2870,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../280-log-srv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2887,6 +3086,34 @@
     
   
     Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../940-app-lalf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: LALF Protocol
   
 
     
@@ -4506,6 +4733,81 @@
 <td><code>index.error.{gateway_id}</code></td>
 <td>pm-index via PUB</td>
 <td>Uniform error reply for any rejected <code>pm-index</code> request.</td>
+</tr>
+<tr>
+<td><code>log.subscribe</code></td>
+<td>Log subscriber (viewer/UI/CLI) via PUSH → pm-log-srv PULL :5602</td>
+<td>Opens or replaces a leased log subscription, selecting <code>NOTIFY</code> or <code>STREAM</code> mode and a row filter.</td>
+</tr>
+<tr>
+<td><code>log.renew</code></td>
+<td>Log subscriber via PUSH :5602</td>
+<td>Lease keepalive. The <em>only</em> signal that keeps a subscription alive; silence is how pm-log-srv detects a dead subscriber.</td>
+</tr>
+<tr>
+<td><code>log.unsubscribe</code></td>
+<td>Log subscriber via PUSH :5602</td>
+<td>Closes a subscription immediately and frees its server-side buffers.</td>
+</tr>
+<tr>
+<td><code>log.backfill_request</code></td>
+<td>Log subscriber via PUSH :5602</td>
+<td>Requests replay of the last <em>n</em> minutes of <code>log.db</code>, delivered as chunks.</td>
+</tr>
+<tr>
+<td><code>log.status_request</code></td>
+<td>Log subscriber via PUSH :5602</td>
+<td>Requests subscription and server diagnostics.</td>
+</tr>
+<tr>
+<td><code>log.subscribe_ack.{SUB_ID}</code></td>
+<td>pm-log-srv via PUB :5601</td>
+<td>Confirms a subscription and echoes the <em>negotiated</em> (server-clamped) terms.</td>
+</tr>
+<tr>
+<td><code>log.renew_ack.{SUB_ID}</code></td>
+<td>pm-log-srv via PUB :5601</td>
+<td>Confirms a lease renewal and reports the new deadline.</td>
+</tr>
+<tr>
+<td><code>log.unsubscribe_ack.{SUB_ID}</code></td>
+<td>pm-log-srv via PUB :5601</td>
+<td>Confirms subscription teardown.</td>
+</tr>
+<tr>
+<td><code>log.event.{SUB_ID}</code></td>
+<td>pm-log-srv via PUB :5601</td>
+<td><code>STREAM</code> mode: full log rows pushed as they are persisted.</td>
+</tr>
+<tr>
+<td><code>log.notify.{SUB_ID}</code></td>
+<td>pm-log-srv via PUB :5601</td>
+<td><code>NOTIFY</code> mode: lightweight "<em>n</em> new matching rows, up to seq <em>X</em>" tick carrying no row bodies.</td>
+</tr>
+<tr>
+<td><code>log.backfill.{SUB_ID}</code></td>
+<td>pm-log-srv via PUB :5601</td>
+<td>One chunk of a backfill response; the last chunk sets <code>done</code>.</td>
+</tr>
+<tr>
+<td><code>log.status.{SUB_ID}</code></td>
+<td>pm-log-srv via PUB :5601</td>
+<td>Reply to <code>log.status_request</code>.</td>
+</tr>
+<tr>
+<td><code>log.lease_expired.{SUB_ID}</code></td>
+<td>pm-log-srv via PUB :5601</td>
+<td>Final notice that a lease was reaped; the subscription and its buffers are gone.</td>
+</tr>
+<tr>
+<td><code>log.error.{SUB_ID}</code></td>
+<td>pm-log-srv via PUB :5601</td>
+<td>Uniform error reply for any rejected LALF-PS request.</td>
+</tr>
+<tr>
+<td><code>log.server_state</code></td>
+<td>pm-log-srv via PUB :5601</td>
+<td>Periodic broadcast of pm-log-srv liveness and counters; also sent once with <code>state: "DOWN"</code> at shutdown.</td>
 </tr>
 </tbody>
 </table>
@@ -7853,6 +8155,1058 @@ every constituent trade or forced recalculation.
 </tr>
 </tbody>
 </table>
+<h2 id="lalf-ps-messages-log-subscriber-pm-log-srv">LALF-PS messages (log subscriber ↔ pm-log-srv)<a class="headerlink" href="#lalf-ps-messages-log-subscriber-pm-log-srv" title="Permanent link">&para;</a></h2>
+<p><code>pm-log-srv</code> collects logging from every <code>pm-*</code> process over LALF/TCP on
+<code>:5600</code> and appends it to <code>log.db</code>.  <strong>LALF-PS</strong> is the separate, outbound
+half of that story: the interface a log <em>viewer</em> uses to watch rows arrive
+instead of polling the database.  It exists so that a log UI can be told
+"there is new data" the moment a row is committed, can have those rows
+pushed to it, can ask for the last <em>n</em> minutes when it starts up — and,
+crucially, can die without the server noticing too late and buffering for
+a process that will never read again.</p>
+<p>The socket topology is deliberately identical in shape to <code>pm-index</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Socket</th>
+<th>Bound by</th>
+<th>Default</th>
+<th>Carries</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PUB</code></td>
+<td><code>pm-log-srv</code></td>
+<td><code>tcp://…:5601</code></td>
+<td>every outbound message: rows, ticks, backfill chunks, acks, errors</td>
+</tr>
+<tr>
+<td><code>PULL</code></td>
+<td><code>pm-log-srv</code></td>
+<td><code>tcp://…:5602</code></td>
+<td>every inbound control request from subscribers</td>
+</tr>
+</tbody>
+</table>
+<p>A subscriber therefore holds two sockets: a <code>SUB</code> connected to <code>:5601</code>
+and a <code>PUSH</code> connected to <code>:5602</code>.  Every control message carries a
+<code>sub_id</code> — a subscriber-chosen identifier that plays exactly the role
+<code>gateway_id</code> plays elsewhere on the bus: it is the routing key the server
+appends to each reply topic, so a subscriber only needs the single
+subscription prefix <code>log.</code> + its own <code>sub_id</code> to receive everything meant
+for it (plus the un-suffixed <code>log.server_state</code> if it wants liveness).</p>
+<div class="admonition note">
+<p class="admonition-title">Why leases, and not connection state</p>
+<p>A ZeroMQ <code>PUB</code> socket is <em>blind</em>: it never learns who is attached, and
+publishing into the void succeeds silently.  There is consequently no
+publish-side event that means "my subscriber died", the way a TCP
+<code>recv()</code> returning zero bytes does on the LALF side.  LALF-PS solves
+this by making every subscription a <strong>lease</strong>: it is created with a
+TTL, and the subscriber must send <code>log.renew</code> before that TTL elapses
+or the server reaps it.  A crashed viewer therefore costs the server
+at most one lease period of buffering, and the mechanism is
+transport-independent — it would work identically over any fan-out
+that lacks peer visibility.</p>
+</div>
+<h3 id="message-flow">Message flow<a class="headerlink" href="#message-flow" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>sequenceDiagram
+    participant P as pm-engine (producer)
+    participant S as pm-log-srv
+    participant V as Log viewer (subscriber)
+
+    V-&gt;&gt;S: log.subscribe (sub_id, mode, filter, backfill_minutes)
+    S--&gt;&gt;V: log.subscribe_ack.{sub_id} (negotiated lease_sec)
+    S--&gt;&gt;V: log.backfill.{sub_id} chunk 0 (done=false)
+    S--&gt;&gt;V: log.backfill.{sub_id} chunk N (done=true)
+
+    P-&gt;&gt;S: LOG (LALF/TCP :5600)
+    Note over S: row committed to log.db, seq assigned
+    S--&gt;&gt;V: log.event.{sub_id}  (STREAM mode)
+    S--&gt;&gt;V: log.notify.{sub_id} (NOTIFY mode)
+
+    loop every lease_sec / 2
+        V-&gt;&gt;S: log.renew
+        S--&gt;&gt;V: log.renew_ack.{sub_id}
+    end
+
+    Note over V: viewer crashes — renewals stop
+    Note over S: lease TTL elapses
+    S--&gt;&gt;V: log.lease_expired.{sub_id}
+    Note over S: filter state, buffers and backfill job discarded</code></pre>
+<h3 id="the-row-filter-object">The row filter object<a class="headerlink" href="#the-row-filter-object" title="Permanent link">&para;</a></h3>
+<p>Five control messages accept the same optional <code>filter</code> object.  Every
+field is optional; an omitted field imposes no restriction, and an absent
+<code>filter</code> matches every row.  All present fields are ANDed together.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>min_level</code></td>
+<td>string</td>
+<td>Minimum severity: <code>DEBUG</code>, <code>INFO</code>, <code>WARNING</code>, <code>ERROR</code>, <code>CRITICAL</code>. Rows below it are excluded.</td>
+</tr>
+<tr>
+<td><code>processes</code></td>
+<td>array of string</td>
+<td>Exact match against <code>log_events.process</code> (e.g. <code>["pm-engine", "pm-md-gwy"]</code>); a row matches if it equals any entry.</td>
+</tr>
+<tr>
+<td><code>loggers</code></td>
+<td>array of string</td>
+<td><strong>Prefix</strong> match against the logger name, so <code>["edumatcher.engine"]</code> also matches <code>edumatcher.engine.book</code>.</td>
+</tr>
+<tr>
+<td><code>sessions</code></td>
+<td>array of string</td>
+<td>Exact match against the LALF session id, to follow one connection of one process.</td>
+</tr>
+<tr>
+<td><code>contains</code></td>
+<td>string</td>
+<td>Case-insensitive substring match on the message body.</td>
+</tr>
+<tr>
+<td><code>exceptions_only</code></td>
+<td>boolean</td>
+<td>When <code>true</code>, only rows carrying a traceback.</td>
+</tr>
+</tbody>
+</table>
+<p>The server applies exactly the same filter to backfill rows and to live
+rows, which is what guarantees a viewer sees no gap or duplication at the
+seam where its historical window meets the live stream.</p>
+<p>An invalid filter is answered with <code>log.error.{sub_id}</code> carrying code
+<code>INVALID_FILTER</code>; it never silently degrades to "match everything".</p>
+<h3 id="logsubscribe"><code>log.subscribe</code><a class="headerlink" href="#logsubscribe" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Opens a leased subscription, choosing whether the
+subscriber wants to be <em>told about</em> new rows or <em>sent</em> them, and
+optionally priming the view with recent history in the same round trip.
+<strong>Published by:</strong> Log subscriber via PUSH → <code>pm-log-srv</code> PULL (<code>:5602</code>)</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>Subscriber-chosen routing key; every reply is published to <code>log.&lt;something&gt;.{sub_id}</code></td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>string</td>
+<td><code>"STREAM"</code> (default) — full rows pushed as they arrive; or <code>"NOTIFY"</code> — counts only</td>
+</tr>
+<tr>
+<td><code>filter</code></td>
+<td>object</td>
+<td>Row filter as described above (default: match everything)</td>
+</tr>
+<tr>
+<td><code>backfill_minutes</code></td>
+<td>integer</td>
+<td>When non-zero, immediately start a backfill of this many minutes before/alongside the live stream (default: <code>0</code>, no backfill)</td>
+</tr>
+<tr>
+<td><code>lease_sec</code></td>
+<td>integer</td>
+<td>Requested lease TTL; <strong>clamped</strong> to the server's <code>max_lease_sec</code>, never rejected (default: server's <code>lease_sec</code>, 30)</td>
+</tr>
+<tr>
+<td><code>notify_interval_ms</code></td>
+<td>integer</td>
+<td><code>NOTIFY</code> mode only: requested coalescing window; <strong>floored</strong> at the server's own <code>notify_interval_ms</code> so a subscriber cannot ask to be woken faster than the server will publish</td>
+</tr>
+</tbody>
+</table>
+<p>Re-sending <code>log.subscribe</code> for an existing <code>sub_id</code> is <strong>not</strong> an error:
+it replaces the mode and filter, renews the lease, and re-emits the ack,
+while preserving the lifetime counters reported by <code>log.status</code>.  This is
+deliberate — ZeroMQ's <em>slow joiner</em> behaviour means a subscriber's very
+first ack can be published before its <code>SUB</code> connection has finished
+establishing, and re-sending the subscribe is the standard cure.  A
+subscriber that has not seen its ack within a second should simply send
+<code>log.subscribe</code> again.</p>
+<p><strong>Reply:</strong> <code>log.subscribe_ack.{sub_id}</code> — or <code>log.error.{sub_id}</code> with
+code <code>INVALID_MODE</code>, <code>INVALID_FILTER</code> or <code>TOO_MANY_SUBS</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>accepted</code></td>
+<td>boolean</td>
+<td>Always <code>true</code> (a rejection arrives as <code>log.error.{sub_id}</code> instead)</td>
+</tr>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>Echoed routing key</td>
+</tr>
+<tr>
+<td><code>proto</code></td>
+<td>string</td>
+<td>LALF-PS wire version, currently <code>"LALF-PS/1"</code></td>
+</tr>
+<tr>
+<td><code>server</code></td>
+<td>string</td>
+<td>The server's configured <code>name</code> (e.g. <code>"log-srv01"</code>)</td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>string</td>
+<td>The accepted mode</td>
+</tr>
+<tr>
+<td><code>filter</code></td>
+<td>object</td>
+<td>The <strong>normalised</strong> filter the server will actually apply — always inspect this rather than assuming your request was taken verbatim</td>
+</tr>
+<tr>
+<td><code>lease_sec</code></td>
+<td>float</td>
+<td>The <strong>granted</strong> lease TTL after clamping</td>
+</tr>
+<tr>
+<td><code>renew_before_sec</code></td>
+<td>float</td>
+<td>Recommended renewal period; always <code>lease_sec / 2</code></td>
+</tr>
+<tr>
+<td><code>notify_interval_ms</code></td>
+<td>integer</td>
+<td>The granted coalescing window</td>
+</tr>
+<tr>
+<td><code>last_seq</code></td>
+<td>integer</td>
+<td>Highest <code>log_events.seq</code> the server has seen, so a subscriber knows where the live stream begins</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>float</td>
+<td>Unix epoch seconds</td>
+</tr>
+</tbody>
+</table>
+<h3 id="logrenew"><code>log.renew</code><a class="headerlink" href="#logrenew" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> The liveness signal.  This message, and only this
+message, is what tells <code>pm-log-srv</code> that a subscriber is still alive and
+still reading — see the lease note above for why connection state cannot
+serve that purpose here.
+<strong>Published by:</strong> Log subscriber via PUSH (<code>:5602</code>)</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>Subscription to renew</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>float</td>
+<td>Unix epoch seconds (informational)</td>
+</tr>
+</tbody>
+</table>
+<p>Send one every <code>renew_before_sec</code> (half the granted lease).  A
+<code>log.backfill_request</code> also counts as proof of life, so a subscriber
+pulling a large window cannot expire mid-transfer.</p>
+<p><strong>Reply:</strong> <code>log.renew_ack.{sub_id}</code> — or <code>log.error.{sub_id}</code> with code
+<code>UNKNOWN_SUB</code> if the lease has already been reaped, in which case the
+subscriber must re-send <code>log.subscribe</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>accepted</code></td>
+<td>boolean</td>
+<td>Always <code>true</code></td>
+</tr>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>Echoed routing key</td>
+</tr>
+<tr>
+<td><code>lease_sec</code></td>
+<td>float</td>
+<td>The subscription's lease TTL</td>
+</tr>
+<tr>
+<td><code>expires_in_sec</code></td>
+<td>float</td>
+<td>Seconds remaining after this renewal</td>
+</tr>
+<tr>
+<td><code>last_seq</code></td>
+<td>integer</td>
+<td>Highest <code>seq</code> the server has seen</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>float</td>
+<td>Unix epoch seconds</td>
+</tr>
+</tbody>
+</table>
+<h3 id="logunsubscribe"><code>log.unsubscribe</code><a class="headerlink" href="#logunsubscribe" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Lets a viewer that is shutting down cleanly free its
+server-side filter state and buffers immediately, instead of leaving them
+to be reaped a lease period later.
+<strong>Published by:</strong> Log subscriber via PUSH (<code>:5602</code>)</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>Subscription to close</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>float</td>
+<td>Unix epoch seconds</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply:</strong> <code>log.unsubscribe_ack.{sub_id}</code></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>accepted</code></td>
+<td>boolean</td>
+<td><code>false</code> if there was no such subscription (harmless — the end state is the same)</td>
+</tr>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>Echoed routing key</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>string</td>
+<td><code>"no such subscription"</code> when <code>accepted</code> is <code>false</code>, otherwise empty</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>float</td>
+<td>Unix epoch seconds</td>
+</tr>
+</tbody>
+</table>
+<h3 id="logbackfill_request"><code>log.backfill_request</code><a class="headerlink" href="#logbackfill_request" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Answers "what happened in the last <em>n</em> minutes?" — the
+question a log UI asks the instant it opens, before any live row has
+arrived.  Requires an active subscription: without a lease the server has
+no way to learn the requester died mid-transfer and would keep pushing
+chunks to nobody.
+<strong>Published by:</strong> Log subscriber via PUSH (<code>:5602</code>)</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>Requesting subscription; must already exist</td>
+</tr>
+<tr>
+<td><code>minutes</code></td>
+<td>integer</td>
+<td>Window size, counted back from now against <code>client_ts</code>. Must be <code>&gt; 0</code> and <code>&lt;= max_backfill_minutes</code> (default 1440)</td>
+</tr>
+<tr>
+<td><code>filter</code></td>
+<td>object</td>
+<td>Optional filter <strong>override</strong> for this request only; when omitted the subscription's own filter is used</td>
+</tr>
+<tr>
+<td><code>max_rows</code></td>
+<td>integer</td>
+<td>Optional lower cap than the server's <code>max_backfill_rows</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply:</strong> one or more <code>log.backfill.{sub_id}</code> chunks — or
+<code>log.error.{sub_id}</code> with code <code>INVALID_WINDOW</code>, <code>INVALID_FILTER</code> or
+<code>UNKNOWN_SUB</code>.</p>
+<h3 id="logbackfillsub_id"><code>log.backfill.{SUB_ID}</code><a class="headerlink" href="#logbackfillsub_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Delivers a backfill in bounded pieces.  A busy hour can be
+hundreds of thousands of rows; a single response would mean both a
+multi-megabyte ZeroMQ frame and a SQLite scan long enough to stall the
+server's main loop.  The server instead emits at most one chunk per loop
+iteration, so an arbitrarily large window costs a bounded amount of work
+per pass and never blocks LALF collection.
+<strong>Published by:</strong> <code>pm-log-srv</code> via PUB (<code>:5601</code>)</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>Routing key</td>
+</tr>
+<tr>
+<td><code>request_id</code></td>
+<td>string</td>
+<td>Correlates chunks of one backfill; constant across the whole response</td>
+</tr>
+<tr>
+<td><code>chunk</code></td>
+<td>integer</td>
+<td>Zero-based chunk index</td>
+</tr>
+<tr>
+<td><code>rows</code></td>
+<td>array of object</td>
+<td>Log rows in ascending <code>seq</code> order — see the row schema below</td>
+</tr>
+<tr>
+<td><code>row_count</code></td>
+<td>integer</td>
+<td><code>len(rows)</code>, for convenience</td>
+</tr>
+<tr>
+<td><code>done</code></td>
+<td>boolean</td>
+<td><code>true</code> on the final chunk <strong>only</strong>; a subscriber must keep reading until it sees this</td>
+</tr>
+<tr>
+<td><code>total_sent</code></td>
+<td>integer</td>
+<td>Cumulative rows sent for this <code>request_id</code></td>
+</tr>
+<tr>
+<td><code>truncated</code></td>
+<td>boolean</td>
+<td><code>true</code> if the response was cut short by <code>max_rows</code> — there was more history than was returned</td>
+</tr>
+<tr>
+<td><code>last_seq</code></td>
+<td>integer</td>
+<td><code>seq</code> of the last row in this chunk (the server's cursor)</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>float</td>
+<td>Unix epoch seconds</td>
+</tr>
+</tbody>
+</table>
+<p>An empty window still produces exactly one chunk with <code>rows: []</code> and
+<code>done: true</code>, so a subscriber never waits forever on a quiet system.</p>
+<h3 id="logeventsub_id"><code>log.event.{SUB_ID}</code><a class="headerlink" href="#logeventsub_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> <code>STREAM</code> mode — the "send me new logs as they arrive"
+case.  Rows are published <em>after</em> the SQLite commit that assigned their
+<code>seq</code>, never before, so a subscriber can never observe a row that a
+subsequent crash would have rolled back: the live stream and <code>log.db</code> can
+never disagree.
+<strong>Published by:</strong> <code>pm-log-srv</code> via PUB (<code>:5601</code>)</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>Routing key</td>
+</tr>
+<tr>
+<td><code>rows</code></td>
+<td>array of object</td>
+<td>Matching rows in ascending <code>seq</code> order, up to <code>backfill_chunk_rows</code> per message</td>
+</tr>
+<tr>
+<td><code>row_count</code></td>
+<td>integer</td>
+<td><code>len(rows)</code></td>
+</tr>
+<tr>
+<td><code>seq_from</code></td>
+<td>integer</td>
+<td><code>seq</code> of the first row in this message</td>
+</tr>
+<tr>
+<td><code>seq_to</code></td>
+<td>integer</td>
+<td><code>seq</code> of the last row in this message</td>
+</tr>
+<tr>
+<td><code>server_last_seq</code></td>
+<td>integer</td>
+<td>Highest <code>seq</code> the server has seen overall — compare with <code>seq_to</code> to see how far behind you are</td>
+</tr>
+<tr>
+<td><code>dropped</code></td>
+<td>integer</td>
+<td>Cumulative rows shed from this subscription's buffer because it exceeded <code>max_pending_rows</code>. Non-zero means this subscriber is not keeping up and its view has gaps</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>float</td>
+<td>Unix epoch seconds</td>
+</tr>
+</tbody>
+</table>
+<p><code>dropped</code> is the <em>slow subscriber</em> signal, distinct from a dead one: a
+subscriber that is alive but cannot keep up loses its oldest buffered
+rows rather than being allowed to grow the server's memory without bound.
+A UI seeing <code>dropped</code> climb should tighten its filter, switch to
+<code>NOTIFY</code>, or re-backfill to close the gap.</p>
+<h3 id="lognotifysub_id"><code>log.notify.{SUB_ID}</code><a class="headerlink" href="#lognotifysub_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> <code>NOTIFY</code> mode — the "just tell me something happened"
+case.  Carries counts and a sequence watermark but <strong>no row bodies</strong>, so a
+UI that already reads <code>log.db</code> itself (or that only needs to light up an
+indicator) pays almost nothing in bus traffic.  Ticks are coalesced over
+<code>notify_interval_ms</code>, so a burst of a thousand rows produces one small
+message rather than a thousand.
+<strong>Published by:</strong> <code>pm-log-srv</code> via PUB (<code>:5601</code>)</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>Routing key</td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td>integer</td>
+<td>Matching rows accumulated since the previous tick</td>
+</tr>
+<tr>
+<td><code>levels</code></td>
+<td>object</td>
+<td>Per-level counts within this tick, e.g. <code>{"ERROR": 3, "WARNING": 12}</code></td>
+</tr>
+<tr>
+<td><code>last_seq</code></td>
+<td>integer</td>
+<td>Highest matching <code>seq</code> in this tick — read rows <code>&gt;</code> your previous watermark to catch up</td>
+</tr>
+<tr>
+<td><code>server_last_seq</code></td>
+<td>integer</td>
+<td>Highest <code>seq</code> the server has seen overall, matching or not</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>float</td>
+<td>Unix epoch seconds</td>
+</tr>
+</tbody>
+</table>
+<p>No tick is published when <code>count</code> would be zero, so a quiet system
+produces no notify traffic at all.</p>
+<h3 id="logstatus_request-logstatussub_id"><code>log.status_request</code> / <code>log.status.{SUB_ID}</code><a class="headerlink" href="#logstatus_request-logstatussub_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Diagnostics — lets a viewer (or an operator's CLI) see
+what the server thinks its subscription looks like, how much it has been
+sent, and whether it has been dropping rows.
+<strong>Published by:</strong> Log subscriber via PUSH (<code>:5602</code>)</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>Subscription to report on</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>float</td>
+<td>Unix epoch seconds</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply:</strong> <code>log.status.{sub_id}</code></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>Echoed routing key</td>
+</tr>
+<tr>
+<td><code>server</code></td>
+<td>string</td>
+<td>The server's configured <code>name</code></td>
+</tr>
+<tr>
+<td><code>proto</code></td>
+<td>string</td>
+<td><code>"LALF-PS/1"</code></td>
+</tr>
+<tr>
+<td><code>subscribers</code></td>
+<td>integer</td>
+<td>Total leased subscriptions on the server right now</td>
+</tr>
+<tr>
+<td><code>active_backfills</code></td>
+<td>integer</td>
+<td>Backfill jobs currently in flight</td>
+</tr>
+<tr>
+<td><code>last_seq</code></td>
+<td>integer</td>
+<td>Highest <code>seq</code> the server has seen</td>
+</tr>
+<tr>
+<td><code>inbox_dropped</code></td>
+<td>integer</td>
+<td>Rows the server could not hand to the fan-out stage at all (server-wide overload; normally <code>0</code>)</td>
+</tr>
+<tr>
+<td><code>subscription</code></td>
+<td>object | null</td>
+<td>Per-subscription detail, or <code>null</code> if there is no such subscription</td>
+</tr>
+</tbody>
+</table>
+<p>The nested <code>subscription</code> object:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mode</code></td>
+<td>string</td>
+<td><code>"STREAM"</code> or <code>"NOTIFY"</code></td>
+</tr>
+<tr>
+<td><code>filter</code></td>
+<td>object</td>
+<td>The normalised filter in force</td>
+</tr>
+<tr>
+<td><code>lease_sec</code></td>
+<td>float</td>
+<td>Granted lease TTL</td>
+</tr>
+<tr>
+<td><code>lease_remaining_sec</code></td>
+<td>float</td>
+<td>Seconds until reaping if no renewal arrives</td>
+</tr>
+<tr>
+<td><code>age_sec</code></td>
+<td>float</td>
+<td>Seconds since the subscription was first created</td>
+</tr>
+<tr>
+<td><code>pending_rows</code></td>
+<td>integer</td>
+<td>Rows buffered but not yet published</td>
+</tr>
+<tr>
+<td><code>pending_count</code></td>
+<td>integer</td>
+<td><code>NOTIFY</code> rows accumulated since the last tick</td>
+</tr>
+<tr>
+<td><code>sent_rows</code></td>
+<td>integer</td>
+<td>Lifetime rows delivered (live + backfill)</td>
+</tr>
+<tr>
+<td><code>sent_messages</code></td>
+<td>integer</td>
+<td>Lifetime messages published</td>
+</tr>
+<tr>
+<td><code>dropped_rows</code></td>
+<td>integer</td>
+<td>Lifetime rows shed due to buffer overflow</td>
+</tr>
+<tr>
+<td><code>renewals</code></td>
+<td>integer</td>
+<td>Lifetime <code>log.renew</code> count</td>
+</tr>
+</tbody>
+</table>
+<h3 id="loglease_expiredsub_id"><code>log.lease_expired.{SUB_ID}</code><a class="headerlink" href="#loglease_expiredsub_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> The final notice, published as the lease is reaped.  It
+exists for the case where the subscriber is not in fact dead but merely
+wedged: it tells such a client unambiguously that it must re-subscribe,
+rather than sit forever waiting for rows the server has stopped sending.
+<strong>Published by:</strong> <code>pm-log-srv</code> via PUB (<code>:5601</code>)</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>The reaped subscription</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>string</td>
+<td>Human-readable cause, e.g. <code>"lease expired; no log.renew received in time"</code></td>
+</tr>
+<tr>
+<td><code>lease_sec</code></td>
+<td>float</td>
+<td>The lease TTL that elapsed</td>
+</tr>
+<tr>
+<td><code>dropped_rows</code></td>
+<td>integer</td>
+<td>Rows discarded on reaping (buffered plus previously shed)</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>float</td>
+<td>Unix epoch seconds</td>
+</tr>
+</tbody>
+</table>
+<p>By the time this is published the subscription, its buffers and any
+in-flight backfill job are already gone.</p>
+<h3 id="logerrorsub_id"><code>log.error.{SUB_ID}</code><a class="headerlink" href="#logerrorsub_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Uniform error reply for any rejected LALF-PS request —
+the direct analogue of <code>index.error.{gateway_id}</code>.
+<strong>Published by:</strong> <code>pm-log-srv</code> via PUB (<code>:5601</code>)</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>accepted</code></td>
+<td>boolean</td>
+<td>Always <code>false</code></td>
+</tr>
+<tr>
+<td><code>sub_id</code></td>
+<td>string</td>
+<td>Echoed routing key</td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>string</td>
+<td>Machine-readable code, see below</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>string</td>
+<td>Human-readable description</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>float</td>
+<td>Unix epoch seconds</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+<th>Subscriber action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BAD_REQUEST</code></td>
+<td>Unsupported topic or malformed payload</td>
+<td>Fix the request; do not retry as-is</td>
+</tr>
+<tr>
+<td><code>UNKNOWN_SUB</code></td>
+<td>No such subscription (never created, or already reaped)</td>
+<td>Send <code>log.subscribe</code></td>
+</tr>
+<tr>
+<td><code>TOO_MANY_SUBS</code></td>
+<td>Server is at <code>max_subscribers</code></td>
+<td>Back off and retry, or raise the server limit</td>
+</tr>
+<tr>
+<td><code>INVALID_FILTER</code></td>
+<td>The <code>filter</code> object is malformed</td>
+<td>Fix the filter</td>
+</tr>
+<tr>
+<td><code>INVALID_MODE</code></td>
+<td><code>mode</code> was neither <code>STREAM</code> nor <code>NOTIFY</code></td>
+<td>Fix the mode</td>
+</tr>
+<tr>
+<td><code>INVALID_WINDOW</code></td>
+<td><code>minutes</code> was absent, non-positive, or above <code>max_backfill_minutes</code></td>
+<td>Request a smaller window</td>
+</tr>
+<tr>
+<td><code>INTERNAL</code></td>
+<td>Server-side failure, e.g. a backfill query error</td>
+<td>Retry; check the server's own stdout logging</td>
+</tr>
+</tbody>
+</table>
+<p>A control message that arrives with no usable <code>sub_id</code> is dropped and
+logged server-side — there is no reply topic to answer on.</p>
+<h3 id="logserver_state"><code>log.server_state</code><a class="headerlink" href="#logserver_state" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Liveness and discovery.  Published on the un-suffixed
+topic so <em>any</em> subscriber can see it without knowing a <code>sub_id</code>, which
+makes it the natural way for a UI to show "log server up/down" and to
+discover the server's counters before subscribing to anything.
+<strong>Published by:</strong> <code>pm-log-srv</code> via PUB (<code>:5601</code>), every
+<code>heartbeat_interval_sec</code>, plus once at shutdown</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>server</code></td>
+<td>string</td>
+<td>The server's configured <code>name</code></td>
+</tr>
+<tr>
+<td><code>state</code></td>
+<td>string</td>
+<td><code>"UP"</code> on the periodic tick, <code>"DOWN"</code> on the single shutdown message</td>
+</tr>
+<tr>
+<td><code>proto</code></td>
+<td>string</td>
+<td><code>"LALF-PS/1"</code></td>
+</tr>
+<tr>
+<td><code>pub_addr</code></td>
+<td>string</td>
+<td>The bound PUB address (omitted on the <code>DOWN</code> message)</td>
+</tr>
+<tr>
+<td><code>pull_addr</code></td>
+<td>string</td>
+<td>The bound PULL address (omitted on the <code>DOWN</code> message)</td>
+</tr>
+<tr>
+<td><code>subscribers</code></td>
+<td>integer</td>
+<td>Leased subscriptions right now</td>
+</tr>
+<tr>
+<td><code>active_backfills</code></td>
+<td>integer</td>
+<td>Backfill jobs in flight</td>
+</tr>
+<tr>
+<td><code>last_seq</code></td>
+<td>integer</td>
+<td>Highest <code>log_events.seq</code> seen</td>
+</tr>
+<tr>
+<td><code>inbox_dropped</code></td>
+<td>integer</td>
+<td>Server-wide rows lost before fan-out (normally <code>0</code>)</td>
+</tr>
+<tr>
+<td><code>default_lease_sec</code></td>
+<td>float</td>
+<td>The server's configured default lease TTL</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>float</td>
+<td>Unix epoch seconds</td>
+</tr>
+</tbody>
+</table>
+<p>Absence of <code>log.server_state</code> for more than a couple of intervals is how
+a subscriber detects that the <em>server</em> — rather than its own
+subscription — has gone away.</p>
+<h3 id="log-row-schema">Log row schema<a class="headerlink" href="#log-row-schema" title="Permanent link">&para;</a></h3>
+<p>Every row inside <code>log.event</code> and <code>log.backfill</code> has the same shape, a
+one-to-one mapping of the <code>log_events</code> table (see
+<a href="../280-log-srv/">Centralized Log Server</a>):</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>seq</code></td>
+<td>integer</td>
+<td>Monotonic server-assigned row id; the ordering key for the whole interface</td>
+</tr>
+<tr>
+<td><code>client_ts</code></td>
+<td>string</td>
+<td>When the producing process created the record (UTC ISO-8601 with milliseconds)</td>
+</tr>
+<tr>
+<td><code>server_ts</code></td>
+<td>string</td>
+<td>When <code>pm-log-srv</code> received it — compare with <code>client_ts</code> to spot a lagging producer</td>
+</tr>
+<tr>
+<td><code>process</code></td>
+<td>string</td>
+<td>Producing process name, e.g. <code>"pm-engine"</code></td>
+</tr>
+<tr>
+<td><code>instance</code></td>
+<td>string | null</td>
+<td>Optional instance discriminator when several copies of one process run</td>
+</tr>
+<tr>
+<td><code>pid</code></td>
+<td>integer</td>
+<td>Producer OS process id</td>
+</tr>
+<tr>
+<td><code>host</code></td>
+<td>string</td>
+<td>Producer hostname</td>
+</tr>
+<tr>
+<td><code>session</code></td>
+<td>string</td>
+<td>LALF session id — identifies one <em>connection</em>, and resets on reconnect</td>
+</tr>
+<tr>
+<td><code>level</code></td>
+<td>string</td>
+<td><code>DEBUG</code>, <code>INFO</code>, <code>WARNING</code>, <code>ERROR</code> or <code>CRITICAL</code></td>
+</tr>
+<tr>
+<td><code>logger</code></td>
+<td>string</td>
+<td>Python logger name, e.g. <code>"edumatcher.engine.book"</code></td>
+</tr>
+<tr>
+<td><code>module</code></td>
+<td>string | null</td>
+<td>Source module</td>
+</tr>
+<tr>
+<td><code>line</code></td>
+<td>integer | null</td>
+<td>Source line number</td>
+</tr>
+<tr>
+<td><code>has_exception</code></td>
+<td>boolean</td>
+<td>Whether the message carries a traceback</td>
+</tr>
+<tr>
+<td><code>truncated</code></td>
+<td>boolean</td>
+<td>Whether the body was cut at <code>max_message_bytes</code></td>
+</tr>
+<tr>
+<td><code>message</code></td>
+<td>string</td>
+<td>The formatted log message, traceback included when <code>has_exception</code></td>
+</tr>
+</tbody>
+</table>
 <h2 id="subscription-filter-summary">Subscription filter summary<a class="headerlink" href="#subscription-filter-summary" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -7893,6 +9247,10 @@ every constituent trade or forced recalculation.
 <tr>
 <td>Market-data gateway (<code>pm-md-gwy</code>)</td>
 <td><code>book.</code>, <code>trade.executed</code>, <code>session.state</code>, <code>circuit_breaker.halt.</code>, <code>circuit_breaker.resume.</code>, <code>index.</code></td>
+</tr>
+<tr>
+<td>Log subscriber (viewer/UI, on <code>pm-log-srv</code>'s own PUB <code>:5601</code>)</td>
+<td><code>log.event.{SUB_ID}</code>, <code>log.notify.{SUB_ID}</code>, <code>log.backfill.{SUB_ID}</code>, <code>log.subscribe_ack.{SUB_ID}</code>, <code>log.renew_ack.{SUB_ID}</code>, <code>log.unsubscribe_ack.{SUB_ID}</code>, <code>log.status.{SUB_ID}</code>, <code>log.lease_expired.{SUB_ID}</code>, <code>log.error.{SUB_ID}</code>, <code>log.server_state</code> — in practice the two prefixes <code>log.</code> + <code>{SUB_ID}</code> and <code>log.server_state</code></td>
 </tr>
 </tbody>
 </table>

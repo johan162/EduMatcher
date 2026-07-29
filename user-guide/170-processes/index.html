@@ -2014,6 +2014,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pm-log-srv-centralized-log-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-log-srv — Centralized Log Server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pm-log-cli-log-server-querytroubleshooting-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-log-cli — Log Server Query/Troubleshooting CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2432,6 +2454,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../280-log-srv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -2608,6 +2658,34 @@
     
   
     Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../940-app-lalf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: LALF Protocol
   
 
     
@@ -4299,6 +4377,12 @@ environment variable and the default.</p>
 <td>Real-time cap-weighted index calculation and dissemination</td>
 <td>No</td>
 </tr>
+<tr>
+<td><strong>pm-log-srv</strong></td>
+<td><code>pm-log-srv</code></td>
+<td>Centralized LALF log collector — logging over TCP :5600 to <code>log.db</code></td>
+<td>No</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Monitoring &amp; Admin tools:</strong></p>
@@ -4358,6 +4442,12 @@ environment variable and the default.</p>
 <td><strong>pm-index-admin-cli</strong></td>
 <td><code>pm-index-admin-cli --id &lt;GW_ID&gt; &lt;command&gt; [options]</code></td>
 <td>One-shot CLI for index corporate actions and constituent changes</td>
+<td>Optional</td>
+</tr>
+<tr>
+<td><strong>pm-log-cli</strong></td>
+<td><code>pm-log-cli &lt;command&gt; [options]</code></td>
+<td>Read-only query/troubleshooting interface for <code>log.db</code> (includes <code>diagnose</code>, <code>prune</code>)</td>
 <td>Optional</td>
 </tr>
 <tr>
@@ -5231,7 +5321,7 @@ privacy feature of iceberg orders.</p>
 </table>
 <h2 id="pm-audit-event-logger">pm-audit - Event Logger<a class="headerlink" href="#pm-audit-event-logger" title="Permanent link">&para;</a></h2>
 <p>Records every message on the bus to a rotating log file.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-audit<span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>data/audit.log<span class="o">]</span><span class="w"> </span><span class="o">[</span>--terminal<span class="o">]</span><span class="w"> </span><span class="o">[</span>--buffer-size<span class="w"> </span><span class="m">100</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--flush-interval<span class="w"> </span><span class="m">10</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-audit<span class="w"> </span><span class="o">[</span>--audit-log-file<span class="w"> </span>data/audit.log<span class="o">]</span><span class="w"> </span><span class="o">[</span>--terminal<span class="o">]</span><span class="w"> </span><span class="o">[</span>--buffer-size<span class="w"> </span><span class="m">100</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--flush-interval<span class="w"> </span><span class="m">10</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -5244,9 +5334,9 @@ privacy feature of iceberg orders.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>--log-file</code></td>
+<td><code>--audit-log-file</code></td>
 <td><code>data/audit.log</code></td>
-<td>Output log file path</td>
+<td>Audit-trail output log file path</td>
 </tr>
 <tr>
 <td><code>--terminal</code> / <code>-t</code></td>
@@ -5277,6 +5367,21 @@ privacy feature of iceberg orders.</p>
 <td><code>-q</code> / <code>--quiet</code></td>
 <td>off</td>
 <td>Reduce output to warnings/errors</td>
+</tr>
+<tr>
+<td><code>--log-target</code></td>
+<td><code>server</code></td>
+<td>Where operational log records go: <code>server</code> (auto-detected), <code>stdout</code>, or <code>file</code></td>
+</tr>
+<tr>
+<td><code>--log-file</code></td>
+<td>none</td>
+<td>Operational log file path — required when <code>--log-target file</code></td>
+</tr>
+<tr>
+<td><code>--log-failover-timeout</code></td>
+<td>30 (from config)</td>
+<td>Seconds to wait before falling back to a local log file if <code>pm-log-srv</code> becomes unreachable</td>
 </tr>
 </tbody>
 </table>
@@ -9105,6 +9210,74 @@ dropping it as an idle client.</p>
 </tbody>
 </table>
 <p>See <a href="../241-calf-spy-cli/">CALF Protocol Spy (pm-calf-spy)</a> for full usage.</p>
+<h2 id="pm-log-srv-centralized-log-server">pm-log-srv — Centralized Log Server<a class="headerlink" href="#pm-log-srv-centralized-log-server" title="Permanent link">&para;</a></h2>
+<p><code>pm-log-srv</code> is a dedicated collector process, unrelated to the ZeroMQ bus:
+it accepts LALF ("Logging ALF") TCP connections from any number of <code>pm-*</code>
+processes and appends every received log record to a queryable SQLite
+database (<code>log.db</code>), the same "dedicated collector + SQLite + read-only
+query CLI" shape <code>pm-stats</code>/<code>pm-audit</code> already use for market data and
+trading events, applied here to operational <code>logging</code>-module output.</p>
+<div class="admonition note">
+<p class="admonition-title">Phased rollout</p>
+<p><code>pm-log-srv</code>/<code>pm-log-cli</code> are fully implemented and usable today. Wiring
+every existing <code>pm-*</code> process's own logging into a LALF client that
+auto-detects a running <code>pm-log-srv</code> at startup is a follow-up phase and
+has not yet been rolled out — until then, <code>--log-level</code>/<code>-v</code>/<code>-q</code> still
+control each process's own stdout logging as before.</p>
+</div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>pm-log-srv [--host ADDR] [--port PORT] [--db PATH]
+<a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a>           [--retention-days N] [--max-message-bytes N]
+<a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a>           [--log-level LEVEL] [-v|-vv] [-q]
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--host</code></td>
+<td><code>0.0.0.0</code> (from config)</td>
+<td>TCP bind address</td>
+</tr>
+<tr>
+<td><code>--port</code></td>
+<td><code>5600</code></td>
+<td>TCP listen port for LALF clients</td>
+</tr>
+<tr>
+<td><code>--db</code></td>
+<td><code>data/log.db</code></td>
+<td>SQLite database path</td>
+</tr>
+<tr>
+<td><code>--retention-days</code></td>
+<td><code>30</code></td>
+<td>Prune <code>log_events</code> rows older than N days; <code>0</code> = unbounded</td>
+</tr>
+<tr>
+<td><code>--max-message-bytes</code></td>
+<td><code>65536</code></td>
+<td>Truncation ceiling per <code>LOG</code> payload (never dropped, only truncated)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="pm-log-cli-log-server-querytroubleshooting-cli">pm-log-cli — Log Server Query/Troubleshooting CLI<a class="headerlink" href="#pm-log-cli-log-server-querytroubleshooting-cli" title="Permanent link">&para;</a></h2>
+<p><code>pm-log-cli</code> is a read-only offline tool: it queries <code>log.db</code> directly, never
+over the network, so a busy or even-stopped <code>pm-log-srv</code> never blocks
+troubleshooting with data already collected.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>pm-log-cli [--db PATH] [--format human|json] COMMAND [options]
+</code></pre></div>
+<p>Subcommands: <code>tail</code>, <code>query</code>, <code>processes</code>, <code>stats</code>, <code>diagnose</code> (rule-based
+troubleshooting heuristics with concrete recommendations), and <code>prune</code>
+(manual retention maintenance).</p>
+<p>See <a href="../280-log-srv/">Centralized Log Server</a> for the full operational guide
+— starting the server, every <code>pm-log-cli</code> subcommand, and a workflow
+cookbook — and <a href="../940-app-lalf-protocol/">LALF Protocol Reference</a> for the
+normative wire specification.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../040-running-the-exchange/">Running the Engine</a> — startup order, launch scripts, and verification</li>
@@ -9117,6 +9290,8 @@ dropping it as an idle client.</p>
 <li><a href="../240-calf-gateway/">Market Data Feed (CALF)</a> — external CALF gateway usage</li>
 <li><a href="../241-calf-spy-cli/">CALF Protocol Spy (pm-calf-spy)</a> — read-only CALF inspection CLI</li>
 <li><a href="../251-ralf-spy-cli/">RALF Protocol Spy (pm-ralf-spy)</a> — read-only RALF inspection CLI</li>
+<li><a href="../280-log-srv/">Centralized Log Server</a> — pm-log-srv/pm-log-cli operational guide</li>
+<li><a href="../940-app-lalf-protocol/">LALF Protocol Reference</a> — official protocol appendix</li>
 <li><a href="../220-alf-gateway/">ALF TCP Gateway</a> — external ALF order-entry gateway usage</li>
 <li><a href="../260-api-gateway/">API Gateway (REST/WebSocket)</a> — REST/WebSocket gateway usage and endpoint reference</li>
 <li><a href="../150-market-index/">Market Index (pm-index)</a> — index configuration, calculation, and corporate actions</li>
