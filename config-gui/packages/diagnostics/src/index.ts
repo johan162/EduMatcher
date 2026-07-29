@@ -230,6 +230,14 @@ const portCollision: Rule = (draft) => {
       path: "dcGateway.port",
     });
   }
+  if (draft.logServer.enabled) {
+    endpoints.push({
+      label: `log_server '${draft.logServer.name}'`,
+      address: draft.logServer.bindAddress,
+      port: draft.logServer.port,
+      path: "logServer.port",
+    });
+  }
   for (const gw of draft.apiGateways) {
     if (gw.enabled) {
       endpoints.push({

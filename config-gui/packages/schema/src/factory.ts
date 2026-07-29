@@ -12,6 +12,7 @@ import {
   DEFAULT_DYNAMIC_BAND_PCT,
   DEFAULT_INDEX_BASE_VALUE,
   DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
+  DEFAULT_LOG_SERVER,
   DEFAULT_MARKET_DATA_GATEWAY,
   DEFAULT_MM_MIN_QTY,
   DEFAULT_MM_SPREAD_TICKS,
@@ -35,6 +36,7 @@ import type {
   EngineConfigDraft,
   GatewayConfig,
   IndexConfig,
+  LogServerConfig,
   MarketDataGatewayConfig,
   MmQuoteSeed,
   ParticipantRole,
@@ -128,6 +130,22 @@ export function createDcGateway(): DcGatewayConfig {
     heartbeatIntervalSec: DEFAULT_DC_GATEWAY.heartbeatIntervalSec,
     idleTimeoutSec: DEFAULT_DC_GATEWAY.idleTimeoutSec,
     maxClientQueue: DEFAULT_DC_GATEWAY.maxClientQueue,
+  };
+}
+
+export function createLogServer(): LogServerConfig {
+  return {
+    enabled: false,
+    name: DEFAULT_LOG_SERVER.name,
+    bindAddress: DEFAULT_LOG_SERVER.bindAddress,
+    port: DEFAULT_LOG_SERVER.port,
+    dbPath: DEFAULT_LOG_SERVER.dbPath,
+    retentionDays: DEFAULT_LOG_SERVER.retentionDays,
+    maxMessageBytes: DEFAULT_LOG_SERVER.maxMessageBytes,
+    maxClientQueue: DEFAULT_LOG_SERVER.maxClientQueue,
+    writeBatchSize: DEFAULT_LOG_SERVER.writeBatchSize,
+    writeBatchIntervalMs: DEFAULT_LOG_SERVER.writeBatchIntervalMs,
+    heartbeatIntervalSec: DEFAULT_LOG_SERVER.heartbeatIntervalSec,
   };
 }
 
@@ -285,6 +303,7 @@ export function createBlankDraft(): EngineConfigDraft {
     marketDataGateway: createMarketDataGateway(),
     balfGateway: createBalfGateway(),
     dcGateway: createDcGateway(),
+    logServer: createLogServer(),
     apiGateways: [],
     output: { filename: "engine_config.yaml", commentDefaultFields: false },
     unmappedYaml: {},

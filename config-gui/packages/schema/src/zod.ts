@@ -184,6 +184,20 @@ export const dcGatewaySchema = z.object({
   maxClientQueue: z.number().int().positive(),
 });
 
+export const logServerSchema = z.object({
+  enabled: z.boolean(),
+  name: z.string().min(1),
+  bindAddress: z.string().min(1),
+  port: z.number().int().min(1).max(65535),
+  dbPath: z.string().min(1),
+  retentionDays: z.number().int().nonnegative().nullable(),
+  maxMessageBytes: z.number().int().positive(),
+  maxClientQueue: z.number().int().positive(),
+  writeBatchSize: z.number().int().positive(),
+  writeBatchIntervalMs: z.number().int().positive(),
+  heartbeatIntervalSec: z.number().positive(),
+});
+
 export const apiCredentialSchema = z.object({
   apiKey: z.string(),
   gatewayId: z.string().nullable(),
@@ -254,6 +268,7 @@ export const engineConfigDraftSchema = z.object({
   marketDataGateway: marketDataGatewaySchema,
   balfGateway: balfGatewaySchema,
   dcGateway: dcGatewaySchema,
+  logServer: logServerSchema,
   apiGateways: z.array(apiGatewaySchema),
   output: z.object({
     filename: z.string().min(1),

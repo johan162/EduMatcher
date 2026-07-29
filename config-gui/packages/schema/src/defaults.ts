@@ -107,6 +107,20 @@ export const DEFAULT_DC_GATEWAY = {
   maxClientQueue: 10_000,
 } as const;
 
+export const DEFAULT_LOG_SERVER = {
+  enabled: true,
+  name: "log-srv01",
+  bindAddress: "0.0.0.0",
+  port: 5600,
+  dbPath: "data/log.db",
+  retentionDays: 30 as number | null,
+  maxMessageBytes: 65_536,
+  maxClientQueue: 10_000,
+  writeBatchSize: 50,
+  writeBatchIntervalMs: 100,
+  heartbeatIntervalSec: 5,
+} as const;
+
 export const DEFAULT_API_GATEWAY = {
   name: "default",
   host: "127.0.0.1",

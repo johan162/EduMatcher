@@ -42,6 +42,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   "market_data_gateway",
   "balf_gateway",
   "dc_gateway",
+  "log_server",
   "api_gateways",
   "symbols",
   "market_maker_combos",
@@ -403,6 +404,32 @@ function parseNetworkGateways(raw: Dict, draft: EngineConfigDraft): void {
       asNumber(dc.heartbeat_interval_sec) ?? g.heartbeatIntervalSec;
     g.idleTimeoutSec = asNumber(dc.idle_timeout_sec) ?? g.idleTimeoutSec;
     g.maxClientQueue = asNumber(dc.max_client_queue) ?? g.maxClientQueue;
+  }
+
+  const ls = raw.log_server;
+  if (isDict(ls)) {
+    const g = draft.logServer;
+    g.enabled = asBool(ls.enabled, true);
+    g.name = asString(ls.name) ?? g.name;
+    g.bindAddress = asString(ls.bind_address) ?? g.bindAddress;
+    g.port = asNumber(ls.port) ?? g.port;
+    g.dbPath = asString(ls.db_path) ?? g.dbPath;
+    // retention_days: null/0 both mean unbounded retention (§6.5); a bare
+    // `null` in YAML must stick, not silently fall back to the 30-day
+    // default the way asNumber(undefined) ?? default would.
+    if (ls.retention_days === null) {
+      g.retentionDays = null;
+    } else {
+      const retentionDays = asNumber(ls.retention_days);
+      if (retentionDays !== undefined) g.retentionDays = retentionDays;
+    }
+    g.maxMessageBytes = asNumber(ls.max_message_bytes) ?? g.maxMessageBytes;
+    g.maxClientQueue = asNumber(ls.max_client_queue) ?? g.maxClientQueue;
+    g.writeBatchSize = asNumber(ls.write_batch_size) ?? g.writeBatchSize;
+    g.writeBatchIntervalMs =
+      asNumber(ls.write_batch_interval_ms) ?? g.writeBatchIntervalMs;
+    g.heartbeatIntervalSec =
+      asNumber(ls.heartbeat_interval_sec) ?? g.heartbeatIntervalSec;
   }
 }
 

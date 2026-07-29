@@ -274,6 +274,27 @@ export interface DcGatewayConfig {
   maxClientQueue: number;
 }
 
+/**
+ * Centralized LALF log collector (`pm-log-srv`). Accepts logging over TCP
+ * from every other `pm-*` process and appends it to a queryable SQLite
+ * database (`log.db`), inspected via `pm-log-cli`. Unrelated to the ZeroMQ
+ * bus and to any other gateway; a standalone operational-logging sink.
+ */
+export interface LogServerConfig {
+  enabled: boolean;
+  name: string;
+  bindAddress: string;
+  port: number;
+  dbPath: string;
+  /** Days before old rows are pruned; `null`/`0` both mean unbounded retention. */
+  retentionDays: number | null;
+  maxMessageBytes: number;
+  maxClientQueue: number;
+  writeBatchSize: number;
+  writeBatchIntervalMs: number;
+  heartbeatIntervalSec: number;
+}
+
 export interface ApiCredential {
   apiKey: string;
   /** null = read-only market-data key. */
@@ -362,6 +383,7 @@ export interface EngineConfigDraft {
   marketDataGateway: MarketDataGatewayConfig;
   balfGateway: BalfGatewayConfig;
   dcGateway: DcGatewayConfig;
+  logServer: LogServerConfig;
   apiGateways: ApiGatewayConfig[];
 
   output: {
