@@ -484,7 +484,7 @@ to point at a non-default engine address.
 | `max_client_queue` | `Int` | – | `10000` | `> 0`; per-connection outbound backlog limit before backpressure is applied |
 | `write_batch_size` | `Int` | – | `50` | `> 0`; maximum rows per SQLite transaction in the background writer thread |
 | `write_batch_interval_ms` | `Int` | – | `100` | `> 0`; maximum time between writer-thread flushes, whichever comes first with `write_batch_size` |
-| `heartbeat_interval_sec` | `Int` | – | `5` | `> 0`; interval a connected client must send `HB` within (echoed as `WELCOME\|HBINT=`) |
+| `heartbeat_interval_sec` | `Int` | – | `5` | `> 0`; how often a connected client must send something (`LOG` or `HB`) to stay alive; the server disconnects after 2× this interval of silence and advertises the value in `WELCOME\|HBINT=` (the server itself never sends `HB`) |
 
 This block has no interaction with `gateways.alf` or any other engine section —
 `pm-log-srv` is a standalone LALF collector, unrelated to the ZeroMQ bus, and does

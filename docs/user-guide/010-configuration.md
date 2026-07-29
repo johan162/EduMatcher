@@ -1249,7 +1249,7 @@ log_server:
 | `max_client_queue` | `10000` | Per-connection outbound backlog limit before backpressure is applied |
 | `write_batch_size` | `50` | Maximum rows per SQLite transaction in the background writer thread |
 | `write_batch_interval_ms` | `100` | Maximum time between writer-thread flushes, whichever comes first with `write_batch_size` |
-| `heartbeat_interval_sec` | `5` | Interval a connected client must send `HB` within (echoed as `WELCOME.HBINT`) |
+| `heartbeat_interval_sec` | `5` | How often a connected client must send something (`LOG` or `HB`) to stay alive; the server disconnects after 2× this interval of silence and advertises the value to clients in `WELCOME.HBINT` (the server itself never sends `HB`) |
 
 Every CLI flag on `pm-log-srv` (`--host`, `--port`, `--db`,
 `--retention-days`, `--max-message-bytes`) overrides the corresponding

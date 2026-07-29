@@ -277,7 +277,7 @@ function LogServerPanel() {
             label="Heartbeat interval (sec)"
             value={g.heartbeatIntervalSec}
             onChange={(v) => set((gw) => (gw.heartbeatIntervalSec = v ?? gw.heartbeatIntervalSec))}
-            help={{ text: "Interval a connected client must send HB within, echoed as WELCOME|HBINT=.", cliFlag: "--log-server-heartbeat-interval-sec" }}
+            help={{ text: "How often a connected client must send something (a LOG or HB message) to stay considered alive. The server itself never sends heartbeats — LALF's HB is client-to-server only — but it disconnects a client after 2× this interval of total silence. This value is sent to clients in WELCOME|HBINT= so they know the expected cadence.", cliFlag: "--log-server-heartbeat-interval-sec" }}
           />
         </>
       )}
