@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pm-log-ui</title>
+    <script>
+      // Read the theme preference before React hydrates, to avoid a
+      // light-mode flash on a dark-mode reload (design §7.5).
+      (function () {
+        var pref = localStorage.getItem("log-ui-theme") || "dark";
+        var wantsDark =
+          pref === "dark" ||
+          (pref === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (wantsDark) document.documentElement.classList.add("dark");
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

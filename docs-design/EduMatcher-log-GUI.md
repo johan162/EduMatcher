@@ -1,8 +1,76 @@
-Version: 1.0.0
+Version: 1.1.0
 
 Date: 2026-07-29
 
-Status: Design Proposal — initial draft, pre-implementation
+Status: Implemented — initial scaffold shipped in `log-gui/`
+
+> **Changelog v1.1.0 — implementation notes**
+>
+> Phases 1–6 of §22's implementation plan were built in one pass rather than
+> the phased order suggested there (the whole app is small enough that
+> splitting it across sessions would have cost more in re-established context
+> than it saved). Four points where the real build resolved something this
+> document had left open, or diverged in a small, motivated way:
+>
+> - **§23 open question 1 (where diagnostics run) is resolved: option (a).**
+>   `GET /api/diagnostics` shells out to `pm-log-cli --format json diagnose`
+>   (`apps/bridge/src/routes/diagnostics.ts`) rather than porting the seven
+>   heuristics to TypeScript. This keeps exactly one implementation of
+>   `edumatcher.log_cli.diagnose`, at the cost of the bridge depending on
+>   `pm-log-cli` being installed and on `PATH` (or reachable via the
+>   `LOG_CLI_COMMAND` env var). When it isn't, the route returns a 503 and
+>   every other view keeps working — the same degrade-honestly posture §3.1
+>   goal 7 asks for elsewhere.
+> - **§23 open question 3 (`node:sqlite` vs. `better-sqlite3`) is resolved:
+>   `node:sqlite` (`DatabaseSync`) for both `log-db.ts` and `ack-store.ts`.**
+>   The initial implementation used `better-sqlite3`, on the reasoning that
+>   its synchronous, read-only-capable API was a known quantity and
+>   `node:sqlite` was still short on production mileage. That choice was
+>   reverted after local bootstrap on Node 26 surfaced a real incompatibility:
+>   `better-sqlite3`'s native C++ addon (compiled at install time when no
+>   prebuilt binary matches the running Node's ABI) fails to compile against
+>   Node 26's V8 headers — `v8::Object::GetPrototype`,
+>   `v8::Context::GetIsolate`, and `v8::PropertyCallbackInfo::This` have all
+>   been removed/renamed in that V8 version, and the installed
+>   `better-sqlite3` release predates the fix. Rather than pin this project to
+>   an older Node than the rest of the application (`config-gui` runs
+>   unmodified on Node 26, since it has no native dependencies at all), the
+>   SQLite access layer was ported to Node's built-in `node:sqlite` module
+>   (`DatabaseSync`/`StatementSync`, stable enough for this project's needs as
+>   of Node 22.5+). This removes the native dependency — and the class of
+>   problem — entirely: no prebuilt binary, no `node-gyp` compile, no
+>   Dockerfile build toolchain, no Node-version ceiling. The API shape is
+>   close enough to `better-sqlite3` that the port was mechanical:
+>   `new DatabaseSync(path, { readOnly: true })` in place of
+>   `new Database(path, { readonly: true, fileMustExist: true })`,
+>   `db.exec("PRAGMA journal_mode = WAL")` in place of
+>   `db.pragma(...)`, and `.prepare(sql).all/get/run(...params)` unchanged.
+>   `log-gui/`'s `engines.node` is back to a plain `>=20`, matching the
+>   sibling apps.
+> - **Fingerprint traceback handling (§11.1) is an approximation, not the
+>   literal "exception type + final frame."** `fingerprint.ts` takes the last
+>   two non-blank lines of a `has_exception` row's message (the traceback's
+>   final `File "...", line N` frame plus the exception line that follows
+>   it in Python's standard traceback format) rather than parsing the
+>   traceback structurally. This matches the design's intent — "two
+>   occurrences differ in intermediate frames but agree on where they were
+>   raised" — for the traceback shape Python actually emits, without needing
+>   a full traceback parser. Flagged here because it is a heuristic *within*
+>   the heuristic, and a message format that doesn't end with the raising
+>   frame (unlikely for this project's `has_exception` rows, which come from
+>   `logging.exception()`/`exc_info=True`) would degrade its grouping.
+> - **`packages/log-query`'s timeseries bucketing (§17) computes arbitrary
+>   bucket widths via epoch-floor arithmetic in SQL, not `strftime` alone.**
+>   `strftime` can select a calendar unit (minute, hour) but not a multiple
+>   of one, so a `5m` bucket is `floor(unix_epoch / 300) * 300` reformatted
+>   back to ISO — still "bucketed in SQL, not in JS" as §17 requires, just a
+>   detail the design didn't need to specify at the wireframe level.
+>
+> No decision recorded elsewhere in this document (§4.4's dual-source split,
+> §11.2's ack-store placement, §11.1's fingerprint model, or §19's identity
+> model) needed to change during implementation — the data-availability
+> audit in §4 held up against the real `log_srv`/`log_cli` code exactly as
+> written.
 
 > **Scope note**
 >
@@ -370,8 +438,8 @@ on one stack is worth more than optimising each in isolation.
 | Bridge runtime | Node.js 22 LTS | Matches both siblings |
 | Bridge framework | Fastify | Matches `config-gui`'s `apps/server` and `pm-terminal`'s bridge |
 | ZeroMQ client | `zeromq` (zeromq.js v6) | Official Node binding, `PUB`/`SUB` and `PUSH`/`PULL` support; the bridge speaks LALF-PS natively rather than through a shim |
-| SQLite client | `node:sqlite` (Node 22 built-in), else `better-sqlite3` | Read-only, synchronous, no connection pool needed. Built-in first to avoid a native dependency; §23 flags the version-availability caveat |
-| Ack store | `better-sqlite3` (read-write) | The one thing this application writes. Separate file, separate connection, no relationship to `log.db` |
+| SQLite client | `node:sqlite` (`DatabaseSync`) | Read-only, synchronous, no connection pool needed, no native dependency. `better-sqlite3` was tried first and reverted — see the v1.1.0 changelog |
+| Ack store | `node:sqlite` (read-write) | The one thing this application writes. Separate file, separate connection, no relationship to `log.db` |
 | Browser transport | Native WebSocket + thin reconnect wrapper | Same as `pm-terminal`; no auth frames to complicate it |
 | Icons | Lucide React | Matches `pm-terminal` |
 | Virtual scrolling | `@tanstack/react-virtual` | See §17 |
@@ -1636,16 +1704,19 @@ defers the two phases with open questions attached.
 
 ## 23. Open Questions
 
-1. **Where do the diagnostic heuristics run?** (§12.2) `diagnose.py` already
-   implements seven of them well. Three options, none chosen here:
-   (a) the bridge shells out to `pm-log-cli diagnose --format json` and
-   renders the result — zero duplication, but couples the bridge to a
-   Python process being installed and on `PATH`; (b) `pm-log-srv` or a small
-   Python sidecar exposes them over HTTP — cleaner boundary, another
-   process; (c) port them to TypeScript in the bridge — no runtime
-   coupling, but two implementations of the same heuristics that *will*
-   drift. The first is most attractive and the third is most tempting;
-   this needs a decision before Phase 7, not during it.
+1. ~~**Where do the diagnostic heuristics run?**~~ **Resolved (v1.1.0,
+   implementation): option (a).** (§12.2) `diagnose.py` already implements
+   seven of them well. Three options were on the table: (a) the bridge
+   shells out to `pm-log-cli diagnose --format json` and renders the
+   result — zero duplication, but couples the bridge to a Python process
+   being installed and on `PATH`; (b) `pm-log-srv` or a small Python
+   sidecar exposes them over HTTP — cleaner boundary, another process;
+   (c) port them to TypeScript in the bridge — no runtime coupling, but two
+   implementations of the same heuristics that *will* drift. Option (a) was
+   chosen and implemented in `apps/bridge/src/routes/diagnostics.ts`; see
+   the v1.1.0 changelog at the top of this document for the accepted
+   trade-off and its degrade-honestly fallback (a 503 when `pm-log-cli` is
+   unavailable).
 2. **Should acks be shareable across bridge instances?** (§11.2) Acks live
    in a bridge-owned SQLite file, so two bridges against one `log.db` would
    not see each other's acks. For the recommended one-bridge deployment
@@ -1653,12 +1724,13 @@ defers the two phases with open questions attached.
    is putting the ack store *beside* `log.db` on shared storage rather than
    moving it *into* `log.db` — but that inherits SQLite's
    multi-writer-over-network caveats and should not be done casually.
-3. **Is `node:sqlite` available and stable on the target Node?** (§5.1)
-   Node 22 ships it, but its stability status has moved between releases.
-   The fallback (`better-sqlite3`) is mature but is a native dependency,
-   which the sibling applications have so far avoided entirely. Worth
-   confirming against the actual deployment runtime before Phase 1 rather
-   than discovering it in CI.
+3. ~~**Is `node:sqlite` available and stable on the target Node?**~~
+   **Resolved (v1.1.0, implementation): `node:sqlite` (`DatabaseSync`).**
+   (§5.1) `better-sqlite3` was tried first, then reverted after its native
+   addon failed to compile against Node 26's V8 headers on local bootstrap.
+   `node:sqlite` is used for both `log-db.ts` (read-only) and `ack-store.ts`
+   (read-write) — no native dependency, no build-stage toolchain, no
+   Node-version ceiling; see the v1.1.0 changelog for the full reasoning.
 4. **Does `contains` search need FTS5?** (§17) Current filters map onto
    existing indexes, but `message LIKE '%needle%'` is a full scan of the
    filtered set. At `log.db` sizes this project produces it should be fine;

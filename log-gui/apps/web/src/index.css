@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Theme tokens (design §14.1) and severity palette (design §14.2).
+ * GitHub-derived rather than invented — this is an operator console, not a
+ * place for a novel colour statement (§14.1). Dark is the default.
+ */
+:root,
+html.dark {
+  --bg: #0d1117;
+  --bg-subtle: #161b22;
+  --bg-inset: #010409;
+  --border: #30363d;
+  --fg: #e6edf3;
+  --fg-subtle: #8b949e;
+  --accent: #2f81f7;
+
+  --level-debug: #8b949e;
+  --level-info: #58a6ff;
+  --level-warning: #d29922;
+  --level-error: #f85149;
+  --level-critical: #ff7b72;
+  --level-critical-bg: #490202;
+}
+
+html:not(.dark) {
+  --bg: #ffffff;
+  --bg-subtle: #f6f8fa;
+  --bg-inset: #eef1f4;
+  --border: #d0d7de;
+  --fg: #1f2328;
+  --fg-subtle: #59636e;
+  --accent: #0969da;
+
+  --level-debug: #6e7781;
+  --level-info: #0969da;
+  --level-warning: #9a6700;
+  --level-error: #cf222e;
+  --level-critical: #ffffff;
+  --level-critical-bg: #cf222e;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Alert banner pulse (design §8.3, §14.3) — a slow border pulse, not a flash. */
+@keyframes alert-pulse {
+  0%,
+  100% {
+    border-color: var(--level-error);
+  }
+  50% {
+    border-color: transparent;
+  }
+}
+
+.alert-pulse {
+  animation: alert-pulse 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alert-pulse {
+    animation: none;
+    border-color: var(--level-error);
+    border-width: 3px;
+  }
+}
+
+/* New row fade-in in the live tail (design §14.3). */
+@keyframes row-flash-in {
+  from {
+    background-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.row-flash {
+  animation: row-flash-in 400ms ease-out;
+}

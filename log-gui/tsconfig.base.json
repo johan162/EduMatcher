@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "sourceMap": true,
+    "paths": {
+      "@edumatcher/log-types": ["./packages/log-types/src/index.ts"],
+      "@edumatcher/log-types/*": ["./packages/log-types/src/*"],
+      "@edumatcher/log-query": ["./packages/log-query/src/index.ts"],
+      "@edumatcher/log-query/*": ["./packages/log-query/src/*"]
+    }
+  }
+}
