@@ -673,7 +673,7 @@ and can never return a row that a crash would later roll back.
 | Source status | Two independent dots — LALF-PS and `log.db` — because either can fail alone (§6.6, §7.4). Hover shows detail |
 | Unacked badge | Count of unacknowledged issues at `ERROR`+ . Red, pulsing while non-zero. Clicking navigates to Alerts. **This is the single most important element in the application** and is present on every view |
 | Command palette | `⌘K` / `Ctrl-K` — jump to a view, jump to a process, apply a saved filter, toggle theme |
-| Theme toggle | Sun/moon; cycles dark → light → system (§7.5) |
+| Theme toggle | Sun/moon; toggles dark ↔ light (§7.5) — see v1.1.0 changelog for why `system` was dropped |
 | Settings | Operator display name (§19), density, retention of client-side prefs |
 
 ### 7.3 Navigation rail
@@ -704,15 +704,33 @@ operator seeing "disconnected" needs to know whether logs are still being
 
 ### 7.5 Theme
 
-Dark default, light fully supported, system-preference option. Implemented
-as CSS custom properties on `:root` / `.dark` with Tailwind's `dark:`
-variant, so a single token set drives both (§14.1). Charts read their
-colours from the same tokens via CSS variables rather than hard-coded hex,
-so theme switching recolours charts without a remount.
+Dark default, light fully supported. Implemented as CSS custom properties
+on `:root` / `.dark` with Tailwind's `dark:` variant, so a single token set
+drives both (§14.1). Charts read their colours from the same tokens via CSS
+variables rather than hard-coded hex, so theme switching recolours charts
+without a remount.
 
 Preference persists to `localStorage`. First paint reads it in an inline
 script before React hydrates, to avoid a light-mode flash on a dark-mode
 reload — a small detail, but a very visible one on an operator screen.
+
+> **v1.1.0 implementation note**: the originally designed three-way
+> dark/light/system cycle was dropped down to a plain dark/light toggle.
+> The three-way cycle turned out to be the trigger for a real bug, not just
+> a cosmetic one: the toggle button (`TopBar`) computed the *next* theme
+> and its icon directly from a `theme` value passed down as a prop from
+> `AppShell`, while the actual DOM class was applied from a `useEffect`
+> keyed on that same state — two steps (render, then a separate effect
+> commit) instead of one atomic step. Under fast clicking this produced a
+> visible one-click skew between the icon and the applied theme, and made
+> the three possible states hard to reason about on screen (the `system`
+> icon is easy to mistake for one of the other two at a glance, especially
+> mid-cycle). Rather than keep chasing effect-timing edge cases for a third
+> state that mostly existed for completeness, the toggle was simplified to
+> a binary `dark ↔ light` switch — matching `config-gui`'s working theme
+> toggle, which never had this problem because it applies the DOM change
+> synchronously in the same action that updates state, with no separate
+> effect in between. `log-gui`'s toggle now does the same.
 
 ## 8. Screen Design — Dashboard
 

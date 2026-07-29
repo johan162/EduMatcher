@@ -1,11 +1,17 @@
 /** Top bar (design §7.2): source status, unacked badge, theme toggle. */
 
-import { Moon, Sun, SunMoon } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api.js";
-import { cycleTheme, type ThemePreference } from "../../lib/theme.js";
+import type { ThemePreference } from "../../lib/theme.js";
 import { useLiveStore, type SourceState } from "../../store/useLiveStore.js";
+
+/** Icon shown is the theme a click will switch *to*, not the active one. */
+const NEXT_THEME_ICON: Record<ThemePreference, typeof Moon> = {
+  dark: Sun,
+  light: Moon,
+};
 
 const VERSION = "v0.1.0";
 
@@ -28,7 +34,7 @@ export function TopBar({
   onThemeChange,
 }: {
   theme: ThemePreference;
-  onThemeChange: (t: ThemePreference) => void;
+  onThemeChange: () => void;
 }) {
   const connectionState = useLiveStore((s) => s.connectionState());
   const serverName = useLiveStore((s) => s.serverState?.server ?? "log-srv");
@@ -40,7 +46,7 @@ export function TopBar({
   });
   const unackedCount = unackedIssues?.issues.length ?? 0;
 
-  const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : SunMoon;
+  const ThemeIcon = NEXT_THEME_ICON[theme];
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-4 border-b border-border bg-bg-subtle px-4 text-sm">
@@ -66,7 +72,7 @@ export function TopBar({
       <div className="ml-auto flex items-center gap-3">
         <button
           type="button"
-          onClick={() => onThemeChange(cycleTheme(theme))}
+          onClick={onThemeChange}
           className="flex items-center gap-1 rounded p-1.5 hover:bg-bg-inset"
           title={`Theme: ${theme}`}
         >

@@ -8,11 +8,11 @@ import { api } from "../../lib/api.js";
 
 const DESTINATIONS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/logs", label: "Logs", icon: Gauge },
-  { to: "/alerts", label: "Alerts", icon: AlertTriangle },
-  { to: "/processes", label: "Processes", icon: Activity },
-  { to: "/diagnostics", label: "Diagnostics", icon: Stethoscope },
-  { to: "/health", label: "Health", icon: HeartPulse },
+  { to: "/logs", label: "Logs", icon: Gauge, end: false },
+  { to: "/alerts", label: "Alerts", icon: AlertTriangle, end: false },
+  { to: "/processes", label: "Processes", icon: Activity, end: false },
+  { to: "/diagnostics", label: "Diagnostics", icon: Stethoscope, end: false },
+  { to: "/health", label: "Health", icon: HeartPulse, end: false },
 ] as const;
 
 export function NavRail() {
