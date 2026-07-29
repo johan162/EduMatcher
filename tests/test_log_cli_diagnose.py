@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -13,8 +14,12 @@ from edumatcher.logclient.protocol import iso_utc
 
 
 @pytest.fixture
-def conn(tmp_path: Path) -> sqlite3.Connection:
-    return open_db(tmp_path / "log.db")
+def conn(tmp_path: Path) -> Iterator[sqlite3.Connection]:
+    connection = open_db(tmp_path / "log.db")
+    try:
+        yield connection
+    finally:
+        connection.close()
 
 
 def _insert_event(

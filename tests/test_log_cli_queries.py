@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -44,14 +45,17 @@ def db_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def conn(db_path: Path) -> sqlite3.Connection:
+def conn(db_path: Path) -> Iterator[sqlite3.Connection]:
     connection = open_db(db_path)
     # Match how pm-log-cli actually opens the database (queries.open_readonly
     # sets row_factory = sqlite3.Row) — the query functions index rows by
     # column name, so a plain tuple-factory connection would not exercise
     # the real code path pm-log-cli uses.
     connection.row_factory = sqlite3.Row
-    return connection
+    try:
+        yield connection
+    finally:
+        connection.close()
 
 
 def test_query_events_filters_by_process(conn: sqlite3.Connection) -> None:

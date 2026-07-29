@@ -42,6 +42,7 @@ class _RunningServer:
         )
         self.server = LogServer(self.config)
         self.thread = threading.Thread(target=self.server.run, daemon=True)
+        self._extra_conns: list[sqlite3.Connection] = []
 
     def start(self) -> None:
         self.thread.start()
@@ -53,9 +54,13 @@ class _RunningServer:
     def stop(self) -> None:
         self.server.stop()
         time.sleep(0.4)
+        for conn in self._extra_conns:
+            conn.close()
 
     def db(self) -> sqlite3.Connection:
-        return sqlite3.connect(str(self.db_path))
+        conn = sqlite3.connect(str(self.db_path))
+        self._extra_conns.append(conn)
+        return conn
 
 
 @pytest.fixture
