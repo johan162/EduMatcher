@@ -1,9 +1,51 @@
-Version: 1.3.0
+Version: 1.4.0
 
 Date: 2026-07-29
 
-Status: Implemented (phase 3, partial) — `TcpLogHandler`/auto-detection/file
-failover shipped in `logclient/`, wired into `pm-audit` as the first process
+Status: Implemented (phase 5 complete) — `TcpLogHandler`/auto-detection/file
+failover shipped in `logclient/`, wired into all 11 processes (`pm-audit` plus
+`pm-api-gwy`, `pm-dc-gwy`, `pm-md-gwy`, `pm-ralf-gwy`, `pm-alf-gwy`,
+`pm-alf-console`, `pm-balf-gwy`, `pm-stats`, `pm-scheduler`, `pm-clearing`)
+
+> **Changelog v1.4.0 — implementation notes**
+>
+> Phase 5 of §12's implementation plan rolled the `logclient` wiring
+> established for `pm-audit` (v1.3.0) out to the remaining 10 processes:
+> `pm-api-gwy`, `pm-dc-gwy`, `pm-md-gwy`, `pm-ralf-gwy`, `pm-alf-gwy`,
+> `pm-alf-console`, `pm-balf-gwy`, `pm-stats`, `pm-scheduler`, and
+> `pm-clearing`. Every process got the identical `--log-target`/`--log-file`/
+> `--log-failover-timeout` flag set and `_configure_logging()` shape `pm-audit`
+> established — no further flag-name collisions turned up in any of the 10
+> (unlike `pm-audit`, none had a pre-existing `--log-file` used for something
+> else, so no renaming was needed).
+>
+> Two processes — `pm-scheduler` and `pm-clearing` — built their argument
+> parser and logging setup directly inline in `main()` rather than via
+> separate `_build_parser()`/`_configure_logging()` functions like the other
+> nine. Both were refactored to match the common shape before adding the new
+> flags, so all 11 processes are now structurally identical here.
+>
+> While auditing `pm-clearing/main.py` for this rollout, several operational
+> warning/error paths (trade-feed sequence gaps, frame-decode failures,
+> event-handler exceptions in the EOD/session-state/gateway-connect/
+> gateway-disconnect handlers) were found going only to a Rich
+> `console.print(..., style="yellow")` call with **no corresponding
+> `log.warning`/`log.error`** — meaning these failures never reached the
+> logging stream at all, on stdout or otherwise. These were converted to
+> proper `log.warning`/`log.error` calls (the `console.print` removed, not
+> kept in parallel), so they now flow through `pm-clearing`'s
+> `--log-target`/`--log-file` wiring like everything else. The one legitimate
+> use of `console.print` in that file — the periodic P&L summary table,
+> gated by `--print-every` — is untouched; it is designed CLI output, not a
+> diagnostic message. `pm-alf-console`'s own Rich/`prompt_toolkit`-based
+> interactive terminal UI (`display.py`, `completer.py`) was likewise left
+> completely untouched — it is the process's actual interface, independent
+> of the `logging` module.
+>
+> `pm-api-gwy/main.py` had two `print(..., file=sys.stderr)` calls
+> immediately following an equivalent `log.error`/`log.warning` call one line
+> above — pure duplication once a real logging handler exists. Removed both;
+> the log call already carries the same message.
 
 > **Changelog v1.3.0 — implementation notes**
 >
@@ -1176,7 +1218,7 @@ seventh heuristic, added in §9.6.
 | `src/edumatcher/logclient/protocol.py` (new) | LALF line encode/decode (§5) — the Python-side equivalent of `md_gateway/protocol.py`'s CALF grammar module, reused by both `TcpLogHandler` and `pm-log-srv` itself |
 | `src/edumatcher/logclient/discovery.py` (new) | The auto-detection probe (§8.3), shared by every process |
 | `src/edumatcher/log_srv/config.py` | `LogClientConfig`/`load_log_client_config()` (§7.7's nested `client:` block) — **done (v1.3.0)**, the one piece this file's own docstring had flagged as deliberately unmodeled until now |
-| `src/edumatcher/*/main.py` (~19 files) | `_build_parser()` gains `--log-target`/`--log-file` (§8.5); `_configure_logging()` calls into `logclient.discovery` instead of hard-coding `StreamHandler` (§8.4) — **done (v1.3.0) for `pm-audit` only** (whose pre-existing `--log-file` was renamed `--audit-log-file`, see changelog); remaining ~18 entrypoints are phase 5 |
+| `src/edumatcher/*/main.py` (~19 files) | `_build_parser()` gains `--log-target`/`--log-file` (§8.5); `_configure_logging()` calls into `logclient.discovery` instead of hard-coding `StreamHandler` (§8.4) — **done (v1.4.0) for `pm-audit`, `pm-api-gwy`, `pm-dc-gwy`, `pm-md-gwy`, `pm-ralf-gwy`, `pm-alf-gwy`, `pm-alf-console`, `pm-balf-gwy`, `pm-stats`, `pm-scheduler`, `pm-clearing`** (11 of ~19); remaining entrypoints (engine, index, mm_bot, orders, ticker, viewer, and `pm-log-srv`/`pm-log-cli` themselves) not yet requested |
 | `src/edumatcher/log_srv/main.py` (new) | `pm-log-srv` entrypoint (§7) |
 | `src/edumatcher/log_srv/server.py` (new) | Accept loop, per-connection handler task, shared writer task (§7.3, §7.4) |
 | `src/edumatcher/log_srv/schema.py` (new) | `SCHEMA` constant (§6.6), mirroring `stats/main.py`'s own `SCHEMA` constant shape |
@@ -1385,7 +1427,7 @@ for further processing, exactly as this feature was asked for.
 | 2 | `pm-log-srv` core: accept loop, `HELLO`/`WELCOME`, schema (§6.6), single-writer batching (§7.3, §7.4) — no backpressure or retention yet, just correct ingestion |
 | 3 | ~~`TcpLogHandler` + auto-detection (§8.2, §8.3), wired into **one** process first (`pm-api-gwy`, the best-understood entrypoint from prior design work)~~ **Done (v1.3.0): wired into `pm-audit` instead — see changelog.** Reconnect-with-backoff included |
 | 4 | ~~File failover (§8.6)~~ **Done (v1.3.0), built together with phase 3 — see changelog.** |
-| 5 | Roll `--log-target`/`--log-file`/`--log-failover-timeout` and the full `TcpLogHandler` wiring out to the remaining ~18 `pm-*` entrypoints (§8.7) — mechanical, low-risk once Phases 3–4 validate the pattern once |
+| 5 | ~~Roll `--log-target`/`--log-file`/`--log-failover-timeout` and the full `TcpLogHandler` wiring out to the remaining ~18 `pm-*` entrypoints (§8.7)~~ **Done (v1.4.0) for 10 of them: `pm-api-gwy`, `pm-dc-gwy`, `pm-md-gwy`, `pm-ralf-gwy`, `pm-alf-gwy`, `pm-alf-console`, `pm-balf-gwy`, `pm-stats`, `pm-scheduler`, `pm-clearing` — see changelog.** `pm-scheduler`/`pm-clearing` also had their inline `main()` parser/logging setup refactored into `_build_parser()`/`_configure_logging()` to match the other nine; `pm-clearing`'s bare `console.print` warning/error paths were converted to `log.warning`/`log.error` calls; `pm-api-gwy`'s two duplicate `print()`-to-stderr calls were removed |
 | 6 | `pm-log-cli`: `query`/`tail`/`processes`/`stats` (§9.2–9.5) against a real `log.db` populated by Phases 2–5 |
 | 7 | Backpressure (§5.8) and retention pruning (§6.5, now defaulting to 30 days) in `pm-log-srv`, plus `pm-log-cli prune` |
 | 8 | `pm-log-cli diagnose` (§9.6) — deliberately last, since it is the one component that needs a representative, populated `log.db` (ideally from a real multi-process session, including at least one deliberately-induced failover event) to validate its thresholds against, not just unit fixtures |
