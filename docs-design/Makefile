@@ -235,6 +235,7 @@ $(eval $(call DEFINE_DESIGN_DOC_VARS,QLEGS_RECENT,EduMatcher-QLEGS-RECENT,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,INDEX_ADMIN_CLI,EduMatcher-index-admin-cli,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,CALF_AUCTION_CB,EduMatcher-CALF-auction-cb,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,LOG_SRV,EduMatcher-log-srv,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,LOG_GUI,EduMatcher-log-GUI,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,ARCH_ASYNCIO,EduMatcher-arch-asyncio,,))
 
 # ============================================================================================
@@ -271,6 +272,7 @@ $(eval $(call DESIGN_DOC_PDF_RULE,QLEGS_RECENT,"EduMatcher-QLEGS-RECENT"))
 $(eval $(call DESIGN_DOC_PDF_RULE,INDEX_ADMIN_CLI,"EduMatcher-index-admin-cli"))
 $(eval $(call DESIGN_DOC_PDF_RULE,CALF_AUCTION_CB,"EduMatcher-CALF-auction-cb"))
 $(eval $(call DESIGN_DOC_PDF_RULE,LOG_SRV,"EduMatcher-log-srv"))
+$(eval $(call DESIGN_DOC_PDF_RULE,LOG_GUI,"EduMatcher-log-GUI"))
 $(eval $(call DESIGN_DOC_PDF_RULE,ARCH_ASYNCIO,"EduMatcher-arch-asyncio"))
 
 
