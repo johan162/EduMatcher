@@ -1,3 +1,40 @@
+## 0.17.0 - 2026-07-29
+
+### 📋 Summary
+This release introduces centralized logging for the whole exchange. `pm-log-srv` collects LALF log records from every `pm-*` process into a single SQLite-backed store, now with a LALF-PS ZeroMQ interface for live streaming, filtering, and backfill. A new web-based Log GUI (dashboard, live log explorer, alerts, process and health views) gives operators a real-time view of the whole system, backed by a Fastify bridge that talks LALF-PS on one side and serves the browser on the other. A new `pm-log-cli` complements it for terminal-based querying, tailing, and diagnostics. Every `pm-*` process now automatically logs to `pm-log-srv` when one is running, with automatic fallback to a local log file if the server is unreachable or goes down, so no logging is ever lost.
+
+### ✨ Additions
+- Added **LALF-PS**, the ZeroMQ log-distribution interface of `pm-log-srv`: a `PUB` socket (`:5601`) carrying live rows, notification ticks, backfill chunks and control acks, plus a `PULL` socket (`:5602`) receiving subscriber control requests — mirroring `pm-index`'s existing socket topology
+- Added two subscription modes: `STREAM` pushes full log rows as they are committed, `NOTIFY` publishes coalesced "n new rows up to seq X" ticks carrying no row bodies
+- Added chunked "last n minutes" backfill (`log.backfill_request`), delivered one bounded chunk per main-loop iteration so an arbitrarily large window never stalls LALF collection
+- Added lease-based subscriber liveness: a `PUB` socket cannot observe a dead peer, so every subscription carries a TTL that the subscriber must refresh with `log.renew`; a subscriber that goes silent is reaped, its buffers discarded and its backfill cancelled
+- Added server-side row filtering (`min_level`, `processes`, `loggers`, `sessions`, `contains`, `exceptions_only`), applied identically to live and backfill rows so a viewer sees no gap at the seam
+- Added `log.server_state` liveness broadcast and `log.status_request` diagnostics
+- Added `log_server:` config keys `pubsub_enabled`, `pub_port`, `pull_port`, `lease_sec`, `max_lease_sec`, `max_subscribers`, `notify_interval_ms`, `backfill_chunk_rows`, `max_backfill_minutes`, `max_backfill_rows`, `max_pending_rows`, `pub_sndhwm`, and `pm-log-srv` flags `--pub-port`, `--pull-port`, `--lease-sec`, `--no-pubsub`
+- Added `pm-config-gen` support for every new `log_server` field via thirteen `--log-server-*` flags, including the `--log-server-pubsub-enabled`/`--log-server-pubsub-disabled` pair; passing any one of them implies the `log_server` block
+- Added `pm-cverifier` codes `S102` (pm-log-srv's `port`, `pub_port` and `pull_port` must resolve to three different ports) and `S103` (`max_lease_sec` must not sit below `lease_sec`)
+- Added a "LALF-PS — log distribution" section to the Config GUI's Gateways → Log Server sub-tab, covering all twelve fields with inline help; the ZeroMQ fields collapse away when the interface is switched off
+- Added Config GUI diagnostics `log-server-port-overlap` and `log-server-lease-bounds` (errors, mirroring `S102`/`S103`) and `log-server-notify-exceeds-lease` (warning: a NOTIFY subscriber can be reaped between ticks)
+
+### 🚀 Improvements
+- Improved `pm-log-srv`'s writer thread to report the `seq` assigned to each committed row, so subscribers are notified only after the transaction commits — the live stream and `log.db` can never disagree
+- Improved per-subscription memory safety: a subscriber that is alive but too slow sheds its oldest buffered rows and is told how many via a `dropped` counter, rather than growing the server without bound
+- Improved `pm-cverifier`'s `M018` port-collision check to cover pm-log-srv's two LALF-PS ZeroMQ ports alongside every other configured listener, skipping them when `pubsub_enabled: false`; findings now name the offending field rather than always saying `.port`
+- Improved `pm-cverifier`'s `S101` loader safety net to stay quiet once a more specific `log_server` finding has already been reported, instead of restating it
+- Improved the Config GUI's port-collision rule to cover the LALF-PS ZeroMQ ports, deferring to the dedicated error rule for pm-log-srv's own three-port case so a collision is reported once rather than twice
+
+### 📚 Documentation
+- Added a full LALF-PS message catalogue to the Message Reference, with field tables, error codes and the log row schema
+- Added a LALF-PS chapter to the Centralized Log Server guide covering socket topology, both modes, filtering, backfill, the lease rationale, slow-vs-dead subscribers, tuning, troubleshooting, and a complete worked subscriber
+- Updated the engine configuration specification and sample config with the new `log_server:` keys
+- Added a "LALF-PS fields" section to the configuration guide and documented the new `pm-config-gen` flags and `pm-cverifier` codes
+
+### 🛠 Internal
+- Added `tests/test_log_srv_pubsub.py` covering filters, both modes, chunked backfill, lease renewal and expiry, subscriber limits and error paths
+- Added `tests/test_log_server_pubsub_config.py` pinning the generator, the verifier and the runtime loader to one another, including a generate→load round-trip
+- Added Config GUI tests for LALF-PS emission, import round-trip, zod cross-field refinements and the new diagnostics rules
+- Updated the `pm-log-srv` test fixture to bind ephemeral ZeroMQ ports so concurrent test workers cannot collide
+
 ## [v0.16.2] - 2026-07-27
 
 Release Type: minor
