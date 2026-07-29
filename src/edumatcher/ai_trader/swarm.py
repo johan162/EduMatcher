@@ -19,6 +19,15 @@ from pathlib import Path
 from edumatcher.ai_trader.personality import available_profiles
 from edumatcher.config import ENGINE_CONFIG_FILE
 from edumatcher.engine.config_loader import load_engine_config
+from edumatcher.log_srv.config import (
+    load_default_log_client_config,
+    load_default_log_server_config,
+    resolve_host_default,
+)
+from edumatcher.logclient.discovery import resolve_handler
+
+_CLIENT_NAME = "pm-ai-swarm"
+_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 log = logging.getLogger(__name__)
 
@@ -118,15 +127,29 @@ def _configure_logging(args: argparse.Namespace) -> int:
     else:
         level = logging.WARNING
 
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
-        stream=sys.stdout,
+    client_config = load_default_log_client_config()
+    server_config = load_default_log_server_config()
+    failover_timeout = getattr(args, "log_failover_timeout", None)
+    handler = resolve_handler(
+        log_target=getattr(args, "log_target", None),
+        log_file=getattr(args, "log_file", None),
+        client_name=_CLIENT_NAME,
+        instance=None,
+        host=resolve_host_default(),
+        port=server_config.port,
+        connect_timeout_sec=client_config.connect_timeout_sec,
+        failover_timeout_sec=(
+            failover_timeout
+            if failover_timeout is not None
+            else client_config.failover_timeout_sec
+        ),
+        failover_dir=client_config.failover_dir,
     )
+    logging.basicConfig(level=level, format=_LOG_FORMAT, handlers=[handler])
     return int(level)
 
 
-def _parse_args() -> argparse.Namespace:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher AI trader swarm launcher")
     from edumatcher.cli_version import add_version_argument
 
@@ -177,11 +200,37 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Reduce output to warnings/errors; forwarded to child bots",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--log-target",
+        choices=["server", "stdout", "file"],
+        default=None,
+        help=(
+            "Where this process's own operational log records go: "
+            "server (default, auto-detected pm-log-srv), stdout, or file"
+        ),
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        metavar="PATH",
+        help="Operational log file path — required when --log-target file",
+    )
+    parser.add_argument(
+        "--log-failover-timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help=(
+            "Grace window before falling back to a local log file once "
+            "pm-log-srv becomes unreachable (default: 30, from config)"
+        ),
+    )
+    return parser
 
 
 def main() -> None:
-    args = _parse_args()
+    parser = _build_parser()
+    args = parser.parse_args()
     resolved_level = _configure_logging(args)
     log.info(
         "starting pm-ai-swarm with log level %s",
@@ -208,7 +257,6 @@ def main() -> None:
     child_log_level = str(getattr(args, "log_level", "") or "")
 
     procs: list[subprocess.Popen[bytes]] = []
-    print(f"[SWARM] run_id={run_id} count={len(gateway_ids)} symbols={len(symbols)}")
     log.info(
         "swarm resolved config run_id=%s count=%s symbols=%s profiles=%s",
         run_id,
@@ -241,7 +289,7 @@ def main() -> None:
                 cmd.extend(["-" + ("v" * child_verbose)])
             if child_quiet:
                 cmd.append("-q")
-            print(f"[SWARM] launching {gw} profile={profile} symbol={symbol}")
+            log.info("launching %s profile=%s symbol=%s", gw, profile, symbol)
             log.debug("launch command for %s: %s", gw, " ".join(cmd))
             procs.append(subprocess.Popen(cmd))
             time.sleep(0.02)
@@ -257,7 +305,6 @@ def main() -> None:
         raise SystemExit(exit_code)
     except KeyboardInterrupt:
         log.info("swarm interrupted; stopping bots")
-        print("\n[SWARM] interrupted; stopping bots...")
         for p in procs:
             if p.poll() is None:
                 p.send_signal(signal.SIGTERM)

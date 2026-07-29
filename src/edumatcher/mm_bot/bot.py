@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import logging
 import random
 import signal
 import time
@@ -22,6 +23,8 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
 )
 from edumatcher.mm_bot.pricer import QuotePricer
+
+log = logging.getLogger(__name__)
 
 
 class BotState(str, Enum):
@@ -115,10 +118,12 @@ class MMBot:
         self._sub_sock: zmq.Socket[bytes] | None = None
 
     def _log(self, text: str) -> None:
-        now = time.strftime("%H:%M:%S")
-        print(f"[MM:{self.gateway_id} {now}] {text}")
+        log.info("[%s] %s", self.gateway_id, text)
 
     def _debug(self, text: str) -> None:
+        # verbose (-v/-vv) previously gated this via a private print() channel;
+        # kept at INFO (rather than DEBUG) so -v alone still shows these, same
+        # as before the print()-to-logger conversion.
         if self.verbose:
             self._log(text)
 

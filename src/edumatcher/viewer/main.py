@@ -34,7 +34,6 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
-import sys
 
 import zmq
 from rich import box
@@ -46,11 +45,20 @@ from rich.table import Table
 from rich.text import Text
 
 from edumatcher.config import ENGINE_PULL_ADDR, ENGINE_PUB_ADDR, STATS_DB_FILE
+from edumatcher.log_srv.config import (
+    load_default_log_client_config,
+    load_default_log_server_config,
+    resolve_host_default,
+)
+from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_subscriber, make_pusher
 from edumatcher.models.message import decode, make_book_snapshot_request_msg
 
 console = Console()
 log = logging.getLogger(__name__)
+
+_CLIENT_NAME = "pm-viewer"
+_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 _REFRESH_HZ = 4  # rich Live refresh rate
 _MAX_RECENT_TRADES = 50  # upper bound; actual shown is driven by screen height
@@ -666,6 +674,31 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Reduce log output to warnings/errors",
     )
+    parser.add_argument(
+        "--log-target",
+        choices=["server", "stdout", "file"],
+        default=None,
+        help=(
+            "Where this process's own operational log records go: "
+            "server (default, auto-detected pm-log-srv), stdout, or file"
+        ),
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        metavar="PATH",
+        help="Operational log file path — required when --log-target file",
+    )
+    parser.add_argument(
+        "--log-failover-timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help=(
+            "Grace window before falling back to a local log file once "
+            "pm-log-srv becomes unreachable (default: 30, from config)"
+        ),
+    )
     return parser
 
 
@@ -686,11 +719,25 @@ def _configure_logging(args: argparse.Namespace) -> int:
     else:
         level = logging.WARNING
 
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
-        stream=sys.stdout,
+    client_config = load_default_log_client_config()
+    server_config = load_default_log_server_config()
+    failover_timeout = getattr(args, "log_failover_timeout", None)
+    handler = resolve_handler(
+        log_target=getattr(args, "log_target", None),
+        log_file=getattr(args, "log_file", None),
+        client_name=_CLIENT_NAME,
+        instance=None,
+        host=resolve_host_default(),
+        port=server_config.port,
+        connect_timeout_sec=client_config.connect_timeout_sec,
+        failover_timeout_sec=(
+            failover_timeout
+            if failover_timeout is not None
+            else client_config.failover_timeout_sec
+        ),
+        failover_dir=client_config.failover_dir,
     )
+    logging.basicConfig(level=level, format=_LOG_FORMAT, handlers=[handler])
     return int(level)
 
 

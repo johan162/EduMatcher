@@ -8,6 +8,13 @@ import pytest
 import edumatcher.ai_trader.main as bot_main
 
 
+def _fake_parser(namespace: argparse.Namespace) -> argparse.ArgumentParser:
+    """A stand-in for _build_parser() whose parse_args() ignores argv."""
+    parser = argparse.ArgumentParser()
+    parser.parse_args = lambda *a, **kw: namespace
+    return parser
+
+
 class _FakeSock:
     def __init__(self) -> None:
         self.sent: list[list[bytes]] = []
@@ -204,7 +211,7 @@ class TestAITraderRuntime:
 
 class TestMainEntryPoint:
     def test_parse_args_logging_flags(self) -> None:
-        args = bot_main._parse_args(
+        args = bot_main._build_parser().parse_args(
             [
                 "--id",
                 "AI01",
@@ -233,22 +240,24 @@ class TestMainEntryPoint:
         monkeypatch.setattr(bot_main, "AITraderBot", _FakeBot)
         monkeypatch.setattr(
             bot_main,
-            "_parse_args",
-            lambda: argparse.Namespace(
-                id="AI01",
-                profile="cautious",
-                symbols="AAPL",
-                seed=1,
-                duration=1.0,
-                run_id="run-1",
-                max_position=100,
-                max_rejects=2,
-                reject_window=10.0,
-                reject_cooldown=1.0,
-                stale_data=4.0,
-                log_level=None,
-                verbose=1,
-                quiet=False,
+            "_build_parser",
+            lambda: _fake_parser(
+                argparse.Namespace(
+                    id="AI01",
+                    profile="cautious",
+                    symbols="AAPL",
+                    seed=1,
+                    duration=1.0,
+                    run_id="run-1",
+                    max_position=100,
+                    max_rejects=2,
+                    reject_window=10.0,
+                    reject_cooldown=1.0,
+                    stale_data=4.0,
+                    log_level=None,
+                    verbose=1,
+                    quiet=False,
+                )
             ),
         )
 
@@ -268,19 +277,21 @@ class TestMainEntryPoint:
 
         monkeypatch.setattr(
             bot_main,
-            "_parse_args",
-            lambda: argparse.Namespace(
-                id="AI01",
-                profile="cautious",
-                symbols="AAPL",
-                seed=1,
-                duration=1.0,
-                run_id="run-1",
-                max_position=100,
-                max_rejects=2,
-                reject_window=10.0,
-                reject_cooldown=1.0,
-                stale_data=4.0,
+            "_build_parser",
+            lambda: _fake_parser(
+                argparse.Namespace(
+                    id="AI01",
+                    profile="cautious",
+                    symbols="AAPL",
+                    seed=1,
+                    duration=1.0,
+                    run_id="run-1",
+                    max_position=100,
+                    max_rejects=2,
+                    reject_window=10.0,
+                    reject_cooldown=1.0,
+                    stale_data=4.0,
+                )
             ),
         )
         monkeypatch.setattr(bot_main, "AITraderBot", _FakeBot)
@@ -296,19 +307,21 @@ class TestMainEntryPoint:
 
         monkeypatch.setattr(
             bot_main,
-            "_parse_args",
-            lambda: argparse.Namespace(
-                id="AI01",
-                profile="cautious",
-                symbols="",
-                seed=1,
-                duration=0.0,
-                run_id="",
-                max_position=100,
-                max_rejects=2,
-                reject_window=10.0,
-                reject_cooldown=1.0,
-                stale_data=4.0,
+            "_build_parser",
+            lambda: _fake_parser(
+                argparse.Namespace(
+                    id="AI01",
+                    profile="cautious",
+                    symbols="",
+                    seed=1,
+                    duration=0.0,
+                    run_id="",
+                    max_position=100,
+                    max_rejects=2,
+                    reject_window=10.0,
+                    reject_cooldown=1.0,
+                    stale_data=4.0,
+                )
             ),
         )
         monkeypatch.setattr(bot_main, "AITraderBot", _InterruptBot)
@@ -324,19 +337,21 @@ class TestMainEntryPoint:
 
         monkeypatch.setattr(
             bot_main,
-            "_parse_args",
-            lambda: argparse.Namespace(
-                id="AI01",
-                profile="cautious",
-                symbols="",
-                seed=1,
-                duration=0.0,
-                run_id="",
-                max_position=100,
-                max_rejects=2,
-                reject_window=10.0,
-                reject_cooldown=1.0,
-                stale_data=4.0,
+            "_build_parser",
+            lambda: _fake_parser(
+                argparse.Namespace(
+                    id="AI01",
+                    profile="cautious",
+                    symbols="",
+                    seed=1,
+                    duration=0.0,
+                    run_id="",
+                    max_position=100,
+                    max_rejects=2,
+                    reject_window=10.0,
+                    reject_cooldown=1.0,
+                    stale_data=4.0,
+                )
             ),
         )
         monkeypatch.setattr(bot_main, "AITraderBot", _ErrorBot)

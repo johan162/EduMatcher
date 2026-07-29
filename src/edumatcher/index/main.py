@@ -25,6 +25,12 @@ from edumatcher.index.config_loader import (
     load_index_runtime_configs,
 )
 from edumatcher.index.history import STRUCTURAL_RECORD_TYPES, IndexHistory
+from edumatcher.log_srv.config import (
+    load_default_log_client_config,
+    load_default_log_server_config,
+    resolve_host_default,
+)
+from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_publisher, make_puller, make_subscriber
 from edumatcher.models.message import (
     decode,
@@ -37,6 +43,9 @@ from edumatcher.models.message import (
 
 log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+
+_CLIENT_NAME = "pm-index"
+_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 
 @dataclass
@@ -636,26 +645,70 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Reduce log output to warnings/errors",
     )
+    parser.add_argument(
+        "--log-target",
+        choices=["server", "stdout", "file"],
+        default=None,
+        help=(
+            "Where this process's own operational log records go: "
+            "server (default, auto-detected pm-log-srv), stdout, or file"
+        ),
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        metavar="PATH",
+        help="Operational log file path — required when --log-target file",
+    )
+    parser.add_argument(
+        "--log-failover-timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help=(
+            "Grace window before falling back to a local log file once "
+            "pm-log-srv becomes unreachable (default: 30, from config)"
+        ),
+    )
     return parser
 
 
 def _configure_logging(args: argparse.Namespace) -> int:
-    if args.log_level:
-        level_name = str(args.log_level).upper()
+    log_level = getattr(args, "log_level", None)
+    verbose = getattr(args, "verbose", 0)
+    quiet = getattr(args, "quiet", False)
+
+    if log_level:
+        level_name = str(log_level).upper()
         level = getattr(logging, level_name, logging.WARNING)
-    elif args.verbose >= 2:
+    elif verbose >= 2:
         level = logging.DEBUG
-    elif args.verbose == 1:
+    elif verbose == 1:
         level = logging.INFO
-    elif args.quiet:
+    elif quiet:
         level = logging.WARNING
     else:
         level = logging.WARNING
 
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+    client_config = load_default_log_client_config()
+    server_config = load_default_log_server_config()
+    failover_timeout = getattr(args, "log_failover_timeout", None)
+    handler = resolve_handler(
+        log_target=getattr(args, "log_target", None),
+        log_file=getattr(args, "log_file", None),
+        client_name=_CLIENT_NAME,
+        instance=None,
+        host=resolve_host_default(),
+        port=server_config.port,
+        connect_timeout_sec=client_config.connect_timeout_sec,
+        failover_timeout_sec=(
+            failover_timeout
+            if failover_timeout is not None
+            else client_config.failover_timeout_sec
+        ),
+        failover_dir=client_config.failover_dir,
     )
+    logging.basicConfig(level=level, format=_LOG_FORMAT, handlers=[handler])
     return int(level)
 
 

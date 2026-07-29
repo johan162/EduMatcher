@@ -330,7 +330,7 @@ class TestMainParsing:
         """Parser accepts standard logging flags."""
         from edumatcher.mm_bot import main as mm_main
 
-        args = mm_main._parse_args(
+        args = mm_main._build_parser().parse_args(
             [
                 "--symbol",
                 "AAPL",

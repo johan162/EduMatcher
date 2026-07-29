@@ -14,6 +14,7 @@ import os
 import socket
 import sys
 from pathlib import Path
+from typing import TextIO
 
 from edumatcher.logclient.handler import TcpLogHandler
 from edumatcher.logclient.protocol import (
@@ -74,13 +75,19 @@ def resolve_handler(
     connect_timeout_sec: float,
     failover_timeout_sec: float,
     failover_dir: Path | str,
+    fallback_stream: TextIO | None = None,
 ) -> logging.Handler:
     """Resolve which ``logging.Handler`` this process should use (§8.3).
 
     ``log_target`` is the resolved ``--log-target`` value (``None`` means
     unset/default, i.e. auto-detect). ``log_file`` is required and used
-    only when ``log_target == "file"``.
+    only when ``log_target == "file"``. ``fallback_stream`` is where log
+    records go when ``log_target`` is unset/"server" and no server is
+    detected (default: ``sys.stdout``, resolved at call time); pass
+    ``sys.stderr`` for processes that reserve stdout for piped data output.
     """
+    if fallback_stream is None:
+        fallback_stream = sys.stdout
     if log_target == "stdout":
         return logging.StreamHandler(stream=sys.stdout)
 
@@ -106,12 +113,14 @@ def resolve_handler(
     if log_target == "server":
         # Explicit request for the server target that could not be
         # satisfied — a real error the user should see (§8.3, step 5).
+        fallback_name = "stderr" if fallback_stream is sys.stderr else "stdout"
         print(
-            f"pm-log-srv not reachable at {host}:{port}, falling back to stdout",
+            f"pm-log-srv not reachable at {host}:{port}, "
+            f"falling back to {fallback_name}",
             file=sys.stderr,
         )
 
     # log_target is None (unset) or "server" (unreachable): fall back to
     # today's plain stdout behaviour, silently in the unset case (§8.3,
     # step 4) — "no log server running" is a normal, common condition.
-    return logging.StreamHandler(stream=sys.stdout)
+    return logging.StreamHandler(stream=fallback_stream)

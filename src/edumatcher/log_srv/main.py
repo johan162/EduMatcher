@@ -13,6 +13,8 @@ from edumatcher.log_srv.server import LogServer
 
 log = logging.getLogger(__name__)
 
+_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
+
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -99,15 +101,30 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Reduce log output to warnings/errors",
     )
+    parser.add_argument(
+        "--log-target",
+        choices=["stdout", "file"],
+        default="stdout",
+        help=(
+            "Where this process's own operational log records go: "
+            "stdout (default) or file. Never 'server' — pm-log-srv must "
+            "not depend on itself over the network"
+        ),
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        metavar="PATH",
+        help="Operational log file path — required when --log-target file",
+    )
     return parser
 
 
 def _configure_logging(args: argparse.Namespace) -> int:
     # pm-log-srv is the one pm-* process that never sends its own logging
     # to another pm-log-srv over LALF (docs-design/EduMatcher-log-srv.md
-    # §7.6) — it always logs to stdout only. This function intentionally
-    # has no TcpLogHandler branch at all, unlike every other process's
-    # _configure_logging once phase 2 lands.
+    # §7.6) — --log-target is restricted to stdout/file only, so this
+    # function never touches TcpLogHandler or the network.
     log_level = getattr(args, "log_level", None)
     verbose = getattr(args, "verbose", 0)
     quiet = getattr(args, "quiet", False)
@@ -124,11 +141,16 @@ def _configure_logging(args: argparse.Namespace) -> int:
     else:
         level = logging.WARNING
 
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
-        stream=sys.stdout,
-    )
+    log_target = getattr(args, "log_target", "stdout")
+    if log_target == "file":
+        log_file = getattr(args, "log_file", None)
+        if not log_file:
+            raise ValueError("--log-file is required when --log-target file")
+        handler: logging.Handler = logging.FileHandler(log_file, encoding="utf-8")
+    else:
+        handler = logging.StreamHandler(stream=sys.stdout)
+
+    logging.basicConfig(level=level, format=_LOG_FORMAT, handlers=[handler])
     return int(level)
 
 

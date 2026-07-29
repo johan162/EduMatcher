@@ -1,11 +1,82 @@
-Version: 1.4.0
+Version: 1.5.0
 
 Date: 2026-07-29
 
-Status: Implemented (phase 5 complete) — `TcpLogHandler`/auto-detection/file
-failover shipped in `logclient/`, wired into all 11 processes (`pm-audit` plus
+Status: Implemented (phase 6 complete) — `TcpLogHandler`/auto-detection/file
+failover shipped in `logclient/`, wired into all 24 processes (`pm-audit`,
 `pm-api-gwy`, `pm-dc-gwy`, `pm-md-gwy`, `pm-ralf-gwy`, `pm-alf-gwy`,
-`pm-alf-console`, `pm-balf-gwy`, `pm-stats`, `pm-scheduler`, `pm-clearing`)
+`pm-alf-console`, `pm-balf-gwy`, `pm-stats`, `pm-scheduler`, `pm-clearing`,
+`pm-engine`, `pm-viewer`, `pm-board`, `pm-orders`, `pm-ticker`, `pm-ai-trader`,
+`pm-ai-swarm`, `pm-mm-bot`, `pm-admin`, `pm-calf-spy`, `pm-ralf-spy`,
+`pm-dc-spy`, `pm-index`), plus `pm-log-srv` itself with a stdout/file-only
+`--log-target`.
+
+> **Changelog v1.5.0 — implementation notes**
+>
+> Phase 6 of §12's implementation plan rolled the `logclient` wiring out to
+> every remaining `pm-*` process with a long-running entry point in
+> `pyproject.toml`: `pm-engine`, `pm-viewer`, `pm-board`, `pm-orders`,
+> `pm-ticker`, `pm-ai-trader`, `pm-ai-swarm`, `pm-mm-bot`, `pm-admin`,
+> `pm-calf-spy`, `pm-ralf-spy`, `pm-dc-spy`, and `pm-index` — 13 processes in
+> total, bringing every long-running process in the system onto the same
+> `--log-target`/`--log-file`/`--log-failover-timeout` flag set and
+> `_configure_logging()` shape established in v1.3.0/v1.4.0.
+>
+> One-shot CLI/admin/query tools (`pm-log-cli`, `pm-admin-cli`,
+> `pm-index-cli`, `pm-index-admin-cli`, `pm-cverifier`, and similar) were
+> deliberately left out of scope — they run once and exit, so there is no
+> live process to auto-detect a dying `pm-log-srv` or fail over from. Only
+> long-running processes were wired.
+>
+> `pm-log-srv` itself was also given `--log-level`/`-v`/`-q` plus
+> `--log-target`/`--log-file`, but with `--log-target` restricted to
+> `stdout`/`file` only — `server` is not offered as a choice, and no
+> auto-detection/probing code was added, since `pm-log-srv` must never
+> depend on reaching itself (or another instance) over the network to emit
+> its own logs.
+>
+> `pm-calf-spy`, `pm-ralf-spy`, and `pm-dc-spy` all pipe machine-readable
+> output (`--format json`) to stdout, so `resolve_handler()` gained an
+> optional `fallback_stream` parameter (default `sys.stdout`, unchanged for
+> every other caller) that these three pass as `sys.stderr` — this is the
+> stream used only when `--log-target` is unset/`server` and no `pm-log-srv`
+> is reachable; it keeps operational log lines from corrupting a piped JSON
+> stream in that fallback case, matching the `stream=sys.stderr` behaviour
+> each of these three tools already had before this rollout.
+>
+> Several print()-based logging channels were converted during this pass.
+> `pm-mm-bot`'s `MMBot` had a private `_log()`/`_debug()` pair that wrote
+> directly via `print()` (~40 call sites) instead of the module's own
+> `logging` — the same pattern found and fixed in `pm-ai-trader` back in
+> v1.4.0's audit. Converted to `log.info()`, preserving the existing
+> `-v`/`-vv` verbosity semantics (`_debug()` still gates on `self.verbose`
+> and logs at INFO, not DEBUG, so `-v` alone continues to show the same
+> messages it did before). `pm-mm-bot/main.py` also had two
+> `print(..., file=sys.stderr)` calls immediately duplicating an adjacent
+> `log.error()` one line above; removed both.
+>
+> Three files — `pm-ai-trader/main.py`, `pm-ai-swarm/swarm.py`, and
+> `pm-mm-bot/main.py` — built their argument parser and parsed it in one
+> step via a `_parse_args(argv=None) -> argparse.Namespace` function, unlike
+> every other process's `_build_parser() -> argparse.ArgumentParser` +
+> `parser.parse_args()` split in `main()`. All three were refactored to the
+> common shape for consistency; their test suites (which monkeypatched
+> `_parse_args` directly) were updated to monkeypatch `_build_parser`
+> instead, returning a small stand-in parser whose `parse_args()` ignores
+> its argument and returns the fixed `argparse.Namespace` the test wants.
+>
+> `pm-admin` (`commands/console.py`) had no logging infrastructure at all
+> beforehand — added the module logger, `_build_parser()`/
+> `_configure_logging()`, and the standard flag set from scratch. Its
+> `console.print()` calls are all designed REPL/table output (command
+> results, usage messages, the `HELP` reference) and were left untouched, in
+> the same way `pm-alf-console`'s interactive UI was left alone in v1.4.0.
+>
+> `pm-index/main.py` had the same `_configure_logging()` deviation as
+> `pm-alf-gwy` did before its v1.4.0 fix: direct `args.log_level`/
+> `args.verbose`/`args.quiet` attribute access instead of `getattr(args,
+> ..., default)`. Fixed to match the `getattr`-based style used everywhere
+> else.
 
 > **Changelog v1.4.0 — implementation notes**
 >
@@ -1413,7 +1484,7 @@ for further processing, exactly as this feature was asked for.
 |---|---|---|
 | `logclient/protocol.py` | pytest | LALF header-line encode/decode round-trip, `LEN`-prefixed payload framing with embedded pipes/newlines/Unicode in the message body (§5.2 — this is the one case worth extra test weight, since it's the whole reason LALF isn't just CALF-with-a-new-channel) |
 | `logclient/handler.py` (`TcpLogHandler`) | pytest + a fake LALF TCP server | `emit()` never blocks even when the fake server never reads (queue fills, drops start, `dropped_count` increments); reconnect-with-backoff after a simulated disconnect; correct `LOG` frame fields for a record with `exc_info` set; **§8.6 failover**: reconnect succeeding within `failover_timeout_sec` drains the queue over LALF with no fallback file created; reconnect never succeeding past `failover_timeout_sec` creates `logs/<client>.log`, writes the "falling back" marker line to both stderr and the file, and routes every subsequent `emit()` to the file with zero further LALF attempts (one-way transition, §8.6) |
-| `logclient/discovery.py` | pytest | All five branches of §8.3's algorithm: explicit `stdout`/`file` skip detection; server present → `TcpLogHandler` attached; server absent + default → silent stdout fallback; server absent + explicit `--log-target server` → stderr message + stdout fallback |
+| `logclient/discovery.py` | pytest | All five branches of §8.3's algorithm: explicit `stdout`/`file` skip detection; server present → `TcpLogHandler` attached; server absent + default → silent fallback (stdout, or stderr for processes passing `fallback_stream=sys.stderr`, e.g. `pm-calf-spy`/`pm-ralf-spy`/`pm-dc-spy`, whose stdout is reserved for piped JSON output); server absent + explicit `--log-target server` → stderr message naming the actual fallback stream used |
 | `log_srv/server.py` | pytest + real `asyncio` TCP client fixtures | `HELLO`/`WELCOME` handshake incl. rejection paths (bad `PROTO`, missing fields, `HELLO` timeout); concurrent connections writing simultaneously commit correctly (no lost rows, no `SQLITE_BUSY` surfaced to a client); backpressure (§5.8) actually slows a fast-sending fake client once `max_client_queue` is exceeded; retention pruning deletes exactly the rows older than the cutoff and nothing else |
 | `log_cli/queries.py` | pytest against a pre-seeded `log.db` fixture | Every flag combination in §9.3 produces the expected `WHERE` clause and row set; `tail`'s `seq >` polling never re-shows a row; `--format json` output is valid JSONL |
 | `log_cli/diagnose.py` | pytest against hand-crafted `log_events`/`processes` fixtures, one per heuristic | Each of §9.6's seven heuristics fires on a fixture engineered to trigger it and does **not** fire on a fixture that should be clean — false-positive avoidance is as important to test here as true-positive detection, since these are meant to be trusted recommendations. The fallback-to-file heuristic specifically needs a fixture distinguishing it from the plain silence heuristic: a cleanly `disconnected_at`-set process with no further rows (should fire) vs. a still-open, merely-slow-to-heartbeat process (should fire the *other* heuristic instead, not this one) |
@@ -1427,7 +1498,7 @@ for further processing, exactly as this feature was asked for.
 | 2 | `pm-log-srv` core: accept loop, `HELLO`/`WELCOME`, schema (§6.6), single-writer batching (§7.3, §7.4) — no backpressure or retention yet, just correct ingestion |
 | 3 | ~~`TcpLogHandler` + auto-detection (§8.2, §8.3), wired into **one** process first (`pm-api-gwy`, the best-understood entrypoint from prior design work)~~ **Done (v1.3.0): wired into `pm-audit` instead — see changelog.** Reconnect-with-backoff included |
 | 4 | ~~File failover (§8.6)~~ **Done (v1.3.0), built together with phase 3 — see changelog.** |
-| 5 | ~~Roll `--log-target`/`--log-file`/`--log-failover-timeout` and the full `TcpLogHandler` wiring out to the remaining ~18 `pm-*` entrypoints (§8.7)~~ **Done (v1.4.0) for 10 of them: `pm-api-gwy`, `pm-dc-gwy`, `pm-md-gwy`, `pm-ralf-gwy`, `pm-alf-gwy`, `pm-alf-console`, `pm-balf-gwy`, `pm-stats`, `pm-scheduler`, `pm-clearing` — see changelog.** `pm-scheduler`/`pm-clearing` also had their inline `main()` parser/logging setup refactored into `_build_parser()`/`_configure_logging()` to match the other nine; `pm-clearing`'s bare `console.print` warning/error paths were converted to `log.warning`/`log.error` calls; `pm-api-gwy`'s two duplicate `print()`-to-stderr calls were removed |
+| 5 | ~~Roll `--log-target`/`--log-file`/`--log-failover-timeout` and the full `TcpLogHandler` wiring out to the remaining ~18 `pm-*` entrypoints (§8.7)~~ **Done.** First 10 in v1.4.0: `pm-api-gwy`, `pm-dc-gwy`, `pm-md-gwy`, `pm-ralf-gwy`, `pm-alf-gwy`, `pm-alf-console`, `pm-balf-gwy`, `pm-stats`, `pm-scheduler`, `pm-clearing`. Remaining 13 in v1.5.0: `pm-engine`, `pm-viewer`, `pm-board`, `pm-orders`, `pm-ticker`, `pm-ai-trader`, `pm-ai-swarm`, `pm-mm-bot`, `pm-admin`, `pm-calf-spy`, `pm-ralf-spy`, `pm-dc-spy`, `pm-index` — plus `pm-log-srv` itself with a stdout/file-only `--log-target` — see changelog for both. One-shot CLI/admin/query tools were deliberately excluded (no live process to fail over). Along the way: `pm-scheduler`/`pm-clearing`/`pm-ai-trader`/`pm-ai-swarm`/`pm-mm-bot` had inline or `_parse_args()`-style argument handling refactored to the common `_build_parser()`/`_configure_logging()` shape; several print()-based logging paths (`pm-clearing`, `pm-api-gwy`, `pm-mm-bot`) were converted to proper `log.*` calls or removed as duplicates; `pm-alf-gwy`/`pm-index` had a `getattr`-consistency fix in `_configure_logging()`; `resolve_handler()` gained an optional `fallback_stream` param so `pm-calf-spy`/`pm-ralf-spy`/`pm-dc-spy` (which pipe JSON to stdout) fall back to stderr instead |
 | 6 | `pm-log-cli`: `query`/`tail`/`processes`/`stats` (§9.2–9.5) against a real `log.db` populated by Phases 2–5 |
 | 7 | Backpressure (§5.8) and retention pruning (§6.5, now defaulting to 30 days) in `pm-log-srv`, plus `pm-log-cli prune` |
 | 8 | `pm-log-cli diagnose` (§9.6) — deliberately last, since it is the one component that needs a representative, populated `log.db` (ideally from a real multi-process session, including at least one deliberately-induced failover event) to validate its thresholds against, not just unit fixtures |

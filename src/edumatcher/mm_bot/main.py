@@ -6,10 +6,20 @@ import argparse
 import logging
 import sys
 
+from edumatcher.log_srv.config import (
+    load_default_log_client_config,
+    load_default_log_server_config,
+    resolve_host_default,
+)
+from edumatcher.logclient.discovery import resolve_handler
+
 log = logging.getLogger(__name__)
 
+_CLIENT_NAME = "pm-mm-bot"
+_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
-def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="EduMatcher autonomous market-maker bot"
     )
@@ -127,7 +137,32 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Reduce output to warnings/errors",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--log-target",
+        choices=["server", "stdout", "file"],
+        default=None,
+        help=(
+            "Where this process's own operational log records go: "
+            "server (default, auto-detected pm-log-srv), stdout, or file"
+        ),
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        metavar="PATH",
+        help="Operational log file path — required when --log-target file",
+    )
+    parser.add_argument(
+        "--log-failover-timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help=(
+            "Grace window before falling back to a local log file once "
+            "pm-log-srv becomes unreachable (default: 30, from config)"
+        ),
+    )
+    return parser
 
 
 def _configure_logging(args: argparse.Namespace) -> int:
@@ -147,11 +182,25 @@ def _configure_logging(args: argparse.Namespace) -> int:
     else:
         level = logging.WARNING
 
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
-        stream=sys.stdout,
+    client_config = load_default_log_client_config()
+    server_config = load_default_log_server_config()
+    failover_timeout = getattr(args, "log_failover_timeout", None)
+    handler = resolve_handler(
+        log_target=getattr(args, "log_target", None),
+        log_file=getattr(args, "log_file", None),
+        client_name=_CLIENT_NAME,
+        instance=None,
+        host=resolve_host_default(),
+        port=server_config.port,
+        connect_timeout_sec=client_config.connect_timeout_sec,
+        failover_timeout_sec=(
+            failover_timeout
+            if failover_timeout is not None
+            else client_config.failover_timeout_sec
+        ),
+        failover_dir=client_config.failover_dir,
     )
+    logging.basicConfig(level=level, format=_LOG_FORMAT, handlers=[handler])
     return int(level)
 
 
@@ -162,7 +211,8 @@ def main(argv: list[str] | None = None) -> None:
     gap_was_explicit = any(
         arg == "--gap" or arg.startswith("--gap=") for arg in cli_args
     )
-    args = _parse_args(argv)
+    parser = _build_parser()
+    args = parser.parse_args(argv)
     log_level = _configure_logging(args)
     log.info("starting pm-mm-bot with log level %s", logging.getLevelName(log_level))
 
@@ -189,14 +239,12 @@ def main(argv: list[str] | None = None) -> None:
             log.error(
                 "invalid startup value: %s must be positive (got %s)", flag, value
             )
-            print(f"ERROR: {flag} must be positive", file=sys.stderr)
             raise SystemExit(1)
     if args.reissue_delay_ms < 0:
         log.error(
             "invalid startup value: --reissue-delay-ms must be non-negative (got %s)",
             args.reissue_delay_ms,
         )
-        print("ERROR: --reissue-delay-ms must be non-negative", file=sys.stderr)
         raise SystemExit(1)
 
     symbol = args.symbol.upper()
