@@ -68,7 +68,7 @@ export class LalfPsUplink extends EventEmitter<UplinkEvents> {
   private sub: zmq.Subscriber | null = null;
   private push: zmq.Push | null = null;
   private state: UplinkState = "CONNECTING";
-  private renewBeforeSec = this.opts.leaseSec / 2;
+  private renewBeforeSec: number;
   private lastSeqDelivered = 0;
   private lastServerStateAtMs = 0;
   private lastSubscribeSentAtMs = 0;
@@ -78,6 +78,7 @@ export class LalfPsUplink extends EventEmitter<UplinkEvents> {
   constructor(private readonly opts: LalfPsUplinkOptions) {
     super();
     this.subId = `${opts.subIdPrefix}-${process.pid}`;
+    this.renewBeforeSec = opts.leaseSec / 2;
   }
 
   private setState(next: UplinkState): void {
