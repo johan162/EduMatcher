@@ -1,4 +1,4 @@
-## 0.17.0 - 2026-07-29
+## [0.17.0] - 2026-07-29
 
 ### 📋 Summary
 This release introduces centralized logging for the whole exchange. `pm-log-srv` collects LALF log records from every `pm-*` process into a single SQLite-backed store, now with a LALF-PS ZeroMQ interface for live streaming, filtering, and backfill. A new web-based Log GUI (dashboard, live log explorer, alerts, process and health views) gives operators a real-time view of the whole system, backed by a Fastify bridge that talks LALF-PS on one side and serves the browser on the other. A new `pm-log-cli` complements it for terminal-based querying, tailing, and diagnostics. Every `pm-*` process now automatically logs to `pm-log-srv` when one is running, with automatic fallback to a local log file if the server is unreachable or goes down, so no logging is ever lost.
