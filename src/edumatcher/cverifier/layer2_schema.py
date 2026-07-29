@@ -2011,11 +2011,28 @@ _LOG_SERVER_POSITIVE_INT_FIELDS = (
     "write_batch_size",
     "write_batch_interval_ms",
     "heartbeat_interval_sec",
+    # LALF-PS (docs/user-guide/280-log-srv.md)
+    "lease_sec",
+    "max_lease_sec",
+    "max_subscribers",
+    "notify_interval_ms",
+    "backfill_chunk_rows",
+    "max_backfill_minutes",
+    "max_backfill_rows",
+    "max_pending_rows",
+    "pub_sndhwm",
 )
+
+_LOG_SERVER_BOOL_FIELDS = ("enabled", "pubsub_enabled")
+
+# Every TCP/ZeroMQ port pm-log-srv binds. Checked for range here (S097) and
+# for mutual distinctness in S102; layer 3's M018 additionally checks them
+# against every *other* section's ports.
+_LOG_SERVER_PORT_FIELDS = ("port", "pub_port", "pull_port")
 
 
 def _check_log_server(raw: dict[str, Any], results: list[CheckResult]) -> None:
-    """Validate the optional log_server section (S095–S099)."""
+    """Validate the optional log_server section (S095–S103)."""
     section = raw.get("log_server")
     if section is None:
         return
@@ -2032,22 +2049,25 @@ def _check_log_server(raw: dict[str, Any], results: list[CheckResult]) -> None:
         )
         return
 
-    # enabled: must be a real bool when present
-    enabled = section.get("enabled")
-    if enabled is not None and not isinstance(enabled, bool):
-        results.append(
-            CheckResult(
-                code="S096",
-                severity=Severity.ERROR,
-                message="'log_server.enabled' must be a boolean.",
-                suggestion="Set enabled to true or false (without quotes).",
-                path="log_server.enabled",
+    # enabled / pubsub_enabled: must be real bools when present
+    for bool_field in _LOG_SERVER_BOOL_FIELDS:
+        val = section.get(bool_field)
+        if val is not None and not isinstance(val, bool):
+            results.append(
+                CheckResult(
+                    code="S096",
+                    severity=Severity.ERROR,
+                    message=f"'log_server.{bool_field}' must be a boolean.",
+                    suggestion=(f"Set {bool_field} to true or false (without quotes)."),
+                    path=f"log_server.{bool_field}",
+                )
             )
-        )
 
-    # port
-    port = section.get("port")
-    if port is not None:
+    # port / pub_port / pull_port
+    for port_field, port_default in zip(_LOG_SERVER_PORT_FIELDS, (5600, 5601, 5602)):
+        port = section.get(port_field)
+        if port is None:
+            continue
         if (
             isinstance(port, bool)
             or not isinstance(port, int)
@@ -2057,9 +2077,14 @@ def _check_log_server(raw: dict[str, Any], results: list[CheckResult]) -> None:
                 CheckResult(
                     code="S097",
                     severity=Severity.ERROR,
-                    message="'log_server.port' must be an integer in 1–65535.",
-                    suggestion="Set port to a valid TCP port number, e.g. 5600.",
-                    path="log_server.port",
+                    message=(
+                        f"'log_server.{port_field}' must be an integer in 1–65535."
+                    ),
+                    suggestion=(
+                        f"Set {port_field} to a valid TCP port number, "
+                        f"e.g. {port_default}."
+                    ),
+                    path=f"log_server.{port_field}",
                 )
             )
 
@@ -2118,9 +2143,21 @@ def _check_log_server(raw: dict[str, Any], results: list[CheckResult]) -> None:
                 )
             )
 
+    _check_log_server_ports_distinct(section, results)
+    _check_log_server_lease_bounds(section, results)
+
     # Cross-check against the runtime loader's own validator so this layer
     # stays in lockstep with edumatcher.log_srv.config._load_log_server_config_from_raw
     # even if a future field is added there but not mirrored above.
+    #
+    # Suppressed once anything above has already reported on this section:
+    # the loader stops at its *first* failure, so re-reporting it here would
+    # only restate a problem the reader has already been told about in more
+    # specific terms. S101 is the drift safety net for fields this layer does
+    # not yet know about, not a second opinion on the ones it does.
+    if any(r.path.startswith("log_server") for r in results):
+        return
+
     try:
         validate_log_server_section({"log_server": section})
     except ValueError as exc:
@@ -2134,5 +2171,81 @@ def _check_log_server(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     "(mapping shape and positive integer limits)."
                 ),
                 path="log_server",
+            )
+        )
+
+
+def _check_log_server_ports_distinct(
+    section: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """S102 — pm-log-srv's three listeners must not share a port.
+
+    Compares *effective* values, applying each port's own default when the
+    key is omitted, so `pub_port: 5600` collides with the default LALF port
+    just as surely as two explicit duplicates would. pm-log-srv refuses to
+    start on such a file; catching it here turns a startup failure into a
+    verification error.
+    """
+    effective: dict[str, int] = {}
+    for port_field, port_default in zip(_LOG_SERVER_PORT_FIELDS, (5600, 5601, 5602)):
+        val = section.get(port_field, port_default)
+        if isinstance(val, bool) or not isinstance(val, int):
+            return  # malformed; already reported as S097
+        effective[port_field] = val
+
+    seen: dict[int, str] = {}
+    for port_field, port in effective.items():
+        prior = seen.get(port)
+        if prior is not None:
+            results.append(
+                CheckResult(
+                    code="S102",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"'log_server.{port_field}' ({port}) collides with "
+                        f"'log_server.{prior}'."
+                    ),
+                    suggestion=(
+                        "Give port (LALF/TCP), pub_port and pull_port (LALF-PS) "
+                        "three different port numbers, e.g. 5600/5601/5602."
+                    ),
+                    path=f"log_server.{port_field}",
+                )
+            )
+        else:
+            seen[port] = port_field
+
+
+def _check_log_server_lease_bounds(
+    section: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """S103 — the LALF-PS lease ceiling must not sit below the default lease.
+
+    `max_lease_sec` is the clamp applied to a subscriber's requested
+    `lease_sec`. A ceiling below the server's own default would mean the
+    default itself is unreachable, which is incoherent rather than merely
+    unusual, so pm-log-srv rejects it outright.
+    """
+    lease = section.get("lease_sec", 30)
+    max_lease = section.get("max_lease_sec", 300)
+    if isinstance(lease, bool) or not isinstance(lease, int):
+        return  # already reported as S099
+    if isinstance(max_lease, bool) or not isinstance(max_lease, int):
+        return
+    if max_lease < lease:
+        results.append(
+            CheckResult(
+                code="S103",
+                severity=Severity.ERROR,
+                message=(
+                    f"'log_server.max_lease_sec' ({max_lease}) is below "
+                    f"'log_server.lease_sec' ({lease})."
+                ),
+                suggestion=(
+                    "Raise max_lease_sec to at least lease_sec — it is the "
+                    "ceiling applied to a subscriber's requested lease, so it "
+                    "cannot be lower than the default lease the server grants."
+                ),
+                path="log_server.max_lease_sec",
             )
         )

@@ -1048,3 +1048,66 @@ def make_index_error_msg(gateway_id: str, reason: str) -> list[bytes]:
 def make_depth_msg(symbol: str, depth: dict[str, Any]) -> list[bytes]:
     """Engine → subscribers: depth ladder snapshot."""
     return encode(f"book.depth.{symbol}", depth)
+
+
+# ---------------------------------------------------------------------------
+# LALF-PS — pm-log-srv log distribution (subscriber ↔ pm-log-srv)
+# ---------------------------------------------------------------------------
+# Subscriber → pm-log-srv control requests only. The server side builds its
+# own outbound messages inside edumatcher.log_srv.pubsub, which already holds
+# all the state (lease deadlines, cursors, counters) those payloads report;
+# duplicating them here as make_* helpers would mean passing a dozen unrelated
+# arguments through just to reach encode(). These helpers exist for the client
+# half — log viewers and CLIs — which is where a shared, typo-proof
+# constructor actually earns its keep.
+
+
+def make_log_subscribe_msg(
+    sub_id: str,
+    mode: str = "STREAM",
+    log_filter: dict[str, Any] | None = None,
+    backfill_minutes: int = 0,
+    lease_sec: int | None = None,
+    notify_interval_ms: int | None = None,
+) -> list[bytes]:
+    """Subscriber → pm-log-srv: open or replace a leased subscription."""
+    payload: dict[str, Any] = {"sub_id": sub_id, "mode": mode}
+    if log_filter:
+        payload["filter"] = log_filter
+    if backfill_minutes:
+        payload["backfill_minutes"] = backfill_minutes
+    if lease_sec is not None:
+        payload["lease_sec"] = lease_sec
+    if notify_interval_ms is not None:
+        payload["notify_interval_ms"] = notify_interval_ms
+    return encode("log.subscribe", payload)
+
+
+def make_log_renew_msg(sub_id: str) -> list[bytes]:
+    """Subscriber → pm-log-srv: lease keepalive; the liveness signal."""
+    return encode("log.renew", {"sub_id": sub_id, "timestamp": time.time()})
+
+
+def make_log_unsubscribe_msg(sub_id: str) -> list[bytes]:
+    """Subscriber → pm-log-srv: close a subscription immediately."""
+    return encode("log.unsubscribe", {"sub_id": sub_id, "timestamp": time.time()})
+
+
+def make_log_backfill_request_msg(
+    sub_id: str,
+    minutes: int,
+    log_filter: dict[str, Any] | None = None,
+    max_rows: int | None = None,
+) -> list[bytes]:
+    """Subscriber → pm-log-srv: replay the last ``minutes`` of history."""
+    payload: dict[str, Any] = {"sub_id": sub_id, "minutes": minutes}
+    if log_filter is not None:
+        payload["filter"] = log_filter
+    if max_rows is not None:
+        payload["max_rows"] = max_rows
+    return encode("log.backfill_request", payload)
+
+
+def make_log_status_request_msg(sub_id: str) -> list[bytes]:
+    """Subscriber → pm-log-srv: request subscription/server diagnostics."""
+    return encode("log.status_request", {"sub_id": sub_id, "timestamp": time.time()})

@@ -97,3 +97,21 @@ DEFAULT_LOG_SERVER_MAX_CLIENT_QUEUE = 10_000
 DEFAULT_LOG_SERVER_WRITE_BATCH_SIZE = 50
 DEFAULT_LOG_SERVER_WRITE_BATCH_INTERVAL_MS = 100
 DEFAULT_LOG_SERVER_HEARTBEAT_INTERVAL_SEC = 5
+
+# LALF-PS — pm-log-srv's ZeroMQ log-distribution interface. These mirror the
+# runtime defaults in edumatcher.log_srv.config; they are restated as literals
+# here rather than imported for the same reason every other DEFAULT_* in this
+# module is — pm-config-gen describes what a *generated file* should say, which
+# is deliberately allowed to drift from what a given runtime build defaults to.
+DEFAULT_LOG_SERVER_PUBSUB_ENABLED = True
+DEFAULT_LOG_SERVER_PUB_PORT = 5601
+DEFAULT_LOG_SERVER_PULL_PORT = 5602
+DEFAULT_LOG_SERVER_LEASE_SEC = 30
+DEFAULT_LOG_SERVER_MAX_LEASE_SEC = 300
+DEFAULT_LOG_SERVER_MAX_SUBSCRIBERS = 32
+DEFAULT_LOG_SERVER_NOTIFY_INTERVAL_MS = 250
+DEFAULT_LOG_SERVER_BACKFILL_CHUNK_ROWS = 500
+DEFAULT_LOG_SERVER_MAX_BACKFILL_MINUTES = 1_440
+DEFAULT_LOG_SERVER_MAX_BACKFILL_ROWS = 100_000
+DEFAULT_LOG_SERVER_MAX_PENDING_ROWS = 20_000
+DEFAULT_LOG_SERVER_PUB_SNDHWM = 10_000

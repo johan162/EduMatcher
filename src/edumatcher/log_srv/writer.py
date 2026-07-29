@@ -17,6 +17,7 @@ import queue
 import sqlite3
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from edumatcher.log_srv.schema import (
@@ -49,6 +50,18 @@ class LogEventRow:
     message: str
 
 
+PersistedBatchCallback = Callable[[list[tuple[int, LogEventRow]]], None]
+"""Notification hook fired after a batch is committed, with assigned ``seq``s.
+
+Used by :class:`edumatcher.log_srv.pubsub.LogPubSubHub` to fan rows out to
+LALF-PS subscribers. It fires *after* the commit, never before, so a
+subscriber can never observe a row that a subsequent crash would have
+rolled back — the live stream and ``log.db`` can therefore never disagree.
+The callback runs on the writer thread and must not block or touch ZeroMQ
+sockets; see the hub's own module docstring for how it hands over.
+"""
+
+
 class WriterThread:
     """Owns the single writable SQLite connection and drains queued rows.
 
@@ -65,8 +78,10 @@ class WriterThread:
         *,
         batch_size: int = 50,
         batch_interval_ms: int = 100,
+        on_persisted: PersistedBatchCallback | None = None,
     ) -> None:
         self._conn = conn
+        self._on_persisted = on_persisted
         self._batch_size = batch_size
         self._batch_interval_sec = batch_interval_ms / 1000.0
         self._queue: "queue.Queue[LogEventRow]" = queue.Queue()
@@ -127,6 +142,7 @@ class WriterThread:
             return 0
 
         truncated_count = sum(1 for r in rows if r.truncated)
+        last_rowid = 0
         try:
             with self._lock, self._conn:
                 self._conn.executemany(
@@ -151,6 +167,17 @@ class WriterThread:
                         for r in rows
                     ],
                 )
+                # This thread is the only writer of log_events in the whole
+                # process (that is the entire point of WriterThread), and the
+                # rows above went in as one executemany inside one
+                # transaction, so their AUTOINCREMENT keys are guaranteed
+                # contiguous and end at last_insert_rowid(). Reading it here —
+                # before the UPDATE statements below, which do not disturb it —
+                # is what lets subscribers be told the real seq of every row
+                # without a second SELECT round-trip per row.
+                cur = self._conn.execute("SELECT last_insert_rowid()")
+                fetched = cur.fetchone()
+                last_rowid = int(fetched[0]) if fetched else 0
                 self._conn.execute(INCREMENT_TOTAL_LOG_EVENTS, (len(rows),))
                 if truncated_count:
                     self._conn.execute(INCREMENT_TOTAL_TRUNCATED, (truncated_count,))
@@ -176,4 +203,22 @@ class WriterThread:
             )
             return 0
 
+        self._notify_persisted(rows, last_rowid)
         return len(rows)
+
+    def _notify_persisted(self, rows: list[LogEventRow], last_rowid: int) -> None:
+        """Hand the committed batch, with its assigned seqs, to the hub.
+
+        Guarded so that a misbehaving subscriber-side callback can never
+        take down the writer thread — losing the live stream is recoverable
+        (subscribers re-subscribe), losing the writer would mean losing
+        every process's logging.
+        """
+        if self._on_persisted is None or last_rowid <= 0:
+            return
+        first_seq = last_rowid - len(rows) + 1
+        batch = [(first_seq + offset, row) for offset, row in enumerate(rows)]
+        try:
+            self._on_persisted(batch)
+        except Exception:  # pragma: no cover - defensive
+            log.exception("writer thread: persisted-batch callback raised")

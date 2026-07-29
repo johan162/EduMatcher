@@ -484,7 +484,22 @@ to point at a non-default engine address.
 | `max_client_queue` | `Int` | – | `10000` | `> 0`; per-connection outbound backlog limit before backpressure is applied |
 | `write_batch_size` | `Int` | – | `50` | `> 0`; maximum rows per SQLite transaction in the background writer thread |
 | `write_batch_interval_ms` | `Int` | – | `100` | `> 0`; maximum time between writer-thread flushes, whichever comes first with `write_batch_size` |
-| `heartbeat_interval_sec` | `Int` | – | `5` | `> 0`; how often a connected client must send something (`LOG` or `HB`) to stay alive; the server disconnects after 2× this interval of silence and advertises the value in `WELCOME\|HBINT=` (the server itself never sends `HB`) |
+| `heartbeat_interval_sec` | `Int` | – | `5` | `> 0`; how often a connected client must send something (`LOG` or `HB`) to stay alive; the server disconnects after 2× this interval of silence and advertises the value in `WELCOME\|HBINT=` (the server itself never sends `HB`). Doubles as the publish interval for the LALF-PS `log.server_state` tick |
+| `pubsub_enabled` | `Bool` | – | `true` | master switch for LALF-PS, the ZeroMQ log-distribution interface; when `false` no ZeroMQ socket is bound and `pm-log-srv` runs as a pure TCP collector |
+| `pub_port` | `Port` | – | `5601` | `> 0`; must differ from `port` and `pull_port`; ZeroMQ `PUB` port carrying live rows, notify ticks, backfill chunks and control acks |
+| `pull_port` | `Port` | – | `5602` | `> 0`; must differ from `port` and `pub_port`; ZeroMQ `PULL` port receiving subscriber control requests |
+| `lease_sec` | `Int` | – | `30` | `> 0`; default subscription lease TTL — a subscriber that stops sending `log.renew` within this window is reaped and its buffers discarded |
+| `max_lease_sec` | `Int` | – | `300` | `>= lease_sec`; upper bound on a subscriber's requested `lease_sec`, which is clamped rather than rejected |
+| `max_subscribers` | `Int` | – | `32` | `> 0`; maximum concurrent leased subscriptions before `log.subscribe` is answered with `TOO_MANY_SUBS` |
+| `notify_interval_ms` | `Int` | – | `250` | `> 0`; coalescing window for `NOTIFY`-mode ticks, and the floor on a subscriber's requested `notify_interval_ms` |
+| `backfill_chunk_rows` | `Int` | – | `500` | `> 0`; rows per `log.backfill` chunk, and the maximum rows per live `log.event` message |
+| `max_backfill_minutes` | `Int` | – | `1440` | `> 0`; largest "last n minutes" window a subscriber may request; a larger request is rejected with `INVALID_WINDOW` |
+| `max_backfill_rows` | `Int` | – | `100000` | `> 0`; hard cap on the rows returned by one backfill; the final chunk sets `truncated: true` when it bites |
+| `max_pending_rows` | `Int` | – | `20000` | `> 0`; per-subscription `STREAM` buffer cap — a subscriber that is alive but too slow loses its oldest buffered rows, reported back to it as `dropped` |
+| `pub_sndhwm` | `Int` | – | `10000` | `> 0`; ZeroMQ send high-water mark on the `PUB` socket |
+
+The `pubsub_*`/`pub_*`/`pull_*`/`lease_*`/`backfill_*` fields configure LALF-PS,
+described in full in [Centralized Log Server](280-log-srv.md#lalf-ps-the-zeromq-log-distribution-interface).
 
 This block has no interaction with `gateways.alf` or any other engine section —
 `pm-log-srv` is a standalone LALF collector, unrelated to the ZeroMQ bus, and does

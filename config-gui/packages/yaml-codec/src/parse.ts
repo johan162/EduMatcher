@@ -430,6 +430,23 @@ function parseNetworkGateways(raw: Dict, draft: EngineConfigDraft): void {
       asNumber(ls.write_batch_interval_ms) ?? g.writeBatchIntervalMs;
     g.heartbeatIntervalSec =
       asNumber(ls.heartbeat_interval_sec) ?? g.heartbeatIntervalSec;
+
+    // LALF-PS. Every field is optional in the YAML, so an absent key must
+    // keep the factory default rather than becoming undefined.
+    g.pubsubEnabled = asBool(ls.pubsub_enabled, g.pubsubEnabled);
+    g.pubPort = asNumber(ls.pub_port) ?? g.pubPort;
+    g.pullPort = asNumber(ls.pull_port) ?? g.pullPort;
+    g.leaseSec = asNumber(ls.lease_sec) ?? g.leaseSec;
+    g.maxLeaseSec = asNumber(ls.max_lease_sec) ?? g.maxLeaseSec;
+    g.maxSubscribers = asNumber(ls.max_subscribers) ?? g.maxSubscribers;
+    g.notifyIntervalMs = asNumber(ls.notify_interval_ms) ?? g.notifyIntervalMs;
+    g.backfillChunkRows =
+      asNumber(ls.backfill_chunk_rows) ?? g.backfillChunkRows;
+    g.maxBackfillMinutes =
+      asNumber(ls.max_backfill_minutes) ?? g.maxBackfillMinutes;
+    g.maxBackfillRows = asNumber(ls.max_backfill_rows) ?? g.maxBackfillRows;
+    g.maxPendingRows = asNumber(ls.max_pending_rows) ?? g.maxPendingRows;
+    g.pubSndhwm = asNumber(ls.pub_sndhwm) ?? g.pubSndhwm;
   }
 }
 

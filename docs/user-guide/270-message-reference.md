@@ -77,6 +77,21 @@ Quick index of all defined message topics with publisher and purpose.
 | `index.constituent_change` | Operator tool via PUSH → pm-index PULL | Adds or delists an index constituent with a divisor adjustment. |
 | `index.update` | pm-index via PUB (`:INDEX_PUB_ADDR`) | Distributes the current index level to all subscribers after every constituent trade or forced recalculation. |
 | `index.error.{gateway_id}` | pm-index via PUB | Uniform error reply for any rejected `pm-index` request. |
+| `log.subscribe` | Log subscriber (viewer/UI/CLI) via PUSH → pm-log-srv PULL :5602 | Opens or replaces a leased log subscription, selecting `NOTIFY` or `STREAM` mode and a row filter. |
+| `log.renew` | Log subscriber via PUSH :5602 | Lease keepalive. The *only* signal that keeps a subscription alive; silence is how pm-log-srv detects a dead subscriber. |
+| `log.unsubscribe` | Log subscriber via PUSH :5602 | Closes a subscription immediately and frees its server-side buffers. |
+| `log.backfill_request` | Log subscriber via PUSH :5602 | Requests replay of the last *n* minutes of `log.db`, delivered as chunks. |
+| `log.status_request` | Log subscriber via PUSH :5602 | Requests subscription and server diagnostics. |
+| `log.subscribe_ack.{SUB_ID}` | pm-log-srv via PUB :5601 | Confirms a subscription and echoes the *negotiated* (server-clamped) terms. |
+| `log.renew_ack.{SUB_ID}` | pm-log-srv via PUB :5601 | Confirms a lease renewal and reports the new deadline. |
+| `log.unsubscribe_ack.{SUB_ID}` | pm-log-srv via PUB :5601 | Confirms subscription teardown. |
+| `log.event.{SUB_ID}` | pm-log-srv via PUB :5601 | `STREAM` mode: full log rows pushed as they are persisted. |
+| `log.notify.{SUB_ID}` | pm-log-srv via PUB :5601 | `NOTIFY` mode: lightweight "*n* new matching rows, up to seq *X*" tick carrying no row bodies. |
+| `log.backfill.{SUB_ID}` | pm-log-srv via PUB :5601 | One chunk of a backfill response; the last chunk sets `done`. |
+| `log.status.{SUB_ID}` | pm-log-srv via PUB :5601 | Reply to `log.status_request`. |
+| `log.lease_expired.{SUB_ID}` | pm-log-srv via PUB :5601 | Final notice that a lease was reaped; the subscription and its buffers are gone. |
+| `log.error.{SUB_ID}` | pm-log-srv via PUB :5601 | Uniform error reply for any rejected LALF-PS request. |
+| `log.server_state` | pm-log-srv via PUB :5601 | Periodic broadcast of pm-log-srv liveness and counters; also sent once with `state: "DOWN"` at shutdown. |
 
 ## Background — Messages in a Bus System
 
@@ -1704,6 +1719,420 @@ every constituent trade or forced recalculation.
 
 
 
+## LALF-PS messages (log subscriber ↔ pm-log-srv)
+
+`pm-log-srv` collects logging from every `pm-*` process over LALF/TCP on
+`:5600` and appends it to `log.db`.  **LALF-PS** is the separate, outbound
+half of that story: the interface a log *viewer* uses to watch rows arrive
+instead of polling the database.  It exists so that a log UI can be told
+"there is new data" the moment a row is committed, can have those rows
+pushed to it, can ask for the last *n* minutes when it starts up — and,
+crucially, can die without the server noticing too late and buffering for
+a process that will never read again.
+
+The socket topology is deliberately identical in shape to `pm-index`:
+
+| Socket | Bound by | Default | Carries |
+|---|---|---|---|
+| `PUB` | `pm-log-srv` | `tcp://…:5601` | every outbound message: rows, ticks, backfill chunks, acks, errors |
+| `PULL` | `pm-log-srv` | `tcp://…:5602` | every inbound control request from subscribers |
+
+A subscriber therefore holds two sockets: a `SUB` connected to `:5601`
+and a `PUSH` connected to `:5602`.  Every control message carries a
+`sub_id` — a subscriber-chosen identifier that plays exactly the role
+`gateway_id` plays elsewhere on the bus: it is the routing key the server
+appends to each reply topic, so a subscriber only needs the single
+subscription prefix `log.` + its own `sub_id` to receive everything meant
+for it (plus the un-suffixed `log.server_state` if it wants liveness).
+
+!!! note "Why leases, and not connection state"
+    A ZeroMQ `PUB` socket is *blind*: it never learns who is attached, and
+    publishing into the void succeeds silently.  There is consequently no
+    publish-side event that means "my subscriber died", the way a TCP
+    `recv()` returning zero bytes does on the LALF side.  LALF-PS solves
+    this by making every subscription a **lease**: it is created with a
+    TTL, and the subscriber must send `log.renew` before that TTL elapses
+    or the server reaps it.  A crashed viewer therefore costs the server
+    at most one lease period of buffering, and the mechanism is
+    transport-independent — it would work identically over any fan-out
+    that lacks peer visibility.
+
+### Message flow
+
+```mermaid
+sequenceDiagram
+    participant P as pm-engine (producer)
+    participant S as pm-log-srv
+    participant V as Log viewer (subscriber)
+
+    V->>S: log.subscribe (sub_id, mode, filter, backfill_minutes)
+    S-->>V: log.subscribe_ack.{sub_id} (negotiated lease_sec)
+    S-->>V: log.backfill.{sub_id} chunk 0 (done=false)
+    S-->>V: log.backfill.{sub_id} chunk N (done=true)
+
+    P->>S: LOG (LALF/TCP :5600)
+    Note over S: row committed to log.db, seq assigned
+    S-->>V: log.event.{sub_id}  (STREAM mode)
+    S-->>V: log.notify.{sub_id} (NOTIFY mode)
+
+    loop every lease_sec / 2
+        V->>S: log.renew
+        S-->>V: log.renew_ack.{sub_id}
+    end
+
+    Note over V: viewer crashes — renewals stop
+    Note over S: lease TTL elapses
+    S-->>V: log.lease_expired.{sub_id}
+    Note over S: filter state, buffers and backfill job discarded
+```
+
+### The row filter object
+
+Five control messages accept the same optional `filter` object.  Every
+field is optional; an omitted field imposes no restriction, and an absent
+`filter` matches every row.  All present fields are ANDed together.
+
+| Field | Type | Description |
+|---|---|---|
+| `min_level` | string | Minimum severity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Rows below it are excluded. |
+| `processes` | array of string | Exact match against `log_events.process` (e.g. `["pm-engine", "pm-md-gwy"]`); a row matches if it equals any entry. |
+| `loggers` | array of string | **Prefix** match against the logger name, so `["edumatcher.engine"]` also matches `edumatcher.engine.book`. |
+| `sessions` | array of string | Exact match against the LALF session id, to follow one connection of one process. |
+| `contains` | string | Case-insensitive substring match on the message body. |
+| `exceptions_only` | boolean | When `true`, only rows carrying a traceback. |
+
+The server applies exactly the same filter to backfill rows and to live
+rows, which is what guarantees a viewer sees no gap or duplication at the
+seam where its historical window meets the live stream.
+
+An invalid filter is answered with `log.error.{sub_id}` carrying code
+`INVALID_FILTER`; it never silently degrades to "match everything".
+
+### `log.subscribe`
+
+**Motivation:** Opens a leased subscription, choosing whether the
+subscriber wants to be *told about* new rows or *sent* them, and
+optionally priming the view with recent history in the same round trip.
+**Published by:** Log subscriber via PUSH → `pm-log-srv` PULL (`:5602`)
+
+| Field | Type | Description |
+|---|---|---|
+| `sub_id` | string | Subscriber-chosen routing key; every reply is published to `log.<something>.{sub_id}` |
+| `mode` | string | `"STREAM"` (default) — full rows pushed as they arrive; or `"NOTIFY"` — counts only |
+| `filter` | object | Row filter as described above (default: match everything) |
+| `backfill_minutes` | integer | When non-zero, immediately start a backfill of this many minutes before/alongside the live stream (default: `0`, no backfill) |
+| `lease_sec` | integer | Requested lease TTL; **clamped** to the server's `max_lease_sec`, never rejected (default: server's `lease_sec`, 30) |
+| `notify_interval_ms` | integer | `NOTIFY` mode only: requested coalescing window; **floored** at the server's own `notify_interval_ms` so a subscriber cannot ask to be woken faster than the server will publish |
+
+Re-sending `log.subscribe` for an existing `sub_id` is **not** an error:
+it replaces the mode and filter, renews the lease, and re-emits the ack,
+while preserving the lifetime counters reported by `log.status`.  This is
+deliberate — ZeroMQ's *slow joiner* behaviour means a subscriber's very
+first ack can be published before its `SUB` connection has finished
+establishing, and re-sending the subscribe is the standard cure.  A
+subscriber that has not seen its ack within a second should simply send
+`log.subscribe` again.
+
+**Reply:** `log.subscribe_ack.{sub_id}` — or `log.error.{sub_id}` with
+code `INVALID_MODE`, `INVALID_FILTER` or `TOO_MANY_SUBS`.
+
+| Field | Type | Description |
+|---|---|---|
+| `accepted` | boolean | Always `true` (a rejection arrives as `log.error.{sub_id}` instead) |
+| `sub_id` | string | Echoed routing key |
+| `proto` | string | LALF-PS wire version, currently `"LALF-PS/1"` |
+| `server` | string | The server's configured `name` (e.g. `"log-srv01"`) |
+| `mode` | string | The accepted mode |
+| `filter` | object | The **normalised** filter the server will actually apply — always inspect this rather than assuming your request was taken verbatim |
+| `lease_sec` | float | The **granted** lease TTL after clamping |
+| `renew_before_sec` | float | Recommended renewal period; always `lease_sec / 2` |
+| `notify_interval_ms` | integer | The granted coalescing window |
+| `last_seq` | integer | Highest `log_events.seq` the server has seen, so a subscriber knows where the live stream begins |
+| `timestamp` | float | Unix epoch seconds |
+
+### `log.renew`
+
+**Motivation:** The liveness signal.  This message, and only this
+message, is what tells `pm-log-srv` that a subscriber is still alive and
+still reading — see the lease note above for why connection state cannot
+serve that purpose here.
+**Published by:** Log subscriber via PUSH (`:5602`)
+
+| Field | Type | Description |
+|---|---|---|
+| `sub_id` | string | Subscription to renew |
+| `timestamp` | float | Unix epoch seconds (informational) |
+
+Send one every `renew_before_sec` (half the granted lease).  A
+`log.backfill_request` also counts as proof of life, so a subscriber
+pulling a large window cannot expire mid-transfer.
+
+**Reply:** `log.renew_ack.{sub_id}` — or `log.error.{sub_id}` with code
+`UNKNOWN_SUB` if the lease has already been reaped, in which case the
+subscriber must re-send `log.subscribe`.
+
+| Field | Type | Description |
+|---|---|---|
+| `accepted` | boolean | Always `true` |
+| `sub_id` | string | Echoed routing key |
+| `lease_sec` | float | The subscription's lease TTL |
+| `expires_in_sec` | float | Seconds remaining after this renewal |
+| `last_seq` | integer | Highest `seq` the server has seen |
+| `timestamp` | float | Unix epoch seconds |
+
+### `log.unsubscribe`
+
+**Motivation:** Lets a viewer that is shutting down cleanly free its
+server-side filter state and buffers immediately, instead of leaving them
+to be reaped a lease period later.
+**Published by:** Log subscriber via PUSH (`:5602`)
+
+| Field | Type | Description |
+|---|---|---|
+| `sub_id` | string | Subscription to close |
+| `timestamp` | float | Unix epoch seconds |
+
+**Reply:** `log.unsubscribe_ack.{sub_id}`
+
+| Field | Type | Description |
+|---|---|---|
+| `accepted` | boolean | `false` if there was no such subscription (harmless — the end state is the same) |
+| `sub_id` | string | Echoed routing key |
+| `reason` | string | `"no such subscription"` when `accepted` is `false`, otherwise empty |
+| `timestamp` | float | Unix epoch seconds |
+
+### `log.backfill_request`
+
+**Motivation:** Answers "what happened in the last *n* minutes?" — the
+question a log UI asks the instant it opens, before any live row has
+arrived.  Requires an active subscription: without a lease the server has
+no way to learn the requester died mid-transfer and would keep pushing
+chunks to nobody.
+**Published by:** Log subscriber via PUSH (`:5602`)
+
+| Field | Type | Description |
+|---|---|---|
+| `sub_id` | string | Requesting subscription; must already exist |
+| `minutes` | integer | Window size, counted back from now against `client_ts`. Must be `> 0` and `<= max_backfill_minutes` (default 1440) |
+| `filter` | object | Optional filter **override** for this request only; when omitted the subscription's own filter is used |
+| `max_rows` | integer | Optional lower cap than the server's `max_backfill_rows` |
+
+**Reply:** one or more `log.backfill.{sub_id}` chunks — or
+`log.error.{sub_id}` with code `INVALID_WINDOW`, `INVALID_FILTER` or
+`UNKNOWN_SUB`.
+
+### `log.backfill.{SUB_ID}`
+
+**Motivation:** Delivers a backfill in bounded pieces.  A busy hour can be
+hundreds of thousands of rows; a single response would mean both a
+multi-megabyte ZeroMQ frame and a SQLite scan long enough to stall the
+server's main loop.  The server instead emits at most one chunk per loop
+iteration, so an arbitrarily large window costs a bounded amount of work
+per pass and never blocks LALF collection.
+**Published by:** `pm-log-srv` via PUB (`:5601`)
+
+| Field | Type | Description |
+|---|---|---|
+| `sub_id` | string | Routing key |
+| `request_id` | string | Correlates chunks of one backfill; constant across the whole response |
+| `chunk` | integer | Zero-based chunk index |
+| `rows` | array of object | Log rows in ascending `seq` order — see the row schema below |
+| `row_count` | integer | `len(rows)`, for convenience |
+| `done` | boolean | `true` on the final chunk **only**; a subscriber must keep reading until it sees this |
+| `total_sent` | integer | Cumulative rows sent for this `request_id` |
+| `truncated` | boolean | `true` if the response was cut short by `max_rows` — there was more history than was returned |
+| `last_seq` | integer | `seq` of the last row in this chunk (the server's cursor) |
+| `timestamp` | float | Unix epoch seconds |
+
+An empty window still produces exactly one chunk with `rows: []` and
+`done: true`, so a subscriber never waits forever on a quiet system.
+
+### `log.event.{SUB_ID}`
+
+**Motivation:** `STREAM` mode — the "send me new logs as they arrive"
+case.  Rows are published *after* the SQLite commit that assigned their
+`seq`, never before, so a subscriber can never observe a row that a
+subsequent crash would have rolled back: the live stream and `log.db` can
+never disagree.
+**Published by:** `pm-log-srv` via PUB (`:5601`)
+
+| Field | Type | Description |
+|---|---|---|
+| `sub_id` | string | Routing key |
+| `rows` | array of object | Matching rows in ascending `seq` order, up to `backfill_chunk_rows` per message |
+| `row_count` | integer | `len(rows)` |
+| `seq_from` | integer | `seq` of the first row in this message |
+| `seq_to` | integer | `seq` of the last row in this message |
+| `server_last_seq` | integer | Highest `seq` the server has seen overall — compare with `seq_to` to see how far behind you are |
+| `dropped` | integer | Cumulative rows shed from this subscription's buffer because it exceeded `max_pending_rows`. Non-zero means this subscriber is not keeping up and its view has gaps |
+| `timestamp` | float | Unix epoch seconds |
+
+`dropped` is the *slow subscriber* signal, distinct from a dead one: a
+subscriber that is alive but cannot keep up loses its oldest buffered
+rows rather than being allowed to grow the server's memory without bound.
+A UI seeing `dropped` climb should tighten its filter, switch to
+`NOTIFY`, or re-backfill to close the gap.
+
+### `log.notify.{SUB_ID}`
+
+**Motivation:** `NOTIFY` mode — the "just tell me something happened"
+case.  Carries counts and a sequence watermark but **no row bodies**, so a
+UI that already reads `log.db` itself (or that only needs to light up an
+indicator) pays almost nothing in bus traffic.  Ticks are coalesced over
+`notify_interval_ms`, so a burst of a thousand rows produces one small
+message rather than a thousand.
+**Published by:** `pm-log-srv` via PUB (`:5601`)
+
+| Field | Type | Description |
+|---|---|---|
+| `sub_id` | string | Routing key |
+| `count` | integer | Matching rows accumulated since the previous tick |
+| `levels` | object | Per-level counts within this tick, e.g. `{"ERROR": 3, "WARNING": 12}` |
+| `last_seq` | integer | Highest matching `seq` in this tick — read rows `> ` your previous watermark to catch up |
+| `server_last_seq` | integer | Highest `seq` the server has seen overall, matching or not |
+| `timestamp` | float | Unix epoch seconds |
+
+No tick is published when `count` would be zero, so a quiet system
+produces no notify traffic at all.
+
+### `log.status_request` / `log.status.{SUB_ID}`
+
+**Motivation:** Diagnostics — lets a viewer (or an operator's CLI) see
+what the server thinks its subscription looks like, how much it has been
+sent, and whether it has been dropping rows.
+**Published by:** Log subscriber via PUSH (`:5602`)
+
+| Field | Type | Description |
+|---|---|---|
+| `sub_id` | string | Subscription to report on |
+| `timestamp` | float | Unix epoch seconds |
+
+**Reply:** `log.status.{sub_id}`
+
+| Field | Type | Description |
+|---|---|---|
+| `sub_id` | string | Echoed routing key |
+| `server` | string | The server's configured `name` |
+| `proto` | string | `"LALF-PS/1"` |
+| `subscribers` | integer | Total leased subscriptions on the server right now |
+| `active_backfills` | integer | Backfill jobs currently in flight |
+| `last_seq` | integer | Highest `seq` the server has seen |
+| `inbox_dropped` | integer | Rows the server could not hand to the fan-out stage at all (server-wide overload; normally `0`) |
+| `subscription` | object \| null | Per-subscription detail, or `null` if there is no such subscription |
+
+The nested `subscription` object:
+
+| Field | Type | Description |
+|---|---|---|
+| `mode` | string | `"STREAM"` or `"NOTIFY"` |
+| `filter` | object | The normalised filter in force |
+| `lease_sec` | float | Granted lease TTL |
+| `lease_remaining_sec` | float | Seconds until reaping if no renewal arrives |
+| `age_sec` | float | Seconds since the subscription was first created |
+| `pending_rows` | integer | Rows buffered but not yet published |
+| `pending_count` | integer | `NOTIFY` rows accumulated since the last tick |
+| `sent_rows` | integer | Lifetime rows delivered (live + backfill) |
+| `sent_messages` | integer | Lifetime messages published |
+| `dropped_rows` | integer | Lifetime rows shed due to buffer overflow |
+| `renewals` | integer | Lifetime `log.renew` count |
+
+### `log.lease_expired.{SUB_ID}`
+
+**Motivation:** The final notice, published as the lease is reaped.  It
+exists for the case where the subscriber is not in fact dead but merely
+wedged: it tells such a client unambiguously that it must re-subscribe,
+rather than sit forever waiting for rows the server has stopped sending.
+**Published by:** `pm-log-srv` via PUB (`:5601`)
+
+| Field | Type | Description |
+|---|---|---|
+| `sub_id` | string | The reaped subscription |
+| `reason` | string | Human-readable cause, e.g. `"lease expired; no log.renew received in time"` |
+| `lease_sec` | float | The lease TTL that elapsed |
+| `dropped_rows` | integer | Rows discarded on reaping (buffered plus previously shed) |
+| `timestamp` | float | Unix epoch seconds |
+
+By the time this is published the subscription, its buffers and any
+in-flight backfill job are already gone.
+
+### `log.error.{SUB_ID}`
+
+**Motivation:** Uniform error reply for any rejected LALF-PS request —
+the direct analogue of `index.error.{gateway_id}`.
+**Published by:** `pm-log-srv` via PUB (`:5601`)
+
+| Field | Type | Description |
+|---|---|---|
+| `accepted` | boolean | Always `false` |
+| `sub_id` | string | Echoed routing key |
+| `code` | string | Machine-readable code, see below |
+| `reason` | string | Human-readable description |
+| `timestamp` | float | Unix epoch seconds |
+
+| Code | Meaning | Subscriber action |
+|---|---|---|
+| `BAD_REQUEST` | Unsupported topic or malformed payload | Fix the request; do not retry as-is |
+| `UNKNOWN_SUB` | No such subscription (never created, or already reaped) | Send `log.subscribe` |
+| `TOO_MANY_SUBS` | Server is at `max_subscribers` | Back off and retry, or raise the server limit |
+| `INVALID_FILTER` | The `filter` object is malformed | Fix the filter |
+| `INVALID_MODE` | `mode` was neither `STREAM` nor `NOTIFY` | Fix the mode |
+| `INVALID_WINDOW` | `minutes` was absent, non-positive, or above `max_backfill_minutes` | Request a smaller window |
+| `INTERNAL` | Server-side failure, e.g. a backfill query error | Retry; check the server's own stdout logging |
+
+A control message that arrives with no usable `sub_id` is dropped and
+logged server-side — there is no reply topic to answer on.
+
+### `log.server_state`
+
+**Motivation:** Liveness and discovery.  Published on the un-suffixed
+topic so *any* subscriber can see it without knowing a `sub_id`, which
+makes it the natural way for a UI to show "log server up/down" and to
+discover the server's counters before subscribing to anything.
+**Published by:** `pm-log-srv` via PUB (`:5601`), every
+`heartbeat_interval_sec`, plus once at shutdown
+
+| Field | Type | Description |
+|---|---|---|
+| `server` | string | The server's configured `name` |
+| `state` | string | `"UP"` on the periodic tick, `"DOWN"` on the single shutdown message |
+| `proto` | string | `"LALF-PS/1"` |
+| `pub_addr` | string | The bound PUB address (omitted on the `DOWN` message) |
+| `pull_addr` | string | The bound PULL address (omitted on the `DOWN` message) |
+| `subscribers` | integer | Leased subscriptions right now |
+| `active_backfills` | integer | Backfill jobs in flight |
+| `last_seq` | integer | Highest `log_events.seq` seen |
+| `inbox_dropped` | integer | Server-wide rows lost before fan-out (normally `0`) |
+| `default_lease_sec` | float | The server's configured default lease TTL |
+| `timestamp` | float | Unix epoch seconds |
+
+Absence of `log.server_state` for more than a couple of intervals is how
+a subscriber detects that the *server* — rather than its own
+subscription — has gone away.
+
+### Log row schema
+
+Every row inside `log.event` and `log.backfill` has the same shape, a
+one-to-one mapping of the `log_events` table (see
+[Centralized Log Server](280-log-srv.md)):
+
+| Field | Type | Description |
+|---|---|---|
+| `seq` | integer | Monotonic server-assigned row id; the ordering key for the whole interface |
+| `client_ts` | string | When the producing process created the record (UTC ISO-8601 with milliseconds) |
+| `server_ts` | string | When `pm-log-srv` received it — compare with `client_ts` to spot a lagging producer |
+| `process` | string | Producing process name, e.g. `"pm-engine"` |
+| `instance` | string \| null | Optional instance discriminator when several copies of one process run |
+| `pid` | integer | Producer OS process id |
+| `host` | string | Producer hostname |
+| `session` | string | LALF session id — identifies one *connection*, and resets on reconnect |
+| `level` | string | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` |
+| `logger` | string | Python logger name, e.g. `"edumatcher.engine.book"` |
+| `module` | string \| null | Source module |
+| `line` | integer \| null | Source line number |
+| `has_exception` | boolean | Whether the message carries a traceback |
+| `truncated` | boolean | Whether the body was cut at `max_message_bytes` |
+| `message` | string | The formatted log message, traceback included when `has_exception` |
+
 ## Subscription filter summary
 
 | Subscriber | Topics subscribed |
@@ -1716,6 +2145,7 @@ every constituent trade or forced recalculation.
 | Statistics | `trade.`, `book.`, `system.eod`, `system.symbols.STATS`, `session.state`, `auction.result.` |
 | AI trader / bot | `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `book.`, `depth.`, `trade.executed`, `order.ack.{GW}`, `order.fill.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `system.symbols.{GW}`, `system.gateway_auth.{GW}`, `system.halt_status.{GW}`, `system.position_snapshot.{GW}`, `system.eod` |
 | Market-data gateway (`pm-md-gwy`) | `book.`, `trade.executed`, `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `index.` |
+| Log subscriber (viewer/UI, on `pm-log-srv`'s own PUB `:5601`) | `log.event.{SUB_ID}`, `log.notify.{SUB_ID}`, `log.backfill.{SUB_ID}`, `log.subscribe_ack.{SUB_ID}`, `log.renew_ack.{SUB_ID}`, `log.unsubscribe_ack.{SUB_ID}`, `log.status.{SUB_ID}`, `log.lease_expired.{SUB_ID}`, `log.error.{SUB_ID}`, `log.server_state` — in practice the two prefixes `log.` + `{SUB_ID}` and `log.server_state` |
 
 
 

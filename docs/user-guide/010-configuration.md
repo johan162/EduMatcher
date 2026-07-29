@@ -54,7 +54,7 @@ Each protocol's configuration lives in a different part of `engine_config.yaml`:
 - **CALF** — configured under the top-level `market_data_gateway` key; used by `pm-md-gwy`. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See [Market Data Feed](240-calf-gateway.md) for usage and [CALF Protocol](920-app-calf-protocol.md) for the full protocol specification.
 - **RALF** — configured under the top-level `post_trade_gateway` key; used by `pm-ralf-gwy`. Provides a replayable audit feed of all executed trades, including the original order details, over a persistent TCP connection with sequence-based gap detection. See [Post Trade](250-ralf-gateway.md) for usage and [RALF Protocol](930-app-ralf-protocol.md) for the full protocol specification.
 - **DC1** — configured under the top-level `dc_gateway` key; used by `pm-dc-gwy`. Relays the engine's internal drop-copy feed to plain TCP clients that cannot speak ZeroMQ, using the lightweight DC1 text protocol. See [Drop-Copy Gateway](201-dc-gateway.md) for full usage and protocol details.
-- **LALF** — configured under the top-level `log_server` key; used by `pm-log-srv`. Collects operational `logging`-module output from every other `pm-*` process over a persistent TCP connection into a queryable SQLite database. See [Centralized Log Server](280-log-srv.md) for usage and [LALF Protocol Reference](940-app-lalf-protocol.md) for the full protocol specification.
+- **LALF** — configured under the top-level `log_server` key; used by `pm-log-srv`. Collects operational `logging`-module output from every other `pm-*` process over a persistent TCP connection into a queryable SQLite database. The same key also configures **LALF-PS**, the ZeroMQ `PUB`/`PULL` interface that distributes those rows back out to live log viewers. See [Centralized Log Server](280-log-srv.md) for usage and [LALF Protocol Reference](940-app-lalf-protocol.md) for the full protocol specification.
 - A Full overview of all protocol and their intended usage can be found in [Protocols Overview](210-protocols-overview.md).
 
 ## File Location
@@ -344,6 +344,44 @@ Log server options:
 | `--log-server-write-batch-size` | int (`> 0`) | `50` | `log_server.write_batch_size` |
 | `--log-server-write-batch-interval-ms` | int (`> 0`) | `100` | `log_server.write_batch_interval_ms` |
 | `--log-server-heartbeat-interval-sec` | int (`> 0`) | `5` | `log_server.heartbeat_interval_sec` |
+
+Log server LALF-PS options — the ZeroMQ log-distribution interface, see
+[LALF-PS](280-log-srv.md#lalf-ps-the-zeromq-log-distribution-interface):
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--log-server-pubsub-enabled` / `--log-server-pubsub-disabled` | Flag pair | unset (`true` when emitted) | Set `log_server.pubsub_enabled` — the master switch for LALF-PS |
+| `--log-server-pub-port` | int (`> 0`) | `5601` | `log_server.pub_port` — ZeroMQ `PUB` socket carrying rows, ticks, backfill chunks and acks |
+| `--log-server-pull-port` | int (`> 0`) | `5602` | `log_server.pull_port` — ZeroMQ `PULL` socket receiving subscriber control requests |
+| `--log-server-lease-sec` | int (`> 0`) | `30` | `log_server.lease_sec` — subscription lease TTL |
+| `--log-server-max-lease-sec` | int (`>= lease_sec`) | `300` | `log_server.max_lease_sec` — ceiling on a subscriber's requested lease |
+| `--log-server-max-subscribers` | int (`> 0`) | `32` | `log_server.max_subscribers` |
+| `--log-server-notify-interval-ms` | int (`> 0`) | `250` | `log_server.notify_interval_ms` — `NOTIFY`-mode coalescing window |
+| `--log-server-backfill-chunk-rows` | int (`> 0`) | `500` | `log_server.backfill_chunk_rows` |
+| `--log-server-max-backfill-minutes` | int (`> 0`) | `1440` | `log_server.max_backfill_minutes` |
+| `--log-server-max-backfill-rows` | int (`> 0`) | `100000` | `log_server.max_backfill_rows` |
+| `--log-server-max-pending-rows` | int (`> 0`) | `20000` | `log_server.max_pending_rows` |
+| `--log-server-pub-sndhwm` | int (`> 0`) | `10000` | `log_server.pub_sndhwm` |
+
+Passing any of these implies the `log_server` block, so `--log-server` is
+not additionally required. `pm-config-gen` refuses to write a file that
+`pm-log-srv` would then refuse to start on: `port`, `pub_port` and
+`pull_port` must resolve to three different numbers (compared against each
+other's *defaults*, not only against explicitly-set values), and
+`max-lease-sec` must be at least `lease-sec`.
+
+```bash
+# Two log servers on one host — move the whole three-port block
+pm-config-gen --symbols AAPL --gateways GW01 \
+  --log-server-port 5700 --log-server-pub-port 5701 --log-server-pull-port 5702
+
+# Collect logs but publish nothing: no ZeroMQ socket is bound
+pm-config-gen --symbols AAPL --gateways GW01 --log-server-pubsub-disabled
+
+# Reap dead viewers within 10 s, and cap concurrent viewers at 8
+pm-config-gen --symbols AAPL --gateways GW01 \
+  --log-server-lease-sec 10 --log-server-max-subscribers 8
+```
 
 API gateway options:
 
@@ -950,7 +988,7 @@ of the file — the gateway-specific blocks (`market_data_gateway`,
 | `pm-ralf-gwy` | `ralf_gateway/config.py` | `post_trade_gateway` | Own bind address/port/timeouts and `allowed_roles` for RALF (post-trade) subscribers |
 | `pm-md-gwy` | `md_gateway/config.py` | `market_data_gateway` | Own bind address/port/timeouts, replay window, and `depth_levels` for CALF subscribers |
 | `pm-dc-gwy` | `dc_gwy/config.py` | `dc_gateway` | Own bind address/port/timeouts and per-client queue limit for the drop-copy TCP relay |
-| `pm-log-srv` | `log_srv/config.py` | `log_server` | Own bind address/port/retention/throughput knobs for the centralized LALF log collector |
+| `pm-log-srv` | `log_srv/config.py` | `log_server` | Own bind address/port/retention/throughput knobs for the centralized LALF log collector, plus the LALF-PS ZeroMQ log-distribution ports and subscription limits |
 | `pm-api-gwy` | `api_gateway/config.py` | `api_gateways` | Named REST/WebSocket gateway instances, API credentials, rate limits, and timeouts |
 | `pm-index` | `index/config_loader.py` (wraps `engine/config_loader.py`) | `indices`, `symbols.<SYM>.outstanding_shares`, `symbols.<SYM>.last_buy_price` / `last_sell_price` | Index definitions (constituents, base value, publish interval) and the per-constituent share counts / reference prices needed to seed each index at startup |
 | `pm-scheduler` | `scheduler/main.py` | `schedule`, `country` | Session-phase transition times — re-reads the same block `pm-engine` reads, but as an independent process so the schedule can be driven or tested externally — plus the country used to skip weekends and bank holidays |
@@ -1249,16 +1287,66 @@ log_server:
 | `max_client_queue` | `10000` | Per-connection outbound backlog limit before backpressure is applied |
 | `write_batch_size` | `50` | Maximum rows per SQLite transaction in the background writer thread |
 | `write_batch_interval_ms` | `100` | Maximum time between writer-thread flushes, whichever comes first with `write_batch_size` |
-| `heartbeat_interval_sec` | `5` | How often a connected client must send something (`LOG` or `HB`) to stay alive; the server disconnects after 2× this interval of silence and advertises the value to clients in `WELCOME.HBINT` (the server itself never sends `HB`) |
+| `heartbeat_interval_sec` | `5` | How often a connected client must send something (`LOG` or `HB`) to stay alive; the server disconnects after 2× this interval of silence and advertises the value to clients in `WELCOME.HBINT` (the server itself never sends `HB`). Doubles as the publish interval for the LALF-PS `log.server_state` tick |
+
+### LALF-PS fields — the ZeroMQ log-distribution interface
+
+Everything above configures how logging gets *in* to `pm-log-srv`. The
+fields below configure how it gets back *out*: `pm-log-srv` also binds a
+ZeroMQ `PUB`/`PULL` pair so live log viewers can be pushed rows as they are
+committed, rather than polling `log.db` on a timer. See
+[LALF-PS](280-log-srv.md#lalf-ps-the-zeromq-log-distribution-interface) for
+the full interface.
+
+```yaml
+log_server:
+  # ... the collector fields above ...
+  pubsub_enabled: true
+  pub_port: 5601
+  pull_port: 5602
+  lease_sec: 30
+  max_lease_sec: 300
+  max_subscribers: 32
+  notify_interval_ms: 250
+  backfill_chunk_rows: 500
+  max_backfill_minutes: 1440
+  max_backfill_rows: 100000
+  max_pending_rows: 20000
+  pub_sndhwm: 10000
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `pubsub_enabled` | `true` | Master switch for LALF-PS. When `false`, no ZeroMQ socket is bound at all and `pm-log-srv` runs as a pure TCP collector |
+| `pub_port` | `5601` | ZeroMQ `PUB` port carrying live rows, notification ticks, backfill chunks, control acks and errors |
+| `pull_port` | `5602` | ZeroMQ `PULL` port receiving subscriber control requests |
+| `lease_sec` | `30` | Subscription lease TTL. A `PUB` socket cannot see that a peer died, so every subscription carries a TTL the subscriber must refresh with `log.renew`; one that goes silent is reaped and its buffers discarded |
+| `max_lease_sec` | `300` | Ceiling on a subscriber's requested lease. A request above it is *clamped*, not rejected. Must be `>= lease_sec` |
+| `max_subscribers` | `32` | Maximum concurrent leased subscriptions; further `log.subscribe` requests are answered with `TOO_MANY_SUBS` |
+| `notify_interval_ms` | `250` | Coalescing window for `NOTIFY`-mode ticks, and the floor on a subscriber's own requested interval |
+| `backfill_chunk_rows` | `500` | Rows per backfill chunk, and the maximum rows per live stream message |
+| `max_backfill_minutes` | `1440` | Largest "last n minutes" window a subscriber may request (24 h) |
+| `max_backfill_rows` | `100000` | Hard cap on rows returned by one backfill; the final chunk sets `truncated` when it bites |
+| `max_pending_rows` | `20000` | Per-subscription stream buffer cap. A subscriber that is alive but too slow loses its oldest buffered rows rather than growing the server without bound |
+| `pub_sndhwm` | `10000` | ZeroMQ send high-water mark on the `PUB` socket |
+
+`pm-log-srv` therefore occupies a contiguous three-port block —
+`5600`/`5601`/`5602` by default — and all three must be different. It
+refuses to start otherwise, and `pm-cverifier` reports the condition as
+`S102` before you ever get there. `pm-cverifier` also cross-checks the two
+LALF-PS ports against every other configured listener (`M018`) and rejects
+a `max_lease_sec` below `lease_sec` (`S103`).
 
 Every CLI flag on `pm-log-srv` (`--host`, `--port`, `--db`,
-`--retention-days`, `--max-message-bytes`) overrides the corresponding
-config field for that invocation only — the same CLI-flag-over-config
-precedence every other `pm-*` process uses.
+`--retention-days`, `--max-message-bytes`, `--pub-port`, `--pull-port`,
+`--lease-sec`, `--no-pubsub`) overrides the corresponding config field for
+that invocation only — the same CLI-flag-over-config precedence every other
+`pm-*` process uses.
 
 If you prefer to generate this block instead of writing it by hand,
 `pm-config-gen` can emit it with `--log-server` and the associated
-`--log-server-*` options — see "Log server options" in
+`--log-server-*` options — see "Log server options" and "Log server LALF-PS
+options" in
 [Generate Configs with pm-config-gen](#generate-configs-with-pm-config-gen)
 above.
 

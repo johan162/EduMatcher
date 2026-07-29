@@ -146,6 +146,18 @@ export function createLogServer(): LogServerConfig {
     writeBatchSize: DEFAULT_LOG_SERVER.writeBatchSize,
     writeBatchIntervalMs: DEFAULT_LOG_SERVER.writeBatchIntervalMs,
     heartbeatIntervalSec: DEFAULT_LOG_SERVER.heartbeatIntervalSec,
+    pubsubEnabled: DEFAULT_LOG_SERVER.pubsubEnabled,
+    pubPort: DEFAULT_LOG_SERVER.pubPort,
+    pullPort: DEFAULT_LOG_SERVER.pullPort,
+    leaseSec: DEFAULT_LOG_SERVER.leaseSec,
+    maxLeaseSec: DEFAULT_LOG_SERVER.maxLeaseSec,
+    maxSubscribers: DEFAULT_LOG_SERVER.maxSubscribers,
+    notifyIntervalMs: DEFAULT_LOG_SERVER.notifyIntervalMs,
+    backfillChunkRows: DEFAULT_LOG_SERVER.backfillChunkRows,
+    maxBackfillMinutes: DEFAULT_LOG_SERVER.maxBackfillMinutes,
+    maxBackfillRows: DEFAULT_LOG_SERVER.maxBackfillRows,
+    maxPendingRows: DEFAULT_LOG_SERVER.maxPendingRows,
+    pubSndhwm: DEFAULT_LOG_SERVER.pubSndhwm,
   };
 }
 

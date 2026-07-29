@@ -195,6 +195,18 @@
 #     write_batch_size: 50
 #     write_batch_interval_ms: 100
 #     heartbeat_interval_sec: 5
+#     pubsub_enabled: true
+#     pub_port: 5601
+#     pull_port: 5602
+#     lease_sec: 30
+#     max_lease_sec: 300
+#     max_subscribers: 32
+#     notify_interval_ms: 250
+#     backfill_chunk_rows: 500
+#     max_backfill_minutes: 1440
+#     max_backfill_rows: 100000
+#     max_pending_rows: 20000
+#     pub_sndhwm: 10000
 #
 #   indices:
 #     - id: EDU100
@@ -497,6 +509,35 @@
 #     Maximum time between writer-thread flushes, whichever comes first with write_batch_size.
 #   heartbeat_interval_sec: 5
 #     Interval a connected client must send HB within (echoed as WELCOME.HBINT).
+#     Also the interval at which log.server_state is published on LALF-PS.
+#   pubsub_enabled: true
+#     Master switch for LALF-PS, the ZeroMQ log distribution interface.
+#     When false no ZeroMQ socket is bound and only TCP collection runs.
+#   pub_port: 5601
+#     ZeroMQ PUB port carrying live rows, notify ticks, backfill chunks and acks.
+#   pull_port: 5602
+#     ZeroMQ PULL port receiving subscriber control requests.
+#   lease_sec: 30
+#     Default subscription lease TTL; a subscriber that stops sending
+#     log.renew within this window is reaped and its buffers discarded.
+#   max_lease_sec: 300
+#     Upper bound a subscriber may request via log.subscribe.lease_sec.
+#   max_subscribers: 32
+#     Maximum concurrent leased subscriptions before TOO_MANY_SUBS is returned.
+#   notify_interval_ms: 250
+#     Coalescing window for NOTIFY-mode ticks; also the floor a subscriber
+#     may request via log.subscribe.notify_interval_ms.
+#   backfill_chunk_rows: 500
+#     Rows per log.backfill chunk, and per live log.event message.
+#   max_backfill_minutes: 1440
+#     Largest "last n minutes" window a subscriber may request.
+#   max_backfill_rows: 100000
+#     Hard cap on rows returned by one backfill; the final chunk sets truncated.
+#   max_pending_rows: 20000
+#     Per-subscription STREAM buffer cap; a lagging subscriber loses its
+#     oldest buffered rows (reported back as the dropped counter).
+#   pub_sndhwm: 10000
+#     ZeroMQ send high-water mark on the PUB socket.
 #
 #   api_gateways entries
 #   --------------------

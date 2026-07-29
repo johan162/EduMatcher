@@ -237,6 +237,24 @@ const portCollision: Rule = (draft) => {
       port: draft.logServer.port,
       path: "logServer.port",
     });
+    // pm-log-srv is the only section that binds more than one listener: the
+    // LALF-PS ZeroMQ sockets sit alongside its LALF/TCP port and are just as
+    // capable of colliding with another gateway. Skipped when the interface
+    // is off, since then nothing is bound.
+    if (draft.logServer.pubsubEnabled) {
+      endpoints.push({
+        label: `log_server '${draft.logServer.name}' LALF-PS PUB`,
+        address: draft.logServer.bindAddress,
+        port: draft.logServer.pubPort,
+        path: "logServer.pubPort",
+      });
+      endpoints.push({
+        label: `log_server '${draft.logServer.name}' LALF-PS PULL`,
+        address: draft.logServer.bindAddress,
+        port: draft.logServer.pullPort,
+        path: "logServer.pullPort",
+      });
+    }
   }
   for (const gw of draft.apiGateways) {
     if (gw.enabled) {
@@ -254,6 +272,12 @@ const portCollision: Rule = (draft) => {
     for (let j = i + 1; j < endpoints.length; j += 1) {
       const a = endpoints[i]!;
       const b = endpoints[j]!;
+      // Two of pm-log-srv's own three ports colliding is fatal rather than
+      // merely suspect, and logServerPubsubPorts reports it as an error —
+      // so skip the pair here instead of also warning about it.
+      if (a.path.startsWith("logServer.") && b.path.startsWith("logServer.")) {
+        continue;
+      }
       if (a.port === b.port && addressesCollide(a.address, b.address)) {
         const where = a.address === b.address ? a.address : `${a.address}/${b.address}`;
         out.push({
@@ -267,6 +291,84 @@ const portCollision: Rule = (draft) => {
     }
   }
   return out;
+};
+
+/**
+ * layer2_schema.py: S102 — pm-log-srv's three listeners must be distinct.
+ *
+ * Reported as an error, not a warning: unlike two *different* gateways
+ * sharing a port (which at least starts, then fails on the second bind),
+ * pm-log-srv validates this at config-load time and refuses to start at all.
+ */
+const logServerPubsubPorts: Rule = (draft) => {
+  const g = draft.logServer;
+  if (!g.enabled || !g.pubsubEnabled) return [];
+
+  const named: Array<[string, string, number]> = [
+    ["port", "LALF/TCP", g.port],
+    ["pubPort", "LALF-PS PUB", g.pubPort],
+    ["pullPort", "LALF-PS PULL", g.pullPort],
+  ];
+
+  const out: Diagnostic[] = [];
+  for (let i = 0; i < named.length; i += 1) {
+    for (let j = i + 1; j < named.length; j += 1) {
+      const [aKey, aName, aPort] = named[i]!;
+      const [bKey, bName, bPort] = named[j]!;
+      if (aPort !== bPort) continue;
+      out.push({
+        id: "log-server-port-overlap",
+        severity: "error",
+        message: `pm-log-srv's ${aName} and ${bName} listeners are both on port ${aPort}. It binds all three of port, pub port and pull port, so they must be different — the server refuses to start otherwise.`,
+        fieldPaths: [`logServer.${aKey}`, `logServer.${bKey}`],
+        tab: "gateways",
+      });
+    }
+  }
+  return out;
+};
+
+/**
+ * layer2_schema.py: S103 — the LALF-PS lease ceiling cannot sit below the
+ * default lease it is meant to cap.
+ */
+const logServerLeaseBounds: Rule = (draft) => {
+  const g = draft.logServer;
+  if (!g.enabled || !g.pubsubEnabled) return [];
+  if (g.maxLeaseSec >= g.leaseSec) return [];
+  return [
+    {
+      id: "log-server-lease-bounds",
+      severity: "error",
+      message: `Max lease (${g.maxLeaseSec}s) is below the default lease (${g.leaseSec}s). Max lease is the ceiling applied to a subscriber's request, so a value below the default the server itself grants is contradictory.`,
+      fieldPaths: ["logServer.maxLeaseSec", "logServer.leaseSec"],
+      tab: "gateways",
+    },
+  ];
+};
+
+/**
+ * Advisory: a notify interval far above the lease means a NOTIFY-mode
+ * subscriber could be reaped between ticks.
+ *
+ * Not an error — the server accepts it — but it makes the interface behave
+ * in a way nobody intends: the subscriber has to renew on a timer entirely
+ * unrelated to the ticks it is actually waiting for, and any UI that
+ * naively renews "when something arrives" would silently expire.
+ */
+const logServerNotifyVsLease: Rule = (draft) => {
+  const g = draft.logServer;
+  if (!g.enabled || !g.pubsubEnabled) return [];
+  if (g.notifyIntervalMs <= g.leaseSec * 1000) return [];
+  return [
+    {
+      id: "log-server-notify-exceeds-lease",
+      severity: "warning",
+      message: `Notify interval (${g.notifyIntervalMs}ms) is longer than the lease (${g.leaseSec}s). A NOTIFY subscriber can be reaped before its next tick arrives, so it must renew on an independent timer.`,
+      fieldPaths: ["logServer.notifyIntervalMs", "logServer.leaseSec"],
+      tab: "gateways",
+    },
+  ];
 };
 
 /** cli.py: _validate_schedule_order (fatal in CLI). */
@@ -621,6 +723,9 @@ const RULES: Rule[] = [
   sessionsDefaultSchedule,
   seedFromMmWithoutRange,
   portCollision,
+  logServerPubsubPorts,
+  logServerLeaseBounds,
+  logServerNotifyVsLease,
   scheduleOrder,
   indexMissingConstituents,
   indexConstituentNotInUniverse,

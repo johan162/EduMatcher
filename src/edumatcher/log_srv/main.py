@@ -53,6 +53,35 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Maximum LOG payload size before truncation (default: 65536)",
     )
     parser.add_argument(
+        "--pub-port",
+        type=int,
+        default=None,
+        metavar="PORT",
+        help="LALF-PS ZeroMQ PUB bind port for log distribution (default: 5601)",
+    )
+    parser.add_argument(
+        "--pull-port",
+        type=int,
+        default=None,
+        metavar="PORT",
+        help="LALF-PS ZeroMQ PULL bind port for subscriber control (default: 5602)",
+    )
+    parser.add_argument(
+        "--no-pubsub",
+        action="store_true",
+        help="Disable the LALF-PS interface entirely (bind no ZeroMQ sockets)",
+    )
+    parser.add_argument(
+        "--lease-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Subscription lease TTL in seconds; a subscriber that stops "
+            "sending log.renew is reaped after this long (default: 30)"
+        ),
+    )
+    parser.add_argument(
         "--log-level",
         choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
         help="Logging level override (default: WARNING)",
@@ -121,6 +150,18 @@ def _resolve_config(args: argparse.Namespace) -> LogServerConfig:
         else cfg.max_message_bytes
     )
 
+    pubsub_enabled = cfg.pubsub_enabled and not args.no_pubsub
+    pub_port = int(args.pub_port) if args.pub_port else cfg.pub_port
+    pull_port = int(args.pull_port) if args.pull_port else cfg.pull_port
+    lease_sec = int(args.lease_sec) if args.lease_sec else cfg.lease_sec
+    max_lease_sec = max(cfg.max_lease_sec, lease_sec)
+
+    if pubsub_enabled and len({port, pub_port, pull_port}) != 3:
+        raise ValueError(
+            f"port ({port}), pub-port ({pub_port}) and pull-port ({pull_port}) "
+            "must all be different"
+        )
+
     return LogServerConfig(
         enabled=cfg.enabled,
         name=cfg.name,
@@ -133,6 +174,18 @@ def _resolve_config(args: argparse.Namespace) -> LogServerConfig:
         write_batch_size=cfg.write_batch_size,
         write_batch_interval_ms=cfg.write_batch_interval_ms,
         heartbeat_interval_sec=cfg.heartbeat_interval_sec,
+        pubsub_enabled=pubsub_enabled,
+        pub_port=pub_port,
+        pull_port=pull_port,
+        lease_sec=lease_sec,
+        max_lease_sec=max_lease_sec,
+        max_subscribers=cfg.max_subscribers,
+        notify_interval_ms=cfg.notify_interval_ms,
+        backfill_chunk_rows=cfg.backfill_chunk_rows,
+        max_backfill_minutes=cfg.max_backfill_minutes,
+        max_backfill_rows=cfg.max_backfill_rows,
+        max_pending_rows=cfg.max_pending_rows,
+        pub_sndhwm=cfg.pub_sndhwm,
     )
 
 
@@ -154,12 +207,16 @@ def main() -> None:
 
     log.debug(
         "resolved log-srv config: bind=%s port=%s db=%s retention_days=%s "
-        "max_message_bytes=%s",
+        "max_message_bytes=%s pubsub=%s pub_port=%s pull_port=%s lease_sec=%s",
         config.bind_address,
         config.port,
         config.db_path,
         config.retention_days,
         config.max_message_bytes,
+        config.pubsub_enabled,
+        config.pub_port,
+        config.pull_port,
+        config.lease_sec,
     )
 
     server = LogServer(config=config)

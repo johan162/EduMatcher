@@ -277,8 +277,31 @@ function LogServerPanel() {
             label="Heartbeat interval (sec)"
             value={g.heartbeatIntervalSec}
             onChange={(v) => set((gw) => (gw.heartbeatIntervalSec = v ?? gw.heartbeatIntervalSec))}
-            help={{ text: "How often a connected client must send something (a LOG or HB message) to stay considered alive. The server itself never sends heartbeats — LALF's HB is client-to-server only — but it disconnects a client after 2× this interval of total silence. This value is sent to clients in WELCOME|HBINT= so they know the expected cadence.", cliFlag: "--log-server-heartbeat-interval-sec" }}
+            help={{ text: "How often a connected client must send something (a LOG or HB message) to stay considered alive. The server itself never sends heartbeats — LALF's HB is client-to-server only — but it disconnects a client after 2× this interval of total silence. This value is sent to clients in WELCOME|HBINT= so they know the expected cadence. It also sets how often the log server publishes its own log.server_state liveness tick on LALF-PS.", cliFlag: "--log-server-heartbeat-interval-sec" }}
           />
+
+          <SubHeading
+            title="LALF-PS — log distribution"
+            description="Everything above controls how logging gets in to the log server. These control how it gets back out: the server binds a ZeroMQ PUB/PULL pair so live log viewers can be pushed rows as they are written, instead of polling the database on a timer."
+          />
+          <FieldRow label="Enable LALF-PS" help={{ text: "When off, no ZeroMQ socket is bound at all and the log server runs as a pure TCP collector — logs are still collected and still queryable with pm-log-cli, but nothing can subscribe to them live.", cliFlag: "--log-server-pubsub-enabled / --log-server-pubsub-disabled" }}>
+            <Switch aria-label="Enable LALF-PS" checked={g.pubsubEnabled} onCheckedChange={(v) => set((gw) => (gw.pubsubEnabled = v))} />
+          </FieldRow>
+          {g.pubsubEnabled && (
+            <>
+              <NumField label="PUB port" path="logServer.pubPort" value={g.pubPort} onChange={(v) => set((gw) => (gw.pubPort = v ?? gw.pubPort))} help={{ text: "ZeroMQ PUB port that carries everything outbound: live rows, notification ticks, backfill chunks, control acks and errors. Must differ from the LALF port and the PULL port — the log server binds all three.", cliFlag: "--log-server-pub-port" }} />
+              <NumField label="PULL port" path="logServer.pullPort" value={g.pullPort} onChange={(v) => set((gw) => (gw.pullPort = v ?? gw.pullPort))} help={{ text: "ZeroMQ PULL port that receives subscriber control requests: subscribe, renew, unsubscribe, backfill and status.", cliFlag: "--log-server-pull-port" }} />
+              <NumField label="Lease (sec)" path="logServer.leaseSec" value={g.leaseSec} onChange={(v) => set((gw) => (gw.leaseSec = v ?? gw.leaseSec))} help={{ text: "How long a subscription survives without a renewal. A ZeroMQ PUB socket cannot tell that a subscriber died, so each one holds a lease it must refresh (at half this interval); one that goes silent is dropped and its buffered rows discarded. Shorter reaps a crashed viewer faster; longer is kinder to a flaky link.", cliFlag: "--log-server-lease-sec" }} />
+              <NumField label="Max lease (sec)" path="logServer.maxLeaseSec" value={g.maxLeaseSec} onChange={(v) => set((gw) => (gw.maxLeaseSec = v ?? gw.maxLeaseSec))} help={{ text: "Ceiling on a lease a subscriber asks for. An over-large request is clamped to this rather than rejected. Must be at least the lease above.", cliFlag: "--log-server-max-lease-sec" }} />
+              <NumField label="Max subscribers" value={g.maxSubscribers} onChange={(v) => set((gw) => (gw.maxSubscribers = v ?? gw.maxSubscribers))} help={{ text: "How many log viewers may hold a subscription at once. Beyond this, further subscribe requests are refused with TOO_MANY_SUBS.", cliFlag: "--log-server-max-subscribers" }} />
+              <NumField label="Notify interval (ms)" path="logServer.notifyIntervalMs" value={g.notifyIntervalMs} onChange={(v) => set((gw) => (gw.notifyIntervalMs = v ?? gw.notifyIntervalMs))} help={{ text: "Coalescing window for NOTIFY-mode subscribers, which receive counts rather than rows. A burst of a thousand rows inside one window produces a single small tick instead of a thousand messages. Also the floor on what a subscriber may request.", cliFlag: "--log-server-notify-interval-ms" }} />
+              <NumField label="Backfill chunk rows" value={g.backfillChunkRows} onChange={(v) => set((gw) => (gw.backfillChunkRows = v ?? gw.backfillChunkRows))} help={{ text: "Rows per backfill chunk, and the maximum rows in a single live stream message. Backfills are chunked so a large history window never blocks the server's main loop — which would in turn stall log collection from every other process.", cliFlag: "--log-server-backfill-chunk-rows" }} />
+              <NumField label="Max backfill (min)" value={g.maxBackfillMinutes} onChange={(v) => set((gw) => (gw.maxBackfillMinutes = v ?? gw.maxBackfillMinutes))} help={{ text: "Largest 'last n minutes' window a subscriber may replay when it starts up. A larger request is refused rather than served, so a viewer cannot ask the server for an arbitrarily expensive scan.", cliFlag: "--log-server-max-backfill-minutes" }} />
+              <NumField label="Max backfill rows" value={g.maxBackfillRows} onChange={(v) => set((gw) => (gw.maxBackfillRows = v ?? gw.maxBackfillRows))} help={{ text: "Hard cap on how many rows one backfill returns regardless of the window. When it bites, the final chunk is marked truncated so the viewer knows history was cut short rather than exhausted.", cliFlag: "--log-server-max-backfill-rows" }} />
+              <NumField label="Max pending rows" value={g.maxPendingRows} onChange={(v) => set((gw) => (gw.maxPendingRows = v ?? gw.maxPendingRows))} help={{ text: "Per-subscriber buffer cap. A viewer that is alive but reading too slowly loses its oldest buffered rows — and is told how many — rather than being allowed to grow the server's memory without limit.", cliFlag: "--log-server-max-pending-rows" }} />
+              <NumField label="PUB send HWM" value={g.pubSndhwm} onChange={(v) => set((gw) => (gw.pubSndhwm = v ?? gw.pubSndhwm))} help={{ text: "ZeroMQ send high-water mark on the PUB socket — a second, lower-level bound so a connected-but-wedged subscriber cannot make ZeroMQ's own queue grow indefinitely.", cliFlag: "--log-server-pub-sndhwm" }} />
+            </>
+          )}
         </>
       )}
     </div>
@@ -387,6 +410,16 @@ function EnableRow({ enabled, onToggle, label, flag }: { enabled: boolean; onTog
     <FieldRow label={label} help={{ text: "Turning this off keeps your values but excludes the section from the exported config.", cliFlag: flag }}>
       <Switch aria-label={label} checked={enabled} onCheckedChange={onToggle} />
     </FieldRow>
+  );
+}
+
+/** Divider introducing a distinct group of fields inside one gateway panel. */
+function SubHeading({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="mt-6 mb-3 border-t border-border pt-4">
+      <h4 className="text-sm font-medium">{title}</h4>
+      <p className="mt-1 max-w-2xl text-sm text-fg-subtle">{description}</p>
+    </div>
   );
 }
 

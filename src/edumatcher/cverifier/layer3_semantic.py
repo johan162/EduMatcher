@@ -817,23 +817,60 @@ _SINGLETON_GATEWAY_PORTS = (
 
 _DEFAULT_API_GATEWAY_PORT = 8080
 
+# pm-log-srv is the one section that binds more than one listener: besides its
+# LALF/TCP 'port' above, LALF-PS binds a ZeroMQ PUB and a ZeroMQ PULL socket.
+# All three participate in the cross-section collision check — a pub_port that
+# happens to equal pm-md-gwy's port is exactly as fatal as two TCP gateways
+# sharing one, and far easier to overlook.
+_LOG_SERVER_EXTRA_PORTS = (
+    ("pub_port", "LALF-PS PUB", 5601),
+    ("pull_port", "LALF-PS PULL", 5602),
+)
 
-def _effective_port(section: dict[str, Any], default: int) -> int | None:
-    port = section.get("port", default)
+
+def _effective_port(
+    section: dict[str, Any], default: int, key: str = "port"
+) -> int | None:
+    port = section.get(key, default)
     if isinstance(port, bool) or not isinstance(port, int):
         return None  # malformed; already reported by layer 2
     return port
 
 
-def _collect_gateway_ports(raw: dict[str, Any]) -> list[tuple[str, int]]:
-    """Return (label, effective port) for every configured gateway section.
+def _collect_log_server_pubsub_ports(
+    raw: dict[str, Any],
+) -> list[tuple[str, str, int]]:
+    """Return (label, field, effective port) for the LALF-PS sockets."""
+    section = raw.get("log_server")
+    if not isinstance(section, dict):
+        return []
+    # A disabled interface binds nothing, so its configured ports cannot
+    # collide with anything and must not be reported as if they could.
+    if section.get("pubsub_enabled", True) is False:
+        return []
 
-    Uses each section's own runtime default when 'port' is omitted, so two
-    sections that are both simply absent-or-default never collide, but an
+    entries: list[tuple[str, str, int]] = []
+    for key, display_name, default_port in _LOG_SERVER_EXTRA_PORTS:
+        port = _effective_port(section, default_port, key=key)
+        if port is not None:
+            entries.append((f"log_server (pm-log-srv {display_name})", key, port))
+    return entries
+
+
+def _collect_gateway_ports(raw: dict[str, Any]) -> list[tuple[str, str, int]]:
+    """Return (label, field, effective port) for every configured listener.
+
+    Uses each section's own runtime default when the port key is omitted, so
+    two sections that are both simply absent-or-default never collide, but an
     explicit port that happens to match another section's default (or
     another explicit port) is caught.
+
+    The ``field`` element exists because ``log_server`` is the one section
+    that binds more than one listener — everything else keys off ``port``,
+    but LALF-PS also has ``pub_port`` and ``pull_port``, and a finding needs
+    to name the right one.
     """
-    entries: list[tuple[str, int]] = []
+    entries: list[tuple[str, str, int]] = []
 
     for key, display_name, default_port in _SINGLETON_GATEWAY_PORTS:
         section = raw.get(key)
@@ -841,7 +878,9 @@ def _collect_gateway_ports(raw: dict[str, Any]) -> list[tuple[str, int]]:
             continue
         port = _effective_port(section, default_port)
         if port is not None:
-            entries.append((f"{key} ({display_name})", port))
+            entries.append((f"{key} ({display_name})", "port", port))
+
+    entries.extend(_collect_log_server_pubsub_ports(raw))
 
     api_gateways = raw.get("api_gateways")
     if isinstance(api_gateways, dict):
@@ -850,7 +889,7 @@ def _collect_gateway_ports(raw: dict[str, Any]) -> list[tuple[str, int]]:
                 continue
             port = _effective_port(section, _DEFAULT_API_GATEWAY_PORT)
             if port is not None:
-                entries.append((f"api_gateways.{name} (pm-api-gwy)", port))
+                entries.append((f"api_gateways.{name} (pm-api-gwy)", "port", port))
 
     return entries
 
@@ -863,28 +902,34 @@ def _check_gateway_port_collisions(
     Previously this only checked balf_gateway against post_trade_gateway and
     market_data_gateway. It now checks every pair across alf_gateway,
     balf_gateway, post_trade_gateway, market_data_gateway, dc_gateway,
-    log_server, and every named api_gateways.<name> instance — the full set
-    of independently-configurable TCP listeners in engine_config.yaml.
+    log_server (including its two LALF-PS ZeroMQ ports), and every named
+    api_gateways.<name> instance — the full set of independently-configurable
+    listeners in engine_config.yaml.
     """
     entries = _collect_gateway_ports(raw)
-    seen: dict[int, str] = {}
-    for label, port in entries:
+    seen: dict[int, tuple[str, str]] = {}
+    for label, field, port in entries:
         prior = seen.get(port)
         if prior is not None:
+            prior_label, prior_field = prior
             results.append(
                 CheckResult(
                     code="M018",
                     severity=Severity.ERROR,
-                    message=f"{label}.port ({port}) conflicts with {prior}.port ({port}).",
-                    suggestion=(
-                        "Each gateway process must bind to a unique TCP port. "
-                        f"Change the port on {label} or {prior}."
+                    message=(
+                        f"{label}.{field} ({port}) conflicts with "
+                        f"{prior_label}.{prior_field} ({port})."
                     ),
-                    path=f"{label.split(' ', 1)[0]}.port",
+                    suggestion=(
+                        "Each listener must bind to a unique port. "
+                        f"Change {field} on {label}, or {prior_field} on "
+                        f"{prior_label}."
+                    ),
+                    path=f"{label.split(' ', 1)[0]}.{field}",
                 )
             )
         else:
-            seen[port] = label
+            seen[port] = (label, field)
 
 
 def _check_api_gateway_semantic(

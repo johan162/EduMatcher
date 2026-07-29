@@ -42,6 +42,7 @@ from edumatcher.log_srv.schema import (
     UPSERT_SERVER_STATS_INIT,
     open_db,
 )
+from edumatcher.log_srv.pubsub import LogPubSubHub
 from edumatcher.log_srv.session import LogSession
 from edumatcher.log_srv.writer import LogEventRow, WriterThread
 from edumatcher.logclient.protocol import (
@@ -79,10 +80,35 @@ class LogServer:
         self._conn.execute(UPSERT_SERVER_STATS_INIT, (iso_utc(time.time()),))
         self._conn.commit()
 
+        # LALF-PS is constructed before the writer so the writer can be
+        # handed its persisted-batch callback at construction time; the hub
+        # binds no sockets until start() is called from run().
+        self._pubsub: LogPubSubHub | None = None
+        if config.pubsub_enabled:
+            self._pubsub = LogPubSubHub(
+                pub_addr=config.pub_addr,
+                pull_addr=config.pull_addr,
+                db_path=Path(config.db_path),
+                server_name=config.name,
+                lease_sec=float(config.lease_sec),
+                max_lease_sec=float(config.max_lease_sec),
+                max_subscribers=config.max_subscribers,
+                notify_interval_ms=config.notify_interval_ms,
+                backfill_chunk_rows=config.backfill_chunk_rows,
+                max_backfill_minutes=config.max_backfill_minutes,
+                max_backfill_rows=config.max_backfill_rows,
+                max_pending_rows=config.max_pending_rows,
+                pub_sndhwm=config.pub_sndhwm,
+                state_interval_sec=float(config.heartbeat_interval_sec),
+            )
+
         self._writer = WriterThread(
             self._conn,
             batch_size=config.write_batch_size,
             batch_interval_ms=config.write_batch_interval_ms,
+            on_persisted=(
+                self._pubsub.on_batch_persisted if self._pubsub is not None else None
+            ),
         )
 
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
@@ -139,6 +165,8 @@ class LogServer:
 
         self._running = True
         self._writer.start()
+        if self._pubsub is not None:
+            self._pubsub.start()
 
         if threading.current_thread() is threading.main_thread():
             signal.signal(signal.SIGINT, lambda *_: self.stop())
@@ -160,6 +188,7 @@ class LogServer:
                 self._send_heartbeats_if_due()
                 self._flush_client_writes()
                 self._drop_idle_clients()
+                self._service_pubsub()
                 self._run_retention_if_due()
                 time.sleep(0.01)
         finally:
@@ -182,6 +211,9 @@ class LogServer:
         if self._server is not None:
             self._server.close()
             self._server = None
+
+        if self._pubsub is not None:
+            self._pubsub.stop()
 
         self._writer.stop()
         if hasattr(self, "_conn"):
@@ -540,6 +572,24 @@ class LogServer:
                 max_idle = 2 * self.config.heartbeat_interval_sec
                 if idle > max_idle:
                     self._disconnect(session, reason="idle_timeout")
+
+    def _service_pubsub(self) -> None:
+        """Give the LALF-PS hub one servicing pass per main-loop iteration.
+
+        Every ZeroMQ socket operation in the process happens inside this
+        call, on this thread — the writer thread only ever hands the hub
+        rows across a queue (see :mod:`edumatcher.log_srv.pubsub`). A
+        failure here is logged and swallowed rather than propagated: the
+        log-distribution interface is an observability convenience, and it
+        must never be able to take down the collector that every other
+        ``pm-*`` process depends on for its logging.
+        """
+        if self._pubsub is None:
+            return
+        try:
+            self._pubsub.poll()
+        except Exception:  # pragma: no cover - defensive
+            log.exception("LALF-PS servicing pass failed; continuing")
 
     def _run_retention_if_due(self) -> None:
         if self.config.retention_days is None:

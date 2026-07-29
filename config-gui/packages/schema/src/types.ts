@@ -293,6 +293,31 @@ export interface LogServerConfig {
   writeBatchSize: number;
   writeBatchIntervalMs: number;
   heartbeatIntervalSec: number;
+
+  // --- LALF-PS: the ZeroMQ log-distribution interface -------------------
+  // Everything above governs how logging gets *in* to pm-log-srv over
+  // LALF/TCP. These govern how it gets back *out* to live log viewers over
+  // ZeroMQ. See docs/user-guide/280-log-srv.md.
+  /** Master switch; when false no ZeroMQ socket is bound at all. */
+  pubsubEnabled: boolean;
+  /** ZeroMQ PUB port: live rows, notify ticks, backfill chunks, acks. */
+  pubPort: number;
+  /** ZeroMQ PULL port: subscriber control requests. */
+  pullPort: number;
+  /** Subscription lease TTL; a subscriber that stops renewing is reaped. */
+  leaseSec: number;
+  /** Ceiling on a subscriber's requested lease. Must be >= leaseSec. */
+  maxLeaseSec: number;
+  maxSubscribers: number;
+  /** Coalescing window for NOTIFY-mode ticks. */
+  notifyIntervalMs: number;
+  /** Rows per backfill chunk, and per live stream message. */
+  backfillChunkRows: number;
+  maxBackfillMinutes: number;
+  maxBackfillRows: number;
+  /** Per-subscription stream buffer cap before oldest rows are shed. */
+  maxPendingRows: number;
+  pubSndhwm: number;
 }
 
 export interface ApiCredential {

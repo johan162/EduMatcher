@@ -105,6 +105,18 @@ LOG_FALLBACK_DIR = DATA_DIR / "logs"
 LOG_SRV_HOST = "127.0.0.1"
 LOG_SRV_PORT = 5600
 
+# LALF-PS (the ZeroMQ log distribution interface) endpoints. pm-log-srv binds
+# both: a PUB socket that carries every outbound stream/notify/backfill/ack
+# message, and a PULL socket that receives subscriber control requests. The
+# split mirrors pm-index's own INDEX_PUB_ADDR/INDEX_PULL_ADDR pair exactly, so
+# a subscriber written against pm-index needs no new socket vocabulary. Ports
+# are deliberately adjacent to LOG_SRV_PORT so the whole log subsystem occupies
+# one contiguous 5600-5602 block.
+LOG_SRV_PUB_PORT = 5601
+LOG_SRV_PULL_PORT = 5602
+LOG_SRV_PUB_ADDR = f"tcp://{LOG_SRV_HOST}:{LOG_SRV_PUB_PORT}"
+LOG_SRV_PULL_ADDR = f"tcp://{LOG_SRV_HOST}:{LOG_SRV_PULL_PORT}"
+
 
 # ---------------------------------------------------------------------------
 # Engine configuration file resolution

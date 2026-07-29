@@ -769,6 +769,100 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="log_server.heartbeat_interval_sec override (> 0).",
     )
+    parser.add_argument(
+        "--log-server-pubsub-enabled",
+        dest="log_server_pubsub_enabled",
+        action="store_true",
+        default=None,
+        help="Set log_server.pubsub_enabled: true (LALF-PS log distribution).",
+    )
+    parser.add_argument(
+        "--log-server-pubsub-disabled",
+        dest="log_server_pubsub_enabled",
+        action="store_false",
+        default=None,
+        help="Set log_server.pubsub_enabled: false (bind no ZeroMQ sockets).",
+    )
+    parser.add_argument(
+        "--log-server-pub-port",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.pub_port override — LALF-PS ZeroMQ PUB port (> 0).",
+    )
+    parser.add_argument(
+        "--log-server-pull-port",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.pull_port override — LALF-PS ZeroMQ PULL port (> 0).",
+    )
+    parser.add_argument(
+        "--log-server-lease-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "log_server.lease_sec override (> 0) — subscription lease TTL; a "
+            "subscriber that stops renewing is reaped after this long."
+        ),
+    )
+    parser.add_argument(
+        "--log-server-max-lease-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.max_lease_sec override (>= lease_sec).",
+    )
+    parser.add_argument(
+        "--log-server-max-subscribers",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.max_subscribers override (> 0).",
+    )
+    parser.add_argument(
+        "--log-server-notify-interval-ms",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.notify_interval_ms override (> 0).",
+    )
+    parser.add_argument(
+        "--log-server-backfill-chunk-rows",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.backfill_chunk_rows override (> 0).",
+    )
+    parser.add_argument(
+        "--log-server-max-backfill-minutes",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.max_backfill_minutes override (> 0).",
+    )
+    parser.add_argument(
+        "--log-server-max-backfill-rows",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.max_backfill_rows override (> 0).",
+    )
+    parser.add_argument(
+        "--log-server-max-pending-rows",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.max_pending_rows override (> 0).",
+    )
+    parser.add_argument(
+        "--log-server-pub-sndhwm",
+        type=int,
+        default=None,
+        metavar="N",
+        help="log_server.pub_sndhwm override (> 0).",
+    )
 
     sched_group = parser.add_mutually_exclusive_group()
     sched_group.add_argument(

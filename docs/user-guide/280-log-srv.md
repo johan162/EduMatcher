@@ -6,6 +6,8 @@
     - Why a centralized log server matters and what `pm-log-srv` records
     - How to start `pm-log-srv` and where `log.db` lives
     - The LALF wire protocol at a glance and how auto-detection works
+    - How LALF-PS distributes logs over ZeroMQ to live viewers, and why a
+      blind `PUB` socket forces the lease-based liveness design it uses
     - All `pm-log-cli` subcommands, options, and output formats
     - A practical cookbook of query workflows grouped by purpose
     - How to read a `diagnose` report and act on its recommendations
@@ -30,6 +32,7 @@ collector process, a purpose-built SQLite schema, and a read-only query CLI.
 |---|---|---|
 | **`pm-log-srv`** | Collector — accepts logging from every `pm-*` process over TCP and appends it to a queryable SQLite database | Long-running process |
 | **`pm-log-cli`** | Query/troubleshooting tool — reads `log.db` and prints structured output, including a rule-based `diagnose` report | One-shot CLI |
+| **LALF-PS** | Distribution interface — the ZeroMQ `PUB`/`PULL` pair `pm-log-srv` binds so live viewers can be pushed rows as they land instead of polling `log.db` | Interface, not a process |
 
 The collector and the query tool are completely independent. `pm-log-cli`
 reads `log.db` directly from disk and works even when `pm-log-srv` is not
@@ -52,7 +55,19 @@ flowchart LR
 
     LOGSRV -->|"appends"| DB[("log.db\n(SQLite)")]
     CLI["pm-log-cli"] -->|"read-only SQL"| DB
+    LOGSRV -->|"LALF-PS PUB :5601"| VIEW["Log viewer / UI"]
+    VIEW -->|"LALF-PS PUSH :5602"| LOGSRV
 ```
+
+There are therefore two distinct ways to get logging *out* of
+`pm-log-srv`, and they suit different jobs:
+
+| | `pm-log-cli` | LALF-PS |
+|---|---|---|
+| Transport | Direct read-only SQL against `log.db` | ZeroMQ `PUB`/`PULL` |
+| Works when the server is stopped | Yes | No |
+| Latency | Whatever your polling interval is | Pushed on commit |
+| Best for | Ad-hoc investigation, scripting, export | Live viewers, dashboards, anything long-lived and interactive |
 
 `pm-log-srv` is not a replacement for `pm-audit` or `pm-stats`. Trading
 events (orders, fills) and market statistics have their own purpose-built
@@ -95,8 +110,9 @@ pm-log-srv  # writes to $HOME/sessions/morning/log.db
 
 `pm-log-srv` binds a TCP listen socket, accepts any number of concurrent
 LALF connections, and appends every accepted `LOG` record to `log.db`. It
-has exactly one responsibility: accept LALF connections and persist rows —
-it never talks to the ZeroMQ bus, the engine, or any gateway directly.
+never talks to the engine's ZeroMQ bus, to the engine, or to any gateway
+— its own ZeroMQ sockets (LALF-PS, below) carry log distribution only and
+are entirely separate from the trading bus on `:5555`/`:5556`.
 
 ```bash
 pm-log-srv [options]
@@ -111,6 +127,10 @@ pm-log-srv [options]
 | `--db PATH` | from config / `data/log.db` | SQLite database path |
 | `--retention-days N` | from config / `30` | Prune `log_events` rows older than N days, once per hour. `0` disables pruning (unbounded retention) |
 | `--max-message-bytes N` | from config / `65536` | Maximum `LOG` payload size before truncation — oversized messages are truncated and stored, never dropped |
+| `--pub-port PORT` | from config / `5601` | LALF-PS ZeroMQ `PUB` bind port (log distribution out) |
+| `--pull-port PORT` | from config / `5602` | LALF-PS ZeroMQ `PULL` bind port (subscriber control in) |
+| `--lease-sec N` | from config / `30` | Subscription lease TTL; a subscriber that stops renewing is reaped after this long |
+| `--no-pubsub` | off | Disable LALF-PS entirely — bind no ZeroMQ sockets and run as a pure TCP collector |
 | `--config PATH` / `-c` | `engine_config.yaml` | Engine config YAML path, read for the optional `log_server:` block |
 | `--log-level LEVEL` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
@@ -133,6 +153,12 @@ pm-log-srv --retention-days 0
 
 # Point at a specific database for a scratch/test session
 pm-log-srv --db /tmp/session.db
+
+# Collector only — no ZeroMQ sockets bound at all
+pm-log-srv --no-pubsub
+
+# Move LALF-PS off the default ports (e.g. two servers on one host)
+pm-log-srv --port 5700 --pub-port 5701 --pull-port 5702
 ```
 
 Expected startup output:
@@ -140,7 +166,12 @@ Expected startup output:
 ```
 2026-07-29 09:30:00,180 INFO edumatcher.log_srv.main - starting pm-log-srv with log level INFO
 2026-07-29 09:30:00,206 INFO edumatcher.log_srv.server - pm-log-srv 'log-srv01' listening on 127.0.0.1:5600 db=data/log.db retention_days=30
+2026-07-29 09:30:00,211 INFO edumatcher.log_srv.pubsub - LALF-PS interface up: PUB=tcp://127.0.0.1:5601 PULL=tcp://127.0.0.1:5602 lease=30s max_subscribers=32
 ```
+
+`pm-log-srv` occupies a contiguous three-port block: `5600` for LALF/TCP
+collection, `5601` for the LALF-PS `PUB`, `5602` for the LALF-PS `PULL`.
+All three must differ; the server refuses to start otherwise.
 
 `pm-log-srv` is the one `pm-*` process that always logs to stdout/file only
 — it never sends its own operational logging to another `pm-log-srv`
@@ -177,6 +208,388 @@ C: EXIT
 For the full normative wire specification — every message type, field table,
 error code, and conformance rule — see the
 [LALF Protocol Reference](940-app-lalf-protocol.md).
+
+
+
+## LALF-PS — The ZeroMQ Log Distribution Interface
+
+LALF brings logging *in*. **LALF-PS** ("LALF Pub/Sub") sends it back
+*out*, over ZeroMQ, to anything that wants to watch the system live: a log
+viewer, a filter/search UI, a dashboard, an alerting shim.
+
+The alternative — having each viewer poll `log.db` on a timer — is what
+LALF-PS exists to avoid. Polling forces an unpleasant trade: poll often
+and you burn CPU re-running the same query against a growing table for
+nothing most of the time; poll rarely and your viewer lags reality by
+however long the interval is. Neither is a good foundation for a UI whose
+whole job is to show you what is happening *now*. LALF-PS pushes instead,
+the moment a row is committed.
+
+### Socket topology
+
+`pm-log-srv` binds two ZeroMQ sockets. The shape is deliberately
+identical to `pm-index`'s own `PUB`/`PULL` pair, so a client written
+against one needs no new socket vocabulary for the other.
+
+| Socket | Bound by | Default address | Carries |
+|---|---|---|---|
+| `PUB` | `pm-log-srv` | `tcp://…:5601` | Everything outbound: live rows, notification ticks, backfill chunks, control acks, errors, server state |
+| `PULL` | `pm-log-srv` | `tcp://…:5602` | Everything inbound: subscribe, renew, unsubscribe, backfill, status |
+
+A subscriber holds the mirror image: a `SUB` connected to `:5601` and a
+`PUSH` connected to `:5602`.
+
+```mermaid
+flowchart LR
+    subgraph SRV["pm-log-srv"]
+        TCP["LALF TCP :5600"]
+        W["writer thread\n(SQLite, batched)"]
+        HUB["LALF-PS hub\n(subscriptions, leases, backfill)"]
+        PUB["PUB :5601"]
+        PULL["PULL :5602"]
+    end
+
+    PROC["pm-* processes"] -->|"LOG"| TCP
+    TCP --> W
+    W -->|"committed rows + seq"| HUB
+    HUB --> PUB
+    PULL --> HUB
+
+    PUB -->|"rows / ticks / chunks"| V["Log viewer (SUB)"]
+    V -->|"control (PUSH)"| PULL
+```
+
+Every message is the same two-frame envelope used everywhere else on the
+bus — frame 0 is the topic string, frame 1 is a JSON payload — so ZeroMQ's
+prefix filter does the routing in the kernel before your process ever sees
+a byte.
+
+### `sub_id` — the routing key
+
+Every control message carries a subscriber-chosen `sub_id`. It plays
+exactly the role `gateway_id` plays elsewhere on the bus: the server
+appends it to each reply topic, so a subscriber needs only two `SUBSCRIBE`
+prefixes to receive everything relevant to it:
+
+```python
+sub.setsockopt(zmq.SUBSCRIBE, b"log.")               # simplest: everything
+# or, more precisely:
+sub.setsockopt(zmq.SUBSCRIBE, f"log.event.{sub_id}".encode())
+sub.setsockopt(zmq.SUBSCRIBE, f"log.backfill.{sub_id}".encode())
+sub.setsockopt(zmq.SUBSCRIBE, b"log.server_state")
+```
+
+Pick something stable and unique — `logview-<pid>`, `dashboard-01`. Two
+live subscribers sharing a `sub_id` will each receive the other's traffic
+and fight over one lease, because to the server they *are* one
+subscription.
+
+### Two modes: `STREAM` and `NOTIFY`
+
+A subscription declares up front what it wants delivered, because the two
+plausible kinds of log UI want opposite things.
+
+**`STREAM`** — full rows are pushed as they are committed, on
+`log.event.{sub_id}`. This is what a live tail wants: the viewer never
+touches `log.db` at all and can run on a different host from the database.
+The cost is bus traffic proportional to the log volume that passes your
+filter, which is exactly why the filter matters.
+
+**`NOTIFY`** — the server publishes only a small tick on
+`log.notify.{sub_id}` saying "*n* matching rows arrived, the highest is
+seq *X*", with a per-level breakdown and no row bodies whatsoever. This
+suits a UI that already reads `log.db` itself and just needs to know when
+to refresh, or one that only lights up an indicator on new errors. Ticks
+are coalesced over `notify_interval_ms` (default 250 ms), so a burst of a
+thousand rows produces one message rather than a thousand.
+
+You can change your mind at any time by re-sending `log.subscribe` with a
+different `mode` — see idempotency, below.
+
+### Filtering
+
+Both modes take the same optional `filter` object, and the server applies
+it identically to live rows and to backfill rows. That last point matters
+more than it sounds: it is what guarantees a viewer sees no gap and no
+duplication at the seam where its historical window meets the live stream.
+
+| Field | Type | Description |
+|---|---|---|
+| `min_level` | string | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL` — rows below are excluded |
+| `processes` | array | Exact process-name match, e.g. `["pm-engine", "pm-md-gwy"]` |
+| `loggers` | array | **Prefix** match, so `["edumatcher.engine"]` also matches `edumatcher.engine.book` |
+| `sessions` | array | Exact LALF session-id match, to follow one connection of one process |
+| `contains` | string | Case-insensitive substring on the message body |
+| `exceptions_only` | boolean | Only rows carrying a traceback |
+
+All present fields are ANDed. An omitted field constrains nothing, and an
+absent `filter` matches everything. A malformed filter is rejected with
+`INVALID_FILTER` rather than silently degrading to "match everything" —
+a filter that quietly stops filtering is how a viewer ends up flooded.
+
+Filter server-side rather than client-side wherever you can. A
+`min_level: "WARNING"` filter on a busy system can be the difference
+between a few messages a minute and a few thousand.
+
+### Backfill — "the last *n* minutes"
+
+A log viewer is nearly useless if it starts empty and only shows you what
+happens from now on; the interesting thing usually already happened. Two
+ways to prime it:
+
+- Pass `backfill_minutes` on `log.subscribe`, and the server starts the
+  replay immediately after acknowledging the subscription.
+- Send `log.backfill_request` at any time afterwards — to widen the
+  window, or to re-fetch with a different filter without disturbing the
+  live subscription.
+
+Either way the response arrives as a sequence of `log.backfill.{sub_id}`
+messages sharing one `request_id`, in ascending `seq` order, with the last
+one setting `done: true`. **Keep reading until you see `done`.** An empty
+window still produces exactly one chunk with `rows: []` and `done: true`,
+so you never wait forever on a quiet system.
+
+Chunking is not a nicety. A busy hour can be hundreds of thousands of
+rows; sending that as one response would mean both a multi-megabyte
+ZeroMQ frame and a SQLite scan long enough to stall the server's main
+loop — which would stall LALF collection, which would back-pressure every
+`pm-*` process in the system. The server instead emits at most one
+bounded chunk per loop iteration, so an arbitrarily large window costs a
+bounded amount of work per pass.
+
+Two limits apply: `max_backfill_minutes` (default 1440, i.e. 24 h) caps
+the window and rejects anything larger with `INVALID_WINDOW`;
+`max_backfill_rows` (default 100 000) caps the volume, and when it bites
+the final chunk sets `truncated: true` so you know history was cut short
+rather than genuinely exhausted.
+
+### Liveness — why leases
+
+This is the part of the design that is not obvious, so it is worth being
+explicit about the problem.
+
+A ZeroMQ `PUB` socket is **blind**. It never learns who is attached,
+subscribers come and go without the publisher being told, and publishing
+into the void succeeds silently. There is no publish-side event that
+means "my subscriber died" — nothing analogous to the TCP `recv()`
+returning zero bytes that tells the LALF side a producer has gone. A
+naive implementation would happily keep filtering rows, formatting
+messages and accumulating per-subscriber state for a viewer that was
+killed an hour ago.
+
+LALF-PS therefore makes every subscription an explicit **lease**:
+
+1. `log.subscribe` creates the subscription with a TTL. The server
+   *clamps* your requested `lease_sec` to its `max_lease_sec` rather than
+   rejecting it, and tells you what you actually got in the ack — along
+   with `renew_before_sec`, which is always half the granted lease.
+2. The subscriber sends `log.renew` every `renew_before_sec`. This is the
+   *only* signal that keeps the subscription alive. (A
+   `log.backfill_request` also counts as proof of life, so a subscriber
+   pulling a large window cannot expire mid-transfer.)
+3. If no renewal arrives before the deadline, the server reaps the
+   subscription: filter state gone, buffered rows discarded, any in-flight
+   backfill job cancelled.
+4. A final `log.lease_expired.{sub_id}` is published on the way out. This
+   is for the case where the subscriber is not dead but merely wedged — it
+   tells such a client unambiguously that it must re-subscribe, instead of
+   sitting forever waiting for rows that will never come.
+
+A crashed viewer therefore costs the server at most one lease period of
+buffering, and the mechanism is transport-independent: it would work
+identically over any fan-out that lacks peer visibility.
+
+!!! tip "Choosing a lease"
+    Shorter leases reap faster but cost more control traffic; the default
+    30 s means a dead viewer is forgotten within 30 s at a cost of one
+    small `PUSH` every 15 s. Raise it for a viewer on a flaky link, lower
+    it if you run many short-lived subscribers.
+
+### The other failure: a subscriber that is slow, not dead
+
+Leases handle death. They do not handle a subscriber that is alive and
+renewing but simply cannot read as fast as the system logs — and left
+alone, that subscriber would grow the server's memory without bound.
+
+Two bounds apply. Each subscription's row buffer is capped at
+`max_pending_rows` (default 20 000): past that, the **oldest** buffered
+rows are shed and a running `dropped` counter is reported in every
+subsequent `log.event`. Separately, the `PUB` socket carries a bounded
+`pub_sndhwm` (default 10 000) so ZeroMQ's own queue for a wedged-but-
+connected peer cannot grow indefinitely either.
+
+`dropped` climbing is the signal that a viewer is not keeping up and its
+view has gaps. The cures, in order of preference: tighten the filter,
+switch to `NOTIFY`, or re-backfill to close the gap.
+
+### Server liveness
+
+`log.server_state` is published on the un-suffixed topic — no `sub_id` —
+every `heartbeat_interval_sec`, plus once with `state: "DOWN"` at
+shutdown. Any client can subscribe to it without having subscribed to
+anything else, which makes it the natural way for a UI to show
+"log server up/down" and to read the server's counters before deciding
+what to ask for.
+
+Absence of `log.server_state` for more than a couple of intervals is how
+a subscriber distinguishes "the *server* went away" from "*my
+subscription* went away" — two situations that need different responses.
+
+### Ordering, durability and the slow-joiner race
+
+Three guarantees worth stating plainly:
+
+**Rows are published after commit, never before.** The server publishes
+only once the SQLite transaction that assigned each row's `seq` has
+committed. A subscriber can therefore never observe a row that a
+subsequent crash would have rolled back: the live stream and `log.db` can
+never disagree.
+
+**`seq` is the ordering key.** It is monotonic and server-assigned; rows
+arrive in ascending `seq` within and across messages, in both live and
+backfill paths. Use it, not timestamps — `client_ts` comes from the
+producing process's own clock and two processes' clocks need not agree.
+
+**The first ack can be lost.** This is ZeroMQ's classic *slow joiner*
+behaviour: `connect()` completes asynchronously, so a message published
+in the moments after your `SUB` socket connects may be dropped before
+delivery. LALF-PS handles this by making `log.subscribe` **idempotent** —
+re-sending it for an existing `sub_id` replaces the mode and filter,
+renews the lease, and re-emits the ack, while preserving the lifetime
+counters. If you have not seen your ack within a second, simply send
+`log.subscribe` again.
+
+### Error replies
+
+Every rejected request is answered on `log.error.{sub_id}` with a
+machine-readable `code`:
+
+| Code | Meaning | What to do |
+|---|---|---|
+| `BAD_REQUEST` | Unsupported topic or malformed payload | Fix the request; do not retry as-is |
+| `UNKNOWN_SUB` | No such subscription — never created, or already reaped | Send `log.subscribe` |
+| `TOO_MANY_SUBS` | Server is at `max_subscribers` | Back off and retry, or raise the limit |
+| `INVALID_FILTER` | Malformed `filter` object | Fix the filter |
+| `INVALID_MODE` | `mode` was neither `STREAM` nor `NOTIFY` | Fix the mode |
+| `INVALID_WINDOW` | `minutes` absent, non-positive, or above `max_backfill_minutes` | Request a smaller window |
+| `INTERNAL` | Server-side failure, e.g. a backfill query error | Retry; check the server's stdout logging |
+
+A control message arriving with no usable `sub_id` is dropped and logged
+server-side — there is no reply topic to answer on.
+
+### A minimal subscriber
+
+The whole interface in one file. This connects, backfills the last five
+minutes of warnings and above, then tails live while keeping its lease
+alive.
+
+```python
+import time
+import zmq
+from edumatcher.config import LOG_SRV_PUB_ADDR, LOG_SRV_PULL_ADDR
+from edumatcher.models.message import (
+    decode,
+    make_log_renew_msg,
+    make_log_subscribe_msg,
+    make_log_unsubscribe_msg,
+)
+
+SUB_ID = "logview-demo"
+ctx = zmq.Context.instance()
+
+sub = ctx.socket(zmq.SUB)
+sub.connect(LOG_SRV_PUB_ADDR)
+sub.setsockopt(zmq.SUBSCRIBE, b"log.")
+
+push = ctx.socket(zmq.PUSH)
+push.connect(LOG_SRV_PULL_ADDR)
+time.sleep(0.2)  # let both connections settle before the first publish
+
+push.send_multipart(
+    make_log_subscribe_msg(
+        SUB_ID,
+        mode="STREAM",
+        log_filter={"min_level": "WARNING"},
+        backfill_minutes=5,
+    )
+)
+
+renew_every = 15.0          # updated from the ack's renew_before_sec
+next_renew = time.monotonic() + renew_every
+poller = zmq.Poller()
+poller.register(sub, zmq.POLLIN)
+
+try:
+    while True:
+        for _ in dict(poller.poll(timeout=250)):
+            topic, payload = decode(sub.recv_multipart())
+
+            if topic == f"log.subscribe_ack.{SUB_ID}":
+                # Always trust the ack over what you asked for: the server
+                # clamps the lease and normalises the filter.
+                renew_every = payload["renew_before_sec"]
+                next_renew = time.monotonic() + renew_every
+
+            elif topic in (f"log.event.{SUB_ID}", f"log.backfill.{SUB_ID}"):
+                for row in payload["rows"]:
+                    print(f"{row['client_ts']} {row['level']:<8} "
+                          f"{row['process']:<12} {row['message']}")
+                if payload.get("dropped"):
+                    print(f"!! {payload['dropped']} rows dropped — not keeping up")
+
+            elif topic == f"log.lease_expired.{SUB_ID}":
+                # We were reaped. Re-subscribing is always safe.
+                push.send_multipart(
+                    make_log_subscribe_msg(SUB_ID, "STREAM",
+                                           {"min_level": "WARNING"})
+                )
+
+            elif topic == "log.server_state" and payload["state"] == "DOWN":
+                print("pm-log-srv is shutting down")
+
+        if time.monotonic() >= next_renew:
+            push.send_multipart(make_log_renew_msg(SUB_ID))
+            next_renew = time.monotonic() + renew_every
+finally:
+    push.send_multipart(make_log_unsubscribe_msg(SUB_ID))
+    time.sleep(0.1)
+```
+
+For a `NOTIFY`-mode client, replace the `mode` and handle
+`log.notify.{SUB_ID}` instead — the payload gives you `count`, a `levels`
+breakdown and `last_seq`, and you read the actual rows from `log.db`
+yourself with `WHERE seq > <your watermark>`.
+
+### Tuning
+
+All of these live in the `log_server:` block of `engine_config.yaml`; see
+[the config spec](990-app-config-spec.md#67-log_server-pm-log-srv-centralized-lalf-log-collector-logsrvprocspec)
+for the authoritative table.
+
+| Setting | Default | Raise it when… | Lower it when… |
+|---|---|---|---|
+| `lease_sec` | `30` | Subscribers sit on a flaky or high-latency link | You want dead viewers reaped faster |
+| `max_subscribers` | `32` | You genuinely run many viewers | You want a hard guard against runaway clients |
+| `notify_interval_ms` | `250` | Notify traffic is itself becoming noise | A UI needs snappier refreshes |
+| `backfill_chunk_rows` | `500` | Backfills feel slow and the network is fast | Individual messages are too large for your consumer |
+| `max_backfill_minutes` | `1440` | Users legitimately want multi-day windows | You want to protect the server from expensive scans |
+| `max_pending_rows` | `20000` | Subscribers are bursty but do catch up | Memory matters more than gap-free delivery |
+
+### Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| No `log.subscribe_ack` ever arrives | Slow-joiner race, or wrong `SUBSCRIBE` prefix | Re-send `log.subscribe` (it is idempotent); check you subscribed to `log.` or the exact reply topics |
+| Ack arrives, then nothing | Filter is stricter than you think, or the system really is quiet | Inspect the **normalised** `filter` in the ack; send `log.status_request`; try `min_level: "DEBUG"` |
+| `UNKNOWN_SUB` on renew | Your lease already expired | Re-send `log.subscribe`; renew at `renew_before_sec`, not at `lease_sec` |
+| `dropped` climbing in `log.event` | Subscriber is slower than the log volume | Tighten the filter, switch to `NOTIFY`, or re-backfill |
+| Backfill seems to never end | You stopped reading before `done: true` | Keep consuming chunks until `done`; correlate by `request_id` |
+| `truncated: true` on the last chunk | Window held more rows than `max_backfill_rows` | Narrow the window or the filter, or raise the limit |
+| Nothing at all on `:5601` | LALF-PS disabled or on other ports | Check `--no-pubsub` / `pubsub_enabled`, and the `pub_port`/`pull_port` settings |
+| Server refuses to start, port error | `port`, `pub_port` and `pull_port` are not all distinct | Give each a different port |
+
+For the complete normative field tables of every LALF-PS message, see
+[Message Reference — LALF-PS messages](270-message-reference.md#lalf-ps-messages-log-subscriber-pm-log-srv).
 
 
 
@@ -507,6 +920,12 @@ pm-log-cli tail --level WARNING,ERROR,CRITICAL
 pm-log-cli tail --process pm-md-gwy
 ```
 
+`pm-log-cli tail` polls `log.db`, which is exactly right for a terminal
+you are watching for a few minutes. For anything long-lived and
+interactive — a viewer window, a dashboard — subscribe over
+[LALF-PS](#lalf-ps-the-zeromq-log-distribution-interface) instead and be
+pushed rows as they land.
+
 ### Investigating an error after the fact
 
 ```bash
@@ -586,6 +1005,7 @@ subcommand reads (or, for `prune`, writes) it directly.
 ## See Also
 
 - [LALF Protocol Reference](940-app-lalf-protocol.md) — normative wire specification for anyone implementing a LALF client
+- [Message Reference — LALF-PS messages](270-message-reference.md#lalf-ps-messages-log-subscriber-pm-log-srv) — normative field tables for every LALF-PS message
 - [Processes — pm-log-srv / pm-log-cli](170-processes.md#pm-log-srv-centralized-log-server) — startup reference tables in the process overview
 - [Configuration — Configuring pm-log-srv](010-configuration.md#configuring-pm-log-srv) — the `log_server:` config block field reference
 - [Audit Trail](190-audit.md) — the equivalent dedicated-collector pattern for trading events (`pm-audit`/`pm-audit-cli`)

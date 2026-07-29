@@ -25,12 +25,19 @@ class _RunningServer:
 
     def __init__(self, tmp_path: Path, **config_overrides: object) -> None:
         self.port = _free_port()
+        # LALF-PS binds two more sockets. Ephemeral ports keep concurrent test
+        # workers (and any pm-log-srv the developer happens to have running on
+        # the default 5601/5602) from colliding.
+        self.pub_port = _free_port()
+        self.pull_port = _free_port()
         self.db_path = tmp_path / "log.db"
         self.config = LogServerConfig(
             bind_address=_HOST,
             port=self.port,
             db_path=self.db_path,
             heartbeat_interval_sec=1,
+            pub_port=self.pub_port,
+            pull_port=self.pull_port,
             **config_overrides,
         )
         self.server = LogServer(self.config)

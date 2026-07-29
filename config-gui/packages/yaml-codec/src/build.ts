@@ -529,5 +529,21 @@ function buildLogServer(draft: EngineConfigDraft): PlainConfig {
     write_batch_size: g.writeBatchSize,
     write_batch_interval_ms: g.writeBatchIntervalMs,
     heartbeat_interval_sec: g.heartbeatIntervalSec,
+    // LALF-PS. Emitted unconditionally, including when pubsub_enabled is
+    // false: the loader defaults every one of these, so writing them out
+    // only when the interface is on would mean a user who disables it then
+    // re-enables it silently loses whatever ports and limits they had set.
+    pubsub_enabled: g.pubsubEnabled,
+    pub_port: g.pubPort,
+    pull_port: g.pullPort,
+    lease_sec: g.leaseSec,
+    max_lease_sec: g.maxLeaseSec,
+    max_subscribers: g.maxSubscribers,
+    notify_interval_ms: g.notifyIntervalMs,
+    backfill_chunk_rows: g.backfillChunkRows,
+    max_backfill_minutes: g.maxBackfillMinutes,
+    max_backfill_rows: g.maxBackfillRows,
+    max_pending_rows: g.maxPendingRows,
+    pub_sndhwm: g.pubSndhwm,
   };
 }
