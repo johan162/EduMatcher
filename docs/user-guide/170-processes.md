@@ -207,6 +207,7 @@ pm-engine --verbose
 | **pm-dc-gwy**      | `pm-dc-gwy`               | External drop-copy gateway (DC1) — relays :5557 fills over TCP :5590 for non-ZeroMQ clients | No |
 | **pm-api-gwy** | `pm-api-gwy`          | REST/WebSocket order-entry and market-data API gateway     | No                  |
 | **pm-index**       | `pm-index`                | Real-time cap-weighted index calculation and dissemination | No                  |
+| **pm-log-srv**     | `pm-log-srv`              | Centralized LALF log collector — logging over TCP :5600 to `log.db` | No |
 
 **Monitoring & Admin tools:**
 
@@ -220,6 +221,7 @@ pm-engine --verbose
 | **pm-audit-cli**  | `pm-audit-cli <command> [options]` | Read-only query interface for audit JSONL log files     | Optional              |
 | **pm-index-cli**  | `pm-index-cli <command> [options]` | Read-only query interface for index history JSONL files | Optional              |
 | **pm-index-admin-cli** | `pm-index-admin-cli --id <GW_ID> <command> [options]` | One-shot CLI for index corporate actions and constituent changes | Optional              |
+| **pm-log-cli**   | `pm-log-cli <command> [options]`  | Read-only query/troubleshooting interface for `log.db` (includes `diagnose`, `prune`) | Optional |
 | **pm-calf-spy**  | `pm-calf-spy [--channels CH] [--symbols SYM] [--ping-interval SEC] [--format human\|json]` | Read-only CALF protocol spy — connects to `pm-md-gwy` and prints every line it sends | Optional |
 | **pm-ralf-spy**  | `pm-ralf-spy --role ROLE [--channels CH] [--symbols SYM] [--ping-interval SEC] [--format human\|json]` | Read-only RALF protocol spy — connects to `pm-ralf-gwy` and prints every line it sends | Optional |
 | **pm-dc-spy**    | `pm-dc-spy [--gateway GW_ID] [--replay-of ID] [--format human\|json]` | Read-only drop-copy spy — connects to the engine's drop-copy `PUB` socket (:5557) and prints every fill event | Optional |
@@ -630,20 +632,23 @@ Status colours: green=NEW, yellow=PARTIAL, bright green=FILLED, red=REJECTED/CAN
 Records every message on the bus to a rotating log file.
 
 ```bash
-pm-audit [--log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--log-level LEVEL] [-v|-vv] [-q]
+pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
 
 | Flag                  | Default          | Description                                                  |
 |-----------------------|------------------|--------------------------------------------------------------|
-| `--log-file`          | `data/audit.log` | Output log file path                                         |
+| `--audit-log-file`    | `data/audit.log` | Audit-trail output log file path                              |
 | `--terminal` / `-t`   | off              | Also print each entry to stdout                              |
 | `--buffer-size`       | 100              | Number of messages to buffer in memory before writing to disk |
 | `--flush-interval`    | 10.0             | Maximum seconds to wait before flushing buffer to disk       |
 | `--log-level`         | `WARNING`        | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`    | off              | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)         |
 | `-q` / `--quiet`      | off              | Reduce output to warnings/errors                             |
+| `--log-target`        | `server`         | Where operational log records go: `server` (auto-detected), `stdout`, or `file` |
+| `--log-file`          | none             | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | 30 (from config) | Seconds to wait before falling back to a local log file if `pm-log-srv` becomes unreachable |
 
 **Expected runtime input arguments:**
 
@@ -2400,6 +2405,55 @@ dropping it as an idle client.
 
 See [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) for full usage.
 
+## pm-log-srv — Centralized Log Server
+
+`pm-log-srv` is a dedicated collector process, unrelated to the ZeroMQ bus:
+it accepts LALF ("Logging ALF") TCP connections from any number of `pm-*`
+processes and appends every received log record to a queryable SQLite
+database (`log.db`), the same "dedicated collector + SQLite + read-only
+query CLI" shape `pm-stats`/`pm-audit` already use for market data and
+trading events, applied here to operational `logging`-module output.
+
+!!! note "Phased rollout"
+    `pm-log-srv`/`pm-log-cli` are fully implemented and usable today. Wiring
+    every existing `pm-*` process's own logging into a LALF client that
+    auto-detects a running `pm-log-srv` at startup is a follow-up phase and
+    has not yet been rolled out — until then, `--log-level`/`-v`/`-q` still
+    control each process's own stdout logging as before.
+
+```
+pm-log-srv [--host ADDR] [--port PORT] [--db PATH]
+           [--retention-days N] [--max-message-bytes N]
+           [--log-level LEVEL] [-v|-vv] [-q]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--host` | `0.0.0.0` (from config) | TCP bind address |
+| `--port` | `5600` | TCP listen port for LALF clients |
+| `--db` | `data/log.db` | SQLite database path |
+| `--retention-days` | `30` | Prune `log_events` rows older than N days; `0` = unbounded |
+| `--max-message-bytes` | `65536` | Truncation ceiling per `LOG` payload (never dropped, only truncated) |
+
+## pm-log-cli — Log Server Query/Troubleshooting CLI
+
+`pm-log-cli` is a read-only offline tool: it queries `log.db` directly, never
+over the network, so a busy or even-stopped `pm-log-srv` never blocks
+troubleshooting with data already collected.
+
+```
+pm-log-cli [--db PATH] [--format human|json] COMMAND [options]
+```
+
+Subcommands: `tail`, `query`, `processes`, `stats`, `diagnose` (rule-based
+troubleshooting heuristics with concrete recommendations), and `prune`
+(manual retention maintenance).
+
+See [Centralized Log Server](280-log-srv.md) for the full operational guide
+— starting the server, every `pm-log-cli` subcommand, and a workflow
+cookbook — and [LALF Protocol Reference](940-app-lalf-protocol.md) for the
+normative wire specification.
+
 ## See also
 
 - [Running the Engine](040-running-the-exchange.md) — startup order, launch scripts, and verification
@@ -2412,6 +2466,8 @@ See [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) for full usage.
 - [Market Data Feed (CALF)](240-calf-gateway.md) — external CALF gateway usage
 - [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) — read-only CALF inspection CLI
 - [RALF Protocol Spy (pm-ralf-spy)](251-ralf-spy-cli.md) — read-only RALF inspection CLI
+- [Centralized Log Server](280-log-srv.md) — pm-log-srv/pm-log-cli operational guide
+- [LALF Protocol Reference](940-app-lalf-protocol.md) — official protocol appendix
 - [ALF TCP Gateway](220-alf-gateway.md) — external ALF order-entry gateway usage
 - [API Gateway (REST/WebSocket)](260-api-gateway.md) — REST/WebSocket gateway usage and endpoint reference
 - [Market Index (pm-index)](150-market-index.md) — index configuration, calculation, and corporate actions

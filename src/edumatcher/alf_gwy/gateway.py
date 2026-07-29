@@ -49,6 +49,7 @@ from edumatcher.models.message import (
     make_quote_cancel_msg,
     make_quote_legs_request_msg,
     make_quote_new_msg,
+    make_session_state_request_msg,
     make_symbols_request_msg,
 )
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
@@ -473,6 +474,11 @@ class AlfGateway:
                 )
             )
             return
+        if cmd == "SESSION":
+            self._send_to_engine(
+                make_session_state_request_msg(self._require_gw(session))
+            )
+            return
 
         if cmd in {"STATUS", "POS", "HELP"}:
             raise ValidationError(
@@ -884,6 +890,11 @@ class AlfGateway:
                 self._handle_qlegs_response(gateway_id, payload)
                 continue
 
+            if topic.startswith("system.session_status."):
+                gateway_id = topic.rsplit(".", 1)[-1].upper()
+                self._handle_session_status_response(gateway_id, payload)
+                continue
+
             if topic == "session.state":
                 self._broadcast(
                     "SESSION",
@@ -1200,6 +1211,35 @@ class AlfGateway:
                     },
                 )
         self._queue_line(session, "END", {"TYPE": "QLEGS"})
+
+    def _handle_session_status_response(
+        self, gateway_id: str, payload: dict[str, Any]
+    ) -> None:
+        """Reply to a client-initiated ``SESSION`` query.
+
+        Reuses the ``SESSION`` message type already emitted for unsolicited
+        session-state broadcasts (see ``_poll_engine_events``'s
+        ``session.state`` branch) so existing clients/parsers only need to
+        recognise one line shape for "current session state" — whether it
+        arrived because the state changed or because it was explicitly
+        queried. ``PREV_STATE`` is left empty here since a query has no
+        previous state to report.
+        """
+        session = self._session_for_gateway(gateway_id)
+        if session is None:
+            return
+
+        self._queue_line(
+            session,
+            "SESSION",
+            {
+                "STATE": str(payload.get("state", "")),
+                "PREV_STATE": "",
+                "SESSIONS_ENABLED": (
+                    "TRUE" if bool(payload.get("sessions_enabled", True)) else "FALSE"
+                ),
+            },
+        )
 
     def _route_gateway_scoped_event(self, topic: str, payload: dict[str, Any]) -> None:
         if "." not in topic:
@@ -1612,6 +1652,7 @@ class AlfGateway:
             f"risk.kill_switch_ack.{gateway_id}",
             f"system.symbols.{gateway_id}",
             f"system.quote_bootstrap.{gateway_id}",
+            f"system.session_status.{gateway_id}",
         )
 
     def _gateway_in_use(self, gateway_id: str) -> bool:

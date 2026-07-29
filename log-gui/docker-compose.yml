@@ -1,0 +1,45 @@
+# Single-service deployment of pm-log-ui.
+#
+#   docker compose up --build
+#
+# Then open http://localhost:8091.
+#
+# This container reads log.db read-only and speaks LALF-PS (ZeroMQ) to
+# pm-log-srv, which runs outside this compose file (it is not part of this
+# project). Point LOG_SRV_HOST at wherever pm-log-srv is reachable.
+#
+# Two separate volumes, deliberately: log.db is pm-log-srv's, mounted
+# read-only, so "this project never writes to log.db" (design §19) is
+# enforced by the mount itself, not just by application code. The ack store
+# is this project's own, separate, read-write file (design §11.2).
+services:
+  log-gui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NPM_STRICT_SSL:
+        HTTP_PROXY:
+        HTTPS_PROXY:
+        NO_PROXY:
+    image: edumatcher-log-gui:latest
+    ports:
+      - "8091:8091"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8091"
+      # Restrict this to your site origin when exposed beyond localhost.
+      CORS_ORIGIN: "*"
+      # Reachable from inside the container — "host.docker.internal" on
+      # Docker Desktop, or the actual host/container name running pm-log-srv.
+      LOG_SRV_HOST: "host.docker.internal"
+      LOG_SRV_PUB_PORT: "5601"
+      LOG_SRV_PULL_PORT: "5602"
+      LOG_DB_PATH: "/app/logsrv-data/log.db"
+      ACK_STORE_PATH: "/app/ack-data/log-ui-acks.db"
+    volumes:
+      # Mount the *same* directory pm-log-srv writes log.db to, read-only.
+      - ./logsrv-data:/app/logsrv-data:ro
+      # This project's own ack store — read-write, persisted across restarts.
+      - ./ack-data:/app/ack-data
+    restart: unless-stopped

@@ -416,6 +416,9 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
   if (draft.dcGateway.enabled) {
     cfg.dc_gateway = buildNetworkGateway(draft, "dc");
   }
+  if (draft.logServer.enabled) {
+    cfg.log_server = buildLogServer(draft);
+  }
   const apiGateways = buildApiGateways(draft);
   if (Object.keys(apiGateways).length > 0) cfg.api_gateways = apiGateways;
 
@@ -501,5 +504,46 @@ function buildNetworkGateway(
     heartbeat_interval_sec: dc.heartbeatIntervalSec,
     idle_timeout_sec: dc.idleTimeoutSec,
     max_client_queue: dc.maxClientQueue,
+  };
+}
+
+/**
+ * Build the `log_server` block for `pm-log-srv`. Kept separate from
+ * `buildNetworkGateway` since its field set (db_path, retention_days,
+ * write-batching knobs) doesn't fit that helper's shape, and — like
+ * market_data_gateway — it emits an explicit `enabled` key rather than
+ * relying on bare block presence (mirrors `LogServerSpec` in
+ * `src/edumatcher/config_gen/builder.py`).
+ */
+function buildLogServer(draft: EngineConfigDraft): PlainConfig {
+  const g = draft.logServer;
+  return {
+    enabled: g.enabled,
+    name: g.name,
+    bind_address: g.bindAddress,
+    port: g.port,
+    db_path: g.dbPath,
+    retention_days: g.retentionDays,
+    max_message_bytes: g.maxMessageBytes,
+    max_client_queue: g.maxClientQueue,
+    write_batch_size: g.writeBatchSize,
+    write_batch_interval_ms: g.writeBatchIntervalMs,
+    heartbeat_interval_sec: g.heartbeatIntervalSec,
+    // LALF-PS. Emitted unconditionally, including when pubsub_enabled is
+    // false: the loader defaults every one of these, so writing them out
+    // only when the interface is on would mean a user who disables it then
+    // re-enables it silently loses whatever ports and limits they had set.
+    pubsub_enabled: g.pubsubEnabled,
+    pub_port: g.pubPort,
+    pull_port: g.pullPort,
+    lease_sec: g.leaseSec,
+    max_lease_sec: g.maxLeaseSec,
+    max_subscribers: g.maxSubscribers,
+    notify_interval_ms: g.notifyIntervalMs,
+    backfill_chunk_rows: g.backfillChunkRows,
+    max_backfill_minutes: g.maxBackfillMinutes,
+    max_backfill_rows: g.maxBackfillRows,
+    max_pending_rows: g.maxPendingRows,
+    pub_sndhwm: g.pubSndhwm,
   };
 }

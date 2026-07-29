@@ -184,6 +184,49 @@ export const dcGatewaySchema = z.object({
   maxClientQueue: z.number().int().positive(),
 });
 
+export const logServerSchema = z
+  .object({
+    enabled: z.boolean(),
+    name: z.string().min(1),
+    bindAddress: z.string().min(1),
+    port: z.number().int().min(1).max(65535),
+    dbPath: z.string().min(1),
+    retentionDays: z.number().int().nonnegative().nullable(),
+    maxMessageBytes: z.number().int().positive(),
+    maxClientQueue: z.number().int().positive(),
+    writeBatchSize: z.number().int().positive(),
+    writeBatchIntervalMs: z.number().int().positive(),
+    heartbeatIntervalSec: z.number().positive(),
+    // LALF-PS
+    pubsubEnabled: z.boolean(),
+    pubPort: z.number().int().min(1).max(65535),
+    pullPort: z.number().int().min(1).max(65535),
+    leaseSec: z.number().int().positive(),
+    maxLeaseSec: z.number().int().positive(),
+    maxSubscribers: z.number().int().positive(),
+    notifyIntervalMs: z.number().int().positive(),
+    backfillChunkRows: z.number().int().positive(),
+    maxBackfillMinutes: z.number().int().positive(),
+    maxBackfillRows: z.number().int().positive(),
+    maxPendingRows: z.number().int().positive(),
+    pubSndhwm: z.number().int().positive(),
+  })
+  // The two cross-field rules pm-log-srv refuses to start on, mirroring
+  // pm-cverifier's S102 and S103. Only enforced when LALF-PS is actually
+  // enabled — a disabled interface binds nothing, so its ports are inert.
+  .refine(
+    (g) => !g.pubsubEnabled || new Set([g.port, g.pubPort, g.pullPort]).size === 3,
+    {
+      message:
+        "port, pub port and pull port must all be different — pm-log-srv binds all three",
+      path: ["pubPort"],
+    },
+  )
+  .refine((g) => g.maxLeaseSec >= g.leaseSec, {
+    message: "max lease must be at least the default lease",
+    path: ["maxLeaseSec"],
+  });
+
 export const apiCredentialSchema = z.object({
   apiKey: z.string(),
   gatewayId: z.string().nullable(),
@@ -254,6 +297,7 @@ export const engineConfigDraftSchema = z.object({
   marketDataGateway: marketDataGatewaySchema,
   balfGateway: balfGatewaySchema,
   dcGateway: dcGatewaySchema,
+  logServer: logServerSchema,
   apiGateways: z.array(apiGatewaySchema),
   output: z.object({
     filename: z.string().min(1),

@@ -234,6 +234,9 @@ $(eval $(call DEFINE_DESIGN_DOC_VARS,CALF_EXTENSIONS,EduMatcher-CALF-Extensions,
 $(eval $(call DEFINE_DESIGN_DOC_VARS,QLEGS_RECENT,EduMatcher-QLEGS-RECENT,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,INDEX_ADMIN_CLI,EduMatcher-index-admin-cli,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,CALF_AUCTION_CB,EduMatcher-CALF-auction-cb,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,LOG_SRV,EduMatcher-log-srv,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,LOG_GUI,EduMatcher-log-GUI,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,ARCH_ASYNCIO,EduMatcher-arch-asyncio,,))
 
 # ============================================================================================
 # Makefile Targets
@@ -268,6 +271,9 @@ $(eval $(call DESIGN_DOC_PDF_RULE,CALF_EXTENSIONS,"EduMatcher-CALF-Extensions"))
 $(eval $(call DESIGN_DOC_PDF_RULE,QLEGS_RECENT,"EduMatcher-QLEGS-RECENT"))
 $(eval $(call DESIGN_DOC_PDF_RULE,INDEX_ADMIN_CLI,"EduMatcher-index-admin-cli"))
 $(eval $(call DESIGN_DOC_PDF_RULE,CALF_AUCTION_CB,"EduMatcher-CALF-auction-cb"))
+$(eval $(call DESIGN_DOC_PDF_RULE,LOG_SRV,"EduMatcher-log-srv"))
+$(eval $(call DESIGN_DOC_PDF_RULE,LOG_GUI,"EduMatcher-log-GUI"))
+$(eval $(call DESIGN_DOC_PDF_RULE,ARCH_ASYNCIO,"EduMatcher-arch-asyncio"))
 
 
 PDF_DESIGN_DOCS := $(BALF_PROPOSAL_PDF) $(FEATURE_IMPLEMENTATION_PDF) $(MM_QUOTES_IMPLEMENTATION_PDF) \
@@ -277,7 +283,7 @@ $(CROSS_HOST_CONNECTION_PDF) $(STAT_COMMANDS_PDF) $(CONFIG_GENERATOR_PDF) $(MM_Q
 $(MM_BOTS_PDF) $(POST_TRADE_DISSEMINATION_GATEWAY_PDF) $(API_GATEWAY_V2_PDF) \
 $(CONFIG_VERIFIER_PDF) $(AI_TRADING_BOT_V2_PDF) $(CLEARING_V2_PDF) $(CONTRACT_MULTIPLYER_PDF) $(AUDIT_CLI_PDF) \
 $(TRADING_GUI_PDF) $(CONFIG_GUI_PDF) $(TERMINAL_GUI_PDF) $(CALF_EXTENSIONS_PDF) $(QLEGS_RECENT_PDF) \
-$(INDEX_ADMIN_CLI_PDF) $(CALF_AUCTION_CB_PDF)
+$(INDEX_ADMIN_CLI_PDF) $(CALF_AUCTION_CB_PDF) $(LOG_SRV_PDF) $(ARCH_ASYNCIO_PDF)
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"

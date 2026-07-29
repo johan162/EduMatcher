@@ -67,6 +67,12 @@ import holidays
 import zmq
 
 from edumatcher.config import ENGINE_CONFIG_FILE, ENGINE_PUB_ADDR, ENGINE_PULL_ADDR
+from edumatcher.log_srv.config import (
+    load_default_log_client_config,
+    load_default_log_server_config,
+    resolve_host_default,
+)
+from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_pusher, make_subscriber
 from edumatcher.models.message import (
     decode,
@@ -74,6 +80,9 @@ from edumatcher.models.message import (
     make_session_transition_msg,
 )
 from edumatcher.models.session import VALID_TRANSITIONS, SessionState
+
+_CLIENT_NAME = "pm-scheduler"
+_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 # Operational logging goes through the logging module; the process entry point
 # (main()) configures the handler/level, the library installs no handlers
@@ -753,28 +762,7 @@ def _run_now(
         log.info("Done.")
 
 
-def _configure_logging(args: argparse.Namespace) -> int:
-    if getattr(args, "log_level", None):
-        level_name = str(args.log_level).upper()
-        level = getattr(logging, level_name, logging.WARNING)
-    elif int(getattr(args, "verbose", 0)) >= 2:
-        level = logging.DEBUG
-    elif int(getattr(args, "verbose", 0)) == 1:
-        level = logging.INFO
-    elif bool(getattr(args, "quiet", False)):
-        level = logging.WARNING
-    else:
-        level = logging.WARNING
-
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
-        stream=sys.stdout,
-    )
-    return int(level)
-
-
-def main() -> None:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher session scheduler")
     from edumatcher.cli_version import add_version_argument
 
@@ -831,6 +819,71 @@ def main() -> None:
         action="store_true",
         help="Reduce log output to warnings/errors",
     )
+    parser.add_argument(
+        "--log-target",
+        choices=["server", "stdout", "file"],
+        default=None,
+        help=(
+            "Where this process's own operational log records go: "
+            "server (default, auto-detected pm-log-srv), stdout, or file"
+        ),
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        metavar="PATH",
+        help="Operational log file path — required when --log-target file",
+    )
+    parser.add_argument(
+        "--log-failover-timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help=(
+            "Grace window before falling back to a local log file once "
+            "pm-log-srv becomes unreachable (default: 30, from config)"
+        ),
+    )
+    return parser
+
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    if getattr(args, "log_level", None):
+        level_name = str(args.log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif int(getattr(args, "verbose", 0)) >= 2:
+        level = logging.DEBUG
+    elif int(getattr(args, "verbose", 0)) == 1:
+        level = logging.INFO
+    elif bool(getattr(args, "quiet", False)):
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    client_config = load_default_log_client_config()
+    server_config = load_default_log_server_config()
+    failover_timeout = getattr(args, "log_failover_timeout", None)
+    handler = resolve_handler(
+        log_target=getattr(args, "log_target", None),
+        log_file=getattr(args, "log_file", None),
+        client_name=_CLIENT_NAME,
+        instance=None,
+        host=resolve_host_default(),
+        port=server_config.port,
+        connect_timeout_sec=client_config.connect_timeout_sec,
+        failover_timeout_sec=(
+            failover_timeout
+            if failover_timeout is not None
+            else client_config.failover_timeout_sec
+        ),
+        failover_dir=client_config.failover_dir,
+    )
+    logging.basicConfig(level=level, format=_LOG_FORMAT, handlers=[handler])
+    return int(level)
+
+
+def main() -> None:
+    parser = _build_parser()
     args = parser.parse_args()
 
     log_level = _configure_logging(args)

@@ -24,6 +24,7 @@ from edumatcher.config_gen.builder import BalfGatewaySpec
 from edumatcher.config_gen.builder import ComboLegSpec, ComboSpec
 from edumatcher.config_gen.builder import DcGatewaySpec
 from edumatcher.config_gen.builder import IndexSpec
+from edumatcher.config_gen.builder import LogServerSpec
 from edumatcher.config_gen.builder import MarketDataGatewaySpec
 from edumatcher.config_gen.builder import PostTradeGatewaySpec
 from edumatcher.config_gen.cb_spec import CbSpec, parse_cb_spec
@@ -56,6 +57,27 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_DC_GATEWAY_MAX_CLIENT_QUEUE,
     DEFAULT_DC_GATEWAY_NAME,
     DEFAULT_DC_GATEWAY_PORT,
+    DEFAULT_LOG_SERVER_BACKFILL_CHUNK_ROWS,
+    DEFAULT_LOG_SERVER_BIND_ADDRESS,
+    DEFAULT_LOG_SERVER_DB_PATH,
+    DEFAULT_LOG_SERVER_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_LOG_SERVER_LEASE_SEC,
+    DEFAULT_LOG_SERVER_MAX_BACKFILL_MINUTES,
+    DEFAULT_LOG_SERVER_MAX_BACKFILL_ROWS,
+    DEFAULT_LOG_SERVER_MAX_CLIENT_QUEUE,
+    DEFAULT_LOG_SERVER_MAX_LEASE_SEC,
+    DEFAULT_LOG_SERVER_MAX_MESSAGE_BYTES,
+    DEFAULT_LOG_SERVER_MAX_PENDING_ROWS,
+    DEFAULT_LOG_SERVER_MAX_SUBSCRIBERS,
+    DEFAULT_LOG_SERVER_NAME,
+    DEFAULT_LOG_SERVER_NOTIFY_INTERVAL_MS,
+    DEFAULT_LOG_SERVER_PORT,
+    DEFAULT_LOG_SERVER_PUB_PORT,
+    DEFAULT_LOG_SERVER_PUB_SNDHWM,
+    DEFAULT_LOG_SERVER_PULL_PORT,
+    DEFAULT_LOG_SERVER_RETENTION_DAYS,
+    DEFAULT_LOG_SERVER_WRITE_BATCH_INTERVAL_MS,
+    DEFAULT_LOG_SERVER_WRITE_BATCH_SIZE,
     DEFAULT_INDEX_BASE_VALUE,
     DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
@@ -228,6 +250,41 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
     if args.dc_max_client_queue is not None and args.dc_max_client_queue <= 0:
         raise ValueError("--dc-max-client-queue must be > 0")
 
+    if args.log_server_port is not None and args.log_server_port <= 0:
+        raise ValueError("--log-server-port must be > 0")
+    if (
+        args.log_server_retention_days is not None
+        and args.log_server_retention_days < 0
+    ):
+        raise ValueError("--log-server-retention-days must be >= 0")
+    if (
+        args.log_server_max_message_bytes is not None
+        and args.log_server_max_message_bytes <= 0
+    ):
+        raise ValueError("--log-server-max-message-bytes must be > 0")
+    if (
+        args.log_server_max_client_queue is not None
+        and args.log_server_max_client_queue <= 0
+    ):
+        raise ValueError("--log-server-max-client-queue must be > 0")
+    if (
+        args.log_server_write_batch_size is not None
+        and args.log_server_write_batch_size <= 0
+    ):
+        raise ValueError("--log-server-write-batch-size must be > 0")
+    if (
+        args.log_server_write_batch_interval_ms is not None
+        and args.log_server_write_batch_interval_ms <= 0
+    ):
+        raise ValueError("--log-server-write-batch-interval-ms must be > 0")
+    if (
+        args.log_server_heartbeat_interval_sec is not None
+        and args.log_server_heartbeat_interval_sec <= 0
+    ):
+        raise ValueError("--log-server-heartbeat-interval-sec must be > 0")
+
+    _validate_log_server_pubsub_args(args)
+
     if args.static_band is not None and not (0 < args.static_band < 1):
         raise ValueError("--static-band must be in (0, 1)")
     if args.dynamic_band is not None and not (0 < args.dynamic_band < 1):
@@ -254,6 +311,57 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
 
     if args.country is not None:
         _validate_country(args.country)
+
+
+_LOG_SERVER_PUBSUB_POSITIVE_INT_FLAGS = (
+    ("log_server_pub_port", "--log-server-pub-port"),
+    ("log_server_pull_port", "--log-server-pull-port"),
+    ("log_server_lease_sec", "--log-server-lease-sec"),
+    ("log_server_max_lease_sec", "--log-server-max-lease-sec"),
+    ("log_server_max_subscribers", "--log-server-max-subscribers"),
+    ("log_server_notify_interval_ms", "--log-server-notify-interval-ms"),
+    ("log_server_backfill_chunk_rows", "--log-server-backfill-chunk-rows"),
+    ("log_server_max_backfill_minutes", "--log-server-max-backfill-minutes"),
+    ("log_server_max_backfill_rows", "--log-server-max-backfill-rows"),
+    ("log_server_max_pending_rows", "--log-server-max-pending-rows"),
+    ("log_server_pub_sndhwm", "--log-server-pub-sndhwm"),
+)
+
+
+def _validate_log_server_pubsub_args(args: argparse.Namespace) -> None:
+    """Validate the LALF-PS flags, including their two cross-field rules.
+
+    The per-flag ``> 0`` checks mirror every other numeric flag in this
+    module. The two relational checks are the ones worth stating here
+    rather than leaving to the runtime loader: a generated file that binds
+    two of pm-log-srv's three ports to the same number, or that sets a
+    lease ceiling below the default lease, is one pm-log-srv would refuse
+    to start on — and finding that out at generation time is much cheaper
+    than finding it out at startup.
+    """
+    for attr, flag in _LOG_SERVER_PUBSUB_POSITIVE_INT_FLAGS:
+        value = getattr(args, attr, None)
+        if value is not None and value <= 0:
+            raise ValueError(f"{flag} must be > 0")
+
+    # The three ports must be distinct. Compare *effective* values so an
+    # override that collides with another port's default is still caught.
+    port = args.log_server_port or DEFAULT_LOG_SERVER_PORT
+    pub_port = args.log_server_pub_port or DEFAULT_LOG_SERVER_PUB_PORT
+    pull_port = args.log_server_pull_port or DEFAULT_LOG_SERVER_PULL_PORT
+    if len({port, pub_port, pull_port}) != 3:
+        raise ValueError(
+            "log_server port, pub_port and pull_port must all be different "
+            f"(got port={port}, pub_port={pub_port}, pull_port={pull_port})"
+        )
+
+    lease_sec = args.log_server_lease_sec or DEFAULT_LOG_SERVER_LEASE_SEC
+    max_lease_sec = args.log_server_max_lease_sec or DEFAULT_LOG_SERVER_MAX_LEASE_SEC
+    if max_lease_sec < lease_sec:
+        raise ValueError(
+            "--log-server-max-lease-sec must be >= --log-server-lease-sec "
+            f"(got max_lease_sec={max_lease_sec}, lease_sec={lease_sec})"
+        )
 
 
 def _parse_hhmm_to_minutes(value: str, flag_name: str) -> int:
@@ -838,6 +946,113 @@ def _build_dc_gateway_spec(
         max_client_queue=int(
             args.dc_max_client_queue or DEFAULT_DC_GATEWAY_MAX_CLIENT_QUEUE
         ),
+    )
+
+
+def _build_log_server_spec(
+    args: argparse.Namespace,
+) -> LogServerSpec | None:
+    emit = any(
+        value is not None
+        for value in (
+            args.log_server_enabled,
+            args.log_server_name,
+            args.log_server_bind_address,
+            args.log_server_port,
+            args.log_server_db_path,
+            args.log_server_retention_days,
+            args.log_server_max_message_bytes,
+            args.log_server_max_client_queue,
+            args.log_server_write_batch_size,
+            args.log_server_write_batch_interval_ms,
+            args.log_server_heartbeat_interval_sec,
+            args.log_server_pubsub_enabled,
+            args.log_server_pub_port,
+            args.log_server_pull_port,
+            args.log_server_lease_sec,
+            args.log_server_max_lease_sec,
+            args.log_server_max_subscribers,
+            args.log_server_notify_interval_ms,
+            args.log_server_backfill_chunk_rows,
+            args.log_server_max_backfill_minutes,
+            args.log_server_max_backfill_rows,
+            args.log_server_max_pending_rows,
+            args.log_server_pub_sndhwm,
+        )
+    ) or bool(args.log_server)
+
+    if not emit:
+        return None
+
+    enabled = (
+        bool(args.log_server_enabled) if args.log_server_enabled is not None else True
+    )
+    pubsub_enabled = (
+        bool(args.log_server_pubsub_enabled)
+        if args.log_server_pubsub_enabled is not None
+        else True
+    )
+
+    retention_days = (
+        int(args.log_server_retention_days)
+        if args.log_server_retention_days is not None
+        else DEFAULT_LOG_SERVER_RETENTION_DAYS
+    )
+
+    return LogServerSpec(
+        enabled=enabled,
+        name=str(args.log_server_name or DEFAULT_LOG_SERVER_NAME),
+        bind_address=str(
+            args.log_server_bind_address or DEFAULT_LOG_SERVER_BIND_ADDRESS
+        ),
+        port=int(args.log_server_port or DEFAULT_LOG_SERVER_PORT),
+        db_path=str(args.log_server_db_path or DEFAULT_LOG_SERVER_DB_PATH),
+        retention_days=retention_days,
+        max_message_bytes=int(
+            args.log_server_max_message_bytes or DEFAULT_LOG_SERVER_MAX_MESSAGE_BYTES
+        ),
+        max_client_queue=int(
+            args.log_server_max_client_queue or DEFAULT_LOG_SERVER_MAX_CLIENT_QUEUE
+        ),
+        write_batch_size=int(
+            args.log_server_write_batch_size or DEFAULT_LOG_SERVER_WRITE_BATCH_SIZE
+        ),
+        write_batch_interval_ms=int(
+            args.log_server_write_batch_interval_ms
+            or DEFAULT_LOG_SERVER_WRITE_BATCH_INTERVAL_MS
+        ),
+        heartbeat_interval_sec=int(
+            args.log_server_heartbeat_interval_sec
+            or DEFAULT_LOG_SERVER_HEARTBEAT_INTERVAL_SEC
+        ),
+        pubsub_enabled=pubsub_enabled,
+        pub_port=int(args.log_server_pub_port or DEFAULT_LOG_SERVER_PUB_PORT),
+        pull_port=int(args.log_server_pull_port or DEFAULT_LOG_SERVER_PULL_PORT),
+        lease_sec=int(args.log_server_lease_sec or DEFAULT_LOG_SERVER_LEASE_SEC),
+        max_lease_sec=int(
+            args.log_server_max_lease_sec or DEFAULT_LOG_SERVER_MAX_LEASE_SEC
+        ),
+        max_subscribers=int(
+            args.log_server_max_subscribers or DEFAULT_LOG_SERVER_MAX_SUBSCRIBERS
+        ),
+        notify_interval_ms=int(
+            args.log_server_notify_interval_ms or DEFAULT_LOG_SERVER_NOTIFY_INTERVAL_MS
+        ),
+        backfill_chunk_rows=int(
+            args.log_server_backfill_chunk_rows
+            or DEFAULT_LOG_SERVER_BACKFILL_CHUNK_ROWS
+        ),
+        max_backfill_minutes=int(
+            args.log_server_max_backfill_minutes
+            or DEFAULT_LOG_SERVER_MAX_BACKFILL_MINUTES
+        ),
+        max_backfill_rows=int(
+            args.log_server_max_backfill_rows or DEFAULT_LOG_SERVER_MAX_BACKFILL_ROWS
+        ),
+        max_pending_rows=int(
+            args.log_server_max_pending_rows or DEFAULT_LOG_SERVER_MAX_PENDING_ROWS
+        ),
+        pub_sndhwm=int(args.log_server_pub_sndhwm or DEFAULT_LOG_SERVER_PUB_SNDHWM),
     )
 
 
@@ -1428,6 +1643,7 @@ def main() -> None:
             market_data_gateway=_build_market_data_gateway_spec(args),
             balf_gateway=_build_balf_gateway_spec(args),
             dc_gateway=_build_dc_gateway_spec(args),
+            log_server=_build_log_server_spec(args),
             api_gateways=_build_api_gateway_specs(args, gateways),
             indices=indices,
             combos=combos,

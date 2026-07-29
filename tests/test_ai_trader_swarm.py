@@ -17,6 +17,13 @@ from edumatcher.ai_trader.swarm import (
 )
 
 
+def _fake_parser(namespace: argparse.Namespace) -> argparse.ArgumentParser:
+    """A stand-in for _build_parser() whose parse_args() ignores argv."""
+    parser = argparse.ArgumentParser()
+    parser.parse_args = lambda *a, **kw: namespace
+    return parser
+
+
 class TestSwarmHelpers:
     def test_build_gateway_ids(self) -> None:
         ids = build_gateway_ids("AI", 1, 3)
@@ -90,7 +97,7 @@ class TestSwarmMain:
                 "ERROR",
             ],
         )
-        args = swarm_main._parse_args()
+        args = swarm_main._build_parser().parse_args()
         assert args.count == 1
         assert args.verbose == 2
         assert args.quiet is True
@@ -121,25 +128,27 @@ class TestSwarmMain:
 
         monkeypatch.setattr(
             swarm_main,
-            "_parse_args",
-            lambda: argparse.Namespace(
-                count=1,
-                prefix="AI",
-                start_index=1,
-                profiles="aggressive",
-                symbols="",
-                config="engine_config.yaml",
-                seed_base=1,
-                duration=1.0,
-                python="python",
-                max_position=100,
-                max_rejects=5,
-                reject_window=10.0,
-                reject_cooldown=1.0,
-                stale_data=4.0,
-                log_level="INFO",
-                verbose=2,
-                quiet=True,
+            "_build_parser",
+            lambda: _fake_parser(
+                argparse.Namespace(
+                    count=1,
+                    prefix="AI",
+                    start_index=1,
+                    profiles="aggressive",
+                    symbols="",
+                    config="engine_config.yaml",
+                    seed_base=1,
+                    duration=1.0,
+                    python="python",
+                    max_position=100,
+                    max_rejects=5,
+                    reject_window=10.0,
+                    reject_cooldown=1.0,
+                    stale_data=4.0,
+                    log_level="INFO",
+                    verbose=2,
+                    quiet=True,
+                )
             ),
         )
         monkeypatch.setattr(
@@ -160,8 +169,10 @@ class TestSwarmMain:
     def test_main_count_must_be_positive(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             swarm_main,
-            "_parse_args",
-            lambda: argparse.Namespace(count=0, log_level=None, verbose=0, quiet=False),
+            "_build_parser",
+            lambda: _fake_parser(
+                argparse.Namespace(count=0, log_level=None, verbose=0, quiet=False)
+            ),
         )
         with pytest.raises(SystemExit):
             swarm_main.main()
@@ -169,25 +180,27 @@ class TestSwarmMain:
     def test_main_no_symbols(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             swarm_main,
-            "_parse_args",
-            lambda: argparse.Namespace(
-                count=1,
-                prefix="AI",
-                start_index=1,
-                profiles="",
-                symbols="",
-                config="engine_config.yaml",
-                seed_base=1,
-                duration=1.0,
-                python="python",
-                max_position=100,
-                max_rejects=5,
-                reject_window=10.0,
-                reject_cooldown=1.0,
-                stale_data=4.0,
-                log_level=None,
-                verbose=0,
-                quiet=False,
+            "_build_parser",
+            lambda: _fake_parser(
+                argparse.Namespace(
+                    count=1,
+                    prefix="AI",
+                    start_index=1,
+                    profiles="",
+                    symbols="",
+                    config="engine_config.yaml",
+                    seed_base=1,
+                    duration=1.0,
+                    python="python",
+                    max_position=100,
+                    max_rejects=5,
+                    reject_window=10.0,
+                    reject_cooldown=1.0,
+                    stale_data=4.0,
+                    log_level=None,
+                    verbose=0,
+                    quiet=False,
+                )
             ),
         )
         monkeypatch.setattr(swarm_main, "_load_symbols", lambda _symbols, _cfg: [])
@@ -214,25 +227,27 @@ class TestSwarmMain:
 
         monkeypatch.setattr(
             swarm_main,
-            "_parse_args",
-            lambda: argparse.Namespace(
-                count=2,
-                prefix="AI",
-                start_index=1,
-                profiles="aggressive,cautious",
-                symbols="",
-                config="engine_config.yaml",
-                seed_base=1,
-                duration=1.0,
-                python="python",
-                max_position=100,
-                max_rejects=5,
-                reject_window=10.0,
-                reject_cooldown=1.0,
-                stale_data=4.0,
-                log_level=None,
-                verbose=0,
-                quiet=False,
+            "_build_parser",
+            lambda: _fake_parser(
+                argparse.Namespace(
+                    count=2,
+                    prefix="AI",
+                    start_index=1,
+                    profiles="aggressive,cautious",
+                    symbols="",
+                    config="engine_config.yaml",
+                    seed_base=1,
+                    duration=1.0,
+                    python="python",
+                    max_position=100,
+                    max_rejects=5,
+                    reject_window=10.0,
+                    reject_cooldown=1.0,
+                    stale_data=4.0,
+                    log_level=None,
+                    verbose=0,
+                    quiet=False,
+                )
             ),
         )
         monkeypatch.setattr(
@@ -269,25 +284,27 @@ class TestSwarmMain:
 
         monkeypatch.setattr(
             swarm_main,
-            "_parse_args",
-            lambda: argparse.Namespace(
-                count=1,
-                prefix="AI",
-                start_index=1,
-                profiles="aggressive",
-                symbols="",
-                config="engine_config.yaml",
-                seed_base=1,
-                duration=1.0,
-                python="python",
-                max_position=100,
-                max_rejects=5,
-                reject_window=10.0,
-                reject_cooldown=1.0,
-                stale_data=4.0,
-                log_level=None,
-                verbose=0,
-                quiet=False,
+            "_build_parser",
+            lambda: _fake_parser(
+                argparse.Namespace(
+                    count=1,
+                    prefix="AI",
+                    start_index=1,
+                    profiles="aggressive",
+                    symbols="",
+                    config="engine_config.yaml",
+                    seed_base=1,
+                    duration=1.0,
+                    python="python",
+                    max_position=100,
+                    max_rejects=5,
+                    reject_window=10.0,
+                    reject_cooldown=1.0,
+                    stale_data=4.0,
+                    log_level=None,
+                    verbose=0,
+                    quiet=False,
+                )
             ),
         )
         monkeypatch.setattr(

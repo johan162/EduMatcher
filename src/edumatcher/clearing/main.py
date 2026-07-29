@@ -27,6 +27,7 @@ timestamps.
 
 from __future__ import annotations
 
+import argparse
 import copy
 import errno
 import json
@@ -55,6 +56,12 @@ from edumatcher.clearing.store import (
     record_gateway_connect,
     record_session_event,
 )
+from edumatcher.log_srv.config import (
+    load_default_log_client_config,
+    load_default_log_server_config,
+    resolve_host_default,
+)
+from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.clock import now_ns  # used in _flush
 from edumatcher.models.feed_schema import (
@@ -81,6 +88,9 @@ _DEBUG_SUMMARY_INTERVAL_SEC: float = 5.0
 # best-effort — instead of silently projecting a ms value to the year ~55,000.
 _SECONDS_MAX: int = 100_000_000_000  # ~ year 5138 in epoch seconds
 _MILLIS_MAX: int = _SECONDS_MAX * 1000
+
+_CLIENT_NAME = "pm-clearing"
+_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 console = Console()
 log = logging.getLogger(__name__)
@@ -137,16 +147,14 @@ def _to_timestamp_ns(raw: Any) -> int:
     if val < _SECONDS_MAX:
         return int(round(val * 1_000_000_000))
     if val < _MILLIS_MAX:
-        console.print(
-            "[CLEARING] WARNING: trade timestamp looks like milliseconds, not the"
-            " documented seconds — converting best-effort.",
-            style="yellow",
+        log.warning(
+            "trade timestamp looks like milliseconds, not the documented"
+            " seconds — converting best-effort"
         )
         return int(round(val * 1_000_000))
-    console.print(
-        "[CLEARING] WARNING: trade timestamp looks like nanoseconds, not the"
-        " documented seconds — converting best-effort.",
-        style="yellow",
+    log.warning(
+        "trade timestamp looks like nanoseconds, not the documented"
+        " seconds — converting best-effort"
     )
     return int(val)
 
@@ -293,16 +301,12 @@ class ClearingProcess:
             rows = fetch_all_positions(self._conn)
             self._ledger.restore(rows)
             if rows:
-                console.print(
-                    f"[CLEARING] Warm start: restored {len(rows)} position(s)"
-                    " from the database."
+                log.info(
+                    "warm start: restored %d position(s) from the database", len(rows)
                 )
             log.debug("warm start restored positions=%d", len(rows))
         except Exception as exc:
-            console.print(
-                f"[CLEARING] WARNING: warm-start hydration failed: {exc}",
-                style="yellow",
-            )
+            log.warning("warm-start hydration failed: %s", exc)
 
     def run(self) -> None:
         """Start the clearing process; blocks until stop() is called."""
@@ -315,15 +319,17 @@ class ClearingProcess:
             self._retention_days,
         )
         if pruned:
-            console.print(
-                f"[CLEARING] Pruned {pruned} trade_events rows older than"
-                f" {self._retention_days} days."
+            log.info(
+                "pruned %d trade_events rows older than %d days",
+                pruned,
+                self._retention_days,
             )
 
-        console.print(f"[CLEARING] DB: {self._db_path}")
-        console.print(
-            f"[CLEARING] Flush policy: size={self._flush_size},"
-            f" interval={self._flush_interval_sec}s"
+        log.info(
+            "clearing db=%s flush policy: size=%d interval=%ss",
+            self._db_path,
+            self._flush_size,
+            self._flush_interval_sec,
         )
 
         # Signal handlers may only be installed from the main thread.
@@ -371,7 +377,7 @@ class ClearingProcess:
             self._flush_debug_summary(force=True)
             self._conn.close()
             log.info("clearing DB connection closed")
-            console.print("[CLEARING] Shutdown complete.")
+            log.info("shutdown complete")
 
     def stop(self) -> None:
         """Signal the receive loop to exit cleanly."""
@@ -409,10 +415,7 @@ class ClearingProcess:
             try:
                 topic, payload = decode(frames)
             except Exception as exc:
-                console.print(
-                    f"[CLEARING] WARNING: failed to decode frame: {exc}",
-                    style="yellow",
-                )
+                log.warning("failed to decode frame: %s", exc)
                 continue
 
             self._dbg_count("messages_received")
@@ -421,10 +424,7 @@ class ClearingProcess:
                 try:
                     trade = _trade_from_payload(payload)
                 except Exception as exc:
-                    console.print(
-                        f"[CLEARING] WARNING: failed to parse trade: {exc}",
-                        style="yellow",
-                    )
+                    log.warning("failed to parse trade: %s", exc)
                     continue
 
                 with self._lock:
@@ -538,16 +538,14 @@ class ClearingProcess:
                         }
                     ),
                 )
-                console.print(
-                    f"[CLEARING] WARNING: trade feed gap — {missing} trade(s)"
-                    f" missing between id {last} and {seq}.",
-                    style="yellow",
+                log.warning(
+                    "trade feed gap — %d trade(s) missing between id %s and %s",
+                    missing,
+                    last,
+                    seq,
                 )
             except Exception as exc:
-                console.print(
-                    f"[CLEARING] WARNING: failed to record feed gap: {exc}",
-                    style="yellow",
-                )
+                log.warning("failed to record feed gap: %s", exc)
         self._last_seq = seq
 
     def _flush(self) -> int:
@@ -694,20 +692,19 @@ class ClearingProcess:
                 pruned = prune_old_events(
                     self._conn, retention_days=self._retention_days
                 )
-            console.print(
-                f"[CLEARING] EOD received — {len(eod_marks)} symbol mark(s) applied,"
-                f" session_events row written for {eod_trade_date}."
+            log.info(
+                "EOD received — %d symbol mark(s) applied, session_events row written for %s",
+                len(eod_marks),
+                eod_trade_date,
             )
             if pruned:
-                console.print(
-                    f"[CLEARING] EOD prune removed {pruned} trade_events row(s)"
-                    f" older than {self._retention_days} days."
+                log.info(
+                    "EOD prune removed %d trade_events row(s) older than %d days",
+                    pruned,
+                    self._retention_days,
                 )
         except Exception as exc:
-            console.print(
-                f"[CLEARING] WARNING: error handling system.eod: {exc}",
-                style="yellow",
-            )
+            log.warning("error handling system.eod: %s", exc)
 
     def _handle_session_state(self, payload: dict[str, Any]) -> None:
         """
@@ -738,10 +735,7 @@ class ClearingProcess:
                     ),
                 )
         except Exception as exc:
-            console.print(
-                f"[CLEARING] WARNING: error handling session.state: {exc}",
-                style="yellow",
-            )
+            log.warning("error handling session.state: %s", exc)
 
     def _handle_gateway_auth(self, payload: dict[str, Any]) -> None:
         """
@@ -784,10 +778,7 @@ class ClearingProcess:
                 )
             log.info("gateway connected gateway_id=%s", gateway_id)
         except Exception as exc:
-            console.print(
-                f"[CLEARING] WARNING: error handling gateway_connect: {exc}",
-                style="yellow",
-            )
+            log.warning("error handling gateway_connect: %s", exc)
 
     def _handle_gateway_disconnect(self, payload: dict[str, Any]) -> None:
         """
@@ -825,10 +816,7 @@ class ClearingProcess:
                 reason,
             )
         except Exception as exc:
-            console.print(
-                f"[CLEARING] WARNING: error handling gateway_disconnect: {exc}",
-                style="yellow",
-            )
+            log.warning("error handling gateway_disconnect: %s", exc)
 
     # ------------------------------------------------------------------
     # Console P&L table
@@ -923,11 +911,8 @@ def _enable_sql_trace_logging() -> None:
     sql_logger.addHandler(handler)
 
 
-def main() -> None:
-    import argparse
-
+def _build_parser() -> argparse.ArgumentParser:
     from edumatcher.cli_version import add_version_argument
-    from edumatcher.config import DATA_DIR, ENGINE_PUB_ADDR
 
     parser = argparse.ArgumentParser(
         prog="pm-clearing",
@@ -1011,9 +996,35 @@ def main() -> None:
         action="store_true",
         help="Reduce log output to warnings/errors",
     )
+    parser.add_argument(
+        "--log-target",
+        choices=["server", "stdout", "file"],
+        default=None,
+        help=(
+            "Where this process's own operational log records go: "
+            "server (default, auto-detected pm-log-srv), stdout, or file"
+        ),
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        metavar="PATH",
+        help="Operational log file path — required when --log-target file",
+    )
+    parser.add_argument(
+        "--log-failover-timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help=(
+            "Grace window before falling back to a local log file once "
+            "pm-log-srv becomes unreachable (default: 30, from config)"
+        ),
+    )
+    return parser
 
-    args = parser.parse_args()
 
+def _configure_logging(args: argparse.Namespace) -> int:
     if args.log_level:
         level_name = str(args.log_level).upper()
         level = getattr(logging, level_name, logging.WARNING)
@@ -1026,11 +1037,35 @@ def main() -> None:
     else:
         level = logging.WARNING
 
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
-        stream=sys.stdout,
+    client_config = load_default_log_client_config()
+    server_config = load_default_log_server_config()
+    failover_timeout = getattr(args, "log_failover_timeout", None)
+    handler = resolve_handler(
+        log_target=getattr(args, "log_target", None),
+        log_file=getattr(args, "log_file", None),
+        client_name=_CLIENT_NAME,
+        instance=None,
+        host=resolve_host_default(),
+        port=server_config.port,
+        connect_timeout_sec=client_config.connect_timeout_sec,
+        failover_timeout_sec=(
+            failover_timeout
+            if failover_timeout is not None
+            else client_config.failover_timeout_sec
+        ),
+        failover_dir=client_config.failover_dir,
     )
+    logging.basicConfig(level=level, format=_LOG_FORMAT, handlers=[handler])
+    return int(level)
+
+
+def main() -> None:
+    from edumatcher.config import DATA_DIR, ENGINE_PUB_ADDR
+
+    parser = _build_parser()
+    args = parser.parse_args()
+
+    level = _configure_logging(args)
     if args.sql_trace:
         _enable_sql_trace_logging()
     log.info("starting pm-clearing with log level %s", logging.getLevelName(level))

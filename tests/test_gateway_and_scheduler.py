@@ -256,6 +256,24 @@ class TestGatewayHelpers:
         gw._handle_event("system.symbols.GW01", {"symbols": []})
         assert gw._known_symbols == []
 
+    def test_handle_event_session_status(self) -> None:
+        gw = _make_gateway()
+        with patch("edumatcher.alf_console.main.print_session_status") as mock_print:
+            gw._handle_event(
+                "system.session_status.GW01",
+                {"state": "CONTINUOUS", "sessions_enabled": True},
+            )
+        mock_print.assert_called_once_with("CONTINUOUS", True)
+
+    def test_handle_event_session_status_sessions_disabled(self) -> None:
+        gw = _make_gateway()
+        with patch("edumatcher.alf_console.main.print_session_status") as mock_print:
+            gw._handle_event(
+                "system.session_status.GW01",
+                {"state": "CLOSED", "sessions_enabled": False},
+            )
+        mock_print.assert_called_once_with("CLOSED", False)
+
     def test_handle_event_orders(self) -> None:
         gw = _make_gateway()
         import time as _time
@@ -579,6 +597,17 @@ class TestGatewayParseAndSend:
         gw = _make_gateway()
         gw._parse_and_send("SYMBOLS")
         assert gw.push_sock.send_multipart.called
+
+    def test_session_command_sends_session_state_request(self) -> None:
+        from edumatcher.models.message import decode
+
+        gw = _make_gateway()
+        gw._parse_and_send("SESSION")
+        assert gw.push_sock.send_multipart.called
+        frames = gw.push_sock.send_multipart.call_args[0][0]
+        topic, payload = decode(frames)
+        assert topic == "system.session_state_request"
+        assert payload["gateway_id"] == "GW01"
 
     def test_quote_command(self) -> None:
         gw = _make_gateway()
@@ -1500,6 +1529,39 @@ class TestPrintQuoteLegs:
     def test_print_legs_no_legs_at_all(self) -> None:
         gw = _make_gateway()
         gw._parse_and_send("QLEGS|SHOW=ALL")  # empty cache — prints "No quote legs"
+
+
+# ---------------------------------------------------------------------------
+# print_session_status display
+# ---------------------------------------------------------------------------
+
+
+class TestPrintSessionStatus:
+    def test_continuous_prints_state_and_description(self) -> None:
+        from edumatcher.alf_console.display import print_session_status
+
+        with patch("edumatcher.alf_console.display.console.print") as mock_print:
+            print_session_status("CONTINUOUS", True)
+
+        printed = "\n".join(str(call.args[0]) for call in mock_print.call_args_list)
+        assert "SESSION" in printed
+        assert "CONTINUOUS" in printed
+        assert "sessions gating disabled" not in printed
+
+    def test_sessions_disabled_prints_note(self) -> None:
+        from edumatcher.alf_console.display import print_session_status
+
+        with patch("edumatcher.alf_console.display.console.print") as mock_print:
+            print_session_status("CLOSED", False)
+
+        printed = "\n".join(str(call.args[0]) for call in mock_print.call_args_list)
+        assert "CLOSED" in printed
+        assert "sessions gating disabled" in printed
+
+    def test_unknown_state_does_not_raise(self) -> None:
+        from edumatcher.alf_console.display import print_session_status
+
+        print_session_status("SOMETHING_NEW", True)  # should not raise
 
 
 # ---------------------------------------------------------------------------

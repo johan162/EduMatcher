@@ -1014,7 +1014,8 @@ class TestStatsRun:
             patch("edumatcher.stats.main.make_subscriber", side_effect=_record_call),
             patch("edumatcher.stats.main.make_pusher", return_value=MagicMock()),
         ):
-            StatsProcess(tmp_path / "addr_test.db")
+            proc = StatsProcess(tmp_path / "addr_test.db")
+        proc._conn.close()
 
         addrs = [addr for addr, _topics in calls]
         assert ENGINE_PUB_ADDR in addrs

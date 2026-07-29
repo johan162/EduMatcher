@@ -12,7 +12,6 @@ from collections import defaultdict
 from collections import deque
 import logging
 import random
-import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -22,6 +21,12 @@ import zmq
 
 from edumatcher.ai_trader.personality import available_profiles, get_profile
 from edumatcher.config import ENGINE_PULL_ADDR, ENGINE_PUB_ADDR
+from edumatcher.log_srv.config import (
+    load_default_log_client_config,
+    load_default_log_server_config,
+    resolve_host_default,
+)
+from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_pusher, make_subscriber
 from edumatcher.models.message import (
     decode,
@@ -31,6 +36,8 @@ from edumatcher.models.message import (
 )
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+_CLIENT_NAME = "pm-ai-trader"
+_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 log = logging.getLogger(__name__)
 
@@ -107,10 +114,12 @@ class AITraderBot:
         )
 
     def _log(self, text: str) -> None:
-        now = time.strftime("%H:%M:%S")
-        print(f"[AI:{self.gateway_id} {now}] {text}")
+        log.info("[%s] %s", self.gateway_id, text)
 
     def _debug(self, text: str) -> None:
+        # verbose (-v/-vv) previously gated this via a private print() channel;
+        # kept at INFO (rather than DEBUG) so -v alone still shows these, same
+        # as before the print()-to-logger conversion.
         if self.verbose:
             self._log(text)
 
@@ -513,7 +522,7 @@ def _as_float(value: Any) -> float | None:
         return None
 
 
-def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher autonomous AI trader")
     from edumatcher.cli_version import add_version_argument
 
@@ -595,7 +604,32 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Reduce output to warnings/errors",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--log-target",
+        choices=["server", "stdout", "file"],
+        default=None,
+        help=(
+            "Where this process's own operational log records go: "
+            "server (default, auto-detected pm-log-srv), stdout, or file"
+        ),
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        metavar="PATH",
+        help="Operational log file path — required when --log-target file",
+    )
+    parser.add_argument(
+        "--log-failover-timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help=(
+            "Grace window before falling back to a local log file once "
+            "pm-log-srv becomes unreachable (default: 30, from config)"
+        ),
+    )
+    return parser
 
 
 def _configure_logging(args: argparse.Namespace) -> int:
@@ -615,16 +649,31 @@ def _configure_logging(args: argparse.Namespace) -> int:
     else:
         level = logging.WARNING
 
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
-        stream=sys.stdout,
+    client_config = load_default_log_client_config()
+    server_config = load_default_log_server_config()
+    failover_timeout = getattr(args, "log_failover_timeout", None)
+    handler = resolve_handler(
+        log_target=getattr(args, "log_target", None),
+        log_file=getattr(args, "log_file", None),
+        client_name=_CLIENT_NAME,
+        instance=None,
+        host=resolve_host_default(),
+        port=server_config.port,
+        connect_timeout_sec=client_config.connect_timeout_sec,
+        failover_timeout_sec=(
+            failover_timeout
+            if failover_timeout is not None
+            else client_config.failover_timeout_sec
+        ),
+        failover_dir=client_config.failover_dir,
     )
+    logging.basicConfig(level=level, format=_LOG_FORMAT, handlers=[handler])
     return int(level)
 
 
 def main() -> None:
-    args = _parse_args()
+    parser = _build_parser()
+    args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info(
         "starting pm-ai-trader with log level %s",
@@ -660,11 +709,9 @@ def main() -> None:
         raise SystemExit(rc)
     except KeyboardInterrupt:
         log.info("pm-ai-trader interrupted")
-        print("\n[AI] interrupted")
         raise SystemExit(0)
     except Exception as exc:
         log.error("pm-ai-trader fatal: %s", exc)
-        print(f"[AI] FATAL: {exc}", file=sys.stderr)
         raise SystemExit(1)
 
 

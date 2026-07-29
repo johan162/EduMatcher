@@ -107,6 +107,34 @@ export const DEFAULT_DC_GATEWAY = {
   maxClientQueue: 10_000,
 } as const;
 
+export const DEFAULT_LOG_SERVER = {
+  enabled: true,
+  name: "log-srv01",
+  bindAddress: "0.0.0.0",
+  port: 5600,
+  dbPath: "data/log.db",
+  retentionDays: 30 as number | null,
+  maxMessageBytes: 65_536,
+  maxClientQueue: 10_000,
+  writeBatchSize: 50,
+  writeBatchIntervalMs: 100,
+  heartbeatIntervalSec: 5,
+  // LALF-PS — pm-log-srv's ZeroMQ log-distribution interface. Mirrors the
+  // DEFAULT_LOG_SERVER_* constants in src/edumatcher/config_gen/defaults.py.
+  pubsubEnabled: true,
+  pubPort: 5601,
+  pullPort: 5602,
+  leaseSec: 30,
+  maxLeaseSec: 300,
+  maxSubscribers: 32,
+  notifyIntervalMs: 250,
+  backfillChunkRows: 500,
+  maxBackfillMinutes: 1_440,
+  maxBackfillRows: 100_000,
+  maxPendingRows: 20_000,
+  pubSndhwm: 10_000,
+} as const;
+
 export const DEFAULT_API_GATEWAY = {
   name: "default",
   host: "127.0.0.1",

@@ -25,8 +25,8 @@ endif
 # and then this line will be silently ignored unless you have upgraded make via brew or similar.	
 .EXTRA_PREREQS := $(firstword $(MAKEFILE_LIST))
 
-# Make behavior
-.DEFAULT_GOAL := pdf-docs
+# Make default behavior to build all PDFs when no target is specified
+.DEFAULT_GOAL := pdfs
 # .SILENT: # Comment out to show command lines during execution for debugging
 
 # Get full path to bash
@@ -243,7 +243,7 @@ check-latex-engine:
 	fi
 
 pdfs: ## Build all PDF documentation variants in parallel
-	@$(MAKE) pdf-docs pdf-parts-a4
+	@$(MAKE) cover pdf-docs cover-parts pdf-parts-a4 bundle-quiz
 
 pdf-docs: check-latex-engine ## Build all PDF documentation variants in parallel
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere

@@ -44,6 +44,28 @@ from .defaults import (
     DEFAULT_DC_GATEWAY_MAX_CLIENT_QUEUE,
     DEFAULT_DC_GATEWAY_NAME,
     DEFAULT_DC_GATEWAY_PORT,
+    DEFAULT_LOG_SERVER_BACKFILL_CHUNK_ROWS,
+    DEFAULT_LOG_SERVER_BIND_ADDRESS,
+    DEFAULT_LOG_SERVER_DB_PATH,
+    DEFAULT_LOG_SERVER_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_LOG_SERVER_LEASE_SEC,
+    DEFAULT_LOG_SERVER_MAX_BACKFILL_MINUTES,
+    DEFAULT_LOG_SERVER_MAX_BACKFILL_ROWS,
+    DEFAULT_LOG_SERVER_MAX_CLIENT_QUEUE,
+    DEFAULT_LOG_SERVER_MAX_LEASE_SEC,
+    DEFAULT_LOG_SERVER_MAX_MESSAGE_BYTES,
+    DEFAULT_LOG_SERVER_MAX_PENDING_ROWS,
+    DEFAULT_LOG_SERVER_MAX_SUBSCRIBERS,
+    DEFAULT_LOG_SERVER_NAME,
+    DEFAULT_LOG_SERVER_NOTIFY_INTERVAL_MS,
+    DEFAULT_LOG_SERVER_PORT,
+    DEFAULT_LOG_SERVER_PUB_PORT,
+    DEFAULT_LOG_SERVER_PUB_SNDHWM,
+    DEFAULT_LOG_SERVER_PUBSUB_ENABLED,
+    DEFAULT_LOG_SERVER_PULL_PORT,
+    DEFAULT_LOG_SERVER_RETENTION_DAYS,
+    DEFAULT_LOG_SERVER_WRITE_BATCH_INTERVAL_MS,
+    DEFAULT_LOG_SERVER_WRITE_BATCH_SIZE,
     DEFAULT_INDEX_DATA_DIR,
     DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
@@ -119,6 +141,7 @@ class ConfigSpec:
     market_data_gateway: MarketDataGatewaySpec | None = None
     balf_gateway: BalfGatewaySpec | None = None
     dc_gateway: DcGatewaySpec | None = None
+    log_server: LogServerSpec | None = None
     api_gateways: tuple[ApiGatewaySpec, ...] = ()
     indices: tuple[IndexSpec, ...] = ()
     combos: list[ComboSpec] = field(default_factory=list)
@@ -177,6 +200,35 @@ class DcGatewaySpec:
     heartbeat_interval_sec: int = DEFAULT_DC_GATEWAY_HEARTBEAT_INTERVAL_SEC
     idle_timeout_sec: int = DEFAULT_DC_GATEWAY_IDLE_TIMEOUT_SEC
     max_client_queue: int = DEFAULT_DC_GATEWAY_MAX_CLIENT_QUEUE
+
+
+@dataclass(frozen=True)
+class LogServerSpec:
+    enabled: bool = True
+    name: str = DEFAULT_LOG_SERVER_NAME
+    bind_address: str = DEFAULT_LOG_SERVER_BIND_ADDRESS
+    port: int = DEFAULT_LOG_SERVER_PORT
+    db_path: str = DEFAULT_LOG_SERVER_DB_PATH
+    retention_days: int | None = DEFAULT_LOG_SERVER_RETENTION_DAYS
+    max_message_bytes: int = DEFAULT_LOG_SERVER_MAX_MESSAGE_BYTES
+    max_client_queue: int = DEFAULT_LOG_SERVER_MAX_CLIENT_QUEUE
+    write_batch_size: int = DEFAULT_LOG_SERVER_WRITE_BATCH_SIZE
+    write_batch_interval_ms: int = DEFAULT_LOG_SERVER_WRITE_BATCH_INTERVAL_MS
+    heartbeat_interval_sec: int = DEFAULT_LOG_SERVER_HEARTBEAT_INTERVAL_SEC
+
+    # LALF-PS — the ZeroMQ log-distribution interface (docs/user-guide/280-log-srv.md)
+    pubsub_enabled: bool = DEFAULT_LOG_SERVER_PUBSUB_ENABLED
+    pub_port: int = DEFAULT_LOG_SERVER_PUB_PORT
+    pull_port: int = DEFAULT_LOG_SERVER_PULL_PORT
+    lease_sec: int = DEFAULT_LOG_SERVER_LEASE_SEC
+    max_lease_sec: int = DEFAULT_LOG_SERVER_MAX_LEASE_SEC
+    max_subscribers: int = DEFAULT_LOG_SERVER_MAX_SUBSCRIBERS
+    notify_interval_ms: int = DEFAULT_LOG_SERVER_NOTIFY_INTERVAL_MS
+    backfill_chunk_rows: int = DEFAULT_LOG_SERVER_BACKFILL_CHUNK_ROWS
+    max_backfill_minutes: int = DEFAULT_LOG_SERVER_MAX_BACKFILL_MINUTES
+    max_backfill_rows: int = DEFAULT_LOG_SERVER_MAX_BACKFILL_ROWS
+    max_pending_rows: int = DEFAULT_LOG_SERVER_MAX_PENDING_ROWS
+    pub_sndhwm: int = DEFAULT_LOG_SERVER_PUB_SNDHWM
 
 
 @dataclass(frozen=True)
@@ -277,6 +329,8 @@ class ConfigBuilder:
             cfg["balf_gateway"] = self._build_balf_gateway()
         if self.spec.dc_gateway is not None:
             cfg["dc_gateway"] = self._build_dc_gateway()
+        if self.spec.log_server is not None:
+            cfg["log_server"] = self._build_log_server()
         if self.spec.api_gateways:
             cfg["api_gateways"] = self._build_api_gateways()
         cfg["symbols"] = self._build_symbols()
@@ -365,6 +419,37 @@ class ConfigBuilder:
             "heartbeat_interval_sec": spec.heartbeat_interval_sec,
             "idle_timeout_sec": spec.idle_timeout_sec,
             "max_client_queue": spec.max_client_queue,
+        }
+
+    def _build_log_server(self) -> dict[str, Any]:
+        spec = self.spec.log_server
+        if spec is None:
+            return {}
+
+        return {
+            "enabled": spec.enabled,
+            "name": spec.name,
+            "bind_address": spec.bind_address,
+            "port": spec.port,
+            "db_path": spec.db_path,
+            "retention_days": spec.retention_days,
+            "max_message_bytes": spec.max_message_bytes,
+            "max_client_queue": spec.max_client_queue,
+            "write_batch_size": spec.write_batch_size,
+            "write_batch_interval_ms": spec.write_batch_interval_ms,
+            "heartbeat_interval_sec": spec.heartbeat_interval_sec,
+            "pubsub_enabled": spec.pubsub_enabled,
+            "pub_port": spec.pub_port,
+            "pull_port": spec.pull_port,
+            "lease_sec": spec.lease_sec,
+            "max_lease_sec": spec.max_lease_sec,
+            "max_subscribers": spec.max_subscribers,
+            "notify_interval_ms": spec.notify_interval_ms,
+            "backfill_chunk_rows": spec.backfill_chunk_rows,
+            "max_backfill_minutes": spec.max_backfill_minutes,
+            "max_backfill_rows": spec.max_backfill_rows,
+            "max_pending_rows": spec.max_pending_rows,
+            "pub_sndhwm": spec.pub_sndhwm,
         }
 
     def _build_api_gateways(self) -> dict[str, Any]:

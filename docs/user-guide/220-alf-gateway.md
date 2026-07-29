@@ -499,6 +499,32 @@ An unconnected/unknown gateway still gets a well-formed, empty reply
 `END|TYPE=QLEGS`) rather than an error — `QLEGS` never fails on a bad
 gateway ID, it simply has nothing to report.
 
+### `SESSION` — query current trading session state
+
+```text
+SESSION
+```
+
+Requests the engine's current trading session state (`PRE_OPEN`,
+`OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED`) for this
+gateway. `pm-alf-gwy` forwards this straight to the engine's
+[`system.session_state_request`](270-message-reference.md#systemsession_state_request)
+message and routes the reply back to the querying session only.
+
+**Response:**
+
+```text
+SESSION|STATE=CONTINUOUS|PREV_STATE=|SESSIONS_ENABLED=TRUE
+```
+
+This reuses the same `SESSION` message type as the
+[unsolicited session-state broadcast](#broadcast-events) below — a queried
+response is simply a `SESSION` line with `PREV_STATE` left empty (a query
+has no "previous state" to report) and an additional `SESSIONS_ENABLED`
+field indicating whether session-state gating is active for this engine.
+Existing clients that already parse the broadcast `SESSION` line need no
+changes to also handle the queried response.
+
 ### `PING` / `EXIT`
 
 ```text
@@ -514,7 +540,7 @@ These messages arrive **unsolicited** on every authenticated session.
 
 | Message type | Key fields | Trigger |
 |---|---|---|
-| `SESSION` | `STATE`, `PREV_STATE` | Session phase change (e.g. `CONTINUOUS`, `CLOSED`) |
+| `SESSION` | `STATE`, `PREV_STATE` | Session phase change (e.g. `CONTINUOUS`, `CLOSED`). Also sent (with `PREV_STATE` empty and an added `SESSIONS_ENABLED` field) as a direct reply to the [`SESSION` command](#session--query-current-trading-session-state) |
 | `HALT` | `SYMBOL`, `LEVEL` | Circuit-breaker halt on a symbol |
 | `RESUME` | `SYMBOL`, `MODE` | Circuit-breaker resume |
 | `TRADE` | `SYMBOL`, `PRICE`, `QTY`, `SIDE` | Any matched trade on any symbol |

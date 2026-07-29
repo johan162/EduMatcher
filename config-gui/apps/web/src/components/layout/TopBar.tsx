@@ -51,7 +51,9 @@ export function TopBar() {
   return (
     <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-surface px-4">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold">EduMatcher Config Builder</span>
+        <span className="text-sm font-semibold">
+          EduMatcher Config Builder: <span className="text-accent">v1.3.0</span>
+        </span>
       </div>
 
       <div className="flex items-center gap-2">

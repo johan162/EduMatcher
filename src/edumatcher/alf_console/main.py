@@ -36,6 +36,7 @@ Commands
   ORDERS                   — print table of this session's orders
   POS                      — print current positions with P&L
   SYMBOLS                  — list all active instruments in the engine
+  SESSION                  — query the engine's current trading session state
     INDEX                    — show current index level
     INDEX|HISTORY|INDEX=<id>[|FROM=YYYY-MM-DD|TO=YYYY-MM-DD] — query index structural/audit history
                                 (corporate actions, constituent changes — not level ticks;
@@ -49,7 +50,6 @@ from __future__ import annotations
 import argparse
 from collections import defaultdict
 import logging
-import sys
 import threading
 import time
 from datetime import datetime
@@ -68,6 +68,12 @@ from edumatcher.config import (
     INDEX_PUB_CONNECT_ADDR,
     INDEX_PULL_CONNECT_ADDR,
 )
+from edumatcher.log_srv.config import (
+    load_default_log_client_config,
+    load_default_log_server_config,
+    resolve_host_default,
+)
+from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_pusher, make_subscriber
 from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.message import (
@@ -84,6 +90,7 @@ from edumatcher.models.message import (
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
     make_quote_new_msg,
+    make_session_state_request_msg,
     make_symbols_request_msg,
     make_index_history_request_msg,
     make_oco_order_msg,
@@ -113,11 +120,14 @@ from .display import (
     print_positions,
     print_quote_bootstrap,
     print_quote_legs,
+    print_session_status,
     print_status,
     print_symbols_table,
 )
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+_CLIENT_NAME = "pm-alf-console"
+_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 log = logging.getLogger(__name__)
 
@@ -157,6 +167,31 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Reduce output to warnings/errors",
     )
+    parser.add_argument(
+        "--log-target",
+        choices=["server", "stdout", "file"],
+        default=None,
+        help=(
+            "Where this process's own operational log records go: "
+            "server (default, auto-detected pm-log-srv), stdout, or file"
+        ),
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        metavar="PATH",
+        help="Operational log file path — required when --log-target file",
+    )
+    parser.add_argument(
+        "--log-failover-timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help=(
+            "Grace window before falling back to a local log file once "
+            "pm-log-srv becomes unreachable (default: 30, from config)"
+        ),
+    )
     return parser
 
 
@@ -177,11 +212,25 @@ def _configure_logging(args: argparse.Namespace) -> int:
     else:
         level = logging.WARNING
 
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
-        stream=sys.stdout,
+    client_config = load_default_log_client_config()
+    server_config = load_default_log_server_config()
+    failover_timeout = getattr(args, "log_failover_timeout", None)
+    handler = resolve_handler(
+        log_target=getattr(args, "log_target", None),
+        log_file=getattr(args, "log_file", None),
+        client_name=_CLIENT_NAME,
+        instance=None,
+        host=resolve_host_default(),
+        port=server_config.port,
+        connect_timeout_sec=client_config.connect_timeout_sec,
+        failover_timeout_sec=(
+            failover_timeout
+            if failover_timeout is not None
+            else client_config.failover_timeout_sec
+        ),
+        failover_dir=client_config.failover_dir,
     )
+    logging.basicConfig(level=level, format=_LOG_FORMAT, handlers=[handler])
     return int(level)
 
 
@@ -226,6 +275,7 @@ class Gateway:
             f"risk.kill_switch_ack.{self.gateway_id}",
             f"system.symbols.{self.gateway_id}",
             f"system.quote_bootstrap.{self.gateway_id}",
+            f"system.session_status.{self.gateway_id}",
             f"system.gateway_auth.{self.gateway_id}",
             "trade.executed",
         )
@@ -619,6 +669,11 @@ class Gateway:
                     "[dim]No active instruments yet — submit an order to create a book.[/dim]"
                 )
 
+        elif "system.session_status" in topic:
+            state = str(payload.get("state", "?"))
+            sessions_enabled = bool(payload.get("sessions_enabled", True))
+            print_session_status(state, sessions_enabled)
+
         elif "system.quote_bootstrap" in topic:
             quotes = payload.get("quotes", [])
             if isinstance(quotes, list):
@@ -924,6 +979,12 @@ class Gateway:
 
         if cmd == "SYMBOLS":
             self.push_sock.send_multipart(make_symbols_request_msg(self.gateway_id))
+            return
+
+        if cmd == "SESSION":
+            self.push_sock.send_multipart(
+                make_session_state_request_msg(self.gateway_id)
+            )
             return
 
         if cmd == "INDEX":

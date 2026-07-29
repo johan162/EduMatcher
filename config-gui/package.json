@@ -1,6 +1,6 @@
 {
   "name": "edumatcher-config-gui",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "private": true,
   "description": "Browser-based builder for EduMatcher engine_config.yaml (companion to pm-config-gen).",
   "license": "MIT",

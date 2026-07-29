@@ -103,6 +103,7 @@ HELP_TEXT = """
     ORDERS      — inspect this gateway's order table with IDs, quantities, and status
   POS         — show current positions with P&L
   SYMBOLS     — list all active instruments in the engine
+  SESSION     — query the engine's current trading session state
     INDEX       — show current cached index level
     INDEX|HISTORY|INDEX=<id>[|FROM=YYYY-MM-DD|TO=YYYY-MM-DD] — query index structural/
                   audit history (corp actions, constituent changes — not level ticks;
@@ -330,6 +331,35 @@ def print_positions(
         )
 
     console.print(t)
+
+
+_SESSION_STATE_COLOUR = {
+    "PRE_OPEN": "yellow",
+    "OPENING_AUCTION": "yellow",
+    "CONTINUOUS": "green",
+    "CLOSING_AUCTION": "yellow",
+    "CLOSED": "red",
+}
+
+_SESSION_STATE_DESCRIPTIONS = {
+    "PRE_OPEN": "orders accepted, no matching",
+    "OPENING_AUCTION": "orders accepted, no matching (uncross on exit)",
+    "CONTINUOUS": "normal continuous matching",
+    "CLOSING_AUCTION": "orders accepted, no matching (uncross on exit)",
+    "CLOSED": "no new orders accepted",
+}
+
+
+def print_session_status(state: str, sessions_enabled: bool) -> None:
+    colour = _SESSION_STATE_COLOUR.get(state, "white")
+    description = _SESSION_STATE_DESCRIPTIONS.get(state, "")
+    ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+    msg = f"[{ts}] [bold {colour}]SESSION[/bold {colour}]  {state}"
+    if description:
+        msg += f"  [dim]({description})[/dim]"
+    console.print(msg)
+    if not sessions_enabled:
+        console.print("[dim]  [sessions gating disabled][/dim]")
 
 
 def print_status(

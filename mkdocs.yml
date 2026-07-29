@@ -120,6 +120,7 @@ nav:
     - RALF Protocol Spy (pm-ralf-spy): user-guide/251-ralf-spy-cli.md
     - API Gateway: user-guide/260-api-gateway.md
     - Message Reference: user-guide/270-message-reference.md
+    - Centralized Log Server: user-guide/280-log-srv.md
     - Examples: user-guide/800-examples.md
     - Example Engine Configs: user-guide/810-example-configs.md
     - Known Limitations & Bugs: user-guide/890-known-limitations-bugs.md
@@ -127,6 +128,7 @@ nav:
     - "Appendix: BALF Protocol": user-guide/910-app-balf-protocol.md
     - "Appendix: CALF Protocol": user-guide/920-app-calf-protocol.md
     - "Appendix: RALF Protocol": user-guide/930-app-ralf-protocol.md
+    - "Appendix: LALF Protocol": user-guide/940-app-lalf-protocol.md
     - "Appendix: Engine Config Specification": user-guide/990-app-config-spec.md
   - Training:
     - Overview: training/index.md

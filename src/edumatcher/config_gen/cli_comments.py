@@ -288,6 +288,37 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         ]
     )
 
+    # log_server
+    lines.extend(
+        [
+            "log_server:",
+            "  enabled: true",
+            "  name: log-srv01",
+            "  bind_address: 0.0.0.0",
+            "  port: 5600",
+            "  db_path: data/log.db",
+            "  retention_days: 30",
+            "  max_message_bytes: 65536",
+            "  max_client_queue: 10000",
+            "  write_batch_size: 50",
+            "  write_batch_interval_ms: 100",
+            "  heartbeat_interval_sec: 5",
+            "  pubsub_enabled: true",
+            "  pub_port: 5601",
+            "  pull_port: 5602",
+            "  lease_sec: 30",
+            "  max_lease_sec: 300",
+            "  max_subscribers: 32",
+            "  notify_interval_ms: 250",
+            "  backfill_chunk_rows: 500",
+            "  max_backfill_minutes: 1440",
+            "  max_backfill_rows: 100000",
+            "  max_pending_rows: 20000",
+            "  pub_sndhwm: 10000",
+            "",
+        ]
+    )
+
     # indices
     lines.extend(
         [
@@ -660,6 +691,65 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  Disconnect threshold when a connected client sends no traffic for this many seconds.",
             "max_client_queue: 10000",
             "  Per-client outbound line buffer capacity before the client is treated as slow and dropped.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "log_server entries",
+            "" + "-" * 18,
+            "enabled: true",
+            "  Master switch — lets pm-log-srv refuse to accept connections when set to false.",
+            "name: log-srv01",
+            "  Server name echoed in the LALF WELCOME|SRV= field.",
+            "bind_address: 0.0.0.0",
+            "  Network interface/address the centralized log collector listens on (127.0.0.1 for loopback-only).",
+            "port: 5600",
+            "  TCP port LALF clients (every other pm-* process) connect to for centralized logging.",
+            "db_path: data/log.db",
+            "  SQLite database path where log_events/processes/server_stats are stored.",
+            "retention_days: 30",
+            "  Days before old log_events rows are pruned, once per hour; 0 or null means unbounded retention.",
+            "max_message_bytes: 65536",
+            "  Maximum LOG payload size before truncation; oversized messages are truncated and stored, never dropped.",
+            "max_client_queue: 10000",
+            "  Per-connection outbound backlog limit before backpressure is applied.",
+            "write_batch_size: 50",
+            "  Maximum rows per SQLite transaction in the background writer thread.",
+            "write_batch_interval_ms: 100",
+            "  Maximum time between writer-thread flushes, whichever comes first with write_batch_size.",
+            "heartbeat_interval_sec: 5",
+            "  Interval a connected client must send HB within (echoed as WELCOME|HBINT=).",
+            "  Also the interval at which log.server_state is published on LALF-PS.",
+            "pubsub_enabled: true",
+            "  Master switch for LALF-PS, the ZeroMQ log distribution interface.",
+            "  When false no ZeroMQ socket is bound and only TCP collection runs.",
+            "pub_port: 5601",
+            "  ZeroMQ PUB port carrying live rows, notify ticks, backfill chunks and acks.",
+            "pull_port: 5602",
+            "  ZeroMQ PULL port receiving subscriber control requests.",
+            "  port, pub_port and pull_port must all be different.",
+            "lease_sec: 30",
+            "  Subscription lease TTL; a subscriber that stops sending log.renew within",
+            "  this window is reaped and its buffers discarded.",
+            "max_lease_sec: 300",
+            "  Upper bound a subscriber may request; must be >= lease_sec.",
+            "max_subscribers: 32",
+            "  Maximum concurrent leased subscriptions before TOO_MANY_SUBS is returned.",
+            "notify_interval_ms: 250",
+            "  Coalescing window for NOTIFY-mode ticks, and the floor a subscriber may request.",
+            "backfill_chunk_rows: 500",
+            "  Rows per log.backfill chunk, and per live log.event message.",
+            "max_backfill_minutes: 1440",
+            "  Largest 'last n minutes' window a subscriber may request.",
+            "max_backfill_rows: 100000",
+            "  Hard cap on rows returned by one backfill; the final chunk sets truncated.",
+            "max_pending_rows: 20000",
+            "  Per-subscription STREAM buffer cap; a lagging subscriber loses its oldest",
+            "  buffered rows (reported back as the dropped counter).",
+            "pub_sndhwm: 10000",
+            "  ZeroMQ send high-water mark on the PUB socket.",
             "",
         ]
     )

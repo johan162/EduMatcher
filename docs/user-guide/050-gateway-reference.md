@@ -356,7 +356,7 @@ All commands use the ALF pipe-separated key=value format.
 | Order updates | `AMEND`, `CANCEL`, `QUOTE_CANCEL` | Modify or remove exposure |
 | Risk controls | `KILL` | Emergency local gateway kill-switch |
 | Drop copy | `DC` | Toggle asynchronous relay of this gateway's own fills from the engine's drop-copy feed |
-| Monitoring | `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `QBOOT`, `QLEGS`, `INDEX` | Inspect live/cached state |
+| Monitoring | `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `SESSION`, `QBOOT`, `QLEGS`, `INDEX` | Inspect live/cached state |
 | Session control | `HELP`, `EXIT`, `QUIT` | Terminal usability |
 
 ### Role entitlements (what each role can do)
@@ -907,6 +907,38 @@ When metadata is available, the columns mean:
     `SYMBOLS` and all trading commands are available only after successful
     startup authentication. If your ID is not listed under `gateways.alf`,
     the engine refuses the connection.
+
+### SESSION — Query Current Trading Session State
+
+```
+SESSION
+```
+
+Asks the engine for its current trading session state — `PRE_OPEN`,
+`OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, or `CLOSED` — right now,
+rather than waiting for the next unsolicited session-phase-change event.
+This is the fastest way to discover the current phase immediately after
+connecting or reconnecting.
+
+```
+SC01> SESSION
+[09:31:02.104] SESSION  CONTINUOUS  (normal continuous matching)
+```
+
+If session-phase enforcement is disabled for this engine, an additional note
+is printed:
+
+```
+SC01> SESSION
+[09:31:02.104] SESSION  CONTINUOUS  (normal continuous matching)
+  [sessions gating disabled]
+```
+
+!!! note
+    The same `SESSION` line format is also pushed to every connected gateway
+    unsolicited whenever the engine's session phase actually changes — see
+    [Session lifecycle](#session-lifecycle). Sending the `SESSION` command
+    simply lets you ask for the current state on demand instead of waiting.
 
 
 
