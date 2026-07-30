@@ -221,16 +221,27 @@ async def history_daily(
     session: Annotated[Session, Depends(auth)],
     symbol: str | None = None,
     date: str | None = None,
+    from_date: str | None = Query(default=None, alias="from"),
+    to_date: str | None = Query(default=None, alias="to"),
     limit: int = Query(default=500, ge=1, le=5000),
     after: str | None = None,
 ) -> dict[str, object]:
     """Daily instrument OHLC rollup — public market data.
+
+    Omitting every time filter returns the latest available date. Pass
+    ``date`` for one specific day, or ``from``/``to`` (inclusive, either may
+    be omitted) for a series across days, oldest first — which is what a
+    multi-day chart needs. ``date`` wins if combined with a range.
 
     Set ``after`` to the previous response's ``next_cursor`` to fetch the
     next page — see the History endpoints section of the user guide for
     the full pagination contract.
     """
     _ = session
+    _validate_time_filters(date, None, None)
+    for bound in (from_date, to_date):
+        if bound is not None:
+            _validate_time_filters(bound, None, None)
     with closing(_open_stats(request)) as conn:
         try:
             rows, next_cursor = query_daily(
@@ -239,6 +250,8 @@ async def history_daily(
                 symbol=symbol.upper() if symbol else None,
                 limit=limit,
                 after=after,
+                from_date=from_date,
+                to_date=to_date,
             )
         except InvalidCursorError as exc:
             raise HTTPException(
@@ -297,15 +310,17 @@ async def history_index_daily(
     session: Annotated[Session, Depends(auth)],
     index_id: str | None = None,
     date: str | None = None,
+    from_date: str | None = Query(default=None, alias="from"),
+    to_date: str | None = Query(default=None, alias="to"),
     limit: int = Query(default=500, ge=1, le=5000),
     after: str | None = None,
 ) -> dict[str, object]:
     """Daily index OHLC rollup — public market data, same tier as /daily.
 
-    Mirrors /daily's shape and defaulting behaviour (omitting ``date``
-    returns the latest available date), but for exchange indexes rather
-    than instruments. ``close_level``/``close_session_state`` reflect the
-    most recently recorded index.update for that date; the row is only
+    Mirrors /daily's shape and defaulting behaviour, including its
+    ``from``/``to`` range for a multi-day series, but for exchange indexes
+    rather than instruments. ``close_level``/``close_session_state`` reflect
+    the most recently recorded index.update for that date; the row is only
     guaranteed final once ``close_session_state`` is ``CLOSED`` or the
     date has passed — see the Market Index and Statistics & Reporting
     user-guide chapters.
@@ -315,8 +330,9 @@ async def history_index_daily(
     the full pagination contract.
     """
     _ = session
-    if date is not None:
-        _validate_time_filters(date, None, None)
+    for bound in (date, from_date, to_date):
+        if bound is not None:
+            _validate_time_filters(bound, None, None)
     with closing(_open_stats(request)) as conn:
         try:
             rows, next_cursor = query_index_daily(
@@ -325,6 +341,8 @@ async def history_index_daily(
                 index_id=index_id.upper() if index_id else None,
                 limit=limit,
                 after=after,
+                from_date=from_date,
+                to_date=to_date,
             )
         except InvalidCursorError as exc:
             raise HTTPException(
