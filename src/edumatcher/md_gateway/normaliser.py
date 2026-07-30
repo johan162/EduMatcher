@@ -9,15 +9,21 @@ maintainability and unit-testability.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from edumatcher.md_gateway.protocol import iso_utc
 
 
-@dataclass
+@dataclass(frozen=True)
 class TopOfBook:
-    """Cached top-of-book state for one symbol."""
+    """Cached top-of-book state for one symbol.
+
+    Frozen, like its ``DepthBook``/``CBStatus`` siblings, because the same
+    instance is shared between ``top_cache`` and ``top_sent``: mutating one in
+    place would silently reach through to the other and defeat the diff those
+    two exist to separate. Update via :func:`dataclasses.replace`.
+    """
 
     bid: str | None = None
     bid_sz: str | None = None
@@ -81,7 +87,20 @@ class CBStatus:
 class EngineNormaliser:
     """Translate engine payloads to CALF field maps and detect top changes."""
 
+    # Current top-of-book per symbol — what a SNAP should report right now.
+    # Written by both normalise_book and normalise_trade.
     top_cache: dict[str, TopOfBook] = field(default_factory=dict)
+    # What was last actually put on the wire in an MD/SNAP, which is what an
+    # incremental update must diff against.
+    #
+    # These two were one dict, and conflating them was a bug: normalise_trade
+    # writes the new last price into the cache so a SNAP is immediately
+    # correct, which also made the next normalise_book see LAST as unchanged
+    # and suppress it. The result was that MD never carried a new LAST after a
+    # trade, so a continuously-connected client kept showing the price baked
+    # into its original SNAP while a reconnecting one saw the true value —
+    # two clients on the same feed, disagreeing indefinitely.
+    top_sent: dict[str, TopOfBook] = field(default_factory=dict)
     session_state: str = "CONTINUOUS"
     symbol_state: dict[str, str] = field(default_factory=dict)
     index_cache: dict[str, dict[str, str]] = field(default_factory=dict)
@@ -94,11 +113,15 @@ class EngineNormaliser:
     ) -> dict[str, str] | None:
         """Return incremental ``MD`` fields when top-of-book changed.
 
-        Returns ``None`` when the published book snapshot does not change top
-        price/size or last-trade fields compared with cache.
+        Returns ``None`` when the published book snapshot changes nothing that
+        has not already been sent.
+
+        The comparison is against ``top_sent`` — what this stream last put on
+        the wire — rather than against ``top_cache``, which also absorbs trade
+        prints and would therefore hide a genuine change from subscribers.
         """
         sym = symbol.upper()
-        prev = self.top_cache.get(sym, TopOfBook())
+        prev = self.top_sent.get(sym, TopOfBook())
 
         next_bid, next_bidsz = _extract_top(payload.get("bids"))
         next_ask, next_asksz = _extract_top(payload.get("asks"))
@@ -131,7 +154,7 @@ class EngineNormaliser:
         if next_lastsz != prev.last_sz and next_lastsz is not None:
             changed["LASTSZ"] = next_lastsz
 
-        self.top_cache[sym] = TopOfBook(
+        book = TopOfBook(
             bid=next_bid,
             bid_sz=next_bidsz,
             ask=next_ask,
@@ -139,9 +162,15 @@ class EngineNormaliser:
             last=next_last,
             last_sz=next_lastsz,
         )
+        self.top_cache[sym] = book
 
         if not changed:
             return None
+
+        # Only record what was sent once there is something to send. A book
+        # republish that changes nothing must not advance the sent baseline,
+        # or a field could be marked delivered without ever going out.
+        self.top_sent[sym] = book
         return changed
 
     def normalise_trade(self, payload: dict[str, Any]) -> tuple[str, dict[str, str]]:
@@ -153,12 +182,15 @@ class EngineNormaliser:
             "SIDE": str(payload.get("aggressor_side", "")).upper(),
         }
 
-        # Keep top cache LAST/LASTSZ synchronized with trades so future SNAP/MD
-        # carries the latest trade even if no book update has arrived yet.
+        # Keep the *current* top-of-book in step with trades, so a SNAP issued
+        # before the next book republish already reports this price rather than
+        # one up to snapshot_interval_sec old.
+        #
+        # Deliberately does not touch top_sent: this price has not been put on
+        # the TOP channel yet. Marking it sent here is precisely what used to
+        # suppress the LAST field from the following MD.
         cur = self.top_cache.get(sym, TopOfBook())
-        cur.last = fields["PX"]
-        cur.last_sz = fields["QTY"]
-        self.top_cache[sym] = cur
+        self.top_cache[sym] = replace(cur, last=fields["PX"], last_sz=fields["QTY"])
 
         return sym, fields
 

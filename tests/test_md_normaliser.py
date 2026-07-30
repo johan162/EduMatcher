@@ -104,6 +104,108 @@ def test_normalise_book_readmits_a_side_after_withdrawal() -> None:
     assert fields["BIDSZ"] == "50"
 
 
+def _book(
+    bid: float = 150.1,
+    ask: float = 150.2,
+    last: float | None = None,
+    last_qty: int | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "bids": [{"price": bid, "qty": 100}],
+        "asks": [{"price": ask, "qty": 90}],
+    }
+    if last is not None:
+        payload["last_price"] = last
+        payload["last_qty"] = last_qty if last_qty is not None else 10
+    return payload
+
+
+def test_md_carries_the_new_last_after_a_trade() -> None:
+    """A trade must reach TOP subscribers, not just the TRADE channel.
+
+    The gateway keeps its current top-of-book in step with trades so a SNAP is
+    immediately right. That must not also mark the price as already sent: doing
+    so suppressed LAST from the next MD, leaving a continuously-connected
+    client on its original SNAP price forever.
+    """
+    n = EngineNormaliser()
+    n.normalise_book("AAPL", _book(last=150.11))
+    n.normalise_trade(
+        {"symbol": "AAPL", "price": 151.5, "quantity": 25, "aggressor_side": "BUY"}
+    )
+
+    fields = n.normalise_book("AAPL", _book(last=151.5, last_qty=25))
+
+    assert fields is not None, "the book republish after a trade must produce an MD"
+    assert fields["LAST"] == "151.5"
+    assert fields["LASTSZ"] == "25"
+
+
+def test_streamed_and_reconnected_clients_agree_on_last() -> None:
+    """The divergence this guards against: same feed, two different prices."""
+    n = EngineNormaliser()
+    n.normalise_book("AAPL", _book(last=150.11))
+    n.normalise_trade(
+        {"symbol": "AAPL", "price": 151.5, "quantity": 25, "aggressor_side": "BUY"}
+    )
+    delta = n.normalise_book("AAPL", _book(last=151.5, last_qty=25))
+
+    # What a client merging deltas ends up with, versus what a fresh
+    # subscriber is handed in its SNAP.
+    assert delta is not None
+    assert delta["LAST"] == n.top_snapshot_fields("AAPL")["LAST"]
+
+
+def test_snapshot_reports_a_trade_before_the_next_book_republish() -> None:
+    """Book snapshots are throttled, so the SNAP path cannot wait for one."""
+    n = EngineNormaliser()
+    n.normalise_book("AAPL", _book(last=150.11))
+    n.normalise_trade(
+        {"symbol": "AAPL", "price": 151.5, "quantity": 25, "aggressor_side": "BUY"}
+    )
+
+    assert n.top_snapshot_fields("AAPL")["LAST"] == "151.5"
+
+
+def test_last_is_not_re_sent_once_delivered() -> None:
+    """Fixing the suppression must not turn into re-sending an unchanged field."""
+    n = EngineNormaliser()
+    n.normalise_book("AAPL", _book(last=150.11))
+    n.normalise_trade(
+        {"symbol": "AAPL", "price": 151.5, "quantity": 25, "aggressor_side": "BUY"}
+    )
+    n.normalise_book("AAPL", _book(last=151.5, last_qty=25))
+
+    assert n.normalise_book("AAPL", _book(last=151.5, last_qty=25)) is None
+
+
+def test_a_book_change_still_reports_only_what_moved() -> None:
+    n = EngineNormaliser()
+    n.normalise_book("AAPL", _book(bid=150.1, ask=150.2, last=150.11))
+
+    fields = n.normalise_book("AAPL", _book(bid=150.15, ask=150.2, last=150.11))
+
+    assert fields is not None
+    assert fields["BID"] == "150.15"
+    assert "ASK" not in fields
+    assert "LAST" not in fields
+
+
+def test_several_trades_between_republishes_report_the_latest() -> None:
+    """Book publishes are throttled; TRADE carries every print, TOP the latest."""
+    n = EngineNormaliser()
+    n.normalise_book("AAPL", _book(last=150.11))
+    for px in (151.0, 151.25, 151.5):
+        n.normalise_trade(
+            {"symbol": "AAPL", "price": px, "quantity": 5, "aggressor_side": "BUY"}
+        )
+
+    fields = n.normalise_book("AAPL", _book(last=151.5, last_qty=5))
+
+    assert fields is not None
+    assert fields["LAST"] == "151.5"
+
+
 def test_trade_updates_last_cache() -> None:
     n = EngineNormaliser()
     sym, fields = n.normalise_trade(

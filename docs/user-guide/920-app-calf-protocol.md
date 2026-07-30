@@ -526,6 +526,28 @@ therefore *remove* the field on an empty value, not overwrite it.
 `LAST`/`LASTSZ` are never withdrawn: once a symbol has traded, its last price
 persists for the session, so an empty value is not valid for those fields.
 
+#### `LAST` after a trade
+
+A trade updates `LAST`/`LASTSZ` on the `TOP` channel as well as producing a
+`TRADE` message. The two arrive at different times and neither replaces the
+other:
+
+| Channel | Carries | When |
+|---------|---------|------|
+| `TRADE` | Every individual print (`PX`, `QTY`, `SIDE`) | Immediately, one message per trade |
+| `TOP`   | The latest price only (`LAST`, `LASTSZ`)      | With the next book republish, throttled by the engine's `snapshot_interval_sec` |
+
+A client that wants every print subscribes to `TRADE`; a client that only wants
+"what did this last trade at" can rely on `TOP` alone, including its `SNAP`
+baseline. Several trades inside one throttle window collapse to the latest
+price on `TOP` — that is the intended behaviour, not a dropped update.
+
+A `SNAP` reports a trade immediately, without waiting for the next book
+republish, so a client subscribing between the two is not handed a stale
+price. Gateway builds before this was fixed suppressed `LAST` from the
+following `MD` entirely, leaving a continuously-connected client on the price
+baked into its original `SNAP` while a reconnecting client saw the true value.
+
 ### `TRADE`
 
 **Direction:** Gateway -> Client
