@@ -217,7 +217,7 @@ from the FIX files (waiting for each ACK), then request and save book snapshots.
 The engine must already be running with the verification config:
 
 ```bash
-poetry run pm-engine --config data/verify/verify_engine_config.yaml
+poetry run pm-engine
 ```
 
 The verification config (`data/verify/verify_engine_config.yaml`) allows only

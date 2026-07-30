@@ -623,13 +623,13 @@ reference decoder's parsing functions.
 ### Run the gateway
 
 ```bash
-pm-balf-gwy --config engine_config.yaml
+pm-balf-gwy
 
 # Override bind port
-pm-balf-gwy --config engine_config.yaml --port 5560
+pm-balf-gwy --port 5560
 
 # Override engine host
-pm-balf-gwy --config engine_config.yaml --engine-host 10.0.0.5
+pm-balf-gwy --engine-host 10.0.0.5
 ```
 
 The gateway binds on port **5560** by default.  BALF uses fixed-length binary

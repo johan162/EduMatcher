@@ -27,8 +27,8 @@ The configuration is a single YAML 1.1 document whose root MUST be a **mapping**
 A loader given a non-mapping root MUST reject the file. `load_engine_config()`
 itself MUST raise `FileNotFoundError` for a missing path — it does not implement
 a fallback. The *caller*, `pm-engine` (`engine/main.py`), checks for the file's
-existence before calling the loader: if the resolved config path (from `--config`,
-`$EDUMATCHER_CONFIG`, or the default `engine_config.yaml` location) does not
+existence before calling the loader: if the deployed config
+(`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml`) does not
 exist, `pm-engine` skips loading entirely and starts in *unrestricted mode* (no
 symbol/gateway allowlist, sessions disabled) rather than failing. That fallback
 is implemented by `pm-engine`, not by the loader, and is out of scope here —
@@ -93,7 +93,6 @@ load. Producers MAY write any case; consumers compare upper-case.
 | `Side` | `BUY`, `SELL` | combo legs |
 | `OrderType` | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | combo legs |
 | `SmpAction` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | combo legs, `gateways.alf[].smp_action` |
-| `ResumptionMode` | `AUCTION`, `CONTINUOUS` | circuit-breaker levels |
 | `DuplicateSessionPolicy` | `REJECT_NEW`, `EVICT_OLD` | `balf_gateway.duplicate_session_policy` |
 
 An `Enum<E>` value outside its member set MUST be rejected.
@@ -307,7 +306,6 @@ rejected; define circuit breakers under `circuit_breaker_defaults` (§5.6) inste
 |-------|------|:---:|---------|-------------|
 | `price_shift_pct` | `Pct01` | ✔ | — | `0 < x < 1` |
 | `halt_duration_ns` | `Nanos` \| `null` | – | — | `> 0` when set; `null` = halt for the rest of the trading day |
-| `resumption_mode` | `Enum<ResumptionMode>` | – | `AUCTION` | |
 
 Merge order: `circuit_breaker_defaults` supplies defaults; a symbol's
 `circuit_breaker.levels.<L>` overrides by level key. If no levels result from the
@@ -528,7 +526,7 @@ rejected at load.
 | CV9 | Each `market_maker_combos[]` has 2–10 legs; leg symbols are unique within the combo; every leg `symbol` exists in `symbols`. |
 | CV10 | `indices` has ≤ 5 entries; each `id` is alphanumeric and unique; each constituent exists in `symbols` and defines `outstanding_shares`; constituents are non-empty and duplicate-free. |
 | CV11 | Every key of `mm_obligation_defaults.symbols` references a symbol that exists in `symbols`. |
-| CV12 | `collar.*_band_pct` ∈ (0,1); `circuit_breaker.levels.<L>.price_shift_pct` ∈ (0,1); `halt_duration_ns` is `> 0` or `null`; `resumption_mode` ∈ {AUCTION, CONTINUOUS}. |
+| CV12 | `collar.*_band_pct` ∈ (0,1); `circuit_breaker.levels.<L>.price_shift_pct` ∈ (0,1); `halt_duration_ns` is `> 0` or `null`. |
 | CV13 | `symbols.<S>.tick_decimals` ∈ 0..8; `outstanding_shares`, when present, `> 0`. |
 | CV14 | (`pm-alf-gwy`, `pm-balf-gwy`) No `gateways.alf` id may be a prefix of another id. |
 | CV15 | (`pm-api-gwy`) The singular `api_gateway` key is not supported; a `gateway_id` credential MUST NOT be shared across two `api_gateways` instances. |

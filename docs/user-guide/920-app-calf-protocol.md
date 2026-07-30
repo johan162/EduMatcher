@@ -48,10 +48,10 @@ behavior.
 - aggregated multi-level order book updates (`DEPTH`) — Level 2, not
   order-by-order
 - auction uncross results (`AUCTION`) — equilibrium price, matched quantity,
-  and imbalance for open/close auctions and circuit-breaker resumption
+  and imbalance for open/close auctions and circuit-breaker reopening
   auctions
 - full circuit-breaker halt/resume detail (`CB`) — trigger price, reference
-  price, ladder level, auto-resume time, and resumption mode, alongside the
+  price, ladder level, auto-resume time, and halt cause, alongside the
   coarse `STATE` transition
 - point-in-time stream baselines (`SNAP`) for `TOP`, `STATE`, `INDEX`,
   `DEPTH`, and `CB`
@@ -511,7 +511,7 @@ SNAP|CH=TOP|SYM=AAPL|SEQ=100|TS=2026-06-07T10:16:00.000Z|BID=150.10|BIDSZ=1200|A
 SNAP|CH=STATE|SYM=*|SEQ=5|TS=2026-06-07T10:16:00.000Z|SESSION=CONTINUOUS
 SNAP|CH=INDEX|SYM=EDU100|SEQ=42|TS=2026-06-12T10:15:23.000Z|LEVEL=1048.73|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|SESSION=CONTINUOUS
 SNAP|CH=DEPTH|SYM=AAPL|SEQ=1|TS=2026-07-11T14:32:00.000Z|LEVELS=10|BIDS=150.10:1200:3,150.09:800:2|ASKS=150.12:900:2,150.13:600:1
-SNAP|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T14:05:00.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|MODE=AUCTION
+SNAP|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T14:05:00.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|SRC=CB
 SNAP|CH=CB|SYM=MSFT|SEQ=1|TS=2026-07-20T14:05:00.000Z|STATUS=ACTIVE
 ```
 
@@ -630,8 +630,27 @@ Valid `SESSION` values:
 
 ```text
 STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
-STATE|CH=STATE|SYM=AAPL|SEQ=3|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
+STATE|CH=STATE|SYM=AAPL|SEQ=8|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
+STATE|CH=STATE|SYM=AAPL|SEQ=9|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
 ```
+
+**An exchange transition is published twice: once as `SYM=*`, and once per
+symbol.** A subscription matches on `SYM=*` *or* an exact symbol, so a client
+that subscribed to one instrument would otherwise see its halts and resumes
+but never the session around them — it would not learn the exchange had
+opened or closed. Wildcard subscribers receive both forms; that is
+deliberate, and the `SYM=*` line remains the authoritative exchange-level
+event.
+
+A symbol that is halted is **not** moved by an exchange transition. Its halt
+outlives the phase it began in, and the engine publishes an explicit resume
+when it ends.
+
+A resume returns the symbol to whatever the exchange is doing *at that
+moment*, which is not necessarily `CONTINUOUS`. Circuit-breaker halts expire
+on elapsed time with no session check, so an L2 halt — 15 minutes by default
+— triggered shortly before the close resumes into `CLOSING_AUCTION` or
+`CLOSED`.
 
 ### `IDX`
 
@@ -728,8 +747,9 @@ sequenceDiagram
 **Direction:** Gateway -> Client
 
 **Purpose:** Result of one auction uncross for a symbol — a scheduled
-opening/closing auction, or a circuit-breaker resumption auction. Published
-exactly once per uncross, even when there was no crossable interest at all.
+opening/closing auction, a circuit-breaker reopening auction, or the pass
+over restored GTC orders at engine startup. Published exactly once per
+uncross, even when there was no crossable interest at all.
 
 | Field     | Req | Description                                                                 |
 |-----------|-----|--------------------------------------------------------------------------------|
@@ -742,6 +762,12 @@ exactly once per uncross, even when there was no crossable interest at all.
 | `TRADES`  | Yes | Number of trades produced by the uncross (`0` when no cross)                |
 | `IMBSIDE` | No  | Residual imbalance side, `BUY` or `SELL`; omitted when balanced or no cross |
 | `IMBQTY`  | Yes | Residual imbalance quantity at `EQPX` (`0` when balanced or no cross)       |
+| `REASON`  | No  | Which uncross this was: `SCHEDULED` (leaving an auction or other non-matching phase), `REOPEN` (a halted symbol reopening) or `RECOVERY` (restored GTC orders at engine startup) |
+
+Without `REASON` the three are indistinguishable — the fields are otherwise
+identical — so a client cannot tell a circuit-breaker reopening from the
+closing auction. Treat an unrecognised value as absent rather than as an
+error: it means a gateway newer than the client.
 
 `AUCTION` has no baseline `SNAP` (see "Channel model" above) — a new
 subscriber only receives auction results from the next uncross onward,
@@ -763,7 +789,7 @@ counts `0`); the third is a perfectly balanced cross (`IMBSIDE` omitted,
 
 **Purpose:** Full circuit-breaker halt/resume detail for one symbol —
 trigger price, reference price, ladder level, scheduled auto-resume time,
-and resumption mode. `STATE` (above) still carries the coarse
+and what caused the halt. `STATE` (above) still carries the coarse
 `SESSION=HALTED`/`SESSION=CONTINUOUS` transition unchanged; `CB` is emitted
 **alongside** `STATE`, from the same underlying engine event, for clients
 that also want the detail.
@@ -779,34 +805,36 @@ that also want the detail.
 | `TRIGGERPX` | No  | Trigger price; present only for an automatic (non-`ADMIN_*`) halt currently in effect    |
 | `REFPX`     | No  | Reference price at trigger time; present only for an automatic halt currently in effect  |
 | `RESUMEAT`  | No  | Scheduled auto-resume time, UTC ISO-8601 with ms (same format as `TS`); present only for a timed halt currently in effect — absent for rest-of-day or manual/`ADMIN_*` halts |
-| `MODE`      | No  | `AUCTION`, `CONTINUOUS`, or `MANUAL`; present only when `STATUS=HALTED`                  |
+| `SRC`       | No  | What halted the symbol: `CB` for an automatic breaker trigger, `ADMIN` for an operator halt |
 
 `LEVEL`/`TRIGGERPX`/`REFPX`/`RESUMEAT` describe the halt that just ended and
-are always omitted on a resume event (`STATUS=ACTIVE`) — only `MODE` carries
-over, since it is meaningful for both halt and resume (which resumption
-mechanism applies/applied).
+are always omitted on a resume event (`STATUS=ACTIVE`) — only `SRC` carries
+over, since what caused the halt is meaningful on the way out as well as in.
 
-> **Internal field-name note:** the engine's own halt payload uses the field
-> name `resumption_mode`, while its resume payload uses `mode` for the same
-> concept — an inconsistency in the underlying `circuit_breaker.halt.*`/
-> `circuit_breaker.resume.*` engine topics. CALF normalizes this: both the
-> `CB` halt event and the `CB` resume event use the same wire key, `MODE`, so
-> a CALF client never needs to know about the internal inconsistency.
+**A halt is a reopening auction's call phase.** While a symbol is halted the
+engine accepts LIMIT orders and rests them, rejects MARKET/FOK/IOC, and runs
+no matching; when the halt ends it uncrosses at the equilibrium price and
+publishes an `AUCTION` with `REASON=REOPEN` before the `STATE` and `CB`
+resume events. There is no separate "resumption mode" to choose, and CALF no
+longer carries one: crossed interest accumulates during the call, so
+restarting continuous matching without an uncross would begin on a crossed
+book. `RESUMEAT` says whether the halt ends by itself; `SRC` says who
+started it. The two are independent.
 
 `CB` has a baseline `SNAP` (see the `SNAP` section above) reflecting the
 last known status for the symbol.
 
 ```text
-CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T14:05:00.010Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|MODE=AUCTION
-CB|CH=CB|SYM=TSLA|SEQ=1|TS=2026-07-20T15:00:00.000Z|STATUS=HALTED|LEVEL=ADMIN_ALL|MODE=MANUAL
-CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T14:20:00.010Z|STATUS=ACTIVE|MODE=AUCTION
+CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T14:05:00.010Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|SRC=CB
+CB|CH=CB|SYM=TSLA|SEQ=1|TS=2026-07-20T15:00:00.000Z|STATUS=HALTED|LEVEL=ADMIN_ALL|SRC=ADMIN
+CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T14:20:00.010Z|STATUS=ACTIVE|SRC=CB
 ```
 
 The first example is an automatic threshold-breach halt (all detail fields
 present); the second is an ADMIN exchange-wide halt (`trigger`/`reference`/
 `resume` all omitted, matching the engine's `None` values for that path);
 the third is the resume that follows the first halt (`STATUS=ACTIVE`, only
-`MODE` retained).
+`SRC` retained).
 
 `SYM=*` is invalid for `SUB|CH=CB` — see "Subscription rules" above.
 
@@ -823,12 +851,12 @@ sequenceDiagram
     Note over E: large trade shifts price beyond the L2 threshold
     E-->>G: circuit_breaker.halt.AAPL
     G-->>C: STATE|CH=STATE|SYM=AAPL|SEQ=10|SESSION=HALTED|PREV=CONTINUOUS
-    G-->>C: CB|CH=CB|SYM=AAPL|SEQ=3|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=...|MODE=AUCTION
+    G-->>C: CB|CH=CB|SYM=AAPL|SEQ=3|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=...|SRC=CB
 
     Note over E: halt duration elapses engine resumes and re-auctions AAPL
     E-->>G: circuit_breaker.resume.AAPL
     G-->>C: STATE|CH=STATE|SYM=AAPL|SEQ=11|SESSION=CONTINUOUS|PREV=HALTED
-    G-->>C: CB|CH=CB|SYM=AAPL|SEQ=4|STATUS=ACTIVE|MODE=AUCTION
+    G-->>C: CB|CH=CB|SYM=AAPL|SEQ=4|STATUS=ACTIVE|SRC=CB
     E-->>G: auction.result.AAPL
     G-->>C: AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|EQPX=149.80|EQQTY=6200|TRADES=5|IMBSIDE=SELL|IMBQTY=300
 ```
@@ -1141,8 +1169,7 @@ market_data_gateway:
   let `CB`'s richer detail leak into `STATE`'s field set, and do not let a
   `CB` normaliser failure suppress the `STATE` emission (or vice versa);
   both should be independent `_emit_stream_event` calls from the same handler.
-- Normalize the engine's `resumption_mode`/`mode` field-name inconsistency
-  (halt payload vs. resume payload) onto a single wire key, `MODE`, in `CB` —
+- Carry the halt's cause on a single wire key, `SRC`, in `CB` —
   do not propagate the internal inconsistency to clients.
 - Track sequence numbers independently per `(CH,SYM)` stream; never use a single
   global counter.

@@ -445,14 +445,18 @@ class TestSessionMessages:
 
     def test_make_auction_result_msg(self) -> None:
         topic, payload = _rt(
-            make_auction_result_msg("AAPL", 150.0, 1000, 5, "BUY", 200)
+            make_auction_result_msg("AAPL", 150.0, 1000, 5, "BUY", 200, "SCHEDULED")
         )
         assert topic == "auction.result.AAPL"
         assert payload["eq_price"] == 150.0
         assert payload["eq_qty"] == 1000
+        # The three uncross origins are otherwise indistinguishable.
+        assert payload["reason"] == "SCHEDULED"
 
     def test_make_auction_result_msg_no_price(self) -> None:
-        topic, payload = _rt(make_auction_result_msg("AAPL", None, 0, 0, "", 0))
+        topic, payload = _rt(
+            make_auction_result_msg("AAPL", None, 0, 0, "", 0, "REOPEN")
+        )
         assert payload["eq_price"] is None
 
 

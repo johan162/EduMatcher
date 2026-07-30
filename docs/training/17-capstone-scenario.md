@@ -46,7 +46,7 @@ Open the file and confirm the symbol and gateway sections are present.
 Use separate terminals:
 
 ```bash
-pm-engine --config engine_config.yaml --verbose
+pm-engine --verbose
 pm-scheduler
 pm-stats
 pm-clearing

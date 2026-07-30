@@ -106,8 +106,7 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
 
 
 def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
-    config_path = Path(args.config).expanduser() if args.config else ENGINE_CONFIG_FILE
-    config = load_api_gateway_config(config_path, instance=args.instance)
+    config = load_api_gateway_config(ENGINE_CONFIG_FILE, instance=args.instance)
     engine_pull_addr = config.engine_pull_addr
     engine_pub_addr = config.engine_pub_addr
     index_pull_addr = config.index_pull_addr
@@ -145,9 +144,6 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--port", default=None, type=int, metavar="PORT", help="HTTP listen port"
-    )
-    parser.add_argument(
-        "--config", default=None, metavar="PATH", help="Path to engine_config.yaml"
     )
     parser.add_argument(
         "--instance",

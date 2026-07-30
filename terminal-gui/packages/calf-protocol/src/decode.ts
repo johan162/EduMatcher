@@ -11,7 +11,14 @@
  * So every optional field decodes to `undefined`, never to `0`.
  */
 
-import type { AuctionResultFrame, DepthLevel, HaltContextFrame, TopOfBook } from "@edumatcher/terminal-types";
+import type {
+  AuctionReason,
+  AuctionResultFrame,
+  DepthLevel,
+  HaltContextFrame,
+  HaltSource,
+  TopOfBook,
+} from "@edumatcher/terminal-types";
 import { CalfProtocolError } from "./line.js";
 
 /** Fields present on every sequenced CALF stream message. */
@@ -254,7 +261,25 @@ export function decodeAuction(fields: Record<string, string>): AuctionPayload {
   const eqPrice = num(fields["EQPX"]);
   if (eqPrice !== undefined) payload.eqPrice = eqPrice;
   if (fields["IMBSIDE"]) payload.imbalanceSide = fields["IMBSIDE"];
+  if (isAuctionReason(fields["REASON"])) payload.reason = fields["REASON"];
   return payload;
+}
+
+/**
+ * Both of these narrow rather than cast. An unrecognised value means a gateway
+ * newer than this client, and dropping it leaves the field absent — which
+ * every consumer already handles — instead of asserting a variant that does
+ * not exist and failing somewhere further downstream.
+ */
+const AUCTION_REASONS: readonly string[] = ["SCHEDULED", "REOPEN", "RECOVERY"];
+const HALT_SOURCES: readonly string[] = ["CB", "ADMIN"];
+
+function isAuctionReason(value: string | undefined): value is AuctionReason {
+  return value !== undefined && AUCTION_REASONS.includes(value);
+}
+
+function isHaltSource(value: string | undefined): value is HaltSource {
+  return value !== undefined && HALT_SOURCES.includes(value);
 }
 
 export type HaltContextPayload = Omit<HaltContextFrame, "type" | "sym" | "seq" | "ts">;
@@ -277,6 +302,6 @@ export function decodeCb(fields: Record<string, string>): HaltContextPayload {
   if (triggerPrice !== undefined) payload.triggerPrice = triggerPrice;
   if (referencePrice !== undefined) payload.referencePrice = referencePrice;
   if (fields["RESUMEAT"]) payload.resumeAt = fields["RESUMEAT"];
-  if (fields["MODE"]) payload.resumptionMode = fields["MODE"];
+  if (isHaltSource(fields["SRC"])) payload.haltSource = fields["SRC"];
   return payload;
 }

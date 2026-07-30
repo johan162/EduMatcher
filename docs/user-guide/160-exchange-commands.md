@@ -870,7 +870,7 @@ result = client.halt_all()
 print(f"Halted {result['halted_symbols']} symbols, cancelled {result['cancelled_quotes']} quote legs")
 ```
 
-The engine sets every known symbol to `HALTED` with `resumption_mode = MANUAL`.
+The engine sets every known symbol to `HALTED` with `halt_source = ADMIN`.
 No timer is set — the halt is permanent until `resume_all()` is called or the
 session transitions to `CLOSED`.
 

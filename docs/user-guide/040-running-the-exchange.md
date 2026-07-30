@@ -28,7 +28,7 @@ page works in both modes. The only difference is how you invoke the commands.
 | **Installation**     | `poetry install --with dev` (source checkout) | `pipx install edumatcher`                             |
 | **Command prefix**   | `poetry run pm-engine`                        | `pm-engine` (no prefix)                               |
 | **Data directory**   | `<repo>/src/data/` (auto-detected)            | `~/.local/share/edumatcher` or `$EDUMATCHER_DATA_DIR` |
-| **Config file**      | `<repo>/engine_config.yaml` (auto-detected)   | `./engine_config.yaml` (CWD) or `$EDUMATCHER_CONFIG`  |
+| **Config file**      | `<repo>/src/data/ref_data/engine_config.yaml` | `<$EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml`  |
 | **First-time setup** | Nothing extra                                 | Run `pm-setup` once                                   |
 | **Launch all**       | `./tools/launch_all.sh`                       | `./tools/launch_all.sh` (script is mode-aware)        |
 
@@ -186,7 +186,7 @@ pm-engine -v
 pm-engine
 
 # Custom config file
-pm-engine --config my_config.yaml
+pm-engine
 ```
 
 With `-v`, wait for the engine to print its startup lines before starting

@@ -753,6 +753,19 @@ class MarketDataGateway:
                     self._emit_stream_event(
                         "STATE", "STATE", sym, state_fields, now_seconds
                     )
+                    # A SUB carrying an explicit symbol only matches events on
+                    # that symbol, so a client watching one instrument would
+                    # never learn the exchange had opened or closed — it saw
+                    # halts and resumes but not the session around them. Repeat
+                    # the transition per symbol so a single-symbol subscriber is
+                    # as well informed as a wildcard one.
+                    for (
+                        per_sym,
+                        per_fields,
+                    ) in self._normaliser.apply_session_to_symbols(self._known_symbols):
+                        self._emit_stream_event(
+                            "STATE", "STATE", per_sym, per_fields, now_seconds
+                        )
                     continue
 
                 if topic.startswith("circuit_breaker.halt."):

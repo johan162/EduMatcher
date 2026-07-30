@@ -4,7 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ClientFrame, ServerFrame } from "@edumatcher/terminal-types";
+import type { AuctionResultFrame, ClientFrame, ServerFrame } from "@edumatcher/terminal-types";
 
 const sent: ClientFrame[] = [];
 vi.mock("../src/lib/useTerminalStream.js", () => ({
@@ -200,7 +200,7 @@ describe("halt context", () => {
 });
 
 describe("auction banner", () => {
-  const uncross = (sym: string): ServerFrame => ({
+  const uncross = (sym: string): AuctionResultFrame => ({
     type: "auction_result",
     sym,
     seq: 1,
@@ -218,6 +218,30 @@ describe("auction banner", () => {
 
     expect(await screen.findByText("Auction uncrossed")).toBeDefined();
     expect(screen.getByText(/149.85 · 12,400 sh/)).toBeDefined();
+  });
+
+  it("names a circuit-breaker reopening rather than calling it a plain auction", async () => {
+    // A reopening uncross and the scheduled closing uncross carry identical
+    // fields; REASON is the only thing that distinguishes them.
+    apply({ ...uncross("AAPL"), reason: "REOPEN" });
+    show();
+
+    expect(await screen.findByText("Reopening auction")).toBeDefined();
+  });
+
+  it("names the startup pass over restored GTC orders", async () => {
+    apply({ ...uncross("AAPL"), reason: "RECOVERY" });
+    show();
+
+    expect(await screen.findByText("Startup uncross")).toBeDefined();
+  });
+
+  it("falls back to the generic wording when the gateway sends no reason", async () => {
+    // An older gateway omits REASON entirely; the banner must still render.
+    apply(uncross("AAPL"));
+    show();
+
+    expect(await screen.findByText("Auction uncrossed")).toBeDefined();
   });
 
   it("ignores an uncross for a different symbol", () => {

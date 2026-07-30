@@ -315,23 +315,22 @@ own rolling trade reference and can halt independently.
    `_flush_circuit_breakers()`, which checks `should_resume(now)` for every
    active circuit breaker.  When the pause expires:
      - The symbol is un-halted.
-     - The engine always runs an uncross (`_run_uncross()`, the same
+     - The engine runs an uncross (`_run_uncross()`, the same
        equilibrium-price algorithm used for scheduled auctions) for that
-       symbol before continuous matching resumes, regardless of
-       `resumption_mode`, guaranteeing that any interest which crossed while
-       resting during the halt is matched at a fair equilibrium price rather
-       than starting continuous trading in a crossed state. If nothing
-       crossed, the uncross is a no-op. `resumption_mode` is carried through
-       to the broadcast `circuit_breaker.resume.{symbol}` message as a label
-       only; it does not currently change engine behaviour.
-     - A `circuit_breaker.resume.{symbol}` message is broadcast.
+       symbol before continuous matching resumes, so interest that crossed
+       while resting during the halt is matched at a fair equilibrium price
+       rather than starting continuous trading in a crossed state. If
+       nothing crossed, the uncross is a no-op.
+     - An `auction.result.{symbol}` with `reason: "REOPEN"` is broadcast.
+     - A `circuit_breaker.resume.{symbol}` message is broadcast, carrying
+       `halt_source`.
 
 ```mermaid
 stateDiagram-v2
     [*] --> ACTIVE
     ACTIVE --> HALTED : trade price shift \u2265 L1/L2/L3 threshold\nMM quotes cancelled
     HALTED --> UNCROSS : resume timer expires
-    UNCROSS --> ACTIVE : uncross run unconditionally\n(no-op if nothing crossed)\nresumption_mode carried as a label only
+    UNCROSS --> ACTIVE : uncross run unconditionally\n(no-op if nothing crossed)\nauction.result reason=REOPEN
     ACTIVE --> HALTED : operator halt\n(per-symbol or ADMIN all)\nMM quotes cancelled
     HALTED --> ACTIVE : operator resume\n(risk.symbol_resume or\nrisk.circuit_breaker_resume_all)
 ```
@@ -394,22 +393,27 @@ Notes and edge cases:
   symbol — see
   [Configuration - Symbol Universe](010-configuration.md#symbol-universe).
 
-### Resumption modes
+### Why a halt always reopens with an uncross
 
-`resumption_mode` (`AUCTION`, the default, or `CONTINUOUS`) is a per-level
-config field that is echoed back verbatim in the `circuit_breaker.halt.*` and
-`circuit_breaker.resume.*` payloads (as `resumption_mode` / `mode`) so
-downstream consumers can log or display which policy a level was configured
-with.
+A halt is not a pause with the book frozen — it is the **call phase of a
+reopening auction**. While a symbol is halted the engine accepts LIMIT orders
+and rests them, rejects MARKET/FOK/IOC, and runs no matching. When the halt
+ends, `_flush_circuit_breakers()` calls `_run_uncross()` for that symbol — the
+same equilibrium-price algorithm used for scheduled auctions — and publishes
+an `auction.result.{symbol}` carrying `reason: "REOPEN"` before the resume
+event.
 
-In the current implementation it is **informational only**: `_flush_circuit_breakers()`
-always calls `_run_uncross()` for the resuming symbol — the same
-equilibrium-price algorithm used for scheduled auctions — regardless of the
-configured mode, so that any interest which crossed while resting during the
-halt is matched fairly before continuous trading resumes. If no orders are
-crossed, `compute_equilibrium()` finds no equilibrium price and the uncross is
-a no-op, which is indistinguishable from an immediate continuous resume. There
-is currently no config value that skips the uncross step.
+This is unconditional and there is no setting that skips it. Crossed interest
+accumulates for the whole halt, so resuming straight into continuous matching
+would begin on a crossed book. If nothing crossed, `compute_equilibrium()`
+finds no equilibrium price and the uncross is a no-op, indistinguishable from
+an immediate continuous resume.
+
+Earlier versions exposed a per-level `resumption_mode` (`AUCTION` or
+`CONTINUOUS`). It never changed engine behaviour — both values uncrossed —
+and has been removed. The halt and resume payloads now carry `halt_source`
+(`CB` or `ADMIN`) instead, which says what caused the halt; whether it ends
+by itself is already expressed by the presence of `resume_at_ns`.
 
 ### Configuration
 
@@ -423,15 +427,12 @@ circuit_breaker_defaults:
     L1:
       price_shift_pct: 0.07
       halt_duration_ns: 300000000000   # 5 minutes
-      resumption_mode: AUCTION
     L2:
       price_shift_pct: 0.13
       halt_duration_ns: 900000000000   # 15 minutes
-      resumption_mode: AUCTION
     L3:
       price_shift_pct: 0.20
       halt_duration_ns:                 # null => rest of trading day
-      resumption_mode: AUCTION
 
 symbols:
   TSLA:
@@ -455,7 +456,6 @@ The highest level where `price_shift >= price_shift_pct` fires.
 | `reference_window_ns` | int | `300_000_000_000` | Lookback window for rolling reference price |
 | `levels.<L>.price_shift_pct` | float | required | Trigger threshold fraction in `(0, 1)` |
 | `levels.<L>.halt_duration_ns` | int or null | required | Halt time in ns, or `null` for rest-of-day halt |
-| `levels.<L>.resumption_mode` | string | `"AUCTION"` | `AUCTION` or `CONTINUOUS` when timed halt resumes |
 
 When `circuit_breaker_defaults` and symbol-level `circuit_breaker` are both
 present, per-symbol values override global defaults by level key.
@@ -547,7 +547,7 @@ A limit buy at 11000 ticks trades.
   → CB reference = 30800 // 3 = 10266 (floor division)
   → deviation = |11000 - 10266| / 10266 ≈ 7.1% ≥ L1 (7%)
   → L1 circuit breaker fires, symbol halted for L1 duration (5 min default);
-    resume always runs an uncross for the symbol regardless of resumption_mode
+    resume always runs a reopening uncross for the symbol
 
 Separately, suppose a later session's rolling reference has settled at 10100
 and a limit buy at 12200 ticks trades:
@@ -585,7 +585,7 @@ payload: {
     "trigger_price":    10800,
     "reference_price":  10100,
     "resume_at_ns":     <timestamp>,
-    "resumption_mode":  "AUCTION",
+    "halt_source":      "CB",
     "level":            "L1"
 }
 ```
@@ -595,22 +595,22 @@ payload: {
 ```
 topic:   b"circuit_breaker.resume.MSFT"
 payload: {
-    "symbol": "MSFT",
-    "mode":   "AUCTION"
+    "symbol":      "MSFT",
+    "halt_source": "CB"
 }
 ```
 
 !!! note "This detail is also on the CALF market-data wire"
     `pm-md-gwy` (the CALF gateway) exposes this same payload to external
     clients on a dedicated `CB` channel — `trigger_price`, `reference_price`,
-    `level`, `resume_at_ns`, and `resumption_mode`/`mode` all reach the wire,
-    alongside the coarse `SESSION=HALTED`/`SESSION=CONTINUOUS` transition
-    CALF's `STATE` channel already carried. See
+    `level`, `resume_at_ns`, and `halt_source` all reach the wire,
+    alongside the coarse `SESSION=HALTED` transition CALF's `STATE` channel
+    already carried. See
     [CALF Protocol Reference — `CB`](920-app-calf-protocol.md#cb) for the
-    field mapping (note CALF normalizes the `resumption_mode`/`mode`
-    inconsistency above onto a single wire key, `MODE`). Auction uncross
-    results (`auction.result.{SYMBOL}`, used by the resumption-auction flow
-    described below) are similarly exposed via CALF's `AUCTION` channel.
+    field mapping (`halt_source` is carried as `SRC`). The reopening uncross
+    (`auction.result.{SYMBOL}`) reaches CALF's `AUCTION` channel with
+    `REASON=REOPEN`, which is what distinguishes it from the scheduled
+    opening and closing auctions.
 
 
 
@@ -679,7 +679,7 @@ What the engine does:
 1. Verifies `GW_ADMIN` is connected and carries role `ADMIN`.
 2. Collects every known symbol (order books, circuit-breaker state, engine
    configuration).
-3. Marks each symbol `HALTED` with `resumption_mode = "MANUAL"` (no auto-resume
+3. Marks each symbol `HALTED` with `halt_source = "ADMIN"` (no auto-resume
    timer).
 4. Cancels all outstanding market-maker quote legs for every symbol.
 5. Publishes one `circuit_breaker.halt.<SYMBOL>` event per symbol on the PUB
@@ -696,7 +696,7 @@ payload: {
     "trigger_price":   null,
     "reference_price": null,
     "resume_at_ns":    null,
-    "resumption_mode": "MANUAL",
+    "halt_source": "ADMIN",
     "level":           "ADMIN_ALL"
 }
 
@@ -807,7 +807,7 @@ sequenceDiagram
 | Scope                    | Single symbol                        | All symbols                                |
 | Resume                   | Scheduled timer, always via uncross  | Explicit `risk.circuit_breaker_resume_all` (or `risk.symbol_resume` for a single symbol) |
 | Quotes cancelled on halt | Yes                                  | Yes                                        |
-| `resumption_mode`        | `AUCTION` or `CONTINUOUS`            | Always `MANUAL`                            |
+| `halt_source`            | `CB`                                 | `ADMIN`                                    |
 | Who can send             | Any connected gateway                | `ADMIN` role only                          |
 
 
@@ -833,11 +833,11 @@ What the engine does:
    reason `"Per-symbol halt is only allowed for ADMIN participants"` otherwise.
 2. Marks the symbol `HALTED` (`_halted_symbols[symbol] = True`) and, if a
    circuit breaker is configured for the symbol, sets its state to `halted`
-   with `triggered_level = "ADMIN_SYMBOL"` and `active_resumption_mode = "MANUAL"`.
+   with `triggered_level = "ADMIN_SYMBOL"` and `halt_source = "ADMIN"`.
 3. Cancels all outstanding market-maker quote legs for that symbol only, with
    cancellation reason `"Per-symbol halt"`.
 4. Publishes `circuit_breaker.halt.<SYMBOL>` with `"level": "ADMIN_SYMBOL"`
-   and `"resumption_mode": "MANUAL"`.
+   and `"halt_source": "ADMIN"`.
 5. Sends `risk.symbol_halt_ack.<GW_ADMIN>` with
    `{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_quotes": <count>}`.
 

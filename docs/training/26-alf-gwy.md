@@ -93,8 +93,8 @@ it entirely still works, using every default shown there).
 Start processes with that config:
 
 ```bash
-pm-engine --verbose --config engine_config.yaml
-pm-alf-gwy --config engine_config.yaml
+pm-engine --verbose
+pm-alf-gwy
 ```
 
 :material-checkbox-blank-outline: Checkpoint: `pm-alf-gwy` starts, logs that it is listening on port 5565, and reports a successful engine ZMQ connection.

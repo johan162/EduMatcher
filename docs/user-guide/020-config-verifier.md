@@ -238,7 +238,6 @@ these codes cover the per-symbol equivalents.
 | `S066` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>` missing `price_shift_pct` |
 | `S067` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.price_shift_pct` out of range `(0, 1)` |
 | `S068` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.halt_duration_ns` not a positive integer |
-| `S069` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.resumption_mode` not `AUCTION` or `CONTINUOUS` |
 
 **Gateway fields**
 
@@ -265,7 +264,6 @@ these codes cover the per-symbol equivalents.
 | `S031` | CB level missing `price_shift_pct`                    |
 | `S032` | `price_shift_pct` out of range `(0, 1)`               |
 | `S033` | `halt_duration_ns` not a positive integer             |
-| `S034` | `resumption_mode` not `AUCTION` or `CONTINUOUS`       |
 | `S035` | `circuit_breaker` present inside a risk level         |
 
 **Risk controls**

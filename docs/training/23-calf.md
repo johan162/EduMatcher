@@ -66,8 +66,8 @@ pm-config-gen \
 Start or restart processes with that config:
 
 ```bash
-pm-engine --verbose --config engine_config.yaml
-pm-md-gwy --config engine_config.yaml
+pm-engine --verbose
+pm-md-gwy
 ```
 
 :material-checkbox-blank-outline: Checkpoint: gateway starts and listens on the configured port.

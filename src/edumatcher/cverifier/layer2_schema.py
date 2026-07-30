@@ -17,7 +17,6 @@ from edumatcher.cverifier.models import CheckResult, Severity
 
 _VALID_ROLES = {"TRADER", "MARKET_MAKER", "ADMIN"}
 _VALID_DISCONNECT = {"CANCEL_ALL", "CANCEL_QUOTES_ONLY", "LEAVE_ALL"}
-_VALID_RESUMPTION = {"AUCTION", "CONTINUOUS"}
 _VALID_TIF = {"DAY", "GTC"}
 _VALID_QUOTE_REFRESH = {
     "INACTIVATE_ON_ANY_FILL",
@@ -590,21 +589,6 @@ def _check_symbol_circuit_breaker(
                         path=f"symbols.{sym}.circuit_breaker.levels.{name}.halt_duration_ns",
                     )
                 )
-
-        rm = level_cfg.get("resumption_mode")
-        if rm is not None and str(rm).upper() not in _VALID_RESUMPTION:
-            results.append(
-                CheckResult(
-                    code="S069",
-                    severity=Severity.ERROR,
-                    message=(
-                        f"Symbol '{sym}': circuit_breaker.levels.{name}: "
-                        f"resumption_mode '{rm}' is not valid."
-                    ),
-                    suggestion="Use AUCTION or CONTINUOUS.",
-                    path=f"symbols.{sym}.circuit_breaker.levels.{name}.resumption_mode",
-                )
-            )
 
 
 # ---------------------------------------------------------------------------
@@ -1274,21 +1258,6 @@ def _check_cb_defaults(raw: dict[str, Any], results: list[CheckResult]) -> None:
                         path=f"circuit_breaker_defaults.levels.{name}.halt_duration_ns",
                     )
                 )
-
-        rm = level_cfg.get("resumption_mode")
-        if rm is not None and str(rm).upper() not in _VALID_RESUMPTION:
-            results.append(
-                CheckResult(
-                    code="S034",
-                    severity=Severity.ERROR,
-                    message=(
-                        f"circuit_breaker_defaults.levels.{name}: "
-                        f"resumption_mode '{rm}' is not valid."
-                    ),
-                    suggestion="Use AUCTION or CONTINUOUS.",
-                    path=f"circuit_breaker_defaults.levels.{name}.resumption_mode",
-                )
-            )
 
     # Warn if thresholds are not strictly increasing
     if len(thresholds) >= 2:

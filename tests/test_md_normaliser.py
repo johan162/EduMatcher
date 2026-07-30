@@ -328,7 +328,7 @@ def test_normalise_cb_halt_automatic_trigger() -> None:
             "trigger_price": 148.20,
             "reference_price": 150.10,
             "resume_at_ns": 1_784_560_800_000_000_000,
-            "resumption_mode": "AUCTION",
+            "halt_source": "CB",
             "level": "L2",
         },
     )
@@ -337,7 +337,7 @@ def test_normalise_cb_halt_automatic_trigger() -> None:
     assert fields["LEVEL"] == "L2"
     assert fields["TRIGGERPX"] == "148.2"
     assert fields["REFPX"] == "150.1"
-    assert fields["MODE"] == "AUCTION"
+    assert fields["SRC"] == "CB"
     # RESUMEAT is ISO-8601 text, matching every other CALF timestamp field,
     # not a raw nanosecond integer.
     assert fields["RESUMEAT"] == "2026-07-20T15:20:00.000Z"
@@ -352,13 +352,13 @@ def test_normalise_cb_halt_admin_all_omits_price_and_resume_fields() -> None:
             "trigger_price": None,
             "reference_price": None,
             "resume_at_ns": None,
-            "resumption_mode": "MANUAL",
+            "halt_source": "ADMIN",
             "level": "ADMIN_ALL",
         },
     )
     assert fields["STATUS"] == "HALTED"
     assert fields["LEVEL"] == "ADMIN_ALL"
-    assert fields["MODE"] == "MANUAL"
+    assert fields["SRC"] == "ADMIN"
     assert "TRIGGERPX" not in fields
     assert "REFPX" not in fields
     assert "RESUMEAT" not in fields
@@ -373,12 +373,12 @@ def test_normalise_cb_halt_admin_symbol() -> None:
             "trigger_price": None,
             "reference_price": None,
             "resume_at_ns": None,
-            "resumption_mode": "MANUAL",
+            "halt_source": "ADMIN",
             "level": "ADMIN_SYMBOL",
         },
     )
     assert fields["LEVEL"] == "ADMIN_SYMBOL"
-    assert fields["MODE"] == "MANUAL"
+    assert fields["SRC"] == "ADMIN"
 
 
 def test_normalise_cb_resume_omits_halt_only_fields() -> None:
@@ -389,25 +389,29 @@ def test_normalise_cb_resume_omits_halt_only_fields() -> None:
             "trigger_price": 148.20,
             "reference_price": 150.10,
             "resume_at_ns": 1_784_560_800_000_000_000,
-            "resumption_mode": "AUCTION",
+            "halt_source": "CB",
             "level": "L2",
         },
     )
-    sym, fields = n.normalise_cb_resume("AAPL", {"mode": "AUCTION"})
+    sym, fields = n.normalise_cb_resume("AAPL", {"halt_source": "CB"})
     assert sym == "AAPL"
-    assert fields == {"STATUS": "ACTIVE", "MODE": "AUCTION"}
+    assert fields == {"STATUS": "ACTIVE", "SRC": "CB"}
 
 
-def test_normalise_cb_resume_mode_field_normalizes_engine_inconsistency() -> None:
-    """The engine's resume payload uses `mode`, its halt payload uses
-    `resumption_mode` -- the CALF wire uses MODE for both, so a client never
-    needs to know about this internal inconsistency."""
+def test_cb_halt_and_resume_report_the_same_source() -> None:
+    """SRC says what put the symbol into the halt, not how it comes out.
+
+    Every halt reopens through an uncross — the halt period is the reopening
+    auction's call phase — so there is nothing to vary on the way out. What a
+    client does need is whether a breaker or an operator halted the symbol,
+    and that must read the same going in and coming out.
+    """
     n = EngineNormaliser()
     halt_sym, halt_fields = n.normalise_cb_halt(
-        "AAPL", {"resumption_mode": "CONTINUOUS", "level": "L1"}
+        "AAPL", {"halt_source": "ADMIN", "level": "L1"}
     )
-    resume_sym, resume_fields = n.normalise_cb_resume("AAPL", {"mode": "CONTINUOUS"})
-    assert halt_fields["MODE"] == resume_fields["MODE"] == "CONTINUOUS"
+    resume_sym, resume_fields = n.normalise_cb_resume("AAPL", {"halt_source": "ADMIN"})
+    assert halt_fields["SRC"] == resume_fields["SRC"] == "ADMIN"
     assert halt_sym == resume_sym == "AAPL"
 
 
@@ -425,7 +429,7 @@ def test_cb_snapshot_fields_reflects_current_halt() -> None:
             "trigger_price": 148.20,
             "reference_price": 150.10,
             "resume_at_ns": 1_784_560_800_000_000_000,
-            "resumption_mode": "AUCTION",
+            "halt_source": "CB",
             "level": "L2",
         },
     )
@@ -437,13 +441,116 @@ def test_cb_snapshot_fields_reflects_current_halt() -> None:
 
 def test_cb_snapshot_fields_reflects_resume_after_halt() -> None:
     n = EngineNormaliser()
-    n.normalise_cb_halt("AAPL", {"resumption_mode": "AUCTION", "level": "L1"})
-    n.normalise_cb_resume("AAPL", {"mode": "AUCTION"})
+    n.normalise_cb_halt("AAPL", {"halt_source": "CB", "level": "L1"})
+    n.normalise_cb_resume("AAPL", {"halt_source": "CB"})
     fields = n.cb_snapshot_fields("AAPL")
-    assert fields == {"STATUS": "ACTIVE", "MODE": "AUCTION"}
+    assert fields == {"STATUS": "ACTIVE", "SRC": "CB"}
 
 
 def test_normalise_cb_halt_symbol_uppercased() -> None:
     n = EngineNormaliser()
     sym, _ = n.normalise_cb_halt("aapl", {"level": "L1"})
     assert sym == "AAPL"
+
+
+# ---------------------------------------------------------------------------
+# Per-symbol session state
+#
+# A CB halt expires purely on elapsed time — CircuitBreakerState.should_resume
+# consults no session at all — so a halt can outlive the phase it started in.
+# These pin what a symbol's state says when that happens.
+# ---------------------------------------------------------------------------
+
+
+def test_resume_rejoins_the_current_session_not_continuous() -> None:
+    # L2's default halt is 15 minutes; one triggered a few minutes before the
+    # close expires after it. Saying CONTINUOUS there tells every client the
+    # symbol is trading on a closed exchange.
+    n = EngineNormaliser()
+    n.normalise_session_state({"state": "CONTINUOUS"})
+    n.normalise_halt("AAPL")
+    n.normalise_session_state({"state": "CLOSED", "prev_state": "CLOSING_AUCTION"})
+
+    _, fields = n.normalise_resume("AAPL")
+
+    assert fields["SESSION"] == "CLOSED"
+    assert fields["PREV"] == "HALTED"
+
+
+def test_resume_returns_to_trading_when_the_exchange_is_still_open() -> None:
+    n = EngineNormaliser()
+    n.normalise_session_state({"state": "CONTINUOUS"})
+    n.normalise_halt("AAPL")
+
+    _, fields = n.normalise_resume("AAPL")
+
+    assert fields["SESSION"] == "CONTINUOUS"
+
+
+def test_a_symbol_that_halted_once_still_follows_later_transitions() -> None:
+    # symbol_state was written by the halt and then never updated, so every
+    # later SNAP reported the session as of that halt for the rest of the day.
+    n = EngineNormaliser()
+    n.normalise_session_state({"state": "CONTINUOUS"})
+    n.normalise_halt("AAPL")
+    n.normalise_resume("AAPL")
+
+    n.normalise_session_state({"state": "CLOSING_AUCTION"})
+    n.apply_session_to_symbols({"AAPL"})
+
+    assert n.state_snapshot_fields("AAPL") == {"SESSION": "CLOSING_AUCTION"}
+
+
+def test_transition_reports_each_symbols_previous_state() -> None:
+    n = EngineNormaliser()
+    n.normalise_session_state({"state": "CONTINUOUS"})
+    n.apply_session_to_symbols({"AAPL", "MSFT"})
+
+    n.normalise_session_state({"state": "CLOSING_AUCTION"})
+    updates = dict(n.apply_session_to_symbols({"AAPL", "MSFT"}))
+
+    assert updates["AAPL"] == {"SESSION": "CLOSING_AUCTION", "PREV": "CONTINUOUS"}
+    assert updates["MSFT"] == {"SESSION": "CLOSING_AUCTION", "PREV": "CONTINUOUS"}
+
+
+def test_a_halted_symbol_is_left_halted_across_a_transition() -> None:
+    # The halt outlives the phase it began in; the engine publishes an explicit
+    # resume when it ends, and that is what should move the symbol on.
+    n = EngineNormaliser()
+    n.normalise_session_state({"state": "CONTINUOUS"})
+    n.normalise_halt("AAPL")
+
+    n.normalise_session_state({"state": "CLOSING_AUCTION"})
+    updates = dict(n.apply_session_to_symbols({"AAPL", "MSFT"}))
+
+    assert "AAPL" not in updates
+    assert n.state_snapshot_fields("AAPL") == {"SESSION": "HALTED"}
+
+
+def test_a_transition_emits_nothing_for_symbols_already_in_that_state() -> None:
+    n = EngineNormaliser()
+    n.normalise_session_state({"state": "CONTINUOUS"})
+    n.apply_session_to_symbols({"AAPL"})
+
+    assert n.apply_session_to_symbols({"AAPL"}) == []
+
+
+# ---------------------------------------------------------------------------
+# Auction origin
+# ---------------------------------------------------------------------------
+
+
+def test_auction_carries_the_reason_it_fired() -> None:
+    # A reopening uncross and the closing uncross are otherwise identical on
+    # the wire, so a client cannot label either one.
+    n = EngineNormaliser()
+    _, fields = n.normalise_auction_result(
+        {"symbol": "AAPL", "eq_price": 149.85, "eq_qty": 12400, "reason": "REOPEN"}
+    )
+    assert fields["REASON"] == "REOPEN"
+
+
+def test_auction_omits_reason_when_the_engine_sent_none() -> None:
+    n = EngineNormaliser()
+    _, fields = n.normalise_auction_result({"symbol": "AAPL", "eq_qty": 0})
+    assert "REASON" not in fields

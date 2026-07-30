@@ -12,7 +12,6 @@ class SymbolOverride:
     dynamic_band_pct: float | None = None
     cb_shift: dict[str, float] = field(default_factory=dict)
     cb_halt_mins: dict[str, int | None] = field(default_factory=dict)
-    cb_resumption_mode: dict[str, str] = field(default_factory=dict)
     level: str | None = None
     mm_spread_ticks: int | None = None
     mm_min_qty: int | None = None
@@ -25,13 +24,10 @@ _ALLOWED_KEYS = {
     "dynamic_band",
     "cb_shift_l1",
     "cb_halt_l1",
-    "cb_resumption_l1",
     "cb_shift_l2",
     "cb_halt_l2",
-    "cb_resumption_l2",
     "cb_shift_l3",
     "cb_halt_l3",
-    "cb_resumption_l3",
     "level",
     "mm_spread_ticks",
     "mm_min_qty",
@@ -146,14 +142,6 @@ def _apply_symbol_option(
             if parsed_int < 0:
                 raise ValueError("cb_halt must be >= 0")
             override.cb_halt_mins[level] = parsed_int
-            return
-
-        if key.startswith("cb_resumption_l"):
-            level = key.split("_")[-1].upper()
-            parsed_mode = value.strip().upper()
-            if parsed_mode not in ("AUCTION", "CONTINUOUS"):
-                raise ValueError("cb_resumption must be AUCTION or CONTINUOUS")
-            override.cb_resumption_mode[level] = parsed_mode
             return
 
         if key == "level":

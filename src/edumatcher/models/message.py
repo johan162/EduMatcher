@@ -519,8 +519,17 @@ def make_auction_result_msg(
     trades_count: int,
     imbalance_side: str,
     imbalance_qty: int,
+    reason: str,
 ) -> list[bytes]:
-    """Engine → all: auction uncross result for one symbol."""
+    """Engine → all: auction uncross result for one symbol.
+
+    ``reason`` says which uncross this was, because the three are otherwise
+    indistinguishable to a consumer:
+
+      ``SCHEDULED`` — leaving an auction or other non-matching session phase
+      ``REOPEN``    — a halted symbol reopening at the end of its halt
+      ``RECOVERY``  — restored GTC orders uncrossed at engine startup
+    """
     return encode(
         f"auction.result.{symbol}",
         {
@@ -530,6 +539,7 @@ def make_auction_result_msg(
             "trades_count": trades_count,
             "imbalance_side": imbalance_side,
             "imbalance_qty": imbalance_qty,
+            "reason": reason,
         },
     )
 
@@ -846,7 +856,7 @@ def make_halt_status_msg(
 
     Each entry in *halted* has:
       ``symbol`` (str), ``resume_at_ns`` (int | None),
-      ``level`` (str | None), ``resumption_mode`` (str | None).
+      ``level`` (str | None), ``halt_source`` (str | None).
     An empty list means no symbols are currently halted.
     """
     topic = f"system.halt_status.{gateway_id}"

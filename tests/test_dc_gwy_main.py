@@ -14,7 +14,9 @@ from edumatcher.dc_gateway.main import (
 )
 
 
-def test_resolve_config_overrides(tmp_path: Path) -> None:
+def test_resolve_config_overrides(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     cfg_path = tmp_path / "engine_config.yaml"
     cfg_path.write_text("""
 dc_gateway:
@@ -23,8 +25,8 @@ dc_gateway:
   port: 5590
 """)
 
+    monkeypatch.setattr(dc_main, "ENGINE_CONFIG_FILE", cfg_path)
     args = Namespace(
-        config=str(cfg_path),
         bind="127.0.0.1",
         port=6200,
         engine_dc_pub="tcp://127.0.0.1:7557",
@@ -76,7 +78,8 @@ def test_main_invalid_config_exits(
 dc_gateway:
   port: 0
 """)
-    monkeypatch.setattr(sys, "argv", ["pm-dc-gwy", "--config", str(cfg)])
+    monkeypatch.setattr(sys, "argv", ["pm-dc-gwy"])
+    monkeypatch.setattr(dc_main, "ENGINE_CONFIG_FILE", cfg)
     with pytest.raises(SystemExit):
         dc_main.main()
 
@@ -84,7 +87,8 @@ dc_gateway:
 def test_main_runs_gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg = tmp_path / "ok.yaml"
     cfg.write_text("dc_gateway: {}\n")
-    monkeypatch.setattr(sys, "argv", ["pm-dc-gwy", "--config", str(cfg)])
+    monkeypatch.setattr(sys, "argv", ["pm-dc-gwy"])
+    monkeypatch.setattr(dc_main, "ENGINE_CONFIG_FILE", cfg)
 
     called = {"run": False}
 

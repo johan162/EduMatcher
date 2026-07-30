@@ -1,7 +1,7 @@
 """
 Session Scheduler — drives the engine through daily trading phases.
 
-Reads a schedule (either from --config YAML or default times) and sends
+Reads a schedule (from the deployed engine config, or default times) and sends
 ``session.transition`` messages to the engine at the configured wall-clock
 times via a PUSH socket. It runs as a closed-loop driver:
 
@@ -14,7 +14,6 @@ Usage:
   poetry run pm-scheduler                  # run today's schedule once, then exit
   poetry run pm-scheduler --daily          # run continuously, once per day
   poetry run pm-scheduler --now            # rapid-fire all transitions (for testing)
-  poetry run pm-scheduler --config my.yaml # custom config file
   poetry run pm-scheduler --no-confirm     # do not query/confirm via the engine
   poetry run pm-scheduler --verbose        # DEBUG-level diagnostics
 
@@ -782,12 +781,6 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--config",
-        "-c",
-        metavar="FILE",
-        help="Config YAML with schedule section (default: engine_config.yaml)",
-    )
-    parser.add_argument(
         "--delay",
         type=float,
         default=None,
@@ -929,9 +922,18 @@ def main() -> None:
         if args.now:
             _run_now(push_sock, now_mode_delay, is_running=_is_running)
         else:
-            config_path = Path(args.config) if args.config else ENGINE_CONFIG_FILE
-            if args.config and not config_path.exists():
-                log.error("FATAL: config file not found: %s", config_path)
+            config_path = ENGINE_CONFIG_FILE
+            # _load_schedule falls back to a built-in timetable for a missing
+            # file. That was tolerable while the path was an operator choice;
+            # against a fixed location a missing file means nothing has been
+            # deployed, and running a schedule the engine has never seen is
+            # worse than not starting.
+            if not config_path.exists():
+                log.error(
+                    "FATAL: no deployed engine config at %s — "
+                    "run pm-config-deploy to install one",
+                    config_path,
+                )
                 sys.exit(1)
 
             schedule = _load_schedule(config_path)

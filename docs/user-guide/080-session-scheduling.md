@@ -155,7 +155,7 @@ poetry run pm-scheduler --now
 poetry run pm-scheduler --now --delay 5
 
 # Point to a different config file
-poetry run pm-scheduler --config my_schedule.yaml
+poetry run pm-scheduler
 ```
 
 ### CLI flag reference

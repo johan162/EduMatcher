@@ -100,7 +100,7 @@ Installed mode:
 ```bash
 pm-engine --verbose
 pm-stats
-pm-api-gwy --config engine_config.yaml --instance desk
+pm-api-gwy --instance desk
 ```
 
 Developer mode:
@@ -108,7 +108,7 @@ Developer mode:
 ```bash
 poetry run pm-engine --verbose
 poetry run pm-stats
-poetry run pm-api-gwy --config engine_config.yaml --instance desk
+poetry run pm-api-gwy --instance desk
 ```
 
 Useful options:
@@ -118,7 +118,6 @@ Useful options:
 | `--host ADDR`        |                             config value | Override HTTP bind address                       |
 | `--port PORT`        |                             config value | Override HTTP listen port                        |
 | `--instance NAME`    | auto-selected only when one entry exists | Select a named `api_gateways` entry              |
-| `--config PATH`      |           `EDUMATCHER_CONFIG` resolution | Central engine config path                       |
 | `--engine-host HOST` |                             config value | Override engine host for ZMQ ports `5555`/`5556` |
 | `--stats-db PATH`    |                             config value | SQLite database for `/history/*`                 |
 | `--log-level LEVEL`  |                             config value | `debug`, `info`, `warning`, or `error`           |
@@ -127,7 +126,7 @@ Uvicorn writes access and application logs to stdout/stderr. Redirect them with
 your shell or service manager:
 
 ```bash
-poetry run pm-api-gwy --config engine_config.yaml --instance desk --log-level debug \
+poetry run pm-api-gwy --instance desk --log-level debug \
   > api-gateway.log 2>&1
 ```
 

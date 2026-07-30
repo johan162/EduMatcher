@@ -87,7 +87,7 @@ Each session maintains its own `stats.db`, so historical data doesn't mix.
     ls -la $EDUMATCHER_DATA_DIR/stats.db  # If env var is set
     ```
 
-See [Processes — Environment variables](170-processes.md#environment-variables) for full details on `EDUMATCHER_DATA_DIR` and `EDUMATCHER_CONFIG`.
+See [Processes — Environment variables](170-processes.md#environment-variables) for full details on `EDUMATCHER_DATA_DIR`.
 
 
 
@@ -570,9 +570,9 @@ For API Gateway history queries, start the recorder, engine, stats database, and
 API gateway with matching config:
 
 ```bash
-pm-engine --verbose --config engine_config.yaml
+pm-engine --verbose
 pm-stats --db data/stats.db
-pm-api-gwy --config engine_config.yaml --instance desk
+pm-api-gwy --instance desk
 ```
 
 Then query order lifecycle history through HTTP with a trading API key:

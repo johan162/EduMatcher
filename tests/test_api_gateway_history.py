@@ -234,10 +234,18 @@ async def _call_index_daily(
     *,
     index_id: str | None = None,
     date: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
     limit: int = 500,
 ) -> dict[str, Any]:
     return await history.history_index_daily(
-        request, session, index_id=index_id, date=date, limit=limit
+        request,
+        session,
+        index_id=index_id,
+        date=date,
+        from_date=from_date,
+        to_date=to_date,
+        limit=limit,
     )
 
 

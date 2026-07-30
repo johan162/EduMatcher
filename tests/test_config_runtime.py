@@ -59,16 +59,46 @@ class TestDataDirResolution:
 
 
 class TestEngineConfigResolution:
-    def test_env_var_wins(
+    def test_travels_with_the_data_dir(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        custom_cfg = str(tmp_path / "my_engine.yaml")
-        cfg = _reload_config(monkeypatch, {"EDUMATCHER_CONFIG": custom_cfg})
-        assert cfg.ENGINE_CONFIG_FILE == Path(custom_cfg).resolve()
+        # One data directory is one exchange instance: pointing at a different
+        # data dir must relocate the config along with stats.db and log.db,
+        # never leave it behind pointing at the previous instance's file.
+        custom = str(tmp_path / "custom_data")
+        cfg = _reload_config(monkeypatch, {"EDUMATCHER_DATA_DIR": custom})
 
-    def test_source_tree_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        cfg = _reload_config(monkeypatch, {})
-        assert cfg._IN_SOURCE_TREE is True
-        # Should resolve to <repo>/engine_config.yaml
-        assert cfg.ENGINE_CONFIG_FILE.name == "engine_config.yaml"
-        assert cfg.ENGINE_CONFIG_FILE.parent.name != "src"  # repo root, not src/
+        assert cfg.ENGINE_CONFIG_FILE.parent.parent == cfg.DATA_DIR
+        assert cfg.ENGINE_CONFIG_FILE.parent == cfg.REF_DATA_DIR
+
+    def test_ignores_a_config_override(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        # EDUMATCHER_CONFIG is gone. Honouring it for some processes and not
+        # others is the divergence this resolution exists to prevent, so a
+        # leftover export in a shell profile must have no effect at all.
+        data_dir = str(tmp_path / "d")
+        stray = str(tmp_path / "stray.yaml")
+
+        without = _reload_config(
+            monkeypatch, {"EDUMATCHER_DATA_DIR": data_dir}
+        ).ENGINE_CONFIG_FILE
+        with_stray = _reload_config(
+            monkeypatch,
+            {"EDUMATCHER_DATA_DIR": data_dir, "EDUMATCHER_CONFIG": stray},
+        ).ENGINE_CONFIG_FILE
+
+        assert with_stray == without
+        assert with_stray != Path(stray)
+
+    def test_two_data_dirs_never_share_a_config(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        first = _reload_config(
+            monkeypatch, {"EDUMATCHER_DATA_DIR": str(tmp_path / "a")}
+        ).ENGINE_CONFIG_FILE
+        second = _reload_config(
+            monkeypatch, {"EDUMATCHER_DATA_DIR": str(tmp_path / "b")}
+        ).ENGINE_CONFIG_FILE
+
+        assert first != second

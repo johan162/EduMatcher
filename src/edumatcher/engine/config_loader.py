@@ -606,20 +606,11 @@ def load_engine_config(path: Path) -> EngineConfig:
                             f"Symbol '{sym}': circuit_breaker.levels.{level_name}.halt_duration_ns must be > 0 when provided"
                         )
 
-                resumption_mode = str(
-                    level_cfg_raw.get("resumption_mode", "AUCTION")
-                ).upper()
-                if resumption_mode not in ("AUCTION", "CONTINUOUS"):
-                    raise ValueError(
-                        f"Symbol '{sym}': circuit_breaker.levels.{level_name}.resumption_mode must be AUCTION or CONTINUOUS"
-                    )
-
                 levels.append(
                     CircuitBreakerLevel(
                         name=level_name,
                         price_shift_pct=price_shift_pct,
                         halt_duration_ns=halt_duration_ns,
-                        resumption_mode=resumption_mode,
                     )
                 )
 

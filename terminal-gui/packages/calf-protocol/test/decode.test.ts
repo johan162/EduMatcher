@@ -221,20 +221,49 @@ describe("decodeAuction", () => {
     expect(decoded.eqQty).toBe(0);
     expect(decoded.imbalanceSide).toBeUndefined();
   });
+
+  it("carries the reason a circuit-breaker reopening can be told from the close", () => {
+    const decoded = decodeAuction(
+      fieldsOf("AUCTION|CH=AUCTION|SYM=AAPL|SEQ=2|EQQTY=0|TRADES=0|IMBQTY=0|REASON=REOPEN"),
+    );
+    expect(decoded.reason).toBe("REOPEN");
+  });
+
+  it("reads the scheduled and startup reasons too", () => {
+    const of = (reason: string) =>
+      decodeAuction(fieldsOf(`AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|EQQTY=0|TRADES=0|IMBQTY=0|REASON=${reason}`))
+        .reason;
+    expect(of("SCHEDULED")).toBe("SCHEDULED");
+    expect(of("RECOVERY")).toBe("RECOVERY");
+  });
+
+  it("omits the reason when an older gateway sends none", () => {
+    const decoded = decodeAuction(fieldsOf("AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|EQQTY=0|TRADES=0|IMBQTY=0"));
+    expect(decoded.reason).toBeUndefined();
+  });
+
+  it("drops a reason it does not recognise rather than passing it through", () => {
+    // Absent is a state every consumer already handles; an unknown string
+    // typed as a known variant is not.
+    const decoded = decodeAuction(
+      fieldsOf("AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|EQQTY=0|TRADES=0|IMBQTY=0|REASON=SOMETHING_NEW"),
+    );
+    expect(decoded.reason).toBeUndefined();
+  });
 });
 
 describe("decodeCb", () => {
   it("decodes an automatic halt with full trigger context", () => {
     const line =
       "CB|CH=CB|SYM=TSLA|SEQ=4|STATUS=HALTED|LEVEL=L2|TRIGGERPX=261.40" +
-      "|REFPX=248.00|RESUMEAT=2026-07-11T11:07:17.000Z|MODE=AUCTION";
+      "|REFPX=248.00|RESUMEAT=2026-07-11T11:07:17.000Z|SRC=CB";
     expect(decodeCb(fieldsOf(line))).toEqual({
       status: "HALTED",
       level: "L2",
       triggerPrice: 261.4,
       referencePrice: 248,
       resumeAt: "2026-07-11T11:07:17.000Z",
-      resumptionMode: "AUCTION",
+      haltSource: "CB",
     });
   });
 
@@ -254,10 +283,18 @@ describe("decodeCb", () => {
   });
 
   it("decodes a resume, which carries no halt detail at all", () => {
-    expect(decodeCb(fieldsOf("CB|CH=CB|SYM=TSLA|SEQ=6|STATUS=ACTIVE|MODE=CONTINUOUS"))).toEqual({
+    expect(decodeCb(fieldsOf("CB|CH=CB|SYM=TSLA|SEQ=6|STATUS=ACTIVE|SRC=ADMIN"))).toEqual({
       status: "ACTIVE",
-      resumptionMode: "CONTINUOUS",
+      haltSource: "ADMIN",
     });
+  });
+
+  it("drops a halt source it does not recognise rather than passing it through", () => {
+    // A newer gateway may grow a source this client has no branch for.
+    // Absent is a state every consumer already handles; an unknown string
+    // typed as a known variant is not.
+    const decoded = decodeCb(fieldsOf("CB|CH=CB|SYM=TSLA|STATUS=HALTED|SRC=SOMETHING_NEW"));
+    expect(decoded.haltSource).toBeUndefined();
   });
 
   it("reads the baseline SNAP for a symbol that has never halted as ACTIVE", () => {

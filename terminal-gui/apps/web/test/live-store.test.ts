@@ -148,7 +148,7 @@ describe("circuit-breaker detail", () => {
   });
 
   it("ignores a resume-shaped CB, leaving STATE to clear the halt", () => {
-    apply(state_("TSLA", "HALTED"), cb("TSLA", { status: "ACTIVE", resumptionMode: "CONTINUOUS" }));
+    apply(state_("TSLA", "HALTED"), cb("TSLA", { status: "ACTIVE", haltSource: "CB" }));
 
     expect(state().haltedList()).toHaveLength(1);
     expect(state().haltedList()[0]?.context).toBeUndefined();

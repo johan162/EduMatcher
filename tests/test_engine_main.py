@@ -21,7 +21,6 @@ from edumatcher.engine.main import _build_parser, _configure_logging
 def test_build_parser_defaults() -> None:
     parser = _build_parser()
     args = parser.parse_args([])
-    assert args.config is None
     assert args.log_level is None
     assert args.verbose == 0
     assert args.quiet is False
@@ -33,14 +32,6 @@ def test_build_parser_logging_flags() -> None:
     assert args.verbose == 2
     assert args.quiet is True
     assert args.log_level == "ERROR"
-
-
-def test_build_parser_config_flag() -> None:
-    parser = _build_parser()
-    args = parser.parse_args(["--config", "custom.yaml"])
-    assert args.config == "custom.yaml"
-    args = parser.parse_args(["-c", "custom.yaml"])
-    assert args.config == "custom.yaml"
 
 
 def test_build_parser_version(capsys: pytest.CaptureFixture[str]) -> None:

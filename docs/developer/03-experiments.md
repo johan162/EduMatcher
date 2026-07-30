@@ -998,7 +998,7 @@ Technical details:
   4. Starts the engine in **installed mode** using the same config, runs the same 50-order scenario.
   5. Compares audit logs and book state between modes; they should match exactly.
 - Test both configuration resolution paths:
-  - Via `EDUMATCHER_CONFIG` env var.
+  - Via the deployed copy under `EDUMATCHER_DATA_DIR`.
   - Via default fallback (current directory, then `~/.local/share/edumatcher`).
 - Verify data directory resolution:
   - Via `EDUMATCHER_DATA_DIR` env var.
@@ -1010,7 +1010,7 @@ CI pipeline gains a gate that prevents installed mode regressions. Users are con
 How to verify:
 
 - Build parity test: install edumatcher with `pipx`, run test suite, assert it passes.
-- Config path test: test that `EDUMATCHER_CONFIG` and `EDUMATCHER_DATA_DIR` override defaults correctly in both modes.
+- Config path test: test that `EDUMATCHER_DATA_DIR` relocates the deployed config along with every other data file, in both modes.
 - Audit log equivalence: run test scenario in both modes, assert audit logs are byte-identical.
 - Performance parity: measure latency per order in both modes; should differ by < 5%.
 

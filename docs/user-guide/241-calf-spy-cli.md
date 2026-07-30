@@ -137,7 +137,7 @@ distinct), the symbol, the sequence number, and the remaining fields as
 10:02:17.048  SNAP     TOP      AAPL       #1      ASK=150.12 ASKSZ=900 BID=150.10 BIDSZ=1200 LAST=150.11 LASTSZ=300
 10:02:17.512  MD       TOP      AAPL       #2      BID=150.11 BIDSZ=1400
 10:02:18.203  TRADE    TRADE    AAPL       #44     PX=150.12 QTY=200 SIDE=BUY
-10:02:20.001  CB       CB       AAPL       #4      LEVEL=L2 MODE=AUCTION REFPX=150.10 RESUMEAT=2026-07-20T10:20:00.000Z STATUS=HALTED TRIGGERPX=148.20
+10:02:20.001  CB       CB       AAPL       #4      LEVEL=L2 SRC=CB REFPX=150.10 RESUMEAT=2026-07-20T10:20:00.000Z STATUS=HALTED TRIGGERPX=148.20
 ```
 
 Session-level messages that carry no channel/symbol of their own (`WELCOME`,

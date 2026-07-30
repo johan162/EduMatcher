@@ -563,7 +563,7 @@ Operator command to halt a single symbol. Any authenticated connected gateway ma
 | `reason` | string | Rejection reason when `accepted=false` |
 | `cancelled_quotes` | integer | Number of MM quote legs cancelled on halt |
 
-The engine also publishes `circuit_breaker.halt.{SYMBOL}` with `resumption_mode = "MANUAL"` when a symbol is halted this way.
+The engine also publishes `circuit_breaker.halt.{SYMBOL}` with `halt_source = "ADMIN"` when a symbol is halted this way.
 
 ### `risk.symbol_resume`
 
@@ -619,7 +619,7 @@ Operational semantics:
 
 - This is an exchange-wide manual halt. It is not timer-based.
 - The engine marks affected symbols as halted and publishes
-  `circuit_breaker.halt.<SYMBOL>` with `resumption_mode = "MANUAL"` and
+  `circuit_breaker.halt.<SYMBOL>` with `halt_source = "ADMIN"` and
   `resume_at_ns = null`.
 - While halted, quote entry is rejected and immediate-execution order types are
   rejected under the normal halt rules.
@@ -718,7 +718,7 @@ The engine will:
 1. Verify the gateway is connected and carries role `ADMIN`.
 2. Collect every known symbol (from order books, circuit-breaker state, and
    engine configuration).
-3. Mark each symbol as halted with `resumption_mode = "MANUAL"`.
+3. Mark each symbol as halted with `halt_source = "ADMIN"`.
 4. Cancel all outstanding MM quote legs (both sides).
 5. Publish one `circuit_breaker.halt.<SYMBOL>` event per symbol.
 6. Acknowledge with `risk.circuit_breaker_halt_all_ack.GW_ADMIN`.
@@ -726,8 +726,8 @@ The engine will:
 Expected inbound events (subscribe to `circuit_breaker.*`):
 
 ```
-circuit_breaker.halt.AAPL  → { symbol: "AAPL", resumption_mode: "MANUAL", level: "ADMIN_ALL", ... }
-circuit_breaker.halt.MSFT  → { symbol: "MSFT", resumption_mode: "MANUAL", level: "ADMIN_ALL", ... }
+circuit_breaker.halt.AAPL  → { symbol: "AAPL", halt_source: "ADMIN", level: "ADMIN_ALL", ... }
+circuit_breaker.halt.MSFT  → { symbol: "MSFT", halt_source: "ADMIN", level: "ADMIN_ALL", ... }
 ...
 risk.circuit_breaker_halt_all_ack.GW_ADMIN → { accepted: true, halted_symbols: N, cancelled_quotes: M }
 ```
@@ -1435,7 +1435,7 @@ from edge events alone.
 
 Each entry in `halted` always has `symbol`; the other three fields are present
 **only when the symbol has a configured circuit breaker** (`resume_at_ns`,
-`level`, and `resumption_mode` are omitted entirely, not sent as `null`, for a
+`level`, and `halt_source` are omitted entirely, not sent as `null`, for a
 halted symbol with no circuit-breaker configuration):
 
 | Field | Type | Description |
@@ -1443,7 +1443,7 @@ halted symbol with no circuit-breaker configuration):
 | `symbol` | string | Halted instrument ticker |
 | `resume_at_ns` | integer \| absent | Engine nanosecond timestamp when the halt auto-expires; absent for manual (`ADMIN_ALL`/`ADMIN_SYMBOL`) halts |
 | `level` | string \| absent | CB ladder level that triggered the halt: `"L1"`, `"L2"`, `"L3"`, `"ADMIN_ALL"` (operator-initiated global halt), or `"ADMIN_SYMBOL"` (operator-initiated single-symbol halt) |
-| `resumption_mode` | string \| absent | `"AUCTION"`, `"CONTINUOUS"`, or `"MANUAL"` |
+| `halt_source` | string \| absent | What halted the symbol: `"CB"` for an automatic breaker trigger, `"ADMIN"` for an operator halt |
 
 
 
@@ -1510,9 +1510,13 @@ and the statistics process to know what trading mode is currently active.
 **Motivation:** Publishes venue/session lifecycle transitions that gate trading behavior and downstream workflows.
 **Published by:** pm-engine via PUB :5556
 
-Broadcast once per symbol after an auction uncross completes (i.e. when
-transitioning out of OPENING_AUCTION or CLOSING_AUCTION).  Reports the
+Broadcast once per symbol after an auction uncross completes.  Reports the
 equilibrium price, quantity matched, and any imbalance.
+
+Three different events produce it, and `reason` is the only field that
+distinguishes them: leaving an auction or other non-matching session phase,
+a halted symbol reopening at the end of its halt, and the pass over restored
+GTC orders at engine startup.
 
 | Field            | Type          | Description                                                  |
 |------------------|---------------|--------------------------------------------------------------|
@@ -1522,6 +1526,7 @@ equilibrium price, quantity matched, and any imbalance.
 | `trades_count`   | integer       | Number of individual trade pairs generated                   |
 | `imbalance_side` | string        | `"BUY"`, `"SELL"`, or `""` (balanced)                        |
 | `imbalance_qty`  | integer       | Surplus quantity that could not be matched                   |
+| `reason`         | string        | `"SCHEDULED"`, `"REOPEN"`, or `"RECOVERY"`                   |
 
 
 
@@ -1554,7 +1559,7 @@ These events are published on PUB :5556 whenever a symbol halts or resumes, rega
 | `trigger_price` | float \| null | Trade price that crossed the CB threshold; `null` for operator-initiated halts |
 | `reference_price` | float \| null | Rolling reference price at halt time; `null` for operator-initiated halts |
 | `resume_at_ns` | integer \| null | Engine nanosecond timestamp when the halt will auto-expire; `null` for manual (`ADMIN_ALL`/`ADMIN_SYMBOL`) halts |
-| `resumption_mode` | `"AUCTION"` \| `"CONTINUOUS"` \| `"MANUAL"` | How the symbol will reopen: auction uncross, immediate continuous matching, or explicit operator resume |
+| `halt_source` | `"CB"` \| `"ADMIN"` | What halted the symbol. Not how it reopens: every halt is a reopening auction's call phase and always ends in an uncross, because LIMIT orders rest freely while halted and resuming without one would start continuous matching on a crossed book |
 | `level` | string | CB ladder level that fired (`"L1"`, `"L2"`, `"L3"`), `"ADMIN_ALL"` for an operator-initiated global halt, or `"ADMIN_SYMBOL"` for an operator-initiated single-symbol halt |
 
 ### `circuit_breaker.resume.{SYMBOL}`
@@ -1562,10 +1567,13 @@ These events are published on PUB :5556 whenever a symbol halts or resumes, rega
 **Motivation:** Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions.
 **Published by:** pm-engine via PUB :5556
 
-| Field    | Type                                        | Description               |
-|----------|---------------------------------------------|---------------------------|
-| `symbol` | string                                      | Resumed instrument ticker |
-| `mode`   | `"AUCTION"` \| `"CONTINUOUS"` \| `"MANUAL"` | How the symbol reopened   |
+| Field         | Type                | Description                                    |
+|---------------|---------------------|------------------------------------------------|
+| `symbol`      | string              | Resumed instrument ticker                      |
+| `halt_source` | `"CB"` \| `"ADMIN"` | What had halted the symbol                     |
+
+The reopening uncross is published first, as an `auction.result.{SYMBOL}`
+with `reason: "REOPEN"`, and this event follows it.
 
 
 

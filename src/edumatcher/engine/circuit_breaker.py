@@ -21,7 +21,6 @@ class CircuitBreakerLevel:
     name: str
     price_shift_pct: float
     halt_duration_ns: int | None
-    resumption_mode: str = "AUCTION"
 
 
 @dataclass
@@ -50,7 +49,12 @@ class CircuitBreakerState:
     trigger_price: Optional[int] = None
     reference_price: Optional[int] = None
     triggered_level: Optional[str] = None
-    active_resumption_mode: Optional[str] = None
+    # What put this symbol into a halt: "CB" for an automatic breaker trigger,
+    # "ADMIN" for an operator halt. Not *how* it resumes — a halt is always a
+    # reopening auction call (orders rest, no matching) and always ends in an
+    # uncross, because LIMIT orders accumulate freely while halted and
+    # resuming without one would start continuous trading on a crossed book.
+    halt_source: Optional[str] = None
 
     def _sync_history_aggregate(self) -> None:
         """Resync rolling aggregates if history was mutated outside this class."""
@@ -117,7 +121,7 @@ class CircuitBreakerState:
         self.resume_at_ns = (
             None if level.halt_duration_ns is None else now + level.halt_duration_ns
         )
-        self.active_resumption_mode = level.resumption_mode
+        self.halt_source = "CB"
 
     def should_resume(self, now: int) -> bool:
         """Return ``True`` when a timed halt duration has elapsed."""
@@ -132,5 +136,5 @@ class CircuitBreakerState:
         self.resume_at_ns = None
         self.trigger_price = None
         self.triggered_level = None
-        self.active_resumption_mode = None
+        self.halt_source = None
         # Keep reference_price — useful for diagnostics after resume.

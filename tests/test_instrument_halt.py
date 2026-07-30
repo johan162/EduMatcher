@@ -279,7 +279,6 @@ class TestCircuitBreakerEngineIntegration:
                     name="L1",
                     price_shift_pct=0.05,
                     halt_duration_ns=60_000_000_000,
-                    resumption_mode="AUCTION",
                 )
             ],
         )
@@ -358,6 +357,63 @@ class TestCircuitBreakerEngineIntegration:
         assert not eng._halted_symbols["AAPL"]
         topics = [decode(f)[0] for f in pub.sent if len(f) == 2]
         assert any("circuit_breaker.resume.AAPL" in t for t in topics)
+
+    def test_resume_publishes_a_reopening_auction_not_a_scheduled_one(
+        self, engine
+    ) -> None:
+        """The reopening uncross must be labelled REOPEN, not SCHEDULED.
+
+        A halt is a reopening auction's call phase, and its uncross is
+        published on the same topic as the opening and closing auctions with
+        the same fields. `reason` is the only thing that tells them apart, so
+        if this call site were mislabelled no consumer could detect it.
+        """
+        eng, pub = engine
+        self._wire_cb(eng)
+        # _run_uncross walks self.books, which is populated lazily on first
+        # order. A CB halt can only follow a trade, so a halted symbol always
+        # has one in practice — but the fixture wires the breaker directly.
+        eng._book("AAPL")
+        cb = eng._circuit_breakers["AAPL"]
+        cb.activate(0, cb.config.levels[0])
+        eng._halted_symbols["AAPL"] = True
+        pub.sent.clear()
+
+        import unittest.mock as mock
+
+        with mock.patch(
+            "edumatcher.engine.main.now_ns", return_value=cb.resume_at_ns + 1
+        ):
+            eng._flush_circuit_breakers()
+
+        auctions = [
+            payload
+            for topic, payload in (decode(f) for f in pub.sent if len(f) == 2)
+            if topic.startswith("auction.result.")
+        ]
+        assert [a["reason"] for a in auctions] == ["REOPEN"]
+
+    def test_resume_reports_what_caused_the_halt(self, engine) -> None:
+        eng, pub = engine
+        self._wire_cb(eng)
+        cb = eng._circuit_breakers["AAPL"]
+        cb.activate(0, cb.config.levels[0])
+        eng._halted_symbols["AAPL"] = True
+        pub.sent.clear()
+
+        import unittest.mock as mock
+
+        with mock.patch(
+            "edumatcher.engine.main.now_ns", return_value=cb.resume_at_ns + 1
+        ):
+            eng._flush_circuit_breakers()
+
+        resumes = [
+            payload
+            for topic, payload in (decode(f) for f in pub.sent if len(f) == 2)
+            if topic.startswith("circuit_breaker.resume.")
+        ]
+        assert resumes[0]["halt_source"] == "CB"
 
     def test_flush_cb_noop_before_duration(self, engine) -> None:
         eng, pub = engine

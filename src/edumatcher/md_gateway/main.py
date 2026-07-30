@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-from pathlib import Path
 
 from edumatcher.config import (
     ENGINE_CONFIG_FILE,
@@ -36,12 +35,6 @@ def _build_parser() -> argparse.ArgumentParser:
     from edumatcher.cli_version import add_version_argument
 
     add_version_argument(parser, "pm-md-gwy")
-    parser.add_argument(
-        "--config",
-        "-c",
-        default=str(ENGINE_CONFIG_FILE),
-        help="Engine config YAML path (default: engine_config.yaml)",
-    )
     parser.add_argument("--bind", help="TCP bind address override")
     parser.add_argument("--port", type=int, help="TCP bind port override")
     parser.add_argument(
@@ -142,7 +135,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
 def _resolve_config(
     args: argparse.Namespace,
 ) -> tuple[MarketDataGatewayConfig, set[str]]:
-    cfg_path = Path(str(args.config))
+    cfg_path = ENGINE_CONFIG_FILE
     cfg = load_market_data_gateway_config(cfg_path)
 
     bind_address = str(args.bind) if args.bind else cfg.bind_address
@@ -153,14 +146,13 @@ def _resolve_config(
     # An empty symbol set is not a harmless default: it disables per-symbol
     # SUB validation *and* omits SYMBOLS= from every WELCOME, so a client is
     # left with no instrument universe and no clue why. Both ways of ending up
-    # there used to be silent; they are now loud, because in practice this
-    # means pm-md-gwy was pointed at a different config from pm-engine.
+    # there used to be silent; they are now loud.
     known_symbols: set[str] = set()
     if not cfg_path.exists():
         log.warning(
-            "engine config not found at %s — starting with no known symbols, "
+            "no deployed engine config at %s — starting with no known symbols, "
             "so SUB symbol validation is disabled and WELCOME will carry no "
-            "SYMBOLS= list. Pass --config with the same file pm-engine uses.",
+            "SYMBOLS= list. Run pm-config-deploy to install one.",
             cfg_path,
         )
     else:
@@ -211,6 +203,7 @@ def main() -> None:
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-md-gwy with log level %s", logging.getLevelName(log_level))
+    log.info("using engine config %s", ENGINE_CONFIG_FILE)
 
     try:
         config, known_symbols = _resolve_config(args)

@@ -1073,7 +1073,7 @@ poetry run pm-gateway --id GW01
 
 ```bash
 poetry run pm-md-gwy
-poetry run pm-md-gwy --config engine_config.yaml
+poetry run pm-md-gwy
 poetry run pm-md-gwy --verbose
 ```
 

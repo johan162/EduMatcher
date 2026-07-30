@@ -3,15 +3,19 @@ pm-setup — Bootstrap an EduMatcher session directory.
 
 Run once after installation (pipx install edumatcher) to:
   1. Create the data directory where engine state is stored.
-  2. Copy the bundled sample engine_config.yaml to your working directory.
+  2. Deploy the bundled sample engine_config.yaml so the exchange can start.
   3. Print the shell environment snippet to add to your shell profile.
+
+The sample lands at ``<DATA_DIR>/ref_data/engine_config.yaml`` — the single
+location every process reads. To run a configuration of your own, author it
+wherever you like and install it with ``pm-config-deploy``.
 
 Usage
 -----
   pm-setup                          # use all defaults
   pm-setup --data-dir ~/my-session  # explicit data directory
-  pm-setup --force                  # overwrite existing engine_config.yaml
-  pm-setup --no-config              # only create the data dir, skip config copy
+  pm-setup --force                  # replace an already-deployed config
+  pm-setup --no-config              # only create the data dir
 """
 
 from __future__ import annotations
@@ -78,23 +82,14 @@ def main() -> None:
         ),
     )
     parser.add_argument(
-        "--config-dest",
-        metavar="PATH",
-        default=None,
-        help=(
-            "Where to write engine_config.yaml "
-            "(default: engine_config.yaml in the current working directory)"
-        ),
-    )
-    parser.add_argument(
         "--force",
         action="store_true",
-        help="Overwrite engine_config.yaml even if it already exists",
+        help="Overwrite the deployed engine_config.yaml if one already exists",
     )
     parser.add_argument(
         "--no-config",
         action="store_true",
-        help="Only create the data directory; do not copy engine_config.yaml",
+        help="Only create the data directory; do not deploy a sample config",
     )
     args = parser.parse_args()
 
@@ -127,17 +122,13 @@ def main() -> None:
     # 3. Copy sample engine_config.yaml
     # -----------------------------------------------------------------------
     if not args.no_config:
-        config_dest = (
-            Path(args.config_dest).expanduser().resolve()
-            if args.config_dest
-            else Path.cwd() / "engine_config.yaml"
-        )
+        config_dest = data_dir / "ref_data" / "engine_config.yaml"
+        config_dest.parent.mkdir(parents=True, exist_ok=True)
         ok = _extract_sample_config(config_dest, force=args.force)
         if ok:
-            print(f"  ✓ Sample config written to:        {config_dest}")
-            print("    → Edit this file before starting the engine.")
+            print(f"  ✓ Sample config deployed to:       {config_dest}")
         else:
-            print(f"  ✓ Config already exists (skipped): {config_dest}")
+            print(f"  ✓ Config already deployed (kept):  {config_dest}")
             print("    → Use --force to overwrite.")
 
     # -----------------------------------------------------------------------
@@ -151,16 +142,17 @@ def main() -> None:
     print()
     print("  " + "-" * 46)
     print(f'  export EDUMATCHER_DATA_DIR="{data_dir}"')
-    if not args.no_config:
-        config_dest_str = str(
-            Path(args.config_dest).expanduser().resolve()
-            if args.config_dest
-            else Path.cwd() / "engine_config.yaml"
-        )
-        print(f'  export EDUMATCHER_CONFIG="{config_dest_str}"')
     print("  " + "-" * 46)
     print()
-    print("  After editing engine_config.yaml, start the exchange with:")
+    print("  This is the only variable to set. Every process derives its")
+    print("  configuration, database and log paths from it, so they cannot")
+    print("  drift apart.")
+    print()
+    print("  To edit the configuration, work on your own copy and install it:")
+    print()
+    print("    pm-config-deploy my-engine_config.yaml")
+    print()
+    print("  Then start the exchange with:")
     print()
     print("    pm-engine --verbose     # terminal 1 — matching engine")
     print("    pm-scheduler            # terminal 2 — session phases (optional)")

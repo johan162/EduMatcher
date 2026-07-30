@@ -502,7 +502,7 @@ def test_constituent_change_error_paths(
 
 def test_build_parser_and_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     parser = index_main._build_parser()
-    args = parser.parse_args(["--config", str(tmp_path / "cfg.yaml"), "--reset"])
+    args = parser.parse_args(["--reset"])
     assert args.reset is True
     assert args.log_level is None
     assert args.verbose == 0
@@ -525,7 +525,6 @@ def test_build_parser_and_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         argparse.ArgumentParser,
         "parse_args",
         lambda _self: argparse.Namespace(
-            config=str(tmp_path / "cfg.yaml"),
             reset=False,
             log_level=None,
             verbose=0,

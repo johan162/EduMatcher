@@ -408,7 +408,7 @@ def test_sub_cb_snap_reflects_current_halt(unit_gateway: MarketDataGateway) -> N
             "trigger_price": 148.20,
             "reference_price": 150.10,
             "resume_at_ns": 1_784_560_800_000_000_000,
-            "resumption_mode": "AUCTION",
+            "halt_source": "CB",
             "level": "L2",
         },
     )

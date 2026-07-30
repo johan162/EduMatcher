@@ -82,9 +82,16 @@ rm -f "$REPO_ROOT/data/gtc_orders.json" \
       "$REPO_ROOT/data/gtc_combos.json" \
       "$REPO_ROOT/data/book_stats.json"
 
-echo "[VERIFY] Starting engine with verify_engine_config.yaml …"
+echo "[VERIFY] Deploying verify_engine_config.yaml …"
 cd "$REPO_ROOT"
-poetry run pm-engine --config data/verify/verify_engine_config.yaml &
+# No process takes a config path any more, so the verification config has to
+# be installed as the deployed one first. This replaces whatever was deployed
+# for this EDUMATCHER_DATA_DIR — set that variable to a scratch directory if
+# you need to keep an existing configuration.
+poetry run pm-config-deploy data/verify/verify_engine_config.yaml
+
+echo "[VERIFY] Starting engine …"
+poetry run pm-engine &
 ENGINE_PID=$!
 
 # Wait for the engine to bind its sockets

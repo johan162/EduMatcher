@@ -105,6 +105,10 @@ export interface DepthFrame {
   asks: DepthLevel[];
 }
 
+export type AuctionReason = "SCHEDULED" | "REOPEN" | "RECOVERY";
+
+export type HaltSource = "CB" | "ADMIN";
+
 export interface AuctionResultFrame {
   type: "auction_result";
   sym: string;
@@ -116,6 +120,12 @@ export interface AuctionResultFrame {
   tradesCount: number;
   imbalanceSide?: string;
   imbalanceQty: number;
+  /**
+   * Which uncross this was. A scheduled open/close, a halted symbol
+   * reopening, and the startup pass over restored GTC orders are otherwise
+   * identical on the wire. Absent from a gateway that predates the field.
+   */
+  reason?: AuctionReason;
 }
 
 export interface HaltContextFrame {
@@ -131,7 +141,12 @@ export interface HaltContextFrame {
   referencePrice?: number;
   /** ISO-8601. Absent for manual/rest-of-day halts with no scheduled resume. */
   resumeAt?: string;
-  resumptionMode?: string;
+  /**
+   * What halted the symbol — a circuit breaker or an operator. Not how it
+   * resumes: a halt is the call phase of a reopening auction and always ends
+   * in an uncross, so there is nothing to vary there.
+   */
+  haltSource?: HaltSource;
 }
 
 /**

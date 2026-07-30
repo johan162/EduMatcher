@@ -128,7 +128,7 @@ seed quote breaches the configured threshold ladder for that symbol:
 - the engine publishes `circuit_breaker.halt.<SYMBOL>`
 - new orders and new quotes for that symbol are rejected until the breaker resumes
 
-If the breaker's `resumption_mode` is `AUCTION`, the engine runs a symbol-local
+When the halt ends, the engine runs a symbol-local
 uncross before continuous matching resumes. So an unattended seed quote can do
 more than thin the book: it can be the trade that triggers a temporary halt.
 

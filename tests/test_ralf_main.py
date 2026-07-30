@@ -14,7 +14,9 @@ from edumatcher.ralf_gateway.main import (
 )
 
 
-def test_resolve_config_overrides(tmp_path: Path) -> None:
+def test_resolve_config_overrides(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     cfg_path = tmp_path / "engine_config.yaml"
     cfg_path.write_text("""
 post_trade_gateway:
@@ -23,8 +25,8 @@ post_trade_gateway:
   port: 5580
 """)
 
+    monkeypatch.setattr(ralf_main, "ENGINE_CONFIG_FILE", cfg_path)
     args = Namespace(
-        config=str(cfg_path),
         bind="127.0.0.1",
         port=6002,
         engine_pub="tcp://127.0.0.1:7000",
@@ -68,7 +70,8 @@ def test_main_invalid_config_exits(
 post_trade_gateway:
   allowed_roles: CLEARING
 """)
-    monkeypatch.setattr(sys, "argv", ["pm-ralf-gwy", "--config", str(cfg)])
+    monkeypatch.setattr(sys, "argv", ["pm-ralf-gwy"])
+    monkeypatch.setattr(ralf_main, "ENGINE_CONFIG_FILE", cfg)
     with pytest.raises(SystemExit):
         ralf_main.main()
 
@@ -76,7 +79,8 @@ post_trade_gateway:
 def test_main_runs_gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg = tmp_path / "ok.yaml"
     cfg.write_text("post_trade_gateway: {}\n")
-    monkeypatch.setattr(sys, "argv", ["pm-ralf-gwy", "--config", str(cfg)])
+    monkeypatch.setattr(sys, "argv", ["pm-ralf-gwy"])
+    monkeypatch.setattr(ralf_main, "ENGINE_CONFIG_FILE", cfg)
 
     called = {"run": False}
 

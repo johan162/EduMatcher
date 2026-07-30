@@ -34,7 +34,9 @@ def test_configure_logging_prefers_explicit_level() -> None:
     assert _configure_logging(args) == 20
 
 
-def test_resolve_config_with_overrides(tmp_path: Path) -> None:
+def test_resolve_config_with_overrides(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     cfg_path = tmp_path / "engine_config.yaml"
     cfg_path.write_text("""
 alf_gateway:
@@ -42,8 +44,8 @@ alf_gateway:
   port: 5565
 """)
 
+    monkeypatch.setattr(alf_main, "ENGINE_CONFIG_FILE", cfg_path)
     args = Namespace(
-        config=str(cfg_path),
         bind="127.0.0.1",
         port=6010,
         engine_host="10.0.0.5",
@@ -63,7 +65,8 @@ def test_main_invalid_config_exits(
     cfg = tmp_path / "engine_config.yaml"
     cfg.write_text("alf_gateway: 123\n")
 
-    monkeypatch.setattr(sys, "argv", ["pm-alf-gwy", "--config", str(cfg)])
+    monkeypatch.setattr(sys, "argv", ["pm-alf-gwy"])
+    monkeypatch.setattr(alf_main, "ENGINE_CONFIG_FILE", cfg)
     with pytest.raises(SystemExit):
         alf_main.main()
 
@@ -84,7 +87,8 @@ def test_main_runs_gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         def close(self) -> None:
             pass
 
-    monkeypatch.setattr(sys, "argv", ["pm-alf-gwy", "--config", str(cfg)])
+    monkeypatch.setattr(sys, "argv", ["pm-alf-gwy"])
+    monkeypatch.setattr(alf_main, "ENGINE_CONFIG_FILE", cfg)
     monkeypatch.setattr(alf_main, "AlfGateway", _DummyGateway)
 
     alf_main.main()

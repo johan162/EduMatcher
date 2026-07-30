@@ -235,8 +235,10 @@ Installs EduMatcher for students and instructors using `pipx`, without requiring
 - `--help` - Display help message
 
 **Environment variables:**
-- `EDUMATCHER_DATA_DIR` - Override the data directory initialized by `pm-setup`
-- `EDUMATCHER_CONFIG` - Override where EduMatcher expects `engine_config.yaml`
+- `EDUMATCHER_DATA_DIR` - Override the data directory initialized by `pm-setup`.
+  The engine configuration is deployed inside it, at
+  `<DATA_DIR>/ref_data/engine_config.yaml`, so this one variable relocates
+  everything together.
 
 **Requirements:**
 - Python 3.13 or later

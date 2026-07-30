@@ -9,6 +9,7 @@ maintainability and unit-testability.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -80,7 +81,9 @@ class CBStatus:
     trigger_price: str = ""
     reference_price: str = ""
     resume_at: str = ""
-    mode: str = ""
+    # What put the symbol into a halt: "CB" or "ADMIN". Not how it resumes —
+    # every halt is a reopening auction call that ends in an uncross.
+    source: str = ""
 
 
 @dataclass
@@ -209,6 +212,36 @@ class EngineNormaliser:
             fields["PREV"] = prev_state
         return "*", fields
 
+    def apply_session_to_symbols(
+        self, symbols: Iterable[str]
+    ) -> list[tuple[str, dict[str, str]]]:
+        """Move every non-halted symbol to the current exchange session.
+
+        Returns one ``(symbol, fields)`` pair per symbol that actually changed,
+        for the caller to publish on the per-symbol ``STATE`` stream.
+
+        A halted symbol is left alone: its halt outlives an exchange
+        transition, and the engine publishes an explicit resume when it ends.
+        Symbols already in the new state are skipped so a transition does not
+        emit a no-op event for every instrument.
+
+        Without this, a symbol's cached state was written once by its first
+        halt and never updated again — ``state_snapshot_fields`` falls back to
+        the exchange state only for symbols absent from ``symbol_state``, so
+        any symbol that had ever halted reported a stale session in every
+        later ``SNAP``, for the rest of the day.
+        """
+        updates: list[tuple[str, dict[str, str]]] = []
+        for raw in symbols:
+            sym = raw.upper()
+            prev = self.symbol_state.get(sym, self.session_state)
+            if prev == "HALTED" or prev == self.session_state:
+                self.symbol_state.setdefault(sym, self.session_state)
+                continue
+            self.symbol_state[sym] = self.session_state
+            updates.append((sym, {"SESSION": self.session_state, "PREV": prev}))
+        return updates
+
     def normalise_halt(self, symbol: str) -> tuple[str, dict[str, str]]:
         """Return per-symbol HALTED state fields."""
         sym = symbol.upper()
@@ -219,12 +252,18 @@ class EngineNormaliser:
     def normalise_resume(self, symbol: str) -> tuple[str, dict[str, str]]:
         """Return per-symbol resume state fields.
 
-        Resume maps to CONTINUOUS according to CALF design in the current docs.
+        A resumed symbol rejoins whatever the exchange is currently doing — it
+        does not necessarily go back to trading. Circuit-breaker halts expire
+        on elapsed time with no session check, so an L2 halt (15 minutes by
+        default) triggered a few minutes before the close resumes into
+        CLOSING_AUCTION or CLOSED. Reporting CONTINUOUS there, as this used to,
+        told every client the symbol was trading on a closed exchange.
         """
         sym = symbol.upper()
         prev = self.symbol_state.get(sym, "HALTED")
-        self.symbol_state[sym] = "CONTINUOUS"
-        return sym, {"SESSION": "CONTINUOUS", "PREV": prev}
+        resumed_to = self.session_state
+        self.symbol_state[sym] = resumed_to
+        return sym, {"SESSION": resumed_to, "PREV": prev}
 
     def top_snapshot_fields(self, symbol: str) -> dict[str, str]:
         """Return current cached TOP snapshot fields for symbol."""
@@ -335,6 +374,12 @@ class EngineNormaliser:
         Unlike ``TOP``/``DEPTH``/``INDEX``, ``AUCTION`` has no persistent
         "current state" to cache or snapshot: every ``auction.result.SYMBOL``
         engine event is forwarded as its own independent CALF event.
+
+        ``REASON`` says which uncross this was — ``SCHEDULED`` for a session
+        phase change, ``REOPEN`` for a halted symbol reopening, ``RECOVERY``
+        for restored GTC orders at engine startup. Without it the three are
+        indistinguishable on the wire, and a client cannot tell a circuit
+        breaker reopening from the closing auction.
         """
         sym = str(payload.get("symbol", "")).upper()
         fields: dict[str, str] = {
@@ -342,6 +387,9 @@ class EngineNormaliser:
             "TRADES": _as_int_text(payload.get("trades_count")) or "0",
             "IMBQTY": _as_int_text(payload.get("imbalance_qty")) or "0",
         }
+        reason = str(payload.get("reason", "")).upper()
+        if reason:
+            fields["REASON"] = reason
         eq_price = payload.get("eq_price")
         if eq_price is not None:
             price_text = _as_decimal(eq_price)
@@ -368,7 +416,7 @@ class EngineNormaliser:
             trigger_price=_as_decimal(payload.get("trigger_price")) or "",
             reference_price=_as_decimal(payload.get("reference_price")) or "",
             resume_at=_ns_to_iso(resume_at_ns),
-            mode=str(payload.get("resumption_mode", "")).upper(),
+            source=str(payload.get("halt_source", "")).upper(),
         )
         self.cb_cache[sym] = state
         return sym, _cb_fields(state)
@@ -378,14 +426,15 @@ class EngineNormaliser:
     ) -> tuple[str, dict[str, str]]:
         """Return ``(symbol, fields)`` for a CALF ``CB`` resume event.
 
-        The engine's own resume payload only carries ``symbol``/``mode`` —
-        see ``normalise_cb_halt`` for why ``LEVEL``/``TRIGGERPX``/``REFPX``/
-        ``RESUMEAT`` are intentionally absent from a resume event.
+        The engine's own resume payload only carries ``symbol`` and
+        ``halt_source`` — see ``normalise_cb_halt`` for why
+        ``LEVEL``/``TRIGGERPX``/``REFPX``/``RESUMEAT`` are intentionally
+        absent from a resume event.
         """
         sym = symbol.upper()
         state = CBStatus(
             status="ACTIVE",
-            mode=str(payload.get("mode", "")).upper(),
+            source=str(payload.get("halt_source", "")).upper(),
         )
         self.cb_cache[sym] = state
         return sym, _cb_fields(state)
@@ -490,6 +539,6 @@ def _cb_fields(state: CBStatus) -> dict[str, str]:
             fields["REFPX"] = state.reference_price
         if state.resume_at:
             fields["RESUMEAT"] = state.resume_at
-    if state.mode:
-        fields["MODE"] = state.mode
+    if state.source:
+        fields["SRC"] = state.source
     return fields

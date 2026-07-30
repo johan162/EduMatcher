@@ -141,7 +141,7 @@ _CMD_FIELDS: dict[str, list[str]] = {
 _HELP_TEXT = """
 [bold]ADMIN operator console — command reference[/bold]
 
-  HALT                          — halt all symbols (manual circuit breaker, MANUAL resumption)
+  HALT                          — halt all symbols (manual circuit breaker, ADMIN halt source)
   RESUME                        — resume all symbols previously halted by HALT
 
   HALT_SYM|SYM=<sym>            — halt trading on a single symbol only

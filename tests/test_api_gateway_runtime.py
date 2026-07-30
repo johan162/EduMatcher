@@ -232,7 +232,7 @@ async def test_send_and_await_kill_switch_serializes_per_gateway(
     client.stop_listener()
 
 
-def test_config_overrides(tmp_path: Path) -> None:
+def test_config_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     config_path = tmp_path / "engine_config.yaml"
     config_path.write_text("""
 api_gateways:
@@ -243,8 +243,8 @@ api_gateways:
       - api_key: key
         gateway_id: GW01
 """)
+    monkeypatch.setattr(main, "ENGINE_CONFIG_FILE", config_path)
     args = argparse.Namespace(
-        config=str(config_path),
         instance="desk",
         host="0.0.0.0",
         port=9090,
@@ -469,6 +469,10 @@ async def test_history_routes(tmp_path: Path) -> None:
             session,
             symbol=None,
             date=None,
+            # Called as a plain coroutine, so FastAPI is not here to resolve
+            # the Query() defaults these two carry for their from/to aliases.
+            from_date=None,
+            to_date=None,
             limit=500,
         )
     )["count"] == 1

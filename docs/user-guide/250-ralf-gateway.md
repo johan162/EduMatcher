@@ -116,7 +116,7 @@ post_trade_gateway:
 CLI overrides:
 
 ```bash
-pm-ralf-gwy --config engine_config.yaml --bind 127.0.0.1 --port 5580 --engine-pub tcp://127.0.0.1:5556
+pm-ralf-gwy --bind 127.0.0.1 --port 5580 --engine-pub tcp://127.0.0.1:5556
 ```
 
 | Option | Default | Description |
@@ -624,14 +624,14 @@ Installed mode:
 
 ```bash
 pm-engine --verbose
-pm-ralf-gwy --config engine_config.yaml
+pm-ralf-gwy
 ```
 
 Developer mode:
 
 ```bash
 poetry run pm-engine --verbose
-poetry run pm-ralf-gwy --config engine_config.yaml
+poetry run pm-ralf-gwy
 ```
 
 ### Minimal client probe

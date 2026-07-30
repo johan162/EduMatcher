@@ -121,8 +121,14 @@ class TestSchedulerMain:
         mock_load: MagicMock,
         mock_run_scheduled: MagicMock,
         mock_subscriber: MagicMock,
+        tmp_path: Path,
     ) -> None:
-        with patch("sys.argv", ["pm-scheduler"]):
+        deployed = tmp_path / "engine_config.yaml"
+        deployed.write_text("symbols:\n  AAPL: {}\n")
+        with (
+            patch("sys.argv", ["pm-scheduler"]),
+            patch("edumatcher.scheduler.main.ENGINE_CONFIG_FILE", deployed),
+        ):
             from edumatcher.scheduler.main import main
 
             main()
@@ -134,8 +140,11 @@ class TestSchedulerMain:
     def test_missing_config_file_exits(
         self, mock_pusher: MagicMock, mock_sleep: MagicMock, tmp_path: Path
     ) -> None:
-        missing = str(tmp_path / "nope.yaml")
-        with patch("sys.argv", ["pm-scheduler", "--config", missing]):
+        missing = tmp_path / "nope.yaml"
+        with (
+            patch("sys.argv", ["pm-scheduler"]),
+            patch("edumatcher.scheduler.main.ENGINE_CONFIG_FILE", missing),
+        ):
             from edumatcher.scheduler.main import main
 
             with pytest.raises(SystemExit) as exc:

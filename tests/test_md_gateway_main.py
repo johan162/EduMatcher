@@ -42,7 +42,9 @@ def test_configure_logging_uses_verbose_levels() -> None:
     assert _configure_logging(Namespace(log_level=None, verbose=1, quiet=False)) == 20
 
 
-def test_resolve_config_overrides(tmp_path: Path) -> None:
+def test_resolve_config_overrides(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     cfg_path = tmp_path / "engine_config.yaml"
     cfg_path.write_text("""
 symbols:
@@ -54,8 +56,8 @@ market_data_gateway:
   name: md-from-config
   port: 6000
 """)
+    monkeypatch.setattr(md_main, "ENGINE_CONFIG_FILE", cfg_path)
     args = Namespace(
-        config=str(cfg_path),
         bind="127.0.0.1",
         port=6001,
         engine_pub="tcp://127.0.0.1:7000",
@@ -83,7 +85,8 @@ gateways:
 market_data_gateway:
   enabled: false
 """)
-    monkeypatch.setattr(sys, "argv", ["pm-md-gwy", "--config", str(cfg)])
+    monkeypatch.setattr(sys, "argv", ["pm-md-gwy"])
+    monkeypatch.setattr(md_main, "ENGINE_CONFIG_FILE", cfg)
     md_main.main()
 
 
@@ -97,7 +100,8 @@ gateways:
     - id: GW01
 market_data_gateway: {}
 """)
-    monkeypatch.setattr(sys, "argv", ["pm-md-gwy", "--config", str(cfg)])
+    monkeypatch.setattr(sys, "argv", ["pm-md-gwy"])
+    monkeypatch.setattr(md_main, "ENGINE_CONFIG_FILE", cfg)
 
     called = {"run": False}
 

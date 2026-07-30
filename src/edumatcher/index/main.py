@@ -617,12 +617,6 @@ def _build_parser() -> argparse.ArgumentParser:
 
     add_version_argument(parser, "pm-index")
     parser.add_argument(
-        "--config",
-        "-c",
-        default=str(ENGINE_CONFIG_FILE),
-        help="Engine config YAML path",
-    )
-    parser.add_argument(
         "--reset",
         action="store_true",
         help="Ignore/delete persisted index state and initialise from config",
@@ -717,9 +711,12 @@ def main() -> None:
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-index with log level %s", logging.getLevelName(log_level))
-    log.debug("resolved index config path=%s reset=%s", args.config, bool(args.reset))
+    log.info("using engine config %s", ENGINE_CONFIG_FILE)
+    log.debug(
+        "resolved index config path=%s reset=%s", ENGINE_CONFIG_FILE, bool(args.reset)
+    )
     try:
-        proc = IndexProcess(config_path=Path(str(args.config)), reset=bool(args.reset))
+        proc = IndexProcess(config_path=ENGINE_CONFIG_FILE, reset=bool(args.reset))
     except Exception as exc:
         log.error("fatal startup error: %s", exc)
         sys.exit(1)

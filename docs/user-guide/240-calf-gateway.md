@@ -138,8 +138,8 @@ fields:
 | `STATE` | `STATE` | Yes | Yes | `SESSION PREV` | halt gating, session-phase display |
 | `INDEX` | `IDX` | Yes (1.0.0+) | No | `LEVEL SESSION OPEN CHG PCTCHG HIGH LOW AGGCAP` | index trackers, benchmarks |
 | `DEPTH` | `DEPTH` | Yes | No | `LEVELS BIDS ASKS` | order-book (DOM) widgets, Level-2 teaching |
-| `AUCTION` | `AUCTION` | No | Yes | `EQPX EQQTY TRADES IMBSIDE IMBQTY` | auction uncross results, Terminal-style auction views |
-| `CB` | `CB` | Yes | No | `STATUS LEVEL TRIGGERPX REFPX RESUMEAT MODE` | circuit-breaker detail beyond `STATE`'s halt/resume flag |
+| `AUCTION` | `AUCTION` | No | Yes | `EQPX EQQTY TRADES IMBSIDE IMBQTY REASON` | auction uncross results, Terminal-style auction views |
+| `CB` | `CB` | Yes | No | `STATUS LEVEL TRIGGERPX REFPX RESUMEAT SRC` | circuit-breaker detail beyond `STATE`'s halt/resume flag |
 
 Each channel is detailed under [What information is available](#what-information-is-available); the exact field meanings are in the per-channel field tables there.
 
@@ -204,14 +204,14 @@ Installed mode:
 
 ```bash
 pm-engine --verbose
-pm-md-gwy --config engine_config.yaml
+pm-md-gwy
 ```
 
 Developer mode:
 
 ```bash
 poetry run pm-engine --verbose
-poetry run pm-md-gwy --config engine_config.yaml
+poetry run pm-md-gwy
 ```
 
 CLI override options:
@@ -231,9 +231,15 @@ CLI override options:
 The `--engine-pub`/`--index-pub` defaults themselves can be shifted for the
 whole installation via two environment variables (useful when the engine runs
 on another host): `EDUMATCHER_ENGINE_HOST` (default `127.0.0.1`) and
-`EDUMATCHER_INDEX_PUB_PORT` (default `5558`). `EDUMATCHER_CONFIG` overrides the
-default `--config` path the same way it does for every other `pm-*` process —
-see [Getting Started → Environment variables](000-getting-started.md#environment-variables).
+`EDUMATCHER_INDEX_PUB_PORT` (default `5558`). The engine configuration itself
+is not overridable: like every other `pm-*` process, `pm-md-gwy` reads
+`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml` — see
+[Getting Started → Environment variables](000-getting-started.md#environment-variables).
+
+This matters more for `pm-md-gwy` than for most processes. Its symbol
+universe comes from that file, and it is what `WELCOME|SYMBOLS=` and the
+`SYMBOLS` reply are built from; a gateway reading a different configuration
+from the engine would advertise an instrument list no client could trade.
 
 
 ## Quick connect test
@@ -584,8 +590,8 @@ resume-time countdowns, distinguishing an automatic trigger from an operator
 
 ```text
 SNAP|CH=CB|SYM=AAPL|SEQ=1|TS=2026-07-20T10:02:17.000Z|STATUS=ACTIVE
-CB|CH=CB|SYM=AAPL|SEQ=2|TS=2026-07-20T10:02:17.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T10:20:00.000Z|MODE=AUCTION
-CB|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T10:20:00.000Z|STATUS=ACTIVE|MODE=AUCTION
+CB|CH=CB|SYM=AAPL|SEQ=2|TS=2026-07-20T10:02:17.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T10:20:00.000Z|SRC=CB
+CB|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T10:20:00.000Z|STATUS=ACTIVE|SRC=CB
 ```
 
 Note that `STATE` also emits its own, simpler pair of lines for the same
@@ -602,14 +608,17 @@ sequenced against each other.
 | `TRIGGERPX` | decimal | on automatic halt | Price that triggered the breaker |
 | `REFPX` | decimal | on automatic halt | Reference price the trigger was measured against |
 | `RESUMEAT` | string | on halt, when scheduled | Scheduled resume time, ISO-8601 UTC with ms (same format as `TS`) |
-| `MODE` | enum | on halt and resume | Re-opening mode, e.g. `AUCTION` |
+| `SRC` | enum | on halt and resume | What halted the symbol: `CB` or `ADMIN` |
 
 An operator-initiated halt (`ADMIN_ALL`/`ADMIN_SYMBOL`) omits `TRIGGERPX`,
 `REFPX`, and `RESUMEAT` since there was no automatic trigger and often no
-scheduled time. `MODE` is carried on both the halt and the resume line —
-internally the engine calls this field `resumption_mode` on the halt event
-and `mode` on the resume event; CALF normalises both to the single wire key
-`MODE` so clients don't need to know about that inconsistency.
+scheduled time. `SRC` is carried on both the halt and the resume line, since
+what caused the halt is as relevant on the way out as on the way in.
+
+There is no "re-opening mode" field, because there is no choice to make: a
+halt is the call phase of a reopening auction — LIMIT orders rest, matching
+is off — and it always ends in an uncross, published on the `AUCTION`
+channel with `REASON=REOPEN` just before the resume.
 
 ---
 

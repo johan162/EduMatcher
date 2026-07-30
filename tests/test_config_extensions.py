@@ -185,11 +185,9 @@ class TestCircuitBreakerParsing:
                         L1:
                           price_shift_pct: 0.07
                           halt_duration_ns: 300000000000
-                          resumption_mode: AUCTION
                         L2:
                           price_shift_pct: 0.13
                           halt_duration_ns: 900000000000
-                          resumption_mode: CONTINUOUS
                 gateways:
                   alf:
                     - id: TRADER01
@@ -206,7 +204,6 @@ class TestCircuitBreakerParsing:
         assert cb.levels[0].price_shift_pct == pytest.approx(0.07)
         assert cb.levels[0].halt_duration_ns == 300_000_000_000
         assert cb.levels[1].name == "L2"
-        assert cb.levels[1].resumption_mode == "CONTINUOUS"
 
     def test_cb_defaults_when_fields_omitted(self, tmp_path) -> None:
         cfg = load_engine_config(
@@ -236,32 +233,6 @@ class TestCircuitBreakerParsing:
         assert cb.levels[1].price_shift_pct == pytest.approx(0.13)
         assert cb.levels[2].name == "L3"
         assert cb.levels[2].halt_duration_ns is None
-
-    def test_invalid_resumption_mode_raises(self, tmp_path) -> None:
-        with pytest.raises(ValueError, match="resumption_mode"):
-            load_engine_config(
-                _write_yaml(
-                    tmp_path,
-                    """
-                    sessions:
-                      enabled: false
-                    symbols:
-                      AAPL:
-                        tick_decimals: 2
-                        last_buy_price: 150.00
-                        circuit_breaker:
-                          levels:
-                            L1:
-                              price_shift_pct: 0.07
-                              halt_duration_ns: 300000000000
-                              resumption_mode: INVALID
-                    gateways:
-                      alf:
-                        - id: TRADER01
-                          role: TRADER
-                    """,
-                )
-            )
 
     def test_invalid_price_shift_raises(self, tmp_path) -> None:
         with pytest.raises(ValueError, match="price_shift_pct"):
@@ -511,11 +482,9 @@ class TestGlobalRiskControlLevels:
                     L1:
                       price_shift_pct: 0.07
                       halt_duration_ns: 300000000000
-                      resumption_mode: AUCTION
                     L2:
                       price_shift_pct: 0.13
                       halt_duration_ns: 900000000000
-                      resumption_mode: AUCTION
                 symbols:
                   AAPL:
                     tick_decimals: 2
@@ -523,7 +492,6 @@ class TestGlobalRiskControlLevels:
                     circuit_breaker:
                       levels:
                         L2:
-                          resumption_mode: CONTINUOUS
                           halt_duration_ns: 600000000000
                 gateways:
                   alf:
@@ -537,7 +505,6 @@ class TestGlobalRiskControlLevels:
         assert cb.reference_window_ns == 300_000_000_000
         assert len(cb.levels) == 2
         assert cb.levels[1].name == "L2"
-        assert cb.levels[1].resumption_mode == "CONTINUOUS"
         assert cb.levels[1].halt_duration_ns == 600_000_000_000
 
     def test_unknown_symbol_level_raises(self, tmp_path) -> None:

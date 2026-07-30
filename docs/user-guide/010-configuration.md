@@ -59,17 +59,32 @@ Each protocol's configuration lives in a different part of `engine_config.yaml`:
 
 ## File Location
 
-By default, installed mode looks for `engine_config.yaml` in the current working
-directory, while source-checkout mode uses the repository root. You can override
-this with `--config` or `EDUMATCHER_CONFIG`.
+EduMatcher separates the configuration you *author* from the one the exchange
+*runs*.
+
+The authored `engine_config.yaml` lives wherever suits you — normally under
+version control alongside the rest of your course material. Edit it, review it,
+diff it.
+
+The deployed copy always lives at
+`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml`. That is the only file any
+running process reads. No process accepts a config path, so it is not possible
+to start two of them against different files.
+
+`pm-config-deploy` is the bridge between the two. It validates the authored
+file with the same loader every process uses at startup, then installs it — so
+a deploy that succeeds cannot be followed by a process failing to parse it.
 
 ```bash
-pm-engine --verbose
-pm-engine --verbose --config my_config.yaml
+pm-config-deploy my_config.yaml   # validate and install
+pm-config-deploy --show           # where does the deployed copy live?
 
+pm-engine --verbose
 pm-scheduler
-pm-scheduler --config my_config.yaml
 ```
+
+Deployment replaces the running configuration but does not disturb live
+processes; restart them to pick it up.
 
 If you are running from a Poetry checkout, prefix commands with `poetry run`.
 
@@ -792,7 +807,7 @@ should manage secrets with the surrounding platform and terminate TLS in front
 of `pm-api-gwy`.
 
 For multiple generated processes, start a specific named entry with
-`pm-api-gwy --config engine_config.yaml --instance NAME`.
+`pm-api-gwy --instance NAME`.
 
 BALF gateway config with explicit settings:
 
@@ -1191,7 +1206,7 @@ dashboard-style key with `gateway_id: null`, or pass explicit `--api-key`
 entries when you need known token values.
 
 When more than one named API gateway is configured, start each process with its
-entry name, for example `pm-api-gwy --config engine_config.yaml --instance desk`.
+entry name, for example `pm-api-gwy --instance desk`.
 
 
 ## Configuring `pm-index`
@@ -1506,15 +1521,12 @@ circuit_breaker_defaults:
     L1:
       price_shift_pct: 0.07
       halt_duration_ns: 300000000000
-      resumption_mode: AUCTION
     L2:
       price_shift_pct: 0.13
       halt_duration_ns: 900000000000
-      resumption_mode: AUCTION
     L3:
       price_shift_pct: 0.20
       halt_duration_ns:
-      resumption_mode: AUCTION
 
 gateways:
   alf:
@@ -1694,8 +1706,8 @@ Use this checklist when creating a new engine configuration.
 8. Add index calculations if needed.
    Define each `pm-index` process in the `indices` block. Every constituent must
    appear in `symbols:` with a positive `outstanding_shares`. Run
-   `pm-index --config engine_config.yaml` for each configured index; `pm-config-gen
-   --index` generates the block automatically.
+   `pm-index` for each configured index; `pm-config-gen --index` generates the
+   block automatically.
 
 9. Add a schedule if sessions are enabled.
    Provide all five schedule keys for readability and confirm times are local
@@ -1708,7 +1720,7 @@ Use this checklist when creating a new engine configuration.
     when installed, or `$EDUMATCHER_DATA_DIR` if set).
 
 11. Validate before class or demo.
-    Start `pm-engine --verbose --config your_config.yaml`, connect each gateway
+    Start `pm-engine --verbose`, connect each gateway
     ID you expect to use, and run `SYMBOLS` from a gateway.
 
 
@@ -2199,15 +2211,12 @@ circuit_breaker_defaults:
     L1:
       price_shift_pct: 0.07
       halt_duration_ns: 300000000000
-      resumption_mode: AUCTION
     L2:
       price_shift_pct: 0.13
       halt_duration_ns: 900000000000
-      resumption_mode: AUCTION
     L3:
       price_shift_pct: 0.20
       halt_duration_ns:
-      resumption_mode: AUCTION
 
 symbols:
   TSLA:
@@ -2223,8 +2232,14 @@ Validation rules:
 - `levels` must be a non-empty mapping after defaults and symbol overrides merge
 - each level requires `price_shift_pct` in `(0, 1)`
 - `halt_duration_ns` must be a positive integer or null
-- `resumption_mode` must be `AUCTION` or `CONTINUOUS`
 - `reference_window_ns` is converted to integer nanoseconds
+
+A halt has no resumption setting, and deliberately so. The halt period *is* a
+reopening auction's call phase — LIMIT orders are accepted and rest, market
+and immediate-or-cancel orders are rejected, and no matching runs — so every
+halt ends in an uncross at the equilibrium price. Resuming without one would
+restart continuous matching on a book that had been accumulating crossed
+interest for the whole halt.
 
 A symbol only gets a circuit breaker if `circuit_breaker_defaults` or its own
 `symbols.<SYMBOL>.circuit_breaker` section is present. If neither exists, the
@@ -2250,7 +2265,6 @@ Circuit breakers may appear under `circuit_breaker_defaults` or under
 | `levels`                          | Yes when a breaker is active | Non-empty mapping after merging      | Built-in L1/L2/L3 only when no levels are supplied |
 | `levels.<LEVEL>.price_shift_pct`  |                          Yes | Number in `(0, 1)`                   | None                                               |
 | `levels.<LEVEL>.halt_duration_ns` |                           No | Positive integer nanoseconds or null | Null                                               |
-| `levels.<LEVEL>.resumption_mode`  |                           No | `AUCTION`, `CONTINUOUS`              | `AUCTION`                                          |
 
 
 ## Market-Maker Quote Seeds
@@ -2495,7 +2509,7 @@ For installed (pipx) users who do not have access to the `poetry run` environmen
 pass the config file to the engine directly — it validates on startup:
 
 ```bash
-pm-engine --config engine_config.yaml
+pm-engine
 ```
 
 For the focused config parser test suite:
@@ -2631,17 +2645,16 @@ Symbol-level entries merge over the defaults: only the fields you specify are ov
 |---|---|---:|---|---|---|
 | `price_shift_pct` | float | Yes when creating a level | — | `(0, 1)` exclusive | Required in any level that originates from config; inherited from defaults for symbol overrides |
 | `halt_duration_ns` | int or null | No | `null` | Positive integer nanoseconds, or `null`/omitted | `null` means rest-of-day halt; must be `> 0` when provided |
-| `resumption_mode` | Enum | No | `AUCTION` | `AUCTION`, `CONTINUOUS` | Case-insensitive |
 
 **Built-in default CB ladder** (used only when a circuit-breaker section exists
 but supplies no `levels`; if no circuit-breaker section is present at all, the
 symbol has no breaker):
 
-| Level | `price_shift_pct` | `halt_duration_ns`      | `resumption_mode` |
-|-------|-------------------|-------------------------|-------------------|
-| L1    | `0.07`            | `300000000000` (5 min)  | `AUCTION`         |
-| L2    | `0.13`            | `900000000000` (15 min) | `AUCTION`         |
-| L3    | `0.20`            | `null` (rest-of-day)    | `AUCTION`         |
+| Level | `price_shift_pct` | `halt_duration_ns`      |
+|-------|-------------------|-------------------------|
+| L1    | `0.07`            | `300000000000` (5 min)  |
+| L2    | `0.13`            | `900000000000` (15 min) |
+| L3    | `0.20`            | `null` (rest-of-day)    |
 
 ---
 

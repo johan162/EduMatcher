@@ -144,10 +144,13 @@ export function SessionView() {
  * something specific: an operator-initiated (`ADMIN_*`) halt carries no
  * trigger or reference price, and a manual or rest-of-day halt carries no
  * resume time because it ends only when someone says so.
+ *
+ * `haltSource` and `resumeAt` are independent axes and are shown as such —
+ * who halted the symbol, and whether it comes back by itself.
  */
 function HaltRow({ entry, rowClass }: { entry: HaltedSymbol; rowClass: string }) {
   const cb = entry.context;
-  const mode = cb?.resumptionMode;
+  const source = cb?.haltSource;
 
   return (
     <tr className={`border-b border-border/40 ${rowClass}`}>
@@ -162,16 +165,10 @@ function HaltRow({ entry, rowClass }: { entry: HaltedSymbol; rowClass: string })
       <td className="text-right tabular">{price(cb?.triggerPrice)}</td>
       <td className="text-right tabular">{price(cb?.referencePrice)}</td>
       <td className="tabular">
-        {mode === "MANUAL" || (mode && !cb?.resumeAt) ? (
-          mode
-        ) : cb?.resumeAt ? (
-          <span>
-            {mode ? <span className="mr-1 text-fg-subtle">{mode}</span> : null}
-            {resumeAt(cb.resumeAt)}
-          </span>
-        ) : (
-          <span className="text-fg-faint">{ABSENT}</span>
-        )}
+        <span>
+          {source ? <span className="mr-1 text-fg-subtle">{source}</span> : null}
+          {cb?.resumeAt ? resumeAt(cb.resumeAt) : "Manual"}
+        </span>
       </td>
       <td className="tabular text-fg-subtle">
         {clockUtc(entry.since)}

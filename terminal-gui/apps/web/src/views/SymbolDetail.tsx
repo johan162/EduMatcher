@@ -21,7 +21,13 @@ import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { DailyBar, HaltContextFrame, TopOfBook, TradeRow } from "@edumatcher/terminal-types";
+import type {
+  AuctionReason,
+  DailyBar,
+  HaltContextFrame,
+  TopOfBook,
+  TradeRow,
+} from "@edumatcher/terminal-types";
 import { SessionBadge } from "../components/Badge.js";
 import { DepthLadder } from "../components/DepthLadder.js";
 import { EmptyState, Panel } from "../components/Panel.js";
@@ -185,7 +191,7 @@ function SymbolDetail({ sym }: { sym: string }) {
 
       {auction && dismissedAuction !== auction.seq && (
         <div className="flex items-center gap-3 rounded border border-auction/40 bg-auction-bg px-3 py-2 text-sm">
-          <span className="font-semibold text-auction">Auction uncrossed</span>
+          <span className="font-semibold text-auction">{auctionTitle(auction.reason)}</span>
           <span className="tabular">
             {auction.eqPrice === undefined ? "no cross" : price(auction.eqPrice)} · {qty(auction.eqQty)} sh
             {auction.imbalanceSide && ` · imbalance ${auction.imbalanceSide} ${qty(auction.imbalanceQty)}`}
@@ -292,6 +298,20 @@ function Toggle({
 }
 
 /** Expanded circuit-breaker context for a halted symbol (§9.3a). */
+/**
+ * Name the uncross rather than calling all three "Auction uncrossed".
+ *
+ * A reopening auction after a circuit-breaker halt and the scheduled closing
+ * auction produce the same fields, and until the gateway carried REASON there
+ * was no way to tell a viewer which one they were looking at. An older
+ * gateway sends no reason, so the generic wording remains the fallback.
+ */
+function auctionTitle(reason: AuctionReason | undefined): string {
+  if (reason === "REOPEN") return "Reopening auction";
+  if (reason === "RECOVERY") return "Startup uncross";
+  return "Auction uncrossed";
+}
+
 function HaltDetail({ context }: { context: HaltContextFrame }) {
   return (
     <div className="flex items-center gap-4 rounded border border-halt/40 bg-halt-bg px-3 py-2 text-sm">
@@ -303,12 +323,9 @@ function HaltDetail({ context }: { context: HaltContextFrame }) {
       {context.referencePrice !== undefined && (
         <span className="tabular">Reference {price(context.referencePrice)}</span>
       )}
+      {context.haltSource && <span className="text-fg-subtle">{context.haltSource}</span>}
       <span className="tabular">
-        {context.resumptionMode === "MANUAL" || (context.resumptionMode && !context.resumeAt)
-          ? `Resumes ${context.resumptionMode}`
-          : context.resumeAt
-            ? `Resumes ${resumeAt(context.resumeAt)}`
-            : ""}
+        {context.resumeAt ? `Reopens ${resumeAt(context.resumeAt)}` : "Reopens manually"}
       </span>
     </div>
   );

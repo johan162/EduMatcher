@@ -51,6 +51,7 @@ from edumatcher.balf_gwy.codec import (
     parse_logon,
     parse_new_order,
 )
+from edumatcher.balf_gwy import main as balf_main
 from edumatcher.balf_gwy.config import (
     BalfGatewayConfig,
     load_balf_gateway_config,
@@ -1133,12 +1134,6 @@ class TestEngineEventTranslations:
 
 
 class TestMain:
-    def test_parser_has_config_arg(self):
-        from edumatcher.balf_gwy.main import _build_parser
-
-        args = _build_parser().parse_args(["--config", "/tmp/x.yaml"])
-        assert args.config == "/tmp/x.yaml"
-
     def test_parser_has_bind_and_port(self):
         from edumatcher.balf_gwy.main import _build_parser
 
@@ -1171,49 +1166,54 @@ class TestMain:
         args = Namespace(log_level="INFO", verbose=2, quiet=True)
         assert _configure_logging(args) == 20
 
-    def test_resolve_config_bind_port_override(self, tmp_path: Path):
+    def test_resolve_config_bind_port_override(self, tmp_path: Path, monkeypatch):
         from edumatcher.balf_gwy.main import _resolve_config
 
         p = tmp_path / "cfg.yaml"
         p.write_text("{}\n")
-        args = Namespace(config=str(p), bind="127.0.0.1", port=8888, engine_host=None)
+        monkeypatch.setattr(balf_main, "ENGINE_CONFIG_FILE", p)
+        args = Namespace(bind="127.0.0.1", port=8888, engine_host=None)
         cfg = _resolve_config(args)
         assert cfg.bind_address == "127.0.0.1"
         assert cfg.port == 8888
 
-    def test_resolve_config_engine_host_override(self, tmp_path: Path):
+    def test_resolve_config_engine_host_override(self, tmp_path: Path, monkeypatch):
         from edumatcher.balf_gwy.main import _resolve_config
 
         p = tmp_path / "cfg.yaml"
         p.write_text("{}\n")
-        args = Namespace(config=str(p), bind=None, port=None, engine_host="192.168.1.1")
+        monkeypatch.setattr(balf_main, "ENGINE_CONFIG_FILE", p)
+        args = Namespace(bind=None, port=None, engine_host="192.168.1.1")
         cfg = _resolve_config(args)
         assert "192.168.1.1" in cfg.engine_pull_addr
         assert "192.168.1.1" in cfg.engine_pub_addr
 
-    def test_resolve_config_no_overrides(self, tmp_path: Path):
+    def test_resolve_config_no_overrides(self, tmp_path: Path, monkeypatch):
         from edumatcher.balf_gwy.main import _resolve_config
 
         p = tmp_path / "cfg.yaml"
         p.write_text("{}\n")
-        args = Namespace(config=str(p), bind=None, port=None, engine_host=None)
+        monkeypatch.setattr(balf_main, "ENGINE_CONFIG_FILE", p)
+        args = Namespace(bind=None, port=None, engine_host=None)
         cfg = _resolve_config(args)
         assert isinstance(cfg, BalfGatewayConfig)
 
-    def test_main_disabled_config_exits(self, tmp_path: Path):
+    def test_main_disabled_config_exits(self, tmp_path: Path, monkeypatch):
         from edumatcher.balf_gwy.main import main
 
         p = tmp_path / "cfg.yaml"
         p.write_text("balf_gateway:\n  enabled: false\n")
-        with patch("sys.argv", ["pm-balf-gwy", "--config", str(p)]):
+        monkeypatch.setattr(balf_main, "ENGINE_CONFIG_FILE", p)
+        with patch("sys.argv", ["pm-balf-gwy"]):
             with pytest.raises(SystemExit):
                 main()
 
-    def test_main_bad_config_exits(self, tmp_path: Path):
+    def test_main_bad_config_exits(self, tmp_path: Path, monkeypatch):
         from edumatcher.balf_gwy.main import main
 
         p = tmp_path / "cfg.yaml"
         p.write_text("balf_gateway:\n  port: 99999\n")
-        with patch("sys.argv", ["pm-balf-gwy", "--config", str(p)]):
+        monkeypatch.setattr(balf_main, "ENGINE_CONFIG_FILE", p)
+        with patch("sys.argv", ["pm-balf-gwy"]):
             with pytest.raises(SystemExit):
                 main()

@@ -96,5 +96,5 @@ def validate_dc_gateway_section(raw: dict[str, Any]) -> None:
 
 
 def load_default_dc_gateway_config() -> DcGatewayConfig:
-    """Load gateway config from EDUMATCHER_CONFIG resolution path."""
+    """Load gateway config from the deployed engine configuration."""
     return load_dc_gateway_config(ENGINE_CONFIG_FILE)

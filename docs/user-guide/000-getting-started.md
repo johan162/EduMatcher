@@ -180,7 +180,15 @@ pm-setup
 
 ```bash
 export EDUMATCHER_DATA_DIR="$HOME/.local/share/edumatcher"
-export EDUMATCHER_CONFIG="$HOME/my-exchange-session/engine_config.yaml"
+```
+
+`pm-setup` also deploys a sample configuration to
+`$EDUMATCHER_DATA_DIR/ref_data/engine_config.yaml`, so the exchange can start
+immediately. To run one of your own, author it anywhere you like — keep it
+under version control — and install it:
+
+```bash
+pm-config-deploy ~/my-exchange-session/engine_config.yaml
 ```
 
 Or use the provided one-shot script (handles pipx installation automatically):
@@ -270,10 +278,11 @@ override the defaults permanently.
 | Variable              | Default (installed)          | Default (source)            | Purpose                                    |
 |-----------------------|------------------------------|-----------------------------|--------------------------------------------|
 | `EDUMATCHER_DATA_DIR` | `~/.local/share/edumatcher`  | `<repo>/src/data/`          | Where all persistent data files are stored |
-| `EDUMATCHER_CONFIG`   | `./engine_config.yaml` (CWD) | `<repo>/engine_config.yaml` | Path to the engine configuration YAML      |
 
-The `--config` flag on `pm-engine` and `pm-scheduler` always takes precedence
-over both the environment variable and the default.
+There is only the one. The engine configuration lives at
+`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml`, and no process accepts a
+path to it — so two processes cannot be started against different
+configurations. Install a configuration with `pm-config-deploy`.
 
 
 
@@ -448,8 +457,8 @@ start the engine with a config that disables sessions:
 
 ```bash
 echo "sessions_enabled: false" > /tmp/demo.yaml
-pm-engine --config /tmp/demo.yaml       # installed
-# or:  poetry run pm-engine --config /tmp/demo.yaml
+pm-engine       # installed
+# or:  poetry run pm-engine
 ```
 
 ### Step 5 — Place orders and trade

@@ -141,14 +141,14 @@ Installed mode:
 
 ```bash
 pm-engine --verbose
-pm-balf-gwy --config engine_config.yaml
+pm-balf-gwy
 ```
 
 Developer mode:
 
 ```bash
 poetry run pm-engine --verbose
-poetry run pm-balf-gwy --config engine_config.yaml
+poetry run pm-balf-gwy
 ```
 
 CLI override options:
@@ -158,17 +158,17 @@ CLI override options:
 | `--bind ADDR` | from config / `0.0.0.0` | Override TCP bind address |
 | `--port PORT` | from config / `5560` | Override TCP listen port |
 | `--engine-host HOST` | from config | Override engine host (sets `tcp://HOST:5555` and `tcp://HOST:5556`) |
-| `--config` / `-c` | see resolution order below | Path to engine config YAML |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | Reduce output to warnings/errors |
 
-**Config file resolution order** (first match wins):
+**Config file location**
 
-1. `--config PATH` CLI flag
-2. `EDUMATCHER_CONFIG` environment variable
-3. `<repo>/engine_config.yaml` — detected from working directory
-4. `./engine_config.yaml` — current working directory (installed mode)
+The engine configuration is read from
+`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml`. There is no `--config`
+flag: every process reads that one file, so none of them can be started
+against a configuration the others have not seen. Install one with
+`pm-config-deploy`.
 
 
 ## Quick connectivity test

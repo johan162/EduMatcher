@@ -308,7 +308,7 @@ class ExchangeCommandClient:
         """
         Exchange-wide circuit-breaker halt.
 
-        Halts every known symbol with ``resumption_mode = MANUAL`` and
+        Halts every known symbol with ``halt_source = ADMIN`` and
         cancels all outstanding MM quote legs.  Requires ``role: ADMIN``.
 
         Returns

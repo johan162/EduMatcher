@@ -100,7 +100,7 @@ describe("active halts", () => {
         triggerPrice: 261.4,
         referencePrice: 248,
         resumeAt: "2026-07-30T11:07:17.000Z",
-        resumptionMode: "AUCTION",
+        haltSource: "CB",
       }),
     );
     render(<SessionView />);
@@ -127,10 +127,21 @@ describe("active halts", () => {
     expect(screen.getByText("TSLA")).toBeDefined();
   });
 
-  it("shows MANUAL with no time, since such a halt ends only on operator action", () => {
-    apply(halt("TSLA"), cb("TSLA", { level: "ADMIN_ALL", resumptionMode: "MANUAL" }));
+  it("says Manual when no resume time was published, since only an operator ends it", () => {
+    apply(halt("TSLA"), cb("TSLA", { level: "ADMIN_ALL", haltSource: "ADMIN" }));
     render(<SessionView />);
-    expect(screen.getByText("MANUAL")).toBeDefined();
+    expect(screen.getByText("Manual")).toBeDefined();
+  });
+
+  it("shows who halted the symbol alongside when it reopens", () => {
+    // Source and resume time are independent: a breaker halt can be
+    // indefinite, and an operator halt is always indefinite.
+    apply(
+      halt("TSLA"),
+      cb("TSLA", { level: "L2", resumeAt: "2026-07-30T11:07:17.000Z", haltSource: "CB" }),
+    );
+    render(<SessionView />);
+    expect(screen.getByText("CB")).toBeDefined();
   });
 
   it("drops the row once the symbol resumes", () => {

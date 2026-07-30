@@ -43,7 +43,7 @@ visible from different angles.
 Start the engine and scheduler if they are not already running:
 
 ```bash
-pm-engine --config engine_config.yaml
+pm-engine
 pm-scheduler
 ```
 

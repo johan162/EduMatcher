@@ -76,7 +76,7 @@ With those three conditions met, stop `pm-engine` cleanly, then start it again
 with the same config and data dir:
 
 ```bash
-pm-engine --config engine_config.yaml
+pm-engine
 ```
 
 Reconnect `TRADER01` and inspect orders:

@@ -179,7 +179,7 @@ Now fix the file and rerun until verdict is `OK` or your expected warning-only s
 Open a terminal and run:
 
 ```bash
-pm-engine --config engine_config.yaml
+pm-engine
 ```
 
 Expected output includes (exact wording/log format may vary by version — this

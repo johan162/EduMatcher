@@ -2,7 +2,7 @@
 Matching Engine — main process.
 
 Startup:
-  poetry run pm-engine [-v|-vv] [--config engine_config.yaml] [--log-level LEVEL] [-q]
+  poetry run pm-engine [-v|-vv] [--log-level LEVEL] [-q]
 
 ZMQ sockets:
   PULL :5555  — receives order.new / order.amend / order.cancel from gateways
@@ -704,7 +704,7 @@ class Engine:
             # orders would leave the book crossed at startup.  Uncross each
             # book at the equilibrium price before continuous trading begins.
             for symbol in list(self.books.keys()):
-                self._run_uncross(symbol_filter=symbol)
+                self._run_uncross(symbol_filter=symbol, reason="RECOVERY")
             # Publish initial book snapshots immediately on startup
             for symbol, book in self.books.items():
                 self.pub_sock.send_multipart(make_book_msg(symbol, book.snapshot()))
@@ -1327,7 +1327,7 @@ class Engine:
             if cb and cb.halted:
                 entry["resume_at_ns"] = cb.resume_at_ns
                 entry["level"] = cb.triggered_level
-                entry["resumption_mode"] = cb.active_resumption_mode
+                entry["halt_source"] = cb.halt_source
             halted.append(entry)
         self.pub_sock.send_multipart(make_halt_status_msg(gateway_id, halted))
 
@@ -1873,7 +1873,7 @@ class Engine:
                         else None
                     ),
                     "resume_at_ns": cb.resume_at_ns,
-                    "resumption_mode": cb.active_resumption_mode,
+                    "halt_source": cb.halt_source,
                     "level": cb.triggered_level,
                 },
             )
@@ -1890,25 +1890,25 @@ class Engine:
         Called once per poll loop tick.  Checks all halted symbols and resumes
         trading for those whose ``halt_duration_ns`` has elapsed.
 
-        If ``resumption_mode == "AUCTION"``, the accumulated resting orders
-        are uncrossed at the equilibrium price before continuous matching resumes.
+        The halt itself is the reopening auction's call phase: LIMIT orders are
+        accepted and rest while MARKET/FOK/IOC are rejected, and matching is
+        disabled. Resuming therefore always uncrosses at the equilibrium price
+        first — crossed interest accumulates during the call, so restarting
+        continuous matching without an uncross would begin on a crossed book.
         """
         now = now_ns()
         for symbol, cb in self._circuit_breakers.items():
             if not cb.should_resume(now):
                 continue
-            # Capture resumption_mode BEFORE deactivate() clears it.
-            _resumption_mode = cb.active_resumption_mode
+            # Capture the halt source BEFORE deactivate() clears it.
+            halt_source = cb.halt_source
             cb.deactivate()
             self._halted_symbols[symbol] = False
-            # M3: crossed interest accumulates while halted (LIMITs rest
-            # unmatched).  Uncross it at the equilibrium price on EVERY resume,
-            # not only AUCTION mode, so continuous trading never starts crossed.
-            self._run_uncross(symbol_filter=symbol)
+            self._run_uncross(symbol_filter=symbol, reason="REOPEN")
             self.pub_sock.send_multipart(
                 encode(
                     f"circuit_breaker.resume.{symbol}",
-                    {"symbol": symbol, "mode": _resumption_mode},
+                    {"symbol": symbol, "halt_source": halt_source},
                 )
             )
             self._mark_dirty(symbol)
@@ -2377,7 +2377,7 @@ class Engine:
                 cb.trigger_price = None
                 cb.reference_price = None
                 cb.triggered_level = "ADMIN_ALL"
-                cb.active_resumption_mode = "MANUAL"
+                cb.halt_source = "ADMIN"
 
             for entry in self._quote_index.cancel_all_for_symbol(
                 symbol, reason="Global circuit breaker halt"
@@ -2394,7 +2394,7 @@ class Engine:
                         "trigger_price": None,
                         "reference_price": None,
                         "resume_at_ns": None,
-                        "resumption_mode": "MANUAL",
+                        "halt_source": "ADMIN",
                         "level": "ADMIN_ALL",
                     },
                 )
@@ -2446,7 +2446,7 @@ class Engine:
             self.pub_sock.send_multipart(
                 encode(
                     f"circuit_breaker.resume.{symbol}",
-                    {"symbol": symbol, "mode": "MANUAL"},
+                    {"symbol": symbol, "halt_source": "ADMIN"},
                 )
             )
             self._mark_dirty(symbol)
@@ -2513,7 +2513,7 @@ class Engine:
             cb.trigger_price = None
             cb.reference_price = None
             cb.triggered_level = "ADMIN_SYMBOL"
-            cb.active_resumption_mode = "MANUAL"
+            cb.halt_source = "ADMIN"
 
         cancelled_quotes = 0
         for entry in self._quote_index.cancel_all_for_symbol(
@@ -2531,7 +2531,7 @@ class Engine:
                     "trigger_price": None,
                     "reference_price": None,
                     "resume_at_ns": None,
-                    "resumption_mode": "MANUAL",
+                    "halt_source": "ADMIN",
                     "level": "ADMIN_SYMBOL",
                 },
             )
@@ -2595,7 +2595,7 @@ class Engine:
         self.pub_sock.send_multipart(
             encode(
                 f"circuit_breaker.resume.{symbol}",
-                {"symbol": symbol, "mode": "MANUAL"},
+                {"symbol": symbol, "halt_source": "ADMIN"},
             )
         )
         self._mark_dirty(symbol)
@@ -3024,7 +3024,7 @@ class Engine:
             is_matching_enabled(to_state) or to_state == SessionState.CLOSED
         )
         if needs_uncross:
-            self._run_uncross()
+            self._run_uncross(reason="SCHEDULED")
 
         # --- Expire auction-only orders when their window closes ---
         if from_state == SessionState.OPENING_AUCTION:
@@ -3078,6 +3078,8 @@ class Engine:
     def _run_uncross(
         self,
         symbol_filter: str | None = None,
+        *,
+        reason: str,
     ) -> None:
         """Run the equilibrium-price uncrossing on every (or one) symbol book.
 
@@ -3085,7 +3087,11 @@ class Engine:
         ----------
         symbol_filter : When provided, only uncross this specific symbol.
                         Used by ``_flush_circuit_breakers()`` for per-symbol
-                        resumption auctions.
+                        reopening auctions.
+        reason :        Why this uncross is happening — ``SCHEDULED``,
+                        ``REOPEN`` or ``RECOVERY``. Published on every
+                        ``auction.result`` so a consumer can tell a reopening
+                        auction from the closing one.
         """
         for symbol, book in self.books.items():
             if symbol_filter is not None and symbol != symbol_filter:
@@ -3180,6 +3186,7 @@ class Engine:
                     trades_count=len(trades) if result.eq_price else 0,
                     imbalance_side=result.imbalance_side,
                     imbalance_qty=result.surplus,
+                    reason=reason,
                 )
             )
 
@@ -4015,12 +4022,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher matching engine")
     add_version_argument(parser, "pm-engine")
     parser.add_argument(
-        "--config",
-        "-c",
-        metavar="FILE",
-        help="Engine config YAML (default: engine_config.yaml)",
-    )
-    parser.add_argument(
         "--log-level",
         choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
         help="Logging level override (default: WARNING)",
@@ -4110,7 +4111,8 @@ def main() -> None:
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-engine with log level %s", logging.getLevelName(log_level))
-    Engine(config_path=args.config).run()
+    log.info("using engine config %s", ENGINE_CONFIG_FILE)
+    Engine().run()
 
 
 if __name__ == "__main__":
