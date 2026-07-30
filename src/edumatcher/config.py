@@ -132,6 +132,10 @@ LOG_SRV_PULL_ADDR = f"tcp://{LOG_SRV_HOST}:{LOG_SRV_PULL_PORT}"
 # copies it here. Nothing at runtime accepts a path.
 REF_DATA_DIR = DATA_DIR / "ref_data"
 ENGINE_CONFIG_FILE = REF_DATA_DIR / "engine_config.yaml"
+# What every process actually reads: the compiled artifact, with all defaults
+# resolved and all validation already done. The YAML beside it is the source it
+# was built from, kept for provenance and for recompiling.
+COMPILED_CONFIG_FILE = REF_DATA_DIR / "engine_config.json"
 
 # ---------------------------------------------------------------------------
 # Misc

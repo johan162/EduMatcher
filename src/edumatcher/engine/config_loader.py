@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 import yaml
 
@@ -28,9 +28,12 @@ from edumatcher.models.quote import QuoteRefreshPolicy
 from edumatcher.models.order import TIF, SmpAction
 from edumatcher.models.mm_obligation import MarketMakerObligation
 
-if TYPE_CHECKING:
-    from edumatcher.engine.collar import CollarConfig
-    from edumatcher.engine.circuit_breaker import CircuitBreakerConfig
+# Imported at runtime, not under TYPE_CHECKING: the compiled-config codec
+# resolves these annotations with typing.get_type_hints(), which needs the
+# names present in this module's namespace. Neither module imports this one,
+# so there is no cycle to avoid.
+from edumatcher.engine.collar import CollarConfig
+from edumatcher.engine.circuit_breaker import CircuitBreakerConfig
 
 _DEFAULT_MM_MAX_SPREAD_TICKS = 10
 _DEFAULT_MM_MIN_QTY = 100
@@ -61,9 +64,9 @@ class SymbolConfig:
     outstanding_shares: int | None = None
     last_buy_price: Optional[float] = None
     last_sell_price: Optional[float] = None
-    market_maker_quotes: list["MMQuoteSeed"] = field(default_factory=list)
-    collar: Optional["CollarConfig"] = None  # populated by load_engine_config()
-    circuit_breaker: Optional["CircuitBreakerConfig"] = (
+    market_maker_quotes: list[MMQuoteSeed] = field(default_factory=list)
+    collar: Optional[CollarConfig] = None  # populated by load_engine_config()
+    circuit_breaker: Optional[CircuitBreakerConfig] = (
         None  # populated by load_engine_config()
     )
 
@@ -463,7 +466,7 @@ def load_engine_config(path: Path) -> EngineConfig:
             )
 
         # --- Optional collar section -------------------------------------------
-        collar_cfg: Optional["CollarConfig"] = None
+        collar_cfg: Optional[CollarConfig] = None
         collar_raw = cfg.get("collar")
         if collar_raw is not None and not isinstance(collar_raw, dict):
             raise ValueError(f"Symbol '{sym}': collar must be a mapping")
@@ -504,7 +507,7 @@ def load_engine_config(path: Path) -> EngineConfig:
                 )
 
         # --- Optional circuit_breaker section ---------------------------------
-        cb_cfg: Optional["CircuitBreakerConfig"] = None
+        cb_cfg: Optional[CircuitBreakerConfig] = None
         cb_raw = cfg.get("circuit_breaker")
         if cb_raw is not None and not isinstance(cb_raw, dict):
             raise ValueError(f"Symbol '{sym}': circuit_breaker must be a mapping")

@@ -240,6 +240,26 @@ def validate_api_gateway_sections(raw: dict[str, Any]) -> None:
     _load_named_api_gateways(raw)
 
 
+def load_named_api_gateway_configs(path: Path) -> dict[str, ApiGatewayConfig]:
+    """Load every configured API gateway instance, keyed by name.
+
+    ``load_api_gateway_config`` returns one instance and needs ``--instance``
+    to disambiguate. The compiled artifact carries them all, since it is built
+    once for the whole exchange rather than per process.
+    """
+    if not path.exists():
+        return {}
+
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        return {}
+
+    if "api_gateway" in raw:
+        raise ValueError("api_gateway is not supported; use api_gateways")
+
+    return _load_named_api_gateways(raw)
+
+
 def load_api_gateway_config(
     path: Path, instance: str | None = None
 ) -> ApiGatewayConfig:
