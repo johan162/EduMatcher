@@ -36,6 +36,7 @@ import {
   buildHello,
   buildPing,
   buildSub,
+  buildSymbolsRequest,
   buildUnsub,
   decodeAuction,
   decodeCb,
@@ -45,6 +46,7 @@ import {
   decodeTop,
   decodeTrade,
   parseLine,
+  parseSymbolsReply,
   parseWelcome,
   readEnvelope,
   type Channel,
@@ -76,6 +78,13 @@ export interface CalfUplinkEvents {
   symbol: [string];
   /** `ERR` from the gateway — a real problem worth an operator's attention. */
   gatewayError: [{ code: string; detail: Record<string, string> }];
+  /**
+   * A per-symbol subscription was opened or closed (design §17.5).
+   *
+   * Only the 0↔1 edges, not every browser tab's interest — what an operator
+   * needs is how many streams this bridge is actually holding upstream.
+   */
+  subscription: [{ action: "SUB" | "UNSUB"; ch: WatchChannel; sym: string; held: number }];
 }
 
 export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
@@ -99,8 +108,14 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
   constructor(private readonly opts: CalfUplinkOptions) {
     super();
     this.refCount = new SymbolRefCount({
-      onFirst: (ch, sym) => this.sendSub(ch, sym),
-      onLast: (ch, sym) => this.send(buildUnsub([ch], [sym])),
+      onFirst: (ch, sym) => {
+        this.sendSub(ch, sym);
+        this.emit("subscription", { action: "SUB", ch, sym, held: this.refCount.active().length });
+      },
+      onLast: (ch, sym) => {
+        this.send(buildUnsub([ch], [sym]));
+        this.emit("subscription", { action: "UNSUB", ch, sym, held: this.refCount.active().length });
+      },
     });
   }
 
@@ -213,6 +228,13 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
       case "HB":
       case "PONG":
         return;
+      case "SYMBOLS":
+        // The authoritative instrument universe, which WELCOME may not have
+        // carried at all. Merged rather than replacing, so symbols already
+        // learned from live data are not dropped if the gateway's own set is
+        // somehow narrower.
+        for (const sym of parseSymbolsReply(fields)) this.learnSymbol(sym);
+        return;
       case "ERR":
         this.emit("gatewayError", { code: fields["CODE"] ?? "UNKNOWN", detail: fields });
         return;
@@ -231,6 +253,9 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
     for (const sym of welcome.symbols) this.learnSymbol(sym);
 
     this.emit("welcome", welcome);
+    // Ask rather than rely on WELCOME|SYMBOLS=, which is optional and absent
+    // whenever the gateway could not read an engine config.
+    this.send(buildSymbolsRequest());
     this.subscribeAll();
     this.armPing();
     this.setState("ACTIVE");

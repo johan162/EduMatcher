@@ -19,19 +19,30 @@ export interface DailyBar {
   trade_count: number | null;
 }
 
+/**
+ * One executed trade from `trade_log`.
+ *
+ * The timestamp column is `ts`, not `timestamp` — these rows come straight off
+ * pm-stats' SQLite and the proxy renames nothing.
+ */
 export interface TradeRow {
+  ts: string;
+  trade_id: string;
   symbol: string;
   price: number;
   quantity: number;
-  timestamp: string;
+  buy_gateway_id: string | null;
+  sell_gateway_id: string | null;
 }
 
 export interface PriceSnapshotRow {
+  ts: string;
   symbol: string;
-  timestamp: string;
   mid_price: number | null;
   best_bid: number | null;
   best_ask: number | null;
+  /** Change versus the *previous snapshot*, not the day's open; null on the first. */
+  pct_change: number | null;
 }
 
 export interface IndexDailyRow {

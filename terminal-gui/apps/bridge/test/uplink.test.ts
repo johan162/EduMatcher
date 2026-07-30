@@ -386,3 +386,87 @@ describe("reconnect", () => {
     expect(gateway.connectionCount).toBe(1);
   });
 });
+
+describe("subscription accounting", () => {
+  it("reports the edge when a per-symbol subscription opens", async () => {
+    const harness = await connected();
+    const events: Array<{ action: string; ch: string; sym: string; held: number }> = [];
+    harness.uplink.on("subscription", (event) => events.push(event));
+
+    harness.uplink.watch("DEPTH", "AAPL");
+
+    expect(events).toEqual([{ action: "SUB", ch: "DEPTH", sym: "AAPL", held: 1 }]);
+  });
+
+  it("stays quiet for a second interested party, which opens nothing new", async () => {
+    const harness = await connected();
+    harness.uplink.watch("CB", "TSLA");
+    const events: Array<{ action: string }> = [];
+    harness.uplink.on("subscription", (event) => events.push(event));
+
+    harness.uplink.watch("CB", "TSLA");
+
+    expect(events).toEqual([]);
+  });
+
+  it("reports the closing edge and how many streams remain held", async () => {
+    const harness = await connected();
+    harness.uplink.watch("DEPTH", "AAPL");
+    harness.uplink.watch("CB", "TSLA");
+    const events: Array<{ action: string; sym: string; held: number }> = [];
+    harness.uplink.on("subscription", (event) => events.push(event));
+
+    harness.uplink.unwatch("DEPTH", "AAPL");
+
+    expect(events).toEqual([{ action: "UNSUB", ch: "DEPTH", sym: "AAPL", held: 1 }]);
+  });
+});
+
+describe("symbol discovery", () => {
+  it("asks for the universe rather than relying on WELCOME alone", async () => {
+    const harness = await connected();
+    await waitFor(
+      () => harness.gateway.linesStartingWith("SYMBOLS").length === 1,
+      2000,
+      "the SYMBOLS request",
+    );
+  });
+
+  it("learns symbols a gateway that sent no WELCOME list still knows about", async () => {
+    // Exactly the misconfigured case: pm-md-gwy started without an engine
+    // config, so WELCOME carries no SYMBOLS= at all.
+    const harness = await connected({ symbols: [], symbolsOnRequest: ["AAPL", "MSFT", "TSLA"] });
+
+    await waitFor(() => harness.uplink.symbols().length === 3, 2000, "the symbol list");
+    expect(harness.uplink.symbols()).toEqual(["AAPL", "MSFT", "TSLA"]);
+  });
+
+  it("re-asks after a reconnect, picking up anything listed since", async () => {
+    const harness = await connected({ symbols: ["AAPL"] });
+    await reconnect(harness);
+
+    await waitFor(
+      () => harness.gateway.linesStartingWith("SYMBOLS").length === 2,
+      2000,
+      "the second SYMBOLS request",
+    );
+  });
+
+  it("merges the reply with symbols already seen on the wire", async () => {
+    const harness = await connected({ symbols: ["AAPL"] });
+    harness.gateway.emit("TRADE|CH=TRADE|SYM=NEWCO|SEQ=1|TS=t|PX=1|QTY=1|SIDE=BUY");
+
+    await waitFor(() => harness.uplink.symbols().includes("NEWCO"), 2000, "the live symbol");
+    expect(harness.uplink.symbols()).toContain("AAPL");
+  });
+
+  it("copes with a gateway that knows of no instruments at all", async () => {
+    const harness = await connected({ symbols: [] });
+    await waitFor(
+      () => harness.gateway.linesStartingWith("SYMBOLS").length === 1,
+      2000,
+      "the SYMBOLS request",
+    );
+    expect(harness.uplink.symbols()).toEqual([]);
+  });
+});

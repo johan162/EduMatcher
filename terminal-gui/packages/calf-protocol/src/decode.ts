@@ -80,6 +80,17 @@ export function parseWelcome(fields: Record<string, string>): WelcomeInfo {
   };
 }
 
+/**
+ * Decode a `SYMBOLS` reply.
+ *
+ * `COUNT` is authoritative and always present, including as `0`; the
+ * `SYMBOLS` field is omitted rather than sent empty when the gateway knows of
+ * no instruments, so an empty list is a real answer and not a parse failure.
+ */
+export function parseSymbolsReply(fields: Record<string, string>): string[] {
+  return splitCsv(fields["SYMBOLS"]);
+}
+
 function splitCsv(raw: string | undefined): string[] {
   if (!raw) return [];
   return raw

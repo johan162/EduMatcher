@@ -27,8 +27,8 @@ terminal-gui/
 | 3 | Bridge CALF uplink + per-symbol reference counting | done |
 | 4 | Bridge Fastify server: WS fan-out, history proxy, logging | done |
 | 5 | App shell (light/dark, density presets) + Session & Halt board | done |
-| 6 | Market Overview + Watchlist | not started |
-| 7 | Symbol Detail (chart, values, depth toggle) | not started |
+| 6 | Market Overview + Watchlist | done |
+| 7 | Symbol Detail (chart, values, depth toggle) | done |
 | 8 | Index View, Trade Tape, Movers | not started |
 
 ## Quick start
@@ -120,6 +120,25 @@ session closing, then `_flush_client_writes` disconnects. `240-calf-gateway.md`
 already documents this honestly; §17.1 of the terminal design assumed the
 `ERR` was actionable. Handled as an ordinary close.
 
+**7. Per-symbol auction badges are unreachable (§8.4).** The column table wants
+a "halted / auction indicator" on the symbol from CALF `STATE`. Only the halt
+half is possible: `normalise_halt`/`normalise_resume` emit `HALTED` or
+`CONTINUOUS` and nothing else per symbol, and auction phases arrive
+exchange-wide under `SYM=*`. Overview badges halts; the exchange phase shows in
+the status strip.
+
+**8. History rows use `ts`, not `timestamp`.** The `TradeRow` and
+`PriceSnapshotRow` types written in Phase 1 named the column `timestamp`; the
+endpoints return `ts`, straight off pm-stats' SQLite with no renaming in the
+proxy. Nothing exercised those types until the chart did, at which point every
+bar would silently have vanished. Corrected, along with the fields those rows
+actually carry (`trade_id`, gateway ids, `pct_change`).
+
+**9. `GET /history/daily` needs no per-symbol polling (§8.5).** The design has
+the grid re-poll "for every symbol currently visible". Omitting both `symbol`
+and `date` returns every symbol for the latest available date in one request,
+which is fewer round trips and stays correct as the grid pages.
+
 ## CALF changes made while building this
 
 Three findings were protocol or gateway defects affecting every CALF consumer,
@@ -142,6 +161,17 @@ ages out. `idle_timeout_sec`'s runtime default also moved 300 → 5, matching th
 sample config, config generator, config spec and both protocol docs; 300 only
 ever made sense as cover for this bug. `CALF_PING_INTERVAL_SEC` is now
 belt-and-braces rather than load-bearing.
+
+**`TOP.LAST` refreshes after a trade.** `normalise_trade` wrote the new price
+into the gateway's top-of-book cache so a `SNAP` would be immediately right —
+which also made the next `normalise_book` see `LAST` as unchanged and suppress
+it. `MD` therefore never carried a new last price, leaving a
+continuously-connected client on the value baked into its original `SNAP`
+while a reconnecting one saw the truth. The cache was serving two masters:
+"current state, for `SNAP`" and "last value sent, for diffing". These are now
+separate (`top_cache` and `top_sent`), so both are correct with no staleness
+window, and `TopOfBook` is frozen like its `DepthBook`/`CBStatus` siblings —
+the shared instance had made an in-place mutation reach through both.
 
 **`RESUME` is a standalone, repeatable command.** It was a `RESUME=1` flag on
 `HELLO`, which the gateway processes exactly once per connection — so a client

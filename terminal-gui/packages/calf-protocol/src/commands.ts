@@ -52,3 +52,16 @@ export function buildPing(): string {
 export function buildExit(): string {
   return buildLine("EXIT");
 }
+
+/**
+ * Ask the gateway which instruments it knows about.
+ *
+ * `WELCOME|SYMBOLS=` is not a substitute: it is optional, sent once, and
+ * omitted entirely when the gateway started without a readable engine config —
+ * which is exactly what a misconfigured deployment looks like from the client
+ * side. The gateway's set also grows as instruments appear on the engine bus,
+ * so a client that connected early would otherwise never learn of them.
+ */
+export function buildSymbolsRequest(): string {
+  return buildLine("SYMBOLS");
+}

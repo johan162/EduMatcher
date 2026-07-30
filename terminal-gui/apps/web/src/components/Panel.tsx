@@ -18,12 +18,7 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section
-      className={clsx(
-        "rounded border border-border bg-bg-subtle",
-        stale && "stale",
-      )}
-    >
+    <section className={clsx("rounded border border-border bg-bg-subtle", stale && "stale")}>
       <header className="flex items-center justify-between border-b border-border px-3 py-2">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-fg-subtle">{title}</h2>
         {right}

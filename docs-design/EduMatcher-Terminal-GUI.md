@@ -1008,7 +1008,7 @@ and the `[ All ▾ ] [☆ Watchlist]` toggle are new in this revision — see
 |---|---|---|
 | ☆/★ | Watchlist pin toggle (§8.6) | client-only, `localStorage` |
 | SYMBOL | Ticker | CALF `WELCOME|SYMBOLS=` / config |
-| LAST | Last trade price | CALF `TOP.LAST` (falls back to `TRADE.PX`) |
+| LAST | Last trade price | CALF `TRADE.PX` as it arrives, with `TOP.LAST` as the baseline before the first observed print. Not the other way round: `TOP.LAST` only refreshes on the next book republish, throttled by the engine's `snapshot_interval_sec`, so `TRADE` is the lower-latency source. (Gateway builds before the `top_sent` fix never refreshed `TOP.LAST` after a trade at all — see the CALF Protocol Reference, "`LAST` after a trade".) |
 | CHG | `LAST − OPEN` | computed, `OPEN` from REST `/history/daily` |
 | %CHG | `CHG / OPEN × 100` | computed |
 | BID / ASK | Best bid/ask | CALF `TOP.BID`/`TOP.ASK` |

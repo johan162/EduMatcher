@@ -1,10 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  DENSITY_ORDER,
-  applyThemeToDocument,
-  usePrefsStore,
-} from "../src/store/usePrefsStore.js";
+import { DENSITY_ORDER, applyThemeToDocument, usePrefsStore } from "../src/store/usePrefsStore.js";
 
 beforeEach(() => {
   localStorage.clear();

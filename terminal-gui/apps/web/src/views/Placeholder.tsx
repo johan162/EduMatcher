@@ -13,9 +13,7 @@ export function Placeholder({ title, phase }: { title: string; phase: string }) 
   return (
     <div className="mx-auto max-w-6xl">
       <Panel title={title}>
-        <p className="py-8 text-center text-sm text-fg-faint">
-          Not built yet — arrives in {phase}.
-        </p>
+        <p className="py-8 text-center text-sm text-fg-faint">Not built yet — arrives in {phase}.</p>
       </Panel>
     </div>
   );

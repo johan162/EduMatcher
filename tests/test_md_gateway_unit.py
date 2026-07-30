@@ -440,3 +440,80 @@ def test_unsub_removes_pair(unit_gateway: MarketDataGateway) -> None:
     unit_gateway._handle_client_line(sess, "UNSUB|CH=TOP|SYM=AAPL")
     assert ("TOP", "AAPL") not in sess.subscriptions
     peer.close()
+
+
+def test_symbols_request_returns_the_known_universe(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """A client must be able to *ask* what instruments exist.
+
+    WELCOME|SYMBOLS= is optional and sent once; a gateway started without a
+    readable engine config omits it entirely, leaving a client with no
+    universe and no way to obtain one.
+    """
+    sess, peer = _authenticated_session(unit_gateway)
+
+    unit_gateway._handle_client_line(sess, "SYMBOLS")
+
+    frame = parse_line(sess.out_queue[-1].decode("utf-8"))
+    assert frame.msg_type == "SYMBOLS"
+    assert sorted(frame.fields["SYMBOLS"].split(",")) == ["AAPL", "MSFT"]
+    assert frame.fields["COUNT"] == "2"
+    peer.close()
+
+
+def test_symbols_request_reports_an_empty_universe_distinctly(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """Zero symbols is an answer, not a malformed reply."""
+    unit_gateway._known_symbols.clear()
+    sess, peer = _authenticated_session(unit_gateway)
+
+    unit_gateway._handle_client_line(sess, "SYMBOLS")
+
+    frame = parse_line(sess.out_queue[-1].decode("utf-8"))
+    assert frame.fields["COUNT"] == "0"
+    assert "SYMBOLS" not in frame.fields
+    peer.close()
+
+
+def test_symbols_request_sees_instruments_learned_since_connect(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """The gateway's set grows as symbols appear on the engine bus.
+
+    A client that connected before a symbol first traded could not otherwise
+    learn of it without reconnecting.
+    """
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._known_symbols.add("NEWCO")
+
+    unit_gateway._handle_client_line(sess, "SYMBOLS")
+
+    frame = parse_line(sess.out_queue[-1].decode("utf-8"))
+    assert "NEWCO" in frame.fields["SYMBOLS"]
+    peer.close()
+
+
+def test_symbols_request_is_repeatable(unit_gateway: MarketDataGateway) -> None:
+    sess, peer = _authenticated_session(unit_gateway)
+
+    unit_gateway._handle_client_line(sess, "SYMBOLS")
+    unit_gateway._handle_client_line(sess, "SYMBOLS")
+
+    frames = [parse_line(line.decode("utf-8")) for line in sess.out_queue]
+    assert len([f for f in frames if f.msg_type == "SYMBOLS"]) == 2
+    assert _err_codes(sess) == []
+    peer.close()
+
+
+def test_symbols_request_requires_authentication_first(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    sess, peer = _make_session()
+    unit_gateway._clients[sess.sock.fileno()] = sess
+
+    unit_gateway._handle_client_line(sess, "SYMBOLS")
+
+    assert _err_codes(sess) == ["AUTH_REQUIRED"]
+    peer.close()

@@ -41,9 +41,7 @@ export function SessionView() {
     <div className="mx-auto flex max-w-6xl flex-col gap-4">
       <Panel title="Session status">
         <div className="flex items-baseline gap-3">
-          <span className="text-2xl font-semibold tracking-tight">
-            {sessionPhase ?? "AWAITING SESSION"}
-          </span>
+          <span className="text-2xl font-semibold tracking-tight">{sessionPhase ?? "AWAITING SESSION"}</span>
           <SessionBadge phase={sessionPhase} />
           <span className="text-sm text-fg-subtle">
             {sessionSince ? `since ${clockUtc(sessionSince)} UTC` : "no transition observed yet"}
@@ -156,9 +154,7 @@ function HaltRow({ entry, rowClass }: { entry: HaltedSymbol; rowClass: string })
       <td className="font-semibold">{entry.sym}</td>
       <td>
         {cb?.level ? (
-          <span className="rounded bg-halt-bg px-1.5 py-0.5 text-[10px] font-bold text-halt">
-            {cb.level}
-          </span>
+          <span className="rounded bg-halt-bg px-1.5 py-0.5 text-[10px] font-bold text-halt">{cb.level}</span>
         ) : (
           <span className="text-fg-faint">{ABSENT}</span>
         )}

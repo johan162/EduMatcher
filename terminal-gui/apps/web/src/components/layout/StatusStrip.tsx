@@ -36,9 +36,7 @@ export function StatusStrip() {
       </span>
 
       <span className={haltCount > 0 ? "font-semibold text-halt" : undefined}>
-        {haltCount === 0
-          ? "no halts"
-          : `${haltCount} symbol${haltCount === 1 ? "" : "s"} halted`}
+        {haltCount === 0 ? "no halts" : `${haltCount} symbol${haltCount === 1 ? "" : "s"} halted`}
       </span>
 
       <span>{symbolCount} symbols</span>

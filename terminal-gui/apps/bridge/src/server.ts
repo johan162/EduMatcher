@@ -62,6 +62,14 @@ uplink.on("status", (state) => {
   hub.broadcast({ type: "bridge_status", calf: state, since: uplink.stateSince, wsClients: hub.clientCount });
 });
 
+// A tab's `hello` is a point-in-time snapshot of the universe; this keeps
+// already-open tabs current as the gateway learns of more instruments.
+uplink.on("symbol", () => hub.broadcast({ type: "symbols", symbols: uplink.symbols() }));
+
+uplink.on("subscription", ({ action, ch, sym, held }) => {
+  log.info("terminal-bridge.calf.symbol-refcount", `${action} CH=${ch} SYM=${sym} (${held} held)`);
+});
+
 uplink.on("gatewayError", ({ code, detail }) => {
   log.warn("terminal-bridge.calf.uplink", `gateway ERR ${code}: ${JSON.stringify(detail)}`);
 });

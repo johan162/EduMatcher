@@ -14,6 +14,12 @@ export interface FakeGatewayOptions {
   chSupported?: string[] | null;
   /** Advertised in `WELCOME|SYMBOLS=`. Omitted when empty, as the real one does. */
   symbols?: string[];
+  /**
+   * Answered to a `SYMBOLS` request. Defaults to `symbols`; set separately to
+   * model a gateway that started without an engine config (so `WELCOME`
+   * carries none) but has since learned instruments from the wire.
+   */
+  symbolsOnRequest?: string[];
   /** Accept the connection but send no `WELCOME`. */
   silent?: boolean;
 }
@@ -68,6 +74,15 @@ export class FakeCalfGateway {
           continue;
         }
         if (line.startsWith("PING")) socket.write("PONG\n");
+
+        if (line.startsWith("SYMBOLS")) {
+          const known = this.opts.symbolsOnRequest ?? this.opts.symbols ?? [];
+          const parts = ["SYMBOLS", `COUNT=${known.length}`];
+          // The real gateway omits the field entirely rather than sending it
+          // empty, so COUNT is the only reliable indicator of an empty set.
+          if (known.length > 0) parts.push(`SYMBOLS=${known.join(",")}`);
+          socket.write(`${parts.join("|")}\n`);
+        }
       }
     });
   }

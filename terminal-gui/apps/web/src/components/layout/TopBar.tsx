@@ -58,9 +58,7 @@ export function TopBar() {
             className={({ isActive }) =>
               clsx(
                 "rounded px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors",
-                isActive
-                  ? "bg-accent text-accent-fg"
-                  : "text-fg-subtle hover:bg-bg-inset hover:text-fg",
+                isActive ? "bg-accent text-accent-fg" : "text-fg-subtle hover:bg-bg-inset hover:text-fg",
               )
             }
           >

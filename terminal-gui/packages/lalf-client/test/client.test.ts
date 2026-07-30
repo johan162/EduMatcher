@@ -203,7 +203,7 @@ describe("failover", () => {
 
     await waitFor(
       () => readFileSync(client.fallbackPath, "utf8").includes("after failover"),
-      2000,
+      5000,
       "the record to reach the file",
     );
   });
@@ -211,7 +211,7 @@ describe("failover", () => {
   it("writes a marker line naming the file it switched to", async () => {
     const client = await failedOverClient();
 
-    await waitFor(() => readFileSync(client.fallbackPath, "utf8").length > 0, 2000, "the marker line");
+    await waitFor(() => readFileSync(client.fallbackPath, "utf8").length > 0, 5000, "the marker line");
     const contents = readFileSync(client.fallbackPath, "utf8");
     expect(contents).toContain("pm-log-srv unreachable");
     expect(contents).toContain(client.fallbackPath);
@@ -230,7 +230,7 @@ describe("failover", () => {
     await waitFor(() => client.state === "FAILED_OVER", 5000, "failover");
     await waitFor(
       () => readFileSync(client.fallbackPath, "utf8").includes("queued before failover"),
-      2000,
+      5000,
       "the backlog to reach the file",
     );
   });

@@ -14,11 +14,13 @@ import { create } from "zustand";
 import type {
   AuctionResultFrame,
   CalfState,
+  DepthFrame,
   HaltContextFrame,
   ServerFrame,
   SessionPhase,
   TopOfBook,
 } from "@edumatcher/terminal-types";
+import { midOf, type LinePoint } from "../lib/bars.js";
 import type { WsStatus } from "../lib/ws.js";
 
 /**
@@ -27,6 +29,13 @@ import type { WsStatus } from "../lib/ws.js";
  * happened" board, not an audit log.
  */
 const AUCTION_BUFFER_MAX = 200;
+
+/**
+ * Live midpoint points kept per symbol. At one tick per book republish this is
+ * roughly an hour of tail — enough to splice onto the recorded history without
+ * a long-lived tab growing without bound.
+ */
+const MID_TAIL_MAX = 5_000;
 
 /** What the top bar's indicator shows (design §7.4). */
 export type ConnectionState = "LIVE" | "RECONNECTING" | "OFFLINE";
@@ -57,6 +66,25 @@ interface LiveStore {
   auctions: AuctionResultFrame[];
   top: Record<string, TopOfBook>;
 
+  /**
+   * Depth ladder for whichever symbol currently has the toggle on.
+   *
+   * One symbol, not a map: `DEPTH` costs a real per-symbol CALF subscription
+   * (§14.4 — the gateway rejects `SYM=*` for it), and the bridge only holds it
+   * while a tab is looking. Keeping a map would imply we retain ladders we are
+   * no longer subscribed to and would show a frozen book after switching away.
+   */
+  depth: DepthFrame | null;
+
+  /**
+   * Live bid/ask midpoint tail per symbol, for the Symbol Detail chart (§9.3).
+   *
+   * Bounded: this grows on every `TOP` tick for every symbol, and an
+   * unattended tab left open all session would otherwise accumulate without
+   * limit.
+   */
+  midTail: Record<string, LinePoint[]>;
+
   setWsStatus: (status: WsStatus) => void;
   applyFrame: (frame: ServerFrame) => void;
   reset: () => void;
@@ -77,6 +105,8 @@ const initialState = {
   halted: {} as Record<string, HaltedSymbol>,
   auctions: [] as AuctionResultFrame[],
   top: {} as Record<string, TopOfBook>,
+  depth: null as DepthFrame | null,
+  midTail: {} as Record<string, LinePoint[]>,
 };
 
 export const useLiveStore = create<LiveStore>((set, get) => ({
@@ -97,13 +127,27 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
             gateway: frame.gateway,
           };
 
+        case "symbols":
+          return { symbols: frame.symbols };
+
         case "bridge_status":
           return { calf: frame.calf };
 
-        case "top":
+        case "top": {
           // The bridge already merged the CALF delta, so this is the full
           // current book for the symbol and replaces rather than merges.
-          return { top: { ...s.top, [frame.sym]: frameToTop(frame) } };
+          const book = frameToTop(frame);
+          const patch: Partial<LiveStore> = { top: { ...s.top, [frame.sym]: book } };
+
+          const mid = midOf(book.bid, book.ask);
+          const at = Date.parse(frame.ts);
+          if (mid !== undefined && !Number.isNaN(at)) {
+            const point = { time: Math.floor(at / 1000), value: mid };
+            const tail = [...(s.midTail[frame.sym] ?? []), point].slice(-MID_TAIL_MAX);
+            patch.midTail = { ...s.midTail, [frame.sym]: tail };
+          }
+          return patch;
+        }
 
         case "state":
           return applyState(s, frame);
@@ -114,10 +158,15 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
         case "auction_result":
           return { auctions: [frame, ...s.auctions].slice(0, AUCTION_BUFFER_MAX) };
 
-        // Frames this view family does not consume yet.
+        case "depth":
+          return { depth: frame };
+
+        // Frames no view consumes yet. `trade` carries individual prints; the
+        // Overview reads its last price off `top` so a row's figures all
+        // describe one moment, and the Trade Tape (§11) will keep its own
+        // bounded buffer rather than a last-value-per-symbol map.
         case "trade":
         case "index":
-        case "depth":
           return {};
       }
     }),
@@ -155,10 +204,7 @@ function frameToTop(frame: Extract<ServerFrame, { type: "top" }>): TopOfBook {
  * symbol halting or resuming. The two look identical on the wire apart from
  * the symbol, which design §17.3's single example did not make obvious.
  */
-function applyState(
-  s: LiveStore,
-  frame: Extract<ServerFrame, { type: "state" }>,
-): Partial<LiveStore> {
+function applyState(s: LiveStore, frame: Extract<ServerFrame, { type: "state" }>): Partial<LiveStore> {
   if (frame.sym === "*") {
     return { sessionPhase: frame.session, sessionPrev: frame.prev, sessionSince: frame.ts };
   }
@@ -184,10 +230,7 @@ function applyState(
  * why (design §9.3a). A `CB` for a symbol with no halt on record is dropped —
  * that is a resume arriving after the `STATE` that already cleared it.
  */
-function applyHaltContext(
-  s: LiveStore,
-  frame: HaltContextFrame,
-): Partial<LiveStore> {
+function applyHaltContext(s: LiveStore, frame: HaltContextFrame): Partial<LiveStore> {
   const existing = s.halted[frame.sym];
   if (!existing || frame.status !== "HALTED") return {};
   return { halted: { ...s.halted, [frame.sym]: { ...existing, context: frame } } };

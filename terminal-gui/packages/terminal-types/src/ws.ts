@@ -134,6 +134,19 @@ export interface HaltContextFrame {
   resumptionMode?: string;
 }
 
+/**
+ * A refreshed instrument universe.
+ *
+ * Sent when the bridge learns of symbols after a tab's `hello` — from the
+ * gateway's answer to a `SYMBOLS` request, or from a symbol first appearing on
+ * the live wire. Without it a tab that connected before the gateway knew any
+ * instruments would sit on an empty list indefinitely.
+ */
+export interface SymbolsFrame {
+  type: "symbols";
+  symbols: string[];
+}
+
 export interface BridgeStatusFrame {
   type: "bridge_status";
   calf: CalfState;
@@ -150,6 +163,7 @@ export type ServerFrame =
   | DepthFrame
   | AuctionResultFrame
   | HaltContextFrame
+  | SymbolsFrame
   | BridgeStatusFrame;
 
 /**

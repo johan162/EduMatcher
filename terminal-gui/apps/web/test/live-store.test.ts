@@ -126,7 +126,11 @@ describe("halt tracking", () => {
 
   it("sorts halted symbols so the board does not reshuffle as frames arrive", () => {
     apply(state_("TSLA", "HALTED"), state_("AAPL", "HALTED"), state_("MSFT", "HALTED"));
-    expect(state().haltedList().map((h) => h.sym)).toEqual(["AAPL", "MSFT", "TSLA"]);
+    expect(
+      state()
+        .haltedList()
+        .map((h) => h.sym),
+    ).toEqual(["AAPL", "MSFT", "TSLA"]);
   });
 });
 
@@ -175,6 +179,29 @@ describe("auction ring buffer", () => {
   it("drops the oldest entries once bounded, not the newest", () => {
     for (let i = 0; i < 250; i += 1) apply(auction("AAPL", i));
     expect(state().auctions[0]?.seq).toBe(249);
+  });
+});
+
+describe("trade prints", () => {
+  it("does not disturb the book, which is where the last price is read from", () => {
+    // The gateway now refreshes TOP.LAST after a trade, so the Overview takes
+    // last/bid/ask from one frame. Individual prints are the Trade Tape's job.
+    apply(
+      { type: "top", sym: "AAPL", seq: 1, ts: "t", bid: 150.1, last: 150.11 },
+      { type: "trade", sym: "AAPL", seq: 1, ts: "t", px: 151.5, qty: 25, side: "BUY" },
+    );
+
+    expect(state().top["AAPL"]).toEqual({ bid: 150.1, last: 150.11 });
+  });
+
+  it("picks the new price up from the top frame that follows", () => {
+    apply(
+      { type: "top", sym: "AAPL", seq: 1, ts: "t", bid: 150.1, last: 150.11 },
+      { type: "trade", sym: "AAPL", seq: 1, ts: "t", px: 151.5, qty: 25, side: "BUY" },
+      { type: "top", sym: "AAPL", seq: 2, ts: "t2", bid: 151.4, last: 151.5 },
+    );
+
+    expect(state().top["AAPL"]?.last).toBe(151.5);
   });
 });
 

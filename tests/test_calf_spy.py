@@ -469,3 +469,43 @@ def test_on_frame_does_not_suppress_data_frames(
     out = capsys.readouterr().out
     assert '"msg_type": "TRADE"' in out
     assert session.count == 1
+
+
+def test_plan_subscriptions_wildcards_only_the_eligible_channels() -> None:
+    """A single SUB mixing eligible and ineligible channels is rejected whole.
+
+    The gateway validates all-or-nothing, so asking for every advertised
+    channel with --symbols '*' used to yield one ERR|CODE=INVALID_SYMBOL and
+    no subscription at all — the opposite of this tool's documented
+    per-channel behaviour.
+    """
+    channels = ["AUCTION", "CB", "DEPTH", "INDEX", "STATE", "TOP", "TRADE"]
+
+    subscriptions, skipped = calf_spy_cli.plan_subscriptions(channels, ["*"])
+
+    assert subscriptions == [(["AUCTION", "STATE", "TOP", "TRADE"], ["*"])]
+    assert skipped == ["CB", "DEPTH", "INDEX"]
+
+
+def test_plan_subscriptions_keeps_explicit_symbols_in_one_line() -> None:
+    """Every channel accepts a concrete symbol, so there is nothing to split."""
+    channels = ["DEPTH", "CB", "TOP"]
+
+    subscriptions, skipped = calf_spy_cli.plan_subscriptions(channels, ["AAPL"])
+
+    assert subscriptions == [(["DEPTH", "CB", "TOP"], ["AAPL"])]
+    assert skipped == []
+
+
+def test_plan_subscriptions_reports_nothing_to_send_for_ineligible_only() -> None:
+    subscriptions, skipped = calf_spy_cli.plan_subscriptions(["DEPTH", "CB"], ["*"])
+
+    assert subscriptions == []
+    assert skipped == ["DEPTH", "CB"]
+
+
+def test_plan_subscriptions_leaves_an_all_eligible_request_intact() -> None:
+    subscriptions, skipped = calf_spy_cli.plan_subscriptions(["TOP", "TRADE"], ["*"])
+
+    assert subscriptions == [(["TOP", "TRADE"], ["*"])]
+    assert skipped == []
