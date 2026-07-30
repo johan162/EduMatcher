@@ -1169,9 +1169,9 @@ class TestMain:
     def test_resolve_config_bind_port_override(self, tmp_path: Path, monkeypatch):
         from edumatcher.balf_gwy.main import _resolve_config
 
-        p = tmp_path / "cfg.yaml"
-        p.write_text("{}\n")
-        monkeypatch.setattr(balf_main, "ENGINE_CONFIG_FILE", p)
+        monkeypatch.setattr(
+            balf_main, "load_default_balf_gateway_config", BalfGatewayConfig
+        )
         args = Namespace(bind="127.0.0.1", port=8888, engine_host=None)
         cfg = _resolve_config(args)
         assert cfg.bind_address == "127.0.0.1"
@@ -1180,9 +1180,9 @@ class TestMain:
     def test_resolve_config_engine_host_override(self, tmp_path: Path, monkeypatch):
         from edumatcher.balf_gwy.main import _resolve_config
 
-        p = tmp_path / "cfg.yaml"
-        p.write_text("{}\n")
-        monkeypatch.setattr(balf_main, "ENGINE_CONFIG_FILE", p)
+        monkeypatch.setattr(
+            balf_main, "load_default_balf_gateway_config", BalfGatewayConfig
+        )
         args = Namespace(bind=None, port=None, engine_host="192.168.1.1")
         cfg = _resolve_config(args)
         assert "192.168.1.1" in cfg.engine_pull_addr
@@ -1191,9 +1191,9 @@ class TestMain:
     def test_resolve_config_no_overrides(self, tmp_path: Path, monkeypatch):
         from edumatcher.balf_gwy.main import _resolve_config
 
-        p = tmp_path / "cfg.yaml"
-        p.write_text("{}\n")
-        monkeypatch.setattr(balf_main, "ENGINE_CONFIG_FILE", p)
+        monkeypatch.setattr(
+            balf_main, "load_default_balf_gateway_config", BalfGatewayConfig
+        )
         args = Namespace(bind=None, port=None, engine_host=None)
         cfg = _resolve_config(args)
         assert isinstance(cfg, BalfGatewayConfig)
@@ -1201,9 +1201,11 @@ class TestMain:
     def test_main_disabled_config_exits(self, tmp_path: Path, monkeypatch):
         from edumatcher.balf_gwy.main import main
 
-        p = tmp_path / "cfg.yaml"
-        p.write_text("balf_gateway:\n  enabled: false\n")
-        monkeypatch.setattr(balf_main, "ENGINE_CONFIG_FILE", p)
+        monkeypatch.setattr(
+            balf_main,
+            "load_default_balf_gateway_config",
+            lambda: BalfGatewayConfig(enabled=False),
+        )
         with patch("sys.argv", ["pm-balf-gwy"]):
             with pytest.raises(SystemExit):
                 main()
@@ -1211,9 +1213,13 @@ class TestMain:
     def test_main_bad_config_exits(self, tmp_path: Path, monkeypatch):
         from edumatcher.balf_gwy.main import main
 
-        p = tmp_path / "cfg.yaml"
-        p.write_text("balf_gateway:\n  port: 99999\n")
-        monkeypatch.setattr(balf_main, "ENGINE_CONFIG_FILE", p)
+        # A port out of range can no longer reach a running gateway: the
+        # compile step rejects it. What remains reachable is a loader that
+        # cannot produce a configuration at all.
+        def _unreadable() -> BalfGatewayConfig:
+            raise ValueError("compiled config is unreadable")
+
+        monkeypatch.setattr(balf_main, "load_default_balf_gateway_config", _unreadable)
         with patch("sys.argv", ["pm-balf-gwy"]):
             with pytest.raises(SystemExit):
                 main()

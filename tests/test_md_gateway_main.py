@@ -6,12 +6,29 @@ import sys
 
 import pytest
 
+from edumatcher.config_deploy import deploy
 from edumatcher.md_gateway import main as md_main
 from edumatcher.md_gateway.main import (
     _build_parser,
     _configure_logging,
     _resolve_config,
 )
+
+
+def _deploy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> None:
+    """Compile *body* and point the artifact reader at the result.
+
+    pm-md-gwy takes its settings *and* its symbol universe from one compiled
+    file, so covering the two together is the point: reading them from
+    different places is what produced a gateway advertising no instruments.
+    """
+    source = tmp_path / "authored.yaml"
+    source.write_text(body)
+    dest = tmp_path / "ref_data" / "engine_config.json"
+    deploy(source, dest)
+    monkeypatch.setattr(
+        "edumatcher.config_artifact.COMPILED_CONFIG_FILE", dest, raising=True
+    )
 
 
 def test_build_parser_defaults() -> None:
@@ -45,18 +62,17 @@ def test_configure_logging_uses_verbose_levels() -> None:
 def test_resolve_config_overrides(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    cfg_path = tmp_path / "engine_config.yaml"
-    cfg_path.write_text("""
+    _deploy(
+        tmp_path,
+        monkeypatch,
+        """
 symbols:
-  AAPL: {}
+  AAPL: {tick_decimals: 2, last_buy_price: 150.0}
 gateways:
-  alf:
-    - id: GW01
-market_data_gateway:
-  name: md-from-config
-  port: 6000
-""")
-    monkeypatch.setattr(md_main, "ENGINE_CONFIG_FILE", cfg_path)
+  alf: [{id: GW01, role: TRADER}]
+market_data_gateway: {name: md-from-config, port: 6000}
+""",
+    )
     args = Namespace(
         bind="127.0.0.1",
         port=6001,
@@ -75,33 +91,33 @@ market_data_gateway:
 def test_main_exits_when_disabled(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    cfg = tmp_path / "engine_config.yaml"
-    cfg.write_text("""
+    _deploy(
+        tmp_path,
+        monkeypatch,
+        """
 symbols:
-  AAPL: {}
+  AAPL: {tick_decimals: 2, last_buy_price: 150.0}
 gateways:
-  alf:
-    - id: GW01
-market_data_gateway:
-  enabled: false
-""")
+  alf: [{id: GW01, role: TRADER}]
+market_data_gateway: {enabled: false}
+""",
+    )
     monkeypatch.setattr(sys, "argv", ["pm-md-gwy"])
-    monkeypatch.setattr(md_main, "ENGINE_CONFIG_FILE", cfg)
     md_main.main()
 
 
 def test_main_runs_gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg = tmp_path / "engine_config.yaml"
-    cfg.write_text("""
+    _deploy(
+        tmp_path,
+        monkeypatch,
+        """
 symbols:
-  AAPL: {}
+  AAPL: {tick_decimals: 2, last_buy_price: 150.0}
 gateways:
-  alf:
-    - id: GW01
-market_data_gateway: {}
-""")
+  alf: [{id: GW01, role: TRADER}]
+""",
+    )
     monkeypatch.setattr(sys, "argv", ["pm-md-gwy"])
-    monkeypatch.setattr(md_main, "ENGINE_CONFIG_FILE", cfg)
 
     called = {"run": False}
 

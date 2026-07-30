@@ -22,6 +22,7 @@ from edumatcher.api_gateway.schemas import (
     SymbolCancelRequest,
 )
 from edumatcher.api_gateway.sessions import Session
+from edumatcher.models.session import SessionState
 
 
 class AdminFakeEngine:
@@ -144,7 +145,7 @@ def anyio_backend() -> str:
 async def test_require_admin_allows_admin_role() -> None:
     engine = AdminFakeEngine(role="ADMIN")
     request = admin_request(engine)
-    body = SessionTransitionRequest(to_state="CONTINUOUS")
+    body = SessionTransitionRequest(to_state=SessionState.CONTINUOUS)
     result = await admin.session_transition(body, request, admin_session())
     assert result == {"requested_state": "CONTINUOUS", "status": "PENDING"}
     assert ("send_session_transition", "CONTINUOUS") in engine.calls
@@ -154,7 +155,7 @@ async def test_require_admin_allows_admin_role() -> None:
 async def test_require_admin_rejects_non_admin_role() -> None:
     engine = AdminFakeEngine(role="TRADER")
     request = admin_request(engine)
-    body = SessionTransitionRequest(to_state="CONTINUOUS")
+    body = SessionTransitionRequest(to_state=SessionState.CONTINUOUS)
     with pytest.raises(HTTPException) as exc:
         await admin.session_transition(body, request, admin_session())
     assert exc.value.status_code == 403

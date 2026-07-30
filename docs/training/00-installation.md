@@ -158,7 +158,8 @@ Expected output (abbreviated — the real output also prints the exact
 pm-setup — EduMatcher session initialisation
 ==================================================
   ✓ Created data directory:          /Users/you/.local/share/edumatcher
-  ✓ Sample config deployed to:       /Users/you/.local/share/edumatcher/ref_data/engine_config.yaml
+  ✓ Sample config compiled to:       /Users/you/.local/share/edumatcher/ref_data/engine_config.json
+    3 symbol(s) ready to trade.
 
   Shell environment snippet — add to your shell profile:
   (~/.zshrc)
@@ -198,7 +199,7 @@ source ~/.zshrc   # or source ~/.bashrc
 | `EDUMATCHER_DATA_DIR` | Where persistent data (stats DB, logs, state) **and the deployed engine configuration** live | `~/.local/share/edumatcher` |
 
 This is the only variable there is. The engine configuration is always read
-from `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml`, and no process takes
+from `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`, and no process takes
 a path to it, so two processes cannot be started on different configurations.
 
 !!! tip "Switching scenarios"

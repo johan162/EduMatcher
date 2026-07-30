@@ -10,7 +10,6 @@ import yaml
 
 from edumatcher.config import (
     DROP_COPY_PUB_ADDR,
-    ENGINE_CONFIG_FILE,
     ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
 )
@@ -170,5 +169,17 @@ def validate_alf_gateway_section(raw: dict[str, Any]) -> None:
 
 
 def load_default_alf_gateway_config() -> AlfGatewayConfig:
-    """Load config from the resolved default engine config path."""
-    return load_alf_gateway_config(ENGINE_CONFIG_FILE)
+    """Return this subsystem's section of the deployed compiled configuration.
+
+    Falls back to dataclass defaults when nothing has been deployed yet, which
+    is exactly what the YAML loader above did for a missing file — many tools
+    that read this section, such as the spies and viewers, must still run
+    against an exchange whose configuration was never installed.
+
+    The import is deferred because ``config_artifact`` imports this module to
+    describe the artifact's shape.
+    """
+    from edumatcher.config_artifact import load_compiled_config
+
+    compiled = load_compiled_config()
+    return AlfGatewayConfig() if compiled is None else compiled.alf_gateway

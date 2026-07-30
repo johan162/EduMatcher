@@ -53,7 +53,7 @@ class TestM1ValidateSchedule:
     @patch("edumatcher.scheduler.main.make_pusher", return_value=MagicMock())
     @patch("edumatcher.scheduler.main.time.sleep")
     @patch(
-        "edumatcher.scheduler.main._load_schedule",
+        "edumatcher.scheduler.main._schedule_from_config",
         return_value=[("09:30", "CONTINUOUS")],
     )
     def test_main_refuses_to_start_on_invalid_schedule(

@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -48,6 +49,7 @@ from edumatcher.config_artifact import (
     SCHEMA_VERSION,
     ArtifactMeta,
     CompiledConfig,
+    content_digest,
     encode,
     source_digest,
 )
@@ -104,7 +106,7 @@ def compile_config(source: Path) -> CompiledConfig:
     )
 
     try:
-        return CompiledConfig(
+        compiled = CompiledConfig(
             meta=meta,
             engine=load_engine_config(source),
             alf_gateway=load_alf_gateway_config(source),
@@ -120,6 +122,12 @@ def compile_config(source: Path) -> CompiledConfig:
         raise
     except Exception as exc:
         raise CompileError(f"{source} could not be resolved: {exc}") from exc
+
+    # Stamp the payload digest last: it covers every section but not the meta
+    # block that carries it, so it has to be computed once the sections exist.
+    return replace(
+        compiled, meta=replace(meta, content_sha256=content_digest(compiled))
+    )
 
 
 def _write_atomically(path: Path, text: str) -> None:

@@ -20,6 +20,8 @@ Medium priority:
 
 from __future__ import annotations
 
+from typing import Any
+
 import socket
 import struct
 import threading
@@ -218,7 +220,7 @@ def balf_gw_factory() -> Generator[FactoryFn, None, None]:
         tuple[BalfGateway, threading.Thread, "zmq.Socket[bytes]", "zmq.Socket[bytes]"]
     ] = []
 
-    def _make(**cfg_overrides: object) -> GatewayFixture:
+    def _make(**cfg_overrides: Any) -> GatewayFixture:
         pull_port = _free_port()
         pub_port = _free_port()
         gw_port = _free_port()

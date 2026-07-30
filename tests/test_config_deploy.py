@@ -9,11 +9,19 @@ most: a bad compile must leave the previous artifact exactly as it was.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 
-from edumatcher.config_artifact import SCHEMA_VERSION, decode, encode, source_digest
+from edumatcher.config_artifact import (
+    SCHEMA_VERSION,
+    ArtifactError,
+    content_digest,
+    decode,
+    encode,
+    source_digest,
+)
 from edumatcher.config_deploy import (
     CompileError,
     compile_config,
@@ -223,3 +231,49 @@ class TestShippedSample:
 
         assert config.engine.symbols, "a sample with no symbols would teach nothing"
         assert config.engine.fix_gateways
+
+
+class TestProvenance:
+    """What the deployed artifact records about how it came to exist."""
+
+    def test_stamps_a_digest_of_its_own_payload(self, tmp_path: Path) -> None:
+        config = compile_config(_source(tmp_path))
+        assert config.meta.content_sha256 == content_digest(config)
+
+    def test_the_payload_digest_differs_from_the_source_digest(
+        self, tmp_path: Path
+    ) -> None:
+        # They answer different questions: one is "has the authored file
+        # changed since this was built?", the other "has this file been
+        # changed since it was built?".
+        meta = compile_config(_source(tmp_path)).meta
+        assert meta.content_sha256 != meta.source_sha256
+
+    def test_stamps_a_wall_clock_compile_time(self, tmp_path: Path) -> None:
+        stamped = compile_config(_source(tmp_path)).meta.compiled_at
+        datetime.strptime(stamped, "%Y-%m-%dT%H:%M:%S.000Z")
+
+    def test_a_deployed_artifact_is_rejected_once_edited_by_hand(
+        self, tmp_path: Path
+    ) -> None:
+        # The whole point of deploying a compiled file rather than a copy: what
+        # runs must be something that was validated, not something that merely
+        # looks like it.
+        dest = tmp_path / "engine_config.json"
+        deploy(_source(tmp_path), dest)
+
+        payload = json.loads(dest.read_text())
+        payload["engine"]["symbols"].pop("MSFT")
+        dest.write_text(json.dumps(payload))
+
+        with pytest.raises(ArtifactError, match="modified since it was compiled"):
+            decode(dest.read_text())
+
+    def test_recompiling_an_unchanged_source_keeps_the_same_payload_digest(
+        self, tmp_path: Path
+    ) -> None:
+        source = _source(tmp_path)
+        assert (
+            compile_config(source).meta.content_sha256
+            == compile_config(source).meta.content_sha256
+        )

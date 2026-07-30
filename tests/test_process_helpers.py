@@ -3,14 +3,13 @@ Tests for process helper functions and classes that don't require live ZMQ:
   - stats.main._DayAccum
   - ticker.main._build_line
   - viewer.main._build_display
-  - scheduler.main._load_schedule / _time_today
+  - scheduler.main._schedule_from_config / _time_today
 """
 
 from __future__ import annotations
 
 import argparse
 import errno
-import textwrap
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, cast
@@ -23,7 +22,7 @@ from edumatcher.ticker.main import _build_line
 from edumatcher.viewer.main import _build_display
 from edumatcher.scheduler.main import (
     DEFAULT_SCHEDULE,
-    _load_schedule,
+    _schedule_from_config,
     _time_today,
 )
 
@@ -242,44 +241,19 @@ class TestSchedulerHelpers:
         assert dt.minute == 30
         assert dt.year == now.year
 
-    def test_load_schedule_falls_back_to_defaults_if_no_file(self) -> None:
-        schedule = _load_schedule(None)
-        assert schedule == DEFAULT_SCHEDULE
+    def test_schedule_from_config_maps_the_documented_defaults(self) -> None:
+        # `_load_schedule` is gone: YAML parsing moved to load_engine_config,
+        # and its tolerance for a missing or malformed file is now the compile
+        # step's job.
+        from edumatcher.engine.config_loader import ScheduleConfig
 
-    def test_load_schedule_falls_back_to_defaults_if_missing_file(
-        self, tmp_path: Path
-    ) -> None:
-        schedule = _load_schedule(tmp_path / "nonexistent.yaml")
-        assert schedule == DEFAULT_SCHEDULE
+        assert _schedule_from_config(ScheduleConfig()) == DEFAULT_SCHEDULE
 
-    def test_load_schedule_from_yaml(self, tmp_path: Path) -> None:
-        p = tmp_path / "cfg.yaml"
-        p.write_text(textwrap.dedent("""
-            schedule:
-              pre_open: "08:00"
-              opening_auction_start: "09:00"
-              continuous_start: "09:30"
-              closing_auction_start: "15:50"
-              closing_auction_end: "16:00"
-            """))
-        schedule = _load_schedule(p)
-        times = [t for t, _state in schedule]
-        assert "09:30" in times
+    def test_schedule_from_config_carries_configured_times(self) -> None:
+        from edumatcher.engine.config_loader import ScheduleConfig
 
-    def test_load_schedule_no_schedule_section_uses_defaults(
-        self, tmp_path: Path
-    ) -> None:
-        p = tmp_path / "cfg.yaml"
-        p.write_text("symbols:\n  AAPL: {}\n")
-        schedule = _load_schedule(p)
-        assert schedule == DEFAULT_SCHEDULE
-
-    def test_load_schedule_bad_yaml_falls_back(self, tmp_path: Path) -> None:
-        p = tmp_path / "bad.yaml"
-        p.write_text(": : : invalid yaml :::\n")
-        # Should not raise — falls back to defaults
-        schedule = _load_schedule(p)
-        assert schedule == DEFAULT_SCHEDULE
+        result = _schedule_from_config(ScheduleConfig(closing_auction_end="16:10"))
+        assert result[-1] == ("16:10", "CLOSED")
 
 
 # ===========================================================================

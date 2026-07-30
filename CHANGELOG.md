@@ -3,14 +3,42 @@
 Release Type: major
 
 ### 📋 Summary
-The engine configuration now has exactly one location. Every `pm-*` process reads `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml`, and none of them accepts a path to it — the `--config`/`-c` flags and the `EDUMATCHER_CONFIG` variable are gone. They existed to let each process be pointed at a file of its own, which in practice meant an exchange could be started with its parts silently disagreeing: `pm-md-gwy` reading a different config from `pm-engine` came up with an empty symbol universe, disabled SUB validation, dropped `SYMBOLS=` from every `WELCOME`, and otherwise looked perfectly healthy. A new `pm-config-deploy` validates an authored configuration and installs it as the deployed one, separating the file you edit and version from the file the exchange runs.
+The engine configuration now has exactly one location, and it is compiled. Every `pm-*` process reads `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`, an artifact with every default already resolved and every value already validated. None of them accepts a path to it: the `--config`/`-c` flags and the `EDUMATCHER_CONFIG` variable are gone. They existed to let each process be pointed at a file of its own, which in practice meant an exchange could be started with its parts silently disagreeing: `pm-md-gwy` reading a different config from `pm-engine` came up with an empty symbol universe, disabled SUB validation, dropped `SYMBOLS=` from every `WELCOME`, and otherwise looked perfectly healthy. A new `pm-config-deploy` validates, compiles and installs an authored configuration, separating the file you edit and version from the artifact the exchange runs.
 
 ### ⚠️ Breaking Changes
 - Removed `--config`/`-c` from `pm-engine`, `pm-scheduler`, `pm-api-gwy`, `pm-index`, `pm-md-gwy`, `pm-ralf-gwy`, `pm-balf-gwy`, `pm-alf-gwy`, `pm-dc-gwy`, `pm-log-srv` and `pm-ai-swarm`. `pm-cverifier`, `pm-config-gen` and `pm-index-cli` keep their explicit paths: they operate on arbitrary files by design and cannot desynchronise a running exchange
 - Removed the `EDUMATCHER_CONFIG` environment variable. `EDUMATCHER_DATA_DIR` is now the only location knob, and it relocates the configuration together with `stats.db`, `log.db` and `audit.log` — so a wrong value fails loudly instead of degrading quietly
-- Removed `pm-setup --config-dest`. The sample configuration is always deployed to `<DATA_DIR>/ref_data/engine_config.yaml`, so a fresh install can start the exchange immediately
+- Removed `pm-setup --config-dest`. The bundled sample is always compiled into `<DATA_DIR>/ref_data/`, so a fresh install can start the exchange immediately
 - Changed `pm-scheduler` to exit with a fatal error when no configuration is deployed, rather than falling back to its built-in timetable. Against a fixed path a missing file means nothing was deployed, and running a schedule the engine has never seen is worse than not starting
 
+
+### ⚠️ Breaking Changes — compiled configuration
+- `pm-config-deploy` now **compiles** rather than copies. It validates the authored YAML with all four `pm-cverifier` layers, resolves every default once, and writes `<DATA_DIR>/ref_data/engine_config.json`. Every `pm-*` process reads that artifact; the YAML is installed beside it for provenance only
+- Deploying is stricter than starting used to be. A configuration with a `MARKET_MAKER` gateway and no `market_maker_quotes` (`M001`), or an API credential naming a `gateway_id` absent from `gateways.alf` (`M022`), now refuses to deploy where it previously ran. Warnings do not block — a command that refused on advice would push people back towards editing the deployed copy by hand
+- `pm-setup` compiles the bundled sample rather than copying it, so a fresh install starts on a real configuration instead of built-in defaults
+- The Config GUI's download is the *authored* file; run `pm-config-deploy` on it before starting the exchange
+
+### ✨ Additions — compiled configuration
+- Added `edumatcher.config_artifact`: the artifact schema, a generic dataclass↔JSON codec, and the single reader every subsystem now uses. Around twenty config dataclasses across eight sections are (de)serialised by one codec rather than by hand-written per-class methods that would be one more thing to drift
+- Added a `meta` block recording schema version, compiler version, compile time, source path and two digests. `source_sha256` answers "has the authored file changed since this was built?" — checked at startup and warned about per process. `content_sha256` answers "has this file changed since it was built?" — recomputed on every load, and a hand-edited artifact is refused. It detects modification rather than malice: the digest travels inside the file it protects, so anyone who edits the payload can recompute it
+- Added `--check` to `pm-config-deploy`: validate and compile without installing, for CI
+- Added a startup line to every process that reads the configuration, naming the artifact, when it was compiled and from which source
+
+### 🚀 Improvements — compiled configuration
+- The seven subsystem loaders no longer parse YAML at runtime; each returns its section of the artifact. Defaults are decided once at compile time rather than in eight places that nothing kept in step
+- Absence and corruption are now distinguished. No artifact yields dataclass defaults, exactly as a missing YAML did, so read-only tools like `pm-calf-spy` and `pm-viewer` still run on a machine that has never had a configuration installed. An artifact that cannot be parsed, or whose schema version is unknown, raises instead
+
+### 🐛 Fixes — fields the compiler used to drop
+- Fixed `country` never reaching `EngineConfig`. It is emitted by `pm-config-gen` and validated by `pm-cverifier`, but no loader field captured it, so the compiled artifact dropped it and `pm-scheduler` was the only process that had ever read it — through its own private YAML parse
+- Fixed schedule times being stored raw. `str(schedule_raw.get("pre_open"))` turned an unquoted `9:30`, which PyYAML reads as the sexagesimal integer `570`, into the string `"570"`, while `pm-scheduler` normalised the same file to `"09:30"`. `normalize_hhmm` now lives with the loader, so the artifact only ever holds canonical `HH:MM`
+- Fixed `pm-index` re-parsing the YAML for constituent reference data. `outstanding_shares` and `reference_prices` are gathered from the constituent symbols rather than being fields of their own, so the artifact always carried enough; `index_runtime_configs()` now takes an `EngineConfig`
+- Fixed `pm-md-gwy` reading its settings and its symbol universe through separate calls, so the two could describe different exchanges — the original failure this work began from
+- Fixed the ALF gateway's `RESUME|MODE=` field, which read `resumption_mode` from a payload that only ever carried `mode`, and had therefore always been empty
+
+### 🛠 Internal — compiled configuration
+- Added `tests/test_config_generated_fields_reach_artifact.py`, asserting that every top-level key `pm-config-gen` can emit has a declared landing in the artifact and is reachable from it. This is the invariant the three dropped-field bugs above violated; both guards are verified to fail when broken
+- Added a declared-type conformance check over every config dataclass, catching values whose runtime type contradicts their annotation — `arg-type` is disabled for `tests.*`, so a fixture can otherwise build a config the codec will silently reshape
+- Removed the redundant inner quotes in `list["MMQuoteSeed"]`-style annotations: `get_type_hints` resolves the outer string but leaves the argument a plain `str`, which made the codec hand back raw dicts. It now raises on an unresolved annotation rather than degrading quietly
 
 ### ⚠️ Breaking Changes — circuit breakers
 - Removed the per-level `resumption_mode` config field. It was settable, validated by the loader, checked twice by `pm-cverifier` (`S034`, `S069`), generated by `pm-config-gen` via three `--cb-resumption-l*` flags and documented in the config spec — and branched on nowhere. `AUCTION` and `CONTINUOUS` behaved identically. It could not have been implemented as specified either: LIMIT orders rest freely during a halt, so `CONTINUOUS` would restart matching on a crossed book, which is exactly what the unconditional uncross exists to prevent

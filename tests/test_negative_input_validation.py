@@ -112,8 +112,8 @@ class TestOrderRequestSchemaValidation:
         with pytest.raises(ValidationError, match="side"):
             OrderRequest(
                 symbol="AAPL",
-                side="MIDDLE",
-                order_type="LIMIT",
+                side="MIDDLE",  # type: ignore[arg-type]
+                order_type=OrderType.LIMIT,
                 quantity=10,
                 price=100.0,
             )
@@ -123,8 +123,8 @@ class TestOrderRequestSchemaValidation:
         with pytest.raises(ValidationError, match="order_type"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="MAGIC",
+                side=Side.BUY,
+                order_type="MAGIC",  # type: ignore[arg-type]
                 quantity=10,
                 price=100.0,
             )
@@ -134,11 +134,11 @@ class TestOrderRequestSchemaValidation:
         with pytest.raises(ValidationError, match="tif"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="LIMIT",
+                side=Side.BUY,
+                order_type=OrderType.LIMIT,
                 quantity=10,
                 price=100.0,
-                tif="FOREVER",
+                tif="FOREVER",  # type: ignore[arg-type]
             )
 
     # --- Test 4: zero quantity ---
@@ -146,8 +146,8 @@ class TestOrderRequestSchemaValidation:
         with pytest.raises(ValidationError, match="quantity"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="LIMIT",
+                side=Side.BUY,
+                order_type=OrderType.LIMIT,
                 quantity=0,
                 price=100.0,
             )
@@ -157,8 +157,8 @@ class TestOrderRequestSchemaValidation:
         with pytest.raises(ValidationError, match="quantity"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="LIMIT",
+                side=Side.BUY,
+                order_type=OrderType.LIMIT,
                 quantity=-50,
                 price=100.0,
             )
@@ -168,8 +168,8 @@ class TestOrderRequestSchemaValidation:
         with pytest.raises(ValidationError, match="symbol"):
             OrderRequest(
                 symbol="",
-                side="BUY",
-                order_type="LIMIT",
+                side=Side.BUY,
+                order_type=OrderType.LIMIT,
                 quantity=10,
                 price=100.0,
             )
@@ -179,8 +179,8 @@ class TestOrderRequestSchemaValidation:
         with pytest.raises(ValidationError):
             OrderRequest(  # type: ignore[call-arg]
                 symbol="AAPL",
-                side="BUY",
-                order_type="LIMIT",
+                side=Side.BUY,
+                order_type=OrderType.LIMIT,
                 quantity=10,
                 price=100.0,
                 injected_field="evil",
@@ -191,8 +191,8 @@ class TestOrderRequestSchemaValidation:
         with pytest.raises(ValidationError, match="MARKET forbids"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="MARKET",
+                side=Side.BUY,
+                order_type=OrderType.MARKET,
                 quantity=10,
                 price=100.0,
             )
@@ -202,8 +202,8 @@ class TestOrderRequestSchemaValidation:
         with pytest.raises(ValidationError, match="MARKET forbids"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="MARKET",
+                side=Side.BUY,
+                order_type=OrderType.MARKET,
                 quantity=10,
                 stop_price=95.0,
             )
@@ -213,8 +213,8 @@ class TestOrderRequestSchemaValidation:
         with pytest.raises(ValidationError, match="STOP requires stop_price"):
             OrderRequest(
                 symbol="AAPL",
-                side="SELL",
-                order_type="STOP",
+                side=Side.SELL,
+                order_type=OrderType.STOP,
                 quantity=10,
             )
 
@@ -223,8 +223,8 @@ class TestOrderRequestSchemaValidation:
         with pytest.raises(ValidationError, match="STOP forbids price"):
             OrderRequest(
                 symbol="AAPL",
-                side="SELL",
-                order_type="STOP",
+                side=Side.SELL,
+                order_type=OrderType.STOP,
                 quantity=10,
                 price=100.0,
                 stop_price=95.0,
@@ -239,8 +239,8 @@ class TestOrderRequestStopLimitAndIceberg:
         with pytest.raises(ValidationError, match="STOP_LIMIT requires"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="STOP_LIMIT",
+                side=Side.BUY,
+                order_type=OrderType.STOP_LIMIT,
                 quantity=10,
             )
 
@@ -249,8 +249,8 @@ class TestOrderRequestStopLimitAndIceberg:
         with pytest.raises(ValidationError, match="ICEBERG requires"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="ICEBERG",
+                side=Side.BUY,
+                order_type=OrderType.ICEBERG,
                 quantity=100,
                 price=100.0,
             )
@@ -260,8 +260,8 @@ class TestOrderRequestStopLimitAndIceberg:
         with pytest.raises(ValidationError, match="visible_qty must be less"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="ICEBERG",
+                side=Side.BUY,
+                order_type=OrderType.ICEBERG,
                 quantity=50,
                 price=100.0,
                 visible_qty=50,
@@ -274,8 +274,8 @@ class TestOrderRequestStopLimitAndIceberg:
         ):
             OrderRequest(
                 symbol="AAPL",
-                side="SELL",
-                order_type="TRAILING_STOP",
+                side=Side.SELL,
+                order_type=OrderType.TRAILING_STOP,
                 quantity=10,
             )
 
@@ -284,8 +284,8 @@ class TestOrderRequestStopLimitAndIceberg:
         with pytest.raises(ValidationError, match="TRAILING_STOP forbids price"):
             OrderRequest(
                 symbol="AAPL",
-                side="SELL",
-                order_type="TRAILING_STOP",
+                side=Side.SELL,
+                order_type=OrderType.TRAILING_STOP,
                 quantity=10,
                 price=95.0,
                 trail_offset=5.0,
@@ -296,8 +296,8 @@ class TestOrderRequestStopLimitAndIceberg:
         with pytest.raises(ValidationError, match="LIMIT requires price"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="LIMIT",
+                side=Side.BUY,
+                order_type=OrderType.LIMIT,
                 quantity=10,
             )
 
@@ -305,8 +305,8 @@ class TestOrderRequestStopLimitAndIceberg:
         with pytest.raises(ValidationError, match="FOK requires price"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="FOK",
+                side=Side.BUY,
+                order_type=OrderType.FOK,
                 quantity=10,
             )
 
@@ -314,8 +314,8 @@ class TestOrderRequestStopLimitAndIceberg:
         with pytest.raises(ValidationError, match="IOC requires price"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="IOC",
+                side=Side.BUY,
+                order_type=OrderType.IOC,
                 quantity=10,
             )
 
@@ -324,8 +324,8 @@ class TestOrderRequestStopLimitAndIceberg:
         with pytest.raises(ValidationError, match="STOP_LIMIT requires"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="STOP_LIMIT",
+                side=Side.BUY,
+                order_type=OrderType.STOP_LIMIT,
                 quantity=10,
                 price=100.0,
             )
@@ -334,8 +334,8 @@ class TestOrderRequestStopLimitAndIceberg:
         with pytest.raises(ValidationError, match="STOP_LIMIT requires"):
             OrderRequest(
                 symbol="AAPL",
-                side="BUY",
-                order_type="STOP_LIMIT",
+                side=Side.BUY,
+                order_type=OrderType.STOP_LIMIT,
                 quantity=10,
                 stop_price=95.0,
             )
@@ -410,8 +410,12 @@ class TestOcoRequestValidation:
                 oco_id="",
                 symbol="AAPL",
                 quantity=100,
-                leg1=OcoLegRequest(side="BUY", order_type="LIMIT", price=95.0),
-                leg2=OcoLegRequest(side="BUY", order_type="STOP", stop_price=105.0),
+                leg1=OcoLegRequest(
+                    side=Side.BUY, order_type=OrderType.LIMIT, price=95.0
+                ),
+                leg2=OcoLegRequest(
+                    side=Side.BUY, order_type=OrderType.STOP, stop_price=105.0
+                ),
             )
 
     def test_empty_symbol_rejected(self) -> None:
@@ -420,8 +424,12 @@ class TestOcoRequestValidation:
                 oco_id="O1",
                 symbol="",
                 quantity=100,
-                leg1=OcoLegRequest(side="BUY", order_type="LIMIT", price=95.0),
-                leg2=OcoLegRequest(side="BUY", order_type="STOP", stop_price=105.0),
+                leg1=OcoLegRequest(
+                    side=Side.BUY, order_type=OrderType.LIMIT, price=95.0
+                ),
+                leg2=OcoLegRequest(
+                    side=Side.BUY, order_type=OrderType.STOP, stop_price=105.0
+                ),
             )
 
     def test_zero_quantity_rejected(self) -> None:
@@ -430,8 +438,12 @@ class TestOcoRequestValidation:
                 oco_id="O1",
                 symbol="AAPL",
                 quantity=0,
-                leg1=OcoLegRequest(side="BUY", order_type="LIMIT", price=95.0),
-                leg2=OcoLegRequest(side="BUY", order_type="STOP", stop_price=105.0),
+                leg1=OcoLegRequest(
+                    side=Side.BUY, order_type=OrderType.LIMIT, price=95.0
+                ),
+                leg2=OcoLegRequest(
+                    side=Side.BUY, order_type=OrderType.STOP, stop_price=105.0
+                ),
             )
 
 
@@ -445,8 +457,8 @@ class TestComboRequestValidation:
                 legs=[
                     ComboLegRequest(
                         symbol="AAPL",
-                        side="BUY",
-                        order_type="LIMIT",
+                        side=Side.BUY,
+                        order_type=OrderType.LIMIT,
                         quantity=10,
                         price=100.0,
                     )
@@ -464,15 +476,15 @@ class TestComboRequestValidation:
                 legs=[
                     ComboLegRequest(
                         symbol="AAPL",
-                        side="BUY",
-                        order_type="LIMIT",
+                        side=Side.BUY,
+                        order_type=OrderType.LIMIT,
                         quantity=10,
                         price=100.0,
                     ),
                     ComboLegRequest(
                         symbol="MSFT",
-                        side="SELL",
-                        order_type="LIMIT",
+                        side=Side.SELL,
+                        order_type=OrderType.LIMIT,
                         quantity=5,
                         price=200.0,
                     ),
@@ -487,8 +499,8 @@ class TestComboRequestValidation:
                 legs=[
                     ComboLegRequest(
                         symbol=f"SYM{i}",
-                        side="BUY",
-                        order_type="LIMIT",
+                        side=Side.BUY,
+                        order_type=OrderType.LIMIT,
                         quantity=10,
                         price=100.0,
                     )

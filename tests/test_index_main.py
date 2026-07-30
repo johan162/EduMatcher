@@ -511,7 +511,11 @@ def test_build_parser_and_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     called: dict[str, Any] = {"run": 0, "close": 0}
 
     class _DummyProc:
-        def __init__(self, config_path: Path, reset: bool = False) -> None:
+        # main() no longer passes a path: pm-index takes its indices from the
+        # compiled artifact.
+        def __init__(
+            self, config_path: Path | None = None, reset: bool = False
+        ) -> None:
             _ = (config_path, reset)
 
         def run(self) -> None:

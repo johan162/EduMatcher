@@ -5,11 +5,9 @@ from __future__ import annotations
 import argparse
 import logging
 
-from edumatcher.config import ENGINE_CONFIG_FILE
 from edumatcher.ralf_gateway.config import (
     RalfGatewayConfig,
     load_default_ralf_gateway_config,
-    load_ralf_gateway_config,
 )
 from edumatcher.ralf_gateway.gateway import RalfGateway
 from edumatcher.log_srv.config import (
@@ -125,8 +123,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 def _resolve_config(args: argparse.Namespace) -> RalfGatewayConfig:
-    cfg_path = ENGINE_CONFIG_FILE
-    cfg = load_ralf_gateway_config(cfg_path)
+    cfg = load_default_ralf_gateway_config()
 
     bind_address = str(args.bind) if args.bind else cfg.bind_address
     port = int(args.port) if args.port else cfg.port
@@ -146,11 +143,13 @@ def _resolve_config(args: argparse.Namespace) -> RalfGatewayConfig:
 
 
 def main() -> None:
+    from edumatcher.config_artifact import report_deployment
+
     parser = _build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-ralf-gwy with log level %s", logging.getLevelName(log_level))
-    log.info("using engine config %s", ENGINE_CONFIG_FILE)
+    report_deployment(log)
 
     try:
         config = _resolve_config(args)

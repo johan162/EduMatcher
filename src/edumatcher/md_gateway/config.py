@@ -9,7 +9,6 @@ from typing import Any
 import yaml
 
 from edumatcher.config import (
-    ENGINE_CONFIG_FILE,
     ENGINE_PUB_ADDR,
     INDEX_PUB_CONNECT_ADDR,
 )
@@ -151,5 +150,19 @@ def validate_market_data_gateway_section(raw: dict[str, Any]) -> None:
 
 
 def load_default_market_data_gateway_config() -> MarketDataGatewayConfig:
-    """Load config from the resolved default engine config file path."""
-    return load_market_data_gateway_config(ENGINE_CONFIG_FILE)
+    """Return this subsystem's section of the deployed compiled configuration.
+
+    Falls back to dataclass defaults when nothing has been deployed yet, which
+    is exactly what the YAML loader above did for a missing file — many tools
+    that read this section, such as the spies and viewers, must still run
+    against an exchange whose configuration was never installed.
+
+    The import is deferred because ``config_artifact`` imports this module to
+    describe the artifact's shape.
+    """
+    from edumatcher.config_artifact import load_compiled_config
+
+    compiled = load_compiled_config()
+    return (
+        MarketDataGatewayConfig() if compiled is None else compiled.market_data_gateway
+    )

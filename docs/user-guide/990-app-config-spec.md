@@ -28,7 +28,7 @@ A loader given a non-mapping root MUST reject the file. `load_engine_config()`
 itself MUST raise `FileNotFoundError` for a missing path — it does not implement
 a fallback. The *caller*, `pm-engine` (`engine/main.py`), checks for the file's
 existence before calling the loader: if the deployed config
-(`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml`) does not
+(compiled to `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`) does not
 exist, `pm-engine` skips loading entirely and starts in *unrestricted mode* (no
 symbol/gateway allowlist, sessions disabled) rather than failing. That fallback
 is implemented by `pm-engine`, not by the loader, and is out of scope here —

@@ -18,7 +18,6 @@ from typing import Any
 import yaml
 
 from edumatcher.config import (
-    ENGINE_CONFIG_FILE,
     ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
     INDEX_PULL_ADDR,
@@ -240,6 +239,36 @@ def validate_api_gateway_sections(raw: dict[str, Any]) -> None:
     _load_named_api_gateways(raw)
 
 
+def select_api_gateway(
+    named: dict[str, ApiGatewayConfig], instance: str | None = None
+) -> ApiGatewayConfig:
+    """Choose one API gateway instance from those configured.
+
+    Shared by the YAML loader and the compiled-artifact reader so the two
+    cannot disagree about which instance a bare ``pm-api-gwy`` gets.
+    """
+    if named:
+        if instance is not None:
+            try:
+                return named[instance]
+            except KeyError as exc:
+                available = ", ".join(sorted(named))
+                raise ValueError(
+                    f"api_gateways instance {instance!r} not found; available: {available}"
+                ) from exc
+        if len(named) == 1:
+            return next(iter(named.values()))
+        raise ValueError(
+            "multiple api_gateways entries are configured; pass --instance to select one"
+        )
+
+    if instance is not None:
+        raise ValueError(
+            f"api_gateways instance {instance!r} requested, but no api_gateways block is configured"
+        )
+    return ApiGatewayConfig()
+
+
 def load_named_api_gateway_configs(path: Path) -> dict[str, ApiGatewayConfig]:
     """Load every configured API gateway instance, keyed by name.
 
@@ -274,29 +303,19 @@ def load_api_gateway_config(
     if "api_gateway" in raw:
         raise ValueError("api_gateway is not supported; use api_gateways")
 
-    named_configs = _load_named_api_gateways(raw)
-    if named_configs:
-        if instance is not None:
-            try:
-                return named_configs[instance]
-            except KeyError as exc:
-                available = ", ".join(sorted(named_configs))
-                raise ValueError(
-                    f"api_gateways instance {instance!r} not found; available: {available}"
-                ) from exc
-        if len(named_configs) == 1:
-            return next(iter(named_configs.values()))
-        raise ValueError(
-            "multiple api_gateways entries are configured; pass --instance to select one"
-        )
-
-    if instance is not None:
-        raise ValueError(
-            f"api_gateways instance {instance!r} requested, but no api_gateways block is configured"
-        )
-    return ApiGatewayConfig()
+    return select_api_gateway(_load_named_api_gateways(raw), instance)
 
 
-def load_default_api_gateway_config() -> ApiGatewayConfig:
-    """Load API gateway config from the resolved central engine config path."""
-    return load_api_gateway_config(ENGINE_CONFIG_FILE)
+def load_default_api_gateway_config(instance: str | None = None) -> ApiGatewayConfig:
+    """Return one API gateway instance from the deployed compiled configuration.
+
+    Falls back to defaults when nothing has been deployed, matching what the
+    YAML loader did for a missing file.
+
+    The import is deferred because ``config_artifact`` imports this module.
+    """
+    from edumatcher.config_artifact import load_compiled_config
+
+    compiled = load_compiled_config()
+    named = {} if compiled is None else compiled.api_gateways
+    return select_api_gateway(named, instance)

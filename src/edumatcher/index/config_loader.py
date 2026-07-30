@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from edumatcher.engine.config_loader import (
+    EngineConfig,
     IndexConfig,
     SymbolConfig,
     load_engine_config,
@@ -65,9 +66,24 @@ def _to_runtime_index_config(
     )
 
 
-def load_index_runtime_configs(config_path: Path) -> list[IndexRuntimeConfig]:
-    """Load and enrich index runtime configs from engine config YAML."""
-    engine_cfg = load_engine_config(config_path)
+def index_runtime_configs(engine_cfg: EngineConfig) -> list[IndexRuntimeConfig]:
+    """Enrich each configured index with its constituents' reference data.
+
+    ``outstanding_shares`` and ``reference_prices`` are not separate config
+    fields — they are gathered from the constituent symbols, which the
+    compiled artifact already carries. Taking an ``EngineConfig`` rather than a
+    path is what lets pm-index read the artifact instead of re-parsing the YAML
+    and arriving at its own answer.
+    """
     return [
         _to_runtime_index_config(idx, engine_cfg.symbols) for idx in engine_cfg.indices
     ]
+
+
+def load_index_runtime_configs(config_path: Path) -> list[IndexRuntimeConfig]:
+    """Load and enrich index runtime configs straight from engine config YAML.
+
+    Not on the runtime path — pm-index reads the compiled artifact. Retained
+    for tools and tests that work on an authored file.
+    """
+    return index_runtime_configs(load_engine_config(config_path))

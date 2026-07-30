@@ -30,7 +30,12 @@ import pytest
 import zmq
 
 from edumatcher.models.message import decode
-from edumatcher.scheduler.main import _load_schedule, _run_scheduled, _time_today
+from edumatcher.engine.config_loader import load_engine_config
+from edumatcher.scheduler.main import (
+    _run_scheduled,
+    _schedule_from_config,
+    _time_today,
+)
 
 # Full, valid, in-order daily schedule (a legal CLOSED→…→CLOSED chain).
 _FULL_SCHEDULE = [
@@ -176,6 +181,8 @@ class TestH3MalformedScheduleTimesCrash:
         """
         config = tmp_path / "unquoted.yaml"
         config.write_text(
+            "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
+            "gateways:\n  alf: [{id: TRADER01, role: TRADER}]\n"
             "schedule:\n"
             "  pre_open: 9:00\n"
             "  opening_auction_start: 9:25\n"
@@ -185,7 +192,9 @@ class TestH3MalformedScheduleTimesCrash:
         )
 
         # Loading must not raise ...
-        schedule = _load_schedule(config)
+        loaded = load_engine_config(config).schedule
+        assert loaded is not None, "the fixture defines a schedule block"
+        schedule = _schedule_from_config(loaded)
 
         # ... and every time it hands downstream must be parseable without an
         # unhandled exception (DEFECT H3: values like "570" blow up here).
@@ -203,12 +212,16 @@ class TestH3MalformedScheduleTimesCrash:
         """Quoted-but-invalid times must be rejected/normalised, not fatal."""
         config = tmp_path / "malformed.yaml"
         config.write_text(
+            "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
+            "gateways:\n  alf: [{id: TRADER01, role: TRADER}]\n"
             "schedule:\n"
             '  pre_open: "25:00"\n'  # hour out of range
             '  continuous_start: "16:5:00"\n'  # too many components
         )
 
-        schedule = _load_schedule(config)
+        loaded = load_engine_config(config).schedule
+        assert loaded is not None, "the fixture defines a schedule block"
+        schedule = _schedule_from_config(loaded)
 
         for hhmm, _state in schedule:
             try:

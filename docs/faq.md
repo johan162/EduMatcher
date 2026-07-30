@@ -435,7 +435,7 @@ Developer mode (Poetry + source checkout) does not need `pm-setup` at all.
 In exactly one place, always:
 
 ```
-<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml
+<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json
 ```
 
 | Mode | Data directory |

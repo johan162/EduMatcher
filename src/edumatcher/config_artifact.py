@@ -25,12 +25,14 @@ from __future__ import annotations
 import enum
 import hashlib
 import json
+import logging
 import types
 from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
 
 from edumatcher.alf_gwy.config import AlfGatewayConfig
+from edumatcher.config import COMPILED_CONFIG_FILE
 from edumatcher.api_gateway.config import ApiGatewayConfig
 from edumatcher.balf_gwy.config import BalfGatewayConfig
 from edumatcher.dc_gateway.config import DcGatewayConfig
@@ -42,7 +44,7 @@ from edumatcher.ralf_gateway.config import RalfGatewayConfig
 # Bumped whenever the artifact's shape changes in a way an older reader would
 # misinterpret. A process that meets an unknown version refuses to start rather
 # than guessing — see `load_compiled_config`.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
 
 T = TypeVar("T")
 
@@ -66,6 +68,17 @@ class ArtifactMeta:
     compiled_at: str
     source_path: str
     source_sha256: str
+    #: SHA-256 over every section *except* this meta block, so the artifact
+    #: carries a digest of its own payload. Recomputed and checked on every
+    #: load, which is what distinguishes a compiled artifact from a file that
+    #: merely looks like one: a hand-edit after deployment no longer passes
+    #: silently.
+    #:
+    #: This detects modification, not malice. The digest travels inside the
+    #: file it protects, so anyone who edits the payload can recompute it —
+    #: proving provenance rather than integrity would need a signature over a
+    #: key the artifact does not carry.
+    content_sha256: str = ""
 
 
 @dataclass(frozen=True)
@@ -193,9 +206,116 @@ def from_jsonable(tp: Any, value: Any) -> Any:
 # ---------------------------------------------------------------------------
 
 
+def load_compiled_config(path: Path | None = None) -> CompiledConfig | None:
+    """Read the deployed artifact, or ``None`` when none has been deployed.
+
+    Absence and corruption are treated differently, deliberately.
+
+    *Absence* is a legitimate state — a fresh data directory before the first
+    ``pm-config-deploy`` — and returning ``None`` lets each caller fall back to
+    the same defaults it used to fall back to when the YAML was missing. That
+    matters because roughly twenty processes read the logging sections alone,
+    including read-only tools like ``pm-calf-spy`` and ``pm-viewer`` that have
+    no business demanding a configured exchange.
+
+    *Corruption*, or an artifact this build cannot read, raises. A deployed
+    file that cannot be parsed is not a fresh install; quietly substituting
+    defaults there is how a process ends up running settings nobody chose.
+    """
+    target = COMPILED_CONFIG_FILE if path is None else path
+    if not target.exists():
+        return None
+    return decode(target.read_text(encoding="utf-8"))
+
+
+def staleness(config: CompiledConfig) -> str | None:
+    """Return a warning when the authored source has changed since compiling.
+
+    Compiling introduces exactly one failure mode the previous arrangement did
+    not have: editing the YAML and forgetting to deploy, so the exchange keeps
+    running the previous configuration while the file on disk says otherwise.
+    This is the check for it.
+
+    The comparison is against ``meta.source_path`` — the file the operator
+    edits — not against the copy deploy leaves beside the artifact, which is
+    by construction the exact bytes that were compiled and could never differ.
+
+    Returns ``None`` when the source is unreachable. A configuration compiled
+    on another machine, or from a file since moved, is not evidence of
+    staleness, and warning about it would train people to ignore the warning.
+    """
+    source = Path(config.meta.source_path)
+    try:
+        if not source.is_file():
+            return None
+        current = source_digest(source.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+
+    if current == config.meta.source_sha256:
+        return None
+    return (
+        f"{source} has changed since the running configuration was compiled "
+        f"at {config.meta.compiled_at} — this exchange is still running the "
+        f"previous one. Run pm-config-deploy to pick up the edit."
+    )
+
+
+def report_deployment(log: logging.Logger) -> None:
+    """Log which configuration a starting process is about to run.
+
+    Called by every process that reads the exchange configuration, so that
+    "which config is this running?" is answerable from the log alone — the
+    question that took an afternoon to answer when each process resolved its
+    own path.
+    """
+    try:
+        config = load_compiled_config()
+    except ArtifactError as exc:
+        log.error("cannot read the deployed configuration: %s", exc)
+        raise
+
+    if config is None:
+        log.warning(
+            "no compiled configuration at %s — running on built-in defaults. "
+            "Run pm-config-deploy to install one.",
+            COMPILED_CONFIG_FILE,
+        )
+        return
+
+    log.info(
+        "using compiled config %s (compiled %s from %s)",
+        COMPILED_CONFIG_FILE,
+        config.meta.compiled_at,
+        config.meta.source_path,
+    )
+    warning = staleness(config)
+    if warning:
+        log.warning("%s", warning)
+
+
 def source_digest(text: str) -> str:
     """Return the SHA-256 of an authored config's text."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _payload_text(payload: dict[str, Any]) -> str:
+    """Deterministic JSON for a decoded artifact body."""
+    return json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+
+
+def content_digest(config: CompiledConfig) -> str:
+    """Return the SHA-256 of everything in *config* except its meta block.
+
+    Meta is excluded because the digest lives there; including it would be
+    self-referential. Excluding it also means a recompile of an unchanged
+    source produces an unchanged digest even though ``compiled_at`` moved on,
+    so the digest answers "is this the same configuration?" rather than "was
+    this the same compile run?".
+    """
+    payload = to_jsonable(config)
+    payload.pop("meta", None)
+    return hashlib.sha256(_payload_text(payload).encode("utf-8")).hexdigest()
 
 
 def encode(config: CompiledConfig) -> str:
@@ -232,6 +352,21 @@ def decode(text: str) -> CompiledConfig:
 
     result = from_jsonable(CompiledConfig, payload)
     assert isinstance(result, CompiledConfig)
+
+    # A recorded digest that no longer matches means the artifact was changed
+    # after it was compiled — the sections and the meta block now describe
+    # different configurations. Treat that as corruption rather than as a new
+    # configuration, because whatever is in the file was never validated.
+    recorded = result.meta.content_sha256
+    if recorded:
+        actual = content_digest(result)
+        if actual != recorded:
+            raise ArtifactError(
+                "compiled config has been modified since it was compiled "
+                f"(payload digest {actual[:12]}… does not match the recorded "
+                f"{recorded[:12]}…) — edit the source and run pm-config-deploy "
+                "rather than editing the deployed artifact"
+            )
     return result
 
 
@@ -240,8 +375,12 @@ __all__ = [
     "ArtifactError",
     "ArtifactMeta",
     "CompiledConfig",
+    "content_digest",
     "decode",
     "encode",
+    "load_compiled_config",
+    "report_deployment",
+    "staleness",
     "from_jsonable",
     "source_digest",
     "to_jsonable",

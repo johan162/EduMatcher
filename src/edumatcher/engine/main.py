@@ -173,6 +173,18 @@ def order_to_display_dict(order: Order) -> dict[str, Any]:
     return d
 
 
+def _compiled_engine_config() -> "EngineConfig | None":
+    """Return the engine section of the deployed artifact, if one is deployed.
+
+    Deferred import: ``config_artifact`` imports the subsystem config modules
+    to describe the artifact's shape.
+    """
+    from edumatcher.config_artifact import load_compiled_config
+
+    compiled = load_compiled_config()
+    return None if compiled is None else compiled.engine
+
+
 class Engine:
     # Minimum interval between book snapshot publishes per symbol (seconds)
     SNAPSHOT_INTERVAL = 0.5
@@ -255,11 +267,17 @@ class Engine:
 
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-        # Load engine config (symbol allowlist + MM orders)
+        # Load engine config (symbol allowlist + MM orders).
+        #
+        # With no explicit path the engine reads the compiled artifact, so it
+        # and every gateway resolve the same defaults from the same validated
+        # file. An explicit path still parses YAML directly: tests construct an
+        # Engine from a fixture without compiling one first.
+        engine_config = _compiled_engine_config() if config_path is None else None
         path = Path(config_path) if config_path else ENGINE_CONFIG_FILE
-        if path.exists():
+        if engine_config is not None or path.exists():
             try:
-                self._engine_config = load_engine_config(path)
+                self._engine_config = engine_config or load_engine_config(path)
                 self._allowed_symbols = self._engine_config.allowed_symbols
                 self._allowed_fix_gateways = self._engine_config.allowed_fix_gateways
                 self._sessions_enabled = self._engine_config.sessions_enabled
@@ -4107,11 +4125,13 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
+    from edumatcher.config_artifact import report_deployment
+
     parser = _build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-engine with log level %s", logging.getLevelName(log_level))
-    log.info("using engine config %s", ENGINE_CONFIG_FILE)
+    report_deployment(log)
     Engine().run()
 
 

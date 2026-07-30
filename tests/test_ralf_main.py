@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from edumatcher.ralf_gateway.config import RalfGatewayConfig
 from edumatcher.ralf_gateway import main as ralf_main
 from edumatcher.ralf_gateway.main import (
     _build_parser,
@@ -17,15 +18,15 @@ from edumatcher.ralf_gateway.main import (
 def test_resolve_config_overrides(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    cfg_path = tmp_path / "engine_config.yaml"
-    cfg_path.write_text("""
-post_trade_gateway:
-  name: from-config
-  bind_address: 0.0.0.0
-  port: 5580
-""")
-
-    monkeypatch.setattr(ralf_main, "ENGINE_CONFIG_FILE", cfg_path)
+    # The gateway reads its section from the compiled artifact now, so
+    # the deployed configuration is stubbed rather than written as YAML.
+    monkeypatch.setattr(
+        ralf_main,
+        "load_default_ralf_gateway_config",
+        lambda: RalfGatewayConfig(
+            name="from-config", bind_address="0.0.0.0", port=5580
+        ),
+    )
     args = Namespace(
         bind="127.0.0.1",
         port=6002,
@@ -62,25 +63,26 @@ def test_configure_logging_prefers_explicit_level() -> None:
     assert _configure_logging(args) == 20
 
 
-def test_main_invalid_config_exits(
+def test_main_exits_when_the_configuration_cannot_be_read(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    cfg = tmp_path / "bad.yaml"
-    cfg.write_text("""
-post_trade_gateway:
-  allowed_roles: CLEARING
-""")
+    # An unreadable or tampered artifact must stop the gateway rather
+    # than let it start on defaults nobody chose. A malformed section
+    # is no longer reachable: pm-config-deploy will not compile one.
+    def _unreadable() -> RalfGatewayConfig:
+        raise ValueError("compiled config is unreadable")
+
     monkeypatch.setattr(sys, "argv", ["pm-ralf-gwy"])
-    monkeypatch.setattr(ralf_main, "ENGINE_CONFIG_FILE", cfg)
+    monkeypatch.setattr(ralf_main, "load_default_ralf_gateway_config", _unreadable)
     with pytest.raises(SystemExit):
         ralf_main.main()
 
 
 def test_main_runs_gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg = tmp_path / "ok.yaml"
-    cfg.write_text("post_trade_gateway: {}\n")
     monkeypatch.setattr(sys, "argv", ["pm-ralf-gwy"])
-    monkeypatch.setattr(ralf_main, "ENGINE_CONFIG_FILE", cfg)
+    monkeypatch.setattr(
+        ralf_main, "load_default_ralf_gateway_config", lambda: RalfGatewayConfig()
+    )
 
     called = {"run": False}
 

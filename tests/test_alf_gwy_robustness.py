@@ -11,6 +11,8 @@ Medium priority:
 
 from __future__ import annotations
 
+from typing import Any
+
 import socket
 import time
 
@@ -56,9 +58,7 @@ class _FakeSub:
 # ---------------------------------------------------------------------------
 
 
-def _make_gateway(
-    monkeypatch: pytest.MonkeyPatch, **cfg_overrides: object
-) -> AlfGateway:
+def _make_gateway(monkeypatch: pytest.MonkeyPatch, **cfg_overrides: Any) -> AlfGateway:
     fake_push = _FakePush()
     fake_sub = _FakeSub()
     monkeypatch.setattr("edumatcher.alf_gwy.gateway.make_pusher", lambda _: fake_push)

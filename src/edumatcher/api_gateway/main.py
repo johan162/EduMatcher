@@ -15,13 +15,15 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from edumatcher.api_gateway.config import ApiGatewayConfig, load_api_gateway_config
+from edumatcher.api_gateway.config import (
+    ApiGatewayConfig,
+    load_default_api_gateway_config,
+)
 from edumatcher.api_gateway.engine_client import EngineClient
 from edumatcher.api_gateway.index_client import IndexClient
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import admin, history, orders, reference, ws
 from edumatcher.api_gateway.sessions import SessionRegistry
-from edumatcher.config import ENGINE_CONFIG_FILE
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -106,7 +108,7 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
 
 
 def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
-    config = load_api_gateway_config(ENGINE_CONFIG_FILE, instance=args.instance)
+    config = load_default_api_gateway_config(instance=args.instance)
     engine_pull_addr = config.engine_pull_addr
     engine_pub_addr = config.engine_pub_addr
     index_pull_addr = config.index_pull_addr

@@ -49,6 +49,42 @@ _DEFAULT_CB_LEVELS: dict[str, dict[str, Any]] = {
 }
 
 
+DEFAULT_COUNTRY = "Sweden"
+
+
+def normalize_hhmm(raw: object) -> str | None:
+    """Normalize a schedule time to canonical ``"HH:MM"``, or ``None``.
+
+    Accepts ``"HH:MM"`` strings and the integers PyYAML produces for
+    *unquoted* sexagesimal values such as ``9:30`` (parsed as
+    ``9 * 60 + 30 == 570`` minutes past midnight), recovering the documented
+    but unquoted form rather than storing ``"570"``.
+
+    This lives here rather than in pm-scheduler because the compiled artifact
+    is where a schedule time is decided; a loader that stored the raw value
+    and a consumer that normalised it would disagree about the same file.
+    """
+    # bool is a subclass of int — reject it explicitly.
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        if 0 <= raw < 24 * 60:
+            return f"{raw // 60:02d}:{raw % 60:02d}"
+        return None
+    if isinstance(raw, str):
+        parts = raw.strip().split(":")
+        if len(parts) != 2:
+            return None
+        hh, mm = parts
+        if not (hh.isdigit() and mm.isdigit()):
+            return None
+        hours, minutes = int(hh), int(mm)
+        if 0 <= hours < 24 and 0 <= minutes < 60:
+            return f"{hours:02d}:{minutes:02d}"
+        return None
+    return None
+
+
 @dataclass
 class MMObligationPolicy:
     enforce_mm_obligation: bool = False
@@ -160,6 +196,10 @@ class EngineConfig:
     depth_snapshot_tolerance_ticks: int = _DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS
     sessions_enabled: bool = False
     schedule: ScheduleConfig | None = None
+    #: Country whose bank-holiday calendar and local wall clock pm-scheduler
+    #: runs against. Validated against python-holidays by the scheduler, which
+    #: is the only consumer; the loader only checks it is a non-empty string.
+    country: str = DEFAULT_COUNTRY
     enforce_collars: bool = True
     enforce_circuit_breakers: bool = True
 
@@ -1065,17 +1105,27 @@ def load_engine_config(path: Path) -> EngineConfig:
     schedule_cfg: ScheduleConfig | None = None
     schedule_raw = raw.get("schedule")
     if isinstance(schedule_raw, dict):
+        defaults = ScheduleConfig()
+
+        def _time(key: str) -> str:
+            """Canonical HH:MM for one schedule key, or its documented default."""
+            fallback: str = getattr(defaults, key)
+            if key not in schedule_raw:
+                return fallback
+            return normalize_hhmm(schedule_raw[key]) or fallback
+
         schedule_cfg = ScheduleConfig(
-            pre_open=str(schedule_raw.get("pre_open", "09:00")),
-            opening_auction_start=str(
-                schedule_raw.get("opening_auction_start", "09:25")
-            ),
-            continuous_start=str(schedule_raw.get("continuous_start", "09:30")),
-            closing_auction_start=str(
-                schedule_raw.get("closing_auction_start", "16:00")
-            ),
-            closing_auction_end=str(schedule_raw.get("closing_auction_end", "16:05")),
+            pre_open=_time("pre_open"),
+            opening_auction_start=_time("opening_auction_start"),
+            continuous_start=_time("continuous_start"),
+            closing_auction_start=_time("closing_auction_start"),
+            closing_auction_end=_time("closing_auction_end"),
         )
+
+    country_raw = raw.get("country")
+    country = DEFAULT_COUNTRY
+    if isinstance(country_raw, str) and country_raw.strip():
+        country = country_raw.strip()
 
     return EngineConfig(
         symbols=symbols,
@@ -1093,6 +1143,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         depth_snapshot_tolerance_ticks=depth_snapshot_tolerance_ticks,
         sessions_enabled=sessions_enabled_raw,
         schedule=schedule_cfg,
+        country=country,
         enforce_collars=enforce_collars_raw,
         enforce_circuit_breakers=enforce_cb_raw,
     )

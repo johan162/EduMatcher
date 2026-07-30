@@ -156,7 +156,7 @@ CLI override options:
 **Config file location**
 
 The engine configuration is read from
-`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml`. There is no `--config`
+`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`. There is no `--config`
 flag: every process reads that one file, so none of them can be started
 against a configuration the others have not seen. Install one with
 `pm-config-deploy`.

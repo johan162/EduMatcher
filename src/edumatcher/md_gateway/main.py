@@ -6,14 +6,10 @@ import argparse
 import logging
 
 from edumatcher.config import (
-    ENGINE_CONFIG_FILE,
+    COMPILED_CONFIG_FILE,
     INDEX_PUB_CONNECT_ADDR,
 )
-from edumatcher.engine.config_loader import load_engine_config
-from edumatcher.md_gateway.config import (
-    MarketDataGatewayConfig,
-    load_market_data_gateway_config,
-)
+from edumatcher.md_gateway.config import MarketDataGatewayConfig
 from edumatcher.md_gateway.gateway import MarketDataGateway
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -135,8 +131,12 @@ def _configure_logging(args: argparse.Namespace) -> int:
 def _resolve_config(
     args: argparse.Namespace,
 ) -> tuple[MarketDataGatewayConfig, set[str]]:
-    cfg_path = ENGINE_CONFIG_FILE
-    cfg = load_market_data_gateway_config(cfg_path)
+    from edumatcher.config_artifact import load_compiled_config
+
+    compiled = load_compiled_config()
+    cfg = (
+        MarketDataGatewayConfig() if compiled is None else compiled.market_data_gateway
+    )
 
     bind_address = str(args.bind) if args.bind else cfg.bind_address
     port = int(args.port) if args.port else cfg.port
@@ -147,35 +147,24 @@ def _resolve_config(
     # SUB validation *and* omits SYMBOLS= from every WELCOME, so a client is
     # left with no instrument universe and no clue why. Both ways of ending up
     # there used to be silent; they are now loud.
+    #
+    # The symbols come from the same compiled artifact as the gateway's own
+    # settings, so the two can no longer describe different exchanges.
     known_symbols: set[str] = set()
-    if not cfg_path.exists():
+    if compiled is None:
         log.warning(
-            "no deployed engine config at %s — starting with no known symbols, "
+            "no compiled configuration at %s — starting with no known symbols, "
             "so SUB symbol validation is disabled and WELCOME will carry no "
             "SYMBOLS= list. Run pm-config-deploy to install one.",
-            cfg_path,
+            COMPILED_CONFIG_FILE,
         )
     else:
-        try:
-            engine_cfg = load_engine_config(cfg_path)
-            known_symbols = set(engine_cfg.symbols.keys())
-        except Exception as exc:
-            # Gateway remains usable in permissive mode when config validation
-            # fails for unrelated reasons; symbol checks are simply disabled.
+        known_symbols = set(compiled.engine.symbols)
+        if not known_symbols:
             log.warning(
-                "could not read symbols from %s (%s) — starting with no known "
-                "symbols, so SUB symbol validation is disabled and WELCOME "
-                "will carry no SYMBOLS= list",
-                cfg_path,
-                exc,
+                "the compiled configuration defines no symbols — WELCOME will "
+                "carry no SYMBOLS= list"
             )
-        else:
-            if not known_symbols:
-                log.warning(
-                    "engine config %s defines no symbols — WELCOME will carry "
-                    "no SYMBOLS= list",
-                    cfg_path,
-                )
 
     return (
         MarketDataGatewayConfig(
@@ -199,11 +188,13 @@ def _resolve_config(
 
 
 def main() -> None:
+    from edumatcher.config_artifact import report_deployment
+
     parser = _build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-md-gwy with log level %s", logging.getLevelName(log_level))
-    log.info("using engine config %s", ENGINE_CONFIG_FILE)
+    report_deployment(log)
 
     try:
         config, known_symbols = _resolve_config(args)

@@ -177,7 +177,7 @@ command picks it up automatically.
 | `EDUMATCHER_DATA_DIR` | `~/.local/share/edumatcher` | `<repo>/src/data/` | Directory for all persistent data files (`gtc_orders.json`, `stats.db`, `audit.log`, etc.) **and** the deployed engine configuration |
 
 The engine configuration is **not** separately configurable. Every process
-reads `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml` — there is no
+reads `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json` — there is no
 `--config` flag and no `EDUMATCHER_CONFIG` variable. This is deliberate: while
 each process took its own path, starting one of them against the wrong file
 produced an exchange whose parts silently disagreed, and the symptom (a
@@ -2043,7 +2043,7 @@ pm-setup
 None.
 
 It creates the data directory and deploys the bundled sample configuration to
-`<DATA_DIR>/ref_data/engine_config.yaml`, so a fresh environment can start the
+`<DATA_DIR>/ref_data/engine_config.json`, so a fresh environment can start the
 exchange immediately.
 
 Use this once per new environment (VM, container volume, or fresh local
@@ -2054,13 +2054,14 @@ runtime message bus.
 
 
 
-## pm-config-deploy — Install a Configuration
+## pm-config-deploy — Compile and Install a Configuration
 
-Validates an authored `engine_config.yaml` and installs it as the one every
-process reads.
+Validates an authored `engine_config.yaml`, compiles it, and installs the
+result as the one file every process reads.
 
 ```bash
 pm-config-deploy my_config.yaml
+pm-config-deploy --check my_config.yaml
 pm-config-deploy --show
 ```
 
@@ -2068,25 +2069,38 @@ pm-config-deploy --show
 
 | Flag       | Default | Description                                                  |
 |------------|---------|--------------------------------------------------------------|
-| `SOURCE`   | —       | Authored `engine_config.yaml` to validate and install        |
-| `--show`   | off     | Print the deployed configuration path and exit               |
+| `SOURCE`   | —       | Authored `engine_config.yaml` to validate, compile and install |
+| `--check`  | off     | Validate and compile, but install nothing — for CI            |
+| `--show`   | off     | Print the deployed paths and exit                             |
 
 **Expected runtime input arguments:**
 
-None. It reads `SOURCE`, writes the deployed copy, and exits.
+None. It reads `SOURCE`, writes
+`<DATA_DIR>/ref_data/engine_config.json` plus a copy of the source beside it,
+and exits.
 
-Validation uses the same loader every process runs at startup, so a deploy
-that succeeds cannot be followed by a process failing to parse the file. A
-configuration that fails validation is not installed and the previous one is
-left untouched — the write is staged and renamed, so a process starting during
-a deploy sees either the old file or the new one, never half of either.
+Validation runs all four `pm-cverifier` layers. That is stricter than starting
+used to be: a configuration with, say, a `MARKET_MAKER` gateway and no
+`market_maker_quotes` (`M001`), or an API credential naming a `gateway_id`
+absent from `gateways.alf` (`M022`), will now refuse to deploy where it
+previously ran. Warnings do not block — a command that refused on advice would
+push people back towards editing the deployed copy by hand.
 
-The command prints the symbol count it installed. That number is worth
-reading: an unexpected zero is the difference between an exchange and a
-gateway that accepts connections but has no instruments to offer.
+Compiling also resolves every default exactly once. That is what allows the
+runtime loaders to deserialise rather than each keep its own copy of the
+defaults for its section.
+
+A configuration that fails is not installed and the previous artifact is left
+untouched — the write is staged and renamed, so a process starting during a
+deploy sees either the old file or the new one, never half of either.
+
+The command prints the symbol and gateway counts it installed. Those numbers
+are worth reading: an unexpected zero is the difference between an exchange
+and a gateway that accepts connections but has no instruments to offer.
 
 Deploying does not disturb running processes. Restart them to pick up the new
-configuration.
+configuration; until you do, each will warn at startup that its source has
+moved on.
 
 This tool is local bootstrap logic and does not participate in the ZeroMQ
 runtime message bus.

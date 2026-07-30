@@ -7,50 +7,59 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from edumatcher.scheduler.main import _load_schedule, _run_now, _time_today
+from edumatcher.config_deploy import deploy
+from edumatcher.engine.config_loader import ScheduleConfig
+from edumatcher.scheduler.main import (
+    DEFAULT_SCHEDULE,
+    _run_now,
+    _schedule_from_config,
+    _time_today,
+)
+
+
+def _deploy(tmp_path: Path) -> Path:
+    """Compile a minimal configuration into tmp_path and return the artifact."""
+    source = tmp_path / "authored.yaml"
+    source.write_text(
+        "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
+        "gateways:\n  alf: [{id: TRADER01, role: TRADER}]\n"
+    )
+    dest = tmp_path / "engine_config.json"
+    deploy(source, dest)
+    return dest
+
 
 # ---------------------------------------------------------------------------
 # _load_schedule
 # ---------------------------------------------------------------------------
 
 
-class TestLoadSchedule:
-    def test_returns_default_when_no_config(self) -> None:
-        from edumatcher.scheduler.main import DEFAULT_SCHEDULE
+class TestScheduleFromConfig:
+    """`_load_schedule` is gone: its YAML parsing now lives in
+    ``load_engine_config`` and its tolerance for a missing or malformed raw
+    file is the compile step's job. What remains is the mapping from a
+    compiled ScheduleConfig onto the engine's transition sequence.
+    """
 
-        result = _load_schedule(None)
-        assert result == DEFAULT_SCHEDULE
+    def test_maps_every_phase_in_order(self) -> None:
+        result = _schedule_from_config(ScheduleConfig())
+        assert [state for _time, state in result] == [
+            "PRE_OPEN",
+            "OPENING_AUCTION",
+            "CONTINUOUS",
+            "CLOSING_AUCTION",
+            "CLOSED",
+        ]
 
-    def test_returns_default_when_config_missing(self, tmp_path: Path) -> None:
-        from edumatcher.scheduler.main import DEFAULT_SCHEDULE
+    def test_the_default_schedule_matches_the_default_config(self) -> None:
+        # Two spellings of the same timetable; if they drift, a deployment
+        # with no `schedule:` block would run different times from one that
+        # spelled out the documented defaults.
+        assert _schedule_from_config(ScheduleConfig()) == DEFAULT_SCHEDULE
 
-        result = _load_schedule(tmp_path / "nonexistent.yaml")
-        assert result == DEFAULT_SCHEDULE
-
-    def test_loads_schedule_from_yaml(self, tmp_path: Path) -> None:
-        config = tmp_path / "sched.yaml"
-        config.write_text(
-            "schedule:\n"
-            "  pre_open: '08:00'\n"
-            "  opening_auction_start: '09:00'\n"
-            "  continuous_start: '09:30'\n"
-            "  closing_auction_start: '16:00'\n"
-            "  closing_auction_end: '16:10'\n"
-        )
-        result = _load_schedule(config)
-        states = [state for _, state in result]
-        assert "PRE_OPEN" in states
-        assert "CONTINUOUS" in states
-
-    def test_falls_back_to_default_on_invalid_yaml(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
-        from edumatcher.scheduler.main import DEFAULT_SCHEDULE
-
-        config = tmp_path / "bad.yaml"
-        config.write_text("schedule: [[[invalid")
-        result = _load_schedule(config)
-        assert result == DEFAULT_SCHEDULE
+    def test_carries_configured_times_through(self) -> None:
+        result = _schedule_from_config(ScheduleConfig(pre_open="08:00"))
+        assert result[0] == ("08:00", "PRE_OPEN")
 
 
 # ---------------------------------------------------------------------------
@@ -111,23 +120,25 @@ class TestSchedulerMain:
 
     @patch("edumatcher.scheduler.main.make_subscriber", return_value=MagicMock())
     @patch("edumatcher.scheduler.main._run_scheduled")
-    @patch("edumatcher.scheduler.main._load_schedule", return_value=[])
     @patch("edumatcher.scheduler.main.time.sleep")
     @patch("edumatcher.scheduler.main.make_pusher", return_value=MagicMock())
     def test_scheduled_mode(
         self,
         mock_pusher: MagicMock,
         mock_sleep: MagicMock,
-        mock_load: MagicMock,
         mock_run_scheduled: MagicMock,
         mock_subscriber: MagicMock,
         tmp_path: Path,
     ) -> None:
-        deployed = tmp_path / "engine_config.yaml"
-        deployed.write_text("symbols:\n  AAPL: {}\n")
+        # The schedule now comes from the compiled artifact, so this deploys
+        # one rather than patching a YAML path.
+        _deploy(tmp_path)
         with (
             patch("sys.argv", ["pm-scheduler"]),
-            patch("edumatcher.scheduler.main.ENGINE_CONFIG_FILE", deployed),
+            patch(
+                "edumatcher.config_artifact.COMPILED_CONFIG_FILE",
+                tmp_path / "engine_config.json",
+            ),
         ):
             from edumatcher.scheduler.main import main
 
@@ -140,10 +151,12 @@ class TestSchedulerMain:
     def test_missing_config_file_exits(
         self, mock_pusher: MagicMock, mock_sleep: MagicMock, tmp_path: Path
     ) -> None:
-        missing = tmp_path / "nope.yaml"
+        # Nothing deployed at all: running a timetable the engine has never
+        # seen is worse than not starting.
+        missing = tmp_path / "absent" / "engine_config.json"
         with (
             patch("sys.argv", ["pm-scheduler"]),
-            patch("edumatcher.scheduler.main.ENGINE_CONFIG_FILE", missing),
+            patch("edumatcher.config_artifact.COMPILED_CONFIG_FILE", missing),
         ):
             from edumatcher.scheduler.main import main
 

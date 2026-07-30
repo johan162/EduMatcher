@@ -28,7 +28,7 @@ page works in both modes. The only difference is how you invoke the commands.
 | **Installation**     | `poetry install --with dev` (source checkout) | `pipx install edumatcher`                             |
 | **Command prefix**   | `poetry run pm-engine`                        | `pm-engine` (no prefix)                               |
 | **Data directory**   | `<repo>/src/data/` (auto-detected)            | `~/.local/share/edumatcher` or `$EDUMATCHER_DATA_DIR` |
-| **Config file**      | `<repo>/src/data/ref_data/engine_config.yaml` | `<$EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml`  |
+| **Config file**      | `<repo>/src/data/ref_data/engine_config.json` | `<$EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`  |
 | **First-time setup** | Nothing extra                                 | Run `pm-setup` once                                   |
 | **Launch all**       | `./tools/launch_all.sh`                       | `./tools/launch_all.sh` (script is mode-aware)        |
 

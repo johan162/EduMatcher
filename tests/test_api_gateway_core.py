@@ -10,7 +10,7 @@ from edumatcher.api_gateway.main import create_app
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.schemas import OrderRequest, QuoteRequest
 from edumatcher.api_gateway.translate import build_order, build_quote_payload
-from edumatcher.models.order import OrderType
+from edumatcher.models.order import OrderType, Side
 from edumatcher.stats.query import query_order_events, query_order_lifecycle
 
 
@@ -22,14 +22,16 @@ def test_swagger_can_be_disabled() -> None:
 
 def test_order_request_validation_requires_limit_price() -> None:
     with pytest.raises(ValueError, match="requires price"):
-        OrderRequest(symbol="aapl", side="BUY", order_type="LIMIT", quantity=10)
+        OrderRequest(
+            symbol="aapl", side=Side.BUY, order_type=OrderType.LIMIT, quantity=10
+        )
 
 
 def test_build_order_converts_display_price_to_ticks() -> None:
     request = OrderRequest(
         symbol="AAPL",
-        side="BUY",
-        order_type="LIMIT",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
         quantity=10,
         price=150.25,
     )

@@ -7,11 +7,9 @@ import logging
 
 from edumatcher.alf_gwy.config import (
     AlfGatewayConfig,
-    load_alf_gateway_config,
     load_default_alf_gateway_config,
 )
 from edumatcher.alf_gwy.gateway import AlfGateway
-from edumatcher.config import ENGINE_CONFIG_FILE
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -126,8 +124,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 def _resolve_config(args: argparse.Namespace) -> AlfGatewayConfig:
-    cfg_path = ENGINE_CONFIG_FILE
-    cfg = load_alf_gateway_config(cfg_path)
+    cfg = load_default_alf_gateway_config()
 
     bind_address = str(args.bind) if args.bind else cfg.bind_address
     port = int(args.port) if args.port else cfg.port
@@ -160,11 +157,13 @@ def _resolve_config(args: argparse.Namespace) -> AlfGatewayConfig:
 
 
 def main() -> None:
+    from edumatcher.config_artifact import report_deployment
+
     parser = _build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-alf-gwy with log level %s", logging.getLevelName(log_level))
-    log.info("using engine config %s", ENGINE_CONFIG_FILE)
+    report_deployment(log)
 
     try:
         config = _resolve_config(args)

@@ -66,25 +66,65 @@ The authored `engine_config.yaml` lives wherever suits you — normally under
 version control alongside the rest of your course material. Edit it, review it,
 diff it.
 
-The deployed copy always lives at
-`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml`. That is the only file any
+What the exchange runs is a *compiled artifact* at
+`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`. That is the only file any
 running process reads. No process accepts a config path, so it is not possible
 to start two of them against different files.
 
-`pm-config-deploy` is the bridge between the two. It validates the authored
-file with the same loader every process uses at startup, then installs it — so
-a deploy that succeeds cannot be followed by a process failing to parse it.
+`pm-config-deploy` is the bridge between the two. It:
+
+1. **validates** the authored file with all four `pm-cverifier` layers, so a
+   configuration nobody checked can no longer reach a running exchange;
+2. **resolves every default exactly once**, rather than in the eight loaders
+   that used to hold their own copies and could drift apart;
+3. **installs** the result atomically, alongside a copy of the source it was
+   built from.
 
 ```bash
-pm-config-deploy my_config.yaml   # validate and install
-pm-config-deploy --show           # where does the deployed copy live?
+pm-config-deploy my_config.yaml         # validate, compile and install
+pm-config-deploy --check my_config.yaml # validate only, install nothing
+pm-config-deploy --show                 # where do the deployed files live?
 
 pm-engine --verbose
 pm-scheduler
 ```
 
+The artifact is not a reformatted copy of your YAML. A source naming two keys
+compiles to nine fully-resolved sections: a `market_data_gateway` block you
+never wrote still arrives with all of its fields, which is what lets each
+process deserialise rather than decide.
+
 Deployment replaces the running configuration but does not disturb live
 processes; restart them to pick it up.
+
+### What the artifact records about itself
+
+```json
+"meta": {
+  "schema_version": 3,
+  "compiler_version": "0.17.0",
+  "compiled_at": "2026-07-30T16:43:18.000Z",
+  "source_path": "/Users/you/course/engine_config.yaml",
+  "source_sha256": "e3bc2f14cf5c10da…",
+  "content_sha256": "87be4dc0b9b645cb…"
+}
+```
+
+The two digests answer different questions, and both are checked:
+
+- `source_sha256` — *has the authored file changed since this was built?* Each
+  process warns at startup when it has, so an edit you forgot to deploy is
+  visible rather than silently ignored.
+- `content_sha256` — *has this file changed since it was built?* Recomputed on
+  every load. Editing the deployed artifact by hand is refused, naming
+  `pm-config-deploy` as the way to make the change properly.
+
+The payload digest detects modification, not malice: it travels inside the file
+it protects, so anyone who edits the payload can recompute it. Proving
+provenance rather than integrity would need a signature.
+
+`schema_version` guards against a build reading an artifact shaped for another;
+an unknown version is refused with a message telling you to recompile.
 
 If you are running from a Poetry checkout, prefix commands with `poetry run`.
 

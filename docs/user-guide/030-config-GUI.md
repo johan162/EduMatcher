@@ -748,9 +748,22 @@ The **Review & Export** tab (Beginner) is the final pass:
     - **Verify with pm-cverifier** — optional; see
       [server-side verification](#optional-server-side-verification).
 
-Once downloaded, the file is ready for the engine and its companion processes —
-see [Running the Engine](040-running-the-exchange.md) and, for a first end-to-end
-run, [Getting Started](000-getting-started.md).
+The download is an **authored** `engine_config.yaml` — the file you keep and
+version, not the one the exchange runs. Install it before starting anything:
+
+```bash
+pm-config-deploy ~/Downloads/engine_config.yaml
+```
+
+That validates it, resolves every default, and writes the compiled artifact the
+processes actually read. Because the GUI already refuses to export while any
+error exists, a file downloaded from here should deploy first time; if it does
+not, the deploy output names the finding.
+
+See [Configuration — File Location](010-configuration.md#file-location) for what
+compiling does, [Running the Engine](040-running-the-exchange.md) for starting
+the processes, and [Getting Started](000-getting-started.md) for a first
+end-to-end run.
 
 !!! note "📷 Figure 12 — Review & Export with YAML preview"
     _Screenshot placeholder._ Capture the Review tab showing the diagnostics

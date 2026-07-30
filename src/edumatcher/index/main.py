@@ -14,7 +14,7 @@ from typing import Any
 import zmq
 
 from edumatcher.config import (
-    ENGINE_CONFIG_FILE,
+    COMPILED_CONFIG_FILE,
     ENGINE_PUB_ADDR,
     INDEX_PUB_ADDR,
     INDEX_PULL_ADDR,
@@ -22,6 +22,7 @@ from edumatcher.config import (
 from edumatcher.index.calculator import ConstituentConfig, IndexCalculator
 from edumatcher.index.config_loader import (
     IndexRuntimeConfig,
+    index_runtime_configs,
     load_index_runtime_configs,
 )
 from edumatcher.index.history import STRUCTURAL_RECORD_TYPES, IndexHistory
@@ -63,7 +64,14 @@ class _ManagedIndex:
 
 
 class IndexProcess:
-    def __init__(self, config_path: Path, reset: bool = False) -> None:
+    def __init__(self, config_path: Path | None = None, reset: bool = False) -> None:
+        """Run the index calculation process.
+
+        With no ``config_path`` the indices come from the compiled artifact, so
+        pm-index and pm-engine agree about constituents and their reference
+        data. An explicit path still parses YAML directly, for tests and tools
+        working on an authored file.
+        """
         self._config_path = config_path
         self._reset = reset
         self._running = True
@@ -89,6 +97,28 @@ class IndexProcess:
             INDEX_PULL_ADDR,
             INDEX_PUB_ADDR,
         )
+
+    def _runtime_configs(self) -> list[IndexRuntimeConfig]:
+        """Return the enriched index configs, from the artifact or a YAML path.
+
+        `outstanding_shares` and `reference_prices` are gathered from the
+        constituent symbols rather than being fields of their own, so the
+        compiled artifact already holds everything this needs.
+        """
+        if self._config_path is not None:
+            return load_index_runtime_configs(self._config_path)
+
+        from edumatcher.config_artifact import load_compiled_config
+
+        compiled = load_compiled_config()
+        if compiled is None:
+            log.warning(
+                "no compiled configuration at %s — no indices will be "
+                "calculated. Run pm-config-deploy to install one.",
+                COMPILED_CONFIG_FILE,
+            )
+            return []
+        return index_runtime_configs(compiled.engine)
 
     def _dbg_count(self, key: str, amount: int = 1) -> None:
         if not log.isEnabledFor(logging.DEBUG):
@@ -185,7 +215,7 @@ class IndexProcess:
         )
 
     def _initialise(self) -> None:
-        configs = load_index_runtime_configs(self._config_path)
+        configs = self._runtime_configs()
         log.info("loaded %d index runtime config(s)", len(configs))
         for cfg in configs:
             divisor, last_prices = self._load_state(cfg)
@@ -707,16 +737,15 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
+    from edumatcher.config_artifact import report_deployment
+
     parser = _build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-index with log level %s", logging.getLevelName(log_level))
-    log.info("using engine config %s", ENGINE_CONFIG_FILE)
-    log.debug(
-        "resolved index config path=%s reset=%s", ENGINE_CONFIG_FILE, bool(args.reset)
-    )
+    report_deployment(log)
     try:
-        proc = IndexProcess(config_path=ENGINE_CONFIG_FILE, reset=bool(args.reset))
+        proc = IndexProcess(reset=bool(args.reset))
     except Exception as exc:
         log.error("fatal startup error: %s", exc)
         sys.exit(1)

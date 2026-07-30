@@ -21,7 +21,6 @@ from typing import Any
 import yaml
 
 from edumatcher.config import (
-    ENGINE_CONFIG_FILE,
     LOG_DB_FILE,
     LOG_FALLBACK_DIR,
     LOG_SRV_HOST,
@@ -166,8 +165,20 @@ def load_log_client_config(path: Path) -> LogClientConfig:
 
 
 def load_default_log_client_config() -> LogClientConfig:
-    """Load the client config from the resolved default engine config file path."""
-    return load_log_client_config(ENGINE_CONFIG_FILE)
+    """Return the log-client section of the deployed compiled configuration.
+
+    Read by roughly twenty processes — every ``pm-*`` binary configures its
+    logging through this, including read-only tools like ``pm-calf-spy`` and
+    ``pm-viewer``. Falling back to defaults when nothing is deployed is what
+    keeps those usable on a machine that has never had a configuration
+    installed, matching the YAML loader's behaviour for a missing file.
+
+    The import is deferred because ``config_artifact`` imports this module.
+    """
+    from edumatcher.config_artifact import load_compiled_config
+
+    compiled = load_compiled_config()
+    return LogClientConfig() if compiled is None else compiled.log_client
 
 
 def _as_int(raw: object, field: str) -> int:
@@ -341,8 +352,18 @@ def validate_log_server_section(raw: dict[str, Any]) -> None:
 
 
 def load_default_log_server_config() -> LogServerConfig:
-    """Load config from the resolved default engine config file path."""
-    return load_log_server_config(ENGINE_CONFIG_FILE)
+    """Return the log-server section of the deployed compiled configuration.
+
+    Same fallback rule as ``load_default_log_client_config``: absent means
+    defaults, so a process can still find pm-log-srv on its default port
+    before any configuration has been deployed.
+
+    The import is deferred because ``config_artifact`` imports this module.
+    """
+    from edumatcher.config_artifact import load_compiled_config
+
+    compiled = load_compiled_config()
+    return LogServerConfig() if compiled is None else compiled.log_server
 
 
 def resolve_host_default() -> str:

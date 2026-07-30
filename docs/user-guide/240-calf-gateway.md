@@ -233,7 +233,7 @@ whole installation via two environment variables (useful when the engine runs
 on another host): `EDUMATCHER_ENGINE_HOST` (default `127.0.0.1`) and
 `EDUMATCHER_INDEX_PUB_PORT` (default `5558`). The engine configuration itself
 is not overridable: like every other `pm-*` process, `pm-md-gwy` reads
-`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml` — see
+`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json` — see
 [Getting Started → Environment variables](000-getting-started.md#environment-variables).
 
 This matters more for `pm-md-gwy` than for most processes. Its symbol

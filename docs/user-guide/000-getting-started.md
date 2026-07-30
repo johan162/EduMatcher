@@ -183,7 +183,7 @@ export EDUMATCHER_DATA_DIR="$HOME/.local/share/edumatcher"
 ```
 
 `pm-setup` also deploys a sample configuration to
-`$EDUMATCHER_DATA_DIR/ref_data/engine_config.yaml`, so the exchange can start
+`$EDUMATCHER_DATA_DIR/ref_data/engine_config.json`, so the exchange can start
 immediately. To run one of your own, author it anywhere you like — keep it
 under version control — and install it:
 
@@ -280,7 +280,7 @@ override the defaults permanently.
 | `EDUMATCHER_DATA_DIR` | `~/.local/share/edumatcher`  | `<repo>/src/data/`          | Where all persistent data files are stored |
 
 There is only the one. The engine configuration lives at
-`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.yaml`, and no process accepts a
+`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`, and no process accepts a
 path to it — so two processes cannot be started against different
 configurations. Install a configuration with `pm-config-deploy`.
 

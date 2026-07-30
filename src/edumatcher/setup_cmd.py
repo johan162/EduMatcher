@@ -3,12 +3,13 @@ pm-setup — Bootstrap an EduMatcher session directory.
 
 Run once after installation (pipx install edumatcher) to:
   1. Create the data directory where engine state is stored.
-  2. Deploy the bundled sample engine_config.yaml so the exchange can start.
+  2. Compile and deploy the bundled sample config so the exchange can start.
   3. Print the shell environment snippet to add to your shell profile.
 
-The sample lands at ``<DATA_DIR>/ref_data/engine_config.yaml`` — the single
-location every process reads. To run a configuration of your own, author it
-wherever you like and install it with ``pm-config-deploy``.
+The sample is compiled to ``<DATA_DIR>/ref_data/engine_config.json`` — the
+single file every process reads — with the source kept beside it. To run a
+configuration of your own, author it wherever you like and install it with
+``pm-config-deploy``.
 
 Usage
 -----
@@ -66,7 +67,7 @@ def main() -> None:
         prog="pm-setup",
         description=(
             "Bootstrap an EduMatcher session directory. "
-            "Creates the data dir and copies a sample engine_config.yaml."
+            "Creates the data dir and compiles a sample engine_config.yaml."
         ),
     )
     from edumatcher.cli_version import add_version_argument
@@ -84,7 +85,7 @@ def main() -> None:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Overwrite the deployed engine_config.yaml if one already exists",
+        help="Recompile and overwrite an already-deployed configuration",
     )
     parser.add_argument(
         "--no-config",
@@ -119,17 +120,35 @@ def main() -> None:
             sys.exit(1)
 
     # -----------------------------------------------------------------------
-    # 3. Copy sample engine_config.yaml
+    # 3. Compile and deploy the bundled sample engine_config.yaml
     # -----------------------------------------------------------------------
     if not args.no_config:
-        config_dest = data_dir / "ref_data" / "engine_config.yaml"
-        config_dest.parent.mkdir(parents=True, exist_ok=True)
-        ok = _extract_sample_config(config_dest, force=args.force)
-        if ok:
-            print(f"  ✓ Sample config deployed to:       {config_dest}")
-        else:
-            print(f"  ✓ Config already deployed (kept):  {config_dest}")
+        ref_data = data_dir / "ref_data"
+        artifact = ref_data / "engine_config.json"
+        source = ref_data / "engine_config.yaml"
+        ref_data.mkdir(parents=True, exist_ok=True)
+
+        if artifact.exists() and not args.force:
+            print(f"  ✓ Config already deployed (kept):  {artifact}")
             print("    → Use --force to overwrite.")
+        elif not _extract_sample_config(source, force=True):
+            print("  ✗ Could not extract the bundled sample config", file=sys.stderr)
+            sys.exit(1)
+        else:
+            # Compile it: processes read the artifact, not the YAML, so a
+            # fresh install that only copied the source would start every
+            # process on built-in defaults.
+            from edumatcher.config_deploy import CompileError, deploy
+
+            try:
+                compiled = deploy(source, artifact)
+            except CompileError as exc:
+                print(
+                    f"  ✗ Bundled sample config did not compile: {exc}", file=sys.stderr
+                )
+                sys.exit(1)
+            print(f"  ✓ Sample config compiled to:       {artifact}")
+            print(f"    {len(compiled.engine.symbols)} symbol(s) ready to trade.")
 
     # -----------------------------------------------------------------------
     # 4. Print shell profile snippet

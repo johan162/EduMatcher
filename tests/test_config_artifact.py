@@ -26,6 +26,7 @@ from edumatcher.config_artifact import (
     ArtifactError,
     ArtifactMeta,
     CompiledConfig,
+    content_digest,
     decode,
     encode,
     from_jsonable,
@@ -400,5 +401,59 @@ class TestDeclaredTypes:
         assert found == ["ApiGatewayConfig.credentials: declared tuple, got list"]
 
     def test_the_checker_does_not_accept_a_bool_for_an_int(self) -> None:
-        found = _mismatches(MarketDataGatewayConfig, MarketDataGatewayConfig(port=True), "md")  # type: ignore[arg-type]
+        # mypy accepts this: bool *is* an int as far as the type system is
+        # concerned. That is exactly why the runtime check exists.
+        found = _mismatches(
+            MarketDataGatewayConfig, MarketDataGatewayConfig(port=True), "md"
+        )
         assert found == ["md.port: declared int, got bool"]
+
+
+class TestContentDigest:
+    """The artifact carries a digest of its own payload.
+
+    Without one, a compiled artifact is indistinguishable from a file that
+    merely looks like one — nothing stops a hand-edit after deployment from
+    being read as though it had been compiled and validated.
+    """
+
+    def test_a_recompile_of_the_same_config_digests_the_same(self) -> None:
+        assert content_digest(_config()) == content_digest(_config())
+
+    def test_changing_any_section_changes_the_digest(self) -> None:
+        altered = _config(market_data_gateway=MarketDataGatewayConfig(port=9999))
+        assert content_digest(altered) != content_digest(_config())
+
+    def test_the_meta_block_is_excluded(self) -> None:
+        # `compiled_at` moves on every run. The digest answers "is this the
+        # same configuration?", not "was this the same compile run?".
+        later = _config(meta=_meta(compiled_at="2099-01-01T00:00:00.000Z"))
+        assert content_digest(later) == content_digest(_config())
+
+    def test_a_stamped_artifact_round_trips(self) -> None:
+        stamped = _config(meta=_meta(content_sha256=content_digest(_config())))
+        assert decode(encode(stamped)) == stamped
+
+    def test_an_edited_payload_is_refused(self) -> None:
+        stamped = _config(meta=_meta(content_sha256=content_digest(_config())))
+        payload = json.loads(encode(stamped))
+        payload["market_data_gateway"]["port"] = 9999
+
+        with pytest.raises(ArtifactError, match="modified since it was compiled"):
+            decode(json.dumps(payload))
+
+    def test_the_refusal_says_what_to_do_instead(self) -> None:
+        stamped = _config(meta=_meta(content_sha256=content_digest(_config())))
+        payload = json.loads(encode(stamped))
+        payload["engine"]["sessions_enabled"] = not payload["engine"][
+            "sessions_enabled"
+        ]
+
+        with pytest.raises(ArtifactError, match="pm-config-deploy"):
+            decode(json.dumps(payload))
+
+    def test_an_artifact_with_no_digest_is_still_readable(self) -> None:
+        # The field defaults to empty, so a section-only artifact built by a
+        # test or an older compiler is not rejected outright — only a digest
+        # that is present and wrong means tampering.
+        assert decode(encode(_config())) == _config()
