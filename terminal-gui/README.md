@@ -11,7 +11,7 @@ frontend, Zustand for client state.
 terminal-gui/
   apps/
     bridge/            Fastify: CALF TCP uplink + WS fan-out + history proxy
-    web/               React frontend (Vite)          [not yet built]
+    web/               React frontend (Vite)
   packages/
     calf-protocol/     CALF wire grammar (TS port of md_gateway/protocol.py)
     lalf-client/       LALF producer client for pm-log-srv
@@ -26,15 +26,35 @@ terminal-gui/
 | 2 | `packages/lalf-client` | done |
 | 3 | Bridge CALF uplink + per-symbol reference counting | done |
 | 4 | Bridge Fastify server: WS fan-out, history proxy, logging | done |
-| 5+ | Web shell, Overview, Symbol Detail, Index, Tape, Movers, Depth | not started |
+| 5 | App shell (light/dark, density presets) + Session & Halt board | done |
+| 6 | Market Overview + Watchlist | not started |
+| 7 | Symbol Detail (chart, values, depth toggle) | not started |
+| 8 | Index View, Trade Tape, Movers | not started |
 
 ## Quick start
 
 ```bash
 make install
 make test
-make dev-bridge     # needs a running pm-md-gwy on :5570
+make dev            # bridge on :8090, Vite dev server on :5179
 ```
+
+`make dev-bridge` alone needs a running `pm-md-gwy` on `:5570`; the UI renders
+its disconnected state until one is reachable.
+
+## Theme
+
+Dark by default — the working default for a trading screen — with a full light
+palette for bright rooms and projectors. Both are CSS-variable sets swapped by
+a `.dark` class on `<html>`, so the same Tailwind class names render either.
+Amber is the accent because it is the trading-floor convention and stays
+legible on both a near-black lobby display and a bright monitor; green and red
+are reserved exclusively for price direction, so the one signal a trader scans
+for stays scannable.
+
+Density (Lobby / Standard / Dense, design §7.5) and theme both persist to
+`localStorage`. Neither is a mode: every route and data point stays reachable
+at any setting.
 
 ## Bridge configuration
 

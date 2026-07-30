@@ -1,11 +1,10 @@
 # pm-terminal — single-container image.
 #
-# Mirrors log-gui/Dockerfile. One difference today: apps/web does not exist
-# yet (Phase 5), so this builds and runs the bridge alone — the container
-# serves /api and /ws but no UI. The two commented lines below are the whole
-# change needed once the frontend lands; STATIC_DIR is deliberately left unset
-# until then, since the bridge only registers the static handler when it is
-# set, and pointing it at a missing directory would 500 every page request.
+# Mirrors log-gui/Dockerfile: builds the React frontend and serves it from the
+# Fastify bridge on one port, so a production deployment is a single container
+# listening on $PORT (8090). The bridge still needs network access to
+# pm-md-gwy's CALF port (5570) and pm-api-gwy (8080) — see docker-compose.yml
+# for how those are wired in.
 #
 # Typically build the image when behind a corporate proxy with:
 #
@@ -42,8 +41,7 @@ RUN npm config set fetch-retries 2 \
  && if [ "$NPM_STRICT_SSL" = "false" ]; then npm config set strict-ssl false; fi \
  && npm install
 
-# Phase 5: uncomment once apps/web exists.
-# RUN npm run build --workspace @edumatcher/terminal-web
+RUN npm run build --workspace @edumatcher/terminal-web
 
 RUN npm prune --omit=dev
 
@@ -53,13 +51,13 @@ WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=8090 \
+    STATIC_DIR=/app/apps/web/dist \
     LOG_FAILOVER_DIR=/app/logs
-# Phase 5: add STATIC_DIR=/app/apps/web/dist to the ENV block above.
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/apps/bridge ./apps/bridge
-# Phase 5: COPY --from=build /app/apps/web/dist ./apps/web/dist
+COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY --from=build /app/package.json /app/tsconfig.base.json ./
 
 # The bridge holds no durable state of its own (design §3.2 — all history
