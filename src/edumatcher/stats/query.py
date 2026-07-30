@@ -131,20 +131,31 @@ def query_daily(
     symbol: str | None,
     limit: int,
     after: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Return up to *limit* daily rows plus a next-page cursor (or ``None``).
 
-    ``(date, symbol)`` is the table's primary key, so within the single
-    resolved date this query is scoped to, ``symbol`` alone is already a
-    unique, sortable tiebreaker — no ``rowid`` needed.
+    Two shapes, chosen by whether a range was asked for:
 
-    When the caller omits ``date``, the *first* page resolves and pins the
-    latest available date into its ``next_cursor``; subsequent pages reuse
-    that pinned date (rather than re-resolving "latest" each time) so a
-    day rollover mid-pagination can't silently switch the result set out
-    from under a caller partway through walking it. An explicit ``date``
-    always takes precedence over any pinned cursor date.
+    **Single date** (``from_date``/``to_date`` both omitted) — the historical
+    behaviour, unchanged. ``(date, symbol)`` is the table's primary key, so
+    within the one resolved date ``symbol`` alone is a unique, sortable
+    tiebreaker. When the caller omits ``date``, the *first* page resolves and
+    pins the latest available date into its ``next_cursor``; subsequent pages
+    reuse that pinned date (rather than re-resolving "latest" each time) so a
+    day rollover mid-pagination can't silently switch the result set out from
+    under a caller partway through walking it. An explicit ``date`` always
+    takes precedence over any pinned cursor date.
+
+    **Date range** (either bound given) — rows across every date in the range,
+    oldest first, which is what a multi-day chart needs and what no amount of
+    single-date querying could produce without one request per calendar day.
+    Ordering and the keyset both widen to ``(date, symbol)``. An explicit
+    ``date`` still wins if somebody passes both.
     """
+    ranged = date_value is None and (from_date is not None or to_date is not None)
+
     cursor_symbol: str | None = None
     cursor_date: str | None = None
     if after is not None:
@@ -159,6 +170,17 @@ def query_daily(
             if not isinstance(raw_cursor_date, str):
                 raise InvalidCursorError("Cursor field 'date' has an unexpected type")
             cursor_date = raw_cursor_date
+
+    if ranged:
+        return _query_daily_range(
+            conn,
+            symbol=symbol,
+            limit=limit,
+            from_date=from_date,
+            to_date=to_date,
+            cursor_date=cursor_date,
+            cursor_symbol=cursor_symbol,
+        )
 
     selected_date = date_value or cursor_date or latest_daily_date(conn)
     if selected_date is None:
@@ -188,6 +210,58 @@ def query_daily(
         next_cursor = encode_cursor(
             {"symbol": results[-1]["symbol"], "date": selected_date}
         )
+    return results, next_cursor
+
+
+_DAILY_COLUMNS = (
+    "SELECT date, symbol, open_price, high_price, low_price, close_price, "
+    "open_bid, open_ask, close_bid, close_ask, volume, trade_count, vwap, "
+    "largest_trade_qty, largest_trade_price FROM daily_stats"
+)
+
+
+def _query_daily_range(
+    conn: sqlite3.Connection,
+    *,
+    symbol: str | None,
+    limit: int,
+    from_date: str | None,
+    to_date: str | None,
+    cursor_date: str | None,
+    cursor_symbol: str | None,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Daily rows spanning several dates, oldest first.
+
+    Both bounds are inclusive and either may be omitted for an open-ended
+    range. Ordering is ascending so a chart can consume pages in the order it
+    plots them; the keyset is ``(date, symbol)`` because ``symbol`` alone is
+    only unique *within* a date.
+    """
+    sql = f"{_DAILY_COLUMNS} WHERE 1=1"
+    params: list[Any] = []
+
+    if symbol is not None:
+        sql += " AND symbol = ?"
+        params.append(symbol)
+    if from_date is not None:
+        sql += " AND date >= ?"
+        params.append(from_date)
+    if to_date is not None:
+        sql += " AND date <= ?"
+        params.append(to_date)
+    if cursor_date is not None and cursor_symbol is not None:
+        sql += " AND (date > ? OR (date = ? AND symbol > ?))"
+        params.extend([cursor_date, cursor_date, cursor_symbol])
+
+    sql += " ORDER BY date ASC, symbol ASC LIMIT ?"
+    params.append(limit)
+
+    rows = _execute_fetchall(conn, sql, params)
+    results = [dict(row) for row in rows]
+    next_cursor = None
+    if len(results) == limit:
+        last = results[-1]
+        next_cursor = encode_cursor({"date": last["date"], "symbol": last["symbol"]})
     return results, next_cursor
 
 
@@ -455,8 +529,15 @@ def query_index_daily(
     index_id: str | None,
     limit: int,
     after: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Return up to *limit* index-daily rows plus a next-page cursor.
+
+    Mirrors :func:`query_daily`, including its date-range mode: pass either
+    bound to get rows across dates, oldest first, keyed on
+    ``(date, index_id)``. Without a range the single-date behaviour below is
+    unchanged.
 
     ``(date, index_id)`` is the table's primary key, so within the single
     resolved date this query is scoped to, ``index_id`` alone is already a
@@ -469,6 +550,8 @@ def query_index_daily(
     from under a caller partway through walking it. An explicit ``date``
     always takes precedence over any pinned cursor date.
     """
+    ranged = date_value is None and (from_date is not None or to_date is not None)
+
     cursor_index_id: str | None = None
     cursor_date: str | None = None
     if after is not None:
@@ -483,6 +566,17 @@ def query_index_daily(
             if not isinstance(raw_cursor_date, str):
                 raise InvalidCursorError("Cursor field 'date' has an unexpected type")
             cursor_date = raw_cursor_date
+
+    if ranged:
+        return _query_index_daily_range(
+            conn,
+            index_id=index_id,
+            limit=limit,
+            from_date=from_date,
+            to_date=to_date,
+            cursor_date=cursor_date,
+            cursor_index_id=cursor_index_id,
+        )
 
     selected_date = date_value or cursor_date or latest_index_daily_date(conn)
     if selected_date is None:
@@ -510,6 +604,58 @@ def query_index_daily(
     if len(results) == limit:
         next_cursor = encode_cursor(
             {"index_id": results[-1]["index_id"], "date": selected_date}
+        )
+    return results, next_cursor
+
+
+_INDEX_DAILY_COLUMNS = (
+    "SELECT date, index_id, open_level, high_level, low_level, close_level, "
+    "close_session_state, open_aggregate_cap, close_aggregate_cap, update_count "
+    "FROM index_daily_stats"
+)
+
+
+def _query_index_daily_range(
+    conn: sqlite3.Connection,
+    *,
+    index_id: str | None,
+    limit: int,
+    from_date: str | None,
+    to_date: str | None,
+    cursor_date: str | None,
+    cursor_index_id: str | None,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Index-daily rows spanning several dates, oldest first.
+
+    The index counterpart of :func:`_query_daily_range`; see there for why the
+    keyset widens to two columns.
+    """
+    sql = f"{_INDEX_DAILY_COLUMNS} WHERE 1=1"
+    params: list[Any] = []
+
+    if index_id is not None:
+        sql += " AND index_id = ?"
+        params.append(index_id)
+    if from_date is not None:
+        sql += " AND date >= ?"
+        params.append(from_date)
+    if to_date is not None:
+        sql += " AND date <= ?"
+        params.append(to_date)
+    if cursor_date is not None and cursor_index_id is not None:
+        sql += " AND (date > ? OR (date = ? AND index_id > ?))"
+        params.extend([cursor_date, cursor_date, cursor_index_id])
+
+    sql += " ORDER BY date ASC, index_id ASC LIMIT ?"
+    params.append(limit)
+
+    rows = _execute_fetchall(conn, sql, params)
+    results = [dict(row) for row in rows]
+    next_cursor = None
+    if len(results) == limit:
+        last = results[-1]
+        next_cursor = encode_cursor(
+            {"date": last["date"], "index_id": last["index_id"]}
         )
     return results, next_cursor
 

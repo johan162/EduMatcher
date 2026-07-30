@@ -1030,3 +1030,154 @@ def test_query_trades_rejects_wrong_typed_tiebreaker(seeded_db: Path) -> None:
             after=bad_ts,
         )
     conn.close()
+
+
+def test_query_daily_range_spans_dates(seeded_db: Path) -> None:
+    """A multi-day series is what a chart needs and what a single date cannot give.
+
+    Without a range these endpoints resolve to exactly one date, so plotting a
+    month meant one request per calendar day.
+    """
+    conn = open_readonly_connection(seeded_db)
+    rows, _ = query_daily(
+        conn,
+        date_value=None,
+        symbol="AAPL",
+        limit=100,
+        from_date="2026-06-14",
+        to_date="2026-06-15",
+    )
+    conn.close()
+
+    assert [row["date"] for row in rows] == ["2026-06-14", "2026-06-15"]
+
+
+def test_query_daily_range_is_oldest_first(seeded_db: Path) -> None:
+    """Ascending, so a chart consumes pages in the order it plots them."""
+    conn = open_readonly_connection(seeded_db)
+    rows, _ = query_daily(
+        conn, date_value=None, symbol="AAPL", limit=100, from_date="2026-06-01"
+    )
+    conn.close()
+
+    assert [row["date"] for row in rows] == sorted(row["date"] for row in rows)
+
+
+def test_query_daily_range_bounds_are_inclusive(seeded_db: Path) -> None:
+    conn = open_readonly_connection(seeded_db)
+    rows, _ = query_daily(
+        conn,
+        date_value=None,
+        symbol="AAPL",
+        limit=100,
+        from_date="2026-06-15",
+        to_date="2026-06-15",
+    )
+    conn.close()
+
+    assert [row["date"] for row in rows] == ["2026-06-15"]
+
+
+def test_query_daily_range_accepts_one_open_bound(seeded_db: Path) -> None:
+    conn = open_readonly_connection(seeded_db)
+    rows, _ = query_daily(
+        conn, date_value=None, symbol="AAPL", limit=100, to_date="2026-06-14"
+    )
+    conn.close()
+
+    assert [row["date"] for row in rows] == ["2026-06-14"]
+
+
+def test_query_daily_explicit_date_beats_a_range(seeded_db: Path) -> None:
+    """Callers passing both get the specific day, not a window around it."""
+    conn = open_readonly_connection(seeded_db)
+    rows, _ = query_daily(
+        conn,
+        date_value="2026-06-14",
+        symbol="AAPL",
+        limit=100,
+        from_date="2026-06-01",
+        to_date="2026-06-30",
+    )
+    conn.close()
+
+    assert [row["date"] for row in rows] == ["2026-06-14"]
+
+
+def test_query_daily_without_a_range_still_returns_only_the_latest_date(
+    seeded_db: Path,
+) -> None:
+    """The pre-existing contract must be untouched by the new parameters."""
+    conn = open_readonly_connection(seeded_db)
+    rows, next_cursor = query_daily(conn, date_value=None, symbol=None, limit=100)
+    conn.close()
+
+    assert [row["date"] for row in rows] == ["2026-06-15"]
+    assert next_cursor is None
+
+
+def test_query_daily_range_pages_across_a_date_boundary(seeded_db: Path) -> None:
+    """Symbol alone is unique only within a date, so the keyset carries both."""
+    conn = open_readonly_connection(seeded_db)
+    first, cursor = query_daily(
+        conn, date_value=None, symbol="AAPL", limit=1, from_date="2026-06-14"
+    )
+    assert cursor is not None
+
+    second, _ = query_daily(
+        conn,
+        date_value=None,
+        symbol="AAPL",
+        limit=1,
+        from_date="2026-06-14",
+        after=cursor,
+    )
+    conn.close()
+
+    assert first[0]["date"] == "2026-06-14"
+    assert second[0]["date"] == "2026-06-15"
+
+
+def test_query_index_daily_range_spans_dates(seeded_db: Path) -> None:
+    conn = open_readonly_connection(seeded_db)
+    rows, _ = query_index_daily(
+        conn,
+        date_value=None,
+        index_id="EDU100",
+        limit=100,
+        from_date="2026-06-14",
+        to_date="2026-06-15",
+    )
+    conn.close()
+
+    assert [row["date"] for row in rows] == ["2026-06-14", "2026-06-15"]
+
+
+def test_query_index_daily_without_a_range_is_unchanged(seeded_db: Path) -> None:
+    conn = open_readonly_connection(seeded_db)
+    rows, _ = query_index_daily(conn, date_value=None, index_id="EDU100", limit=100)
+    conn.close()
+
+    assert len(rows) == 1
+    assert rows[0]["date"] == "2026-06-15"
+
+
+def test_query_index_daily_range_pages_across_a_date_boundary(seeded_db: Path) -> None:
+    conn = open_readonly_connection(seeded_db)
+    first, cursor = query_index_daily(
+        conn, date_value=None, index_id="EDU100", limit=1, from_date="2026-06-14"
+    )
+    assert cursor is not None
+
+    second, _ = query_index_daily(
+        conn,
+        date_value=None,
+        index_id="EDU100",
+        limit=1,
+        from_date="2026-06-14",
+        after=cursor,
+    )
+    conn.close()
+
+    assert first[0]["date"] == "2026-06-14"
+    assert second[0]["date"] == "2026-06-15"
