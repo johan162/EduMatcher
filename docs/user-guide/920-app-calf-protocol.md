@@ -87,7 +87,7 @@ A CALF client connection is long-lived.
 
 - Client must send `HELLO` within 5 seconds of TCP connect.
 - Gateway replies with `WELCOME` on success.
-- Client may then send `SUB`, `UNSUB`, `PING`, and `EXIT`.
+- Client may then send `SUB`, `RESUME`, `UNSUB`, `SYMBOLS`, `PING`, and `EXIT`.
 - Gateway streams `SNAP`, `MD`, `TRADE`, `STATE`, `IDX`, `DEPTH`, `AUCTION`,
   `CB`, `HB`, and `ERR`.
 
@@ -249,6 +249,7 @@ SUB|CH=CB|SYM=AAPL
 | `SUB`     | Client -> Gateway | Add subscriptions                            |
 | `RESUME`  | Client -> Gateway | Replay one stream from a known sequence      |
 | `UNSUB`   | Client -> Gateway | Remove subscriptions                         |
+| `SYMBOLS` | Both directions   | Request, and reply with, the instrument universe |
 | `PING`    | Client -> Gateway | Liveness probe                               |
 | `PONG`    | Gateway -> Client | Probe reply                                  |
 | `HB`      | Gateway -> Client | Heartbeat when quiet                         |
@@ -392,6 +393,45 @@ Validation rules:
 All of these leave the session open. A client recovering several streams
 sends several `RESUME` messages, and one bad request must not cost it the
 others; only handshake-level failures close a connection.
+
+### `SYMBOLS`
+
+**Direction:** Client -> Gateway (request), Gateway -> Client (reply)
+
+**Purpose:** Ask which instruments this gateway knows about.
+
+The request carries no fields:
+
+```text
+SYMBOLS
+```
+
+The reply:
+
+| Field     | Req | Description                                              |
+|-----------|-----|----------------------------------------------------------|
+| `COUNT`   | Yes | How many symbols are known; `0` is a valid answer         |
+| `SYMBOLS` | No  | Comma-separated symbols, sorted; omitted when `COUNT=0`   |
+
+```text
+SYMBOLS|COUNT=3|SYMBOLS=AAPL,MSFT,TSLA
+SYMBOLS|COUNT=0
+```
+
+Read `COUNT`, not the presence of `SYMBOLS`. An empty universe omits the field
+rather than sending it empty, so the two must not be conflated with a
+malformed reply.
+
+**Why this exists, given `WELCOME|SYMBOLS=`.** That field is optional, sent
+once, and omitted entirely when the gateway was started without a readable
+engine config — a misconfiguration that otherwise looks, from the client side,
+exactly like an exchange with no instruments. The gateway's set also *grows*
+as symbols first appear on the engine bus, so a client that connected before a
+given instrument traded could not learn of it without reconnecting. `SYMBOLS`
+makes the universe both askable and refreshable.
+
+Repeatable at any time. A client that needs the universe up front should send
+it immediately after `WELCOME` rather than depending on the handshake field.
 
 ### `UNSUB`
 

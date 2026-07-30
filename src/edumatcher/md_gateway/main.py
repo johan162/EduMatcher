@@ -150,15 +150,40 @@ def _resolve_config(
     engine_pub_addr = str(args.engine_pub) if args.engine_pub else cfg.engine_pub_addr
     index_pub_addr = str(args.index_pub) if args.index_pub else cfg.index_pub_addr
 
+    # An empty symbol set is not a harmless default: it disables per-symbol
+    # SUB validation *and* omits SYMBOLS= from every WELCOME, so a client is
+    # left with no instrument universe and no clue why. Both ways of ending up
+    # there used to be silent; they are now loud, because in practice this
+    # means pm-md-gwy was pointed at a different config from pm-engine.
     known_symbols: set[str] = set()
-    if cfg_path.exists():
+    if not cfg_path.exists():
+        log.warning(
+            "engine config not found at %s — starting with no known symbols, "
+            "so SUB symbol validation is disabled and WELCOME will carry no "
+            "SYMBOLS= list. Pass --config with the same file pm-engine uses.",
+            cfg_path,
+        )
+    else:
         try:
             engine_cfg = load_engine_config(cfg_path)
             known_symbols = set(engine_cfg.symbols.keys())
-        except Exception:
+        except Exception as exc:
             # Gateway remains usable in permissive mode when config validation
             # fails for unrelated reasons; symbol checks are simply disabled.
-            known_symbols = set()
+            log.warning(
+                "could not read symbols from %s (%s) — starting with no known "
+                "symbols, so SUB symbol validation is disabled and WELCOME "
+                "will carry no SYMBOLS= list",
+                cfg_path,
+                exc,
+            )
+        else:
+            if not known_symbols:
+                log.warning(
+                    "engine config %s defines no symbols — WELCOME will carry "
+                    "no SYMBOLS= list",
+                    cfg_path,
+                )
 
     return (
         MarketDataGatewayConfig(

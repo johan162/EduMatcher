@@ -2169,7 +2169,7 @@ normalises, re-sequences, and reshapes them into CALF's own message types.
 
 Client requests are `HELLO` (authenticate), `SUB`/`UNSUB` (subscribe/cancel),
 `RESUME` (replay one stream from a known sequence — repeatable, one per
-stream), `PING`, and `EXIT`. Gateway replies include `WELCOME`, a baseline
+stream), `SYMBOLS` (ask which instruments exist), `PING`, and `EXIT`. Gateway replies include `WELCOME`, a baseline
 `SNAP` per new stream on the five channels that have one, the seven message
 types above, periodic `HB` heartbeats, and `ERR` on protocol/subscription
 violations.
@@ -2183,6 +2183,10 @@ Two behaviours are easy to get wrong from the table alone:
 - **`RESUME` is per stream.** `LASTSEQ` describes one `(CH, SYM)` position, so
   a reconnecting client sends one `RESUME` per stream it was following. It is
   not a flag on `HELLO`.
+- **Ask for the symbol universe; do not wait for it.** `WELCOME|SYMBOLS=` is
+  optional and omitted entirely by a gateway started without a readable engine
+  config. Send `SYMBOLS` after the handshake, and read its `COUNT` — an empty
+  universe omits the list rather than sending it empty.
 
 The full protocol — every field table, the `WELCOME`/`SNAP` handshake,
 sequence-gap detection and `RESUME` recovery, subscription limits, and the

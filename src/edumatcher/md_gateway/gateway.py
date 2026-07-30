@@ -377,6 +377,8 @@ class MarketDataGateway:
 
         if frame.msg_type == "SUB":
             self._handle_sub(session, frame.fields)
+        elif frame.msg_type == "SYMBOLS":
+            self._handle_symbols(session)
         elif frame.msg_type == "RESUME":
             self._handle_resume(session, frame.fields)
         elif frame.msg_type == "UNSUB":
@@ -431,6 +433,25 @@ class MarketDataGateway:
 
         self._queue_line(session, "WELCOME", welcome_fields)
         log.info("client authenticated fd=%d client=%s", session.sock.fileno(), client)
+
+    def _handle_symbols(self, session: ClientSession) -> None:
+        """Answer a ``SYMBOLS`` request with the current instrument universe.
+
+        ``WELCOME|SYMBOLS=`` alone is not enough for a client that needs the
+        universe: it is optional, sent once, and omitted entirely when the
+        gateway started without a readable engine config. The set also *grows*
+        as instruments are seen on the engine bus, so a client that connected
+        before a symbol first traded had no way to learn of it short of
+        reconnecting. This makes the list askable at any time.
+
+        ``COUNT`` is always present, including when it is ``0`` — that is a
+        meaningful answer ("this gateway knows of no instruments yet"), and a
+        client must be able to tell it apart from a malformed reply.
+        """
+        fields = {"COUNT": str(len(self._known_symbols))}
+        if self._known_symbols:
+            fields["SYMBOLS"] = ",".join(sorted(self._known_symbols))
+        self._queue_line(session, "SYMBOLS", fields)
 
     def _handle_resume(self, session: ClientSession, fields: dict[str, str]) -> None:
         """Resume one ``(CH, SYM)`` stream from ``LASTSEQ``.

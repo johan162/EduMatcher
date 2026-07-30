@@ -94,6 +94,7 @@ code.**
 | `HELLO\|CLIENT=..\|PROTO=CALF1` | Open a session |
 | `RESUME\|CH=..\|SYM=..\|LASTSEQ=..` | Replay one stream from a known sequence; send one per stream on reconnect |
 | `SUB\|CH=..\|SYM=..` | Subscribe. Channels × symbols, comma-separated; `SYM=*` where allowed. Cumulative across lines |
+| `SYMBOLS` | Ask which instruments the gateway knows; replies `SYMBOLS\|COUNT=n\|SYMBOLS=..`. Repeatable — use this rather than relying on `WELCOME\|SYMBOLS=`, which is optional and sent once |
 | `UNSUB\|CH=..\|SYM=..` | Cancel subscriptions (idempotent) |
 | `PING` | Liveness probe — gateway replies `PONG` |
 | `EXIT` | Close the session |
