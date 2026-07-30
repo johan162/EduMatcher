@@ -1,0 +1,15 @@
+{
+  "name": "@edumatcher/calf-protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@edumatcher/terminal-types": "*"
+  }
+}

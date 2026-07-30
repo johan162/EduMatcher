@@ -10,7 +10,7 @@
     - How to filter by channel and symbol with `--channels`/`--symbols`
     - The difference between `--format human` and `--format json`, and when
       to reach for each
-    - How `--lastseq` differs from CALF's `RESUME=1`
+    - How `--lastseq` differs from CALF's `RESUME`
     - How to run several instances at once, each with a different role, to
       watch different post-trade streams on separate terminals
     - How `--ping-interval` keeps an otherwise-silent session alive past the
@@ -99,11 +99,11 @@ entitlement (e.g. `--role CLEARING --channels DROP_COPY`), the gateway's
 `ERR|CODE=ENTITLEMENT_DENIED` is printed like any other line rather than
 aborting the whole session, so you can see exactly what was rejected.
 
-!!! note "`--lastseq` vs. CALF's `RESUME=1`"
+!!! note "`--lastseq` vs. CALF's `RESUME`"
     RALF has no separate resume message: a non-zero `LASTSEQ` goes directly
     on `HELLO` and requests replay across **every** channel your role is
     entitled to at once (not scoped to one channel/symbol pair the way
-    CALF's `HELLO|RESUME=1|CH=..|SYM=..` is). If the requested sequence is
+    CALF's `RESUME|CH=..|SYM=..` is). If the requested sequence is
     older than `replay_retention_sec`, the gateway sends
     `ERR|CODE=REPLAY_MISS` followed by a fresh `SNAP` — accept it and reset
     any local state.

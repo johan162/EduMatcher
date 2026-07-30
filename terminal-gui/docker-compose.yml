@@ -1,0 +1,62 @@
+# Single-service deployment of pm-terminal.
+#
+#   docker compose up --build
+#
+# Then reach the bridge on http://localhost:8090 (API + WS only until the
+# frontend lands in Phase 5 — see Dockerfile).
+#
+# Everything this container talks to runs outside this compose file:
+# pm-md-gwy for the CALF feed, pm-api-gwy for historical REST reads, and
+# optionally pm-log-srv for operational logging. Point the *_HOST variables at
+# wherever those are reachable from inside the container.
+#
+# Unlike log-gui there is no database mount: the bridge is stateless beyond
+# in-memory CALF bookkeeping (design §3.2). The one volume is for the LALF
+# failover log, written only when pm-log-srv is unreachable (§17.5).
+services:
+  terminal-gui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NPM_STRICT_SSL:
+        HTTP_PROXY:
+        HTTPS_PROXY:
+        NO_PROXY:
+    image: edumatcher-terminal-gui:latest
+    ports:
+      - "8090:8090"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8090"
+      # Restrict this to your site origin when exposed beyond localhost.
+      CORS_ORIGIN: "*"
+      MAX_WS_CLIENTS: "200"
+
+      # CALF market-data feed — the bridge's only live-data connection.
+      # "host.docker.internal" on Docker Desktop, or the actual host/container
+      # name running pm-md-gwy.
+      CALF_HOST: "host.docker.internal"
+      CALF_PORT: "5570"
+      CALF_CLIENT_ID: "pm-terminal-bridge"
+      # Comma-separated index ids to subscribe to; CALF has no "list indexes"
+      # request, so they must be named here. Leave empty if none configured.
+      INDEX_IDS: "${INDEX_IDS:-}"
+
+      # Historical REST reads. The key is read-only (gateway_id: null) and
+      # never reaches the browser — supply it from the host environment
+      # rather than committing it here.
+      API_GATEWAY_URL: "http://host.docker.internal:8080"
+      PM_TERMINAL_API_KEY: "${PM_TERMINAL_API_KEY:-}"
+
+      # Operational logging. An unreachable pm-log-srv is a normal condition:
+      # the bridge falls back to stdout at startup, or to LOG_FAILOVER_DIR if
+      # the connection drops later.
+      LOG_SRV_ENABLED: "true"
+      LOG_SRV_HOST: "host.docker.internal"
+      LOG_SRV_PORT: "5600"
+      LOG_FAILOVER_DIR: "/app/logs"
+    volumes:
+      # LALF failover log only — see the note above.
+      - ./logs:/app/logs
+    restart: unless-stopped

@@ -2144,7 +2144,7 @@ one-to-one mapping of the `log_events` table (see
 | Audit | *(empty filter — receives everything)* |
 | Statistics | `trade.`, `book.`, `system.eod`, `system.symbols.STATS`, `session.state`, `auction.result.` |
 | AI trader / bot | `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `book.`, `depth.`, `trade.executed`, `order.ack.{GW}`, `order.fill.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `system.symbols.{GW}`, `system.gateway_auth.{GW}`, `system.halt_status.{GW}`, `system.position_snapshot.{GW}`, `system.eod` |
-| Market-data gateway (`pm-md-gwy`) | `book.`, `trade.executed`, `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `index.` |
+| Market-data gateway (`pm-md-gwy`) | `book.`, `trade.executed`, `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `auction.result.`, `index.` |
 | Log subscriber (viewer/UI, on `pm-log-srv`'s own PUB `:5601`) | `log.event.{SUB_ID}`, `log.notify.{SUB_ID}`, `log.backfill.{SUB_ID}`, `log.subscribe_ack.{SUB_ID}`, `log.renew_ack.{SUB_ID}`, `log.unsubscribe_ack.{SUB_ID}`, `log.status.{SUB_ID}`, `log.lease_expired.{SUB_ID}`, `log.error.{SUB_ID}`, `log.server_state` — in practice the two prefixes `log.` + `{SUB_ID}` and `log.server_state` |
 
 
@@ -2157,18 +2157,32 @@ external-facing protocol: a newline-delimited UTF-8 text feed on TCP port
 payload shapes. It is not just a passthrough of the messages above — it
 normalises, re-sequences, and reshapes them into CALF's own message types.
 
-| Channel | Message type | Wildcard (`SYM=*`) | Carries |
-|---|---|---|---|
-| `TOP` | `MD` | Yes | Best bid/ask/last |
-| `TRADE` | `TRADE` | Yes | Individual trade prints |
-| `STATE` | `STATE` | Yes | Session/symbol state transitions |
-| `INDEX` | `IDX` | No | Index level updates |
-| `DEPTH` | `DEPTH` | No | Aggregated multi-level order book |
+| Channel | Message type | Wildcard (`SYM=*`) | Baseline `SNAP`? | Carries |
+|---|---|---|---|---|
+| `TOP` | `MD` | Yes | Yes | Best bid/ask/last |
+| `TRADE` | `TRADE` | Yes | No | Individual trade prints |
+| `STATE` | `STATE` | Yes | Yes | Session/symbol state transitions |
+| `INDEX` | `IDX` | No | Yes | Index level updates |
+| `DEPTH` | `DEPTH` | No | Yes | Aggregated multi-level order book (Level 2) |
+| `AUCTION` | `AUCTION` | Yes | No | Auction uncross result (equilibrium price/qty, imbalance) |
+| `CB` | `CB` | No | Yes | Circuit-breaker halt/resume detail beyond `STATE`'s coarse transition |
 
-Client requests are `HELLO` (authenticate, optionally `RESUME=1` for replay),
-`SUB`/`UNSUB` (subscribe/cancel), `PING`, and `EXIT`. Gateway replies include
-`WELCOME`, a baseline `SNAP` per new stream, the five message types above,
-periodic `HB` heartbeats, and `ERR` on protocol/subscription violations.
+Client requests are `HELLO` (authenticate), `SUB`/`UNSUB` (subscribe/cancel),
+`RESUME` (replay one stream from a known sequence — repeatable, one per
+stream), `PING`, and `EXIT`. Gateway replies include `WELCOME`, a baseline
+`SNAP` per new stream on the five channels that have one, the seven message
+types above, periodic `HB` heartbeats, and `ERR` on protocol/subscription
+violations.
+
+Two behaviours are easy to get wrong from the table alone:
+
+- **`MD` is a delta, and an empty value is meaningful.** Only changed fields
+  are sent; an omitted field means *unchanged*. An explicitly empty `BID=` or
+  `ASK=` means that book side is now **empty** and the client must discard the
+  price rather than keep the last one it saw.
+- **`RESUME` is per stream.** `LASTSEQ` describes one `(CH, SYM)` position, so
+  a reconnecting client sends one `RESUME` per stream it was following. It is
+  not a flag on `HELLO`.
 
 The full protocol — every field table, the `WELCOME`/`SNAP` handshake,
 sequence-gap detection and `RESUME` recovery, subscription limits, and the

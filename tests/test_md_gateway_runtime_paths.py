@@ -200,9 +200,16 @@ def test_flush_client_writes_and_disconnect(unit_gateway: MarketDataGateway) -> 
     peer.close()
 
 
-def test_flush_writes_do_not_extend_idle_timeout(
+def test_flush_writes_extend_idle_timeout(
     unit_gateway: MarketDataGateway,
 ) -> None:
+    """A successful write is activity, so it renews the idle lease.
+
+    This test previously asserted the opposite — that flushing does *not*
+    extend the timeout — which contradicted the protocol's own "no inbound and
+    no outbound traffic" rule and meant every purely passive consumer was
+    disconnected on a fixed cycle no matter how healthy its socket was.
+    """
     session, peer = _make_session()
     session.authenticated = True
     session.last_activity = time.monotonic() - 10
@@ -212,7 +219,7 @@ def test_flush_writes_do_not_extend_idle_timeout(
     unit_gateway._flush_client_writes()
     unit_gateway._drop_idle_clients()
 
-    assert session.sock.fileno() not in unit_gateway._clients
+    assert session.sock.fileno() in unit_gateway._clients
     peer.close()
 
 

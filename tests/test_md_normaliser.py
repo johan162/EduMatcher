@@ -27,6 +27,83 @@ def test_normalise_book_none_when_unchanged() -> None:
     assert n.normalise_book("AAPL", payload) is None
 
 
+def test_normalise_book_marks_a_withdrawn_bid_side_explicitly() -> None:
+    """An emptied side must be announced, not merely left unmentioned.
+
+    Omitting ``BID`` means "unchanged" to a client merging deltas, so before
+    this was fixed a lifted bid left the stale price on screen forever while a
+    reconnecting client's fresh SNAP correctly showed none.
+    """
+    n = EngineNormaliser()
+    n.normalise_book(
+        "AAPL",
+        {
+            "bids": [{"price": 150.1, "qty": 100}],
+            "asks": [{"price": 150.2, "qty": 90}],
+        },
+    )
+
+    fields = n.normalise_book(
+        "AAPL", {"bids": [], "asks": [{"price": 150.2, "qty": 90}]}
+    )
+
+    assert fields is not None
+    assert fields["BID"] == ""
+    assert fields["BIDSZ"] == "0"
+    assert "ASK" not in fields, "the untouched side should stay silent"
+
+
+def test_normalise_book_withdrawal_agrees_with_a_fresh_snapshot() -> None:
+    """A merged delta stream and a fresh SNAP must describe the same book."""
+    n = EngineNormaliser()
+    n.normalise_book("AAPL", {"bids": [{"price": 150.1, "qty": 100}], "asks": []})
+    n.normalise_book("AAPL", {"bids": [], "asks": []})
+
+    assert "BID" not in n.top_snapshot_fields("AAPL")
+
+
+def test_normalise_book_marks_a_withdrawn_ask_side_explicitly() -> None:
+    n = EngineNormaliser()
+    n.normalise_book(
+        "AAPL",
+        {
+            "bids": [{"price": 150.1, "qty": 100}],
+            "asks": [{"price": 150.2, "qty": 90}],
+        },
+    )
+
+    fields = n.normalise_book(
+        "AAPL", {"bids": [{"price": 150.1, "qty": 100}], "asks": []}
+    )
+
+    assert fields is not None
+    assert fields["ASK"] == ""
+    assert fields["ASKSZ"] == "0"
+    assert "BID" not in fields
+
+
+def test_normalise_book_does_not_re_announce_an_already_empty_side() -> None:
+    """Withdrawal is an edge, not a state — repeating it would be noise."""
+    n = EngineNormaliser()
+    n.normalise_book("AAPL", {"bids": [{"price": 150.1, "qty": 100}], "asks": []})
+    assert n.normalise_book("AAPL", {"bids": [], "asks": []}) is not None
+    assert n.normalise_book("AAPL", {"bids": [], "asks": []}) is None
+
+
+def test_normalise_book_readmits_a_side_after_withdrawal() -> None:
+    n = EngineNormaliser()
+    n.normalise_book("AAPL", {"bids": [{"price": 150.1, "qty": 100}], "asks": []})
+    n.normalise_book("AAPL", {"bids": [], "asks": []})
+
+    fields = n.normalise_book(
+        "AAPL", {"bids": [{"price": 149.9, "qty": 50}], "asks": []}
+    )
+
+    assert fields is not None
+    assert fields["BID"] == "149.9"
+    assert fields["BIDSZ"] == "50"
+
+
 def test_trade_updates_last_cache() -> None:
     n = EngineNormaliser()
     sym, fields = n.normalise_trade(

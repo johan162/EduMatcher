@@ -11,7 +11,7 @@
     - how to start the gateway and verify connectivity from a terminal
     - how to subscribe to a filtered subset of symbols and channels
     - how snapshot delivery works and when to expect a `SNAP`
-    - how to detect sequence gaps and recover with `RESUME=1`
+    - how to detect sequence gaps and recover with `RESUME`
     - how to write a working Python subscriber using the library in `examples/calf/`
     - the exact fields carried by every message on every channel
     - what kinds of tools you can build on the feed, and how a browser client
@@ -76,7 +76,7 @@ of the chapter is detail.
 | Max line length | 4096 bytes (longer → `ERR\|CODE=BAD_MESSAGE`) |
 | Channels | `TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH`, `AUCTION`, `CB` |
 | Heartbeat | every `heartbeat_interval_sec` (default 1 s) when a stream is quiet |
-| Idle timeout | disconnect after `idle_timeout_sec` (default 5 s) with no inbound data |
+| Idle timeout | disconnect after `idle_timeout_sec` (default 5 s) with no traffic in either direction |
 | Replay window | `replay_window_sec` (default 30 s), tracked per `(channel, symbol)` stream |
 | Values | prices as decimal text, sizes as integers, timestamps ISO-8601 UTC |
 
@@ -91,7 +91,8 @@ code.**
 
 | Message | Purpose |
 |---------|---------|
-| `HELLO\|CLIENT=..\|PROTO=CALF1` | Open a session. Optional `RESUME=1\|CH=..\|SYM=..\|LASTSEQ=..` requests single-stream replay on reconnect |
+| `HELLO\|CLIENT=..\|PROTO=CALF1` | Open a session |
+| `RESUME\|CH=..\|SYM=..\|LASTSEQ=..` | Replay one stream from a known sequence; send one per stream on reconnect |
 | `SUB\|CH=..\|SYM=..` | Subscribe. Channels × symbols, comma-separated; `SYM=*` where allowed. Cumulative across lines |
 | `UNSUB\|CH=..\|SYM=..` | Cancel subscriptions (idempotent) |
 | `PING` | Liveness probe — gateway replies `PONG` |
@@ -177,7 +178,7 @@ omitted. `pm-md-gwy` reads only this `market_data_gateway` block — see
 | `bind_address` | `0.0.0.0` | TCP listen address |
 | `port` | `5570` | TCP listen port |
 | `heartbeat_interval_sec` | `1` | `HB` cadence when idle; advertised as `WELCOME\|HBINT=` |
-| `idle_timeout_sec` | `5` | Disconnect a client after this many seconds with no **inbound** data (outbound market data does not reset this timer) |
+| `idle_timeout_sec` | `5` | Disconnect a client after this many seconds with no traffic in **either** direction. Outbound market data and heartbeats reset the timer, so a purely passive consumer stays connected without sending anything; a client is aged out only once writes to it stop succeeding |
 | `replay_window_sec` | `30` | Per-stream replay retention; advertised as `WELCOME\|REPLAY=` |
 | `max_symbols_per_client` | `200` | Cap on the number of *unique symbol strings* a client has subscribed to, counted once across all channels — `SYM=*` counts as a single entry; exceeding it returns `ERR\|CODE=SUB_LIMIT` |
 | `max_client_queue` | `10000` | Outbound backlog limit; exceeding it silently disconnects the client (no `ERR` is guaranteed to arrive first) |
@@ -723,9 +724,12 @@ UNSUB|CH=TRADE|SYM=MSFT
 
 ### Step 5 — Handle heartbeats
 
-When the stream is quiet the gateway sends periodic heartbeats (`HB|TS=...`).
-You can probe with `PING`; the gateway replies `PONG`.  If the gateway receives
-no inbound traffic for `idle_timeout_sec` seconds it closes the connection.
+When the stream is quiet the gateway sends periodic heartbeats (`HB|TS=...`),
+which keep the session alive on their own — a listener never has to send
+anything to stay connected. You can still probe with `PING`; the gateway
+replies `PONG`. The connection is closed only when nothing has flowed in
+*either* direction for `idle_timeout_sec` seconds, which in practice means
+writes to your client have stopped succeeding.
 
 ### Step 6 — Disconnect
 
@@ -778,39 +782,47 @@ gap detected when:  received_seq != last_seq + 1
 
 **Recovery option 1 — replay within window**
 
-Reconnect with `RESUME=1` for a single stream:
+Reconnect, then send one `RESUME` per stream you were following:
 
 ```text
-HELLO|CLIENT=mybot|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=99
+HELLO|CLIENT=mybot|PROTO=CALF1
+RESUME|CH=TOP|SYM=AAPL|LASTSEQ=99
+RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=41
 ```
 
-The gateway replays all events with `SEQ > 99` that are still inside the replay
-window (`replay_window_sec`, default 30 s), then continues live.
+The gateway replays all events with `SEQ` greater than each `LASTSEQ` that are
+still inside the replay window (`replay_window_sec`, default 30 s), then
+continues live.
 
 **Recovery option 2 — replay miss**
 
 If the requested `LASTSEQ` is older than the window the gateway sends
 `ERR|CODE=REPLAY_MISS|...` followed by a fresh `SNAP`.  Accept the `SNAP` and
-reset your local state.
+reset your local state for that stream. The session stays open, so your other
+`RESUME` requests are unaffected.
 
 **Recovery option 3 — nothing was ever recorded for the stream**
 
 If the gateway has never emitted anything for that exact `(CH, SYM)` pair (or
-the buffer has aged everything out), `RESUME=1` returns **zero replay
+the buffer has aged everything out), `RESUME` returns **zero replay
 lines** — no `ERR|CODE=REPLAY_MISS` and no fresh `SNAP` either. The session
 just resumes live from that point. Don't treat an empty replay as a failure;
 if you need a guaranteed baseline after reconnecting, re-`SUB` to the stream
-to force a `SNAP` rather than relying on `RESUME=1` alone.
+to force a `SNAP` rather than relying on `RESUME` alone.
 
-!!! note
-    `RESUME=1` applies to **one stream per `HELLO`**.  For multi-stream
-    recovery, reconnect normally and re-`SUB`; the gateway sends fresh `SNAP`s.
+!!! note "`RESUME` is per stream, and repeatable"
+    Each `RESUME` recovers one `(CH, SYM)` stream, because `LASTSEQ` describes
+    one stream's position. Send as many as you have streams. Earlier gateway
+    builds carried this as a `RESUME=1` flag on `HELLO`, which — since `HELLO`
+    is processed once per connection — could only ever recover a single
+    stream; multi-stream clients had to fall back on re-`SUB` and lose the gap.
 
-!!! warning "`SYM=*` is never valid on `RESUME=1`"
-    Unlike `SUB`, where `SYM=*` is accepted for `TOP`/`TRADE`/`STATE`, a
-    `HELLO|RESUME=1|...|SYM=*` request is always rejected with
-    `ERR|CODE=INVALID_SYMBOL` and the connection is closed — even for those
-    same three channels. `RESUME=1` only ever replays one concrete symbol.
+!!! warning "`SYM=*` is never valid on `RESUME`"
+    Unlike `SUB`, where `SYM=*` is accepted for `TOP`/`TRADE`/`STATE`/`AUCTION`,
+    a `RESUME|...|SYM=*` request is always rejected with
+    `ERR|CODE=INVALID_SYMBOL` — even for those same channels. `RESUME` only
+    ever replays one concrete symbol. The session stays open, so you can
+    correct the request and try again.
 
 
 ## Python subscriber example
@@ -938,7 +950,7 @@ with socket.create_connection(("127.0.0.1", 5570), timeout=5) as sock:
             prev = last_seq.get((ch, sym))
             if prev is not None and seq != prev + 1:
                 print(f"GAP on ({ch},{sym}): expected {prev + 1}, got {seq}")
-                # → trigger recovery: reconnect with RESUME=1
+                # → trigger recovery: reconnect, then RESUME each stream
             last_seq[(ch, sym)] = seq
 
             # This example only subscribes to TOP/TRADE/STATE, so it only
@@ -1020,7 +1032,7 @@ cd docs/examples/calf && make
 | `AUTH_REQUIRED`   | `SUB` sent before `HELLO`                        | Send `HELLO` first                                |
 | `PROTO_MISMATCH`  | Wrong or missing `PROTO`                         | Use `PROTO=CALF1`                                 |
 | `INVALID_CHANNEL` | Unknown `CH` value                               | Use `TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH`, `AUCTION`, or `CB` |
-| `INVALID_SYMBOL`  | Unknown symbol; or `SYM=*` used with `INDEX`/`DEPTH`/`CB`; or `SYM=*` used at all on `HELLO\|RESUME=1` | Use configured symbols; `SYM=*` only for `STATE`/`TOP`/`TRADE`/`AUCTION` on `SUB` — never on `RESUME=1` |
+| `INVALID_SYMBOL`  | Unknown symbol; or `SYM=*` used with `INDEX`/`DEPTH`/`CB`; or `SYM=*` used at all on `RESUME` | Use configured symbols; `SYM=*` only for `STATE`/`TOP`/`TRADE`/`AUCTION` on `SUB` — never on `RESUME` |
 | `SUB_LIMIT`       | Too many subscribed symbols                      | Reduce requested symbol set                       |
 | `RATE_LIMITED`    | Client exceeded `max_messages_per_second`        | Slow down the send rate; connection stays open    |
 | `REPLAY_MISS`     | Requested replay is outside buffer window        | Accept fresh `SNAP` and reset local baseline      |
@@ -1042,7 +1054,7 @@ cd docs/examples/calf && make
 3. Confirm TCP port is reachable (`nc 127.0.0.1 5570`)
 4. Confirm `HELLO` receives `WELCOME`
 5. Confirm `SUB` receives expected `SNAP` and live flow
-6. Track `SEQ` per stream; on reconnect use `RESUME=1` with `LASTSEQ`
+6. Track `SEQ` per stream; on reconnect send one `RESUME` per stream with `LASTSEQ`
 7. On `REPLAY_MISS`: accept the recovery `SNAP` and reset local state
 
 
@@ -1074,7 +1086,7 @@ Whatever you build, the same six habits keep it correct:
    `CH_SUPPORTED` before subscribing.
 3. **Seed then update** — initialise state from the `SNAP`, then merge each `MD`
    (TOP) or replace the ladder on each `DEPTH`.
-4. **Watch `SEQ`** — track it per `(CH, SYM)`; on a gap, reconnect with `RESUME=1`
+4. **Watch `SEQ`** — track it per `(CH, SYM)`; on a gap, reconnect and `RESUME`
    or re-`SUB` for a fresh `SNAP`.
 5. **Stay alive** — treat `HB` as a liveness signal, answer nothing; treat
    any unexpected disconnect on a busy stream as a possible slow-client

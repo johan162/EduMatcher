@@ -113,8 +113,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "--resume",
         metavar="CH:SYM:LASTSEQ",
         help="Request single-stream replay on connect, e.g. TOP:AAPL:1042 "
-        "(mirrors HELLO|RESUME=1|CH=..|SYM=..|LASTSEQ=..). Only one stream "
-        "may be resumed per connection; live subscriptions from --channels/"
+        "(sends RESUME|CH=..|SYM=..|LASTSEQ=.. after the handshake). This "
+        "flag resumes one stream; live subscriptions from --channels/"
         "--symbols are still applied afterwards.",
     )
     sub.add_argument(

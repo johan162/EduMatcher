@@ -408,7 +408,7 @@ load-shedding mechanism.
   defines no retransmission or replay mechanism, so a gap is purely
   informational.
 - LALF defines no cross-connection replay or resume. There is nothing
-  equivalent to CALF's `RESUME=1`/`LASTSEQ=` — a reconnecting client's
+  equivalent to CALF's `RESUME`/`LASTSEQ=` — a reconnecting client's
   records generated during the disconnect window were never buffered
   server-side to begin with.
 

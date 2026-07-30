@@ -118,64 +118,228 @@ def test_sub_auction_unknown_symbol_rejected(unit_gateway: MarketDataGateway) ->
     peer.close()
 
 
+def _authenticated_session(
+    gateway: MarketDataGateway,
+) -> tuple[ClientSession, socket.socket]:
+    """A session that has completed the handshake, ready for RESUME."""
+    sess, peer = _make_session()
+    gateway._handle_client_line(sess, "HELLO|CLIENT=bot|PROTO=CALF1")
+    assert sess.authenticated is True
+    sess.out_queue.clear()
+    return sess, peer
+
+
+def _err_codes(sess: ClientSession) -> list[str]:
+    frames = [parse_line(line.decode("utf-8")) for line in sess.out_queue]
+    return [f.fields["CODE"] for f in frames if f.msg_type == "ERR"]
+
+
 def test_resume_auction_replays_missed_events(
     unit_gateway: MarketDataGateway,
 ) -> None:
-    sess, peer = _make_session()
+    sess, peer = _authenticated_session(unit_gateway)
     unit_gateway._replay.append(
         "AUCTION", "AAPL", 2, b"AUCTION|CH=AUCTION|SYM=AAPL|SEQ=2\n"
     )
-    unit_gateway._handle_client_line(
-        sess,
-        "HELLO|CLIENT=bot|PROTO=CALF1|RESUME=1|CH=AUCTION|SYM=AAPL|LASTSEQ=1",
-    )
-    assert sess.authenticated is True
+    unit_gateway._handle_client_line(sess, "RESUME|CH=AUCTION|SYM=AAPL|LASTSEQ=1")
     assert ("AUCTION", "AAPL") in sess.subscriptions
     peer.close()
 
 
-def test_resume_bad_lastseq(unit_gateway: MarketDataGateway) -> None:
-    sess, peer = _make_session()
+def test_resume_recovers_several_streams_on_one_connection(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """The reason RESUME is its own command rather than a HELLO flag.
+
+    A client following more than one stream — the normal case for anything
+    watching a whole market — must be able to resume all of them after a
+    reconnect. As a HELLO flag it could only ever resume the first, because
+    HELLO is dispatched only while the session is unauthenticated.
+    """
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._replay.append("TOP", "AAPL", 2, b"MD|CH=TOP|SYM=AAPL|SEQ=2\n")
+    unit_gateway._replay.append("TOP", "MSFT", 5, b"MD|CH=TOP|SYM=MSFT|SEQ=5\n")
+
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1")
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=MSFT|LASTSEQ=4")
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1")
+
+    assert {("TOP", "AAPL"), ("TOP", "MSFT"), ("TRADE", "AAPL")} <= sess.subscriptions
+    assert _err_codes(sess) == []
+    peer.close()
+
+
+def test_resume_after_handshake_is_rejected_as_hello(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """The old HELLO|RESUME=1 form is gone; a second HELLO is still refused."""
+    sess, peer = _authenticated_session(unit_gateway)
+
     unit_gateway._handle_client_line(
-        sess,
-        "HELLO|CLIENT=bot|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=abc",
+        sess, "HELLO|CLIENT=bot|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1"
     )
-    assert sess.closing is True
+
+    assert ("TOP", "AAPL") not in sess.subscriptions
+    assert _err_codes(sess) == ["BAD_MESSAGE"]
+    peer.close()
+
+
+def test_resume_bad_lastseq_keeps_the_session_open(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """One malformed RESUME must not cost the client every other stream."""
+    sess, peer = _authenticated_session(unit_gateway)
+
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=abc")
+
+    assert sess.closing is False
+    assert _err_codes(sess) == ["BAD_MESSAGE"]
+
+    # ...and the client can carry on resuming the rest.
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=MSFT|LASTSEQ=1")
+    assert ("TOP", "MSFT") in sess.subscriptions
+    peer.close()
+
+
+def test_resume_rejects_a_zero_lastseq(unit_gateway: MarketDataGateway) -> None:
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=0")
+    assert _err_codes(sess) == ["BAD_MESSAGE"]
+    peer.close()
+
+
+def test_resume_rejects_an_unknown_channel(unit_gateway: MarketDataGateway) -> None:
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._handle_client_line(sess, "RESUME|CH=BOOK|SYM=AAPL|LASTSEQ=1")
+    assert _err_codes(sess) == ["INVALID_CHANNEL"]
+    peer.close()
+
+
+def test_resume_rejects_multiple_streams_in_one_message(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """LASTSEQ is per-stream, so one message can only ever mean one stream."""
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL,MSFT|LASTSEQ=1")
+    assert _err_codes(sess) == ["BAD_MESSAGE"]
+    assert ("TOP", "AAPL") not in sess.subscriptions
     peer.close()
 
 
 def test_resume_wildcard_symbol_rejected(unit_gateway: MarketDataGateway) -> None:
-    """RESUME=1 has no per-symbol snapshot-burst path like SUB does, so a
+    """RESUME has no per-symbol snapshot-burst path like SUB does, so a
     wildcard resume cannot be served a meaningful baseline on a replay miss
     (top_snapshot_fields("*") would silently return an empty SNAP). SYM=*
     must be rejected for every channel on RESUME, including TOP/TRADE/STATE
     where it is otherwise allowed on SUB.
     """
-    sess, peer = _make_session()
-    unit_gateway._handle_client_line(
-        sess,
-        "HELLO|CLIENT=bot|PROTO=CALF1|RESUME=1|CH=TOP|SYM=*|LASTSEQ=1",
-    )
-    assert sess.authenticated is True
+    sess, peer = _authenticated_session(unit_gateway)
+
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=*|LASTSEQ=1")
+
     assert ("TOP", "*") not in sess.subscriptions
-    assert sess.closing is True
+    assert sess.closing is False
+    assert _err_codes(sess) == ["INVALID_SYMBOL"]
+    peer.close()
+
+
+def test_resume_requires_authentication_first(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    sess, peer = _make_session()
+    unit_gateway._clients[sess.sock.fileno()] = sess
+
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1")
+
+    assert _err_codes(sess) == ["AUTH_REQUIRED"]
+    peer.close()
+
+
+def test_resume_falls_back_to_a_snapshot_on_replay_miss(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """A gap wider than the replay window is recoverable, not fatal."""
+    sess, peer = _authenticated_session(unit_gateway)
+    # The client is far behind what the buffer still holds, so the gap cannot
+    # be filled from replay and it needs a fresh baseline instead.
+    unit_gateway._replay.append("TOP", "AAPL", 900, b"MD|CH=TOP|SYM=AAPL|SEQ=900\n")
+
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1")
+
     frames = [parse_line(line.decode("utf-8")) for line in sess.out_queue]
-    err_frames = [f for f in frames if f.msg_type == "ERR"]
-    assert err_frames, "expected an ERR frame rejecting the wildcard resume"
-    assert err_frames[-1].fields["CODE"] == "INVALID_SYMBOL"
+    assert _err_codes(sess) == ["REPLAY_MISS"]
+    assert any(f.msg_type == "SNAP" for f in frames), "expected a baseline SNAP"
+    assert sess.closing is False
     peer.close()
 
 
 def test_resume_adds_live_subscription(unit_gateway: MarketDataGateway) -> None:
-    sess, peer = _make_session()
+    sess, peer = _authenticated_session(unit_gateway)
     unit_gateway._replay.append("TOP", "AAPL", 2, b"MD|CH=TOP|SYM=AAPL|SEQ=2\n")
-    unit_gateway._handle_client_line(
-        sess,
-        "HELLO|CLIENT=bot|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1",
-    )
-    assert sess.authenticated is True
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1")
     assert ("TOP", "AAPL") in sess.subscriptions
     peer.close()
+
+
+def test_outbound_traffic_keeps_a_passive_listener_connected(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """A market-data consumer normally has nothing to say after subscribing.
+
+    The idle timer counts traffic in either direction, so successfully writing
+    to such a client must refresh it. Before this held, every silent listener
+    was dropped on a fixed cycle regardless of how healthy its socket was —
+    which is why pm-calf-spy carries a PING thread.
+    """
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._clients[sess.sock.fileno()] = sess
+
+    # Nothing inbound for well past idle_timeout_sec (1s for this fixture).
+    sess.last_activity = time.monotonic() - 60
+    unit_gateway._queue_line(sess, "HB", {"TS": "2026-07-30T09:00:00.000Z"})
+    unit_gateway._flush_client_writes()
+
+    unit_gateway._drop_idle_clients()
+
+    assert sess.sock.fileno() in unit_gateway._clients
+    peer.close()
+
+
+def test_idle_client_is_dropped_when_nothing_flows_either_way(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """The timeout must still fire when there is genuinely no traffic."""
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._clients[sess.sock.fileno()] = sess
+    sess.last_activity = time.monotonic() - 60
+
+    unit_gateway._drop_idle_clients()
+
+    assert sess.sock.fileno() not in unit_gateway._clients
+    peer.close()
+
+
+def test_failed_writes_do_not_keep_a_wedged_client_alive(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """Queuing is not activity — only a send that actually succeeds is.
+
+    Otherwise our own backlog to a client that stopped reading would renew its
+    lease forever, which is the opposite of what the timeout is for.
+    """
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._clients[sess.sock.fileno()] = sess
+    sess.last_activity = time.monotonic() - 60
+
+    peer.close()  # nothing will drain; sends fail
+    unit_gateway._queue_line(sess, "HB", {"TS": "2026-07-30T09:00:00.000Z"})
+    unit_gateway._flush_client_writes()
+    unit_gateway._drop_idle_clients()
+
+    assert sess.sock.fileno() not in unit_gateway._clients
 
 
 def test_heartbeat_interval_not_spam(unit_gateway: MarketDataGateway) -> None:

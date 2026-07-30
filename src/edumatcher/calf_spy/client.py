@@ -37,7 +37,7 @@ class CalfSpyConnectionError(RuntimeError):
 
 @dataclass(frozen=True)
 class ResumeRequest:
-    """A single-stream ``RESUME=1`` request to send on the initial HELLO."""
+    """A single-stream ``RESUME`` request to send just after the handshake."""
 
     channel: str
     symbol: str
@@ -106,23 +106,15 @@ class CalfSpyClient:
     # ------------------------------------------------------------------
 
     def handshake(self) -> CalfFrame:
-        """Send HELLO (with optional RESUME) and return the parsed WELCOME.
+        """Send HELLO, then any RESUME request, and return the parsed WELCOME.
+
+        RESUME is its own command sent after the handshake rather than a flag
+        on HELLO, so replay is no longer limited to one stream per connection.
 
         Raises :class:`CalfSpyConnectionError` if the connection closes
         before a WELCOME arrives, or if the gateway sends ERR instead.
         """
-        hello_fields = {"CLIENT": self._opts.client_name, "PROTO": "CALF1"}
-        resume = self._opts.resume
-        if resume is not None:
-            hello_fields.update(
-                {
-                    "RESUME": "1",
-                    "CH": resume.channel,
-                    "SYM": resume.symbol,
-                    "LASTSEQ": str(resume.last_seq),
-                }
-            )
-        self._send_line("HELLO", hello_fields)
+        self._send_line("HELLO", {"CLIENT": self._opts.client_name, "PROTO": "CALF1"})
 
         line = self._recv_line()
         if line is None:
@@ -139,6 +131,17 @@ class CalfSpyClient:
             )
         if frame.msg_type != "WELCOME":
             raise CalfSpyConnectionError(f"unexpected reply to HELLO: {frame.msg_type}")
+
+        resume = self._opts.resume
+        if resume is not None:
+            self._send_line(
+                "RESUME",
+                {
+                    "CH": resume.channel,
+                    "SYM": resume.symbol,
+                    "LASTSEQ": str(resume.last_seq),
+                },
+            )
         return frame
 
     def subscribe(self, channels: list[str], symbols: list[str]) -> None:

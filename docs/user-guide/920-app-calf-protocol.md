@@ -57,7 +57,7 @@ behavior.
   `DEPTH`, and `CB`
 - per-stream sequence numbers on `(CH, SYM)`
 - `SYM=*` wildcard subscriptions for `STATE`, `TOP`, `TRADE`, and `AUCTION`
-- bounded replay on reconnect (`RESUME=1` + `LASTSEQ`)
+- bounded replay on reconnect (`RESUME` + `LASTSEQ`)
 - heartbeat and liveness signaling
 - gateway capability advertisement via `WELCOME|CH_SUPPORTED=`
 
@@ -149,10 +149,13 @@ contain half a line, one full line, or many lines.
 |---------------|----------------------|----------------------------|
 | Decimal price | Text decimal         | `150.25`                   |
 | Integer       | Base-10 text integer | `1200`                     |
-| Boolean flag  | `0` or `1`           | `RESUME=1`                 |
+| Boolean flag  | `0` or `1`           | `EXC=1`                    |
 | Timestamp     | UTC ISO-8601 ms      | `2026-06-07T10:15:23.411Z` |
 
 Optional fields are omitted when not present. Empty required values are invalid.
+One optional field pair carries meaning when empty rather than being malformed:
+`MD`'s `BID`/`ASK`, where an empty value marks that book side as withdrawn —
+see **Withdrawal of a book side** under `MD`.
 
 
 
@@ -241,9 +244,10 @@ SUB|CH=CB|SYM=AAPL
 
 | Message   | Direction         | Purpose                                      |
 |-----------|-------------------|----------------------------------------------|
-| `HELLO`   | Client -> Gateway | Start session; optional single-stream resume |
+| `HELLO`   | Client -> Gateway | Start session                                |
 | `WELCOME` | Gateway -> Client | Confirm session and advertise parameters     |
 | `SUB`     | Client -> Gateway | Add subscriptions                            |
+| `RESUME`  | Client -> Gateway | Replay one stream from a known sequence      |
 | `UNSUB`   | Client -> Gateway | Remove subscriptions                         |
 | `PING`    | Client -> Gateway | Liveness probe                               |
 | `PONG`    | Gateway -> Client | Probe reply                                  |
@@ -272,38 +276,33 @@ SUB|CH=CB|SYM=AAPL
 
 **Direction:** Client -> Gateway
 
-**Purpose:** Session handshake. Optional replay request for one stream.
+**Purpose:** Session handshake.
 
 **Response:** `WELCOME` on successful handshake, or `ERR|CODE=PROTO_MISMATCH`
-(connection closed) if `CLIENT`/`PROTO` fail validation. When `RESUME=1` is
-present and the handshake itself succeeds, the gateway always sends
-`WELCOME` first and then evaluates the resume request separately — an
-invalid resume (bad `CH`/`SYM`/`LASTSEQ` shape, or a replay miss) produces
-`WELCOME` followed by an `ERR` (`BAD_MESSAGE` or `REPLAY_MISS`), not `ERR`
-alone. A `BAD_MESSAGE` resume error closes the connection after the queued
-messages are flushed; a `REPLAY_MISS` does not — it is followed by a `SNAP`
-and the session continues.
+(connection closed) if `CLIENT`/`PROTO` fail validation.
 
-| Field     | Req           | Description                            |
-|-----------|---------------|----------------------------------------|
-| `CLIENT`  | Yes           | Client ID (ASCII, max 32 chars)        |
-| `PROTO`   | Yes           | Must be `CALF1`                        |
-| `RESUME`  | No            | `1` enables replay request             |
-| `CH`      | If `RESUME=1` | One channel to resume                  |
-| `SYM`     | If `RESUME=1` | One symbol for resumed stream          |
-| `LASTSEQ` | If `RESUME=1` | Last received sequence for that stream |
+| Field    | Req | Description                     |
+|----------|-----|---------------------------------|
+| `CLIENT` | Yes | Client ID (ASCII, max 32 chars) |
+| `PROTO`  | Yes | Must be `CALF1`                 |
 
 Validation rules:
 
 - Messages other than `HELLO` sent before successful handshake receive
   `ERR|CODE=AUTH_REQUIRED`.
-- `RESUME=1` with missing `CH`, `SYM`, or `LASTSEQ` is invalid.
-- `RESUME=1` with multi-value `CH` or `SYM` is invalid.
+- `HELLO` is only accepted while a session is unauthenticated. A second
+  `HELLO` on an established session receives `ERR|CODE=BAD_MESSAGE`.
 
 ```text
 HELLO|CLIENT=bot01|PROTO=CALF1
-HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
 ```
+
+> **Changed:** replay is no longer requested through a `RESUME=1` flag on
+> `HELLO`. Because `HELLO` is only ever processed once per connection, that
+> form could resume a single stream and no more — leaving any client that
+> follows several streams, which is most of them, unable to recover the rest
+> after a reconnect. Replay now has its own repeatable
+> [`RESUME`](#resume) command, sent after the handshake.
 
 ### `WELCOME`
 
@@ -355,6 +354,44 @@ SUB|CH=DEPTH|SYM=AAPL
 SUB|CH=AUCTION|SYM=*
 SUB|CH=CB|SYM=AAPL
 ```
+
+### `RESUME`
+
+**Direction:** Client -> Gateway
+
+**Purpose:** Subscribe to one stream and replay what was missed since
+`LASTSEQ`, instead of starting from a `SNAP`.
+
+**Response:** replayed events in sequence order, or `ERR|CODE=REPLAY_MISS`
+followed by a fresh `SNAP` when the gap is wider than the replay window.
+
+| Field     | Req | Description                                      |
+|-----------|-----|--------------------------------------------------|
+| `CH`      | Yes | Exactly one channel                               |
+| `SYM`     | Yes | Exactly one concrete symbol; `SYM=*` is invalid   |
+| `LASTSEQ` | Yes | Last sequence the client received on that stream  |
+
+Send one `RESUME` per stream being recovered. Unlike `SUB`, this message
+takes no comma-separated lists: `LASTSEQ` describes a single stream's
+position, so a multi-stream `RESUME` would have no coherent meaning.
+
+```text
+RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042
+RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88
+RESUME|CH=DEPTH|SYM=MSFT|LASTSEQ=310
+```
+
+Validation rules:
+
+- `CH` or `SYM` carrying more than one value is `ERR|CODE=BAD_MESSAGE`.
+- A missing or non-positive `LASTSEQ` is `ERR|CODE=BAD_MESSAGE`.
+- An unknown channel is `ERR|CODE=INVALID_CHANNEL`.
+- `SYM=*` is `ERR|CODE=INVALID_SYMBOL` on every channel — see
+  "Reconnect behavior".
+
+All of these leave the session open. A client recovering several streams
+sends several `RESUME` messages, and one bad request must not cost it the
+others; only handshake-level failures close a connection.
 
 ### `UNSUB`
 
@@ -426,7 +463,7 @@ below. Reflects the **last known** circuit-breaker status for the symbol —
 - Neither `CH=TRADE` nor `CH=AUCTION` has a `SNAP` variant in CALF `1.0.0` —
   both are pure event streams with no persistent "current value."
 - Delivery for both starts from events that occur after the subscription is
-  active (plus any replay via `RESUME=1`, see "Sequence and recovery
+  active (plus any replay via `RESUME`, see "Sequence and recovery
   semantics").
 
 ```text
@@ -444,22 +481,50 @@ SNAP|CH=CB|SYM=MSFT|SEQ=1|TS=2026-07-20T14:05:00.000Z|STATUS=ACTIVE
 
 **Purpose:** Incremental `TOP` update. Unchanged sides may be omitted.
 
-| Field    | Req | Description              |
-|----------|-----|--------------------------|
-| `CH`     | Yes | `TOP`                    |
-| `SYM`    | Yes | Symbol                   |
-| `SEQ`    | Yes | Stream sequence          |
-| `TS`     | Yes | Event timestamp          |
-| `BID`    | No  | Updated bid              |
-| `BIDSZ`  | No  | Updated bid size         |
-| `ASK`    | No  | Updated ask              |
-| `ASKSZ`  | No  | Updated ask size         |
-| `LAST`   | No  | Updated last trade price |
-| `LASTSZ` | No  | Updated last trade size  |
+| Field    | Req | Description                                                        |
+|----------|-----|--------------------------------------------------------------------|
+| `CH`     | Yes | `TOP`                                                              |
+| `SYM`    | Yes | Symbol                                                             |
+| `SEQ`    | Yes | Stream sequence                                                    |
+| `TS`     | Yes | Event timestamp                                                    |
+| `BID`    | No  | Updated bid; **empty value means the bid side is now empty**       |
+| `BIDSZ`  | No  | Updated bid size                                                   |
+| `ASK`    | No  | Updated ask; **empty value means the ask side is now empty**       |
+| `ASKSZ`  | No  | Updated ask size                                                   |
+| `LAST`   | No  | Updated last trade price                                           |
+| `LASTSZ` | No  | Updated last trade size                                            |
 
 ```text
 MD|CH=TOP|SYM=AAPL|SEQ=1051|TS=2026-06-07T10:16:00.115Z|BID=150.11|BIDSZ=1400|ASK=150.13|ASKSZ=800
 ```
+
+#### Withdrawal of a book side
+
+`BID` and `ASK` have three distinct states on an `MD`, and a client must treat
+them differently:
+
+| On the wire | Meaning                                          |
+|-------------|--------------------------------------------------|
+| `BID=150.11`| New value for this side                          |
+| `BID=`      | This side is now **empty** — discard the price    |
+| *(absent)*  | Unchanged since the previous message              |
+
+An empty value is the *only* way the gateway can say "there is no bid". This
+is the one documented exception to **Wire value types** above: `BID`/`ASK` are
+optional fields, and for these two an empty value is meaningful rather than
+malformed.
+
+```text
+MD|CH=TOP|SYM=AAPL|SEQ=1052|TS=2026-06-07T10:16:00.210Z|BID=|BIDSZ=0
+```
+
+A client that treats a withdrawal as "unchanged" will display the last known
+price indefinitely, and will disagree with any client that reconnects and
+receives a fresh `SNAP` — which omits the side correctly. Merging code must
+therefore *remove* the field on an empty value, not overwrite it.
+
+`LAST`/`LASTSZ` are never withdrawn: once a symbol has traded, its last price
+persists for the session, so an empty value is not valid for those fields.
 
 ### `TRADE`
 
@@ -618,7 +683,7 @@ exactly once per uncross, even when there was no crossable interest at all.
 
 `AUCTION` has no baseline `SNAP` (see "Channel model" above) — a new
 subscriber only receives auction results from the next uncross onward,
-unless it also uses `RESUME=1` to replay recent history.
+unless it also uses `RESUME` to replay recent history.
 
 ```text
 AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|TS=2026-07-20T13:30:00.012Z|EQPX=150.10|EQQTY=48200|TRADES=37|IMBSIDE=BUY|IMBQTY=1400
@@ -747,7 +812,7 @@ Normative error codes:
 | `PROTO_MISMATCH`  | `HELLO` missing `CLIENT` or `PROTO != CALF1`                                    |
 | `AUTH_REQUIRED`   | Non-`HELLO` message sent before successful handshake                            |
 | `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX, DEPTH, AUCTION, CB}`                     |
-| `INVALID_SYMBOL`  | Symbol not in the gateway's known instrument list (does not apply to `INDEX`, which has no known-id check — see "Subscription rules"), `SYM=*` used with `INDEX`/`DEPTH`/`CB` on `SUB` (alone or mixed with any other channel), `SYM=*` used at all on `HELLO|RESUME=1` (every channel, including `TOP`/`TRADE`/`STATE`/`AUCTION`), a `SUB` with no `SYM` at all, or `CH=INDEX` combined with an empty symbol |
+| `INVALID_SYMBOL`  | Symbol not in the gateway's known instrument list (does not apply to `INDEX`, which has no known-id check — see "Subscription rules"), `SYM=*` used with `INDEX`/`DEPTH`/`CB` on `SUB` (alone or mixed with any other channel), `SYM=*` used at all on `RESUME` (every channel, including `TOP`/`TRADE`/`STATE`/`AUCTION`), a `SUB` with no `SYM` at all, or `CH=INDEX` combined with an empty symbol |
 | `SUB_LIMIT`       | Subscription would exceed `max_symbols_per_client`                              |
 | `REPLAY_MISS`     | `LASTSEQ` is older than the replay window; gateway sends a `SNAP` instead       |
 | `SLOW_CLIENT`     | Outbound queue exceeded `max_client_queue`; connection closed                   |
@@ -808,12 +873,15 @@ On first subscribe to a `TOP`, `STATE`, `INDEX`, `DEPTH`, or `CB` stream:
 
 `TRADE` and `AUCTION` have no step 1 — see the `SNAP` section above.
 
-### Reconnect behavior (`RESUME=1`)
+### Reconnect behavior (`RESUME`)
 
-`RESUME=1` applies to one stream per `HELLO`.
+`RESUME` applies to one stream per message, and may be sent as many times as
+there are streams to recover. Reconnect therefore looks like: `HELLO`, then
+one `RESUME` per stream the client was following, then a `SUB` for anything
+it wants that it has no sequence position for.
 
 - Client supplies `CH`, `SYM`, and `LASTSEQ`.
-- `CH` and `SYM` must each contain exactly one value when `RESUME=1`.
+- `CH` and `SYM` must each contain exactly one value.
 - `LASTSEQ` must be a positive base-10 integer.
 - If missing events are inside replay window, gateway replays in order then
   continues live.
@@ -825,19 +893,19 @@ On first subscribe to a `TOP`, `STATE`, `INDEX`, `DEPTH`, or `CB` stream:
   `ERR|CODE=REPLAY_MISS` or a `SNAP` — the client resumes live from
   whatever the next emitted event turns out to be. This differs from the
   replay-miss case above and is easy to mistake for a silently dropped
-  resume; clients that need a guaranteed baseline after `RESUME=1` should
+  resume; clients that need a guaranteed baseline after `RESUME` should
   also send an explicit `SUB` for the same stream, which always triggers a
-  `SNAP` for `TOP`/`STATE`/`INDEX`/`DEPTH` regardless of replay state.
-- `SYM=*` is always invalid for `RESUME=1`, for every channel, even for
-  `TOP`/`TRADE`/`STATE` where `SYM=*` is otherwise allowed on `SUB`.
-  `RESUME` has no equivalent of `SUB`'s per-symbol snapshot burst, 
-  so a wildcard resume cannot be served a meaningful
-  baseline on a replay miss. `HELLO|RESUME=1|CH=TOP|SYM=*` returns
-  `ERR|CODE=INVALID_SYMBOL` and closes the connection, the same as an
-  ineligible wildcard on `SUB`. Clients must always resume a single
-  concrete symbol and, if they also want an "everything" subscription,
-  add it separately via `SUB|SYM=*` after reconnecting.
-- Beyond the wildcard rule above, `RESUME=1`'s `SYM` value is otherwise
+  `SNAP` for `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB` regardless of replay state.
+- `SYM=*` is always invalid for `RESUME`, for every channel, even for
+  `TOP`/`TRADE`/`STATE`/`AUCTION` where `SYM=*` is otherwise allowed on
+  `SUB`. `RESUME` has no equivalent of `SUB`'s per-symbol snapshot burst,
+  so a wildcard resume cannot be served a meaningful baseline on a replay
+  miss. `RESUME|CH=TOP|SYM=*` returns `ERR|CODE=INVALID_SYMBOL` and, unlike
+  an ineligible wildcard on `HELLO` previously, leaves the session open.
+  Clients must always resume a single concrete symbol and, if they also
+  want an "everything" subscription, add it separately via `SUB|SYM=*`
+  after reconnecting.
+- Beyond the wildcard rule above, `RESUME`'s `SYM` value is otherwise
   **not** checked against the gateway's known-symbol list the way `SUB`'s
   is — a resume for a symbol the gateway doesn't currently know about is
   still accepted and added to the session's subscriptions; it simply won't
@@ -848,9 +916,11 @@ sequenceDiagram
     participant C as Client
     participant G as pm-md-gwy
 
-    Note over C,G: Last seen on (TOP,AAPL): SEQ=1042
-    C->>G: HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
+    Note over C,G: Last seen on (TOP,AAPL): SEQ=1042, (TRADE,AAPL): SEQ=88
+    C->>G: HELLO|CLIENT=bot01|PROTO=CALF1
     G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+    C->>G: RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042
+    C->>G: RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88
 
     alt Replay hit
         G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1043|...
@@ -1014,7 +1084,7 @@ market_data_gateway:
   do not propagate the internal inconsistency to clients.
 - Track sequence numbers independently per `(CH,SYM)` stream; never use a single
   global counter.
-- Treat `RESUME=1` as single-stream only and validate `CH`, `SYM`, and
+- Treat `RESUME` as single-stream only and validate `CH`, `SYM`, and
   `LASTSEQ` strictly.
 - Bound replay by configured window and emit deterministic `REPLAY_MISS` + fresh
   `SNAP` behavior when outside window.
@@ -1037,7 +1107,7 @@ If you are implementing a CALF client, the most important protocol truths are:
    — never for `INDEX`, `DEPTH`, or `CB`.
 6. A wildcard `TOP` subscription never yields a `SNAP` with a literal
    `SYM=*`; it yields one real `SNAP` per known symbol.
-7. Replay resume is single-stream per `HELLO|RESUME=1`.
+7. Replay resume is single-stream per `RESUME`; send one per stream.
 8. On replay miss, client must accept fresh `SNAP` and reset local baseline.
 9. `DEPTH` messages replace a side's entire tracked ladder, never a single
    price level in isolation.

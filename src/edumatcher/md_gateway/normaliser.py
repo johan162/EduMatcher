@@ -107,16 +107,21 @@ class EngineNormaliser:
 
         changed: dict[str, str] = {}
 
+        # An emptied side is published as an explicitly empty ``BID=``/``ASK=``
+        # rather than by omitting the field. Omission means "unchanged" to a
+        # client merging deltas, so a withdrawn side used to leave the last
+        # known price on screen forever, while a client that reconnected and
+        # received a fresh SNAP correctly saw no bid at all — two clients on
+        # the same feed disagreeing about the book, indefinitely. See the
+        # ``MD`` message definition in the CALF protocol reference.
         if next_bid != prev.bid:
-            if next_bid is not None:
-                changed["BID"] = next_bid
+            changed["BID"] = next_bid if next_bid is not None else ""
             changed["BIDSZ"] = next_bidsz if next_bidsz is not None else "0"
         elif next_bidsz != prev.bid_sz and next_bid is not None:
             changed["BIDSZ"] = next_bidsz if next_bidsz is not None else "0"
 
         if next_ask != prev.ask:
-            if next_ask is not None:
-                changed["ASK"] = next_ask
+            changed["ASK"] = next_ask if next_ask is not None else ""
             changed["ASKSZ"] = next_asksz if next_asksz is not None else "0"
         elif next_asksz != prev.ask_sz and next_ask is not None:
             changed["ASKSZ"] = next_asksz if next_asksz is not None else "0"

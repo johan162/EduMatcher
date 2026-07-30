@@ -78,7 +78,7 @@ handshake to succeed, but you will not see any live data until it is.
 |---|---|---|
 | `--channels` | `*` | Comma-separated channels, e.g. `TOP,TRADE,CB`. `*` subscribes to every channel in `WELCOME\|CH_SUPPORTED=` (falling back to `TOP,TRADE,STATE` if that field is absent — see [pre-1.0.0 gateway note](240-calf-gateway.md#step-1-send-hello)) |
 | `--symbols` | `*` | Comma-separated symbols, e.g. `AAPL,MSFT`. `*` requests the wildcard for every channel that allows it (`TOP`, `TRADE`, `STATE`, `AUCTION`) |
-| `--resume` | *(none)* | One-shot `CH:SYM:LASTSEQ`, e.g. `TOP:AAPL:1042` — requests single-stream replay on connect (mirrors `HELLO\|RESUME=1\|CH=..\|SYM=..\|LASTSEQ=..`) |
+| `--resume` | *(none)* | One-shot `CH:SYM:LASTSEQ`, e.g. `TOP:AAPL:1042` — requests single-stream replay just after the handshake (sends `RESUME\|CH=..\|SYM=..\|LASTSEQ=..`) |
 
 `--channels`/`--symbols` are applied as a single `SUB` for the full
 Cartesian product. If a requested combination is invalid — `SYM=*` on a
@@ -105,21 +105,23 @@ explicit symbols for `INDEX`/`DEPTH`/`CB` rather than relying on `*`.
 ## Keeping the connection alive
 
 `pm-calf-spy` is purely a listener: after the initial `HELLO`/`SUB`
-handshake it has nothing more to say, so — unlike a real trading client that
-periodically sends orders or cancels — it would otherwise go completely
-silent for the rest of the session. `pm-md-gwy` disconnects any client that
-sends nothing at all for `market_data_gateway.idle_timeout_sec` (see
-[Market Data Feed — Configuration](240-calf-gateway.md)), so a purely
-receive-only client needs to generate outbound traffic of its own to avoid
-being dropped.
+handshake it has nothing more to say. **This is fine, and needs no help from
+you.** `pm-md-gwy`'s idle timer counts traffic in either direction, and the
+gateway's own heartbeats keep the session alive, so a receive-only client
+stays connected indefinitely without sending a thing (see
+[Market Data Feed — Configuration](240-calf-gateway.md)).
 
-`pm-calf-spy` does this automatically: a background thread sends `PING`
-every `--ping-interval` seconds (default `60`), and the gateway replies with
-a `PONG` (suppressed from the default view the same way `HB` is — pass
-`--show-heartbeats` to see both). Set `--ping-interval` lower than the
-gateway's `idle_timeout_sec` if you have shortened that value for
-diagnostics, or `0` to disable the heartbeat entirely (e.g. when
-deliberately testing idle-timeout behavior).
+> Earlier gateway builds advanced the idle timer only on *inbound* bytes, so
+> a silent listener really was dropped every `idle_timeout_sec`. The
+> `--ping-interval` thread below exists because of that; it is now a
+> diagnostic convenience rather than a requirement.
+
+`pm-calf-spy` still sends `PING` from a background thread every
+`--ping-interval` seconds (default `60`), and the gateway replies with a
+`PONG` (suppressed from the default view the same way `HB` is — pass
+`--show-heartbeats` to see both). It is a useful explicit round-trip check
+that the session is genuinely alive rather than merely un-errored. Pass `0`
+to disable it.
 
 
 ## Human-readable output

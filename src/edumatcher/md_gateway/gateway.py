@@ -302,6 +302,16 @@ class MarketDataGateway:
                 if sent <= 0:
                     break
 
+                # Outbound progress counts as activity, per the protocol's
+                # "no inbound and no outbound traffic" idle rule. Without this
+                # the timer only ever advanced on inbound bytes, so a purely
+                # passive consumer — the normal shape of a market-data client,
+                # which has nothing to say — was disconnected every
+                # idle_timeout_sec despite a perfectly healthy socket.
+                # Deliberately keyed on a successful send rather than on
+                # queuing, so a client that has stopped draining still ages
+                # out instead of being kept alive by our own backlog.
+                session.last_activity = time.monotonic()
                 session.out_offset += sent
 
                 if session.out_offset >= len(payload):
@@ -367,6 +377,8 @@ class MarketDataGateway:
 
         if frame.msg_type == "SUB":
             self._handle_sub(session, frame.fields)
+        elif frame.msg_type == "RESUME":
+            self._handle_resume(session, frame.fields)
         elif frame.msg_type == "UNSUB":
             self._handle_unsub(session, frame.fields)
         elif frame.msg_type == "PING":
@@ -420,11 +432,20 @@ class MarketDataGateway:
         self._queue_line(session, "WELCOME", welcome_fields)
         log.info("client authenticated fd=%d client=%s", session.sock.fileno(), client)
 
-        resume_raw = fields.get("RESUME", "0")
-        if resume_raw == "1":
-            self._handle_resume(session, fields)
-
     def _handle_resume(self, session: ClientSession, fields: dict[str, str]) -> None:
+        """Resume one ``(CH, SYM)`` stream from ``LASTSEQ``.
+
+        A standalone, repeatable command rather than a ``HELLO`` flag. As a
+        flag it could only ever run once per connection — ``HELLO`` is
+        dispatched only while a session is unauthenticated — so a client
+        following more than one stream, which is the normal case, had no way to
+        resume the rest of them after a reconnect.
+
+        Malformed requests answer ``ERR`` and leave the session open, matching
+        ``SUB``. Killing the connection was defensible when this could only
+        happen during the handshake; for a command a client may send many times
+        it would turn one bad request into a full resubscribe cycle.
+        """
         ch_values = self._parse_csv_upper(fields.get("CH", ""))
         sym_values = self._parse_csv_upper(fields.get("SYM", ""))
 
@@ -437,7 +458,6 @@ class MarketDataGateway:
                     "MSG": "RESUME requires exactly one CH and one SYM",
                 },
             )
-            self._close_after_flush(session)
             return
 
         last_seq_raw = fields.get("LASTSEQ", "")
@@ -449,7 +469,6 @@ class MarketDataGateway:
                 "ERR",
                 {"CODE": "BAD_MESSAGE", "MSG": "LASTSEQ must be an integer"},
             )
-            self._close_after_flush(session)
             return
 
         if last_seq <= 0:
@@ -458,7 +477,6 @@ class MarketDataGateway:
                 "ERR",
                 {"CODE": "BAD_MESSAGE", "MSG": "LASTSEQ must be > 0"},
             )
-            self._close_after_flush(session)
             return
 
         ch = ch_values[0]
@@ -470,7 +488,6 @@ class MarketDataGateway:
                 "ERR",
                 {"CODE": "INVALID_CHANNEL", "CH": ch, "SYM": sym},
             )
-            self._close_after_flush(session)
             return
 
         # SYM=* is meaningless for RESUME: unlike SUB, there is no per-symbol
@@ -485,7 +502,6 @@ class MarketDataGateway:
                 "ERR",
                 {"CODE": "INVALID_SYMBOL", "CH": ch, "SYM": sym},
             )
-            self._close_after_flush(session)
             return
 
         # Resume implies immediate live continuation for the requested stream.

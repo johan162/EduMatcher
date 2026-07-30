@@ -118,7 +118,7 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="Request replay on connect via HELLO|LASTSEQ=N for every "
         "channel --role is entitled to (0 = no replay, default). Unlike "
-        "CALF's RESUME=1, RALF replay is requested directly on HELLO and "
+        "CALF's separate RESUME command, RALF replay is requested directly on HELLO and "
         "is not scoped to a single channel/symbol.",
     )
     sub.add_argument(
