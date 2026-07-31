@@ -16,6 +16,7 @@ import type {
   CalfState,
   DepthFrame,
   HaltContextFrame,
+  IndexFrame,
   TradeFrame,
   ServerFrame,
   SessionPhase,
@@ -73,6 +74,14 @@ interface LiveStore {
    * only ever shows the most recent screenful.
    */
   trades: TradeFrame[];
+  /**
+   * Latest live level and session per index, keyed by index id.
+   *
+   * Distinct from `indexes` above, which is the *configured* id list off the
+   * SYMBOLS response — that is authoritative for what exists, this is what
+   * each one is currently doing.
+   */
+  indexLive: Record<string, IndexFrame>;
   halted: Record<string, HaltedSymbol>;
   /**
    * The frame that ended each symbol's most recent halt.
@@ -124,6 +133,7 @@ const initialState = {
   sessionPrev: undefined,
   sessionSince: null,
   trades: [] as TradeFrame[],
+  indexLive: {} as Record<string, IndexFrame>,
   halted: {} as Record<string, HaltedSymbol>,
   haltEnded: {} as Record<string, HaltContextFrame>,
   auctions: [] as AuctionResultFrame[],
@@ -190,8 +200,20 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
           // one moment; the tape is a separate record of individual prints.
           return { trades: [frame, ...s.trades].slice(0, TRADE_BUFFER_MAX) };
 
-        // Frames no view consumes yet.
         case "index":
+          // Keyed by index id — an exchange may configure several, and the
+          // Index View switches between them without re-subscribing each
+          // time. Merged rather than replaced: like TOP, an INDEX frame is a
+          // delta, and the SNAP a fresh subscription receives before
+          // pm-index has published anything carries no level at all.
+          return {
+            indexLive: {
+              ...s.indexLive,
+              [frame.sym]: { ...s.indexLive[frame.sym], ...frame },
+            },
+          };
+
+        // Frames no view consumes yet.
           return {};
       }
     }),

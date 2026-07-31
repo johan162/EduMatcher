@@ -4,7 +4,14 @@
  * bridge holds the only key, server-side.
  */
 
-import type { DailyBar, PriceSnapshotRow, TradeRow } from "@edumatcher/terminal-types";
+import type {
+  DailyBar,
+  IndexDailyRow,
+  IndexEventRow,
+  IndexSnapshotRow,
+  PriceSnapshotRow,
+  TradeRow,
+} from "@edumatcher/terminal-types";
 
 /** Largest page the history endpoints allow. */
 const MAX_LIMIT = 5000;
@@ -61,4 +68,38 @@ export const api = {
     if (from) params.set("from", from);
     return getJson<{ snapshots: PriceSnapshotRow[] }>(`/api/history/price-snapshots?${params}`);
   },
+
+  /** Daily index bars — the 1M and longer chart presets, and the O/H/L panel. */
+  indexDaily: (indexId: string, from?: string) => {
+    const params = new URLSearchParams({ index_id: indexId, limit: String(MAX_LIMIT) });
+    if (from) params.set("from", from);
+    return getJson<{ daily: IndexDailyRow[] }>(`/api/history/index-daily?${params}`);
+  },
+
+  /**
+   * Raw intraday level ticks for the 1D/5D presets.
+   *
+   * pm-index writes one row per `index.update`, which is already fine enough
+   * to chart directly — unlike Symbol Detail's intraday view there is no
+   * bucketing step (design §10.4).
+   */
+  indexSnapshots: (indexId: string, from?: string) => {
+    const params = new URLSearchParams({ index_id: indexId, limit: String(MAX_LIMIT) });
+    if (from) params.set("from", from);
+    return getJson<{ snapshots: IndexSnapshotRow[] }>(
+      `/api/history/index-snapshots?${params}`,
+    );
+  },
+
+  /**
+   * Structural changes — constituent added, delisted, corporate action.
+   *
+   * Fetched once per view rather than polled: these are rare, operator-driven
+   * events, so a manual refresh or view re-open is enough (design §10.2).
+   * Returns a bare object, not the paginated envelope the others use.
+   */
+  indexEvents: (indexId: string) =>
+    getJson<{ events: IndexEventRow[]; count: number }>(
+      `/api/history/index-events?index_id=${encodeURIComponent(indexId)}`,
+    ),
 };

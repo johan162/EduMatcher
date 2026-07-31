@@ -62,6 +62,21 @@ export interface IndexSnapshotRow {
 }
 
 /**
+ * A structural change to an index's membership or a constituent's shares.
+ *
+ * Unlike the other history rows this does not come from pm-stats' SQLite —
+ * `/history/index-events` round-trips live to pm-index over ZMQ, and returns
+ * a bare `{events, count}` object rather than the paginated envelope.
+ */
+export interface IndexEventRow {
+  type: "INIT" | "CORP_ACTION" | "ADD_CONSTITUENT" | "DELIST";
+  /** Unix seconds, not the ISO text the SQLite-backed rows use. */
+  timestamp: number;
+  symbol?: string;
+  detail?: string;
+}
+
+/**
  * Every SQLite-backed history endpoint returns this envelope
  * (`_paginated_envelope` in `api_gateway/routers/history.py`). The row key
  * differs per endpoint: `daily`, `trades`, `snapshots`.
