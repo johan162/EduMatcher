@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 
 from edumatcher.config_gen.defaults import (
+    DEFAULT_ACE_INITIAL_BAND_PCT,
+    DEFAULT_ACE_RANDOM_END_MAX_NS,
     DEFAULT_CB_WINDOW_NS,
     DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
     DEFAULT_DROP_COPY_BUFFER_SIZE,
@@ -181,7 +183,7 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="+",
         default=None,
         metavar="CB_SPEC",
-        help="NAME:SHIFT_PCT[:HALT_MINS[:RESUMPTION_MODE]] entries. RESUMPTION_MODE is AUCTION (default) or CONTINUOUS.",
+        help="NAME:SHIFT_PCT[:HALT_MINS] entries. Omit HALT_MINS for a rest-of-day halt.",
     )
     parser.add_argument(
         "--cb-window-ns",
@@ -189,6 +191,56 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_CB_WINDOW_NS,
         metavar="NS",
         help="CB reference window nanoseconds.",
+    )
+
+    parser.add_argument(
+        "--no-ace",
+        action="store_true",
+        help=(
+            "Disable Automated Corridor Expansion. A halt then reopens at the "
+            "equilibrium price whatever it is, with no corridor and no extensions."
+        ),
+    )
+    parser.add_argument(
+        "--ace-initial-band",
+        type=float,
+        default=DEFAULT_ACE_INITIAL_BAND_PCT,
+        metavar="PCT",
+        help=(
+            "Reopening corridor half-width as a fraction of the reference price "
+            f"(default {DEFAULT_ACE_INITIAL_BAND_PCT})."
+        ),
+    )
+    parser.add_argument(
+        "--ace-expansions",
+        nargs="+",
+        default=None,
+        metavar="EXP_SPEC",
+        help=(
+            "WIDEN_PCT:MINUTES rungs of the expansion ladder, in order. The last "
+            "rung repeats indefinitely, which is what lets the corridor eventually "
+            "contain any price. Default: 0.10:2 0.20:5 (Nasdaq's ladder)."
+        ),
+    )
+    parser.add_argument(
+        "--ace-random-end-ns",
+        type=int,
+        default=DEFAULT_ACE_RANDOM_END_MAX_NS,
+        metavar="NS",
+        help=(
+            "Upper bound of the uniform random tail added to every call phase. "
+            "0 disables the random end, making reopen times predictable."
+        ),
+    )
+    parser.add_argument(
+        "--ace-random-seed",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Seed the random-end generator for reproducible demos. Omit for OS "
+            "entropy, which is what a real venue wants."
+        ),
     )
 
     parser.add_argument(

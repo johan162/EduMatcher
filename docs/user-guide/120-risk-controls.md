@@ -415,6 +415,157 @@ and has been removed. The halt and resume payloads now carry `halt_source`
 (`CB` or `ADMIN`) instead, which says what caused the halt; whether it ends
 by itself is already expressed by the presence of `resume_at_ns`.
 
+### Automated Corridor Expansion (ACE)
+
+Reopening at *whatever* price the accumulated interest implies has two
+problems, and ACE addresses both.
+
+**Problem one: the reopen price can be absurd.** A halt fires precisely when
+prices are moving violently. The orders that pile up during the call phase are
+entered under uncertainty, often thinly, and the equilibrium they imply can sit
+far from any price the market would sustain. Printing it turns a protective
+halt into the cause of an erroneous execution.
+
+**Problem two: the reopen instant is a target.** If everyone knows the exact
+nanosecond the uncross runs, the last order in — placed with full sight of the
+book, too late for anyone to react — is strictly advantaged. This is why real
+venues randomise the end of a call phase.
+
+ACE is modelled on Deutsche Börse's mechanism of the same name and on Nasdaq
+Rule 4120(c)(7). It has two independent halves.
+
+#### The corridor and the expansion ladder
+
+When a halt begins, the engine latches a **corridor reference**: the circuit
+breaker's rolling mean at the moment of the halt (`CircuitBreakerState.
+corridor_reference`). It is latched, not recomputed, so an uncross elsewhere
+cannot move the target mid-halt. The corridor is that reference plus and minus
+`initial_band_pct` of it.
+
+At the end of every call phase the engine runs `compute_equilibrium()` as a
+**dry run** — it computes the price the symbol *would* reopen at without
+executing anything:
+
+- **Inside the corridor** → the symbol reopens. `_run_uncross()` executes at
+  the equilibrium and `circuit_breaker.resume.{symbol}` is published.
+- **Outside the corridor** → the symbol does **not** reopen. The corridor
+  widens by the next rung's `widen_pct`, a fresh call phase of that rung's
+  `min_duration_ns` begins, and `circuit_breaker.extend.{symbol}` is published.
+  Orders keep resting throughout; nothing is cancelled.
+
+Widening is **additive on the reference price**, not compounding on the
+previous width. Each rung adds its `widen_pct` of the *original* reference.
+This matters: it is what makes the corridor grow linearly and predictably
+rather than exploding.
+
+**The last rung repeats indefinitely.** This is the design's terminating
+argument, and it is why there is no maximum-extensions setting. Because the
+corridor grows without bound, it eventually contains any finite price, so the
+symbol always reopens on its own — the only question is when. A cap would
+force a choice between printing outside the corridor (defeating the purpose)
+and never reopening at all.
+
+#### The random end
+
+`halt_duration_ns` on the triggered level is the **minimum** length of the
+first call phase, not its exact length. `min_duration_ns` plays the same role
+for each extension. On top of the minimum the engine adds a delay drawn
+uniformly from `[0, random_end_max_ns]`, so no call phase — initial or
+extended — ends at a time anyone can predict.
+
+The generator is engine-wide (`EngineProcess._reopening_rng`). Leave
+`random_seed` unset for OS entropy, which is what an operating venue wants.
+Set it to an integer for reproducible teaching demos and tests. Setting
+`random_end_max_ns: 0` disables the random end entirely, making reopen times
+exactly predictable — useful in a classroom, wrong in production.
+
+#### Worked example
+
+Configuration: `initial_band_pct: 0.10`, expansions `[{0.10, 2min},
+{0.20, 5min}]`, `random_end_max_ns: 0` (so the timings below are exact).
+Symbol ABC, reference price **$100.00**, an L1 halt with
+`halt_duration_ns` of 5 minutes fires at **13:30:00**.
+
+Heavy one-sided buying accumulates during the call; the indicative price
+settles at **$122.00** and stays there.
+
+| Time | Event | Indicative | Corridor | Half-width | Outcome |
+|---|---|---|---|---|---|
+| 13:30:00 | L1 halt fires | – | 90.00 – 110.00 | ±10% | Call phase 1 opens (min 5 min) |
+| 13:35:00 | Call 1 ends | $122.00 | 90.00 – 110.00 | ±10% | **Outside** → extend, widen +10% |
+| 13:37:00 | Call 2 ends | $122.00 | 80.00 – 120.00 | ±20% | **Outside** → extend, widen +20% |
+| 13:42:00 | Call 3 ends | $122.00 | 60.00 – 140.00 | ±40% | **Inside** → reopen, uncross at $122.00 |
+
+Total halt: 12 minutes rather than the configured 5. The extra 7 minutes are
+the market being given time to supply offsetting interest against a 22% move
+before it prints. Had sellers arrived during call 2 and pulled the indicative
+back to $118, the symbol would have reopened at 13:37 inside the ±20%
+corridor.
+
+These are exactly the numbers in the SEC order approving Nasdaq's rule
+($100 reference, collars 90/110 → 80/120 → 60/140), which is a useful
+cross-check that the arithmetic is right.
+
+With the random end at its default 30s, the three call ends above would
+instead fall somewhere in 13:35:00–13:35:30, 13:37:00–13:37:30 and
+13:42:00–13:42:30.
+
+#### End of day: the closing auction as backstop
+
+ACE widens indefinitely, so on its own it never terminates — a symbol whose
+indicative price runs away could in principle extend past the close. The end
+of the trading day supplies the terminating condition.
+
+On the transition to `CLOSED`, `_run_closing_backstop()` forces every symbol
+still halted to resolve:
+
+1. The indicative price is computed one final time.
+2. **Inside the corridor** → it prints there, as a normal reopen would.
+3. **Outside the corridor** → it prints **at the corridor boundary**: the
+   upper bound for a buy imbalance, the lower bound for a sell imbalance.
+4. **No crossing interest at all** → nothing prints; the halt is simply
+   cleared.
+
+Step 3 is the only place in the engine where a price is **imposed rather than
+discovered**, and it is deliberate. A clamped print can leave the book
+crossed — bids and asks beyond the boundary do not trade. That is the intended
+outcome: that interest survives to the next session rather than executing at a
+price the corridor was built to reject.
+
+The ordering matters and is load-bearing. The backstop runs *after* the
+scheduled `CLOSING_AUCTION → CLOSED` uncross, and `_run_uncross()` skips
+symbols that are still halted. Were it otherwise, the session sweep would
+uncross halted symbols at the true equilibrium and silently undo the entire
+mechanism.
+
+A level configured with `halt_duration_ns: null` (rest-of-day) never enters
+the ACE cycle at all: it has no timed resume, so no call phase ever ends. It
+waits for this backstop or for an ADMIN resume.
+
+#### Observability
+
+Every corridor adjustment is logged and published, so an extension sequence
+can be watched as it happens:
+
+```
+CIRCUIT BREAKER HALT ABC: level=L1 trigger=12200, ref=10000 ticks, corridor=[9000, 11000] ticks (+/-10.0%)
+ACE EXTEND ABC: indicative=12200 ticks outside [9000, 11000] -> expansion=1 corridor=[8000, 12000] (+/-20.0%) qty=500 next_call_ends=...
+ACE EXTEND ABC: indicative=12200 ticks outside [8000, 12000] -> expansion=2 corridor=[6000, 14000] (+/-40.0%) qty=500 next_call_ends=...
+CIRCUIT BREAKER RESUME ABC: after 2 ACE extension(s)
+```
+
+and at the close:
+
+```
+CLOSING BACKSTOP ABC: indicative=12200 ticks outside [9000, 11000] -> clamped to 11000 (BUY imbalance), after 1 ACE extension(s)
+```
+
+On the wire, `circuit_breaker.halt.{symbol}` and the new
+`circuit_breaker.extend.{symbol}` both carry `corridor_low`, `corridor_high`
+and `expansion`; `extend` adds `indicative_price`, `indicative_qty`,
+`imbalance_side` and the next `resume_at_ns`. A backstop resume carries
+`reason: "CLOSING_BACKSTOP"`, `clamped` and `print_price`.
+
 ### Configuration
 
 Define a global threshold ladder under `circuit_breaker_defaults`, then override
@@ -433,6 +584,16 @@ circuit_breaker_defaults:
     L3:
       price_shift_pct: 0.20
       halt_duration_ns:                 # null => rest of trading day
+  reopening:                            # Automated Corridor Expansion
+    enabled: true
+    initial_band_pct: 0.10              # +/-10% corridor to start
+    random_end_max_ns: 30000000000      # up to 30s random tail per call
+    random_seed:                        # null => OS entropy
+    expansions:                         # last rung repeats indefinitely
+      - widen_pct: 0.10
+        min_duration_ns: 120000000000   # 2 minutes
+      - widen_pct: 0.20
+        min_duration_ns: 300000000000   # 5 minutes
 
 symbols:
   TSLA:
@@ -441,6 +602,8 @@ symbols:
       levels:
         L1:
           halt_duration_ns: 600000000000  # symbol-specific override
+      reopening:
+        initial_band_pct: 0.05            # tighter corridor for TSLA only
 ```
 
 For each trade, the engine computes:
@@ -455,10 +618,19 @@ The highest level where `price_shift >= price_shift_pct` fires.
 |---|---|---|---|
 | `reference_window_ns` | int | `300_000_000_000` | Lookback window for rolling reference price |
 | `levels.<L>.price_shift_pct` | float | required | Trigger threshold fraction in `(0, 1)` |
-| `levels.<L>.halt_duration_ns` | int or null | required | Halt time in ns, or `null` for rest-of-day halt |
+| `levels.<L>.halt_duration_ns` | int or null | required | *Minimum* length of the reopening call phase in ns, or `null` for rest-of-day |
+| `reopening.enabled` | bool | `true` | Apply ACE. When false, a halt reopens at the equilibrium price uncollared |
+| `reopening.initial_band_pct` | float | `0.10` | Corridor half-width in `(0, 1)`, as a fraction of the reference price |
+| `reopening.expansions` | list | Nasdaq ladder | Rungs of `{widen_pct, min_duration_ns}`. **The last rung repeats indefinitely** |
+| `reopening.expansions[].widen_pct` | float | required | Added to the corridor half-width, in `(0, 1)`. Additive on the reference, not compounding |
+| `reopening.expansions[].min_duration_ns` | int | required | Minimum length of that extension's call phase, `> 0` |
+| `reopening.random_end_max_ns` | int | `30_000_000_000` | Upper bound of the uniform random tail on every call phase. `0` disables it |
+| `reopening.random_seed` | int or null | `null` | Engine-wide. **Only valid in `circuit_breaker_defaults`** — setting it per symbol is an error (`S110`) |
 
 When `circuit_breaker_defaults` and symbol-level `circuit_breaker` are both
-present, per-symbol values override global defaults by level key.
+present, per-symbol values override global defaults by level key. The
+`reopening` block merges field-by-field the same way, so a symbol can override
+`initial_band_pct` alone without restating the ladder.
 
 ### Why there is no selected "default breaker level"
 
@@ -590,6 +762,25 @@ payload: {
 }
 ```
 
+### Circuit breaker extend (ACE)
+
+Published when a call phase ends with the indicative price outside the
+corridor. The symbol stays halted and a fresh call phase begins.
+
+```
+topic:   b"circuit_breaker.extend.MSFT"
+payload: {
+    "symbol":           "MSFT",
+    "indicative_price": 122.00,   # what it would have reopened at
+    "indicative_qty":   500,
+    "imbalance_side":   "BUY",
+    "corridor_low":     80.00,    # corridor AFTER widening
+    "corridor_high":    120.00,
+    "expansion":        1,        # rungs consumed so far
+    "resume_at_ns":     ...       # end of the new call phase
+}
+```
+
 ### Circuit breaker resume
 
 ```
@@ -597,6 +788,18 @@ topic:   b"circuit_breaker.resume.MSFT"
 payload: {
     "symbol":      "MSFT",
     "halt_source": "CB"
+}
+```
+
+A resume forced by the end-of-day backstop carries three extra fields:
+
+```
+payload: {
+    "symbol":      "MSFT",
+    "halt_source": "CB",
+    "reason":      "CLOSING_BACKSTOP",
+    "clamped":     true,          # printed at the corridor boundary
+    "print_price": 110.00
 }
 ```
 

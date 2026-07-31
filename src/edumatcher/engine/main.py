@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 from collections import defaultdict
 import logging
+import random
 import signal
 import sys
 import time
@@ -38,6 +39,7 @@ from edumatcher.config import (
     DATA_DIR,
 )
 from edumatcher.engine.auction import (
+    AuctionResult,
     compute_equilibrium,
     execute_uncross,
 )
@@ -225,6 +227,10 @@ class Engine:
         self._collars: dict[str, CollarConfig] = {}
         # Circuit breaker states — keyed by symbol; populated in _load_config()
         self._circuit_breakers: dict[str, CircuitBreakerState] = {}
+        # Picks the random end of every reopening call phase. Seeded from
+        # config when reproducibility matters (demos, tests), from OS entropy
+        # otherwise — an unpredictable reopen instant is the entire point.
+        self._reopening_rng = random.Random()
         # Drop copy publisher — None until run() is called (avoids binding port 5557 in tests)
         self._drop_copy: Optional[DropCopyPublisher] = None
 
@@ -285,6 +291,8 @@ class Engine:
                 self._enforce_circuit_breakers = (
                     self._engine_config.enforce_circuit_breakers
                 )
+                if self._engine_config.reopening_random_seed is not None:
+                    self._reopening_rng.seed(self._engine_config.reopening_random_seed)
                 self.snapshot_interval_sec = self._engine_config.snapshot_interval_sec
                 self.quote_history_maxlen = self._engine_config.quote_history_maxlen
                 self.drop_copy_buffer_size = self._engine_config.drop_copy_buffer_size
@@ -1864,7 +1872,7 @@ class Engine:
         if triggered_level is None:
             return
 
-        cb.activate(now, triggered_level)
+        cb.activate(now, triggered_level, self._reopening_rng)
         self._halted_symbols[symbol] = True
 
         # Cancel all resting quotes for the halted symbol.
@@ -1893,33 +1901,177 @@ class Engine:
                     "resume_at_ns": cb.resume_at_ns,
                     "halt_source": cb.halt_source,
                     "level": cb.triggered_level,
+                    **self._corridor_payload(cb, symbol),
                 },
             )
         )
         self._mark_dirty(symbol)
+        bounds = cb.corridor()
         log.info(
             f"CIRCUIT BREAKER HALT {symbol}: "
             f"level={cb.triggered_level} "
             f"trigger={cb.trigger_price}, ref={cb.reference_price} ticks"
+            + (
+                f", corridor=[{bounds[0]}, {bounds[1]}] ticks "
+                f"(+/-{cb.config.reopening.band_pct_at(0):.1%})"
+                if bounds is not None
+                else ", corridor=unbounded (ACE disabled)"
+            )
         )
+
+    def _corridor_payload(self, cb: CircuitBreakerState, symbol: str) -> dict[str, Any]:
+        """Wire representation of the ACE corridor, in display prices."""
+        bounds = cb.corridor()
+        if bounds is None:
+            return {"corridor_low": None, "corridor_high": None, "expansion": None}
+        return {
+            "corridor_low": from_ticks(bounds[0], symbol),
+            "corridor_high": from_ticks(bounds[1], symbol),
+            "expansion": cb.expansion_index,
+        }
+
+    def _run_closing_backstop(self) -> None:
+        """Force every still-halted symbol to reopen at the session close.
+
+        ACE will widen a corridor indefinitely, so on its own it has no
+        terminating condition — the end of the trading day supplies one. This
+        mirrors Nasdaq's Hybrid Closing Cross (Rule 4754(b)(7)(D)): a symbol
+        that has not managed to reopen within its corridor prints *at* the
+        corridor boundary rather than at the outlying equilibrium.
+
+        This is the only place in the engine where a price is imposed rather
+        than discovered. A clamped print can leave the book crossed — bids and
+        asks beyond the boundary do not trade — which is intended: that
+        interest survives to the next session rather than executing at a price
+        the corridor was built to reject.
+        """
+        for symbol, cb in self._circuit_breakers.items():
+            if not self._halted_symbols.get(symbol):
+                continue
+
+            book = self._book(symbol)
+            indicative = compute_equilibrium(book)
+            halt_source = cb.halt_source
+            expansions = cb.expansion_index
+            bounds = cb.corridor()
+
+            print_price: int | None = None
+            clamped = False
+            if indicative.eq_price is not None and indicative.eq_qty > 0:
+                print_price = indicative.eq_price
+                if bounds is not None:
+                    low, high = bounds
+                    if print_price > high:
+                        print_price, clamped = high, True
+                    elif print_price < low:
+                        print_price, clamped = low, True
+
+            cb.deactivate()
+            self._halted_symbols[symbol] = False
+
+            if print_price is None:
+                log.info(
+                    f"CLOSING BACKSTOP {symbol}: no crossing interest, "
+                    f"halt cleared after {expansions} ACE extension(s)"
+                )
+            else:
+                log.info(
+                    f"CLOSING BACKSTOP {symbol}: "
+                    f"indicative={indicative.eq_price} ticks "
+                    + (
+                        f"outside [{bounds[0]}, {bounds[1]}] -> clamped to "
+                        f"{print_price} ({indicative.imbalance_side or 'no'} imbalance)"
+                        if clamped and bounds is not None
+                        else f"within corridor -> printing at {print_price}"
+                    )
+                    + f", after {expansions} ACE extension(s)"
+                )
+                self._run_uncross(
+                    symbol_filter=symbol,
+                    reason="BACKSTOP",
+                    price_override=print_price,
+                )
+
+            self.pub_sock.send_multipart(
+                encode(
+                    f"circuit_breaker.resume.{symbol}",
+                    {
+                        "symbol": symbol,
+                        "halt_source": halt_source,
+                        "reason": "CLOSING_BACKSTOP",
+                        "clamped": clamped,
+                        "print_price": (
+                            from_ticks(print_price, symbol)
+                            if print_price is not None
+                            else None
+                        ),
+                    },
+                )
+            )
+            self._mark_dirty(symbol)
 
     def _flush_circuit_breakers(self) -> None:
         """
-        Called once per poll loop tick.  Checks all halted symbols and resumes
-        trading for those whose ``halt_duration_ns`` has elapsed.
+        Called once per poll loop tick.  Checks all halted symbols and either
+        reopens them or extends their call phase under ACE.
 
         The halt itself is the reopening auction's call phase: LIMIT orders are
         accepted and rest while MARKET/FOK/IOC are rejected, and matching is
         disabled. Resuming therefore always uncrosses at the equilibrium price
         first — crossed interest accumulates during the call, so restarting
         continuous matching without an uncross would begin on a crossed book.
+
+        Automated Corridor Expansion (ACE) sits in front of that uncross. At
+        the end of each call phase the equilibrium is computed as a dry run;
+        if it falls outside the corridor the symbol does *not* reopen. The
+        corridor widens one rung and another call phase begins. Because the
+        ladder's last rung repeats, the corridor eventually contains any
+        finite price, so no extension cap is needed — see §120.
         """
         now = now_ns()
         for symbol, cb in self._circuit_breakers.items():
             if not cb.should_resume(now):
                 continue
+
+            # Dry run: what price *would* this reopen at?
+            book = self._book(symbol)
+            indicative = compute_equilibrium(book)
+            if (
+                indicative.eq_price is not None
+                and indicative.eq_qty > 0
+                and not cb.within_corridor(indicative.eq_price)
+            ):
+                before = cb.corridor()
+                cb.extend(now, self._reopening_rng)
+                after = cb.corridor()
+                assert before is not None and after is not None
+                log.info(
+                    f"ACE EXTEND {symbol}: indicative={indicative.eq_price} ticks "
+                    f"outside [{before[0]}, {before[1]}] -> "
+                    f"expansion={cb.expansion_index} "
+                    f"corridor=[{after[0]}, {after[1]}] "
+                    f"(+/-{cb.config.reopening.band_pct_at(cb.expansion_index):.1%}) "
+                    f"qty={indicative.eq_qty} next_call_ends={cb.resume_at_ns}"
+                )
+                self.pub_sock.send_multipart(
+                    encode(
+                        f"circuit_breaker.extend.{symbol}",
+                        {
+                            "symbol": symbol,
+                            "indicative_price": from_ticks(indicative.eq_price, symbol),
+                            "indicative_qty": indicative.eq_qty,
+                            "imbalance_side": indicative.imbalance_side,
+                            "resume_at_ns": cb.resume_at_ns,
+                            **self._corridor_payload(cb, symbol),
+                        },
+                    )
+                )
+                self._mark_dirty(symbol)
+                continue
+
             # Capture the halt source BEFORE deactivate() clears it.
             halt_source = cb.halt_source
+            expansions = cb.expansion_index
             cb.deactivate()
             self._halted_symbols[symbol] = False
             self._run_uncross(symbol_filter=symbol, reason="REOPEN")
@@ -1930,7 +2082,9 @@ class Engine:
                 )
             )
             self._mark_dirty(symbol)
-            log.info(f"CIRCUIT BREAKER RESUME {symbol}")
+            log.info(
+                f"CIRCUIT BREAKER RESUME {symbol}: after {expansions} ACE extension(s)"
+            )
 
     def _on_quote_leg_filled(self, order: Order) -> None:
         if not order.quote_id:
@@ -3044,6 +3198,12 @@ class Engine:
         if needs_uncross:
             self._run_uncross(reason="SCHEDULED")
 
+        # The end of the day terminates ACE. Runs after the scheduled uncross
+        # because the backstop can leave a book crossed on purpose, and the
+        # sweep must not undo that at the true equilibrium.
+        if to_state == SessionState.CLOSED:
+            self._run_closing_backstop()
+
         # --- Expire auction-only orders when their window closes ---
         if from_state == SessionState.OPENING_AUCTION:
             self._expire_tif(TIF.ATO)
@@ -3098,6 +3258,7 @@ class Engine:
         symbol_filter: str | None = None,
         *,
         reason: str,
+        price_override: int | None = None,
     ) -> None:
         """Run the equilibrium-price uncrossing on every (or one) symbol book.
 
@@ -3107,17 +3268,47 @@ class Engine:
                         Used by ``_flush_circuit_breakers()`` for per-symbol
                         reopening auctions.
         reason :        Why this uncross is happening — ``SCHEDULED``,
-                        ``REOPEN`` or ``RECOVERY``. Published on every
-                        ``auction.result`` so a consumer can tell a reopening
-                        auction from the closing one.
+                        ``REOPEN``, ``RECOVERY`` or ``BACKSTOP``. Published on
+                        every ``auction.result`` so a consumer can tell a
+                        reopening auction from the closing one.
+        price_override: Print at this price instead of the computed
+                        equilibrium. Used only by the closing backstop, where
+                        the corridor boundary is imposed on a symbol that
+                        could not reopen inside it. Executes less than the
+                        true equilibrium would, by design.
         """
         for symbol, book in self.books.items():
             if symbol_filter is not None and symbol != symbol_filter:
                 continue
+            # A halted symbol's reopen is governed by ACE, not by the session
+            # sweep. Uncrossing it here would print outside its corridor and
+            # bypass the extension ladder entirely. The per-symbol REOPEN call
+            # arrives after deactivate(), so it is unaffected by this guard.
+            if self._halted_symbols.get(symbol):
+                continue
             result = compute_equilibrium(book)
+            if price_override is not None and result.eq_price is not None:
+                result = AuctionResult(
+                    eq_price=price_override,
+                    eq_qty=result.eq_qty,
+                    surplus=result.surplus,
+                    imbalance_side=result.imbalance_side,
+                )
             trades: list[Any] = []
             if result.eq_price is not None and result.eq_qty > 0:
-                trades, events = execute_uncross(book, result.eq_price)
+                # Bind before any reassignment of `result` below, which would
+                # otherwise discard the `is not None` narrowing.
+                fill_px = result.eq_price
+                trades, events = execute_uncross(book, fill_px)
+                if price_override is not None:
+                    # Fewer shares trade at a clamped price than at the true
+                    # equilibrium; report what actually executed.
+                    result = AuctionResult(
+                        eq_price=result.eq_price,
+                        eq_qty=sum(t.quantity for t in trades),
+                        surplus=result.surplus,
+                        imbalance_side=result.imbalance_side,
+                    )
 
                 # H5: dedup fills — an order that crosses multiple counterparties
                 # in the uncross appears once per fill in `events`, each with the
@@ -3132,7 +3323,7 @@ class Engine:
                                     evt.gateway_id,
                                     evt.id,
                                     fill_qty=evt.quantity - evt.remaining_qty,
-                                    fill_price=from_ticks(result.eq_price, symbol),
+                                    fill_price=from_ticks(fill_px, symbol),
                                     remaining_qty=evt.remaining_qty,
                                     status=evt.status.value,
                                     order=evt.to_dict(),

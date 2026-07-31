@@ -556,7 +556,7 @@ pm-config-gen \
   --symbols AAPL MSFT \
   --gateways TRADER01 MM01:MARKET_MAKER \
   --symbol-opts AAPL:tick_decimals=2,level=L1,mm_spread_ticks=8 \
-  --symbol-opts MSFT:dynamic_band=0.03,cb_halt_l1=10,cb_resumption_l1=CONTINUOUS \
+  --symbol-opts MSFT:dynamic_band=0.03,cb_halt_l1=10,ace_initial_band=0.05 \
   --symbol-opts AAPL:enforce_mm_obligation=true
 ```
 
@@ -569,7 +569,9 @@ Supported `KEY` values:
 | `dynamic_band`                                                             | float `(0,1)`             | Symbol collar dynamic band                                          |
 | `cb_shift_l1` / `cb_shift_l2` / `cb_shift_l3`                             | float `(0,1)`             | Override CB level shift pct                                         |
 | `cb_halt_l1` / `cb_halt_l2` / `cb_halt_l3`                                | int `>= 0` minutes        | Override CB halt duration (`0` means rest-of-day)                  |
-| `cb_resumption_l1` / `cb_resumption_l2` / `cb_resumption_l3`              | `AUCTION` or `CONTINUOUS` | Override CB level resumption mode for that symbol                   |
+| `ace_enabled`                                                              | `true` / `false`          | Enable or disable Automated Corridor Expansion for that symbol       |
+| `ace_initial_band`                                                         | float `(0,1)`             | Symbol reopening corridor half-width                                 |
+| `ace_random_end_ns`                                                        | int `>= 0` ns             | Symbol random-end bound (`0` = predictable reopen times)             |
 | `level`                                                                    | string                    | Symbol risk level key                                               |
 | `mm_spread_ticks`                                                          | int `> 0`                 | Symbol MM spread threshold                                          |
 | `mm_min_qty`                                                               | int `> 0`                 | Symbol MM minimum quantity                                          |
@@ -965,7 +967,7 @@ pm-config-gen \
   --symbols AAPL TSLA \
   --gateways TRADER01 OPS01:ADMIN \
   --cb-levels L1:0.07:5 L2:0.13:15 L3:0.20 \
-  --symbol-opts TSLA:cb_resumption_l2=CONTINUOUS \
+  --symbol-opts TSLA:ace_initial_band=0.05 \
   --output engine_config.yaml
 ```
 
@@ -2676,6 +2678,22 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 |---|---|---:|---|---|---|
 | `reference_window_ns` | int | No | `300000000000` (5 min) | Positive integer nanoseconds | Coerced to `int` |
 | `levels` | mapping | No | Built-in L1/L2/L3 ladder only when a CB section is present but omits `levels` | Level name → level config mapping | Values must be mappings |
+| `reopening` | mapping | No | Built-in ACE defaults | Automated Corridor Expansion settings | Merges field-by-field over defaults |
+
+### `circuit_breaker_defaults.reopening` and `symbols.<SYMBOL>.circuit_breaker.reopening` fields
+
+Governs how a circuit-breaker halt ends — see
+[Risk Controls - Automated Corridor Expansion](120-risk-controls.md#automated-corridor-expansion-ace).
+
+| Field | Type | Required | Default | Allowed values / range | Constraint |
+|---|---|---:|---|---|---|
+| `enabled` | bool | No | `true` | `true` / `false` | When `false` a halt reopens at the equilibrium price with no corridor |
+| `initial_band_pct` | float | No | `0.10` | `(0, 1)` exclusive | Corridor half-width as a fraction of the CB reference price |
+| `expansions` | list | No | `[{0.10, 2 min}, {0.20, 5 min}]` | Non-empty list of mappings | The final entry repeats indefinitely |
+| `expansions[].widen_pct` | float | Yes within an entry | — | `(0, 1)` exclusive | Added to the half-width; additive on the reference, not compounding |
+| `expansions[].min_duration_ns` | int | Yes within an entry | — | Positive integer nanoseconds | Minimum length of that extension's call phase |
+| `random_end_max_ns` | int | No | `30000000000` (30 s) | `>= 0` nanoseconds | Uniform random tail added to every call phase; `0` disables it |
+| `random_seed` | int or null | No | `null` | Integer or `null` | Engine-wide. **Only valid under `circuit_breaker_defaults`**; per-symbol is an error |
 
 ### `circuit_breaker_defaults.levels.<LEVEL>` and `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>` fields
 

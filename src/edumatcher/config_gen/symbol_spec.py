@@ -16,6 +16,12 @@ class SymbolOverride:
     mm_spread_ticks: int | None = None
     mm_min_qty: int | None = None
     enforce_mm_obligation: bool | None = None
+    # ACE reopening overrides. The expansion ladder itself is exchange-level
+    # here — a list of rungs does not fit a comma-separated option — but the
+    # loader does accept a per-symbol `expansions:` when hand-edited.
+    ace_enabled: bool | None = None
+    ace_initial_band_pct: float | None = None
+    ace_random_end_max_ns: int | None = None
 
 
 _ALLOWED_KEYS = {
@@ -32,6 +38,9 @@ _ALLOWED_KEYS = {
     "mm_spread_ticks",
     "mm_min_qty",
     "enforce_mm_obligation",
+    "ace_enabled",
+    "ace_initial_band",
+    "ace_random_end_ns",
 }
 
 
@@ -172,6 +181,29 @@ def _apply_symbol_option(
                 override.enforce_mm_obligation = False
             else:
                 raise ValueError("enforce_mm_obligation must be true or false")
+            return
+
+        if key == "ace_enabled":
+            if value.lower() in ("true", "1", "yes"):
+                override.ace_enabled = True
+            elif value.lower() in ("false", "0", "no"):
+                override.ace_enabled = False
+            else:
+                raise ValueError("ace_enabled must be true or false")
+            return
+
+        if key == "ace_initial_band":
+            parsed_float = float(value)
+            if not (0 < parsed_float < 1):
+                raise ValueError("ace_initial_band must be in (0, 1)")
+            override.ace_initial_band_pct = parsed_float
+            return
+
+        if key == "ace_random_end_ns":
+            parsed_int = int(value)
+            if parsed_int < 0:
+                raise ValueError("ace_random_end_ns must be >= 0")
+            override.ace_random_end_max_ns = parsed_int
             return
 
     except ValueError as exc:

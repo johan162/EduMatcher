@@ -19,6 +19,18 @@ DEFAULT_CB_LEVEL_SPECS = (
     "L3:0.20",
 )
 
+# Automated Corridor Expansion (ACE) — see docs/user-guide/120-risk-controls.md.
+DEFAULT_ACE_ENABLED = True
+DEFAULT_ACE_INITIAL_BAND_PCT = 0.10
+DEFAULT_ACE_RANDOM_END_MAX_NS = 30_000_000_000
+#: (widen_pct, min_duration_ns) per rung; the last rung repeats indefinitely.
+#: This is Nasdaq's published ladder (Rule 4120(c)(7)): 10% then 20% every
+#: period thereafter.
+DEFAULT_ACE_EXPANSIONS = (
+    (0.10, 120_000_000_000),
+    (0.20, 300_000_000_000),
+)
+
 DEFAULT_MM_SPREAD_TICKS = 20
 DEFAULT_MM_MIN_QTY = 100
 DEFAULT_MM_STUB_QTY = 1000

@@ -74,6 +74,12 @@ def _maximal_spec() -> ConfigSpec:
         static_band_pct=0.20,
         dynamic_band_pct=0.02,
         cb_levels=[parse_cb_spec("L1:0.07:5"), parse_cb_spec("L2:0.13:15")],
+        # Deliberately none of the ReopeningConfig dataclass defaults. If the
+        # compiler drops the block the dataclass default fills in silently,
+        # and a spec that matched those defaults would notice nothing.
+        ace_initial_band_pct=0.13,
+        ace_random_end_max_ns=7_000_000_000,
+        ace_expansions=[(0.11, 60_000_000_000), (0.23, 180_000_000_000)],
     )
 
 
@@ -139,6 +145,30 @@ class TestGeneratedFieldsReachTheArtifact:
         config, payload = compiled
         assert payload["country"] == "Germany"
         assert config.engine.country == "Germany"
+
+    def test_the_ace_reopening_block_survives_specifically(
+        self, compiled: tuple[CompiledConfig, dict[str, object]]
+    ) -> None:
+        # `circuit_breaker_defaults` above only asserts the block is reachable,
+        # which would still pass if `reopening` were silently dropped. ACE
+        # governs whether a halted symbol may reopen at all, so a compiler that
+        # lost it would reopen every halt uncollared without saying so.
+        config, payload = compiled
+        cb_defaults = payload["circuit_breaker_defaults"]
+        assert isinstance(cb_defaults, dict)
+        generated = cb_defaults["reopening"]
+        assert isinstance(generated, dict)
+
+        for symbol in config.engine.symbols.values():
+            assert symbol.circuit_breaker is not None
+            landed = symbol.circuit_breaker.reopening
+            assert landed.enabled == generated["enabled"]
+            assert landed.initial_band_pct == generated["initial_band_pct"]
+            assert landed.random_end_max_ns == generated["random_end_max_ns"]
+            assert [
+                {"widen_pct": e.widen_pct, "min_duration_ns": e.min_duration_ns}
+                for e in landed.expansions
+            ] == generated["expansions"]
 
 
 class TestIndexReferenceDataIsDerivable:

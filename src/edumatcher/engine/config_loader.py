@@ -33,7 +33,11 @@ from edumatcher.models.mm_obligation import MarketMakerObligation
 # names present in this module's namespace. Neither module imports this one,
 # so there is no cycle to avoid.
 from edumatcher.engine.collar import CollarConfig
-from edumatcher.engine.circuit_breaker import CircuitBreakerConfig
+from edumatcher.engine.circuit_breaker import (
+    CircuitBreakerConfig,
+    ExpansionLevel,
+    ReopeningConfig,
+)
 
 _DEFAULT_MM_MAX_SPREAD_TICKS = 10
 _DEFAULT_MM_MIN_QTY = 100
@@ -50,6 +54,96 @@ _DEFAULT_CB_LEVELS: dict[str, dict[str, Any]] = {
 
 
 DEFAULT_COUNTRY = "Sweden"
+
+
+def _parse_reopening(raw: Any, where: str) -> ReopeningConfig:
+    """Build a ReopeningConfig from an already-merged ``reopening`` mapping.
+
+    ``where`` names the owning block for error messages — either
+    ``circuit_breaker_defaults`` or ``symbols.<SYM>.circuit_breaker``.
+    """
+    if raw is None:
+        return ReopeningConfig()
+    if not isinstance(raw, dict):
+        raise ValueError(f"'{where}.reopening' must be a mapping")
+
+    defaults = ReopeningConfig()
+
+    enabled = raw.get("enabled", defaults.enabled)
+    if not isinstance(enabled, bool):
+        raise ValueError(f"'{where}.reopening.enabled' must be a boolean")
+
+    try:
+        initial_band_pct = float(raw.get("initial_band_pct", defaults.initial_band_pct))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"'{where}.reopening.initial_band_pct' must be numeric"
+        ) from exc
+    if not (0 < initial_band_pct < 1):
+        raise ValueError(f"'{where}.reopening.initial_band_pct' must be in (0, 1)")
+
+    try:
+        random_end_max_ns = int(
+            raw.get("random_end_max_ns", defaults.random_end_max_ns)
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"'{where}.reopening.random_end_max_ns' must be an integer"
+        ) from exc
+    if random_end_max_ns < 0:
+        raise ValueError(f"'{where}.reopening.random_end_max_ns' must be >= 0")
+
+    seed_raw = raw.get("random_seed")
+    if seed_raw is None:
+        random_seed: int | None = None
+    else:
+        try:
+            random_seed = int(seed_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"'{where}.reopening.random_seed' must be an integer or null"
+            ) from exc
+
+    expansions_raw = raw.get("expansions")
+    if expansions_raw is None:
+        expansions = list(defaults.expansions)
+    else:
+        if not isinstance(expansions_raw, list) or not expansions_raw:
+            raise ValueError(f"'{where}.reopening.expansions' must be a non-empty list")
+        expansions = []
+        for idx, rung_raw in enumerate(expansions_raw):
+            path = f"{where}.reopening.expansions[{idx}]"
+            if not isinstance(rung_raw, dict):
+                raise ValueError(f"'{path}' must be a mapping")
+            try:
+                widen_pct = float(rung_raw["widen_pct"])
+            except KeyError as exc:
+                raise ValueError(f"'{path}.widen_pct' is required") from exc
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"'{path}.widen_pct' must be numeric") from exc
+            if not (0 < widen_pct < 1):
+                raise ValueError(f"'{path}.widen_pct' must be in (0, 1)")
+            try:
+                min_duration_ns = int(rung_raw["min_duration_ns"])
+            except KeyError as exc:
+                raise ValueError(f"'{path}.min_duration_ns' is required") from exc
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"'{path}.min_duration_ns' must be an integer"
+                ) from exc
+            if min_duration_ns <= 0:
+                raise ValueError(f"'{path}.min_duration_ns' must be > 0")
+            expansions.append(
+                ExpansionLevel(widen_pct=widen_pct, min_duration_ns=min_duration_ns)
+            )
+
+    return ReopeningConfig(
+        enabled=enabled,
+        initial_band_pct=initial_band_pct,
+        expansions=expansions,
+        random_end_max_ns=random_end_max_ns,
+        random_seed=random_seed,
+    )
 
 
 def normalize_hhmm(raw: object) -> str | None:
@@ -202,6 +296,10 @@ class EngineConfig:
     country: str = DEFAULT_COUNTRY
     enforce_collars: bool = True
     enforce_circuit_breakers: bool = True
+    #: Seeds the generator that picks each reopening call phase's random end.
+    #: Engine-wide, so it lives here rather than on any one symbol. ``None``
+    #: seeds from OS entropy; set an integer for reproducible demos and tests.
+    reopening_random_seed: int | None = None
 
     @property
     def allowed_symbols(self) -> frozenset[str]:
@@ -559,8 +657,32 @@ def load_engine_config(path: Path) -> EngineConfig:
                 effective_cb_raw.update(cb_defaults_raw)
             if isinstance(cb_raw, dict):
                 for key, value in cb_raw.items():
-                    if key != "levels":
-                        effective_cb_raw[key] = value
+                    if key == "levels":
+                        continue
+                    if key == "reopening":
+                        # Merge field-by-field so a symbol can override one
+                        # ACE setting without restating the whole block.
+                        base_reopening = effective_cb_raw.get("reopening")
+                        merged_reopening = (
+                            dict(base_reopening)
+                            if isinstance(base_reopening, dict)
+                            else {}
+                        )
+                        if not isinstance(value, dict):
+                            raise ValueError(
+                                f"Symbol '{sym}': circuit_breaker.reopening "
+                                "must be a mapping"
+                            )
+                        if "random_seed" in value:
+                            raise ValueError(
+                                f"Symbol '{sym}': circuit_breaker.reopening."
+                                "random_seed is engine-wide; set it in "
+                                "circuit_breaker_defaults"
+                            )
+                        merged_reopening.update(value)
+                        effective_cb_raw["reopening"] = merged_reopening
+                        continue
+                    effective_cb_raw[key] = value
 
             merged_levels: dict[str, dict[str, Any]] = {}
             defaults_levels = (
@@ -657,6 +779,11 @@ def load_engine_config(path: Path) -> EngineConfig:
                     )
                 )
 
+            reopening_cfg = _parse_reopening(
+                effective_cb_raw.get("reopening"),
+                f"symbols.{sym}.circuit_breaker",
+            )
+
             try:
                 cb_cfg = CircuitBreakerConfig(
                     symbol=sym,
@@ -664,6 +791,7 @@ def load_engine_config(path: Path) -> EngineConfig:
                         effective_cb_raw.get("reference_window_ns", 300_000_000_000)
                     ),
                     levels=sorted(levels, key=lambda lvl: lvl.price_shift_pct),
+                    reopening=reopening_cfg,
                 )
             except (TypeError, ValueError) as exc:
                 raise ValueError(
@@ -1146,4 +1274,12 @@ def load_engine_config(path: Path) -> EngineConfig:
         country=country,
         enforce_collars=enforce_collars_raw,
         enforce_circuit_breakers=enforce_cb_raw,
+        reopening_random_seed=_parse_reopening(
+            (
+                cb_defaults_raw.get("reopening")
+                if isinstance(cb_defaults_raw, dict)
+                else None
+            ),
+            "circuit_breaker_defaults",
+        ).random_seed,
     )
