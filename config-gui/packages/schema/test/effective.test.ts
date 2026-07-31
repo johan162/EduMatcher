@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bandPctAt,
   createBlankDraft,
   createGateway,
   createIndex,
@@ -53,7 +54,7 @@ describe("resolveEffectiveSymbol", () => {
     const d = draftWith();
     d.symbols.AAPL!.circuitBreaker = {
       referenceWindowNs: 600_000_000_000,
-      levels: { L1: { priceShiftPct: 0.05, resumptionMode: "CONTINUOUS" }, L3: { haltDurationNs: null } },
+      levels: { L1: { priceShiftPct: 0.05 }, L3: { haltDurationNs: null } },
     };
     const eff = resolveEffectiveSymbol(d, "AAPL")!;
     expect(eff.circuitBreaker.windowOverridden).toBe(true);
@@ -61,12 +62,45 @@ describe("resolveEffectiveSymbol", () => {
     const l1 = eff.circuitBreaker.levels.find((l) => l.name === "L1")!;
     expect(l1.priceShiftPct).toBeCloseTo(0.05, 6);
     expect(l1.shiftOverridden).toBe(true);
-    expect(l1.resumptionMode).toBe("CONTINUOUS");
     // L1 halt not overridden -> inherits the global ladder value.
     expect(l1.haltOverridden).toBe(false);
     const l3 = eff.circuitBreaker.levels.find((l) => l.name === "L3")!;
     expect(l3.haltOverridden).toBe(true);
     expect(l3.haltDurationNs).toBeNull();
+  });
+
+  it("resolves ACE per symbol, marking which fields are overridden", () => {
+    const d = draftWith();
+    d.symbols.AAPL!.circuitBreaker = {
+      levels: {},
+      reopening: { initialBandPct: 0.03 },
+    };
+    const eff = resolveEffectiveSymbol(d, "AAPL")!.circuitBreaker.reopening;
+
+    expect(eff.initialBandPct).toBeCloseTo(0.03, 6);
+    expect(eff.initialBandOverridden).toBe(true);
+    // Untouched fields inherit, and say so.
+    expect(eff.enabled).toBe(true);
+    expect(eff.enabledOverridden).toBe(false);
+    expect(eff.randomEndOverridden).toBe(false);
+  });
+
+  it("widens the corridor additively on the reference, not compounding", () => {
+    // Nasdaq's published example: a $100 reference gives 90/110, 80/120,
+    // 60/140. The GUI preview must agree with the engine or it shows a
+    // corridor the exchange will not use.
+    const d = draftWith();
+    const ace = d.circuitBreakerDefaults.reopening;
+
+    expect([0, 1, 2].map((n) => bandPctAt(ace, n))).toEqual([0.1, 0.2, 0.4]);
+  });
+
+  it("repeats the final rung so the corridor never stops widening", () => {
+    const d = draftWith();
+    const ace = d.circuitBreakerDefaults.reopening;
+
+    // This is why there is no maximum-extensions setting.
+    expect(bandPctAt(ace, 5)).toBeGreaterThan(bandPctAt(ace, 4));
   });
 
   it("resolves MM obligations and surfaces per-gateway overrides", () => {

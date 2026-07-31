@@ -2689,7 +2689,7 @@ Governs how a circuit-breaker halt ends — see
 |---|---|---:|---|---|---|
 | `enabled` | bool | No | `true` | `true` / `false` | When `false` a halt reopens at the equilibrium price with no corridor |
 | `initial_band_pct` | float | No | `0.10` | `(0, 1)` exclusive | Corridor half-width as a fraction of the CB reference price |
-| `expansions` | list | No | `[{0.10, 2 min}, {0.20, 5 min}]` | Non-empty list of mappings | The final entry repeats indefinitely |
+| `expansions` | list | No | `[{0.10, 2 min}, {0.20, 5 min}]` | Non-empty list of mappings | The final entry repeats indefinitely. **Only valid under `circuit_breaker_defaults`**; per-symbol is an error (`S112`) |
 | `expansions[].widen_pct` | float | Yes within an entry | — | `(0, 1)` exclusive | Added to the half-width; additive on the reference, not compounding |
 | `expansions[].min_duration_ns` | int | Yes within an entry | — | Positive integer nanoseconds | Minimum length of that extension's call phase |
 | `random_end_max_ns` | int | No | `30000000000` (30 s) | `>= 0` nanoseconds | Uniform random tail added to every call phase; `0` disables it |

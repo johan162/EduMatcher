@@ -194,7 +194,7 @@ reporting scripts.
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
-### Layer 2 — Schema (`S001`–`S111`)
+### Layer 2 — Schema (`S001`–`S112`)
 
 **Top-level structure**
 
@@ -321,10 +321,12 @@ Applied to both `circuit_breaker_defaults.reopening` and each
 | `S109` | `reopening.expansions[].min_duration_ns` is missing or not `> 0`          |
 | `S110` | `reopening.random_seed` is set on a symbol — it is engine-wide and belongs in `circuit_breaker_defaults` |
 | `S111` | `reopening.random_end_max_ns` is not an integer `>= 0`                    |
+| `S112` | `reopening.expansions` is set on a symbol — the ladder is exchange-wide and belongs in `circuit_breaker_defaults` |
 
-`S110` is an error rather than a warning because a per-symbol seed would be
-accepted, stored and then silently ignored: the random-end generator is one
-engine-wide instance, so the symbol would appear configured while behaving
+`S110` and `S112` are errors rather than warnings because both keys would
+otherwise be accepted, stored and then ignored. The random-end generator is one
+engine-wide instance, and the expansion ladder is read from the exchange
+defaults, so in each case the symbol would appear configured while behaving
 exactly as if it were not.
 
 **MM obligation defaults (`mm_obligation_defaults`)**

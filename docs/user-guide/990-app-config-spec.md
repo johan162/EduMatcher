@@ -314,7 +314,7 @@ rejected; define circuit breakers under `circuit_breaker_defaults` (§5.6) inste
 |-------|------|:---:|---------|-------------|
 | `enabled` | `Bool` | – | `true` | – |
 | `initial_band_pct` | `Pct01` | – | `0.10` | `0 < x < 1` |
-| `expansions` | `List<ExpansionSpec>` | – | `[{0.10, 120e9}, {0.20, 300e9}]` | non-empty; final entry repeats indefinitely |
+| `expansions` | `List<ExpansionSpec>` | – | `[{0.10, 120e9}, {0.20, 300e9}]` | non-empty; final entry repeats indefinitely; only valid under `circuit_breaker_defaults` |
 | `random_end_max_ns` | `Nanos` | – | `30000000000` | `>= 0`; `0` disables the random end |
 | `random_seed` | `Int` \| `null` | – | `null` | engine-wide; only valid under `circuit_breaker_defaults` |
 
@@ -545,7 +545,7 @@ rejected at load.
 | CV10 | `indices` has ≤ 5 entries; each `id` is alphanumeric and unique; each constituent exists in `symbols` and defines `outstanding_shares`; constituents are non-empty and duplicate-free. |
 | CV11 | Every key of `mm_obligation_defaults.symbols` references a symbol that exists in `symbols`. |
 | CV12 | `collar.*_band_pct` ∈ (0,1); `circuit_breaker.levels.<L>.price_shift_pct` ∈ (0,1); `halt_duration_ns` is `> 0` or `null`. |
-| CV13 | `circuit_breaker.reopening.initial_band_pct` and every `expansions[].widen_pct` ∈ (0,1); `expansions` is non-empty; `expansions[].min_duration_ns` is `> 0`; `random_end_max_ns` is `>= 0`; `random_seed` appears only under `circuit_breaker_defaults`. |
+| CV13 | `circuit_breaker.reopening.initial_band_pct` and every `expansions[].widen_pct` ∈ (0,1); `expansions` is non-empty; `expansions[].min_duration_ns` is `> 0`; `random_end_max_ns` is `>= 0`; `random_seed` and `expansions` appear only under `circuit_breaker_defaults`. |
 | CV13 | `symbols.<S>.tick_decimals` ∈ 0..8; `outstanding_shares`, when present, `> 0`. |
 | CV14 | (`pm-alf-gwy`, `pm-balf-gwy`) No `gateways.alf` id may be a prefix of another id. |
 | CV15 | (`pm-api-gwy`) The singular `api_gateway` key is not supported; a `gateway_id` credential MUST NOT be shared across two `api_gateways` instances. |

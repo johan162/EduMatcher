@@ -154,7 +154,6 @@ export function SymbolOverviewDialog({ open, onOpenChange, symbol }: Props) {
                       <th className="py-1">Level</th>
                       <th className="py-1">Shift %</th>
                       <th className="py-1">Halt</th>
-                      <th className="py-1">Resumption</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -167,9 +166,6 @@ export function SymbolOverviewDialog({ open, onOpenChange, symbol }: Props) {
                         <td className={clsx("py-1", l.haltOverridden && "text-accent font-medium")} title={l.haltOverridden ? "per-symbol override" : "inherited"}>
                           {haltLabel(l.haltDurationNs)}
                         </td>
-                        <td className={clsx("py-1", l.resumptionOverridden && "text-accent font-medium")} title={l.resumptionOverridden ? "per-symbol override" : "inherited"}>
-                          {l.resumptionMode}
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -177,6 +173,44 @@ export function SymbolOverviewDialog({ open, onOpenChange, symbol }: Props) {
                 <p className="mt-1 text-xs text-fg-subtle">
                   Values in accent are per-symbol overrides; the rest inherit the global ladder.
                 </p>
+
+                <DefRow label="Reopening (ACE)">
+                  {eff.circuitBreaker.reopening.enabled ? "on" : "off"}
+                  <Src>
+                    {eff.circuitBreaker.reopening.enabledOverridden
+                      ? "per-symbol override"
+                      : "global default"}
+                  </Src>
+                </DefRow>
+                {eff.circuitBreaker.reopening.enabled && (
+                  <>
+                    <DefRow label="Initial corridor">
+                      ±{fractionToPercent(eff.circuitBreaker.reopening.initialBandPct)}%
+                      <Src>
+                        {eff.circuitBreaker.reopening.initialBandOverridden
+                          ? "per-symbol override"
+                          : "global default"}
+                      </Src>
+                    </DefRow>
+                    <DefRow label="Random end">
+                      {eff.circuitBreaker.reopening.randomEndMaxNs / 1_000_000_000}s
+                      <Src>
+                        {eff.circuitBreaker.reopening.randomEndOverridden
+                          ? "per-symbol override"
+                          : "global default"}
+                      </Src>
+                    </DefRow>
+                    <p className="mt-1 text-xs text-fg-subtle">
+                      Corridor widens ±
+                      {eff.circuitBreaker.reopening.bandPctByExpansion
+                        .slice(0, 4)
+                        .map((p) => `${fractionToPercent(p).toFixed(1)}%`)
+                        .join(" → ±")}{" "}
+                      → … until the reopening price fits, then prints. Still halted at the
+                      close? It prints at the corridor boundary.
+                    </p>
+                  </>
+                )}
               </Section>
 
               {/* Market maker */}

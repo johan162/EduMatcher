@@ -24,7 +24,8 @@ import type {
   EngineConfigDraft,
   GatewayMmObligationOverride,
   MmQuoteSeed,
-  ResumptionMode,
+  ReopeningConfig,
+  ReopeningOverride,
   Tif,
 } from "./types.js";
 
@@ -85,8 +86,18 @@ export interface EffectiveCbLevel {
   shiftOverridden: boolean;
   haltDurationNs: number | null;
   haltOverridden: boolean;
-  resumptionMode: ResumptionMode;
-  resumptionOverridden: boolean;
+}
+
+/** Resolved ACE settings for one symbol, with provenance for the UI. */
+export interface EffectiveReopening {
+  enabled: boolean;
+  enabledOverridden: boolean;
+  initialBandPct: number;
+  initialBandOverridden: boolean;
+  randomEndMaxNs: number;
+  randomEndOverridden: boolean;
+  /** Corridor half-widths after 0..n extensions, for previewing the ladder. */
+  bandPctByExpansion: number[];
 }
 
 export interface EffectiveCircuitBreaker {
@@ -94,6 +105,51 @@ export interface EffectiveCircuitBreaker {
   referenceWindowNs: number;
   windowOverridden: boolean;
   levels: EffectiveCbLevel[];
+  reopening: EffectiveReopening;
+}
+
+/**
+ * Corridor half-width after `n` extensions.
+ *
+ * Widening is additive on the reference price rather than compounding on the
+ * previous width, and the ladder's final rung repeats indefinitely — which is
+ * what lets the corridor eventually contain any finite price, and why there is
+ * no maximum-extensions setting. Mirrors ReopeningConfig.band_pct_at() in
+ * engine/circuit_breaker.py; the two must agree or the GUI previews a
+ * corridor the engine will not use.
+ */
+export function bandPctAt(reopening: ReopeningConfig, n: number): number {
+  let pct = reopening.initialBandPct;
+  if (reopening.expansions.length === 0) return pct;
+  for (let i = 0; i < n; i += 1) {
+    const rung =
+      reopening.expansions[Math.min(i, reopening.expansions.length - 1)]!;
+    pct += rung.widenPct;
+  }
+  return pct;
+}
+
+function resolveReopening(
+  global: ReopeningConfig,
+  override: ReopeningOverride | undefined,
+): EffectiveReopening {
+  return {
+    enabled: override?.enabled ?? global.enabled,
+    enabledOverridden: override?.enabled !== undefined,
+    initialBandPct: override?.initialBandPct ?? global.initialBandPct,
+    initialBandOverridden: override?.initialBandPct !== undefined,
+    randomEndMaxNs: override?.randomEndMaxNs ?? global.randomEndMaxNs,
+    randomEndOverridden: override?.randomEndMaxNs !== undefined,
+    bandPctByExpansion: Array.from({ length: 5 }, (_, i) =>
+      bandPctAt(
+        {
+          ...global,
+          initialBandPct: override?.initialBandPct ?? global.initialBandPct,
+        },
+        i,
+      ),
+    ),
+  };
 }
 
 export interface EffectiveMmObligation {
@@ -202,10 +258,9 @@ export function resolveEffectiveSymbol(
         shiftOverridden: o?.priceShiftPct !== undefined,
         haltDurationNs: haltOverridden ? (o!.haltDurationNs as number | null) : g.haltDurationNs,
         haltOverridden,
-        resumptionMode: o?.resumptionMode ?? g.resumptionMode,
-        resumptionOverridden: o?.resumptionMode !== undefined,
       };
     }),
+    reopening: resolveReopening(cbDefaults.reopening, symbolCb?.reopening),
   };
 
   // --- Market maker ---------------------------------------------------------

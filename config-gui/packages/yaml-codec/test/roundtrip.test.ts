@@ -303,7 +303,7 @@ describe("buildConfigDocument", () => {
     ).toBe(0.05);
   });
 
-  it("emits and round-trips per-symbol CB halt (cool-off) and resumption overrides", () => {
+  it("emits and round-trips per-symbol CB halt (cool-off) overrides", () => {
     const draft = twoTraderExchange();
     draft.symbols.AAPL = {
       tickDecimals: 2,
@@ -311,7 +311,7 @@ describe("buildConfigDocument", () => {
       lastSellPrice: 100,
       circuitBreaker: {
         levels: {
-          L1: { haltDurationNs: 120_000_000_000, resumptionMode: "CONTINUOUS" },
+          L1: { haltDurationNs: 120_000_000_000 },
           L3: { haltDurationNs: null }, // rest-of-day override
         },
       },
@@ -319,7 +319,6 @@ describe("buildConfigDocument", () => {
     const doc = buildConfigDocument(draft) as any;
     expect(doc.symbols.AAPL.circuit_breaker.levels.L1).toEqual({
       halt_duration_ns: 120_000_000_000,
-      resumption_mode: "CONTINUOUS",
     });
     expect(doc.symbols.AAPL.circuit_breaker.levels.L3).toEqual({
       halt_duration_ns: null,
@@ -329,9 +328,53 @@ describe("buildConfigDocument", () => {
     const cb = reparsed.symbols.AAPL!.circuitBreaker!;
     expect(cb.levels.L1).toEqual({
       haltDurationNs: 120_000_000_000,
-      resumptionMode: "CONTINUOUS",
     });
     expect(cb.levels.L3!.haltDurationNs).toBeNull();
+  });
+
+  it("round-trips the exchange-wide ACE block", () => {
+    const draft = twoTraderExchange();
+    draft.circuitBreakerDefaults.reopening = {
+      enabled: true,
+      initialBandPct: 0.13,
+      expansions: [{ widenPct: 0.11, minDurationNs: 60_000_000_000 }],
+      randomEndMaxNs: 7_000_000_000,
+      randomSeed: 4242,
+    };
+    const doc = buildConfigDocument(draft) as any;
+    expect(doc.circuit_breaker_defaults.reopening).toEqual({
+      enabled: true,
+      initial_band_pct: 0.13,
+      random_end_max_ns: 7_000_000_000,
+      expansions: [{ widen_pct: 0.11, min_duration_ns: 60_000_000_000 }],
+      random_seed: 4242,
+    });
+
+    const { draft: reparsed } = parseYamlToDraft(generateYaml(draft));
+    expect(reparsed.circuitBreakerDefaults.reopening).toEqual(
+      draft.circuitBreakerDefaults.reopening,
+    );
+  });
+
+  it("emits only the ACE keys a symbol actually overrides", () => {
+    // The engine merges reopening field-by-field, so restating the whole
+    // block would freeze a symbol against later changes to the default.
+    const draft = twoTraderExchange();
+    draft.symbols.AAPL = {
+      tickDecimals: 2,
+      lastBuyPrice: 100,
+      lastSellPrice: 100,
+      circuitBreaker: { levels: {}, reopening: { initialBandPct: 0.05 } },
+    };
+    const doc = buildConfigDocument(draft) as any;
+    expect(doc.symbols.AAPL.circuit_breaker.reopening).toEqual({
+      initial_band_pct: 0.05,
+    });
+
+    const { draft: reparsed } = parseYamlToDraft(generateYaml(draft));
+    expect(reparsed.symbols.AAPL!.circuitBreaker!.reopening).toEqual({
+      initialBandPct: 0.05,
+    });
   });
 
   it("converts combo leg decimal prices to ticks using tick_decimals", () => {

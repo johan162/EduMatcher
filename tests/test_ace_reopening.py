@@ -215,6 +215,53 @@ symbols:
         with pytest.raises(ValueError, match="random_seed"):
             load_engine_config(source)
 
+    def test_a_per_symbol_expansion_ladder_is_rejected(self, tmp_path: Path) -> None:
+        # The corridor's starting width describes the instrument; the
+        # escalation schedule describes how long the venue tolerates a
+        # suspended symbol. Keeping the ladder uniform is what makes halts
+        # comparable across the book — and an unenforced restriction is worse
+        # than either answer, since the config GUI drops what it cannot model.
+        source = self._write(
+            tmp_path,
+            """
+symbols:
+  AAPL:
+    tick_decimals: 2
+    circuit_breaker:
+      levels:
+        L1: {price_shift_pct: 0.07, halt_duration_ns: 300000000000}
+      reopening:
+        expansions:
+          - {widen_pct: 0.30, min_duration_ns: 600000000000}
+""",
+        )
+        with pytest.raises(ValueError, match="expansions is exchange-wide"):
+            load_engine_config(source)
+
+    def test_a_symbol_may_still_override_the_starting_corridor(
+        self, tmp_path: Path
+    ) -> None:
+        # The restriction is on the ladder only — the instrument-shaped part
+        # of ACE stays per symbol.
+        source = self._write(
+            tmp_path,
+            """
+symbols:
+  AAPL:
+    tick_decimals: 2
+    circuit_breaker:
+      levels:
+        L1: {price_shift_pct: 0.07, halt_duration_ns: 300000000000}
+      reopening:
+        initial_band_pct: 0.05
+        random_end_max_ns: 0
+""",
+        )
+        cb = load_engine_config(source).symbols["AAPL"].circuit_breaker
+        assert cb is not None
+        assert cb.reopening.initial_band_pct == 0.05
+        assert cb.reopening.random_end_max_ns == 0
+
     def test_the_engine_seed_is_read_from_the_defaults_block(
         self, tmp_path: Path
     ) -> None:

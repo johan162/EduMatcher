@@ -521,7 +521,7 @@ def _check_symbol_circuit_breaker(
         cb.get("reopening"),
         f"symbols.{sym}.circuit_breaker",
         results,
-        allow_seed=False,
+        is_defaults=False,
     )
 
     levels = cb.get("levels")
@@ -1180,13 +1180,14 @@ def _check_reopening(
     base_path: str,
     results: list[CheckResult],
     *,
-    allow_seed: bool,
+    is_defaults: bool,
 ) -> None:
-    """S104–S111 — the ``circuit_breaker.reopening`` block.
+    """S104–S112 — the ``circuit_breaker.reopening`` block.
 
     Shared by ``circuit_breaker_defaults`` and each symbol's inline override.
-    ``allow_seed`` is False for symbols: the random-end generator is
-    engine-wide, so a per-symbol seed would silently do nothing.
+    ``is_defaults`` is False for symbols, which gates the two engine-wide keys:
+    ``random_seed`` (one generator serves the whole engine) and ``expansions``
+    (the escalation schedule is venue policy, not an instrument property).
     """
     if reopening is None:
         return
@@ -1255,7 +1256,7 @@ def _check_reopening(
                 )
             )
 
-    if "random_seed" in reopening and not allow_seed:
+    if "random_seed" in reopening and not is_defaults:
         results.append(
             CheckResult(
                 code="S110",
@@ -1267,6 +1268,24 @@ def _check_reopening(
                 path=f"{path}.random_seed",
             )
         )
+
+    if "expansions" in reopening and not is_defaults:
+        results.append(
+            CheckResult(
+                code="S112",
+                severity=Severity.ERROR,
+                message=(
+                    f"'{path}.expansions' is exchange-wide and cannot be set "
+                    "per symbol."
+                ),
+                suggestion=(
+                    "Move the ladder to circuit_breaker_defaults.reopening. A "
+                    "symbol may still override initial_band_pct."
+                ),
+                path=f"{path}.expansions",
+            )
+        )
+        return
 
     expansions = reopening.get("expansions")
     if expansions is None:
@@ -1355,7 +1374,7 @@ def _check_cb_defaults(raw: dict[str, Any], results: list[CheckResult]) -> None:
         return
 
     _check_reopening(
-        cb.get("reopening"), "circuit_breaker_defaults", results, allow_seed=True
+        cb.get("reopening"), "circuit_breaker_defaults", results, is_defaults=True
     )
 
     levels = cb.get("levels")

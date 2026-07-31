@@ -679,6 +679,16 @@ def load_engine_config(path: Path) -> EngineConfig:
                                 "random_seed is engine-wide; set it in "
                                 "circuit_breaker_defaults"
                             )
+                        if "expansions" in value:
+                            # The corridor's starting width describes the
+                            # instrument; the escalation schedule describes how
+                            # long the exchange tolerates a suspended symbol,
+                            # which is a venue policy and uniform by design.
+                            raise ValueError(
+                                f"Symbol '{sym}': circuit_breaker.reopening."
+                                "expansions is exchange-wide; set the ladder in "
+                                "circuit_breaker_defaults"
+                            )
                         merged_reopening.update(value)
                         effective_cb_raw["reopening"] = merged_reopening
                         continue

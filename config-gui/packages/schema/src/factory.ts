@@ -4,6 +4,9 @@ import {
   DEFAULT_API_GATEWAY,
   DEFAULT_BALF_GATEWAY,
   DEFAULT_CB_LADDER,
+  DEFAULT_ACE_EXPANSIONS,
+  DEFAULT_ACE_INITIAL_BAND_PCT,
+  DEFAULT_ACE_RANDOM_END_MAX_NS,
   DEFAULT_CB_WINDOW_NS,
   DEFAULT_COUNTRY,
   DEFAULT_DC_GATEWAY,
@@ -66,7 +69,6 @@ export function defaultCbLevels(): {
     levels[entry.name] = {
       priceShiftPct: entry.priceShiftPct,
       haltDurationNs: minutesToNs(entry.haltMinutes),
-      resumptionMode: entry.resumptionMode,
     };
     levelOrder.push(entry.name);
   }
@@ -297,6 +299,12 @@ export function createBlankDraft(): EngineConfigDraft {
       windowNs: DEFAULT_CB_WINDOW_NS,
       levels: cb.levels,
       levelOrder: cb.levelOrder,
+      reopening: {
+        enabled: true,
+        initialBandPct: DEFAULT_ACE_INITIAL_BAND_PCT,
+        expansions: DEFAULT_ACE_EXPANSIONS.map((r) => ({ ...r })),
+        randomEndMaxNs: DEFAULT_ACE_RANDOM_END_MAX_NS,
+      },
     },
     mmObligationDefaults: {
       enforceMmObligation: false,

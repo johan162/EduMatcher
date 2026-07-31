@@ -15,7 +15,6 @@ import {
   ORDER_TYPES,
   PARTICIPANT_ROLES,
   QUOTE_REFRESH_POLICIES,
-  RESUMPTION_MODES,
   SIDES,
   SMP_ACTIONS,
   TIF_VALUES,
@@ -33,10 +32,28 @@ export const scheduleSchema = z.object({
   closingEnd: timeString,
 });
 
+export const expansionRungSchema = z.object({
+  widenPct: z.number().gt(0).lt(1),
+  minDurationNs: z.number().int().positive(),
+});
+
+export const reopeningSchema = z.object({
+  enabled: z.boolean(),
+  initialBandPct: z.number().gt(0).lt(1),
+  expansions: z.array(expansionRungSchema).min(1),
+  randomEndMaxNs: z.number().int().nonnegative(),
+  randomSeed: z.number().int().optional(),
+});
+
+export const reopeningOverrideSchema = z.object({
+  enabled: z.boolean().optional(),
+  initialBandPct: z.number().gt(0).lt(1).optional(),
+  randomEndMaxNs: z.number().int().nonnegative().optional(),
+});
+
 export const cbLevelSchema = z.object({
   priceShiftPct: z.number().gt(0).lt(1),
   haltDurationNs: z.number().int().nonnegative().nullable(),
-  resumptionMode: z.enum(RESUMPTION_MODES),
 });
 
 export const mmQuoteStubSchema = z.object({
@@ -76,6 +93,7 @@ export const symbolConfigSchema = z.object({
     .object({
       referenceWindowNs: z.number().int().positive().optional(),
       levels: z.record(z.string(), cbLevelSchema.partial()),
+      reopening: reopeningOverrideSchema.optional(),
     })
     .optional(),
   marketMaker: z
@@ -279,6 +297,7 @@ export const engineConfigDraftSchema = z.object({
     windowNs: z.number().int().positive(),
     levels: z.record(z.string(), cbLevelSchema),
     levelOrder: z.array(z.string()),
+    reopening: reopeningSchema,
   }),
   mmObligationDefaults: z.object({
     enforceMmObligation: z.boolean(),

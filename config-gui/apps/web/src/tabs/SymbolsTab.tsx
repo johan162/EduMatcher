@@ -2,11 +2,9 @@ import { useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import clsx from "clsx";
 import {
-  RESUMPTION_MODES,
   effectiveDefaultCollar,
   type CbLevel,
   type MmQuoteSeed,
-  type ResumptionMode,
 } from "@edumatcher/schema";
 import { useDraftStore } from "@/store/draftStore";
 import { usePersona } from "@/lib/usePersona";
@@ -20,8 +18,9 @@ import { ColumnHead } from "@/components/ui/ColumnHead";
 import { MmQuotesEditor } from "@/components/symbols/MmQuotesEditor";
 import { SymbolEditorDialog } from "@/components/symbols/SymbolEditorDialog";
 import { SymbolOverviewDialog } from "@/components/symbols/SymbolOverviewDialog";
+import { SymbolOverridesTable } from "@/components/symbols/SymbolOverridesTable";
 
-/** Sentinel for "inherit the global ladder value" in the resumption dropdown. */
+/** Sentinel for "inherit the exchange default" in per-symbol dropdowns. */
 const CB_INHERIT = "__inherit__";
 
 export function SymbolsTab() {
@@ -125,6 +124,15 @@ export function SymbolsTab() {
           </div>
         </FieldRow>
       </Section>
+
+      {draft.symbolOrder.length > 0 && (
+        <Section
+          title="Per-symbol overrides"
+          description="Every symbol appears here. Greyed cells inherit the exchange default; type a value to override just that symbol. Select rows to change many at once."
+        >
+          <SymbolOverridesTable />
+        </Section>
+      )}
 
       {symbol && config ? (
         <div className="mt-6 grid grid-cols-[10rem_1fr] gap-4">
@@ -386,12 +394,6 @@ export function SymbolsTab() {
                               help="Halt until the close instead of a fixed duration. Leave off with a blank halt to inherit the global ladder value."
                             />
                           </th>
-                          <th className="px-3 py-2">
-                            <ColumnHead
-                              label="Resumption"
-                              help="How trading restarts once the halt clears: AUCTION runs an uncross before continuous trading resumes; CONTINUOUS reopens matching immediately. Blank inherits the global ladder value."
-                            />
-                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -473,22 +475,6 @@ export function SymbolsTab() {
                                       else delete lvl.haltDurationNs;
                                     })
                                   }
-                                />
-                              </td>
-                              <td className="px-3 py-1.5">
-                                <Select
-                                  aria-label={`${name} resumption override`}
-                                  value={override?.resumptionMode ?? CB_INHERIT}
-                                  onValueChange={(v) =>
-                                    mutateLevel((lvl) => {
-                                      if (v === CB_INHERIT) delete lvl.resumptionMode;
-                                      else lvl.resumptionMode = v as ResumptionMode;
-                                    })
-                                  }
-                                  options={[
-                                    { value: CB_INHERIT, label: "(inherit)" },
-                                    ...RESUMPTION_MODES.map((m) => ({ value: m, label: m })),
-                                  ]}
                                 />
                               </td>
                             </tr>

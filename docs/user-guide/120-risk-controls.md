@@ -627,6 +627,23 @@ The highest level where `price_shift >= price_shift_pct` fires.
 | `reopening.random_end_max_ns` | int | `30_000_000_000` | Upper bound of the uniform random tail on every call phase. `0` disables it |
 | `reopening.random_seed` | int or null | `null` | Engine-wide. **Only valid in `circuit_breaker_defaults`** — setting it per symbol is an error (`S110`) |
 
+Two of these are exchange-wide and rejected on a symbol: `random_seed` (`S110`)
+and `expansions` (`S112`). The split is deliberate. `initial_band_pct` answers
+*how volatile is this instrument normally* — a thin small-cap legitimately
+needs a wider reopening corridor than a liquid blue chip, so it varies per
+symbol. The ladder answers *how quickly does the exchange stop protecting the
+price and let it through*, which is venue policy rather than an instrument
+property; keeping it uniform is what makes halt durations comparable across the
+book.
+
+The line is not perfect — `min_duration_ns` lives in the ladder and is
+arguably instrument-shaped, since a thin name may need longer call phases for
+liquidity to arrive. Real venues disagree on where to draw it: Nasdaq varies
+nothing per security (the collar rule is universal; only the reference price
+differs), while Deutsche Börse publishes corridor widths *and* durations per
+instrument in reference data. EduMatcher sits between them, and enforces the
+choice rather than leaving it to whichever tool touched the file last.
+
 When `circuit_breaker_defaults` and symbol-level `circuit_breaker` are both
 present, per-symbol values override global defaults by level key. The
 `reopening` block merges field-by-field the same way, so a symbol can override
