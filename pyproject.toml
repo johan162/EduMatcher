@@ -155,7 +155,7 @@ disallow_incomplete_defs = false
 disallow_untyped_decorators = false
 warn_return_any = false
 check_untyped_defs = false
-disable_error_code = ["assignment", "call-overload", "type-arg"]
+disable_error_code = ["arg-type","assignment", "call-overload", "type-arg"]
 
 
 [tool.pyright]

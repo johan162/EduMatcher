@@ -79,13 +79,14 @@ market_data_gateway: {name: md-from-config, port: 6000}
         engine_pub="tcp://127.0.0.1:7000",
         index_pub="tcp://127.0.0.1:7001",
     )
-    cfg, symbols = _resolve_config(args)
+    cfg, symbols, tick_decimals = _resolve_config(args)
     assert cfg.name == "md-from-config"
     assert cfg.bind_address == "127.0.0.1"
     assert cfg.port == 6001
     assert cfg.engine_pub_addr == "tcp://127.0.0.1:7000"
     assert cfg.index_pub_addr == "tcp://127.0.0.1:7001"
     assert symbols == {"AAPL"}
+    assert tick_decimals == {"AAPL": 2}
 
 
 def test_main_exits_when_disabled(
@@ -122,8 +123,13 @@ gateways:
     called = {"run": False}
 
     class _DummyGateway:
-        def __init__(self, config: object, known_symbols: set[str]) -> None:
-            _ = (config, known_symbols)
+        def __init__(
+            self,
+            config: object,
+            known_symbols: set[str],
+            tick_decimals: dict[str, int],
+        ) -> None:
+            _ = (config, known_symbols, tick_decimals)
 
         def run(self) -> None:
             called["run"] = True

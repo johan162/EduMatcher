@@ -112,7 +112,7 @@ class TestOrderRequestSchemaValidation:
         with pytest.raises(ValidationError, match="side"):
             OrderRequest(
                 symbol="AAPL",
-                side="MIDDLE",  # type: ignore[arg-type]
+                side="MIDDLE",
                 order_type=OrderType.LIMIT,
                 quantity=10,
                 price=100.0,
@@ -124,7 +124,7 @@ class TestOrderRequestSchemaValidation:
             OrderRequest(
                 symbol="AAPL",
                 side=Side.BUY,
-                order_type="MAGIC",  # type: ignore[arg-type]
+                order_type="MAGIC",
                 quantity=10,
                 price=100.0,
             )
@@ -138,7 +138,7 @@ class TestOrderRequestSchemaValidation:
                 order_type=OrderType.LIMIT,
                 quantity=10,
                 price=100.0,
-                tif="FOREVER",  # type: ignore[arg-type]
+                tif="FOREVER",
             )
 
     # --- Test 4: zero quantity ---

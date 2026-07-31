@@ -326,7 +326,7 @@ async def test_reference_routes() -> None:
     summary = await reference.status_summary(request, session)
     assert summary["positions"]
     assert summary["gateway_role"] == "TRADER"
-    assert (await reference.healthz(request))["ok"] is True  # type: ignore[arg-type]  # test double
+    assert (await reference.healthz(request))["ok"] is True  # test double
 
 
 @pytest.mark.anyio
@@ -377,5 +377,5 @@ async def test_healthz_reports_unhealthy_when_not_running() -> None:
             )
         )
     )
-    result = await reference.healthz(request)  # type: ignore[arg-type]  # test double
+    result = await reference.healthz(request)  # test double
     assert result["ok"] is False

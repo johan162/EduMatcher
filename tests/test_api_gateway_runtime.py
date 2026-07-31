@@ -379,14 +379,14 @@ async def test_auth_dependency_success_and_failures() -> None:
             )
         )
     )
-    session = await auth(request, "Bearer good")  # type: ignore[arg-type]  # test double
+    session = await auth(request, "Bearer good")  # test double
     assert session.gateway_id == "GW01"
     with pytest.raises(Exception):
-        await auth(request, "Token nope")  # type: ignore[arg-type]  # test double
+        await auth(request, "Token nope")  # test double
     with pytest.raises(Exception):
-        await auth(request, "Bearer missing")  # type: ignore[arg-type]  # test double
+        await auth(request, "Bearer missing")  # test double
     with pytest.raises(Exception):
-        await auth(request, "Bearer bad")  # type: ignore[arg-type]  # test double
+        await auth(request, "Bearer bad")  # test double
 
 
 def prepare_history_db(path: Path) -> None:
@@ -429,7 +429,7 @@ async def test_history_routes(tmp_path: Path) -> None:
     )
     session = Session(api_key="key", gateway_id="GW01", description="")
     assert (
-        await history.history_orders(  # type: ignore[arg-type]  # test double
+        await history.history_orders(  # test double
             request,
             session,
             symbol=None,
@@ -440,11 +440,13 @@ async def test_history_routes(tmp_path: Path) -> None:
             limit=500,
         )
     )["count"] == 2
-    assert (await history.history_order_lifecycle("ORD1", request, session))[  # type: ignore[arg-type]  # test double
+    assert (
+        await history.history_order_lifecycle("ORD1", request, session)
+    )[  # test double
         "count"
     ] == 2
     assert (
-        await history.history_fills(  # type: ignore[arg-type]  # test double
+        await history.history_fills(  # test double
             request,
             session,
             symbol=None,
@@ -455,7 +457,7 @@ async def test_history_routes(tmp_path: Path) -> None:
         )
     )["count"] == 1
     assert (
-        await history.history_trades(  # type: ignore[arg-type]  # test double
+        await history.history_trades(  # test double
             request,
             session,
             symbol=None,
@@ -466,7 +468,7 @@ async def test_history_routes(tmp_path: Path) -> None:
         )
     )["count"] == 1
     assert (
-        await history.history_daily(  # type: ignore[arg-type]  # test double
+        await history.history_daily(  # test double
             request,
             session,
             symbol=None,
@@ -529,11 +531,11 @@ async def test_websocket_auth_controls_and_filtering() -> None:
             self.closed.append(code)
 
     authenticated = FakeWebSocket([{"api_key": "key"}])
-    assert await ws._authenticate_ws(authenticated) == ("key", "GW01")  # type: ignore[arg-type]  # test double
+    assert await ws._authenticate_ws(authenticated) == ("key", "GW01")  # test double
 
     rejected = FakeWebSocket([{"api_key": "bad"}])
     with pytest.raises(WebSocketDisconnect):
-        await ws._authenticate_ws(rejected)  # type: ignore[arg-type]  # test double
+        await ws._authenticate_ws(rejected)  # test double
     assert rejected.closed == [status.WS_1008_POLICY_VIOLATION]
 
     controls = FakeWebSocket(
@@ -546,7 +548,7 @@ async def test_websocket_auth_controls_and_filtering() -> None:
     symbols: set[str] = set()
     channels: set[str] = set()
     with pytest.raises(WebSocketDisconnect):
-        await ws._receive_market_controls(controls, symbols, channels)  # type: ignore[arg-type]  # test double
+        await ws._receive_market_controls(controls, symbols, channels)  # test double
     assert controls.sent[0]["data"] == {"symbols": ["AAPL"], "channels": ["trades"]}
     assert controls.sent[1]["data"] == {"symbols": [], "channels": []}
     assert controls.sent[2]["type"] == "error"
@@ -554,7 +556,7 @@ async def test_websocket_auth_controls_and_filtering() -> None:
     sender = FakeWebSocket([])
     queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     task = asyncio.create_task(
-        ws._send_market_data(sender, queue, {"AAPL"}, {"trades"})  # type: ignore[arg-type]  # test double
+        ws._send_market_data(sender, queue, {"AAPL"}, {"trades"})  # test double
     )
     await queue.put({"type": "session", "data": {}})
     await queue.put({"type": "trade", "data": {"symbol": "AAPL"}})
