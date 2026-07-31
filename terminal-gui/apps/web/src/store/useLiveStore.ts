@@ -74,6 +74,29 @@ interface LiveStore {
    * only ever shows the most recent screenful.
    */
   trades: TradeFrame[];
+
+  /**
+   * When each symbol last printed, as the trade frame's own timestamp.
+   *
+   * A grid cannot otherwise distinguish a price from ten seconds ago from one
+   * from three hours ago — both render identically, and on an exchange where
+   * most symbols are quiet most of the time that is the difference between a
+   * live market and a stale number wearing its colour. Unbounded, unlike the
+   * tape: one short string per listed symbol is flat in the symbol count, and
+   * the universe is the universe.
+   */
+  lastTradeTs: Record<string, string>;
+
+  /**
+   * Per-symbol display precision, from CALF `REF=` via the bridge's `hello`.
+   *
+   * Absent for a symbol means "the gateway did not say", which is answered
+   * with `DEFAULT_TICK_DECIMALS` at the point of formatting rather than by
+   * back-filling here — a real 2 and an assumed 2 are different claims, and
+   * only the former should be recorded as fact.
+   */
+  tickDecimals: Record<string, number>;
+
   /**
    * Latest live level and session per index, keyed by index id.
    *
@@ -133,6 +156,8 @@ const initialState = {
   sessionPrev: undefined,
   sessionSince: null,
   trades: [] as TradeFrame[],
+  lastTradeTs: {} as Record<string, string>,
+  tickDecimals: {} as Record<string, number>,
   indexLive: {} as Record<string, IndexFrame>,
   halted: {} as Record<string, HaltedSymbol>,
   haltEnded: {} as Record<string, HaltContextFrame>,
@@ -155,6 +180,11 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
         case "hello":
           return {
             symbols: frame.symbols,
+            // Merged, not replaced: a reconnect to a gateway that has lost its
+            // engine config would otherwise silently drop every symbol back to
+            // the default precision, which is the failure this field exists to
+            // prevent.
+            tickDecimals: { ...s.tickDecimals, ...frame.tickDecimals },
             indexes: frame.indexes,
             calf: frame.calf,
             gateway: frame.gateway,
@@ -198,7 +228,12 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
           // Newest first, bounded. The Overview still reads its last price
           // off `top` rather than from here, so a row's figures all describe
           // one moment; the tape is a separate record of individual prints.
-          return { trades: [frame, ...s.trades].slice(0, TRADE_BUFFER_MAX) };
+          // Only the *time* is taken per symbol, for the same reason — it says
+          // how fresh the row is without becoming a second source for its price.
+          return {
+            trades: [frame, ...s.trades].slice(0, TRADE_BUFFER_MAX),
+            lastTradeTs: { ...s.lastTradeTs, [frame.sym]: frame.ts },
+          };
 
         case "index":
           // Keyed by index id — an exchange may configure several, and the
@@ -213,7 +248,7 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
             },
           };
 
-        // Frames no view consumes yet.
+          // Frames no view consumes yet.
           return {};
       }
     }),

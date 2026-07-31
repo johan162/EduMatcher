@@ -28,7 +28,13 @@ def unit_gateway() -> Generator[MarketDataGateway, None, None]:
         idle_timeout_sec=1,
         replay_window_sec=5,
     )
-    gw = MarketDataGateway(cfg, known_symbols={"AAPL", "MSFT"})
+    gw = MarketDataGateway(
+        cfg,
+        known_symbols={"AAPL", "MSFT"},
+        # MSFT deliberately non-default, so a test that passes with the
+        # precision hardcoded to 2 cannot be mistaken for one that works.
+        tick_decimals={"AAPL": 2, "MSFT": 4},
+    )
     try:
         yield gw
     finally:
@@ -492,6 +498,79 @@ def test_symbols_request_sees_instruments_learned_since_connect(
 
     frame = parse_line(sess.out_queue[-1].decode("utf-8"))
     assert "NEWCO" in frame.fields["SYMBOLS"]
+    peer.close()
+
+
+def test_symbols_request_carries_per_symbol_display_precision(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """``REF`` is the only route a CALF client has to an instrument's precision.
+
+    The alternative source, ``GET /api/symbols``, requires a trading
+    credential, which a market data consumer has no business holding — so
+    without this field every client had to assume the default of 2 and be
+    quietly wrong about any instrument that is not.
+    """
+    sess, peer = _authenticated_session(unit_gateway)
+
+    unit_gateway._handle_client_line(sess, "SYMBOLS")
+
+    frame = parse_line(sess.out_queue[-1].decode("utf-8"))
+    assert sorted(frame.fields["REF"].split(",")) == ["AAPL:2", "MSFT:4"]
+    peer.close()
+
+
+def test_ref_covers_exactly_the_advertised_symbol_set(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """No symbol is listed in one field and missing from the other.
+
+    A symbol first seen on the engine bus has no configured precision; it is
+    reported at the default rather than omitted, so a client never has to
+    reason about a partially-populated REF.
+    """
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._known_symbols.add("NEWCO")
+
+    unit_gateway._handle_client_line(sess, "SYMBOLS")
+
+    frame = parse_line(sess.out_queue[-1].decode("utf-8"))
+    listed = sorted(frame.fields["SYMBOLS"].split(","))
+    referenced = sorted(entry.split(":")[0] for entry in frame.fields["REF"].split(","))
+    assert listed == referenced
+    assert "NEWCO:2" in frame.fields["REF"]
+    peer.close()
+
+
+def test_empty_universe_omits_ref_along_with_symbols(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """An empty REF= would be a claim about nothing rather than an absence."""
+    unit_gateway._known_symbols.clear()
+    sess, peer = _authenticated_session(unit_gateway)
+
+    unit_gateway._handle_client_line(sess, "SYMBOLS")
+
+    frame = parse_line(sess.out_queue[-1].decode("utf-8"))
+    assert "REF" not in frame.fields
+    peer.close()
+
+
+def test_welcome_carries_display_precision(unit_gateway: MarketDataGateway) -> None:
+    """Mirrored on the handshake, where SYMBOLS= already is.
+
+    Its *presence* is the capability signal — a client talking to a gateway
+    that predates the field falls back to the default knowingly rather than
+    accidentally, the same way CH_SUPPORTED works. No PROTO bump.
+    """
+    sess, peer = _make_session()
+    unit_gateway._clients[sess.sock.fileno()] = sess
+
+    unit_gateway._handle_client_line(sess, "HELLO|CLIENT=spy|PROTO=CALF1")
+
+    frame = parse_line(sess.out_queue[-1].decode("utf-8"))
+    assert frame.msg_type == "WELCOME"
+    assert sorted(frame.fields["REF"].split(",")) == ["AAPL:2", "MSFT:4"]
     peer.close()
 
 

@@ -94,7 +94,7 @@ code.**
 | `HELLO\|CLIENT=..\|PROTO=CALF1` | Open a session |
 | `RESUME\|CH=..\|SYM=..\|LASTSEQ=..` | Replay one stream from a known sequence; send one per stream on reconnect |
 | `SUB\|CH=..\|SYM=..` | Subscribe. Channels × symbols, comma-separated; `SYM=*` where allowed. Cumulative across lines |
-| `SYMBOLS` | Ask which instruments the gateway knows; replies `SYMBOLS\|COUNT=n\|SYMBOLS=..`. Repeatable — use this rather than relying on `WELCOME\|SYMBOLS=`, which is optional and sent once |
+| `SYMBOLS` | Ask which instruments the gateway knows; replies `SYMBOLS\|COUNT=n\|SYMBOLS=..\|REF=..`. Repeatable — use this rather than relying on `WELCOME\|SYMBOLS=`, which is optional and sent once |
 | `UNSUB\|CH=..\|SYM=..` | Cancel subscriptions (idempotent) |
 | `PING` | Liveness probe — gateway replies `PONG` |
 | `EXIT` | Close the session |
@@ -103,7 +103,7 @@ code.**
 
 | Message | Channel(s) | Meaning |
 |---------|-----------|---------|
-| `WELCOME` | — | Session accepted; carries `GW`, `HBINT`, `REPLAY`, `SYMBOLS`, `CH_SUPPORTED` |
+| `WELCOME` | — | Session accepted; carries `GW`, `HBINT`, `REPLAY`, `SYMBOLS`, `REF`, `CH_SUPPORTED` |
 | `SNAP` | TOP, STATE, INDEX, DEPTH, CB | Baseline snapshot for a stream — the `SEQ` you anchor on |
 | `MD` | TOP | Incremental top-of-book change (only the fields that changed) |
 | `TRADE` | TRADE | One executed trade |
@@ -240,6 +240,12 @@ This matters more for `pm-md-gwy` than for most processes. Its symbol
 universe comes from that file, and it is what `WELCOME|SYMBOLS=` and the
 `SYMBOLS` reply are built from; a gateway reading a different configuration
 from the engine would advertise an instrument list no client could trade.
+
+Each symbol's `tick_decimals` comes from the same file and is advertised in
+`REF=` (see [CALF protocol → `SYMBOLS`](920-app-calf-protocol.md)). It is the
+only route a market data client has to an instrument's display precision, so a
+gateway started without a readable engine config leaves every client rendering
+prices at the default of two decimals.
 
 
 ## Quick connect test
@@ -690,7 +696,7 @@ sequenceDiagram
 
     C->>G: TCP connect :5570
     C->>G: HELLO|CLIENT=mybot|PROTO=CALF1
-    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE
+    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|REF=AAPL:2,MSFT:4|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE
     C->>G: SUB|CH=TOP,TRADE|SYM=AAPL,MSFT
     G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|...
     G-->>C: SNAP|CH=TOP|SYM=MSFT|SEQ=55|...

@@ -11,8 +11,10 @@ import {
   CandlestickSeries,
   HistogramSeries,
   LineSeries,
+  LineStyle,
   createChart,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type Time,
 } from "lightweight-charts";
@@ -26,6 +28,17 @@ export interface PriceChartProps {
   midLive: LinePoint[];
   showCandles: boolean;
   showMidpoint: boolean;
+  /**
+   * The previous session's close, drawn as a horizontal reference.
+   *
+   * Without it the chart has nothing to judge the day against: a line that
+   * climbs all afternoon looks like a good day whether or not it started below
+   * where it finished yesterday. It is also the baseline the change figures
+   * above the chart are quoted from, so drawing it keeps the two agreeing.
+   */
+  prevClose?: number;
+  /** Session VWAP — the benchmark a print is "good" or "bad" relative to. */
+  vwap?: number;
   /** Pin the right edge and scroll with incoming ticks (the `Live` preset). */
   follow: boolean;
   theme: "dark" | "light";
@@ -124,6 +137,48 @@ export function PriceChart(props: PriceChartProps) {
     midPast.current?.setData(past.map((p) => ({ ...p, time: p.time as Time })));
     midNow.current?.setData(now.map((p) => ({ ...p, time: p.time as Time })));
   }, [props.midHistorical, props.midLive, props.showMidpoint]);
+
+  /*
+   * Reference lines, drawn regardless of the OHLC toggle — they are what the
+   * price is being compared *to*, so they outlast any one representation of
+   * it. Both are neutral grey and told apart by line style and axis label:
+   * green and red mean direction here and nothing else, and amber is already
+   * the live midpoint.
+   *
+   * `props.theme` is a dependency because the theme effect above recreates the
+   * series these attach to.
+   */
+  useEffect(() => {
+    const series = candles.current;
+    if (!series) return;
+
+    const colour = token("--fg-faint", "#5a6478");
+    const lines: IPriceLine[] = [];
+
+    const draw = (value: number | undefined, title: string, lineStyle: LineStyle) => {
+      if (value === undefined || !Number.isFinite(value)) return;
+      lines.push(
+        series.createPriceLine({
+          price: value,
+          color: colour,
+          lineWidth: 1,
+          lineStyle,
+          axisLabelVisible: true,
+          title,
+        }),
+      );
+    };
+
+    draw(props.prevClose, "prev close", LineStyle.LargeDashed);
+    draw(props.vwap, "VWAP", LineStyle.Dotted);
+
+    return () => {
+      // A series the theme effect has already torn down took its price lines
+      // with it; removing them again would be operating on a disposed object.
+      if (candles.current !== series) return;
+      for (const line of lines) series.removePriceLine(line);
+    };
+  }, [props.prevClose, props.vwap, props.theme]);
 
   useEffect(() => {
     if (props.follow) chartRef.current?.timeScale().scrollToRealTime();

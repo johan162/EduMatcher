@@ -16,12 +16,7 @@ describe("filterTape", () => {
   const tape = [print("TSLA", 4), print("AAPL", 3), print("MSFT", 2), print("AAPL", 1)];
 
   it("shows every symbol when unfiltered", () => {
-    expect(filterTape(tape, "__all__").map((t) => t.sym)).toEqual([
-      "TSLA",
-      "AAPL",
-      "MSFT",
-      "AAPL",
-    ]);
+    expect(filterTape(tape, "__all__").map((t) => t.sym)).toEqual(["TSLA", "AAPL", "MSFT", "AAPL"]);
   });
 
   it("narrows to one symbol without reordering", () => {

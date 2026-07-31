@@ -126,9 +126,7 @@ export function IndexView() {
             ))}
           </select>
         )}
-        <span className="text-2xl font-semibold tabular">
-          {price(snapshot?.level)}
-        </span>
+        <span className="text-2xl font-semibold tabular">{price(snapshot?.level)}</span>
         <span className={clsx("tabular", up ? "text-up" : "text-down")}>
           {chg === undefined ? ABSENT : `${up ? "+" : ""}${chg.toFixed(2)}`}
           {pctChg !== undefined && ` (${up ? "+" : ""}${pctChg.toFixed(2)}%)`}
@@ -170,11 +168,7 @@ export function IndexView() {
           <Row label="Low" value={price(todayRow?.low_level ?? undefined)} />
           <Row
             label="Aggregate cap"
-            value={
-              snapshot?.aggCap === undefined
-                ? ABSENT
-                : `${(snapshot.aggCap / 1e12).toFixed(2)}T`
-            }
+            value={snapshot?.aggCap === undefined ? ABSENT : `${(snapshot.aggCap / 1e12).toFixed(2)}T`}
           />
           <Row label="Session" value={snapshot?.session ?? ABSENT} />
         </dl>

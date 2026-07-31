@@ -130,7 +130,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 def _resolve_config(
     args: argparse.Namespace,
-) -> tuple[MarketDataGatewayConfig, set[str]]:
+) -> tuple[MarketDataGatewayConfig, set[str], dict[str, int]]:
     from edumatcher.config_artifact import load_compiled_config
 
     compiled = load_compiled_config()
@@ -150,7 +150,13 @@ def _resolve_config(
     #
     # The symbols come from the same compiled artifact as the gateway's own
     # settings, so the two can no longer describe different exchanges.
+    #
+    # Display precision comes from the same place for the same reason: it is
+    # per-symbol static reference data that CALF clients cannot obtain anywhere
+    # else, and a gateway advertising a symbol without its precision leaves
+    # every consumer to assume the default and be quietly wrong about the rest.
     known_symbols: set[str] = set()
+    tick_decimals: dict[str, int] = {}
     if compiled is None:
         log.warning(
             "no compiled configuration at %s — starting with no known symbols, "
@@ -160,6 +166,10 @@ def _resolve_config(
         )
     else:
         known_symbols = set(compiled.engine.symbols)
+        tick_decimals = {
+            sym: sym_cfg.tick_decimals
+            for sym, sym_cfg in compiled.engine.symbols.items()
+        }
         if not known_symbols:
             log.warning(
                 "the compiled configuration defines no symbols — WELCOME will "
@@ -184,6 +194,7 @@ def _resolve_config(
             depth_levels=cfg.depth_levels,
         ),
         known_symbols,
+        tick_decimals,
     )
 
 
@@ -197,7 +208,7 @@ def main() -> None:
     report_deployment(log)
 
     try:
-        config, known_symbols = _resolve_config(args)
+        config, known_symbols, tick_decimals = _resolve_config(args)
     except Exception as exc:
         log.error("failed to resolve configuration: %s", exc)
         parser.error(str(exc))
@@ -215,7 +226,9 @@ def main() -> None:
         config.index_pub_addr,
         len(known_symbols),
     )
-    gateway = MarketDataGateway(config=config, known_symbols=known_symbols)
+    gateway = MarketDataGateway(
+        config=config, known_symbols=known_symbols, tick_decimals=tick_decimals
+    )
     try:
         gateway.run()
     except Exception as exc:

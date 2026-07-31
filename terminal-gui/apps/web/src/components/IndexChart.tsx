@@ -7,13 +7,7 @@
  * is a pure function in `lib/index-series.ts`.
  */
 
-import {
-  LineSeries,
-  createChart,
-  type IChartApi,
-  type ISeriesApi,
-  type Time,
-} from "lightweight-charts";
+import { LineSeries, createChart, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
 import { useEffect, useRef } from "react";
 import type { IndexPoint } from "../lib/index-series.js";
 
@@ -61,9 +55,7 @@ export function IndexChart({ points }: IndexChartProps) {
   }, []);
 
   useEffect(() => {
-    line.current?.setData(
-      points.map((p) => ({ time: p.time as Time, value: p.value })),
-    );
+    line.current?.setData(points.map((p) => ({ time: p.time as Time, value: p.value })));
   }, [points]);
 
   return (

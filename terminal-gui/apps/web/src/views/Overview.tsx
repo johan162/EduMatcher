@@ -19,10 +19,13 @@ import type { DailyBar } from "@edumatcher/terminal-types";
 import { FlashCell } from "../components/FlashCell.js";
 import { EmptyState, Panel } from "../components/Panel.js";
 import { api } from "../lib/api.js";
-import { ABSENT, price, qty } from "../lib/format.js";
+import { ABSENT, clockUtc, compact, price, qty } from "../lib/format.js";
 import { buildRows, columnsFor, type OverviewColumn, type OverviewRow } from "../lib/overview-rows.js";
 import { pageSlice } from "../lib/paging.js";
+import { useTickDecimals } from "../lib/precision.js";
+import { STALE_AFTER_SEC, isStale, useNow } from "../lib/staleness.js";
 import { useAutoPaging, useRowsPerPage } from "../lib/useAutoPaging.js";
+import { usePrevCloses } from "../lib/usePrevCloses.js";
 import { useLiveStore } from "../store/useLiveStore.js";
 import {
   DENSITY_ROW_CLASS,
@@ -44,24 +47,43 @@ const HEADING: Record<OverviewColumn, string> = {
   last: "Last",
   chg: "Chg",
   pctChg: "%Chg",
+  bidSz: "Bid sz",
   bid: "Bid",
   ask: "Ask",
+  askSz: "Ask sz",
+  spread: "Spread",
   volume: "Volume",
+  turnover: "Turnover",
+  lastTrade: "Time",
 };
 
 const NUMERIC: ReadonlySet<OverviewColumn> = new Set<OverviewColumn>([
   "last",
   "chg",
   "pctChg",
+  "bidSz",
   "bid",
   "ask",
+  "askSz",
+  "spread",
   "volume",
+  "turnover",
+  "lastTrade",
 ]);
+
+/**
+ * Marks a row whose change was measured from today's open because no previous
+ * close is on record — a symbol listed today, or one dormant longer than the
+ * lookback window. Two rows meaning different things by "%Chg" with nothing to
+ * say so would be worse than either convention on its own.
+ */
+const OPEN_BASELINE_MARK = "*";
 
 export function OverviewView() {
   const symbols = useLiveStore((s) => s.symbols);
   const top = useLiveStore((s) => s.top);
   const halted = useLiveStore((s) => s.halted);
+  const lastTradeTs = useLiveStore((s) => s.lastTradeTs);
 
   const density = usePrefsStore((s) => s.density);
   const watchlist = usePrefsStore((s) => s.watchlist);
@@ -87,16 +109,27 @@ export function OverviewView() {
     return bySymbol;
   }, [data]);
 
+  const prevClose = usePrevCloses();
+
   const rows = useMemo(
-    () => buildRows({ symbols, top, daily, halted, watchlist, filter }),
-    [symbols, top, daily, halted, watchlist, filter],
+    () => buildRows({ symbols, top, daily, prevClose, lastTradeTs, halted, watchlist, filter }),
+    [symbols, top, daily, prevClose, lastTradeTs, halted, watchlist, filter],
   );
+
+  // Staleness is a function of elapsed time, not of arriving data, so it needs
+  // its own clock — a row goes stale precisely because nothing arrived.
+  const now = useNow();
+  const tickDecimals = useTickDecimals();
 
   const columns = columnsFor(density);
   const delaySec = effectivePageDelaySec(pageDelayPref, density);
   const { ref, rows: perPage } = useRowsPerPage(ROW_HEIGHT[density]);
   const paging = useAutoPaging(rows.length, perPage, delaySec);
   const visible = pageSlice(rows, paging.page, perPage);
+
+  // Only footnote what is actually on this page — carrying the note while the
+  // marked row sits three pages away would be noise.
+  const anyOpenBaseline = visible.some((row) => row.baseline === "open");
 
   return (
     <div className="flex h-full flex-col">
@@ -208,6 +241,8 @@ export function OverviewView() {
                     row={row}
                     columns={columns}
                     rowClass={DENSITY_ROW_CLASS[density]}
+                    stale={isStale(row.lastTradeTs, now)}
+                    decimals={tickDecimals(row.sym)}
                     onTogglePin={() => toggleWatchlist(row.sym)}
                   />
                 ))}
@@ -223,6 +258,10 @@ export function OverviewView() {
           <span>
             {paging.advancing ? `advancing every ${delaySec}s` : paging.paused ? "paused" : "single page"}
           </span>
+          <span>change vs previous close</span>
+          {anyOpenBaseline && (
+            <span>{OPEN_BASELINE_MARK} vs today&rsquo;s open — no previous close on record</span>
+          )}
         </div>
       </Panel>
     </div>
@@ -233,15 +272,30 @@ function Row({
   row,
   columns,
   rowClass,
+  stale,
+  decimals,
   onTogglePin,
 }: {
   row: OverviewRow;
   columns: OverviewColumn[];
   rowClass: string;
+  stale: boolean;
+  /** This symbol's display precision, from CALF `REF=`. */
+  decimals: number;
   onTogglePin: () => void;
 }) {
   return (
-    <tr className={clsx("border-b border-border/40", rowClass)}>
+    <tr
+      className={clsx("border-b border-border/40", rowClass, stale && "opacity-50")}
+      /*
+       * Faded rather than recoloured. Dimming the whole row leaves the up/down
+       * colours meaning exactly what they always mean — the row is simply
+       * further away — where a grey repaint would collide with the one signal
+       * the palette is reserved for.
+       */
+      title={stale ? `No print in over ${STALE_AFTER_SEC / 60} minutes` : undefined}
+      data-stale={stale || undefined}
+    >
       {columns.map((column) => {
         switch (column) {
           case "star":
@@ -280,14 +334,14 @@ function Row({
           case "last":
             return (
               <td key={column} className="text-right">
-                <FlashCell value={row.last}>{price(row.last)}</FlashCell>
+                <FlashCell value={row.last}>{price(row.last, decimals)}</FlashCell>
               </td>
             );
 
           case "chg":
             return (
               <td key={column} className={clsx("text-right tabular", toneOf(row.chg))}>
-                {row.chg === undefined ? ABSENT : signed(row.chg)}
+                {row.chg === undefined ? ABSENT : signed(row.chg, decimals)}
               </td>
             );
 
@@ -295,20 +349,51 @@ function Row({
             return (
               <td key={column} className={clsx("text-right tabular", toneOf(row.pctChg))}>
                 {row.pctChg === undefined ? ABSENT : `${signed(row.pctChg)}%`}
+                {row.baseline === "open" && (
+                  <sup
+                    title="Measured from today's open — no previous close on record for this symbol"
+                    className="text-fg-faint"
+                  >
+                    {OPEN_BASELINE_MARK}
+                  </sup>
+                )}
+              </td>
+            );
+
+          // Sizes are muted and prices are not: the pair of prices is what the
+          // eye tracks down the column, and the sizes qualify them.
+          case "bidSz":
+            return (
+              <td key={column} className="text-right tabular text-fg-subtle">
+                {qty(row.bidSz)}
               </td>
             );
 
           case "bid":
             return (
               <td key={column} className="text-right">
-                <FlashCell value={row.bid}>{price(row.bid)}</FlashCell>
+                <FlashCell value={row.bid}>{price(row.bid, decimals)}</FlashCell>
               </td>
             );
 
           case "ask":
             return (
               <td key={column} className="text-right">
-                <FlashCell value={row.ask}>{price(row.ask)}</FlashCell>
+                <FlashCell value={row.ask}>{price(row.ask, decimals)}</FlashCell>
+              </td>
+            );
+
+          case "askSz":
+            return (
+              <td key={column} className="text-right tabular text-fg-subtle">
+                {qty(row.askSz)}
+              </td>
+            );
+
+          case "spread":
+            return (
+              <td key={column} className="text-right tabular text-fg-subtle">
+                {price(row.spread, decimals)}
               </td>
             );
 
@@ -318,18 +403,41 @@ function Row({
                 {qty(row.volume)}
               </td>
             );
+
+          case "turnover":
+            return (
+              <td key={column} className="text-right tabular text-fg-subtle">
+                {compact(row.turnover)}
+              </td>
+            );
+
+          case "lastTrade":
+            return (
+              <td key={column} className="text-right tabular text-fg-faint">
+                {clockUtc(row.lastTradeTs)}
+              </td>
+            );
         }
       })}
     </tr>
   );
 }
 
-/** Green above the open, red below, neutral exactly flat. */
+/** Green above the reference close, red below, neutral exactly flat. */
 function toneOf(value: number | undefined): string | undefined {
   if (value === undefined || value === 0) return undefined;
   return value > 0 ? "text-up" : "text-down";
 }
 
-function signed(value: number): string {
-  return `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
+/**
+ * A signed figure at a given precision.
+ *
+ * `decimals` defaults to 2 for the percentage column, which is a percentage
+ * rather than a price and so is unaffected by the instrument's tick size. The
+ * change column passes the symbol's own precision, because it is a difference
+ * between two prices and rounding it harder than them would make a row fail to
+ * add up on screen.
+ */
+function signed(value: number, decimals = 2): string {
+  return `${value > 0 ? "+" : ""}${value.toFixed(decimals)}`;
 }

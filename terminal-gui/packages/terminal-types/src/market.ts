@@ -5,6 +5,17 @@
  * pipe/colon/comma grammar never leaves `packages/calf-protocol`.
  */
 
+/**
+ * Decimal places a price is rendered at when CALF `REF=` does not say.
+ *
+ * Mirrors `DEFAULT_TICK_DECIMALS` in `edumatcher/models/price.py`, which is
+ * what the exchange itself assumes for a symbol with no registered precision.
+ * Named rather than a bare `2` at each call site so the assumption is
+ * greppable from both sides of the wire — and so that the places which are
+ * *guessing* are distinguishable from the places which were told.
+ */
+export const DEFAULT_TICK_DECIMALS = 2;
+
 /** One aggregated depth level: `[price, qty, orderCount]` (design §14.4). */
 export type DepthLevel = [price: number, qty: number, count: number];
 

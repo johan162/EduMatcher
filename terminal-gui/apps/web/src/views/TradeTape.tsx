@@ -13,6 +13,7 @@ import clsx from "clsx";
 import type { TradeFrame } from "@edumatcher/terminal-types";
 import { useLiveStore } from "../store/useLiveStore.js";
 import { clockUtc, price, qty } from "../lib/format.js";
+import { useTickDecimals } from "../lib/precision.js";
 
 /** Rows rendered at once. The buffer holds more; the eye takes far less. */
 const VISIBLE_ROWS = 200;
@@ -37,6 +38,9 @@ export function TradeTapeView() {
   // the store — pausing freezes the reading, it does not drop data, so
   // resuming shows the current tape rather than a gap.
   const [frozen, setFrozen] = useState<TradeFrame[]>([]);
+  // Per row, not per view: the unfiltered tape mixes every instrument on the
+  // exchange, and they do not share a tick size.
+  const tickDecimals = useTickDecimals();
 
   const source = paused ? frozen : trades;
   const rows = useMemo(() => filterTape(source, symbol), [source, symbol]);
@@ -77,9 +81,7 @@ export function TradeTapeView() {
           aria-pressed={paused}
           className={clsx(
             "rounded border px-3 py-1 text-sm",
-            paused
-              ? "border-warning/50 bg-warning/10 text-warning"
-              : "border-border hover:bg-muted",
+            paused ? "border-warning/50 bg-warning/10 text-warning" : "border-border hover:bg-muted",
           )}
         >
           {paused ? "Resume" : "Pause"}
@@ -106,14 +108,9 @@ export function TradeTapeView() {
               <tr key={`${t.sym}-${t.seq}`} className="border-t border-border">
                 <td className="px-3 py-1 tabular text-fg-subtle">{clockUtc(t.ts)}</td>
                 <td className="px-3 py-1 font-medium">{t.sym}</td>
-                <td className="px-3 py-1 text-right tabular">{price(t.px)}</td>
+                <td className="px-3 py-1 text-right tabular">{price(t.px, tickDecimals(t.sym))}</td>
                 <td className="px-3 py-1 text-right tabular">{qty(t.qty)}</td>
-                <td
-                  className={clsx(
-                    "px-3 py-1",
-                    t.side === "BUY" ? "text-up" : "text-down",
-                  )}
-                >
+                <td className={clsx("px-3 py-1", t.side === "BUY" ? "text-up" : "text-down")}>
                   {t.side === "BUY" ? "▲" : "▼"} {t.side}
                 </td>
               </tr>
@@ -121,9 +118,7 @@ export function TradeTapeView() {
             {rows.length === 0 && (
               <tr className="border-t border-border">
                 <td colSpan={5} className="px-3 py-6 text-center text-fg-subtle">
-                  {symbol === ALL
-                    ? "No prints yet."
-                    : `No prints for ${symbol} yet.`}
+                  {symbol === ALL ? "No prints yet." : `No prints for ${symbol} yet.`}
                 </td>
               </tr>
             )}

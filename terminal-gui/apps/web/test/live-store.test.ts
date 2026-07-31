@@ -10,6 +10,7 @@ const state = () => useLiveStore.getState();
 const hello = (over: Partial<Extract<ServerFrame, { type: "hello" }>> = {}): ServerFrame => ({
   type: "hello",
   symbols: ["AAPL", "MSFT"],
+  tickDecimals: { AAPL: 2, MSFT: 4 },
   indexes: ["EDU100"],
   calf: "ACTIVE",
   gateway: "md-gwy01",

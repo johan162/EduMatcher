@@ -20,16 +20,16 @@ terminal-gui/
 
 ## Status
 
-| Phase | Scope | State |
-|---|---|---|
-| 1 | `packages/calf-protocol`, `packages/terminal-types` | done |
-| 2 | `packages/lalf-client` | done |
-| 3 | Bridge CALF uplink + per-symbol reference counting | done |
-| 4 | Bridge Fastify server: WS fan-out, history proxy, logging | done |
-| 5 | App shell (light/dark, density presets) + Session & Halt board | done |
-| 6 | Market Overview + Watchlist | done |
-| 7 | Symbol Detail (chart, values, depth toggle) | done |
-| 8 | Index View, Trade Tape, Movers | not started |
+| Phase | Scope                                                          | State       |
+| ----- | -------------------------------------------------------------- | ----------- |
+| 1     | `packages/calf-protocol`, `packages/terminal-types`            | done        |
+| 2     | `packages/lalf-client`                                         | done        |
+| 3     | Bridge CALF uplink + per-symbol reference counting             | done        |
+| 4     | Bridge Fastify server: WS fan-out, history proxy, logging      | done        |
+| 5     | App shell (light/dark, density presets) + Session & Halt board | done        |
+| 6     | Market Overview + Watchlist                                    | done        |
+| 7     | Symbol Detail (chart, values, depth toggle)                    | done        |
+| 8     | Index View, Trade Tape, Movers                                 | not started |
 
 ## Quick start
 
@@ -63,24 +63,24 @@ Environment variables, mirroring `log-gui/apps/bridge/src/config.ts`. Design
 first-party Node backends configure and containerise identically. Names and
 defaults still track §19 one-for-one.
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `HOST` / `PORT` | `127.0.0.1` / `8090` | Bridge bind address |
-| `CORS_ORIGIN` | `*` | CORS allow-list |
-| `STATIC_DIR` | — | Serve a built frontend from here (single-container mode) |
-| `MAX_WS_CLIENTS` | `200` | Browser-tab cap (§18) |
-| `CALF_HOST` / `CALF_PORT` | `127.0.0.1` / `5570` | `pm-md-gwy` |
-| `CALF_CLIENT_ID` | `pm-terminal-bridge` | `HELLO.CLIENT` |
-| `CALF_PING_INTERVAL_SEC` | `60` | Keepalive; belt-and-braces since the idle-timer fix — see **CALF changes** below |
-| `INDEX_IDS` | — | Comma-separated index ids to `SUB\|CH=INDEX` for |
-| `API_GATEWAY_URL` | `http://127.0.0.1:8080` | `pm-api-gwy` |
-| `PM_TERMINAL_API_KEY` | — | Read-only (`gateway_id: null`) key, history reads only |
-| `LOG_SRV_ENABLED` | `true` | `false` skips even the startup probe |
-| `LOG_SRV_HOST` / `LOG_SRV_PORT` | `127.0.0.1` / `5600` | `pm-log-srv` |
-| `LOG_CONNECT_TIMEOUT_SEC` | `0.5` | Startup probe and each reconnect attempt |
-| `LOG_FAILOVER_TIMEOUT_SEC` | `30` | Grace window before the one-way switch to file |
-| `LOG_QUEUE_MAXSIZE` | `2000` | Bounded backlog while reconnecting |
-| `LOG_FAILOVER_DIR` | `<data>/logs` | Where the post-failover log file goes |
+| Variable                        | Default                 | Purpose                                                                          |
+| ------------------------------- | ----------------------- | -------------------------------------------------------------------------------- |
+| `HOST` / `PORT`                 | `127.0.0.1` / `8090`    | Bridge bind address                                                              |
+| `CORS_ORIGIN`                   | `*`                     | CORS allow-list                                                                  |
+| `STATIC_DIR`                    | —                       | Serve a built frontend from here (single-container mode)                         |
+| `MAX_WS_CLIENTS`                | `200`                   | Browser-tab cap (§18)                                                            |
+| `CALF_HOST` / `CALF_PORT`       | `127.0.0.1` / `5570`    | `pm-md-gwy`                                                                      |
+| `CALF_CLIENT_ID`                | `pm-terminal-bridge`    | `HELLO.CLIENT`                                                                   |
+| `CALF_PING_INTERVAL_SEC`        | `60`                    | Keepalive; belt-and-braces since the idle-timer fix — see **CALF changes** below |
+| `INDEX_IDS`                     | —                       | Comma-separated index ids to `SUB\|CH=INDEX` for                                 |
+| `API_GATEWAY_URL`               | `http://127.0.0.1:8080` | `pm-api-gwy`                                                                     |
+| `PM_TERMINAL_API_KEY`           | —                       | Read-only (`gateway_id: null`) key, history reads only                           |
+| `LOG_SRV_ENABLED`               | `true`                  | `false` skips even the startup probe                                             |
+| `LOG_SRV_HOST` / `LOG_SRV_PORT` | `127.0.0.1` / `5600`    | `pm-log-srv`                                                                     |
+| `LOG_CONNECT_TIMEOUT_SEC`       | `0.5`                   | Startup probe and each reconnect attempt                                         |
+| `LOG_FAILOVER_TIMEOUT_SEC`      | `30`                    | Grace window before the one-way switch to file                                   |
+| `LOG_QUEUE_MAXSIZE`             | `2000`                  | Bounded backlog while reconnecting                                               |
+| `LOG_FAILOVER_DIR`              | `<data>/logs`           | Where the post-failover log file goes                                            |
 
 ## Deviations from the design document (v1.5.0)
 
@@ -139,6 +139,28 @@ the grid re-poll "for every symbol currently visible". Omitting both `symbol`
 and `date` returns every symbol for the latest available date in one request,
 which is fewer round trips and stays correct as the grid pages.
 
+**10. Change is quoted against the previous close, not the session open
+(§8.4, §9.5).** The design's column table defines `Chg`/`%Chg` relative to
+today's open, and the Movers board (§12) ranks on that same figure. An open
+cannot represent a gap: a symbol that opened 5% below yesterday's close and has
+since recovered 1% is down on the day, but against its own open it reads
+`+1.00%`, in green, and sorts onto the **Gainers** tab. Every terminal quotes
+the previous close for that reason, so this one does too. `open` remains its
+own column and its own row on Symbol Detail.
+
+Nothing publishes a previous close — it is absent from CALF and `/history/daily`
+has no such column — so `lib/prev-close.ts` derives one from a ten-day window of
+the ranged `/history/daily` form (one request, every symbol). The newest date in
+that window marks the current session and the most recent close before it is the
+reference; a symbol whose window holds only the current session, because it was
+listed today or has been dormant longer than the window, falls back to the open
+and is **marked** as doing so rather than quietly meaning something different
+from the row above it.
+
+The three views that quote a change all route it through the one `buildRows` in
+`lib/overview-rows.ts`. Symbol Detail previously computed its own, which is how
+it came to disagree with the grid while wearing the same label.
+
 ## CALF changes made while building this
 
 Three findings were protocol or gateway defects affecting every CALF consumer,
@@ -156,7 +178,7 @@ carries `null` for it and `TopCache` clears the field.
 advanced only in `_read_client_data`, contradicting the protocol's own
 documented "no inbound **and** no outbound traffic" rule, so any purely passive
 consumer was dropped on a fixed cycle. It now advances on a successful send —
-though not on merely *queuing* one, so a client that has stopped draining still
+though not on merely _queuing_ one, so a client that has stopped draining still
 ages out. `idle_timeout_sec`'s runtime default also moved 300 → 5, matching the
 sample config, config generator, config spec and both protocol docs; 300 only
 ever made sense as cover for this bug. `CALF_PING_INTERVAL_SEC` is now
@@ -181,16 +203,34 @@ times as needed, and a malformed one returns `ERR` without closing the session.
 `buildResume` is available in `packages/calf-protocol`; the bridge does not use
 it yet (see TODO).
 
+**`REF` carries per-symbol display precision.** Every price on every screen
+was rendered at two decimals, because that is `price()`'s default and nothing
+overrode it. `tick_decimals` is per-symbol and configurable, so a symbol quoted
+to four decimals had its last price, spread, bps spread, OHLC, VWAP and range
+bar all silently rounded — and there was no way to fix it here, because the
+only client-reachable source was `GET /api/symbols`, behind a trading
+credential this terminal deliberately does not hold.
+
+That is a gap for _every_ CALF consumer, not just this one, so it was closed in
+the protocol: `WELCOME` and the `SYMBOLS` reply now carry `REF=SYM:DEC,...`.
+Reference data rather than market data, so it rides the handshake instead of
+repeating a constant on every `TOP` tick. Its presence is the capability
+signal, exactly as `CH_SUPPORTED`'s is, so no `PROTO` bump and no existing
+client breaks; a gateway without it means the terminal falls back to two
+decimals knowingly. The tuple grows to `SYM:DEC:MULT:CCY` when contract
+multiplier and currency land.
+
 ### Also deliberate, not a design error
 
-- `GET /api/symbols` is **not** proxied. It requires a trading credential
+- `GET /api/symbols` is still **not** proxied. It requires a trading credential
   (`require_trading` in `api_gateway/routers/reference.py`), which is design
-  §22's open question 1. It is wired in only once that is resolved.
-- `LalfClient` queues log *records*, not pre-encoded frames. The Python
+  §22's open question 1. `REF` removes the only pressing reason to want it —
+  display precision — so this can stay closed until reference data the wire
+  does not carry is actually needed.
+- `LalfClient` queues log _records_, not pre-encoded frames. The Python
   original queues bytes and so must discard its backlog at failover; holding
   records lets that backlog reach the fallback file, which is what §17.5's
   "no log call is ever silently dropped" actually asks for.
-
 
 ## TODO
 

@@ -90,6 +90,7 @@ app.get("/ws/stream", { websocket: true }, (socket) => {
   hub.sendTo(socket, {
     type: "hello",
     symbols: uplink.symbols(),
+    tickDecimals: uplink.tickDecimals(),
     indexes: config.calf.indexIds,
     calf: uplink.state,
     gateway: uplink.gateway,

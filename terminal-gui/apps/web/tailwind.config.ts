@@ -31,6 +31,26 @@ const config: Config = {
         "auction-bg": "var(--auction-bg)",
         live: "var(--live)",
         offline: "var(--offline)",
+
+        /*
+         * Aliases, not new palette entries.
+         *
+         * These four names were already in use across the views — `bg-muted`
+         * on table headers and bar tracks, `text-ok`/`text-error` on the halt
+         * corridor marker, `text-warning` on the closing-backstop notice — but
+         * were never declared here, so every one of them resolved to nothing
+         * and the elements rendered unstyled.
+         *
+         * Each maps onto the token that already carries that meaning rather
+         * than introducing a colour of its own: retuning the palette in
+         * index.css must not leave a second, divergent set behind.
+         */
+        muted: "var(--bg-inset)",
+        ok: "var(--up)",
+        error: "var(--down)",
+        // Amber. The backstop notice is a caution about how a price was
+        // arrived at, which is the same register as a halt.
+        warning: "var(--halt)",
       },
       fontFamily: {
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],

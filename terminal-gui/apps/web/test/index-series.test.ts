@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type {
-  IndexDailyRow,
-  IndexEventRow,
-  IndexSnapshotRow,
-} from "@edumatcher/terminal-types";
+import type { IndexDailyRow, IndexEventRow, IndexSnapshotRow } from "@edumatcher/terminal-types";
 import {
   dailySeries,
   indexRangeStart,
@@ -58,10 +54,7 @@ describe("preset routing", () => {
 
 describe("snapshotSeries", () => {
   it("orders oldest first regardless of how rows arrived", () => {
-    const rows = [
-      snap("2026-07-30T10:00:00Z", 1050),
-      snap("2026-07-30T09:30:00Z", 1042),
-    ];
+    const rows = [snap("2026-07-30T10:00:00Z", 1050), snap("2026-07-30T09:30:00Z", 1042)];
     expect(snapshotSeries(rows).map((p) => p.value)).toEqual([1042, 1050]);
   });
 

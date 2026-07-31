@@ -93,6 +93,7 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
   private readonly topCache = new TopCache();
   private readonly refCount: SymbolRefCount;
   private readonly knownSymbols = new Set<string>();
+  private readonly knownTickDecimals: Record<string, number> = {};
 
   private reconnectDelayMs = RECONNECT_MIN_MS;
   private reconnectTimer: NodeJS.Timeout | null = null;
@@ -122,6 +123,17 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
   /** Symbols this bridge knows about — `WELCOME|SYMBOLS=` plus any seen live. */
   symbols(): string[] {
     return [...this.knownSymbols].sort();
+  }
+
+  /**
+   * Per-symbol display precision from `REF=`.
+   *
+   * Empty against a gateway that predates the field, which is what tells a
+   * browser tab to fall back to `DEFAULT_TICK_DECIMALS` rather than silently
+   * assuming it.
+   */
+  tickDecimals(): Record<string, number> {
+    return { ...this.knownTickDecimals };
   }
 
   start(): void {
@@ -228,13 +240,16 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
       case "HB":
       case "PONG":
         return;
-      case "SYMBOLS":
+      case "SYMBOLS": {
         // The authoritative instrument universe, which WELCOME may not have
         // carried at all. Merged rather than replacing, so symbols already
         // learned from live data are not dropped if the gateway's own set is
         // somehow narrower.
-        for (const sym of parseSymbolsReply(fields)) this.learnSymbol(sym);
+        const reply = parseSymbolsReply(fields);
+        for (const sym of reply.symbols) this.learnSymbol(sym);
+        this.learnTickDecimals(reply.tickDecimals);
         return;
+      }
       case "ERR":
         this.emit("gatewayError", { code: fields["CODE"] ?? "UNKNOWN", detail: fields });
         return;
@@ -251,6 +266,7 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
     this.reconnectDelayMs = RECONNECT_MIN_MS;
 
     for (const sym of welcome.symbols) this.learnSymbol(sym);
+    this.learnTickDecimals(welcome.tickDecimals);
 
     this.emit("welcome", welcome);
     // Ask rather than rely on WELCOME|SYMBOLS=, which is optional and absent
@@ -343,6 +359,18 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
     if (this.knownSymbols.has(sym)) return;
     this.knownSymbols.add(sym);
     this.emit("symbol", sym);
+  }
+
+  /**
+   * Merge a `REF=` map, newest wins.
+   *
+   * Merged rather than replaced for the same reason the symbol set is: the
+   * `SYMBOLS` reply and `WELCOME` are two views of the same reference data
+   * arriving at different moments, and a reconnect should never narrow what
+   * the bridge already knows.
+   */
+  private learnTickDecimals(decimals: Record<string, number>): void {
+    Object.assign(this.knownTickDecimals, decimals);
   }
 
   // -- plumbing ----------------------------------------------------------------

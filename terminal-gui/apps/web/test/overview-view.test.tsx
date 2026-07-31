@@ -6,7 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ServerFrame } from "@edumatcher/terminal-types";
 
 const dailyBars = vi.fn();
-vi.mock("../src/lib/api.js", () => ({ api: { dailyBars: () => dailyBars() } }));
+const dailyWindow = vi.fn();
+vi.mock("../src/lib/api.js", () => ({
+  api: { dailyBars: () => dailyBars(), dailyWindow: () => dailyWindow() },
+}));
 
 const { useLiveStore } = await import("../src/store/useLiveStore.js");
 const { usePrefsStore } = await import("../src/store/usePrefsStore.js");
@@ -25,9 +28,10 @@ function show() {
   );
 }
 
-const hello = (symbols: string[]): ServerFrame => ({
+const hello = (symbols: string[], tickDecimals: Record<string, number> = {}): ServerFrame => ({
   type: "hello",
   symbols,
+  tickDecimals,
   indexes: [],
   calf: "ACTIVE",
   gateway: "md-gwy01",
@@ -52,6 +56,34 @@ beforeEach(() => {
       },
     ],
   });
+  // The lookback window spans the current session too — the newest date in it
+  // is what marks which rows count as "the day before".
+  dailyWindow.mockResolvedValue({
+    daily: [
+      {
+        date: "2026-07-29",
+        symbol: "AAPL",
+        open_price: 147.0,
+        close_price: 148.0,
+        high_price: 149.0,
+        low_price: 146.5,
+        vwap: 147.8,
+        volume: 150000,
+        trade_count: 900,
+      },
+      {
+        date: "2026-07-30",
+        symbol: "AAPL",
+        open_price: 149.7,
+        close_price: null,
+        high_price: null,
+        low_price: null,
+        vwap: null,
+        volume: 184300,
+        trade_count: null,
+      },
+    ],
+  });
 });
 afterEach(cleanup);
 
@@ -71,12 +103,105 @@ describe("grid content", () => {
     expect(await screen.findByText("150.12")).toBeDefined();
   });
 
-  it("computes change against the open from the history row", async () => {
+  it("computes change against the previous close, not today's open", async () => {
+    // Open 149.70, previous close 148.00. Against the open this would read
+    // +0.42 / +0.28%.
+    apply(hello(["AAPL"]), { type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12 });
+    show();
+
+    expect(await screen.findByText("+2.12")).toBeDefined();
+    expect(screen.getByText("+1.43%")).toBeDefined();
+  });
+
+  it("marks a row that had to fall back to the open", async () => {
+    // MSFT is in neither history response, so it has no previous close and no
+    // open either — but AAPL with a daily row and no window row does.
+    dailyWindow.mockResolvedValue({ daily: [] });
     apply(hello(["AAPL"]), { type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12 });
     show();
 
     expect(await screen.findByText("+0.42")).toBeDefined();
-    expect(screen.getByText("+0.28%")).toBeDefined();
+    await waitFor(() => expect(screen.getByText(/no previous close on record/)).toBeDefined());
+  });
+
+  it("shows when a symbol last printed", async () => {
+    apply(hello(["AAPL"]), {
+      type: "trade",
+      sym: "AAPL",
+      seq: 1,
+      ts: "2026-07-30T10:15:42Z",
+      px: 150.12,
+      qty: 100,
+      side: "BUY",
+    });
+    show();
+
+    expect(await screen.findByText("10:15:42")).toBeDefined();
+  });
+
+  it("fades a row whose last print has gone quiet", async () => {
+    apply(hello(["AAPL"]), {
+      type: "trade",
+      sym: "AAPL",
+      seq: 1,
+      // Well past the five-minute threshold.
+      ts: new Date(Date.now() - 3_600_000).toISOString(),
+      px: 150.12,
+      qty: 100,
+      side: "BUY",
+    });
+    show();
+
+    await screen.findByText("AAPL");
+    expect(document.querySelector("tr[data-stale]")).not.toBeNull();
+  });
+
+  it("does not fade a symbol that simply has not traded", async () => {
+    // Untraded is not stale — the empty price column already says so.
+    apply(hello(["AAPL"]));
+    show();
+
+    await screen.findByText("AAPL");
+    expect(document.querySelector("tr[data-stale]")).toBeNull();
+  });
+
+  it("renders a symbol at the precision the gateway declared for it", async () => {
+    // Without REF= every price on every screen was rendered at two decimals,
+    // so a four-decimal instrument was silently rounded.
+    apply(hello(["AAPL"], { AAPL: 4 }), {
+      type: "top",
+      sym: "AAPL",
+      seq: 1,
+      ts: "t",
+      last: 150.1234,
+    });
+    show();
+
+    expect(await screen.findByText("150.1234")).toBeDefined();
+  });
+
+  it("falls back to two decimals for a gateway that declared nothing", async () => {
+    apply(hello(["AAPL"]), { type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.1234 });
+    show();
+
+    expect(await screen.findByText("150.12")).toBeDefined();
+  });
+
+  it("shows the size resting at each side of the touch", async () => {
+    apply(hello(["AAPL"]), {
+      type: "top",
+      sym: "AAPL",
+      seq: 1,
+      ts: "t",
+      bid: 150.1,
+      bidSz: 1200,
+      ask: 150.14,
+      askSz: 800,
+    });
+    show();
+
+    expect(await screen.findByText("1,200")).toBeDefined();
+    expect(screen.getByText("800")).toBeDefined();
   });
 
   it("dashes change for a symbol with no history row rather than showing zero", async () => {

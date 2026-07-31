@@ -20,6 +20,7 @@ Status: Design and Implementation Specification
     - [3.1 Why `PROTO` stays `CALF1`](#31-why-proto-stays-calf1)
     - [3.2 New: `WELCOME` capability advertisement](#32-new-welcome-capability-advertisement)
     - [3.3 Client-side capability detection flow](#33-client-side-capability-detection-flow)
+    - [3.4 `REF=` — per-symbol display precision](#34-ref--per-symbol-display-precision)
     - [3.4 Compatibility matrix](#34-compatibility-matrix)
   - [4. Change 1 — Officialize the `INDEX` Channel](#4-change-1--officialize-the-index-channel)
     - [4.1 What changes](#41-what-changes)
@@ -115,6 +116,7 @@ identical for another channel.
 | 2 | `SYM=*` allowed for `SUB\|CH=TOP` and `SUB\|CH=TRADE` (previously `STATE`-only) | Protocol + gateway code change | Yes — new valid request shape | §5 |
 | 3 | New `DEPTH` channel: aggregated multi-level order book, on by default | New protocol + gateway code | Yes — new channel | §6 |
 | 4 | `WELCOME` gains an optional `CH_SUPPORTED=` field | Protocol + gateway code change | Yes — new optional field | §3.2 |
+| 5 | `WELCOME` and the `SYMBOLS` reply gain an optional `REF=` field carrying per-symbol `tick_decimals` | Protocol + gateway code change | Yes — new optional field | §3.4 |
 
 `PROTO=CALF1` is **unchanged** (§3.1). No existing client, bot, or script
 needs to change anything to keep working exactly as before.
@@ -184,6 +186,53 @@ flowchart TD
 | Pre-1.0.0 client | 1.0.0 gateway | Works unchanged. Client never sends `SYM=*` for `TOP`/`TRADE` or `SUB\|CH=DEPTH`, so it never exercises the new paths. Gateway's extra `CH_SUPPORTED` field on `WELCOME` is simply an unrecognised key — per the base doc's own field-order/parsing rules, unknown keys are not an error. |
 | 1.0.0 client | Pre-1.0.0 gateway | `WELCOME` has no `CH_SUPPORTED` → client assumes the conservative feature set (§3.3, branch C). If the client ignores this and sends `SUB\|CH=DEPTH` or `SUB\|CH=TOP\|SYM=*` anyway, the old gateway's existing validation (`_ALLOWED_CHANNELS` check / the pre-1.0.0 `sym == "*"` check) already returns a well-formed `ERR\|CODE=INVALID_CHANNEL` or `ERR\|CODE=INVALID_SYMBOL` — no crash, no undefined behaviour, because both checks already exist today and simply keep rejecting requests they don't recognise. |
 | 1.0.0 client | 1.0.0 gateway | Full feature set available, detected via `CH_SUPPORTED`. |
+
+
+### 3.4 `REF=` — per-symbol display precision
+
+`tick_decimals` is defined per symbol in the engine configuration and governs
+how a price is rendered. Before this field, CALF carried no way to learn it.
+The only client-reachable source was `GET /api/symbols` on the API gateway,
+which sits behind `require_trading` — a credential a market data consumer has
+no business holding — so every CALF client had to assume the default of `2`,
+and was silently wrong about every price of any instrument configured
+otherwise.
+
+`REF` is carried on `WELCOME` and on the `SYMBOLS` reply as `SYM:DEC` tuples:
+
+```text
+WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|REF=AAPL:2,MSFT:4
+SYMBOLS|COUNT=3|SYMBOLS=AAPL,MSFT,TSLA|REF=AAPL:2,MSFT:2,TSLA:4
+```
+
+**Why not on a market data channel.** `tick_decimals` is static. Putting it on
+`TOP` or `TRADE` would repeat an unchanging value on every tick, on the hottest
+path in the protocol, in a channel whose `MD` messages are deliberately deltas
+(§6.9's bandwidth reasoning applies with full force). It is reference data and
+belongs with the reference command.
+
+**Why the presence of the field is the signal.** Identical to `CH_SUPPORTED`
+(§3.2) and for the identical reason: `PROTO` stays `CALF1` (§3.1), so a client
+cannot detect the capability from the version. A client that sees no `REF`
+falls back to `2` *knowingly* rather than by accident — which is the whole
+point, since silently assuming a precision is the failure this closes.
+
+**Why a tuple rather than a parallel list.** Contract multiplier is already
+proposed (`EduMatcher-contract-multiplyer.md`), and currency and lot size will
+follow. `SYM:DEC` extends to `SYM:DEC:MULT:CCY` with no further protocol
+change, and reuses the colon-delimited grammar `DEPTH` already uses for
+`price:qty:count` (§6.4) rather than introducing a second convention. Parallel
+positional lists — `TICKDEC=2,2,4` beside `MULT=1,1,50` — would have to stay
+index-aligned across every future field, forever.
+
+Clients **must** ignore trailing tuple components they do not recognise, so an
+older client keeps working against a newer gateway.
+
+**Coverage.** `REF` describes exactly the symbols listed in `SYMBOLS=`, and is
+omitted whenever that field is. A symbol first seen on the engine bus, which
+has no configured precision, is reported at the default rather than omitted —
+so "listed in `SYMBOLS` but missing from `REF`" is not a state any client has
+to handle.
 
 ## 4. Change 1 — Officialize the `INDEX` Channel
 

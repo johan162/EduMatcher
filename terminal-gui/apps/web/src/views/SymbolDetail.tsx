@@ -19,7 +19,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type {
   AuctionReason,
@@ -34,9 +34,13 @@ import { EmptyState, Panel } from "../components/Panel.js";
 import { PriceChart } from "../components/PriceChart.js";
 import { api } from "../lib/api.js";
 import { bucketTrades, dailyToBars, midOf, midpointSeries } from "../lib/bars.js";
-import { ABSENT, clockUtc, price, qty, resumeAt } from "../lib/format.js";
+import { ABSENT, clockUtc, compact, price, qty, resumeAt } from "../lib/format.js";
+import { buildRows, type OverviewRow } from "../lib/overview-rows.js";
+import { useSymbolDecimals } from "../lib/precision.js";
+import { avgTradeSize, rangePosition, spreadBps } from "../lib/quote.js";
 import { PRESETS, timeframeSpec, type Preset } from "../lib/timeframe.js";
 import { sendControl } from "../lib/useTerminalStream.js";
+import { usePrevCloses } from "../lib/usePrevCloses.js";
 import { useLiveStore } from "../store/useLiveStore.js";
 import { DENSITY_ROW_CLASS, usePrefsStore } from "../store/usePrefsStore.js";
 
@@ -165,40 +169,74 @@ function SymbolDetail({ sym }: { sym: string }) {
   }, [auction, dismissedAuction]);
 
   const last = top?.last;
-  const open = todayRow?.open_price ?? undefined;
-  const chg = last !== undefined && open !== undefined && open !== null ? last - open : undefined;
-  const pctChg = chg !== undefined && open ? (chg / open) * 100 : undefined;
   const phase = halted ? "HALTED" : sessionPhase;
+  const prevCloses = usePrevCloses();
+  const prevClose = prevCloses[sym];
+  // One symbol for the whole view, so one lookup rather than one per figure.
+  const decimals = useSymbolDecimals(sym);
+
+  /*
+   * The header's change figures come from the same `buildRows` the Overview
+   * grid and the Movers board use, over a one-symbol universe.
+   *
+   * This view used to compute them itself, which is how it came to measure
+   * from the session open while claiming the same "%Chg" label as everywhere
+   * else. Two implementations of one definition will drift; one cannot.
+   * `spread` and `turnover` below come along for free.
+   */
+  const row = useMemo(
+    () =>
+      buildRows({
+        symbols: [sym],
+        top: top ? { [sym]: top } : {},
+        daily: todayRow ? { [sym]: todayRow } : {},
+        prevClose: prevCloses,
+        // This view shows the tape's own timestamps, not a row freshness mark.
+        lastTradeTs: {},
+        halted: halted ? { [sym]: halted } : {},
+        watchlist: [],
+        filter: "all",
+      })[0],
+    [sym, top, todayRow, prevCloses, halted],
+  );
 
   return (
     <div className="flex h-full flex-col gap-3">
       <header className="flex items-baseline gap-4 px-1">
         <h1 className="text-2xl font-bold tracking-tight">{sym}</h1>
         <SessionBadge phase={phase} />
-        <span className="tabular text-2xl">{price(last)}</span>
+        <span className="tabular text-2xl">{price(last, decimals)}</span>
         <span
           className={clsx(
             "tabular text-sm",
-            chg === undefined || chg === 0 ? "text-fg-subtle" : chg > 0 ? "text-up" : "text-down",
+            row?.chg === undefined || row.chg === 0
+              ? "text-fg-subtle"
+              : row.chg > 0
+                ? "text-up"
+                : "text-down",
           )}
         >
-          {chg === undefined ? ABSENT : `${chg > 0 ? "+" : ""}${chg.toFixed(2)}`}
-          {pctChg !== undefined && ` (${pctChg > 0 ? "+" : ""}${pctChg.toFixed(2)}%)`}
+          {row?.chg === undefined ? ABSENT : `${row.chg > 0 ? "+" : ""}${row.chg.toFixed(decimals)}`}
+          {row?.pctChg !== undefined && ` (${row.pctChg > 0 ? "+" : ""}${row.pctChg.toFixed(2)}%)`}
+        </span>
+        <span className="text-xs text-fg-faint">
+          {row?.baseline === "open" ? "vs today’s open — no previous close" : "vs prev close"}
         </span>
         <span className="text-sm text-fg-subtle">Vol {qty(todayRow?.volume)}</span>
       </header>
 
-      {halted?.context && <HaltDetail context={halted.context} />}
+      {halted?.context && <HaltDetail context={halted.context} decimals={decimals} />}
 
       {!halted && haltEnded?.reason === "CLOSING_BACKSTOP" && (
-        <BackstopNotice context={haltEnded} />
+        <BackstopNotice context={haltEnded} decimals={decimals} />
       )}
 
       {auction && dismissedAuction !== auction.seq && (
         <div className="flex items-center gap-3 rounded border border-auction/40 bg-auction-bg px-3 py-2 text-sm">
           <span className="font-semibold text-auction">{auctionTitle(auction.reason)}</span>
           <span className="tabular">
-            {auction.eqPrice === undefined ? "no cross" : price(auction.eqPrice)} · {qty(auction.eqQty)} sh
+            {auction.eqPrice === undefined ? "no cross" : price(auction.eqPrice, decimals)} ·{" "}
+            {qty(auction.eqQty)} sh
             {auction.imbalanceSide && ` · imbalance ${auction.imbalanceSide} ${qty(auction.imbalanceQty)}`}
           </span>
           <span className="tabular text-fg-subtle">{clockUtc(auction.ts)}</span>
@@ -251,6 +289,8 @@ function SymbolDetail({ sym }: { sym: string }) {
               midLive={mid.live}
               showCandles={showCandles}
               showMidpoint={showMidpoint}
+              prevClose={prevClose}
+              vwap={todayRow?.vwap ?? undefined}
               follow={spec.follow}
               theme={theme}
             />
@@ -265,7 +305,15 @@ function SymbolDetail({ sym }: { sym: string }) {
 
       <div className="grid grid-cols-2 gap-3">
         <Panel title="Values">
-          <Values top={top} today={todayRow} phase={phase} rowClass={rowClass} />
+          <Values
+            row={row}
+            top={top}
+            today={todayRow}
+            prevClose={prevClose}
+            phase={phase}
+            rowClass={rowClass}
+            decimals={decimals}
+          />
         </Panel>
 
         {/*
@@ -275,7 +323,7 @@ function SymbolDetail({ sym }: { sym: string }) {
          */}
         <Panel title={showDepth ? `Depth — ${sym}` : "Depth"}>
           {showDepth ? (
-            <DepthLadder frame={depth?.sym === sym ? depth : null} rowClass={rowClass} />
+            <DepthLadder frame={depth?.sym === sym ? depth : null} rowClass={rowClass} decimals={decimals} />
           ) : (
             <EmptyState>Enable the Depth toggle to subscribe to the order book</EmptyState>
           )}
@@ -335,28 +383,24 @@ function markerPosition(low: number, high: number, value: number): number {
  * outside the band, so the call phase was extended instead of printing. A
  * numeric readout alone makes the reader do that comparison in their head.
  */
-function CorridorBar({ context }: { context: HaltContextFrame }) {
+function CorridorBar({ context, decimals }: { context: HaltContextFrame; decimals: number }) {
   const { corridorLow: low, corridorHigh: high, indicativePrice } = context;
   if (low === undefined || high === undefined) return null;
 
-  const outside =
-    indicativePrice !== undefined && (indicativePrice < low || indicativePrice > high);
+  const outside = indicativePrice !== undefined && (indicativePrice < low || indicativePrice > high);
 
   return (
     <div className="mt-2">
       <div className="flex items-baseline justify-between text-xs text-fg-subtle">
-        <span className="tabular">{price(low)}</span>
+        <span className="tabular">{price(low, decimals)}</span>
         <span>may reopen inside</span>
-        <span className="tabular">{price(high)}</span>
+        <span className="tabular">{price(high, decimals)}</span>
       </div>
       <div className="relative mt-1 h-2 rounded bg-halt/20">
         <div className="absolute inset-y-0 left-0 right-0 rounded border border-halt/50" />
         {indicativePrice !== undefined && (
           <div
-            className={clsx(
-              "absolute top-1/2 h-3 w-0.5 -translate-y-1/2",
-              outside ? "bg-error" : "bg-ok",
-            )}
+            className={clsx("absolute top-1/2 h-3 w-0.5 -translate-y-1/2", outside ? "bg-error" : "bg-ok")}
             style={{ left: `${markerPosition(low, high, indicativePrice) * 100}%` }}
             aria-hidden
           />
@@ -365,7 +409,7 @@ function CorridorBar({ context }: { context: HaltContextFrame }) {
       {indicativePrice !== undefined && (
         <p className="mt-1 text-xs">
           <span className={outside ? "text-error" : "text-ok"}>
-            Would reopen at {price(indicativePrice)}
+            Would reopen at {price(indicativePrice, decimals)}
           </span>
           {context.indicativeQty !== undefined && (
             <span className="text-fg-subtle"> for {qty(context.indicativeQty)}</span>
@@ -374,10 +418,7 @@ function CorridorBar({ context }: { context: HaltContextFrame }) {
             <span className="text-fg-subtle"> · {context.imbalanceSide} imbalance</span>
           )}
           {outside && (
-            <span className="text-fg-subtle">
-              {" "}
-              — outside the corridor, so the auction was extended
-            </span>
+            <span className="text-fg-subtle"> — outside the corridor, so the auction was extended</span>
           )}
         </p>
       )}
@@ -385,7 +426,7 @@ function CorridorBar({ context }: { context: HaltContextFrame }) {
   );
 }
 
-function HaltDetail({ context }: { context: HaltContextFrame }) {
+function HaltDetail({ context, decimals }: { context: HaltContextFrame; decimals: number }) {
   const extended = (context.expansion ?? 0) > 0;
   return (
     <div className="rounded border border-halt/40 bg-halt-bg px-3 py-2 text-sm">
@@ -401,10 +442,10 @@ function HaltDetail({ context }: { context: HaltContextFrame }) {
           </span>
         )}
         {context.triggerPrice !== undefined && (
-          <span className="tabular">Trigger {price(context.triggerPrice)}</span>
+          <span className="tabular">Trigger {price(context.triggerPrice, decimals)}</span>
         )}
         {context.referencePrice !== undefined && (
-          <span className="tabular">Reference {price(context.referencePrice)}</span>
+          <span className="tabular">Reference {price(context.referencePrice, decimals)}</span>
         )}
         {context.haltSource && <span className="text-fg-subtle">{context.haltSource}</span>}
         <span className="tabular">
@@ -414,12 +455,10 @@ function HaltDetail({ context }: { context: HaltContextFrame }) {
             targeted, and the corridor may extend it further still. Naming an
             exact time would be a promise the exchange does not make.
           */}
-          {context.resumeAt
-            ? `Not before ${resumeAt(context.resumeAt)}`
-            : "Reopens manually"}
+          {context.resumeAt ? `Not before ${resumeAt(context.resumeAt)}` : "Reopens manually"}
         </span>
       </div>
-      <CorridorBar context={context} />
+      <CorridorBar context={context} decimals={decimals} />
     </div>
   );
 }
@@ -431,22 +470,17 @@ function HaltDetail({ context }: { context: HaltContextFrame }) {
  * boundary rather than discovered by the book. Presenting it as an ordinary
  * print would misrepresent the close.
  */
-function BackstopNotice({ context }: { context: HaltContextFrame }) {
+function BackstopNotice({ context, decimals }: { context: HaltContextFrame; decimals: number }) {
   if (context.reason !== "CLOSING_BACKSTOP") return null;
   return (
     <div className="rounded border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
       <span className="font-semibold text-warning">Closing backstop</span>
-      <span className="ml-3">
-        The trading day ended before the auction could reopen inside its corridor.
-      </span>
+      <span className="ml-3">The trading day ended before the auction could reopen inside its corridor.</span>
       {context.printPrice !== undefined && (
         <span className="ml-1 tabular">
-          Printed at {price(context.printPrice)}
+          Printed at {price(context.printPrice, decimals)}
           {context.clamped && (
-            <span className="text-fg-subtle">
-              {" "}
-              — the corridor boundary, not a discovered price
-            </span>
+            <span className="text-fg-subtle"> — the corridor boundary, not a discovered price</span>
           )}
           .
         </span>
@@ -455,45 +489,185 @@ function BackstopNotice({ context }: { context: HaltContextFrame }) {
   );
 }
 
+interface ValueRow {
+  label: string;
+  value: string;
+  /** A qualifier shown muted beside the figure — a size, a bps form, a comparison. */
+  note?: string;
+  tone?: string;
+}
+
+/**
+ * The instrument's numbers, in four reading groups.
+ *
+ * Previously one flat eleven-row list, which meant re-scanning all eleven to
+ * find any one of them — Open sat above Last, and the quote sat between them.
+ * Grouped, the eye goes to a block:
+ *
+ *   Quote      what can be traded against right now
+ *   Session    where the price has been today
+ *   Activity   how much has actually changed hands
+ *   Status     what the exchange says the instrument is doing
+ *
+ * "Prev close" also used to be `close_price` from *today's* rollup row, which
+ * is today's running close — the last price under a second name. The real
+ * previous close comes from the day before (`lib/prev-close.ts`).
+ */
 function Values({
+  row,
   top,
   today,
+  prevClose,
   phase,
   rowClass,
+  decimals,
 }: {
+  row: OverviewRow | undefined;
   top: TopOfBook | undefined;
   today: DailyBar | undefined;
+  prevClose: number | undefined;
   phase: string | null;
   rowClass: string;
+  decimals: number;
 }) {
   const mid = midOf(top?.bid, top?.ask);
+  const bps = spreadBps(top?.bid, top?.ask);
+  const perTrade = avgTradeSize(today?.volume, today?.trade_count);
 
-  const rows: Array<[string, string]> = [
-    ["Open", price(today?.open_price)],
-    ["High", price(today?.high_price)],
-    ["Low", price(today?.low_price)],
-    ["Last", price(top?.last)],
-    ["Bid / Ask", `${price(top?.bid)} / ${price(top?.ask)}`],
-    ["Mid (live)", price(mid)],
-    ["VWAP", price(today?.vwap)],
-    ["Prev close", price(today?.close_price)],
-    ["Volume", qty(today?.volume)],
-    ["Trades", qty(today?.trade_count)],
-    ["Session", phase ?? ABSENT],
+  const quote: ValueRow[] = [
+    { label: "Bid", value: price(top?.bid, decimals), note: sizeNote(top?.bidSz), tone: "text-up" },
+    { label: "Ask", value: price(top?.ask, decimals), note: sizeNote(top?.askSz), tone: "text-down" },
+    {
+      label: "Spread",
+      value: price(row?.spread, decimals),
+      // Basis points alongside the absolute figure: 0.02 wide is tight on a
+      // 500.00 instrument and very wide on a 5.00 one, and only the relative
+      // form says which this is.
+      ...(bps === undefined ? {} : { note: `${bps.toFixed(0)} bps` }),
+    },
+    { label: "Mid (live)", value: price(mid, decimals) },
+  ];
+
+  const session: ValueRow[] = [
+    { label: "Prev close", value: price(prevClose, decimals) },
+    { label: "Open", value: price(today?.open_price, decimals) },
+    { label: "High", value: price(today?.high_price, decimals) },
+    { label: "Low", value: price(today?.low_price, decimals) },
+    { label: "Last", value: price(top?.last, decimals) },
+    {
+      label: "VWAP",
+      value: price(today?.vwap, decimals),
+      // The benchmark every intraday execution is judged against, so where the
+      // last print sits relative to it is the reading, not the level itself.
+      ...vwapComparison(top?.last, today?.vwap),
+    },
+  ];
+
+  const activity: ValueRow[] = [
+    { label: "Volume", value: qty(today?.volume) },
+    { label: "Turnover", value: compact(row?.turnover) },
+    { label: "Trades", value: qty(today?.trade_count) },
+    { label: "Avg trade", value: perTrade === undefined ? ABSENT : qty(Math.round(perTrade)) },
   ];
 
   return (
     <table className="w-full text-left">
-      <tbody>
-        {rows.map(([label, value]) => (
-          <tr key={label} className={`border-b border-border/40 ${rowClass}`}>
-            <td className="text-fg-subtle">{label}</td>
-            <td className="text-right tabular" data-testid={`value-${label}`}>
-              {value}
-            </td>
-          </tr>
-        ))}
-      </tbody>
+      <Group title="Quote" rows={quote} rowClass={rowClass} />
+      <Group title="Session" rows={session} rowClass={rowClass}>
+        <DayRangeBar low={today?.low_price} high={today?.high_price} last={top?.last} decimals={decimals} />
+      </Group>
+      <Group title="Activity" rows={activity} rowClass={rowClass} />
+      {/* "Phase", not "Session" — the group above already owns that word here. */}
+      <Group title="Status" rows={[{ label: "Phase", value: phase ?? ABSENT }]} rowClass={rowClass} />
     </table>
+  );
+}
+
+/** `× 1,200` beside a price — the size that quote is good for. */
+function sizeNote(size: number | undefined): string | undefined {
+  return size === undefined ? undefined : `× ${qty(size)}`;
+}
+
+function vwapComparison(last: number | undefined, vwap: number | null | undefined): Partial<ValueRow> {
+  if (last === undefined || vwap === null || vwap === undefined || last === vwap) return {};
+  return last > vwap ? { note: "last above", tone: "text-up" } : { note: "last below", tone: "text-down" };
+}
+
+function Group({
+  title,
+  rows,
+  rowClass,
+  children,
+}: {
+  title: string;
+  rows: ValueRow[];
+  rowClass: string;
+  children?: ReactNode;
+}) {
+  return (
+    <tbody>
+      <tr>
+        <th
+          colSpan={2}
+          className="pb-1 pt-3 text-left text-[10px] font-medium uppercase tracking-widest text-fg-faint"
+        >
+          {title}
+        </th>
+      </tr>
+      {rows.map(({ label, value, note, tone }) => (
+        <tr key={label} className={`border-b border-border/40 ${rowClass}`}>
+          <td className="text-fg-subtle">{label}</td>
+          <td className="text-right tabular">
+            {note && <span className="mr-1.5 text-xs text-fg-faint">{note}</span>}
+            <span className={tone} data-testid={`value-${label}`}>
+              {value}
+            </span>
+          </td>
+        </tr>
+      ))}
+      {children}
+    </tbody>
+  );
+}
+
+/**
+ * Where the last price sits between the session's low and high.
+ *
+ * High, Low and Last as three separate numbers make the reader do the
+ * subtraction; a marker on a bar is read at a glance. Same device as the
+ * halt corridor above, for the same reason.
+ */
+function DayRangeBar({
+  low,
+  high,
+  last,
+  decimals,
+}: {
+  low: number | null | undefined;
+  high: number | null | undefined;
+  last: number | undefined;
+  decimals: number;
+}) {
+  const position = rangePosition(low, high, last);
+  if (position === undefined) return null;
+
+  return (
+    <tr>
+      <td colSpan={2} className="pb-1 pt-2">
+        <div className="flex items-baseline justify-between text-[10px] text-fg-faint">
+          <span className="tabular">{price(low, decimals)}</span>
+          <span>session range</span>
+          <span className="tabular">{price(high, decimals)}</span>
+        </div>
+        <div className="relative mt-1 h-2 rounded bg-bg-inset">
+          <div
+            className="absolute top-1/2 h-3 w-0.5 -translate-y-1/2 bg-accent"
+            style={{ left: `${position * 100}%` }}
+            data-testid="range-marker"
+            aria-hidden
+          />
+        </div>
+      </td>
+    </tr>
   );
 }

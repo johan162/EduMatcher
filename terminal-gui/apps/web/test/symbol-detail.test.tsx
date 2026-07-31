@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -39,6 +39,34 @@ vi.mock("../src/lib/api.js", () => ({
     trades: async () => ({ trades: [] }),
     dailyRange: async () => ({ daily: [] }),
     priceSnapshots: async () => ({ snapshots: [] }),
+    // The lookback window the previous close is derived from: yesterday's
+    // settled row plus the current session's, whose date marks "today".
+    dailyWindow: async () => ({
+      daily: [
+        {
+          date: "2026-07-29",
+          symbol: "AAPL",
+          open_price: 147.0,
+          high_price: 149.0,
+          low_price: 146.5,
+          close_price: 148.0,
+          vwap: 147.8,
+          volume: 150000,
+          trade_count: 900,
+        },
+        {
+          date: "2026-07-30",
+          symbol: "AAPL",
+          open_price: 149.7,
+          high_price: 152.05,
+          low_price: 148.1,
+          close_price: 149.7,
+          vwap: 149.94,
+          volume: 184300,
+          trade_count: 1204,
+        },
+      ],
+    }),
   },
 }));
 
@@ -119,7 +147,14 @@ describe("subscription lifetimes", () => {
 
 describe("symbol picker", () => {
   it("offers the gateway's symbols when none is chosen", () => {
-    apply({ type: "hello", symbols: ["AAPL", "MSFT"], indexes: [], calf: "ACTIVE", gateway: "gw" });
+    apply({
+      type: "hello",
+      symbols: ["AAPL", "MSFT"],
+      tickDecimals: {},
+      indexes: [],
+      calf: "ACTIVE",
+      gateway: "gw",
+    });
     show("/symbol");
 
     expect(screen.getByRole("button", { name: "AAPL" })).toBeDefined();
@@ -138,11 +173,13 @@ describe("symbol picker", () => {
 });
 
 describe("header", () => {
-  it("shows the last price and change against the open", async () => {
+  it("shows the last price and change against the previous close", async () => {
+    // Previous close 148.00; the session open of 149.70 would give +0.42.
     apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12, bid: 150.1, ask: 150.14 });
     show();
 
-    expect(await screen.findByText("+0.42 (+0.28%)")).toBeDefined();
+    expect(await screen.findByText("+2.12 (+1.43%)")).toBeDefined();
+    expect(screen.getByText("vs prev close")).toBeDefined();
   });
 
   it("dashes the change before any price is known", () => {
@@ -160,8 +197,49 @@ describe("values table", () => {
     // only fills once the history query settles.
     await screen.findByText("149.94");
     expect(screen.getByTestId("value-VWAP").textContent).toBe("149.94");
-    expect(screen.getByTestId("value-Bid / Ask").textContent).toBe("150.10 / 150.14");
+    expect(screen.getByTestId("value-Bid").textContent).toBe("150.10");
+    expect(screen.getByTestId("value-Ask").textContent).toBe("150.14");
     expect(screen.getByTestId("value-Mid (live)").textContent).toBe("150.12");
+  });
+
+  it("shows the spread between the two touch prices", async () => {
+    apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12, bid: 150.1, ask: 150.14 });
+    show();
+
+    expect((await screen.findByTestId("value-Spread")).textContent).toBe("0.04");
+    expect(screen.getByText("3 bps")).toBeDefined();
+  });
+
+  it("takes the previous close from the day before, not from today's row", async () => {
+    // `close_price` on the current session's rollup is its *running* close —
+    // the last price under a second name. Today's row closes at 149.70.
+    apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12 });
+    show();
+
+    // The cell exists immediately with a dash and fills once the window query
+    // settles, so this waits on the content rather than on the cell.
+    await waitFor(() => expect(screen.getByTestId("value-Prev close").textContent).toBe("148.00"));
+  });
+
+  it("groups the figures rather than listing them flat", async () => {
+    show();
+
+    expect(await screen.findByText("Quote")).toBeDefined();
+    for (const group of ["Session", "Activity", "Status"]) {
+      expect(screen.getByText(group)).toBeDefined();
+    }
+    // The phase row is labelled "Phase" so it cannot collide with the Session
+    // group heading above it.
+    expect(screen.getByTestId("value-Phase")).toBeDefined();
+  });
+
+  it("places the last price within the session range", async () => {
+    apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12 });
+    show();
+
+    // Low 148.10, high 152.05 — a shade over half way.
+    const marker = await screen.findByTestId("range-marker");
+    expect(marker.getAttribute("style")).toContain("51.");
   });
 
   it("dashes the midpoint when only one side is quoted", async () => {
@@ -294,7 +372,13 @@ describe("depth panel", () => {
     });
 
     expect(await screen.findByText("150.10")).toBeDefined();
-    expect(screen.getByText("1,400")).toBeDefined();
+    // 1,400 appears twice on the touch row — as the level's own size and as
+    // the running total, which at the first level are the same number.
+    expect(screen.getAllByText("1,400")).toHaveLength(2);
+    // Then the running total pulls ahead: 1,400 + 800, echoed in the footer's
+    // bid depth.
+    expect(screen.getAllByText("2,200")).toHaveLength(2);
+    expect(screen.getByText(/Imbalance/)).toBeDefined();
   });
 
   it("does not show another symbol's ladder", async () => {

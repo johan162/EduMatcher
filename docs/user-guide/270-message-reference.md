@@ -2196,6 +2196,11 @@ Two behaviours are easy to get wrong from the table alone:
   optional and omitted entirely by a gateway started without a readable engine
   config. Send `SYMBOLS` after the handshake, and read its `COUNT` — an empty
   universe omits the list rather than sending it empty.
+- **Read `REF=` before you format a price.** It carries each symbol's display
+  precision as `SYM:DEC` tuples, on both `WELCOME` and the `SYMBOLS` reply, and
+  is the only route a market data client has to that value. A gateway that
+  predates the field omits it entirely, in which case assume `2` decimals —
+  knowingly, because getting this wrong rounds every price the client shows.
 
 The full protocol — every field table, the `WELCOME`/`SNAP` handshake,
 sequence-gap detection and `RESUME` recovery, subscription limits, and the

@@ -15,6 +15,12 @@ export interface FakeGatewayOptions {
   /** Advertised in `WELCOME|SYMBOLS=`. Omitted when empty, as the real one does. */
   symbols?: string[];
   /**
+   * Advertised in `REF=` alongside `SYMBOLS=`. Omit entirely to model a
+   * gateway predating the field; symbols missing from the map are advertised
+   * at the default of 2, as the real gateway does.
+   */
+  tickDecimals?: Record<string, number>;
+  /**
    * Answered to a `SYMBOLS` request. Defaults to `symbols`; set separately to
    * model a gateway that started without an engine config (so `WELCOME`
    * carries none) but has since learned instruments from the wire.
@@ -92,7 +98,11 @@ export class FakeCalfGateway {
     const parts = ["WELCOME", "PROTO=CALF1", "GW=fake-gwy01", "HBINT=1", "REPLAY=30"];
     if (channels !== null) parts.push(`CH_SUPPORTED=${channels.join(",")}`);
     const symbols = this.opts.symbols ?? [];
-    if (symbols.length > 0) parts.push(`SYMBOLS=${symbols.join(",")}`);
+    if (symbols.length > 0) {
+      parts.push(`SYMBOLS=${symbols.join(",")}`);
+      const ref = this.opts.tickDecimals;
+      if (ref) parts.push(`REF=${symbols.map((s) => `${s}:${ref[s] ?? 2}`).join(",")}`);
+    }
     return `${parts.join("|")}\n`;
   }
 

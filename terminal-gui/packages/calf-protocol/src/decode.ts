@@ -73,6 +73,14 @@ export interface WelcomeInfo {
   chSupported: Set<string>;
   /** From `SYMBOLS=`; empty when the gateway was started without an engine config. */
   symbols: string[];
+  /**
+   * From `REF=`; empty against a gateway that predates the field.
+   *
+   * Emptiness is the capability signal, exactly as an absent `CH_SUPPORTED`
+   * is — a caller falls back to `DEFAULT_TICK_DECIMALS` knowingly rather than
+   * by accident.
+   */
+  tickDecimals: Record<string, number>;
 }
 
 export function parseWelcome(fields: Record<string, string>): WelcomeInfo {
@@ -85,6 +93,7 @@ export function parseWelcome(fields: Record<string, string>): WelcomeInfo {
     replaySec: numOr(fields["REPLAY"], 0),
     chSupported: new Set(splitCsv(fields["CH_SUPPORTED"])),
     symbols: splitCsv(fields["SYMBOLS"]),
+    tickDecimals: parseRef(fields["REF"]),
   };
 }
 
@@ -94,9 +103,45 @@ export function parseWelcome(fields: Record<string, string>): WelcomeInfo {
  * `COUNT` is authoritative and always present, including as `0`; the
  * `SYMBOLS` field is omitted rather than sent empty when the gateway knows of
  * no instruments, so an empty list is a real answer and not a parse failure.
+ * `REF` is omitted alongside it, for the same reason.
  */
-export function parseSymbolsReply(fields: Record<string, string>): string[] {
-  return splitCsv(fields["SYMBOLS"]);
+export function parseSymbolsReply(fields: Record<string, string>): {
+  symbols: string[];
+  tickDecimals: Record<string, number>;
+} {
+  return {
+    symbols: splitCsv(fields["SYMBOLS"]),
+    tickDecimals: parseRef(fields["REF"]),
+  };
+}
+
+/**
+ * Decode `REF=SYM:DEC,...` — per-symbol display precision (reference data).
+ *
+ * Static, so it rides the handshake and the `SYMBOLS` reply rather than a
+ * market data channel: `tick_decimals` never changes for a symbol, and putting
+ * a constant on `TOP`/`TRADE` would repeat it on every tick of a channel whose
+ * `MD` messages are deliberately deltas.
+ *
+ * The tuple grammar is `DEPTH`'s `price:qty:count`, reused; it has room to
+ * grow to `SYM:DEC:MULT:CCY` as further reference fields are defined, so extra
+ * trailing components are ignored here rather than treated as malformed.
+ *
+ * A malformed entry is skipped rather than thrown on, matching `parseLevels`:
+ * one bad token should not cost the caller precision for every other symbol.
+ */
+export function parseRef(raw: string | undefined): Record<string, number> {
+  if (!raw) return {};
+
+  const decimals: Record<string, number> = {};
+  for (const token of raw.split(",")) {
+    const [symbol, dec] = token.split(":");
+    const trimmed = symbol?.trim().toUpperCase();
+    const parsed = num(dec);
+    if (!trimmed || parsed === undefined || !Number.isInteger(parsed) || parsed < 0) continue;
+    decimals[trimmed] = parsed;
+  }
+  return decimals;
 }
 
 function splitCsv(raw: string | undefined): string[] {

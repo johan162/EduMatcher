@@ -28,6 +28,7 @@ from edumatcher.md_gateway.replay_buffer import ReplayBuffer, ReplayMissError
 from edumatcher.md_gateway.sequencer import SequenceAllocator
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
+from edumatcher.models.price import DEFAULT_TICK_DECIMALS
 
 _ALLOWED_CHANNELS = frozenset(
     {"TOP", "TRADE", "STATE", "INDEX", "DEPTH", "AUCTION", "CB"}
@@ -58,9 +59,18 @@ class MarketDataGateway:
         self,
         config: MarketDataGatewayConfig,
         known_symbols: set[str] | None = None,
+        tick_decimals: dict[str, int] | None = None,
     ) -> None:
         self.config = config
         self._known_symbols = set(s.upper() for s in (known_symbols or set()))
+        # Per-symbol display precision, for WELCOME|REF= and the SYMBOLS reply.
+        # Separate from _known_symbols rather than replacing it: the symbol set
+        # grows at runtime as unseen instruments appear on the engine bus, and
+        # those arrive with no configured precision, so the two are genuinely
+        # different sets. _ref_fields resolves that difference in one place.
+        self._tick_decimals = {
+            s.upper(): int(d) for s, d in (tick_decimals or {}).items()
+        }
 
         self._running = False
         self._server: socket.socket | None = None
@@ -431,6 +441,7 @@ class MarketDataGateway:
         }
         if self._known_symbols:
             welcome_fields["SYMBOLS"] = ",".join(sorted(self._known_symbols))
+            welcome_fields["REF"] = self._ref_fields()
 
         self._queue_line(session, "WELCOME", welcome_fields)
         log.info("client authenticated fd=%d client=%s", session.sock.fileno(), client)
@@ -452,7 +463,40 @@ class MarketDataGateway:
         fields = {"COUNT": str(len(self._known_symbols))}
         if self._known_symbols:
             fields["SYMBOLS"] = ",".join(sorted(self._known_symbols))
+            fields["REF"] = self._ref_fields()
         self._queue_line(session, "SYMBOLS", fields)
+
+    def _ref_fields(self) -> str:
+        """Build ``REF=SYM:DEC,...`` — per-symbol display precision.
+
+        Static reference data, so it belongs here and on ``WELCOME`` rather
+        than on a market data channel: ``tick_decimals`` never changes for a
+        symbol, and repeating it on every ``TOP`` or ``TRADE`` would put a
+        constant on the hottest path in a protocol whose ``MD`` messages are
+        deliberately deltas.
+
+        Without it a client has no way to learn an instrument's precision at
+        all — the only other source is ``GET /api/symbols``, which requires a
+        trading credential that a market data consumer has no business holding
+        — so every client rendering a price had to assume the default of 2 and
+        be quietly wrong about anything else.
+
+        The ``SYM:DEC`` tuple reuses the colon-delimited grammar ``DEPTH``
+        already uses for ``price:qty:count``, and leaves room to grow to
+        ``SYM:DEC:MULT:CCY`` as further reference fields are defined, without
+        another protocol change. Parallel positional lists would have to stay
+        index-aligned forever.
+
+        Every symbol in ``SYMBOLS`` appears here, so a client never has to
+        reason about one being listed in one field and missing from the other.
+        Symbols first seen on the engine bus at runtime have no configured
+        precision and are reported at ``DEFAULT_TICK_DECIMALS``, which is what
+        the rest of the system assumes for them too.
+        """
+        return ",".join(
+            f"{sym}:{self._tick_decimals.get(sym, DEFAULT_TICK_DECIMALS)}"
+            for sym in sorted(self._known_symbols)
+        )
 
     def _handle_resume(self, session: ClientSession, fields: dict[str, str]) -> None:
         """Resume one ``(CH, SYM)`` stream from ``LASTSEQ``.

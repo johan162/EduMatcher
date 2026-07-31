@@ -38,7 +38,18 @@ export const api = {
    */
   dailyBars: () => getJson<{ daily: DailyBar[] }>(`/api/history/daily?limit=${MAX_LIMIT}`),
 
-  /** Today's rollup for one symbol — open, prev close, VWAP, high/low, volume. */
+  /**
+   * Daily rollups for every symbol across a window of dates, oldest first.
+   *
+   * The only route to a previous close: the endpoint has no such column and
+   * CALF never carries one, so the day before has to be fetched and read. The
+   * ranged form takes no `symbol`, which is what keeps this to one request
+   * instead of one per instrument.
+   */
+  dailyWindow: (from: string) =>
+    getJson<{ daily: DailyBar[] }>(`/api/history/daily?from=${encodeURIComponent(from)}&limit=${MAX_LIMIT}`),
+
+  /** Today's rollup for one symbol — open, VWAP, high/low, volume. */
   dailyForSymbol: (symbol: string) =>
     getJson<{ daily: DailyBar[] }>(`/api/history/daily?symbol=${encodeURIComponent(symbol)}`),
 
@@ -86,9 +97,7 @@ export const api = {
   indexSnapshots: (indexId: string, from?: string) => {
     const params = new URLSearchParams({ index_id: indexId, limit: String(MAX_LIMIT) });
     if (from) params.set("from", from);
-    return getJson<{ snapshots: IndexSnapshotRow[] }>(
-      `/api/history/index-snapshots?${params}`,
-    );
+    return getJson<{ snapshots: IndexSnapshotRow[] }>(`/api/history/index-snapshots?${params}`);
   },
 
   /**

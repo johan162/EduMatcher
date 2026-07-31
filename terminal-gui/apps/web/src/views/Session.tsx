@@ -16,6 +16,7 @@ import { useEffect, useMemo } from "react";
 import { SessionBadge } from "../components/Badge.js";
 import { EmptyState, Panel } from "../components/Panel.js";
 import { ABSENT, clockUtc, elapsed, price, qty, resumeAt } from "../lib/format.js";
+import { useTickDecimals } from "../lib/precision.js";
 import { sendControl } from "../lib/useTerminalStream.js";
 import { sortHalted, useLiveStore } from "../store/useLiveStore.js";
 import type { HaltedSymbol } from "../store/useLiveStore.js";
@@ -31,6 +32,8 @@ export function SessionView() {
   const halted = useMemo(() => sortHalted(haltedBySymbol), [haltedBySymbol]);
   const auctions = useLiveStore((s) => s.auctions);
   const rowClass = DENSITY_ROW_CLASS[usePrefsStore((s) => s.density)];
+  // Both boards list several instruments at once, each with its own tick size.
+  const tickDecimals = useTickDecimals();
 
   useEffect(() => {
     sendControl({ t: "halt_board", open: true });
@@ -74,7 +77,12 @@ export function SessionView() {
             </thead>
             <tbody>
               {halted.map((entry) => (
-                <HaltRow key={entry.sym} entry={entry} rowClass={rowClass} />
+                <HaltRow
+                  decimals={tickDecimals(entry.sym)}
+                  key={entry.sym}
+                  entry={entry}
+                  rowClass={rowClass}
+                />
               ))}
             </tbody>
           </table>
@@ -112,7 +120,7 @@ export function SessionView() {
                     {auction.eqPrice === undefined ? (
                       <span className="text-fg-faint">(no cross)</span>
                     ) : (
-                      price(auction.eqPrice)
+                      price(auction.eqPrice, tickDecimals(auction.sym))
                     )}
                   </td>
                   <td className="text-right tabular">{qty(auction.eqQty)}</td>
@@ -148,7 +156,7 @@ export function SessionView() {
  * `haltSource` and `resumeAt` are independent axes and are shown as such —
  * who halted the symbol, and whether it comes back by itself.
  */
-function HaltRow({ entry, rowClass }: { entry: HaltedSymbol; rowClass: string }) {
+function HaltRow({ entry, rowClass, decimals }: { entry: HaltedSymbol; rowClass: string; decimals: number }) {
   const cb = entry.context;
   const source = cb?.haltSource;
 
@@ -162,8 +170,8 @@ function HaltRow({ entry, rowClass }: { entry: HaltedSymbol; rowClass: string })
           <span className="text-fg-faint">{ABSENT}</span>
         )}
       </td>
-      <td className="text-right tabular">{price(cb?.triggerPrice)}</td>
-      <td className="text-right tabular">{price(cb?.referencePrice)}</td>
+      <td className="text-right tabular">{price(cb?.triggerPrice, decimals)}</td>
+      <td className="text-right tabular">{price(cb?.referencePrice, decimals)}</td>
       <td className="tabular">
         <span>
           {source ? <span className="mr-1 text-fg-subtle">{source}</span> : null}

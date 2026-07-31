@@ -316,10 +316,11 @@ HELLO|CLIENT=bot01|PROTO=CALF1
 | `HBINT`        | Yes | Heartbeat interval in seconds        |
 | `REPLAY`       | Yes | Replay window in seconds             |
 | `SYMBOLS`      | No  | Comma-separated snapshot of instrument symbols known to the gateway at connect time. Omitted when the gateway has no known symbols yet. The known-symbol set can grow after `WELCOME` is sent, as new `book.{SYMBOL}`/trade events arrive from the engine — this field is a point-in-time snapshot, not a fixed universe, and a symbol absent here may still become subscribable later without a new `WELCOME`. |
+| `REF`          | No  | Per-symbol reference data as `SYM:DEC` tuples, where `DEC` is the instrument's display precision (`tick_decimals`). Covers exactly the symbols listed in `SYMBOLS=`, and is omitted whenever that field is. Absent entirely from gateways predating CALF `1.1.0` — a client detects support by its presence, not by `PROTO`, and falls back to `2` decimals when it is missing. |
 | `CH_SUPPORTED` | No  | Comma-separated list of channels this gateway build supports. Present on every CALF `1.0.0`+ gateway; omitted entirely by earlier gateways. A client uses its presence — not the `PROTO` value, which does not change — to detect whether `DEPTH`/`INDEX` and the `SYM=*` wildcard extension are available. |
 
 ```text
-WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE
+WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE|REF=AAPL:2,MSFT:4
 ```
 
 A client that receives no `CH_SUPPORTED` field must assume only `TOP`,
@@ -412,9 +413,10 @@ The reply:
 |-----------|-----|----------------------------------------------------------|
 | `COUNT`   | Yes | How many symbols are known; `0` is a valid answer         |
 | `SYMBOLS` | No  | Comma-separated symbols, sorted; omitted when `COUNT=0`   |
+| `REF`     | No  | Per-symbol `SYM:DEC` display precision; same set as `SYMBOLS`, omitted alongside it |
 
 ```text
-SYMBOLS|COUNT=3|SYMBOLS=AAPL,MSFT,TSLA
+SYMBOLS|COUNT=3|SYMBOLS=AAPL,MSFT,TSLA|REF=AAPL:2,MSFT:2,TSLA:4
 SYMBOLS|COUNT=0
 ```
 
@@ -432,6 +434,39 @@ makes the universe both askable and refreshable.
 
 Repeatable at any time. A client that needs the universe up front should send
 it immediately after `WELCOME` rather than depending on the handshake field.
+
+#### `REF` — per-symbol display precision
+
+`REF` answers "how many decimal places does this instrument quote in?", which
+a client otherwise has no way to discover. The only other source is
+`GET /api/symbols` on the API gateway, which requires a *trading* credential —
+something a market data consumer has no business holding — so before this field
+existed every CALF client had to assume the default of `2` and was quietly
+wrong about any instrument configured otherwise.
+
+```text
+REF=AAPL:2,MSFT:2,TSLA:4
+```
+
+Three properties are deliberate:
+
+- **It is reference data, not market data.** `tick_decimals` never changes for
+  a symbol, so it rides the handshake and this reply rather than `TOP` or
+  `TRADE`. Repeating a constant on every tick would be exactly what `MD`'s
+  delta encoding exists to avoid.
+- **Its presence is the capability signal.** Like `CH_SUPPORTED`, and for the
+  same reason: `PROTO` stays `CALF1`. A client seeing no `REF` falls back to
+  `2` *knowingly* rather than by accident.
+- **The tuple has room to grow.** `SYM:DEC` reuses the colon-delimited grammar
+  `DEPTH` already uses for `price:qty:count`, and extends to
+  `SYM:DEC:MULT:CCY` as further reference fields are defined — without another
+  protocol change. Clients must ignore trailing components they do not
+  recognise rather than treating the entry as malformed.
+
+Every symbol in `SYMBOLS` appears in `REF`, so a client never has to reason
+about one being listed in one field and missing from the other. A symbol first
+seen on the engine bus, which has no configured precision, is reported at the
+default rather than omitted.
 
 ### `UNSUB`
 

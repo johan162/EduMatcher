@@ -10,6 +10,8 @@ import {
   decodeTrade,
   encodeLevels,
   parseLevels,
+  parseRef,
+  parseSymbolsReply,
   parseWelcome,
   readEnvelope,
 } from "../src/decode.js";
@@ -53,6 +55,63 @@ describe("parseWelcome", () => {
 
   it("reports an empty channel set for a gateway predating CH_SUPPORTED", () => {
     expect(parseWelcome(fieldsOf("WELCOME|PROTO=CALF1|GW=x")).chSupported.size).toBe(0);
+  });
+
+  it("carries per-symbol display precision from REF=", () => {
+    const welcome = parseWelcome(fieldsOf(`${line}|REF=AAPL:2,MSFT:2,TSLA:4`));
+    expect(welcome.tickDecimals).toEqual({ AAPL: 2, MSFT: 2, TSLA: 4 });
+  });
+
+  it("reports no precision for a gateway predating REF", () => {
+    // Emptiness is the capability signal — a caller falls back to the default
+    // knowingly rather than by accident.
+    expect(parseWelcome(fieldsOf(line)).tickDecimals).toEqual({});
+  });
+});
+
+describe("parseRef", () => {
+  it("decodes SYM:DEC tuples", () => {
+    expect(parseRef("AAPL:2,TSLA:4")).toEqual({ AAPL: 2, TSLA: 4 });
+  });
+
+  it("ignores trailing components it does not yet understand", () => {
+    // The tuple is designed to grow to SYM:DEC:MULT:CCY without a further
+    // protocol change, so an older client must not choke on a newer gateway.
+    expect(parseRef("AAPL:2:1:USD")).toEqual({ AAPL: 2 });
+  });
+
+  it("skips a malformed entry rather than discarding the rest", () => {
+    // Matching parseLevels: one bad token should not cost every other symbol
+    // its precision.
+    expect(parseRef("AAPL:2,GARBAGE,MSFT:x,TSLA:4")).toEqual({ AAPL: 2, TSLA: 4 });
+  });
+
+  it("rejects a negative or fractional precision", () => {
+    expect(parseRef("AAPL:-1,MSFT:2.5")).toEqual({});
+  });
+
+  it("accepts zero decimals", () => {
+    // A whole-number-priced instrument is a real configuration, and 0 must not
+    // be confused with absent.
+    expect(parseRef("JPY:0")).toEqual({ JPY: 0 });
+  });
+
+  it("has nothing to decode when the field is absent", () => {
+    expect(parseRef(undefined)).toEqual({});
+  });
+});
+
+describe("parseSymbolsReply", () => {
+  it("returns the universe and its precision together", () => {
+    const reply = parseSymbolsReply(fieldsOf("SYMBOLS|COUNT=2|SYMBOLS=AAPL,TSLA|REF=AAPL:2,TSLA:4"));
+    expect(reply.symbols).toEqual(["AAPL", "TSLA"]);
+    expect(reply.tickDecimals).toEqual({ AAPL: 2, TSLA: 4 });
+  });
+
+  it("treats an empty universe as an answer, not a parse failure", () => {
+    const reply = parseSymbolsReply(fieldsOf("SYMBOLS|COUNT=0"));
+    expect(reply.symbols).toEqual([]);
+    expect(reply.tickDecimals).toEqual({});
   });
 });
 
@@ -302,8 +361,7 @@ describe("decodeCb", () => {
   });
 
   it("reads the ACE corridor off a halt", () => {
-    const line =
-      "CB|CH=CB|SYM=AAPL|SEQ=4|STATUS=HALTED|LEVEL=L1|CORRLO=90.00|CORRHI=110.00|EXP=0|SRC=CB";
+    const line = "CB|CH=CB|SYM=AAPL|SEQ=4|STATUS=HALTED|LEVEL=L1|CORRLO=90.00|CORRHI=110.00|EXP=0|SRC=CB";
     expect(decodeCb(fieldsOf(line))).toEqual({
       status: "HALTED",
       level: "L1",

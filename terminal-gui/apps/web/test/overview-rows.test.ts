@@ -19,6 +19,8 @@ const input = (over: Partial<BuildRowsInput> = {}): BuildRowsInput => ({
   symbols: ["AAPL"],
   top: {},
   daily: {},
+  prevClose: {},
+  lastTradeTs: {},
   halted: {},
   watchlist: [],
   filter: "all",
@@ -42,36 +44,64 @@ describe("last price", () => {
 });
 
 describe("change columns", () => {
-  it("computes change and percent against today's open", () => {
+  it("computes change and percent against the previous close", () => {
+    const row = only({
+      top: { AAPL: { last: 150.12 } },
+      daily: { AAPL: bar("AAPL") },
+      prevClose: { AAPL: 148.0 },
+    });
+    expect(row?.chg).toBeCloseTo(2.12, 5);
+    expect(row?.pctChg).toBeCloseTo(1.4324, 3);
+    expect(row?.baseline).toBe("prevClose");
+  });
+
+  it("reports a symbol that gapped down and recovered as down on the day", () => {
+    // The whole reason the baseline moved. Opening at 142.00 after a 149.70
+    // close and trading back to 143.50 is +1.06% against the open and -4.14%
+    // against the close — and only the second is the day's move. Against the
+    // open this row would read green and rank onto the Gainers board.
+    const row = only({
+      top: { AAPL: { last: 143.5 } },
+      daily: { AAPL: bar("AAPL", { open_price: 142.0 }) },
+      prevClose: { AAPL: 149.7 },
+    });
+    expect(row?.chg).toBeLessThan(0);
+    expect(row?.pctChg).toBeCloseTo(-4.1416, 3);
+  });
+
+  it("keeps the open as its own figure rather than as the baseline", () => {
+    const row = only({
+      top: { AAPL: { last: 143.5 } },
+      daily: { AAPL: bar("AAPL", { open_price: 142.0 }) },
+      prevClose: { AAPL: 149.7 },
+    });
+    expect(row?.open).toBe(142.0);
+  });
+
+  it("falls back to the open when no previous close is on record", () => {
+    // A symbol listed today, or dormant longer than the lookback window.
     const row = only({ top: { AAPL: { last: 150.12 } }, daily: { AAPL: bar("AAPL") } });
     expect(row?.chg).toBeCloseTo(0.42, 5);
-    expect(row?.pctChg).toBeCloseTo(0.2806, 3);
+    expect(row?.baseline).toBe("open");
   });
 
-  it("goes negative below the open", () => {
-    const row = only({ top: { AAPL: { last: 148.0 } }, daily: { AAPL: bar("AAPL") } });
-    expect(row?.chg).toBeLessThan(0);
-    expect(row?.pctChg).toBeLessThan(0);
-  });
-
-  it("leaves both absent when the symbol has not traded today", () => {
-    // No daily row means no open. Reporting 0.00 would claim it was flat
-    // rather than untraded.
+  it("leaves both absent when there is no baseline at all", () => {
+    // No daily row and no previous close. Reporting 0.00 would claim it was
+    // flat rather than untraded.
     const row = only({ top: { AAPL: { last: 150.12 } } });
     expect(row?.chg).toBeUndefined();
     expect(row?.pctChg).toBeUndefined();
+    expect(row?.baseline).toBeUndefined();
   });
 
   it("leaves both absent when no price is known yet", () => {
-    const row = only({ daily: { AAPL: bar("AAPL") } });
+    const row = only({ daily: { AAPL: bar("AAPL") }, prevClose: { AAPL: 148 } });
     expect(row?.chg).toBeUndefined();
+    expect(row?.baseline).toBeUndefined();
   });
 
-  it("reports change but not a percentage against an open of zero", () => {
-    const row = only({
-      top: { AAPL: { last: 5 } },
-      daily: { AAPL: bar("AAPL", { open_price: 0 }) },
-    });
+  it("reports change but not a percentage against a baseline of zero", () => {
+    const row = only({ top: { AAPL: { last: 5 } }, prevClose: { AAPL: 0 } });
     expect(row?.chg).toBe(5);
     expect(row?.pctChg).toBeUndefined();
   });
@@ -85,6 +115,37 @@ describe("change columns", () => {
   });
 });
 
+describe("quote columns", () => {
+  it("carries the size resting at each side of the touch", () => {
+    const row = only({ top: { AAPL: { bid: 151.4, bidSz: 1200, ask: 151.6, askSz: 800 } } });
+    expect(row?.bidSz).toBe(1200);
+    expect(row?.askSz).toBe(800);
+  });
+
+  it("computes the spread from the same frame as the prices", () => {
+    const row = only({ top: { AAPL: { bid: 151.4, ask: 151.6 } } });
+    expect(row?.spread).toBeCloseTo(0.2, 5);
+  });
+
+  it("leaves the spread absent when only one side is quoted", () => {
+    expect(only({ top: { AAPL: { bid: 151.4 } } })?.spread).toBeUndefined();
+  });
+});
+
+describe("turnover", () => {
+  it("is value traded, not share count", () => {
+    const row = only({ daily: { AAPL: bar("AAPL", { volume: 1000, vwap: 150 }) } });
+    expect(row?.turnover).toBe(150_000);
+  });
+
+  it("is a known zero for a symbol that has not traded", () => {
+    // pm-stats leaves VWAP null until the first print, so requiring it would
+    // blank the column for every quiet symbol.
+    const row = only({ daily: { AAPL: bar("AAPL", { volume: 0, vwap: null }) } });
+    expect(row?.turnover).toBe(0);
+  });
+});
+
 describe("volume", () => {
   it("comes from the daily row, not from observed trades", () => {
     expect(only({ daily: { AAPL: bar("AAPL") } })?.volume).toBe(184300);
@@ -93,6 +154,17 @@ describe("volume", () => {
   it("is absent rather than zero when the history row has none", () => {
     // Zero volume and unknown volume are different claims.
     expect(only({ daily: { AAPL: bar("AAPL", { volume: null }) } })?.volume).toBeUndefined();
+  });
+});
+
+describe("last print time", () => {
+  it("carries the timestamp of the symbol's most recent print", () => {
+    const row = only({ lastTradeTs: { AAPL: "2026-07-30T10:15:00Z" } });
+    expect(row?.lastTradeTs).toBe("2026-07-30T10:15:00Z");
+  });
+
+  it("is absent for a symbol that has not printed this session", () => {
+    expect(only({ lastTradeTs: { MSFT: "2026-07-30T10:15:00Z" } })?.lastTradeTs).toBeUndefined();
   });
 });
 
@@ -148,5 +220,25 @@ describe("column sets", () => {
     expect(columnsFor("standard")).toEqual(columnsFor("dense"));
     expect(columnsFor("standard")).toContain("bid");
     expect(columnsFor("standard")).toContain("star");
+  });
+
+  it("keeps the quote detail off the lobby wall", () => {
+    // Sizes and spread are for somebody deciding whether to trade, and nobody
+    // is doing that from across a room.
+    for (const column of ["bidSz", "askSz", "spread", "turnover", "lastTrade"]) {
+      expect(columnsFor("lobby")).not.toContain(column);
+      expect(columnsFor("standard")).toContain(column);
+    }
+  });
+
+  it("puts the two touch prices next to each other, sizes outside them", () => {
+    // So the spread can be read without the eye crossing a size column.
+    const columns = columnsFor("standard");
+    expect(columns.slice(columns.indexOf("bidSz"), columns.indexOf("askSz") + 1)).toEqual([
+      "bidSz",
+      "bid",
+      "ask",
+      "askSz",
+    ]);
   });
 });

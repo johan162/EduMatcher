@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ABSENT, clockUtc, elapsed, price, qty, resumeAt } from "../src/lib/format.js";
+import { ABSENT, clockUtc, compact, elapsed, price, qty, resumeAt } from "../src/lib/format.js";
 
 describe("price", () => {
   it("formats to a fixed number of decimals", () => {
@@ -28,6 +28,26 @@ describe("qty", () => {
   it("distinguishes zero from absent", () => {
     expect(qty(0)).toBe("0");
     expect(qty(undefined)).toBe(ABSENT);
+  });
+});
+
+describe("compact", () => {
+  it("abbreviates a turnover to three significant digits", () => {
+    expect(compact(27_644_220)).toBe("27.6M");
+    expect(compact(1_420_000_000)).toBe("1.4B");
+  });
+
+  it("drops the decimal once the mantissa is three digits wide", () => {
+    expect(compact(274_300_000)).toBe("274M");
+  });
+
+  it("leaves small figures alone", () => {
+    expect(compact(842)).toBe("842");
+  });
+
+  it("distinguishes zero from absent", () => {
+    expect(compact(0)).toBe("0");
+    expect(compact(undefined)).toBe(ABSENT);
   });
 });
 

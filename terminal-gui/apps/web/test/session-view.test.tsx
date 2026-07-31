@@ -136,10 +136,7 @@ describe("active halts", () => {
   it("shows who halted the symbol alongside when it reopens", () => {
     // Source and resume time are independent: a breaker halt can be
     // indefinite, and an operator halt is always indefinite.
-    apply(
-      halt("TSLA"),
-      cb("TSLA", { level: "L2", resumeAt: "2026-07-30T11:07:17.000Z", haltSource: "CB" }),
-    );
+    apply(halt("TSLA"), cb("TSLA", { level: "L2", resumeAt: "2026-07-30T11:07:17.000Z", haltSource: "CB" }));
     render(<SessionView />);
     expect(screen.getByText("CB")).toBeDefined();
   });

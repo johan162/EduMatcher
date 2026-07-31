@@ -81,6 +81,21 @@ describe("handshake", () => {
     expect(uplink.symbols()).toEqual(["AAPL", "MSFT", "TSLA"]);
   });
 
+  it("learns per-symbol display precision from REF=", async () => {
+    const { uplink } = await connected({
+      symbols: ["AAPL", "TSLA"],
+      tickDecimals: { TSLA: 4 },
+    });
+    expect(uplink.tickDecimals()).toEqual({ AAPL: 2, TSLA: 4 });
+  });
+
+  it("reports no precision against a gateway predating REF", async () => {
+    // Emptiness is what tells a browser tab it is falling back to the default
+    // rather than having been told it.
+    const { uplink } = await connected({ symbols: ["AAPL"] });
+    expect(uplink.tickDecimals()).toEqual({});
+  });
+
   it("stays down while the gateway never answers", async () => {
     const { uplink } = await connected({ silent: true });
     await new Promise((resolve) => setTimeout(resolve, 100));

@@ -8,6 +8,16 @@
  */
 
 import type { DailyBar, TopOfBook } from "@edumatcher/terminal-types";
+import { spread, turnover } from "./quote.js";
+
+/**
+ * What `chg`/`pctChg` were measured against.
+ *
+ * `open` is the fallback, not an equal alternative: it means no previous close
+ * was on record for that symbol, and the row is saying so rather than silently
+ * changing what its own percentage means.
+ */
+export type ChangeBaseline = "prevClose" | "open";
 
 export interface OverviewRow {
   sym: string;
@@ -15,17 +25,33 @@ export interface OverviewRow {
   halted: boolean;
   last?: number;
   bid?: number;
+  bidSz?: number;
   ask?: number;
-  /** `last − open`; absent when either side is unknown. */
+  askSz?: number;
+  /** `ask − bid`; negative on a crossed book, which is left visible. */
+  spread?: number;
+  /** Today's opening print, kept as its own figure rather than as the baseline. */
+  open?: number;
+  /** `last − prevClose`, or `last − open` where no previous close is known. */
   chg?: number;
   pctChg?: number;
+  /** Which reference the two above used. Absent exactly when they are. */
+  baseline?: ChangeBaseline;
   volume?: number;
+  /** Shares × VWAP — value traded, comparable across price levels. */
+  turnover?: number;
+  /** When this symbol last printed. Absent until it prints in this session. */
+  lastTradeTs?: string;
 }
 
 export interface BuildRowsInput {
   symbols: string[];
   top: Record<string, TopOfBook>;
   daily: Record<string, DailyBar>;
+  /** Previous session's close per symbol (`lib/prev-close.ts`). */
+  prevClose: Record<string, number>;
+  /** When each symbol last printed, from the live store's trade stream. */
+  lastTradeTs: Record<string, string>;
   halted: Record<string, unknown>;
   watchlist: string[];
   filter: "all" | "watchlist";
@@ -41,6 +67,14 @@ export interface BuildRowsInput {
  * internally inconsistent — a last price from this instant beside a spread
  * from up to `snapshot_interval_sec` ago. Every figure in a row now describes
  * the same moment. Individual prints belong on the Trade Tape (§11).
+ *
+ * Change is measured from the **previous close**, not from today's open. An
+ * open cannot show a gap: a symbol that opened well below yesterday's close
+ * and has since recovered a little reads as a gainer against its own open
+ * while being down on the day — the wrong answer on the grid, and the wrong
+ * answer again on the Movers board that ranks these same rows. `open` stays
+ * available as its own column, because traders want both; it is simply no
+ * longer the reference. See `lib/prev-close.ts`.
  */
 export function buildRows(input: BuildRowsInput): OverviewRow[] {
   const pinned = new Set(input.watchlist);
@@ -49,8 +83,9 @@ export function buildRows(input: BuildRowsInput): OverviewRow[] {
 
   return symbols.map((sym) => {
     const top = input.top[sym];
+    const daily = input.daily[sym];
     const last = top?.last;
-    const open = input.daily[sym]?.open_price ?? undefined;
+    const open = daily?.open_price ?? undefined;
 
     const row: OverviewRow = {
       sym,
@@ -60,17 +95,36 @@ export function buildRows(input: BuildRowsInput): OverviewRow[] {
 
     if (last !== undefined) row.last = last;
     if (top?.bid !== undefined) row.bid = top.bid;
+    if (top?.bidSz !== undefined) row.bidSz = top.bidSz;
     if (top?.ask !== undefined) row.ask = top.ask;
+    if (top?.askSz !== undefined) row.askSz = top.askSz;
+    if (open !== undefined) row.open = open;
 
-    const volume = input.daily[sym]?.volume;
+    const width = spread(top?.bid, top?.ask);
+    if (width !== undefined) row.spread = width;
+
+    const volume = daily?.volume;
     if (volume !== null && volume !== undefined) row.volume = volume;
 
-    // A change figure needs both ends. A symbol that has not traded today has
-    // no open, and showing "0.00 (0.00%)" would claim it was flat rather than
-    // untraded. An open of exactly zero is likewise no basis for a percentage.
-    if (last !== undefined && open !== undefined && open !== null) {
-      row.chg = last - open;
-      if (open !== 0) row.pctChg = ((last - open) / open) * 100;
+    const traded = turnover(daily?.volume, daily?.vwap);
+    if (traded !== undefined) row.turnover = traded;
+
+    const printed = input.lastTradeTs[sym];
+    if (printed !== undefined) row.lastTradeTs = printed;
+
+    // A change figure needs both ends. A symbol with neither a previous close
+    // nor an open has no baseline at all, and showing "0.00 (0.00%)" would
+    // claim it was flat rather than untraded. A baseline of exactly zero is
+    // likewise no basis for a percentage.
+    const prevClose = input.prevClose[sym];
+    const baseline: ChangeBaseline | undefined =
+      prevClose !== undefined ? "prevClose" : open !== undefined ? "open" : undefined;
+    const reference = baseline === "prevClose" ? prevClose : open;
+
+    if (last !== undefined && baseline !== undefined && reference !== undefined) {
+      row.baseline = baseline;
+      row.chg = last - reference;
+      if (reference !== 0) row.pctChg = ((last - reference) / reference) * 100;
     }
 
     return row;
@@ -78,14 +132,63 @@ export function buildRows(input: BuildRowsInput): OverviewRow[] {
 }
 
 /** Column sets per density preset (design §7.5). */
-export type OverviewColumn = "star" | "symbol" | "last" | "chg" | "pctChg" | "bid" | "ask" | "volume";
+export type OverviewColumn =
+  | "star"
+  | "symbol"
+  | "last"
+  | "chg"
+  | "pctChg"
+  | "bidSz"
+  | "bid"
+  | "ask"
+  | "askSz"
+  | "spread"
+  | "volume"
+  | "turnover"
+  | "lastTrade";
 
 const LOBBY_COLUMNS: OverviewColumn[] = ["symbol", "last", "pctChg", "volume"];
-const FULL_COLUMNS: OverviewColumn[] = ["star", "symbol", "last", "chg", "pctChg", "bid", "ask", "volume"];
+
+/**
+ * Ordered in three reading groups rather than by importance:
+ *
+ *   what happened   symbol, last, chg, %chg
+ *   what is there   bid size, bid, ask, ask size, spread
+ *   how much        volume, turnover
+ *
+ * The quote group is laid out inside-out from the price — `BidSz | Bid | Ask |
+ * AskSz` — so the two prices sit adjacent in the middle and the spread between
+ * them can be read without the eye crossing a size column. A quote without its
+ * size is half a quote: a penny wide in a hundred shares and a penny wide in
+ * fifty thousand are not the same market, and only the size column says which
+ * one this is.
+ *
+ * The print time comes last, on the far right, because it qualifies the whole
+ * row rather than any one figure in it: everything to its left is only as good
+ * as the moment it describes.
+ */
+const FULL_COLUMNS: OverviewColumn[] = [
+  "star",
+  "symbol",
+  "last",
+  "chg",
+  "pctChg",
+  "bidSz",
+  "bid",
+  "ask",
+  "askSz",
+  "spread",
+  "volume",
+  "turnover",
+  "lastTrade",
+];
 
 /**
  * Lobby drops to four columns and loses the star: an unattended classroom
- * display has nobody to click it, and the space buys larger type instead.
+ * display has nobody to click it, and the space buys larger type instead. It
+ * keeps none of the quote detail for the same reason — sizes and spread are
+ * for somebody deciding whether to trade, and nobody is doing that from
+ * across a room.
  */
 export function columnsFor(density: "lobby" | "standard" | "dense"): OverviewColumn[] {
   return density === "lobby" ? LOBBY_COLUMNS : FULL_COLUMNS;
@@ -111,15 +214,16 @@ export type MoversTab = "gainers" | "losers" | "active";
  * ordering is the entire content, and floating a favourite above a bigger
  * mover would misreport the market.
  */
-export function rankMovers(
-  rows: readonly OverviewRow[],
-  tab: MoversTab,
-  limit = 25,
-): OverviewRow[] {
+export function rankMovers(rows: readonly OverviewRow[], tab: MoversTab, limit = 25): OverviewRow[] {
+  // Value traded, not share count. A share count ranks whatever is cheapest to
+  // the top: a hundred thousand shares of a 2.00 instrument would outrank ten
+  // thousand of a 200.00 one, though the second is ten times the event. A
+  // symbol whose turnover cannot be computed is dropped rather than ranked at
+  // zero, on the same reasoning as the percentage tabs below.
   if (tab === "active") {
     return rows
-      .filter((r) => r.volume !== undefined && r.volume > 0)
-      .sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0))
+      .filter((r) => r.turnover !== undefined && r.turnover > 0)
+      .sort((a, b) => (b.turnover ?? 0) - (a.turnover ?? 0))
       .slice(0, limit);
   }
 
@@ -143,16 +247,10 @@ export function rankMovers(
  * still shows structure — with a fixed scale a day where nothing moved more
  * than 0.3% would render as a column of empty bars.
  */
-export function moverBarFraction(
-  row: OverviewRow,
-  rows: readonly OverviewRow[],
-  tab: MoversTab,
-): number {
-  const value = tab === "active" ? (row.volume ?? 0) : Math.abs(row.pctChg ?? 0);
-  const peak = rows.reduce(
-    (max, r) =>
-      Math.max(max, tab === "active" ? (r.volume ?? 0) : Math.abs(r.pctChg ?? 0)),
-    0,
-  );
-  return peak > 0 ? value / peak : 0;
+export function moverBarFraction(row: OverviewRow, rows: readonly OverviewRow[], tab: MoversTab): number {
+  const measure = (r: OverviewRow): number =>
+    tab === "active" ? (r.turnover ?? 0) : Math.abs(r.pctChg ?? 0);
+
+  const peak = rows.reduce((max, r) => Math.max(max, measure(r)), 0);
+  return peak > 0 ? measure(row) / peak : 0;
 }

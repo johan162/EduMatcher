@@ -3,7 +3,7 @@
  *
  * A different ranking over the same live+REST dataset the Overview already
  * builds — §12.2 is explicit that this opens no new subscriptions. `Active`
- * ranks by session volume instead of percentage change.
+ * ranks by session turnover instead of percentage change.
  */
 
 import { useMemo, useState } from "react";
@@ -20,7 +20,9 @@ import {
   type MoversTab,
   type OverviewRow,
 } from "../lib/overview-rows.js";
-import { ABSENT, price, qty } from "../lib/format.js";
+import { ABSENT, compact, price } from "../lib/format.js";
+import { usePrevCloses } from "../lib/usePrevCloses.js";
+import { useTickDecimals } from "../lib/precision.js";
 
 const TABS: { id: MoversTab; label: string }[] = [
   { id: "gainers", label: "Gainers" },
@@ -56,10 +58,24 @@ export function MoversView() {
     return bySymbol;
   }, [data]);
 
+  const prevClose = usePrevCloses();
+  const tickDecimals = useTickDecimals();
+
   const rows = useMemo(
     () =>
-      buildRows({ symbols, top, daily, halted, watchlist, filter: "all" }),
-    [symbols, top, daily, halted, watchlist],
+      buildRows({
+        symbols,
+        top,
+        daily,
+        prevClose,
+        // Movers ranks and shows no time column, so the freshness map it would
+        // populate is of no use here.
+        lastTradeTs: {},
+        halted,
+        watchlist,
+        filter: "all",
+      }),
+    [symbols, top, daily, prevClose, halted, watchlist],
   );
   const ranked = useMemo(() => rankMovers(rows, tab), [rows, tab]);
 
@@ -84,8 +100,11 @@ export function MoversView() {
             </button>
           ))}
         </div>
-        <span className="ml-auto text-sm text-fg-subtle tabular">
-          {ranked.length} of {rows.length}
+        <span className="ml-auto flex items-baseline gap-3 text-sm text-fg-subtle">
+          <span className="text-xs">{tab === "active" ? "ranked by value traded" : "vs previous close"}</span>
+          <span className="tabular">
+            {ranked.length} of {rows.length}
+          </span>
         </span>
       </header>
 
@@ -95,9 +114,7 @@ export function MoversView() {
             <tr>
               <th className="px-3 py-2">Symbol</th>
               <th className="px-3 py-2 text-right">Last</th>
-              <th className="px-3 py-2 text-right">
-                {tab === "active" ? "Volume" : "%Chg"}
-              </th>
+              <th className="px-3 py-2 text-right">{tab === "active" ? "Turnover" : "%Chg"}</th>
               <th className="px-3 py-2 w-1/2" />
             </tr>
           </thead>
@@ -112,26 +129,21 @@ export function MoversView() {
                     </span>
                   )}
                 </td>
-                <td className="px-3 py-1 text-right tabular">{price(row.last)}</td>
+                <td className="px-3 py-1 text-right tabular">{price(row.last, tickDecimals(row.sym))}</td>
                 <td
                   className={clsx(
                     "px-3 py-1 text-right tabular",
-                    tab !== "active" &&
-                      ((row.pctChg ?? 0) > 0 ? "text-up" : "text-down"),
+                    tab !== "active" && ((row.pctChg ?? 0) > 0 ? "text-up" : "text-down"),
                   )}
                 >
-                  {tab === "active" ? qty(row.volume) : pct(row.pctChg)}
+                  {tab === "active" ? compact(row.turnover) : pct(row.pctChg)}
                 </td>
                 <td className="px-3 py-1">
                   <div className="h-2 rounded bg-muted">
                     <div
                       className={clsx(
                         "h-2 rounded",
-                        tab === "active"
-                          ? "bg-accent"
-                          : (row.pctChg ?? 0) > 0
-                            ? "bg-up"
-                            : "bg-down",
+                        tab === "active" ? "bg-accent" : (row.pctChg ?? 0) > 0 ? "bg-up" : "bg-down",
                       )}
                       style={{
                         width: `${moverBarFraction(row, ranked, tab) * 100}%`,
@@ -154,7 +166,7 @@ export function MoversView() {
                     ? "Waiting for the instrument universe."
                     : tab === "active"
                       ? "Nothing has traded yet this session."
-                      : `No ${tab} yet — no symbol has moved off its open.`}
+                      : `No ${tab} yet — no symbol has moved off its previous close.`}
                 </td>
               </tr>
             )}

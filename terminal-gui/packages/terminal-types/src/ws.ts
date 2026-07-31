@@ -35,6 +35,19 @@ export interface HelloFrame {
   type: "hello";
   /** From CALF `WELCOME|SYMBOLS=`, plus any symbol seen live since (design §6.3). */
   symbols: string[];
+  /**
+   * Per-symbol display precision, from CALF `REF=`.
+   *
+   * Static reference data, so it arrives once on the handshake rather than on
+   * a market data channel — `tick_decimals` never changes for a symbol, and a
+   * constant repeated on every `TOP` would be the one thing `MD`'s delta
+   * encoding exists to avoid.
+   *
+   * Empty against a gateway that predates the field. A symbol missing from it
+   * renders at `DEFAULT_TICK_DECIMALS`, which is what the rest of the exchange
+   * assumes for an unregistered symbol.
+   */
+  tickDecimals: Record<string, number>;
   /** From bridge config — CALF has no "list the indexes" request. */
   indexes: string[];
   calf: CalfState;
