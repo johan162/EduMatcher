@@ -71,6 +71,7 @@ Quick index of all defined message topics with publisher and purpose.
 | `system.eod` | pm-engine via PUB :5556 | Broadcast by the engine at shutdown before sockets are closed. |
 | `circuit_breaker.halt.{SYMBOL}` | pm-engine via PUB :5556 | Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions. |
 | `circuit_breaker.resume.{SYMBOL}` | pm-engine via PUB :5556 | Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions. |
+| `circuit_breaker.extend.{SYMBOL}` | pm-engine via PUB :5556 | An ACE corridor expansion: the call phase ended with the indicative price outside the corridor, so the symbol stays halted, the corridor widens and a fresh call phase begins. A consumer that ignores this keeps a `resume_at_ns` that has already passed. |
 | `session.transition` | pm-scheduler (PUSH -> engine on :5555) | Sent by the `pm-scheduler` process to request a session-phase transition. |
 | `index.history_request` | Requesting client process via PUSH → pm-index PULL | Retrieves pm-index's structural/audit trail (creation, corporate actions, constituent changes, delistings). |
 | `index.corp_action` | Operator tool via PUSH → pm-index PULL | Applies a corporate action (split, dividend, share issuance) affecting index divisor continuity. |
@@ -584,7 +585,7 @@ Resume trading on a single previously halted symbol.
 | `accepted` | boolean | `true` if the symbol was resumed |
 | `reason` | string | Rejection reason when `accepted=false` |
 
-The engine publishes `circuit_breaker.resume.{SYMBOL}` with `mode = "MANUAL"` when the symbol is resumed.
+The engine publishes `circuit_breaker.resume.{SYMBOL}` with `halt_source = "ADMIN"` when the symbol is resumed.
 
 ### `risk.cancel_symbol`
 
@@ -656,7 +657,7 @@ Operational semantics:
 
 - The engine iterates all symbols currently marked as halted, sets each to
   non-halted, and deactivates any in-memory circuit-breaker state.
-- A `circuit_breaker.resume.<SYMBOL>` event (with `mode = "MANUAL"`) is
+- A `circuit_breaker.resume.<SYMBOL>` event (with `halt_source = "ADMIN"`) is
   published for each resumed symbol.
 - Only symbols that are currently halted are touched; symbols that are already
   trading are left unchanged.

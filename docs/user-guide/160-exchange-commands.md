@@ -900,7 +900,7 @@ print(f"Resumed {result['resumed_symbols']} symbols")
 ```
 
 For each previously halted symbol the engine publishes
-`circuit_breaker.resume.<SYMBOL>` with `mode = "MANUAL"`.  Normal order flow
+`circuit_breaker.resume.<SYMBOL>` with `halt_source = "ADMIN"`.  Normal order flow
 and MM quote obligations resume immediately after the ack is received.
 
 

@@ -30,7 +30,7 @@ socket and line-split logic.
 
 ```mermaid
 flowchart TB
-    E[pm-engine\nZMQ PUB :5556] -->|"book.*, trade.executed\nsession.state\ncircuit_breaker.*\nauction.result.*\nindex.*"| G
+    E[pm-engine\nZMQ PUB :5556] -->|"book.*, trade.executed\nsession.state\ncircuit_breaker.halt/resume/extend\nauction.result.*\nindex.*"| G
 
     subgraph G["pm-md-gwy  (TCP :5570)"]
         direction TB
@@ -139,7 +139,7 @@ fields:
 | `INDEX` | `IDX` | Yes (1.0.0+) | No | `LEVEL SESSION OPEN CHG PCTCHG HIGH LOW AGGCAP` | index trackers, benchmarks |
 | `DEPTH` | `DEPTH` | Yes | No | `LEVELS BIDS ASKS` | order-book (DOM) widgets, Level-2 teaching |
 | `AUCTION` | `AUCTION` | No | Yes | `EQPX EQQTY TRADES IMBSIDE IMBQTY REASON` | auction uncross results, Terminal-style auction views |
-| `CB` | `CB` | Yes | No | `STATUS LEVEL TRIGGERPX REFPX RESUMEAT SRC` | circuit-breaker detail beyond `STATE`'s halt/resume flag |
+| `CB` | `CB` | Yes | No | `STATUS LEVEL TRIGGERPX REFPX RESUMEAT SRC CORRLO CORRHI EXP INDICPX INDICQTY IMB REASON CLAMPED PRINTPX` | circuit-breaker detail beyond `STATE`'s halt/resume flag, including the ACE reopening corridor |
 
 Each channel is detailed under [What information is available](#what-information-is-available); the exact field meanings are in the per-channel field tables there.
 
@@ -593,6 +593,34 @@ SNAP|CH=CB|SYM=AAPL|SEQ=1|TS=2026-07-20T10:02:17.000Z|STATUS=ACTIVE
 CB|CH=CB|SYM=AAPL|SEQ=2|TS=2026-07-20T10:02:17.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T10:20:00.000Z|SRC=CB
 CB|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T10:20:00.000Z|STATUS=ACTIVE|SRC=CB
 ```
+
+**Wire example — a halt extended by ACE before it reopens:**
+
+A halt does not necessarily end when `RESUMEAT` arrives. If the indicative
+uncross price falls outside `[CORRLO, CORRHI]` the symbol stays halted, the
+corridor widens one rung, and a fresh call phase begins — see
+[Risk Controls - Automated Corridor Expansion](120-risk-controls.md#automated-corridor-expansion-ace).
+
+```text
+CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T13:30:00.010Z|STATUS=HALTED|LEVEL=L1|TRIGGERPX=122.00|REFPX=100.00|RESUMEAT=2026-07-20T13:35:00.000Z|CORRLO=90.00|CORRHI=110.00|EXP=0|SRC=CB
+CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T13:35:00.010Z|STATUS=HALTED|LEVEL=L1|TRIGGERPX=122.00|REFPX=100.00|RESUMEAT=2026-07-20T13:37:00.000Z|CORRLO=80.00|CORRHI=120.00|EXP=1|SRC=CB|INDICPX=122.00|INDICQTY=500|IMB=BUY
+CB|CH=CB|SYM=AAPL|SEQ=6|TS=2026-07-20T13:37:00.010Z|STATUS=ACTIVE|SRC=CB
+```
+
+**A client that ignores `EXP`/`CORRLO`/`CORRHI` will show a `RESUMEAT` that has
+already passed and report the symbol as overdue to reopen.** Note also that no
+`STATE` line accompanies an extension: the symbol was halted before it and is
+halted after it, so the coarse session state has not changed.
+
+If the trading day ends before ACE resolves, the resume says so and reports the
+price it was forced to print at:
+
+```text
+CB|CH=CB|SYM=AAPL|SEQ=9|TS=2026-07-20T16:05:00.010Z|STATUS=ACTIVE|SRC=CB|REASON=CLOSING_BACKSTOP|CLAMPED=1|PRINTPX=120.00
+```
+
+`CLAMPED=1` means the price was imposed at the corridor boundary rather than
+discovered by the book.
 
 Note that `STATE` also emits its own, simpler pair of lines for the same
 halt/resume — `CB` and `STATE` fire independently for the same event, so a

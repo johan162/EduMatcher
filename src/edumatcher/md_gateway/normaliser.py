@@ -81,6 +81,12 @@ class CBStatus:
     trigger_price: str = ""
     reference_price: str = ""
     resume_at: str = ""
+    # ACE corridor. Part of the cached status rather than event-only: it
+    # describes the halt currently in force, so a late subscriber's SNAP must
+    # carry it or they cannot tell where the symbol may reopen.
+    corridor_low: str = ""
+    corridor_high: str = ""
+    expansion: str = ""
     # What put the symbol into a halt: "CB" or "ADMIN". Not how it resumes —
     # every halt is a reopening auction call that ends in an uncross.
     source: str = ""
@@ -417,9 +423,53 @@ class EngineNormaliser:
             reference_price=_as_decimal(payload.get("reference_price")) or "",
             resume_at=_ns_to_iso(resume_at_ns),
             source=str(payload.get("halt_source", "")).upper(),
+            corridor_low=_as_decimal(payload.get("corridor_low")) or "",
+            corridor_high=_as_decimal(payload.get("corridor_high")) or "",
+            expansion=_as_int_text(payload.get("expansion")) or "",
         )
         self.cb_cache[sym] = state
         return sym, _cb_fields(state)
+
+    def normalise_cb_extend(
+        self, symbol: str, payload: dict[str, Any]
+    ) -> tuple[str, dict[str, str]]:
+        """Return ``(symbol, fields)`` for an ACE corridor expansion.
+
+        The symbol stays ``HALTED`` — an extension is a continuation of the
+        same halt, not a new state — so this updates the cached corridor and
+        resume time in place. Without it a client keeps a ``RESUMEAT`` that has
+        already passed and reports the symbol as overdue to reopen.
+
+        ``INDICPX``/``INDICQTY``/``IMB`` are event-only. They are computed once,
+        at the moment the call phase ends, so replaying them in a later ``SNAP``
+        would assert a stale price for a book that has kept moving. Publishing
+        them at all mirrors the imbalance indicator real venues disseminate
+        during a reopening, which is what lets participants supply the
+        offsetting interest that resolves the halt.
+        """
+        sym = symbol.upper()
+        cached = self.cb_cache.get(sym, CBStatus(status="HALTED"))
+        state = replace(
+            cached,
+            status="HALTED",
+            resume_at=_ns_to_iso(payload.get("resume_at_ns")),
+            corridor_low=_as_decimal(payload.get("corridor_low")) or "",
+            corridor_high=_as_decimal(payload.get("corridor_high")) or "",
+            expansion=_as_int_text(payload.get("expansion")) or "",
+        )
+        self.cb_cache[sym] = state
+
+        fields = _cb_fields(state)
+        indicative = _as_decimal(payload.get("indicative_price"))
+        if indicative:
+            fields["INDICPX"] = indicative
+        indicative_qty = _as_int_text(payload.get("indicative_qty"))
+        if indicative_qty:
+            fields["INDICQTY"] = indicative_qty
+        imbalance = str(payload.get("imbalance_side", "")).upper()
+        if imbalance:
+            fields["IMB"] = imbalance
+        return sym, fields
 
     def normalise_cb_resume(
         self, symbol: str, payload: dict[str, Any]
@@ -437,7 +487,21 @@ class EngineNormaliser:
             source=str(payload.get("halt_source", "")).upper(),
         )
         self.cb_cache[sym] = state
-        return sym, _cb_fields(state)
+
+        fields = _cb_fields(state)
+        # Event-only: a resume clears the halt, so the cache is back to ACTIVE
+        # and a later SNAP has nothing to say about how it ended.
+        reason = str(payload.get("reason", "")).upper()
+        if reason:
+            fields["REASON"] = reason
+        if payload.get("clamped"):
+            # A forced print at the corridor boundary is not a discovered
+            # price; a client showing it as one would mislead.
+            fields["CLAMPED"] = "1"
+        print_price = _as_decimal(payload.get("print_price"))
+        if print_price:
+            fields["PRINTPX"] = print_price
+        return sym, fields
 
     def cb_snapshot_fields(self, symbol: str) -> dict[str, str]:
         """Return current cached CB snapshot fields for symbol."""
@@ -539,6 +603,12 @@ def _cb_fields(state: CBStatus) -> dict[str, str]:
             fields["REFPX"] = state.reference_price
         if state.resume_at:
             fields["RESUMEAT"] = state.resume_at
+        if state.corridor_low:
+            fields["CORRLO"] = state.corridor_low
+        if state.corridor_high:
+            fields["CORRHI"] = state.corridor_high
+        if state.expansion:
+            fields["EXP"] = state.expansion
     if state.source:
         fields["SRC"] = state.source
     return fields

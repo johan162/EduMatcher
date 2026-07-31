@@ -806,10 +806,44 @@ that also want the detail.
 | `REFPX`     | No  | Reference price at trigger time; present only for an automatic halt currently in effect  |
 | `RESUMEAT`  | No  | Scheduled auto-resume time, UTC ISO-8601 with ms (same format as `TS`); present only for a timed halt currently in effect — absent for rest-of-day or manual/`ADMIN_*` halts |
 | `SRC`       | No  | What halted the symbol: `CB` for an automatic breaker trigger, `ADMIN` for an operator halt |
+| `CORRLO`    | No  | Lower bound of the ACE reopening corridor; present only while `STATUS=HALTED` and ACE is enabled for the symbol |
+| `CORRHI`    | No  | Upper bound of the same corridor                                                          |
+| `EXP`       | No  | Number of ACE extensions consumed so far. `0` on the initial halt                        |
+| `INDICPX`   | No  | Indicative uncross price observed at the end of a call phase. Extension events only      |
+| `INDICQTY`  | No  | Quantity that would have executed at `INDICPX`. Extension events only                    |
+| `IMB`       | No  | `BUY` or `SELL` — which side the imbalance ran. Extension events only                    |
+| `REASON`    | No  | `CLOSING_BACKSTOP` when the resume was forced by the end of the trading day. Resume events only |
+| `CLAMPED`   | No  | `1` when the backstop printed *at* the corridor boundary rather than at the equilibrium. Resume events only |
+| `PRINTPX`   | No  | The price the backstop printed at. Resume events only                                     |
 
-`LEVEL`/`TRIGGERPX`/`REFPX`/`RESUMEAT` describe the halt that just ended and
-are always omitted on a resume event (`STATUS=ACTIVE`) — only `SRC` carries
-over, since what caused the halt is meaningful on the way out as well as in.
+`LEVEL`/`TRIGGERPX`/`REFPX`/`RESUMEAT`/`CORRLO`/`CORRHI`/`EXP` describe the
+halt that just ended and are always omitted on a resume event
+(`STATUS=ACTIVE`) — only `SRC` carries over, since what caused the halt is
+meaningful on the way out as well as in.
+
+#### ACE corridor expansions
+
+A halt does not necessarily end when `RESUMEAT` arrives. If the indicative
+uncross price falls outside `[CORRLO, CORRHI]`, the symbol stays halted, the
+corridor widens by one ladder rung and a fresh call phase begins — see
+[Risk Controls - Automated Corridor Expansion](120-risk-controls.md#automated-corridor-expansion-ace).
+
+The gateway publishes this as a further `CB` event with `STATUS=HALTED` and an
+updated `RESUMEAT`, `CORRLO`, `CORRHI` and `EXP`. **A client that ignores these
+will show a `RESUMEAT` that has already passed and report the symbol as overdue
+to reopen.** No `STATE` event accompanies an extension: the symbol was halted
+before and is halted after, so the coarse session state has not changed.
+
+`INDICPX`/`INDICQTY`/`IMB` are carried on extension events only. They are
+computed once, at the instant the call phase ends, so they are deliberately
+absent from the `SNAP` baseline — replaying them later would assert a stale
+price for a book that has kept moving. Disseminating them at all mirrors the
+order-imbalance indicator real venues publish during a reopening, which is
+what lets participants supply the offsetting interest that resolves the halt.
+
+`CORRLO`/`CORRHI`/`EXP` *are* part of the `SNAP` baseline, because they
+describe the halt still in force: a client subscribing mid-halt otherwise
+cannot tell where the symbol is permitted to reopen.
 
 **A halt is a reopening auction's call phase.** While a symbol is halted the
 engine accepts LIMIT orders and rests them, rejects MARKET/FOK/IOC, and runs
@@ -828,6 +862,22 @@ last known status for the symbol.
 CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T14:05:00.010Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|SRC=CB
 CB|CH=CB|SYM=TSLA|SEQ=1|TS=2026-07-20T15:00:00.000Z|STATUS=HALTED|LEVEL=ADMIN_ALL|SRC=ADMIN
 CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T14:20:00.010Z|STATUS=ACTIVE|SRC=CB
+```
+
+An ACE sequence — halt, one extension, then a reopen inside the widened
+corridor:
+
+```text
+CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T13:30:00.010Z|STATUS=HALTED|LEVEL=L1|TRIGGERPX=122.00|REFPX=100.00|RESUMEAT=2026-07-20T13:35:00.000Z|CORRLO=90.00|CORRHI=110.00|EXP=0|SRC=CB
+CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T13:35:00.010Z|STATUS=HALTED|LEVEL=L1|TRIGGERPX=122.00|REFPX=100.00|RESUMEAT=2026-07-20T13:37:00.000Z|CORRLO=80.00|CORRHI=120.00|EXP=1|SRC=CB|INDICPX=122.00|INDICQTY=500|IMB=BUY
+CB|CH=CB|SYM=AAPL|SEQ=6|TS=2026-07-20T13:37:00.010Z|STATUS=ACTIVE|SRC=CB
+```
+
+And a halt the trading day ended before ACE could resolve, printed at the
+corridor boundary rather than at the equilibrium:
+
+```text
+CB|CH=CB|SYM=AAPL|SEQ=9|TS=2026-07-20T16:05:00.010Z|STATUS=ACTIVE|SRC=CB|REASON=CLOSING_BACKSTOP|CLAMPED=1|PRINTPX=120.00
 ```
 
 The first example is an automatic threshold-breach halt (all detail fields

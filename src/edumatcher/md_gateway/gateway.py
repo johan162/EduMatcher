@@ -80,6 +80,7 @@ class MarketDataGateway:
             "session.state",
             "circuit_breaker.halt.",
             "circuit_breaker.resume.",
+            "circuit_breaker.extend.",
             "auction.result.",
         )
         self._index_sub = make_subscriber(config.index_pub_addr, "index.")
@@ -780,6 +781,18 @@ class MarketDataGateway:
                         now_seconds,
                     )
                     cb_sym, cb_fields = self._normaliser.normalise_cb_halt(sym, payload)
+                    self._emit_stream_event("CB", "CB", cb_sym, cb_fields, now_seconds)
+                    continue
+
+                if topic.startswith("circuit_breaker.extend."):
+                    # An ACE extension leaves the symbol halted, so STATE is
+                    # unchanged and deliberately not re-emitted — only the CB
+                    # corridor and resume time have moved.
+                    self._dbg_count("extend_topics")
+                    sym = topic.split(".", 2)[2].upper()
+                    cb_sym, cb_fields = self._normaliser.normalise_cb_extend(
+                        sym, payload
+                    )
                     self._emit_stream_event("CB", "CB", cb_sym, cb_fields, now_seconds)
                     continue
 
