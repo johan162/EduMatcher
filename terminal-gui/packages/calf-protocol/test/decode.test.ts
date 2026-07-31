@@ -300,4 +300,61 @@ describe("decodeCb", () => {
   it("reads the baseline SNAP for a symbol that has never halted as ACTIVE", () => {
     expect(decodeCb(fieldsOf("SNAP|CH=CB|SYM=AAPL|SEQ=1|STATUS=ACTIVE"))).toEqual({ status: "ACTIVE" });
   });
+
+  it("reads the ACE corridor off a halt", () => {
+    const line =
+      "CB|CH=CB|SYM=AAPL|SEQ=4|STATUS=HALTED|LEVEL=L1|CORRLO=90.00|CORRHI=110.00|EXP=0|SRC=CB";
+    expect(decodeCb(fieldsOf(line))).toEqual({
+      status: "HALTED",
+      level: "L1",
+      corridorLow: 90,
+      corridorHigh: 110,
+      expansion: 0,
+      haltSource: "CB",
+    });
+  });
+
+  it("reads an extension's widened corridor and the price that caused it", () => {
+    // Without these a client keeps a RESUMEAT that has already passed and
+    // reports the symbol as overdue to reopen.
+    const line =
+      "CB|CH=CB|SYM=AAPL|SEQ=5|STATUS=HALTED|LEVEL=L1|RESUMEAT=2026-07-20T13:37:00.000Z" +
+      "|CORRLO=80.00|CORRHI=120.00|EXP=1|SRC=CB|INDICPX=122.00|INDICQTY=500|IMB=BUY";
+    expect(decodeCb(fieldsOf(line))).toEqual({
+      status: "HALTED",
+      level: "L1",
+      resumeAt: "2026-07-20T13:37:00.000Z",
+      corridorLow: 80,
+      corridorHigh: 120,
+      expansion: 1,
+      haltSource: "CB",
+      indicativePrice: 122,
+      indicativeQty: 500,
+      imbalanceSide: "BUY",
+    });
+  });
+
+  it("reads a resume the trading day forced", () => {
+    const line =
+      "CB|CH=CB|SYM=AAPL|SEQ=9|STATUS=ACTIVE|SRC=CB|REASON=CLOSING_BACKSTOP|CLAMPED=1|PRINTPX=120.00";
+    expect(decodeCb(fieldsOf(line))).toEqual({
+      status: "ACTIVE",
+      haltSource: "CB",
+      reason: "CLOSING_BACKSTOP",
+      clamped: true,
+      printPrice: 120,
+    });
+  });
+
+  it("ignores an imbalance side it does not recognise", () => {
+    const decoded = decodeCb(fieldsOf("CB|CH=CB|SYM=AAPL|SEQ=6|STATUS=HALTED|IMB=SIDEWAYS"));
+    expect(decoded.imbalanceSide).toBeUndefined();
+  });
+
+  it("leaves an ordinary resume free of backstop fields", () => {
+    const decoded = decodeCb(fieldsOf("CB|CH=CB|SYM=AAPL|SEQ=7|STATUS=ACTIVE|SRC=CB"));
+    expect(decoded.reason).toBeUndefined();
+    expect(decoded.clamped).toBeUndefined();
+    expect(decoded.printPrice).toBeUndefined();
+  });
 });

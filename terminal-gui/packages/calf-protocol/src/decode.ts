@@ -17,6 +17,7 @@ import type {
   DepthLevel,
   HaltContextFrame,
   HaltSource,
+  ImbalanceSide,
   TopOfBook,
 } from "@edumatcher/terminal-types";
 import { CalfProtocolError } from "./line.js";
@@ -273,6 +274,11 @@ export function decodeAuction(fields: Record<string, string>): AuctionPayload {
  */
 const AUCTION_REASONS: readonly string[] = ["SCHEDULED", "REOPEN", "RECOVERY"];
 const HALT_SOURCES: readonly string[] = ["CB", "ADMIN"];
+const IMBALANCE_SIDES: readonly string[] = ["BUY", "SELL"];
+
+function isImbalanceSide(raw: string | undefined): raw is ImbalanceSide {
+  return raw !== undefined && IMBALANCE_SIDES.includes(raw);
+}
 
 function isAuctionReason(value: string | undefined): value is AuctionReason {
   return value !== undefined && AUCTION_REASONS.includes(value);
@@ -303,5 +309,29 @@ export function decodeCb(fields: Record<string, string>): HaltContextPayload {
   if (referencePrice !== undefined) payload.referencePrice = referencePrice;
   if (fields["RESUMEAT"]) payload.resumeAt = fields["RESUMEAT"];
   if (isHaltSource(fields["SRC"])) payload.haltSource = fields["SRC"];
+
+  // ACE corridor. Present on the initial halt and re-sent, widened, on every
+  // extension. A client that ignored these would keep showing a RESUMEAT that
+  // has already passed and report the symbol as overdue to reopen.
+  const corridorLow = num(fields["CORRLO"]);
+  const corridorHigh = num(fields["CORRHI"]);
+  const expansion = num(fields["EXP"]);
+  if (corridorLow !== undefined) payload.corridorLow = corridorLow;
+  if (corridorHigh !== undefined) payload.corridorHigh = corridorHigh;
+  if (expansion !== undefined) payload.expansion = expansion;
+
+  // Extension events only — where the symbol would have reopened, and why it
+  // did not. Never present in a SNAP.
+  const indicativePrice = num(fields["INDICPX"]);
+  const indicativeQty = num(fields["INDICQTY"]);
+  if (indicativePrice !== undefined) payload.indicativePrice = indicativePrice;
+  if (indicativeQty !== undefined) payload.indicativeQty = indicativeQty;
+  if (isImbalanceSide(fields["IMB"])) payload.imbalanceSide = fields["IMB"];
+
+  // End-of-day backstop.
+  if (fields["REASON"] === "CLOSING_BACKSTOP") payload.reason = "CLOSING_BACKSTOP";
+  if (fields["CLAMPED"] === "1") payload.clamped = true;
+  const printPrice = num(fields["PRINTPX"]);
+  if (printPrice !== undefined) payload.printPrice = printPrice;
   return payload;
 }

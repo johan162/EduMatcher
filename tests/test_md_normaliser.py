@@ -554,3 +554,129 @@ def test_auction_omits_reason_when_the_engine_sent_none() -> None:
     n = EngineNormaliser()
     _, fields = n.normalise_auction_result({"symbol": "AAPL", "eq_qty": 0})
     assert "REASON" not in fields
+
+
+# ---------------------------------------------------------------------------
+# ACE corridor expansions
+# ---------------------------------------------------------------------------
+
+
+def _halt(n: EngineNormaliser) -> None:
+    n.normalise_cb_halt(
+        "AAPL",
+        {
+            "level": "L1",
+            "trigger_price": 122.0,
+            "reference_price": 100.0,
+            "resume_at_ns": 1_800_000_000_000_000_000,
+            "halt_source": "CB",
+            "corridor_low": 90.0,
+            "corridor_high": 110.0,
+            "expansion": 0,
+        },
+    )
+
+
+def test_halt_publishes_the_corridor_the_symbol_may_reopen_inside() -> None:
+    n = EngineNormaliser()
+    _halt(n)
+    fields = n.cb_snapshot_fields("AAPL")
+
+    assert fields["CORRLO"] == "90.0"
+    assert fields["CORRHI"] == "110.0"
+    assert fields["EXP"] == "0"
+
+
+def test_an_extension_moves_the_resume_time_and_widens_the_corridor() -> None:
+    # Without this a client keeps a RESUMEAT that has already passed and
+    # reports the symbol as overdue to reopen.
+    n = EngineNormaliser()
+    _halt(n)
+    _, fields = n.normalise_cb_extend(
+        "AAPL",
+        {
+            "indicative_price": 122.0,
+            "indicative_qty": 500,
+            "imbalance_side": "BUY",
+            "resume_at_ns": 1_800_000_120_000_000_000,
+            "corridor_low": 80.0,
+            "corridor_high": 120.0,
+            "expansion": 1,
+        },
+    )
+
+    assert fields["STATUS"] == "HALTED"
+    assert (fields["CORRLO"], fields["CORRHI"], fields["EXP"]) == ("80.0", "120.0", "1")
+    assert fields["RESUMEAT"] == "2027-01-15T08:02:00.000Z"
+    assert (fields["INDICPX"], fields["INDICQTY"], fields["IMB"]) == (
+        "122.0",
+        "500",
+        "BUY",
+    )
+
+
+def test_an_extension_keeps_the_detail_of_the_halt_it_continues() -> None:
+    # An extension is the same halt, not a new one, so the trigger and level
+    # must survive it — the engine does not resend them.
+    n = EngineNormaliser()
+    _halt(n)
+    _, fields = n.normalise_cb_extend("AAPL", {"corridor_low": 80.0, "expansion": 1})
+
+    assert fields["LEVEL"] == "L1"
+    assert fields["TRIGGERPX"] == "122.0"
+    assert fields["REFPX"] == "100.0"
+
+
+def test_the_snapshot_carries_the_corridor_but_not_a_stale_indicative() -> None:
+    # A late subscriber must learn where the symbol may reopen; it must not be
+    # told a price computed for a book that has since kept moving.
+    n = EngineNormaliser()
+    _halt(n)
+    n.normalise_cb_extend(
+        "AAPL",
+        {
+            "indicative_price": 122.0,
+            "corridor_low": 80.0,
+            "corridor_high": 120.0,
+            "expansion": 1,
+        },
+    )
+    snap = n.cb_snapshot_fields("AAPL")
+
+    assert snap["CORRHI"] == "120.0"
+    assert snap["EXP"] == "1"
+    assert "INDICPX" not in snap
+    assert "IMB" not in snap
+
+
+def test_a_backstop_resume_says_the_price_was_imposed() -> None:
+    # A clamped print is not a discovered price; a client showing it as one
+    # would misrepresent the close.
+    n = EngineNormaliser()
+    _halt(n)
+    _, fields = n.normalise_cb_resume(
+        "AAPL",
+        {
+            "halt_source": "CB",
+            "reason": "CLOSING_BACKSTOP",
+            "clamped": True,
+            "print_price": 120.0,
+        },
+    )
+
+    assert fields["STATUS"] == "ACTIVE"
+    assert fields["REASON"] == "CLOSING_BACKSTOP"
+    assert fields["CLAMPED"] == "1"
+    assert fields["PRINTPX"] == "120.0"
+
+
+def test_an_ordinary_resume_carries_no_backstop_fields() -> None:
+    n = EngineNormaliser()
+    _halt(n)
+    _, fields = n.normalise_cb_resume("AAPL", {"halt_source": "CB"})
+
+    assert "REASON" not in fields
+    assert "CLAMPED" not in fields
+    assert "PRINTPX" not in fields
+    # And the corridor is gone with the halt it described.
+    assert "CORRLO" not in n.cb_snapshot_fields("AAPL")

@@ -16,6 +16,7 @@ import type {
   CalfState,
   DepthFrame,
   HaltContextFrame,
+  TradeFrame,
   ServerFrame,
   SessionPhase,
   TopOfBook,
@@ -29,6 +30,8 @@ import type { WsStatus } from "../lib/ws.js";
  * happened" board, not an audit log.
  */
 const AUCTION_BUFFER_MAX = 200;
+/** Design §11.1: "last ~500 prints, client-side" keeps memory flat. */
+const TRADE_BUFFER_MAX = 500;
 
 /**
  * Live midpoint points kept per symbol. At one tick per book republish this is
@@ -62,7 +65,25 @@ interface LiveStore {
   sessionPrev?: SessionPhase;
   sessionSince: string | null;
 
+  /**
+   * Cross-symbol print tape, newest first.
+   *
+   * Bounded rather than complete: a busy exchange prints faster than anyone
+   * reads, and an unbounded array would grow without limit for a view that
+   * only ever shows the most recent screenful.
+   */
+  trades: TradeFrame[];
   halted: Record<string, HaltedSymbol>;
+  /**
+   * The frame that ended each symbol's most recent halt.
+   *
+   * Kept because a resume is the only place the end-of-day backstop reports
+   * itself — that it printed at the corridor boundary rather than at a price
+   * the book discovered. The halt is gone by then, so there is nowhere in
+   * `halted` for it to live, and dropping the frame would lose the one fact
+   * that distinguishes an imposed close from an ordinary one.
+   */
+  haltEnded: Record<string, HaltContextFrame>;
   auctions: AuctionResultFrame[];
   top: Record<string, TopOfBook>;
 
@@ -102,7 +123,9 @@ const initialState = {
   sessionPhase: null,
   sessionPrev: undefined,
   sessionSince: null,
+  trades: [] as TradeFrame[],
   halted: {} as Record<string, HaltedSymbol>,
+  haltEnded: {} as Record<string, HaltContextFrame>,
   auctions: [] as AuctionResultFrame[],
   top: {} as Record<string, TopOfBook>,
   depth: null as DepthFrame | null,
@@ -161,11 +184,13 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
         case "depth":
           return { depth: frame };
 
-        // Frames no view consumes yet. `trade` carries individual prints; the
-        // Overview reads its last price off `top` so a row's figures all
-        // describe one moment, and the Trade Tape (§11) will keep its own
-        // bounded buffer rather than a last-value-per-symbol map.
         case "trade":
+          // Newest first, bounded. The Overview still reads its last price
+          // off `top` rather than from here, so a row's figures all describe
+          // one moment; the tape is a separate record of individual prints.
+          return { trades: [frame, ...s.trades].slice(0, TRADE_BUFFER_MAX) };
+
+        // Frames no view consumes yet.
         case "index":
           return {};
       }
@@ -231,7 +256,15 @@ function applyState(s: LiveStore, frame: Extract<ServerFrame, { type: "state" }>
  * that is a resume arriving after the `STATE` that already cleared it.
  */
 function applyHaltContext(s: LiveStore, frame: HaltContextFrame): Partial<LiveStore> {
+  if (frame.status !== "HALTED") {
+    // A resume. `halted` is cleared by the STATE frame that accompanies it,
+    // so the only thing to do here is retain how the halt ended.
+    return { haltEnded: { ...s.haltEnded, [frame.sym]: frame } };
+  }
   const existing = s.halted[frame.sym];
-  if (!existing || frame.status !== "HALTED") return {};
+  if (!existing) return {};
+  // An ACE extension arrives as a further HALTED frame carrying the widened
+  // corridor and a new resume time; the gateway resends the halt's own detail
+  // with it, so replacing wholesale keeps the two consistent.
   return { halted: { ...s.halted, [frame.sym]: { ...existing, context: frame } } };
 }

@@ -96,6 +96,7 @@ function SymbolDetail({ sym }: { sym: string }) {
 
   const top = useLiveStore((s) => s.top[sym]);
   const halted = useLiveStore((s) => s.halted[sym]);
+  const haltEnded = useLiveStore((s) => s.haltEnded[sym]);
   const sessionPhase = useLiveStore((s) => s.sessionPhase);
   const depth = useLiveStore((s) => s.depth);
   const midTail = useLiveStore((s) => s.midTail[sym]);
@@ -188,6 +189,10 @@ function SymbolDetail({ sym }: { sym: string }) {
       </header>
 
       {halted?.context && <HaltDetail context={halted.context} />}
+
+      {!halted && haltEnded?.reason === "CLOSING_BACKSTOP" && (
+        <BackstopNotice context={haltEnded} />
+      )}
 
       {auction && dismissedAuction !== auction.seq && (
         <div className="flex items-center gap-3 rounded border border-auction/40 bg-auction-bg px-3 py-2 text-sm">
@@ -312,21 +317,140 @@ function auctionTitle(reason: AuctionReason | undefined): string {
   return "Auction uncrossed";
 }
 
-function HaltDetail({ context }: { context: HaltContextFrame }) {
+/**
+ * Where the indicative price sits relative to the corridor, as a 0..1
+ * position for the marker. Clamped to the ends so a wildly outlying price
+ * still renders on the bar rather than escaping it.
+ */
+function markerPosition(low: number, high: number, value: number): number {
+  if (high <= low) return 0.5;
+  return Math.min(1, Math.max(0, (value - low) / (high - low)));
+}
+
+/**
+ * The corridor a halted symbol may reopen inside, with the last indicative
+ * price marked against it.
+ *
+ * This is the whole explanation of why a halt is still running: the price is
+ * outside the band, so the call phase was extended instead of printing. A
+ * numeric readout alone makes the reader do that comparison in their head.
+ */
+function CorridorBar({ context }: { context: HaltContextFrame }) {
+  const { corridorLow: low, corridorHigh: high, indicativePrice } = context;
+  if (low === undefined || high === undefined) return null;
+
+  const outside =
+    indicativePrice !== undefined && (indicativePrice < low || indicativePrice > high);
+
   return (
-    <div className="flex items-center gap-4 rounded border border-halt/40 bg-halt-bg px-3 py-2 text-sm">
-      <span className="font-semibold text-halt">Halted</span>
-      {context.level && <span>Level {context.level}</span>}
-      {context.triggerPrice !== undefined && (
-        <span className="tabular">Trigger {price(context.triggerPrice)}</span>
+    <div className="mt-2">
+      <div className="flex items-baseline justify-between text-xs text-fg-subtle">
+        <span className="tabular">{price(low)}</span>
+        <span>may reopen inside</span>
+        <span className="tabular">{price(high)}</span>
+      </div>
+      <div className="relative mt-1 h-2 rounded bg-halt/20">
+        <div className="absolute inset-y-0 left-0 right-0 rounded border border-halt/50" />
+        {indicativePrice !== undefined && (
+          <div
+            className={clsx(
+              "absolute top-1/2 h-3 w-0.5 -translate-y-1/2",
+              outside ? "bg-error" : "bg-ok",
+            )}
+            style={{ left: `${markerPosition(low, high, indicativePrice) * 100}%` }}
+            aria-hidden
+          />
+        )}
+      </div>
+      {indicativePrice !== undefined && (
+        <p className="mt-1 text-xs">
+          <span className={outside ? "text-error" : "text-ok"}>
+            Would reopen at {price(indicativePrice)}
+          </span>
+          {context.indicativeQty !== undefined && (
+            <span className="text-fg-subtle"> for {qty(context.indicativeQty)}</span>
+          )}
+          {context.imbalanceSide && (
+            <span className="text-fg-subtle"> · {context.imbalanceSide} imbalance</span>
+          )}
+          {outside && (
+            <span className="text-fg-subtle">
+              {" "}
+              — outside the corridor, so the auction was extended
+            </span>
+          )}
+        </p>
       )}
-      {context.referencePrice !== undefined && (
-        <span className="tabular">Reference {price(context.referencePrice)}</span>
-      )}
-      {context.haltSource && <span className="text-fg-subtle">{context.haltSource}</span>}
-      <span className="tabular">
-        {context.resumeAt ? `Reopens ${resumeAt(context.resumeAt)}` : "Reopens manually"}
+    </div>
+  );
+}
+
+function HaltDetail({ context }: { context: HaltContextFrame }) {
+  const extended = (context.expansion ?? 0) > 0;
+  return (
+    <div className="rounded border border-halt/40 bg-halt-bg px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center gap-4">
+        <span className="font-semibold text-halt">Halted</span>
+        {context.level && <span>Level {context.level}</span>}
+        {extended && (
+          <span
+            className="rounded bg-halt/20 px-1.5 py-0.5 text-xs"
+            title="The reopening auction has been extended because the price was outside the corridor"
+          >
+            extension {context.expansion}
+          </span>
+        )}
+        {context.triggerPrice !== undefined && (
+          <span className="tabular">Trigger {price(context.triggerPrice)}</span>
+        )}
+        {context.referencePrice !== undefined && (
+          <span className="tabular">Reference {price(context.referencePrice)}</span>
+        )}
+        {context.haltSource && <span className="text-fg-subtle">{context.haltSource}</span>}
+        <span className="tabular">
+          {/*
+            "Not before", not "Reopens at". Every call phase ends at a random
+            point after its minimum duration so the uncross instant cannot be
+            targeted, and the corridor may extend it further still. Naming an
+            exact time would be a promise the exchange does not make.
+          */}
+          {context.resumeAt
+            ? `Not before ${resumeAt(context.resumeAt)}`
+            : "Reopens manually"}
+        </span>
+      </div>
+      <CorridorBar context={context} />
+    </div>
+  );
+}
+
+/**
+ * A resume the end of the trading day forced.
+ *
+ * Worth its own banner because the price was *imposed* at the corridor
+ * boundary rather than discovered by the book. Presenting it as an ordinary
+ * print would misrepresent the close.
+ */
+function BackstopNotice({ context }: { context: HaltContextFrame }) {
+  if (context.reason !== "CLOSING_BACKSTOP") return null;
+  return (
+    <div className="rounded border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+      <span className="font-semibold text-warning">Closing backstop</span>
+      <span className="ml-3">
+        The trading day ended before the auction could reopen inside its corridor.
       </span>
+      {context.printPrice !== undefined && (
+        <span className="ml-1 tabular">
+          Printed at {price(context.printPrice)}
+          {context.clamped && (
+            <span className="text-fg-subtle">
+              {" "}
+              — the corridor boundary, not a discovered price
+            </span>
+          )}
+          .
+        </span>
+      )}
     </div>
   );
 }

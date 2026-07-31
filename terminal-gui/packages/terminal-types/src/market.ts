@@ -25,6 +25,12 @@ export type SessionPhase = string;
 /** CALF `CB.STATUS` (`src/edumatcher/md_gateway/normaliser.py`, `CBStatus`). */
 export type CbStatus = "ACTIVE" | "HALTED";
 
+/** Side of the imbalance reported on an ACE corridor expansion. */
+export type ImbalanceSide = "BUY" | "SELL";
+
+/** Why a halt ended, when it was not simply the call phase expiring. */
+export type HaltEndReason = "CLOSING_BACKSTOP";
+
 /**
  * Top-of-book state for one symbol.
  *

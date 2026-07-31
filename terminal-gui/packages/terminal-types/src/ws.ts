@@ -16,7 +16,14 @@
  *     with no trades yet, say) are omitted rather than zero-filled.
  */
 
-import type { CbStatus, DepthLevel, SessionPhase, TradeSide } from "./market.js";
+import type {
+  CbStatus,
+  DepthLevel,
+  HaltEndReason,
+  ImbalanceSide,
+  SessionPhase,
+  TradeSide,
+} from "./market.js";
 
 /** Health of the bridge's single upstream CALF connection (design §6.6, §7.4). */
 export type CalfState = "ACTIVE" | "RECONNECTING" | "DOWN";
@@ -147,6 +154,37 @@ export interface HaltContextFrame {
    * in an uncross, so there is nothing to vary there.
    */
   haltSource?: HaltSource;
+
+  // --- Automated Corridor Expansion -------------------------------------
+  /**
+   * Bounds the symbol is permitted to reopen inside. Part of the halt's
+   * current state, so it survives into the `SNAP` a late subscriber gets.
+   */
+  corridorLow?: number;
+  corridorHigh?: number;
+  /** Extensions consumed so far; 0 on the initial halt. */
+  expansion?: number;
+  /**
+   * Indicative uncross price at the moment a call phase ended — i.e. where
+   * the symbol *would* have reopened. Present only on an extension event,
+   * never in a snapshot: it is a point-in-time observation of a book that
+   * keeps moving, so replaying it later would assert a stale price.
+   */
+  indicativePrice?: number;
+  indicativeQty?: number;
+  /** Which side the imbalance ran at that moment. Extension events only. */
+  imbalanceSide?: ImbalanceSide;
+
+  // --- End-of-day backstop ----------------------------------------------
+  /** `CLOSING_BACKSTOP` when the trading day forced the resume. */
+  reason?: HaltEndReason;
+  /**
+   * True when the backstop printed *at* the corridor boundary rather than at
+   * the equilibrium. Such a price was imposed, not discovered, and a viewer
+   * that presented it as an ordinary print would misrepresent the close.
+   */
+  clamped?: boolean;
+  printPrice?: number;
 }
 
 /**

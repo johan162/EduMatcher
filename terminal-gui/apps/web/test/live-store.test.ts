@@ -220,3 +220,54 @@ describe("top of book", () => {
     expect(state().top["AAPL"]).toEqual({ bid: 1 });
   });
 });
+
+describe("ACE corridor", () => {
+  it("replaces the halt context when the corridor is extended", () => {
+    // An extension is a continuation of the same halt: the gateway resends
+    // the halt's own detail alongside the widened corridor, so replacing
+    // wholesale keeps the two consistent.
+    apply(state_("AAPL", "HALTED"));
+    apply(cb("AAPL", { level: "L1", corridorLow: 90, corridorHigh: 110, expansion: 0 }));
+    apply(
+      cb("AAPL", {
+        level: "L1",
+        corridorLow: 80,
+        corridorHigh: 120,
+        expansion: 1,
+        indicativePrice: 122,
+        imbalanceSide: "BUY",
+        resumeAt: "2026-07-30T13:37:00.000Z",
+      }),
+    );
+
+    const context = state().halted["AAPL"]?.context;
+    expect(context?.expansion).toBe(1);
+    expect(context?.corridorHigh).toBe(120);
+    expect(context?.indicativePrice).toBe(122);
+    expect(context?.resumeAt).toBe("2026-07-30T13:37:00.000Z");
+  });
+
+  it("retains how a halt ended so a forced close can be reported", () => {
+    // The halt is gone by the time the backstop reports itself, so there is
+    // nowhere in `halted` for the fact to live.
+    apply(state_("AAPL", "HALTED"));
+    apply(cb("AAPL", { level: "L1" }));
+    apply(
+      cb("AAPL", {
+        status: "ACTIVE",
+        reason: "CLOSING_BACKSTOP",
+        clamped: true,
+        printPrice: 120,
+      }),
+    );
+
+    expect(state().haltEnded["AAPL"]?.reason).toBe("CLOSING_BACKSTOP");
+    expect(state().haltEnded["AAPL"]?.clamped).toBe(true);
+    expect(state().haltEnded["AAPL"]?.printPrice).toBe(120);
+  });
+
+  it("ignores a halt context for a symbol that is not halted", () => {
+    apply(cb("AAPL", { level: "L1" }));
+    expect(state().halted["AAPL"]).toBeUndefined();
+  });
+});

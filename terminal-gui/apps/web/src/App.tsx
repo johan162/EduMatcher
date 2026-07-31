@@ -4,6 +4,8 @@ import { useTerminalStream } from "./lib/useTerminalStream.js";
 import { OverviewView } from "./views/Overview.js";
 import { Placeholder } from "./views/Placeholder.js";
 import { SymbolDetailView } from "./views/SymbolDetail.js";
+import { MoversView } from "./views/Movers.js";
+import { TradeTapeView } from "./views/TradeTape.js";
 import { SessionView } from "./views/Session.js";
 
 export default function App() {
@@ -16,8 +18,8 @@ export default function App() {
         <Route path="symbol" element={<SymbolDetailView />} />
         <Route path="symbol/:sym" element={<SymbolDetailView />} />
         <Route path="index" element={<Placeholder title="Index" phase="Phase 8" />} />
-        <Route path="tape" element={<Placeholder title="Trade tape" phase="Phase 8" />} />
-        <Route path="movers" element={<Placeholder title="Movers" phase="Phase 8" />} />
+        <Route path="tape" element={<TradeTapeView />} />
+        <Route path="movers" element={<MoversView />} />
         <Route path="session" element={<SessionView />} />
       </Route>
     </Routes>
