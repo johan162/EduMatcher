@@ -59,7 +59,7 @@ def _meta(**over: Any) -> ArtifactMeta:
         "source_sha256": "0" * 64,
     }
     base.update(over)
-    return ArtifactMeta(**base)
+    return ArtifactMeta(**base)  # type: ignore[arg-type]
 
 
 def _engine() -> EngineConfig:
@@ -394,7 +394,7 @@ class TestDeclaredTypes:
         # A list where a tuple is declared — constructs happily, compares
         # unequal after a round trip.
         wrong = ApiGatewayConfig(
-            credentials=[ApiCredential(api_key="k", gateway_id="GW01")]
+            credentials=[ApiCredential(api_key="k", gateway_id="GW01")]  # type: ignore[arg-type]
         )
         found = _mismatches(ApiGatewayConfig, wrong, "ApiGatewayConfig")
 

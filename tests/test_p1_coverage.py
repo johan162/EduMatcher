@@ -27,7 +27,7 @@ from edumatcher.models.order import (
 
 def _limit(
     side: Side,
-    price: float,
+    price: int,
     qty: int = 100,
     gateway_id: str = "GW1",
     smp_action: SmpAction = SmpAction.NONE,
@@ -287,7 +287,7 @@ class TestSmpNone:
 
 def _iceberg(
     side: Side,
-    price: float,
+    price: int,
     total_qty: int = 300,
     visible_qty: int = 100,
     gateway_id: str = "GW1",
@@ -308,7 +308,7 @@ def _iceberg(
 
 def _fok(
     side: Side,
-    price: float,
+    price: int,
     qty: int = 100,
     gateway_id: str = "GW1",
     smp_action: SmpAction = SmpAction.NONE,

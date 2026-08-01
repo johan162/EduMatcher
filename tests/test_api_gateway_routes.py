@@ -377,5 +377,5 @@ async def test_healthz_reports_unhealthy_when_not_running() -> None:
             )
         )
     )
-    result = await reference.healthz(request)  # test double
+    result = await reference.healthz(request)  # type: ignore[arg-type]  # test double
     assert result["ok"] is False

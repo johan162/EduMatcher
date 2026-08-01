@@ -248,7 +248,7 @@ def balf_gw_factory() -> Generator[FactoryFn, None, None]:
         )
         defaults.update(cfg_overrides)
 
-        cfg = BalfGatewayConfig(**defaults)
+        cfg = BalfGatewayConfig(**defaults)  # type: ignore[arg-type]
         gw = BalfGateway(cfg)
         t = threading.Thread(target=gw.run, daemon=True)
         t.start()

@@ -48,9 +48,9 @@ def _two_leg_combo(
     combo_id: str = "MY_COMBO",
     tif: TIF = TIF.DAY,
     sym_a: str = "AAPL",
-    price_a: float = 150.0,
+    price_a: int = 15000,
     sym_b: str = "MSFT",
-    price_b: float = 300.0,
+    price_b: int = 30000,
     qty_a: int = 10,
     qty_b: int = 5,
     side_a: Side = Side.BUY,
@@ -141,7 +141,7 @@ class TestComboModel:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100.0,
+                    price=100,
                 ),
                 ComboLeg(
                     symbol="B", side=Side.SELL, order_type=OrderType.MARKET, quantity=5
@@ -177,14 +177,14 @@ class TestComboModel:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=1.0,
+                    price=1,
                 ),
                 ComboLeg(
                     symbol="B",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=2.0,
+                    price=2,
                 ),
             ],
         )
@@ -203,14 +203,14 @@ class TestComboModel:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=1.0,
+                    price=1,
                 ),
                 ComboLeg(
                     symbol="B",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=2.0,
+                    price=2,
                 ),
             ],
         )
@@ -237,14 +237,14 @@ class TestComboPersistence:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=50.0,
+                    price=50,
                 ),
                 ComboLeg(
                     symbol="B",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=70.0,
+                    price=70,
                 ),
             ],
         )
@@ -274,14 +274,14 @@ class TestComboPersistence:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=1,
-                    price=1.0,
+                    price=1,
                 ),
                 ComboLeg(
                     symbol="B",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=1,
-                    price=1.0,
+                    price=1,
                 ),
             ],
         )
@@ -298,14 +298,14 @@ class TestComboPersistence:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=1,
-                    price=1.0,
+                    price=1,
                 ),
                 ComboLeg(
                     symbol="B",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=1,
-                    price=1.0,
+                    price=1,
                 ),
             ],
         )
@@ -322,14 +322,14 @@ class TestComboPersistence:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=1,
-                    price=1.0,
+                    price=1,
                 ),
                 ComboLeg(
                     symbol="B",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=1,
-                    price=1.0,
+                    price=1,
                 ),
             ],
         )
@@ -377,14 +377,14 @@ class TestMarketMakerComboSeeds:
                             side=Side.BUY,
                             order_type=OrderType.LIMIT,
                             quantity=10,
-                            price=150.0,
+                            price=150,
                         ),
                         ComboLeg(
                             symbol="MSFT",
                             side=Side.SELL,
                             order_type=OrderType.LIMIT,
                             quantity=5,
-                            price=300.0,
+                            price=300,
                         ),
                     ],
                 )
@@ -461,7 +461,7 @@ class TestComboValidation:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=150.0,
+                    price=15000,
                 ),
             ],
         )
@@ -518,7 +518,7 @@ class TestComboValidation:
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=300.0,
+                    price=30000,
                 ),
             ],
         )
@@ -542,7 +542,7 @@ class TestComboLifecycle:
         symbol: str,
         side: Side,
         qty: int,
-        price: float,
+        price: int,
         gateway_id: str = "TRADER02",
     ) -> None:
         """Place a resting limit order on the book (from a different gateway)."""
@@ -562,11 +562,11 @@ class TestComboLifecycle:
         engine, pub_sock = combo_engine
 
         # Seed resting orders that combo legs will cross
-        self._seed_resting(engine, "AAPL", Side.SELL, 10, 150.0)
-        self._seed_resting(engine, "MSFT", Side.BUY, 5, 300.0)
+        self._seed_resting(engine, "AAPL", Side.SELL, 10, 15000)
+        self._seed_resting(engine, "MSFT", Side.BUY, 5, 30000)
         pub_sock.sent.clear()
 
-        payload = _two_leg_combo(price_a=150.0, price_b=300.0)
+        payload = _two_leg_combo(price_a=15000, price_b=30000)
         engine._handle_combo_order(payload)
 
         topics = _topics(pub_sock)
@@ -587,7 +587,7 @@ class TestComboLifecycle:
         """No resting liquidity → children rest, combo stays PENDING."""
         engine, pub_sock = combo_engine
 
-        payload = _two_leg_combo(price_a=150.0, price_b=300.0)
+        payload = _two_leg_combo(price_a=15000, price_b=30000)
         engine._handle_combo_order(payload)
 
         # The combo should be ACK'd and remain PENDING (no MATCHED status published)
@@ -616,10 +616,10 @@ class TestComboLifecycle:
         engine, pub_sock = combo_engine
 
         # Seed liquidity only for leg 0 (AAPL BUY) — leg 1 (MSFT) is unfillable.
-        self._seed_resting(engine, "AAPL", Side.SELL, 10, 150.0)
+        self._seed_resting(engine, "AAPL", Side.SELL, 10, 15000)
         pub_sock.sent.clear()
 
-        engine._handle_combo_order(_two_leg_combo(price_a=150.0, price_b=300.0))
+        engine._handle_combo_order(_two_leg_combo(price_a=15000, price_b=30000))
 
         combo = list(engine._combos.values())[0]
         # M5: no leg may fill while another leg cannot — the combo rests PENDING.
@@ -689,10 +689,10 @@ class TestComboLifecycle:
         """Cannot cancel a combo that is already MATCHED."""
         engine, pub_sock = combo_engine
 
-        self._seed_resting(engine, "AAPL", Side.SELL, 10, 150.0)
-        self._seed_resting(engine, "MSFT", Side.BUY, 5, 300.0)
+        self._seed_resting(engine, "AAPL", Side.SELL, 10, 15000)
+        self._seed_resting(engine, "MSFT", Side.BUY, 5, 30000)
 
-        payload = _two_leg_combo(combo_id="DONE2", price_a=150.0, price_b=300.0)
+        payload = _two_leg_combo(combo_id="DONE2", price_a=15000, price_b=30000)
         engine._handle_combo_order(payload)
         pub_sock.sent.clear()
 

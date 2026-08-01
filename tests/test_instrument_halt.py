@@ -77,7 +77,7 @@ def _order_dict(
     side: Side = Side.BUY,
     order_type: OrderType = OrderType.LIMIT,
     qty: int = 100,
-    price: float | None = 100.0,
+    price: int | None = 10000,
     gateway_id: str = "TRADER01",
     tif: TIF = TIF.DAY,
 ) -> dict:
@@ -136,13 +136,13 @@ class TestHaltState:
 
         # Place a resting ask first (without halt) to give something to match against
         eng._halted_symbols["AAPL"] = False
-        ask = _order_dict(side=Side.SELL, price=100.0, qty=100)
+        ask = _order_dict(side=Side.SELL, price=10000, qty=100)
         eng._handle_new_order(ask)
         pub.sent.clear()
 
         eng._halted_symbols["AAPL"] = True
         # A bid at 100.0 would cross the resting ask, but matching is suppressed
-        bid = _order_dict(side=Side.BUY, price=100.0, qty=100)
+        bid = _order_dict(side=Side.BUY, price=10000, qty=100)
         eng._handle_new_order(bid)
 
         # Should get an ack (accepted) but no fill
@@ -154,7 +154,7 @@ class TestHaltState:
         eng, pub = engine
         eng._halted_symbols["AAPL"] = True
 
-        eng._handle_new_order(_order_dict(order_type=OrderType.LIMIT, price=100.0))
+        eng._handle_new_order(_order_dict(order_type=OrderType.LIMIT, price=10000))
         topic, msg = decode(pub.sent[-1])
         assert "order.ack." in topic
         assert msg["accepted"] is True
@@ -193,7 +193,7 @@ class TestCollarEngineIntegration:
         eng, pub = engine
         self._add_collar(eng)
         # Price=100.0 → to_ticks("AAPL") = 10000; inside [8000, 12000]
-        eng._handle_new_order(_order_dict(price=100.0))
+        eng._handle_new_order(_order_dict(price=10000))
         topic, msg = decode(pub.sent[-1])
         assert msg["accepted"] is True
 
@@ -201,7 +201,7 @@ class TestCollarEngineIntegration:
         eng, pub = engine
         self._add_collar(eng)
         # Reference=10000, static_upper=12000. Price 130.0 → 13000 ticks
-        eng._handle_new_order(_order_dict(price=130.0))
+        eng._handle_new_order(_order_dict(price=13000))
         topic, msg = decode(pub.sent[-1])
         assert msg["accepted"] is False
         assert "STATIC_COLLAR_BREACH" in msg["reason"]
@@ -210,7 +210,7 @@ class TestCollarEngineIntegration:
         eng, pub = engine
         self._add_collar(eng)
         # Reference=10000, static_lower=8000. Price 79.0 → 7900 ticks
-        eng._handle_new_order(_order_dict(price=79.0))
+        eng._handle_new_order(_order_dict(price=7900))
         topic, msg = decode(pub.sent[-1])
         assert msg["accepted"] is False
         assert "STATIC_COLLAR_BREACH" in msg["reason"]
@@ -228,7 +228,7 @@ class TestCollarEngineIntegration:
     def test_no_collar_order_always_accepted(self, engine) -> None:
         eng, pub = engine
         # No collar wired for AAPL
-        eng._handle_new_order(_order_dict(price=99999.0))
+        eng._handle_new_order(_order_dict(price=9999900))
         topic, msg = decode(pub.sent[-1])
         # Only acceptance check — no collar rejection
         assert "COLLAR" not in msg.get("reason", "")
@@ -247,7 +247,7 @@ class TestCollarEngineIntegration:
         book.last_trade_price = 10000
 
         # Price 102.5 → 10250 ticks; dyn_upper = int(10000*1.01) = 10100
-        eng._handle_new_order(_order_dict(price=102.5))
+        eng._handle_new_order(_order_dict(price=10250))
         topic, msg = decode(pub.sent[-1])
         assert msg["accepted"] is False
         assert "DYNAMIC_COLLAR_BREACH" in msg["reason"]
@@ -257,7 +257,7 @@ class TestCollarEngineIntegration:
         eng._enforce_collars = False
         self._add_collar(eng)
 
-        eng._handle_new_order(_order_dict(price=130.0))
+        eng._handle_new_order(_order_dict(price=13000))
         topic, msg = decode(pub.sent[-1])
         assert topic.startswith("order.ack.")
         assert msg["accepted"] is True

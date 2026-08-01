@@ -39,7 +39,7 @@ class _FakeContext:
 @pytest.fixture()
 def publisher() -> tuple[DropCopyPublisher, _FakeSocket]:
     ctx = _FakeContext()
-    pub = DropCopyPublisher(ctx, addr="tcp://127.0.0.1:15557")
+    pub = DropCopyPublisher(ctx, addr="tcp://127.0.0.1:15557")  # type: ignore[arg-type]
     # Reuse the socket reference that was injected
     pub._pub = ctx._socket
     return pub, ctx._socket

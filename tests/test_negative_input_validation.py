@@ -112,7 +112,7 @@ class TestOrderRequestSchemaValidation:
         with pytest.raises(ValidationError, match="side"):
             OrderRequest(
                 symbol="AAPL",
-                side="MIDDLE",
+                side="MIDDLE",  # type: ignore[arg-type]
                 order_type=OrderType.LIMIT,
                 quantity=10,
                 price=100.0,
@@ -124,7 +124,7 @@ class TestOrderRequestSchemaValidation:
             OrderRequest(
                 symbol="AAPL",
                 side=Side.BUY,
-                order_type="MAGIC",
+                order_type="MAGIC",  # type: ignore[arg-type]
                 quantity=10,
                 price=100.0,
             )
@@ -138,7 +138,7 @@ class TestOrderRequestSchemaValidation:
                 order_type=OrderType.LIMIT,
                 quantity=10,
                 price=100.0,
-                tif="FOREVER",
+                tif="FOREVER",  # type: ignore[arg-type]
             )
 
     # --- Test 4: zero quantity ---
@@ -547,7 +547,7 @@ class TestEngineSymbolAllowlist:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100.0,
+            price=100,
         )
         engine._handle_new_order(o.to_dict())
         ack = _last_ack(pub_sock)
@@ -581,7 +581,7 @@ class TestEngineGatewayAuth:
             quantity=10,
             gateway_id="GW99",
             tif=TIF.DAY,
-            price=100.0,
+            price=100,
         )
         engine._handle_new_order(o.to_dict())
         ack = _last_ack(pub_sock)
@@ -600,7 +600,7 @@ class TestEngineGatewayAuth:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100.0,
+            price=100,
         )
         engine._handle_new_order(o.to_dict())
         ack = _last_ack(pub_sock)
@@ -641,7 +641,7 @@ class TestEngineMalformedPayloads:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100.0,
+            price=100,
         )
         payload = o.to_dict()
         payload["side"] = "SIDEWAYS"  # corrupt the enum value
@@ -660,7 +660,7 @@ class TestEngineMalformedPayloads:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100.0,
+            price=100,
         )
         payload = o.to_dict()
         payload["order_type"] = "MAGIC_ORDER"
@@ -677,7 +677,7 @@ class TestEngineMalformedPayloads:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100.0,
+            price=100,
         )
         payload = o.to_dict()
         payload["tif"] = "WHENEVER"
@@ -706,7 +706,7 @@ class TestEngineSessionGating:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100.0,
+            price=100,
         )
         engine._handle_new_order(o.to_dict())
         ack = _last_ack(pub_sock)
@@ -726,7 +726,7 @@ class TestEngineSessionGating:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100.0,
+            price=100,
         )
         engine._handle_new_order(o.to_dict())
         ack = _last_ack(pub_sock)

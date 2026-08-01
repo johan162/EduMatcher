@@ -78,7 +78,7 @@ def _order(
     symbol: str = "AAPL",
     side: Side = Side.BUY,
     qty: int = 100,
-    price: float = 100.0,
+    price: int = 100,
     gateway_id: str = "GW01",
 ) -> dict:
     o = Order.create(
@@ -268,9 +268,9 @@ class TestPositionAccumulationViaFill:
         _connect(engine, "GW02")
 
         # GW01 posts a resting BUY
-        engine._handle_new_order(_order("AAPL", Side.BUY, 100, 10.0, "GW01"))
+        engine._handle_new_order(_order("AAPL", Side.BUY, 100, 1000, "GW01"))
         # GW02 crosses with a SELL — triggers a fill
-        engine._handle_new_order(_order("AAPL", Side.SELL, 100, 10.0, "GW02"))
+        engine._handle_new_order(_order("AAPL", Side.SELL, 100, 1000, "GW02"))
 
         # Both gateways should now have non-zero positions
         gw01_pos = engine._gateway_positions.get("GW01", {}).get("AAPL", 0)
@@ -285,8 +285,8 @@ class TestPositionAccumulationViaFill:
         _connect(engine, "GW01")
         _connect(engine, "GW02")
 
-        engine._handle_new_order(_order("AAPL", Side.BUY, 50, 10.0, "GW01"))
-        engine._handle_new_order(_order("AAPL", Side.SELL, 50, 10.0, "GW02"))
+        engine._handle_new_order(_order("AAPL", Side.BUY, 50, 1000, "GW01"))
+        engine._handle_new_order(_order("AAPL", Side.SELL, 50, 1000, "GW02"))
 
         engine._handle_position_request({"gateway_id": "GW01"})
         topic, payload = _last_msg_topic_payload(pub_sock)
@@ -305,10 +305,10 @@ class TestPositionAccumulationViaFill:
         _connect(engine, "GW02")
 
         # Resting bid for 200
-        engine._handle_new_order(_order("AAPL", Side.BUY, 200, 10.0, "GW01"))
+        engine._handle_new_order(_order("AAPL", Side.BUY, 200, 1000, "GW01"))
         # Two separate sells of 100 each — fills GW01's order in two parts
-        engine._handle_new_order(_order("AAPL", Side.SELL, 100, 10.0, "GW02"))
-        engine._handle_new_order(_order("AAPL", Side.SELL, 100, 10.0, "GW02"))
+        engine._handle_new_order(_order("AAPL", Side.SELL, 100, 1000, "GW02"))
+        engine._handle_new_order(_order("AAPL", Side.SELL, 100, 1000, "GW02"))
 
         gw01_pos = engine._gateway_positions.get("GW01", {}).get("AAPL", 0)
         assert gw01_pos == 200

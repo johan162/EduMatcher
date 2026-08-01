@@ -145,7 +145,7 @@ def _payload(
     order_type: OrderType,
     qty: int,
     gateway_id: str,
-    price: float | None = None,
+    price: int | None = None,
     tif: TIF = TIF.DAY,
 ) -> dict[str, Any]:
     o = Order.create(
@@ -212,17 +212,17 @@ class TestH1TimePriorityIsEngineAssigned:
         engine, pub = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
 
-        first = _payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=100.0)
+        first = _payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=10000)
         engine._handle_new_order(first)
 
         # GW02 arrives strictly later but spoofs an older timestamp.
-        spoofer = _payload(Side.BUY, OrderType.LIMIT, 100, "GW02", price=100.0)
+        spoofer = _payload(Side.BUY, OrderType.LIMIT, 100, "GW02", price=10000)
         spoofer["timestamp"] = first["timestamp"] - 1_000_000
         engine._handle_new_order(spoofer)
 
         # One sell for exactly one order's quantity — must hit GW01 (FIFO).
         engine._handle_new_order(
-            _payload(Side.SELL, OrderType.LIMIT, 100, "GW03", price=100.0)
+            _payload(Side.SELL, OrderType.LIMIT, 100, "GW03", price=10000)
         )
 
         trades = _msgs(pub, "trade.executed")
@@ -250,10 +250,10 @@ class TestH2AmendSemantics:
         engine, pub = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
 
-        bid = _payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=99.0)
+        bid = _payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=9900)
         engine._handle_new_order(bid)
         engine._handle_new_order(
-            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=101.0)
+            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=10100)
         )
 
         # Amend the bid up through the resting ask.
@@ -289,7 +289,7 @@ class TestH2AmendSemantics:
         engine._load_config()  # wires the collar with reference_price=10000
         _connect(engine)
 
-        order = _payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=100.0)
+        order = _payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=10000)
         engine._handle_new_order(order)  # passes the collar, rests
 
         # New order at 150.00 would be rejected (static band breach) —
@@ -320,7 +320,7 @@ class TestH3PositionLedgerCompleteness:
         engine, pub = _make_engine(monkeypatch, tmp_path, mm_gateways=("GW01",))
         _connect(engine)
         engine._handle_new_order(
-            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=101.0)
+            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=10100)
         )
 
         # MM quote whose bid crosses the resting ask → trade 100 @ 101.00.
@@ -344,7 +344,7 @@ class TestH3PositionLedgerCompleteness:
         engine, pub = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         engine._handle_new_order(
-            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=100.0)
+            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=10000)
         )
 
         engine._handle_oco_order(
@@ -386,7 +386,7 @@ class TestH4DropCopyCompleteness:
         _connect(engine)
 
         engine._handle_new_order(
-            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=101.0)
+            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=10100)
         )
         _quote(engine, "GW01", bid_price=101.0, ask_price=102.0)  # trades 100 @ 101
 
@@ -417,10 +417,10 @@ class TestH5NoDuplicateFillMessages:
         engine, pub = _make_engine(monkeypatch, tmp_path, mm_gateways=("GW01",))
         _connect(engine)
         engine._handle_new_order(
-            _payload(Side.SELL, OrderType.LIMIT, 50, "GW02", price=100.0)
+            _payload(Side.SELL, OrderType.LIMIT, 50, "GW02", price=10000)
         )
         engine._handle_new_order(
-            _payload(Side.SELL, OrderType.LIMIT, 50, "GW02", price=101.0)
+            _payload(Side.SELL, OrderType.LIMIT, 50, "GW02", price=10100)
         )
 
         # MM bid at 101.00 sweeps both ask levels (2 fills, 100 total).
@@ -457,14 +457,14 @@ class TestH6FillPriceAccuracy:
         engine, pub = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
 
-        ask_low = _payload(Side.SELL, OrderType.LIMIT, 50, "GW02", price=100.0)
-        ask_high = _payload(Side.SELL, OrderType.LIMIT, 50, "GW02", price=101.0)
+        ask_low = _payload(Side.SELL, OrderType.LIMIT, 50, "GW02", price=10000)
+        ask_high = _payload(Side.SELL, OrderType.LIMIT, 50, "GW02", price=10100)
         engine._handle_new_order(ask_low)
         engine._handle_new_order(ask_high)
 
         # Aggressor sweeps both levels: 50 @ 100.00, then 50 @ 101.00.
         engine._handle_new_order(
-            _payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=101.0)
+            _payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=10100)
         )
 
         trades = _msgs(pub, "trade.executed")
@@ -546,8 +546,8 @@ class TestH7TerminalOrderPurge:
         engine, pub = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
 
-        resting = _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=100.0)
-        aggressor = _payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=100.0)
+        resting = _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=10000)
+        aggressor = _payload(Side.BUY, OrderType.LIMIT, 100, "GW01", price=10000)
         engine._handle_new_order(resting)
         engine._handle_new_order(aggressor)
         assert len(_msgs(pub, "trade.executed")) == 1  # precondition: both filled
@@ -685,7 +685,7 @@ class TestH9SessionGating:
 
         # Ordinary order: accepted, queued without matching (correct).
         engine._handle_new_order(
-            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=100.0)
+            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=10000)
         )
         # MM quote whose bid crosses the queued ask.
         _quote(engine, "GW01", bid_price=100.0, ask_price=101.0)
@@ -709,7 +709,7 @@ class TestH9SessionGating:
         engine._handle_session_transition({"to_state": "PRE_OPEN"})
 
         engine._handle_new_order(
-            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=100.0)
+            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=10000)
         )
 
         combo = ComboOrder.create(

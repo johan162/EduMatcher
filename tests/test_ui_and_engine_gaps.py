@@ -431,7 +431,7 @@ class TestEngineSessionTransitions:
             order_type=OrderType.LIMIT,
             quantity=100,
             gateway_id="GW01",
-            price=100.0,
+            price=100,
         )
         engine._session_state = SessionState.OPENING_AUCTION
         engine._handle_new_order(o.to_dict())

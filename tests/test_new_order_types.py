@@ -1037,7 +1037,7 @@ class TestNewOrderTypeInteractions:
             order_type=OrderType.LIMIT,
             quantity=10,
             gateway_id="TRADER01",
-            price=100.0,
+            price=100,
             smp_action=smp_action,
         )
         restored = Order.from_dict(order.to_dict())
@@ -1306,7 +1306,7 @@ class TestComboLegSmpSentinel:
             side=Side.BUY,
             order_type=OrderType.LIMIT,
             quantity=10,
-            price=100.0,
+            price=100,
             smp_action=smp_action,
         )
         restored = ComboLeg.from_dict(leg.to_dict())

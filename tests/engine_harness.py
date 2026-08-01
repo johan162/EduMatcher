@@ -23,6 +23,7 @@ from edumatcher.engine.order_book import OrderBook
 from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.participant import ParticipantRole
+from edumatcher.models.price import to_ticks
 
 SYMBOL = "AAPL"  # 2 tick decimals by default → 100.00 == 10000 ticks
 
@@ -141,6 +142,8 @@ def order_payload(
     smp_action: SmpAction = SmpAction.NONE,
     trail_offset: float | None = None,
 ) -> dict[str, Any]:
+    # Boundary conversion (mirrors api_gateway/translate.py::build_order):
+    # callers pass display prices; Order.create wants ticks (int).
     o = Order.create(
         symbol=symbol,
         side=side,
@@ -148,11 +151,13 @@ def order_payload(
         quantity=qty,
         gateway_id=gateway_id,
         tif=tif,
-        price=price,
-        stop_price=stop_price,
+        price=to_ticks(price, symbol) if price is not None else None,
+        stop_price=to_ticks(stop_price, symbol) if stop_price is not None else None,
         visible_qty=visible_qty,
         smp_action=smp_action,
-        trail_offset=trail_offset,
+        trail_offset=(
+            to_ticks(trail_offset, symbol) if trail_offset is not None else None
+        ),
     )
     return o.to_dict()
 

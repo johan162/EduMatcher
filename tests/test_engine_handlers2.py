@@ -144,7 +144,7 @@ class TestRestoreGTC:
             quantity=50,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=99.0,
+            price=99,
         )
         gtc.status = OrderStatus.NEW
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, gtc_orders=[gtc])
@@ -161,7 +161,7 @@ class TestRestoreGTC:
             quantity=50,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=99.0,
+            price=99,
         )
         gtc.status = OrderStatus.NEW
         engine, pub_sock = _make_engine(
@@ -232,14 +232,14 @@ class TestUpdateComboStatusPartial:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=100.0,
+                    price=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=200.0,
+                    price=200,
                 ),
             ],
         )
@@ -277,14 +277,14 @@ class TestComboCancelTerminal:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100.0,
+                    price=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=200.0,
+                    price=200,
                 ),
             ],
         )
@@ -405,14 +405,14 @@ class TestCancelWithComboCascade:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100.0,
+                    price=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=200.0,
+                    price=200,
                 ),
             ],
         )
@@ -521,7 +521,7 @@ class TestExpireTIF:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.ATO,
-            price=100.0,
+            price=100,
         )
         engine._handle_new_order(o.to_dict())
         pub_sock.sent.clear()

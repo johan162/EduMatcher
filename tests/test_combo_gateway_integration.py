@@ -88,7 +88,7 @@ def _seed_resting(
     symbol: str,
     side: Side,
     qty: int,
-    price: float,
+    price: int,
     gateway_id: str = "TRADER02",
 ) -> None:
     """Place a resting limit order on the book."""
@@ -217,14 +217,14 @@ class TestComboEndToEnd:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=150.0,
+                    price=150,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=300.0,
+                    price=300,
                 ),
             ],
         )
@@ -248,8 +248,8 @@ class TestComboEndToEnd:
         engine, pub_sock = combo_engine
 
         # Seed opposing liquidity
-        _seed_resting(engine, "AAPL", Side.SELL, 100, 150.0)
-        _seed_resting(engine, "MSFT", Side.BUY, 50, 300.0)
+        _seed_resting(engine, "AAPL", Side.SELL, 100, 150)
+        _seed_resting(engine, "MSFT", Side.BUY, 50, 300)
         pub_sock.sent.clear()
 
         combo = ComboOrder.create(
@@ -263,14 +263,14 @@ class TestComboEndToEnd:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=150.0,
+                    price=150,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=300.0,
+                    price=300,
                 ),
             ],
         )
@@ -292,7 +292,7 @@ class TestComboEndToEnd:
         """
         engine, pub_sock = combo_engine
 
-        _seed_resting(engine, "AAPL", Side.SELL, 100, 150.0)
+        _seed_resting(engine, "AAPL", Side.SELL, 100, 150)
         pub_sock.sent.clear()
 
         combo = ComboOrder.create(
@@ -306,14 +306,14 @@ class TestComboEndToEnd:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=150.0,
+                    price=150,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=300.0,  # no MSFT counterparty — unfillable
+                    price=300,  # no MSFT counterparty — unfillable
                 ),
             ],
         )
@@ -342,14 +342,14 @@ class TestComboEndToEnd:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=150.0,
+                    price=150,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=300.0,
+                    price=300,
                 ),
             ],
         )
@@ -384,14 +384,14 @@ class TestComboEndToEnd:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=150.0,
+                    price=150,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=300.0,
+                    price=300,
                 ),
             ],
         )
@@ -426,14 +426,14 @@ class TestComboEndToEnd:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=150.0,
+                    price=150,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=300.0,
+                    price=300,
                 ),
             ],
         )
@@ -466,14 +466,14 @@ class TestComboEndToEnd:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=150.0,
+                    price=150,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=300.0,
+                    price=300,
                 ),
             ],
         )
@@ -490,9 +490,9 @@ class TestComboEndToEnd:
         """3-leg combo where all legs find liquidity → MATCHED."""
         engine, pub_sock = combo_engine
 
-        _seed_resting(engine, "AAPL", Side.SELL, 200, 210.0)
-        _seed_resting(engine, "MSFT", Side.BUY, 100, 415.0)
-        _seed_resting(engine, "GOOG", Side.BUY, 50, 170.0)
+        _seed_resting(engine, "AAPL", Side.SELL, 200, 210)
+        _seed_resting(engine, "MSFT", Side.BUY, 100, 415)
+        _seed_resting(engine, "GOOG", Side.BUY, 50, 170)
         pub_sock.sent.clear()
 
         combo = ComboOrder.create(
@@ -506,21 +506,21 @@ class TestComboEndToEnd:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=200,
-                    price=210.0,
+                    price=210,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=415.0,
+                    price=415,
                 ),
                 ComboLeg(
                     symbol="GOOG",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=170.0,
+                    price=170,
                 ),
             ],
         )
@@ -544,14 +544,14 @@ class TestComboEndToEnd:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=150.0,
+                    price=150,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=300.0,
+                    price=300,
                 ),
             ],
         )

@@ -63,7 +63,7 @@ def _new_limit_order(symbol: str, gateway_id: str) -> dict:
         order_type=OrderType.LIMIT,
         quantity=10,
         gateway_id=gateway_id,
-        price=100.0,
+        price=100,
     )
     return order.to_dict()
 
