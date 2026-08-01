@@ -65,8 +65,12 @@ export interface BuildRowsInput {
  * all three from one frame is now the better answer anyway: `BID`/`ASK` only
  * change on a book republish, so sourcing `LAST` from trade prints made a row
  * internally inconsistent — a last price from this instant beside a spread
- * from up to `snapshot_interval_sec` ago. Every figure in a row now describes
- * the same moment. Individual prints belong on the Trade Tape (§11).
+ * from up to `snapshot_interval_sec` ago. `LAST`, `BID` and `ASK` describe the
+ * same moment as each other. The rest of the row does not: `volume`,
+ * `turnover` and `open` come from a ten-second history poll, and `chg`/
+ * `pctChg` are measured against a previous close on a five-minute poll of its
+ * own. A row is three clocks, not one — individual prints belong on the Trade
+ * Tape (§11).
  *
  * Change is measured from the **previous close**, not from today's open. An
  * open cannot show a gap: a symbol that opened well below yesterday's close

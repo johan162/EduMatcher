@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DailyBar } from "@edumatcher/terminal-types";
 import { previousCloses } from "../src/lib/prev-close.js";
+import { windowStart } from "../src/lib/usePrevCloses.js";
 
 const bar = (date: string, symbol: string, close: number | null): DailyBar => ({
   date,
@@ -53,5 +54,27 @@ describe("previousCloses", () => {
 
   it("returns nothing for an empty window", () => {
     expect(previousCloses([])).toEqual({});
+  });
+});
+
+describe("windowStart", () => {
+  it("moves at the UTC rollover, which is what makes the cache key expire", () => {
+    // `usePrevCloses` uses this value as both the request bound and part of
+    // its query key. If it did not move, a tab left open across midnight —
+    // which the unattended display does by design — would keep serving the
+    // window fetched for the previous session, and `previousCloses` reads
+    // "today" off the newest date it is given, so every baseline on the board
+    // would slip a session with nothing on screen saying so.
+    const beforeMidnight = windowStart(Date.parse("2026-07-30T23:59:59Z"));
+    const afterMidnight = windowStart(Date.parse("2026-07-31T00:00:01Z"));
+
+    expect(beforeMidnight).toBe("2026-07-20");
+    expect(afterMidnight).toBe("2026-07-21");
+  });
+
+  it("holds steady within one session, so the key is not churned hourly", () => {
+    expect(windowStart(Date.parse("2026-07-30T00:00:01Z"))).toBe(
+      windowStart(Date.parse("2026-07-30T23:59:59Z")),
+    );
   });
 });

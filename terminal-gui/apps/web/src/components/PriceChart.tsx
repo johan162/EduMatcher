@@ -37,7 +37,15 @@ export interface PriceChartProps {
    * above the chart are quoted from, so drawing it keeps the two agreeing.
    */
   prevClose?: number;
-  /** Session VWAP — the benchmark a print is "good" or "bad" relative to. */
+  /**
+   * Session VWAP — the benchmark a print is "good" or "bad" relative to.
+   *
+   * Only meaningful next to intraday bars: VWAP resets every session, so a
+   * caller drawing daily bars (a multi-month window) must pass `undefined`
+   * rather than let this line get drawn across history it has no relation to
+   * (T-H2). This component has no notion of the chart's timeframe and does
+   * not enforce that — see `SymbolDetail.tsx`, the only caller.
+   */
   vwap?: number;
   /** Pin the right edge and scroll with incoming ticks (the `Live` preset). */
   follow: boolean;

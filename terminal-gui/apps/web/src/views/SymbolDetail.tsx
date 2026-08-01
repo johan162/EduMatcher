@@ -170,7 +170,7 @@ function SymbolDetail({ sym }: { sym: string }) {
 
   const last = top?.last;
   const phase = halted ? "HALTED" : sessionPhase;
-  const prevCloses = usePrevCloses();
+  const { closes: prevCloses, unavailable: prevCloseGone } = usePrevCloses();
   const prevClose = prevCloses[sym];
   // One symbol for the whole view, so one lookup rather than one per figure.
   const decimals = useSymbolDecimals(sym);
@@ -224,6 +224,12 @@ function SymbolDetail({ sym }: { sym: string }) {
         </span>
         <span className="text-sm text-fg-subtle">Vol {qty(todayRow?.volume)}</span>
       </header>
+
+      {prevCloseGone && (
+        <p className="px-1 text-xs text-halt">
+          Change is measured from today&rsquo;s open — the previous close is unavailable.
+        </p>
+      )}
 
       {halted?.context && <HaltDetail context={halted.context} decimals={decimals} />}
 
@@ -290,7 +296,16 @@ function SymbolDetail({ sym }: { sym: string }) {
               showCandles={showCandles}
               showMidpoint={showMidpoint}
               prevClose={prevClose}
-              vwap={todayRow?.vwap ?? undefined}
+              // Today's VWAP is a benchmark only within today's own session.
+              // `spec.source === "trades"` is not the right test for that: 5D
+              // is also trade-bucketed but spans five sessions, so a flat
+              // line at today's VWAP would be a real benchmark for only the
+              // last of those five days and a coincidence for the rest —
+              // smaller-scale version of the same failure the `1M`/`3M`/
+              // `YTD`/`All` daily-bar presets have. Gate on the preset
+              // itself: `1D` and `Live` are the two windowed at today's open
+              // and no earlier, which `timeframeSpec` guarantees (T-H2).
+              vwap={preset === "1D" || preset === "Live" ? (todayRow?.vwap ?? undefined) : undefined}
               follow={spec.follow}
               theme={theme}
             />

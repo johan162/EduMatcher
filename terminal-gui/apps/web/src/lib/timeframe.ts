@@ -32,6 +32,22 @@ const isoAt = (now: number, daysBack: number): string => new Date(now - daysBack
 const dateAt = (now: number, daysBack: number): string => isoAt(now, daysBack).slice(0, 10);
 
 /**
+ * Midnight UTC of the day `now` falls in.
+ *
+ * `1D` means today's session, not the last twenty-four hours. The distinction
+ * is not pedantry: `SymbolDetail` draws today's VWAP and yesterday's close as
+ * horizontal reference lines across whatever window this returns, and a
+ * rolling window carries most of yesterday's session at the open — over which
+ * both lines are coincidences rather than benchmarks (T-H2). A price line
+ * spans the whole chart and cannot be clipped to part of it, so the window is
+ * what has to be honest.
+ *
+ * UTC because that is the calendar `dateAt` already resolves the daily rollup
+ * on, so "since midnight" and "yesterday's close" agree on where a day ends.
+ */
+const startOfDay = (now: number): string => `${new Date(now).toISOString().slice(0, 10)}T00:00:00.000Z`;
+
+/**
  * Resolve a preset to the query that fills it.
  *
  * `now` is injected so this stays pure and testable; callers pass
@@ -40,9 +56,9 @@ const dateAt = (now: number, daysBack: number): string => isoAt(now, daysBack).s
 export function timeframeSpec(preset: Preset, now: number = Date.now()): TimeframeSpec {
   switch (preset) {
     case "1D":
-      return { source: "trades", bucketSec: 60, from: isoAt(now, 1), follow: false };
+      return { source: "trades", bucketSec: 60, from: startOfDay(now), follow: false };
     case "Live":
-      return { source: "trades", bucketSec: 60, from: isoAt(now, 1), follow: true };
+      return { source: "trades", bucketSec: 60, from: startOfDay(now), follow: true };
     case "5D":
       return { source: "trades", bucketSec: 300, from: isoAt(now, 5), follow: false };
     case "1M":

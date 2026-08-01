@@ -841,9 +841,16 @@ continues live.
 **Recovery option 2 — replay miss**
 
 If the requested `LASTSEQ` is older than the window the gateway sends
-`ERR|CODE=REPLAY_MISS|...` followed by a fresh `SNAP`.  Accept the `SNAP` and
-reset your local state for that stream. The session stays open, so your other
-`RESUME` requests are unaffected.
+`ERR|CODE=REPLAY_MISS|...`. On `TOP`, `STATE`, `INDEX`, `DEPTH` and `CB` a
+fresh `SNAP` follows: accept it and reset your local state for that stream.
+
+On `TRADE` and `AUCTION` **no `SNAP` follows** — a past print has no current
+state to snapshot, so the missed events are gone for good. If you present
+`TRADE` as a time-and-sales record, mark the hole rather than closing the two
+sides over it; a record with an unmarked gap is worse than one that admits it.
+
+The session stays open either way, so your other `RESUME` requests are
+unaffected.
 
 **Recovery option 3 — nothing was ever recorded for the stream**
 
@@ -990,11 +997,17 @@ with socket.create_connection(("127.0.0.1", 5570), timeout=5) as sock:
             sym = msg.fields.get("SYM", "")
             seq = int(msg.fields.get("SEQ", "0"))
 
-            # Gap check
+            # Gap check. A SNAP re-baselines and is never a gap; a SEQ at or
+            # below the baseline is a replayed duplicate unless it falls in a
+            # range you actually asked RESUME to backfill.
             prev = last_seq.get((ch, sym))
-            if prev is not None and seq != prev + 1:
+            if msg.msg_type == "SNAP":
+                pass                                   # baseline: just record it
+            elif prev is not None and seq <= prev:
+                continue                               # already seen; drop it
+            elif prev is not None and seq != prev + 1:
                 print(f"GAP on ({ch},{sym}): expected {prev + 1}, got {seq}")
-                # → trigger recovery: reconnect, then RESUME each stream
+                # → recover in place: RESUME|CH=..|SYM=..|LASTSEQ=<prev>
             last_seq[(ch, sym)] = seq
 
             # This example only subscribes to TOP/TRADE/STATE, so it only
@@ -1079,7 +1092,7 @@ cd docs/examples/calf && make
 | `INVALID_SYMBOL`  | Unknown symbol; or `SYM=*` used with `INDEX`/`DEPTH`/`CB`; or `SYM=*` used at all on `RESUME` | Use configured symbols; `SYM=*` only for `STATE`/`TOP`/`TRADE`/`AUCTION` on `SUB` — never on `RESUME` |
 | `SUB_LIMIT`       | Too many subscribed symbols                      | Reduce requested symbol set                       |
 | `RATE_LIMITED`    | Client exceeded `max_messages_per_second`        | Slow down the send rate; connection stays open    |
-| `REPLAY_MISS`     | Requested replay is outside buffer window        | Accept fresh `SNAP` and reset local baseline      |
+| `REPLAY_MISS`     | Requested replay is outside buffer window        | On `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, accept the fresh `SNAP` and reset the baseline. On `TRADE`/`AUCTION` none follows — the events are gone; mark the gap |
 | `SLOW_CLIENT`     | Client cannot drain the outbound stream fast enough | Gateway closes the connection without necessarily sending this `ERR` first (queue is dropped, not flushed) — reconnect and process faster |
 | `BAD_MESSAGE`     | Malformed or oversized line (> 4096 bytes)       | Fix line syntax/framing                           |
 
@@ -1099,7 +1112,8 @@ cd docs/examples/calf && make
 4. Confirm `HELLO` receives `WELCOME`
 5. Confirm `SUB` receives expected `SNAP` and live flow
 6. Track `SEQ` per stream; on reconnect send one `RESUME` per stream with `LASTSEQ`
-7. On `REPLAY_MISS`: accept the recovery `SNAP` and reset local state
+7. On `REPLAY_MISS`: accept the recovery `SNAP` and reset local state — except on `TRADE`/`AUCTION`, where none is sent and the gap is permanent
+8. Drop any replayed message at or below the `SEQ` you already recorded: `RESUME` returns everything past `LASTSEQ`, duplicates included
 
 
 ## Building tools on top of the feed

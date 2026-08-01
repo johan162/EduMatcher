@@ -15,6 +15,7 @@ import type {
   AuctionResultFrame,
   CalfState,
   DepthFrame,
+  GapFrame,
   HaltContextFrame,
   IndexFrame,
   TradeFrame,
@@ -74,6 +75,17 @@ interface LiveStore {
    * only ever shows the most recent screenful.
    */
   trades: TradeFrame[];
+
+  /**
+   * Trade-tape holes the bridge could not close, newest first (T-H4/T-H5).
+   *
+   * A record with an unmarked hole in it is worse than no record — people
+   * quote from the tape. Kept apart from `trades` rather than spliced in
+   * there, since a `GapFrame` is not a print and every reader of `trades`
+   * would otherwise have to learn to skip it; `TradeTapeView` merges the two
+   * back together for display, where a hole belongs.
+   */
+  tradeGaps: GapFrame[];
 
   /**
    * When each symbol last printed, as the trade frame's own timestamp.
@@ -156,6 +168,7 @@ const initialState = {
   sessionPrev: undefined,
   sessionSince: null,
   trades: [] as TradeFrame[],
+  tradeGaps: [] as GapFrame[],
   lastTradeTs: {} as Record<string, string>,
   tickDecimals: {} as Record<string, number>,
   indexLive: {} as Record<string, IndexFrame>,
@@ -247,6 +260,21 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
               [frame.sym]: { ...s.indexLive[frame.sym], ...frame },
             },
           };
+
+        case "gap":
+          // The bridge reports a gap on any channel it could not repair, but
+          // the Trade Tape is the only view that shows one, and it says
+          // "prints were missed" — which is true of a TRADE gap and false of
+          // an AUCTION one. Today AUCTION is in fact the commoner of the two
+          // (TRADE gaps only reach here when a RESUME came back REPLAY_MISS),
+          // so filtering is not a formality: without it most markers on the
+          // tape would be describing the wrong stream. A channel is dropped
+          // here rather than at the bridge so that a view for it can consume
+          // the frame it already receives.
+          if (frame.ch !== "TRADE") return {};
+          // Newest first, bounded, same as trades — a tab left open all
+          // session should not accumulate these without limit either.
+          return { tradeGaps: [frame, ...s.tradeGaps].slice(0, TRADE_BUFFER_MAX) };
 
           // Frames no view consumes yet.
           return {};

@@ -122,6 +122,15 @@ describe("WsHub", () => {
       expect(b.framesOfType("top")).toHaveLength(1);
     });
 
+    it("sends a gap marker to every tab, the same as any other stream frame (T-H4/T-H5)", () => {
+      const a = connect();
+      const b = connect();
+      hub.broadcast({ type: "gap", ch: "TRADE", sym: "AAPL", ts: "t" });
+
+      expect(a.framesOfType("gap")).toHaveLength(1);
+      expect(b.framesOfType("gap")).toHaveLength(1);
+    });
+
     it("withholds depth from a tab that never asked for it", () => {
       const tab = connect();
       hub.broadcast(depthFrame("AAPL"));

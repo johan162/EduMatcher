@@ -44,6 +44,13 @@ _ALLOWED_CHANNELS = frozenset(
 # most a handful per symbol per day), so a wildcard subscription poses none
 # of DEPTH's bandwidth risk.
 _WILDCARD_ELIGIBLE_CHANNELS = frozenset({"STATE", "TOP", "TRADE", "AUCTION"})
+# Channels that have a current-state baseline a SNAP can express, and so the
+# exact set _send_snapshot_for_stream knows how to fill. TRADE and AUCTION are
+# streams of discrete events with no such state: there is no snapshot of a
+# print, and emitting an empty envelope in place of one tells a client
+# something false. Kept beside the channel sets it partitions so the two
+# cannot drift.
+_SNAPSHOT_CHANNELS = frozenset({"TOP", "STATE", "INDEX", "DEPTH", "CB"})
 _MAX_LINE_BYTES = 4096
 _HELLO_TIMEOUT_SEC = 5
 _MAX_ENGINE_EVENTS_PER_LOOP = 2000
@@ -570,9 +577,16 @@ class MarketDataGateway:
             )
             return
 
-        # Resume implies immediate live continuation for the requested stream.
-        session.subscriptions.add((ch, sym))
-        self._subs.set_for_client(session.sock.fileno(), session.subscriptions)
+        # Resume implies immediate live continuation for the requested stream,
+        # but only where the client is not already receiving it. A wildcard
+        # subscriber (SUB|CH=TRADE|SYM=*, which is how the terminal bridge
+        # follows the tape) would otherwise accumulate one redundant concrete
+        # pair per RESUME, permanently: nothing ever removes them, and
+        # session_wants scans the set linearly for every client on every
+        # stream event.
+        if not self._subs.session_wants(session.sock.fileno(), ch, sym):
+            session.subscriptions.add((ch, sym))
+            self._subs.set_for_client(session.sock.fileno(), session.subscriptions)
 
         try:
             lines = self._replay.replay_since(ch, sym, last_seq)
@@ -582,7 +596,15 @@ class MarketDataGateway:
                 "ERR",
                 {"CODE": "REPLAY_MISS", "CH": ch, "SYM": sym},
             )
-            self._send_snapshot_for_stream(session, ch, sym)
+            # Only the snapshot-backed channels have a baseline to re-sync to,
+            # and _send_snapshot_for_stream can only fill those. TRADE and
+            # AUCTION carry discrete events: it would emit a SNAP envelope with
+            # no payload, which a client decoding by CH reads as a print of
+            # zero shares at zero price. A missed print is simply gone — the
+            # ERR says so, and inventing a snapshot of one says something
+            # false.
+            if ch in _SNAPSHOT_CHANNELS:
+                self._send_snapshot_for_stream(session, ch, sym)
             return
 
         for line in lines:
@@ -663,7 +685,7 @@ class MarketDataGateway:
             # no baseline — contradicting EduMatcher-Index.md's original
             # design ("gateway sends an initial SNAP"). Fixed here to match
             # TOP/STATE/DEPTH's already-established pattern.
-            if ch in {"TOP", "STATE", "INDEX", "DEPTH", "CB"}:
+            if ch in _SNAPSHOT_CHANNELS:
                 self._send_snapshot_for_stream(session, ch, sym)
 
     def _handle_unsub(self, session: ClientSession, fields: dict[str, str]) -> None:

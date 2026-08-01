@@ -10,7 +10,7 @@
 
 import { useMemo, useState } from "react";
 import clsx from "clsx";
-import type { TradeFrame } from "@edumatcher/terminal-types";
+import type { GapFrame, TradeFrame } from "@edumatcher/terminal-types";
 import { useLiveStore } from "../store/useLiveStore.js";
 import { clockUtc, price, qty } from "../lib/format.js";
 import { useTickDecimals } from "../lib/precision.js";
@@ -19,6 +19,8 @@ import { useTickDecimals } from "../lib/precision.js";
 const VISIBLE_ROWS = 200;
 
 const ALL = "__all__";
+
+export type TapeRow = TradeFrame | GapFrame;
 
 export function filterTape(
   trades: readonly TradeFrame[],
@@ -29,28 +31,85 @@ export function filterTape(
   return rows.slice(0, limit);
 }
 
+/**
+ * Interleave the tape's prints with the holes the bridge could not close.
+ *
+ * Both arrays are independently newest-first, but a gap and the trades either
+ * side of it arrive as separate frames, so simple concatenation would put
+ * every gap either before or after every print rather than where it actually
+ * happened. Timestamp order is the only thing both series share (T-H4/T-H5) —
+ * `seq` is not comparable between them, since a `GapFrame` has none of its
+ * own. Ties go to the print, so a gap sorts just below the message that
+ * revealed it, which is the side of it the hole is on.
+ *
+ * Merged rather than concatenated-and-sorted because both inputs already carry
+ * the order wanted: the store holds up to `TRADE_BUFFER_MAX` prints and only
+ * `limit` rows are ever shown, so this walks `limit` entries instead of
+ * sorting five hundred to discard three hundred of them. Gaps are rare enough
+ * that the empty case — the overwhelmingly common one — does no work at all.
+ */
+export function mergeTapeRows(
+  trades: readonly TradeFrame[],
+  gaps: readonly GapFrame[],
+  symbol: string,
+  limit = VISIBLE_ROWS,
+): TapeRow[] {
+  const printRows = filterTape(trades, symbol, limit);
+  const gapRows = symbol === ALL ? gaps : gaps.filter((g) => g.sym === symbol);
+  if (gapRows.length === 0) return printRows;
+
+  const rows: TapeRow[] = [];
+  let i = 0;
+  let j = 0;
+  while (rows.length < limit) {
+    const print = printRows[i];
+    const gap = gapRows[j];
+    if (print !== undefined && (gap === undefined || print.ts >= gap.ts)) {
+      rows.push(print);
+      i += 1;
+    } else if (gap !== undefined) {
+      rows.push(gap);
+      j += 1;
+    } else {
+      break;
+    }
+  }
+  return rows;
+}
+
 export function TradeTapeView() {
   const trades = useLiveStore((s) => s.trades);
+  const tradeGaps = useLiveStore((s) => s.tradeGaps);
   const symbols = useLiveStore((s) => s.symbols);
   const [symbol, setSymbol] = useState(ALL);
   const [paused, setPaused] = useState(false);
   // Snapshot taken at the moment of pausing. Live updates keep arriving into
   // the store — pausing freezes the reading, it does not drop data, so
   // resuming shows the current tape rather than a gap.
-  const [frozen, setFrozen] = useState<TradeFrame[]>([]);
+  const [frozen, setFrozen] = useState<{ trades: TradeFrame[]; gaps: GapFrame[] }>({
+    trades: [],
+    gaps: [],
+  });
   // Per row, not per view: the unfiltered tape mixes every instrument on the
   // exchange, and they do not share a tick size.
   const tickDecimals = useTickDecimals();
 
-  const source = paused ? frozen : trades;
-  const rows = useMemo(() => filterTape(source, symbol), [source, symbol]);
+  // Selected as two values rather than one `paused ? frozen : {trades, gaps}`
+  // object: a literal is a fresh reference on every render, and this view
+  // re-renders on every print, so the memo below would never once hit.
+  const visibleTrades = paused ? frozen.trades : trades;
+  const visibleGaps = paused ? frozen.gaps : tradeGaps;
+  const rows = useMemo(
+    () => mergeTapeRows(visibleTrades, visibleGaps, symbol),
+    [visibleTrades, visibleGaps, symbol],
+  );
 
   function togglePause(): void {
     if (paused) {
       setPaused(false);
-      setFrozen([]);
+      setFrozen({ trades: [], gaps: [] });
     } else {
-      setFrozen(trades);
+      setFrozen({ trades, gaps: tradeGaps });
       setPaused(true);
     }
   }
@@ -104,17 +163,39 @@ export function TradeTapeView() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((t) => (
-              <tr key={`${t.sym}-${t.seq}`} className="border-t border-border">
-                <td className="px-3 py-1 tabular text-fg-subtle">{clockUtc(t.ts)}</td>
-                <td className="px-3 py-1 font-medium">{t.sym}</td>
-                <td className="px-3 py-1 text-right tabular">{price(t.px, tickDecimals(t.sym))}</td>
-                <td className="px-3 py-1 text-right tabular">{qty(t.qty)}</td>
-                <td className={clsx("px-3 py-1", t.side === "BUY" ? "text-up" : "text-down")}>
-                  {t.side === "BUY" ? "▲" : "▼"} {t.side}
-                </td>
-              </tr>
-            ))}
+            {rows.map((t) =>
+              t.type === "gap" ? (
+                // `bg-halt-bg`, not `bg-warning/10`: `warning` resolves to a
+                // bare `var(--halt)`, and Tailwind cannot apply an alpha
+                // modifier to one — the class compiles to nothing at all and
+                // the row loses its tint silently (same failure as T-L2).
+                // `halt-bg` is the token that already carries that colour at
+                // that opacity.
+                <tr key={`gap-${t.ch}-${t.sym}-${t.ts}`} className="border-t border-border bg-halt-bg">
+                  <td className="px-3 py-1 tabular text-warning">{clockUtc(t.ts)}</td>
+                  <td className="px-3 py-1 font-medium text-warning">{t.sym}</td>
+                  <td colSpan={3} className="px-3 py-1 text-warning">
+                    {/*
+                     * A hole, not a print: the bridge missed one or more
+                     * messages here and could not replay them, so nothing is
+                     * claimed about what happened in this window rather than
+                     * one side of it being silently omitted (T-H4/T-H5).
+                     */}
+                    gap in the tape — some prints for {t.sym} were missed
+                  </td>
+                </tr>
+              ) : (
+                <tr key={`${t.sym}-${t.seq}`} className="border-t border-border">
+                  <td className="px-3 py-1 tabular text-fg-subtle">{clockUtc(t.ts)}</td>
+                  <td className="px-3 py-1 font-medium">{t.sym}</td>
+                  <td className="px-3 py-1 text-right tabular">{price(t.px, tickDecimals(t.sym))}</td>
+                  <td className="px-3 py-1 text-right tabular">{qty(t.qty)}</td>
+                  <td className={clsx("px-3 py-1", t.side === "BUY" ? "text-up" : "text-down")}>
+                    {t.side === "BUY" ? "▲" : "▼"} {t.side}
+                  </td>
+                </tr>
+              ),
+            )}
             {rows.length === 0 && (
               <tr className="border-t border-border">
                 <td colSpan={5} className="px-3 py-6 text-center text-fg-subtle">

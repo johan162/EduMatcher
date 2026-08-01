@@ -227,6 +227,38 @@ describe("grid content", () => {
     expect(await screen.findByText("150.12")).toBeDefined();
     await waitFor(() => expect(screen.getByText(/history service is not reachable/)).toBeDefined());
   });
+
+  it("says what %Chg now means when only the previous-close window fails", async () => {
+    // Regression for T-H1: usePrevCloses used to swallow its error and fall
+    // back to {}, which looks identical at the row level to "no previous
+    // close on record" — the one prominent banner watched only `dailyBars`,
+    // so this outage never surfaced anywhere but the row-level asterisk.
+    //
+    // The notice must not say "unavailable" either: the column is still full
+    // of numbers, silently re-based onto the open. Say what they mean now.
+    dailyWindow.mockRejectedValue(new Error("upstream unavailable"));
+    apply(hello(["AAPL"]), { type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12 });
+    show();
+
+    expect(await screen.findByText("150.12")).toBeDefined();
+    await waitFor(() => expect(screen.getByText(/%Chg is measured from today/)).toBeDefined());
+    expect(screen.queryByText(/history service is not reachable/)).toBeNull();
+  });
+
+  it("stays quiet when a refetch fails but the closes it already has are good", async () => {
+    // Previous closes do not move during a session, so a failed refetch after
+    // one success leaves a map that is still correct and rows that still mean
+    // what the header says. Warning there would put a notice over figures that
+    // are fine, and a notice that cries wolf is one people stop reading.
+    apply(hello(["AAPL"]), { type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12 });
+    show();
+
+    expect(await screen.findByText("150.12")).toBeDefined();
+    dailyWindow.mockRejectedValue(new Error("upstream unavailable"));
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByText(/%Chg is measured from today/)).toBeNull();
+  });
 });
 
 describe("watchlist", () => {

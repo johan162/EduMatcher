@@ -206,6 +206,42 @@ describe("trade prints", () => {
   });
 });
 
+describe("trade gaps (T-H4/T-H5)", () => {
+  it("records an unrepaired gap, newest first", () => {
+    apply(
+      { type: "gap", ch: "TRADE", sym: "AAPL", ts: "t1" },
+      { type: "gap", ch: "TRADE", sym: "MSFT", ts: "t2" },
+    );
+
+    expect(state().tradeGaps).toEqual([
+      { type: "gap", ch: "TRADE", sym: "MSFT", ts: "t2" },
+      { type: "gap", ch: "TRADE", sym: "AAPL", ts: "t1" },
+    ]);
+  });
+
+  it("leaves the trade tape itself untouched", () => {
+    apply(
+      { type: "trade", sym: "AAPL", seq: 1, ts: "t", px: 150, qty: 10, side: "BUY" },
+      { type: "gap", ch: "TRADE", sym: "AAPL", ts: "t2" },
+    );
+
+    expect(state().trades).toHaveLength(1);
+  });
+
+  it("keeps a non-TRADE gap off the tape, which speaks only of prints", () => {
+    // The Trade Tape's marker reads "some prints were missed". That is true of
+    // a TRADE gap and false of an AUCTION one — and AUCTION is in fact the
+    // commoner of the two here, since a TRADE gap only survives a RESUME that
+    // came back REPLAY_MISS.
+    apply(
+      { type: "gap", ch: "AUCTION", sym: "AAPL", ts: "t1" },
+      { type: "gap", ch: "TRADE", sym: "AAPL", ts: "t2" },
+    );
+
+    expect(state().tradeGaps).toEqual([{ type: "gap", ch: "TRADE", sym: "AAPL", ts: "t2" }]);
+  });
+});
+
 describe("top of book", () => {
   it("replaces rather than merges, since the bridge already merged the delta", () => {
     apply(

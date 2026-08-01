@@ -442,9 +442,7 @@ async def test_history_routes(tmp_path: Path) -> None:
     )["count"] == 2
     assert (
         await history.history_order_lifecycle("ORD1", request, session)  # type: ignore[arg-type]  # test double
-    )[
-        "count"
-    ] == 2
+    )["count"] == 2
     assert (
         await history.history_fills(  # test double
             request,  # type: ignore[arg-type]

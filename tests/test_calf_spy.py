@@ -393,8 +393,11 @@ def test_ping_disabled_when_interval_zero(running_gateway: MarketDataGateway) ->
     try:
         client.connect()
         client.handshake()
-        client._start_ping_thread()
-        assert client._ping_thread is None
+        # The keepalive moved into the shared calf_client transport when
+        # the spy became an adapter over it; the behaviour under test --
+        # interval 0 starts no thread -- did not.
+        client._client._start_ping_thread()
+        assert client._client._ping_thread is None
     finally:
         client.close()
 

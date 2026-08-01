@@ -39,7 +39,7 @@ In this chapter, the most important operational ideas are:
 - Channel and symbol subscription with SUB and UNSUB
 - Baseline snapshots (`SNAP`) plus incremental live events (`MD`, `TRADE`, `STATE`, `AUCTION`, `CB`)
 - Liveness with HB and PING/PONG
-- Replay with RESUME=1 / LASTSEQ and REPLAY_MISS handling
+- Replay with the standalone `RESUME` command / LASTSEQ, and REPLAY_MISS handling
 - Auction uncross results (`AUCTION`) and circuit-breaker detail (`CB`) as
   the two newer channels beyond the original TOP/TRADE/STATE/INDEX/DEPTH set
 
@@ -242,23 +242,40 @@ Expected behavior:
 
  
 
-## Exercise 6: Replay and Recovery with RESUME=1
+## Exercise 6: Replay and Recovery with RESUME
 
 1. Start a subscriber and note the highest SEQ for (TOP, AAPL).
 2. Disconnect client.
 3. Generate additional market activity.
-4. Reconnect with RESUME=1 for that stream:
+4. Reconnect with a plain `HELLO`, then send `RESUME` for that stream:
 
 ```text
-HELLO|CLIENT=replay01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=<saved_seq>
+HELLO|CLIENT=replay01|PROTO=CALF1
+RESUME|CH=TOP|SYM=AAPL|LASTSEQ=<saved_seq>
 ```
+
+`RESUME` is a command in its own right, sent after `WELCOME`, and
+repeatable — send one per stream you were following. Older builds carried
+it as a `RESUME=1` flag on `HELLO`, which could only ever be honoured once
+per connection; that form is no longer accepted.
 
 Observe replay behavior:
 
 - replayed events for SEQ greater than LASTSEQ when retained
-- REPLAY_MISS plus SNAP baseline when outside replay window
+- REPLAY_MISS plus a SNAP baseline when outside the replay window — but on
+  `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB` only. On `TRADE` and `AUCTION` no SNAP
+  follows, because there is no snapshot of a print that already happened.
 
-:material-checkbox-blank-outline: Checkpoint: you can describe recovery for both replay-hit and replay-miss cases.
+5. Now repeat step 4 on `TRADE` instead of `TOP`, with a `LASTSEQ` several
+   messages behind. Count the prints you receive against the ones you had
+   already seen.
+
+The reply carries **everything** past `LASTSEQ`, not just what you missed —
+including the message that revealed the gap. Work out what a tape would
+look like if the client rendered them all, then read how
+`docs/examples/calf/calf_subscriber.py` avoids it.
+
+:material-checkbox-blank-outline: Checkpoint: you can describe recovery for both replay-hit and replay-miss cases, say which channels get a SNAP on a miss, and explain why a replay reply must be de-duplicated.
 
  
 
@@ -320,7 +337,7 @@ You have now covered major CALF protocol usage patterns:
 - reading auction uncross results (`AUCTION`) and circuit-breaker operational
   detail (`CB`) alongside the simpler `STATE` halt/resume flag
 - using control messages and liveness probes
-- recovering with RESUME=1/LASTSEQ semantics
+- recovering with `RESUME`/LASTSEQ semantics, including de-duplicating a replay
 - diagnosing protocol errors operationally
 
 ## Reflection

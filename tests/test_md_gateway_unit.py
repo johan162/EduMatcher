@@ -279,6 +279,52 @@ def test_resume_falls_back_to_a_snapshot_on_replay_miss(
     peer.close()
 
 
+@pytest.mark.parametrize("ch", ["TRADE", "AUCTION"])
+def test_resume_sends_no_snapshot_for_a_channel_that_has_none(
+    unit_gateway: MarketDataGateway, ch: str
+) -> None:
+    """A SNAP expresses current state, and a print has none.
+
+    ``_send_snapshot_for_stream`` fills TOP/STATE/INDEX/DEPTH/CB and nothing
+    else, so on TRADE or AUCTION it would emit an envelope with no payload —
+    which a client decoding by CH reads as a print of zero shares at zero
+    price. Fabricating a trade is worse than the hole it stands in for; the
+    ERR alone is the whole truth here.
+    """
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._replay.append(
+        ch, "AAPL", 900, f"{ch}|CH={ch}|SYM=AAPL|SEQ=900\n".encode()
+    )
+
+    unit_gateway._handle_client_line(sess, f"RESUME|CH={ch}|SYM=AAPL|LASTSEQ=1")
+
+    frames = [parse_line(line.decode("utf-8")) for line in sess.out_queue]
+    assert _err_codes(sess) == ["REPLAY_MISS"]
+    assert not any(f.msg_type == "SNAP" for f in frames)
+    peer.close()
+
+
+def test_resume_adds_no_subscription_already_covered_by_a_wildcard(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    """Nothing ever removes these, and every one lengthens the fanout scan.
+
+    A wildcard subscriber — which is how the terminal bridge follows the tape —
+    would otherwise accumulate one redundant concrete pair per RESUME, for the
+    life of the connection, while ``session_wants`` scans that set for every
+    client on every stream event.
+    """
+    sess, peer = _authenticated_session(unit_gateway)
+    unit_gateway._handle_client_line(sess, "SUB|CH=TRADE|SYM=*")
+    unit_gateway._replay.append("TRADE", "AAPL", 2, b"TRADE|CH=TRADE|SYM=AAPL|SEQ=2\n")
+
+    unit_gateway._handle_client_line(sess, "RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1")
+
+    assert ("TRADE", "AAPL") not in sess.subscriptions
+    assert ("TRADE", "*") in sess.subscriptions
+    peer.close()
+
+
 def test_resume_adds_live_subscription(unit_gateway: MarketDataGateway) -> None:
     sess, peer = _authenticated_session(unit_gateway)
     unit_gateway._replay.append("TOP", "AAPL", 2, b"MD|CH=TOP|SYM=AAPL|SEQ=2\n")

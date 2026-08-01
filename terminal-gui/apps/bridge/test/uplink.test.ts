@@ -16,6 +16,7 @@ interface Harness {
   uplink: CalfUplink;
   frames: ServerFrame[];
   errors: Array<{ code: string }>;
+  gaps: Array<{ ch: string; sym: string; ts: string }>;
 }
 
 async function connected(
@@ -38,8 +39,10 @@ async function connected(
 
   const frames: ServerFrame[] = [];
   const errors: Array<{ code: string }> = [];
+  const gaps: Array<{ ch: string; sym: string; ts: string }> = [];
   uplink.on("frame", (frame) => frames.push(frame));
   uplink.on("gatewayError", (err) => errors.push(err));
+  uplink.on("gap", (gap) => gaps.push(gap));
 
   uplink.start();
   if (!gatewayOpts.silent) {
@@ -49,7 +52,7 @@ async function connected(
     // to have caught up, not just the client's own state.
     await waitFor(() => gateway.linesStartingWith("SUB").length >= 1, 2000, "the initial SUB");
   }
-  return { gateway, uplink, frames, errors };
+  return { gateway, uplink, frames, errors, gaps };
 }
 
 const frameOf = <T extends ServerFrame["type"]>(frames: ServerFrame[], type: T) =>
@@ -296,6 +299,353 @@ describe("stream decoding", () => {
   });
 });
 
+describe("gap detection and repair (T-H4/T-H5)", () => {
+  it("does not flag the first message on a stream as a gap", async () => {
+    const { gateway, gaps } = await connected();
+    // SEQ starts well above 1 — a first sighting still has no baseline to
+    // have missed anything against.
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=40|TS=t|PX=1|QTY=1|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(gaps).toEqual([]);
+  });
+
+  it("does not flag consecutive sequence numbers", async () => {
+    const { gateway, gaps } = await connected();
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t|PX=1|QTY=1|SIDE=BUY");
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=2|TS=t|PX=1|QTY=1|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(gaps).toEqual([]);
+  });
+
+  it("ignores an exact duplicate redelivery of the same SEQ", async () => {
+    // A network or gateway-side retry redelivering a line verbatim must be a
+    // no-op: not a gap (nothing was skipped) and not grounds to re-baseline.
+    const { gateway, gaps } = await connected();
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=1|QTY=1|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=1|QTY=1|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // The true next message is consecutive with the original SEQ=1.
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=2|TS=t2|PX=1|QTY=1|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(gateway.linesStartingWith("RESUME")).toEqual([]);
+    expect(gaps).toEqual([]);
+  });
+
+  it("requests each gap from the live baseline, not a stale one, when a second gap arrives before the first RESUME replies", async () => {
+    const { gateway } = await connected();
+    // No scripted reply — this test is about what the bridge asks for, not
+    // what comes back.
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=1|QTY=1|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=5|TS=t5|PX=1|QTY=1|SIDE=BUY");
+    await waitFor(
+      () => gateway.linesStartingWith("RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1").length === 1,
+      2000,
+      "the first RESUME",
+    );
+
+    // A second gap opens before the first RESUME's reply ever arrives. The
+    // request for it must cover 5 -> 10, not repeat 1 -> 5 — the two holes
+    // are disjoint, and re-requesting the first would ask the gateway to
+    // replay data this bridge is not missing.
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=10|TS=t10|PX=1|QTY=1|SIDE=BUY");
+    await waitFor(
+      () => gateway.linesStartingWith("RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=5").length === 1,
+      2000,
+      "the second RESUME, from the live baseline",
+    );
+    expect(gateway.linesStartingWith("RESUME|CH=TRADE|SYM=AAPL")).toHaveLength(2);
+  });
+
+  it("resumes a TRADE gap instead of reporting it unrepaired", async () => {
+    const { gateway, uplink, frames, gaps } = await connected();
+    // Buffered by the gateway but never delivered: the two prints that went
+    // missing. The replay will also carry back SEQ=4, which was delivered
+    // live — see the duplicate test below.
+    gateway.seedReplay([
+      "TRADE|CH=TRADE|SYM=AAPL|SEQ=2|TS=t2|PX=150.00|QTY=50|SIDE=BUY",
+      "TRADE|CH=TRADE|SYM=AAPL|SEQ=3|TS=t3|PX=150.05|QTY=75|SIDE=SELL",
+    ]);
+
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=149.90|QTY=100|SIDE=BUY");
+    await waitFor(() => frameOf(frames, "trade").length === 1, 2000, "the first print");
+    // SEQ jumps 1 -> 4: two prints were missed.
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=4|TS=t4|PX=150.10|QTY=25|SIDE=BUY");
+
+    await waitFor(
+      () => gateway.linesStartingWith("RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1").length === 1,
+      2000,
+      "the RESUME request",
+    );
+    await waitFor(() => frameOf(frames, "trade").length === 4, 2000, "the backfilled prints");
+
+    expect(frameOf(frames, "trade").map((t) => t.seq)).toEqual([1, 4, 2, 3]);
+    expect(uplink.symbols()).toContain("AAPL");
+    expect(gaps).toEqual([]);
+  });
+
+  it("emits a replayed print once, though RESUME returns everything past LASTSEQ", async () => {
+    // `replay_since` answers with every buffered entry above LASTSEQ, and
+    // LASTSEQ is the position from *before* the gap — so the reply necessarily
+    // re-sends the message that revealed the gap, and anything delivered live
+    // while the request was in flight. Emitting those again would print the
+    // same trade on the tape twice, which is a missing print wearing the
+    // opposite sign.
+    const { gateway, frames } = await connected();
+    gateway.seedReplay(["TRADE|CH=TRADE|SYM=AAPL|SEQ=2|TS=t2|PX=150.00|QTY=50|SIDE=BUY"]);
+
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=149.90|QTY=100|SIDE=BUY");
+    await waitFor(() => frameOf(frames, "trade").length === 1, 2000, "the first print");
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=3|TS=t3|PX=150.10|QTY=25|SIDE=BUY");
+
+    await waitFor(() => frameOf(frames, "trade").length === 3, 2000, "the backfilled print");
+    // Settle: the replayed SEQ=1 and SEQ=3 would land in this window.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const seqs = frameOf(frames, "trade").map((t) => t.seq);
+    expect(seqs).toEqual([1, 3, 2]);
+    expect(new Set(seqs).size).toBe(seqs.length);
+  });
+
+  it("drops the payload-less SNAP an older gateway sends after a TRADE REPLAY_MISS", async () => {
+    // `_send_snapshot_for_stream` has no TRADE branch, so its SNAP carries an
+    // envelope and nothing else. Routed by CH like any other line it reaches
+    // `decodeTrade`, whose defaults would put a print of zero shares at zero
+    // price on the tape — a fabricated trade, which is worse than the hole it
+    // would be standing in for.
+    const { gateway, frames, gaps } = await connected();
+    gateway.setReplayMiss("TRADE", "AAPL");
+
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=149.90|QTY=100|SIDE=BUY");
+    await waitFor(() => frameOf(frames, "trade").length === 1, 2000, "the first print");
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=9|TS=t9|PX=150.10|QTY=25|SIDE=BUY");
+
+    await waitFor(() => gaps.length === 1, 2000, "the reported gap");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const prints = frameOf(frames, "trade");
+    expect(prints.map((t) => t.seq)).toEqual([1, 9]);
+    expect(prints.every((t) => t.px > 0 && t.qty > 0)).toBe(true);
+  });
+
+  it("does not RESUME again after a REPLAY_MISS re-baselined the stream", async () => {
+    // The SNAP that answers a REPLAY_MISS re-anchors the stream wherever the
+    // gateway now is. Left uncounted, the next live message would look like a
+    // fresh gap and RESUME against a window already proved too old — once per
+    // print, indefinitely.
+    const { gateway, gaps } = await connected();
+    gateway.setReplayMiss("TRADE", "AAPL");
+
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=1|QTY=1|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=9|TS=t9|PX=1|QTY=1|SIDE=BUY");
+    await waitFor(() => gaps.length === 1, 2000, "the reported gap");
+
+    // The fake's REPLAY_MISS SNAP carries SEQ=9001; the stream continues there.
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=9002|TS=t10|PX=1|QTY=1|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(gateway.linesStartingWith("RESUME|CH=TRADE|SYM=AAPL")).toHaveLength(1);
+    expect(gaps).toHaveLength(1);
+  });
+
+  it("times an unrepaired gap by the gateway's clock, not the bridge's", async () => {
+    // The marker is interleaved with prints stamped by the gateway, so a
+    // local timestamp would drift it to the wrong point in the tape. The
+    // message that revealed the hole is also its upper bound.
+    const { gateway, gaps } = await connected();
+    gateway.setReplayMiss("TRADE", "AAPL");
+
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=2026-07-30T14:32:06.000Z|PX=1|QTY=1|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=9|TS=2026-07-30T14:32:09.000Z|PX=1|QTY=1|SIDE=BUY");
+
+    await waitFor(() => gaps.length === 1, 2000, "the reported gap");
+    expect(gaps[0]?.ts).toBe("2026-07-30T14:32:09.000Z");
+  });
+
+  it("ignores a REPLAY_MISS for a stream it never asked to resume", async () => {
+    // Nothing is known about where such a hole falls, and this bridge has no
+    // standing to describe one it did not discover.
+    const { gateway, gaps, errors } = await connected();
+    gateway.emit("ERR|CODE=REPLAY_MISS|CH=TRADE|SYM=AAPL");
+    await waitFor(() => errors.some((e) => e.code === "REPLAY_MISS"), 2000, "the ERR");
+    expect(gaps).toEqual([]);
+  });
+
+  it("passes through a message with no usable SEQ without sequencing it", async () => {
+    // readEnvelope defaults a missing SEQ to 0. Baselining there would make
+    // the next real SEQ a gap and send RESUME|LASTSEQ=0, which the gateway
+    // rejects with BAD_MESSAGE rather than REPLAY_MISS — a hole nobody is
+    // told about.
+    const { gateway, frames, gaps } = await connected();
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|TS=t0|PX=149.00|QTY=10|SIDE=BUY");
+    await waitFor(() => frameOf(frames, "trade").length === 1, 2000, "the unsequenced print");
+
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=5|TS=t5|PX=150.00|QTY=10|SIDE=BUY");
+    await waitFor(() => frameOf(frames, "trade").length === 2, 2000, "the sequenced print");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect(gateway.linesStartingWith("RESUME")).toEqual([]);
+    expect(gaps).toEqual([]);
+  });
+
+  it("does not let a late-arriving lower SEQ move the baseline backward", async () => {
+    // A RESUME reply and live traffic are two separate writes with no
+    // guaranteed relative order. A replayed line for an already-superseded
+    // SEQ must not be recorded as the new "last seen" — doing so would make
+    // the next ordinary, truly-consecutive message look like a gap.
+    const { gateway, gaps } = await connected();
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=1|QTY=1|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=5|TS=t5|PX=1|QTY=1|SIDE=BUY");
+    await waitFor(
+      () => gateway.linesStartingWith("RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=1").length === 1,
+      2000,
+      "the RESUME triggered by the 1 -> 5 jump",
+    );
+
+    // A stale reply for SEQ=3 arrives after the live SEQ=5 already advanced
+    // the baseline. It must be ignored outright, not treated as a new gap
+    // (5 -> 3 is not forward progress) and not recorded as "last seen".
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=3|TS=t3|PX=1|QTY=1|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    // The true next live message is consecutive with 5, not with the stale 3
+    // — if the baseline had been clobbered back to 3, this would wrongly look
+    // like a second gap and trigger a second, spurious RESUME.
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=6|TS=t6|PX=1|QTY=1|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect(gateway.linesStartingWith("RESUME|CH=TRADE|SYM=AAPL")).toHaveLength(1);
+    expect(gaps).toEqual([]);
+  });
+
+  it("reports a TRADE gap the gateway can no longer replay", async () => {
+    const { gateway, gaps } = await connected();
+    gateway.setReplayMiss("TRADE", "AAPL");
+
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=149.90|QTY=100|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=9|TS=t9|PX=150.10|QTY=25|SIDE=BUY");
+
+    await waitFor(() => gaps.length === 1, 2000, "the reported gap");
+    expect(gaps[0]).toMatchObject({ ch: "TRADE", sym: "AAPL" });
+  });
+
+  it("leaves a TOP gap for the next SNAP rather than reporting it", async () => {
+    // TOP baselines on SNAP, which the reconnect that would cause a real gap
+    // already triggers — reporting this would be noise about a hole that
+    // closed itself before anyone could see it open.
+    const { gateway, gaps } = await connected();
+    gateway.emit("SNAP|CH=TOP|SYM=AAPL|SEQ=1|TS=t1|BID=150.00");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    gateway.emit("MD|CH=TOP|SYM=AAPL|SEQ=9|TS=t9|BID=150.05");
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(gaps).toEqual([]);
+    expect(gateway.linesStartingWith("RESUME")).toEqual([]);
+  });
+
+  it("reports an AUCTION gap, which has no snapshot and is not resumed", async () => {
+    const { gateway, gaps } = await connected();
+    gateway.emit("AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|TS=t1|EQPX=149.85|EQQTY=100|TRADES=1|IMBQTY=0");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    gateway.emit("AUCTION|CH=AUCTION|SYM=AAPL|SEQ=3|TS=t3|EQPX=150.00|EQQTY=200|TRADES=2|IMBQTY=0");
+
+    await waitFor(() => gaps.length === 1, 2000, "the reported gap");
+    expect(gaps[0]).toMatchObject({ ch: "AUCTION", sym: "AAPL" });
+    expect(gateway.linesStartingWith("RESUME")).toEqual([]);
+  });
+
+  it("tracks gaps per symbol independently", async () => {
+    const { gateway, gaps } = await connected({ symbols: ["AAPL", "MSFT"] });
+    gateway.setReplayMiss("TRADE", "AAPL");
+
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t|PX=1|QTY=1|SIDE=BUY");
+    gateway.emit("TRADE|CH=TRADE|SYM=MSFT|SEQ=1|TS=t|PX=1|QTY=1|SIDE=BUY");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    // Only AAPL's stream skips a sequence number; MSFT's stays consecutive.
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=5|TS=t|PX=1|QTY=1|SIDE=BUY");
+    gateway.emit("TRADE|CH=TRADE|SYM=MSFT|SEQ=2|TS=t|PX=1|QTY=1|SIDE=BUY");
+
+    await waitFor(() => gaps.length === 1, 2000, "the one reported gap");
+    expect(gaps[0]).toMatchObject({ ch: "TRADE", sym: "AAPL" });
+  });
+
+  it("keeps its gap baseline across a reconnect, so a lost print is still noticed", async () => {
+    const harness = await connected();
+    harness.gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=149.90|QTY=100|SIDE=BUY");
+    await waitFor(() => frameOf(harness.frames, "trade").length === 1, 2000, "the print before the drop");
+
+    await reconnect(harness);
+    harness.gateway.setReplayMiss("TRADE", "AAPL");
+    // The gateway lost the print that would have been SEQ=2 while this
+    // bridge was disconnected; the next one it sees is SEQ=3.
+    harness.gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=3|TS=t3|PX=150.00|QTY=50|SIDE=BUY");
+
+    await waitFor(() => harness.gaps.length === 1, 2000, "the gap surviving the reconnect");
+    expect(harness.gaps[0]).toMatchObject({ ch: "TRADE", sym: "AAPL" });
+  });
+
+  it("resumes only TRADE — every other channel is left to SNAP or reported unrepaired", async () => {
+    // Pins RESUMABLE_CHANNELS's exact membership. A channel wrongly added to
+    // it would start resuming data a SNAP is about to supersede (TOP/STATE/
+    // DEPTH/CB) or one this change deliberately did not extend to (AUCTION),
+    // so every non-TRADE channel gets the same "gap happened, no RESUME sent"
+    // shape checked here in one place.
+    const { gateway, gaps } = await connected();
+    const cases: Array<{ line1: string; line2: string; ch: string; snapBacked: boolean }> = [
+      {
+        ch: "TOP",
+        snapBacked: true,
+        line1: "SNAP|CH=TOP|SYM=AAPL|SEQ=1|TS=t1|BID=150.00",
+        line2: "MD|CH=TOP|SYM=AAPL|SEQ=9|TS=t9|BID=150.05",
+      },
+      {
+        ch: "STATE",
+        snapBacked: true,
+        line1: "STATE|CH=STATE|SYM=AAPL|SEQ=1|TS=t1|SESSION=CONTINUOUS",
+        line2: "STATE|CH=STATE|SYM=AAPL|SEQ=9|TS=t9|SESSION=HALTED|PREV=CONTINUOUS",
+      },
+      {
+        ch: "DEPTH",
+        snapBacked: true,
+        line1: "SNAP|CH=DEPTH|SYM=AAPL|SEQ=1|TS=t1|LEVELS=10|BIDS=150.10:100:1|ASKS=150.12:100:1",
+        line2: "DEPTH|CH=DEPTH|SYM=AAPL|SEQ=9|TS=t9|LEVELS=10|BIDS=150.09:100:1|ASKS=150.13:100:1",
+      },
+      {
+        ch: "CB",
+        snapBacked: true,
+        line1: "SNAP|CH=CB|SYM=AAPL|SEQ=1|TS=t1|STATUS=NONE",
+        line2: "CB|CH=CB|SYM=AAPL|SEQ=9|TS=t9|STATUS=HALTED|LEVEL=L1",
+      },
+      {
+        ch: "AUCTION",
+        snapBacked: false,
+        line1: "AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|TS=t1|EQPX=149.85|EQQTY=100|TRADES=1|IMBQTY=0",
+        line2: "AUCTION|CH=AUCTION|SYM=AAPL|SEQ=9|TS=t9|EQPX=150.00|EQQTY=200|TRADES=2|IMBQTY=0",
+      },
+    ];
+
+    for (const { line1, line2, ch, snapBacked } of cases) {
+      gateway.emit(line1);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      gateway.emit(line2);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      expect(gateway.linesStartingWith(`RESUME|CH=${ch}`)).toEqual([]);
+      expect(gaps.some((g) => g.ch === ch)).toBe(!snapBacked);
+    }
+  });
+});
+
 describe("keepalive", () => {
   it("pings so the gateway's inbound-only idle timer never expires", async () => {
     // The gateway drops a client after idle_timeout_sec of no inbound bytes;
@@ -332,7 +682,10 @@ describe("reconnect", () => {
     expect(harness.errors.some((e) => e.code === "BAD_MESSAGE")).toBe(false);
   });
 
-  it("never attempts a RESUME, which no reconnect path can satisfy", async () => {
+  it("attempts no RESUME when a reconnect loses nothing", async () => {
+    // A stream with no prior SEQ recorded has no baseline to have lost —
+    // establishing one is not resuming it. Covers the ordinary case where a
+    // fresh connection has not yet seen a TRADE for any symbol.
     const harness = await connected();
     await reconnect(harness);
     expect(harness.gateway.received.some((line) => line.includes("RESUME"))).toBe(false);

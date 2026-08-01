@@ -74,6 +74,11 @@ uplink.on("gatewayError", ({ code, detail }) => {
   log.warn("terminal-bridge.calf.uplink", `gateway ERR ${code}: ${JSON.stringify(detail)}`);
 });
 
+uplink.on("gap", ({ ch, sym, ts }) => {
+  log.warn("terminal-bridge.calf.uplink", `unrepaired gap CH=${ch} SYM=${sym}`);
+  hub.broadcast({ type: "gap", ch, sym, ts });
+});
+
 uplink.start();
 
 app.get("/ws/stream", { websocket: true }, (socket) => {

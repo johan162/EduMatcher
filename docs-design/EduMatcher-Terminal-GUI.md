@@ -855,13 +855,15 @@ last interested tab navigates away or closes.
 
 ### 6.6 Reconnect and gap handling
 
-If the bridge's CALF TCP connection drops, it reconnects and resumes exactly
-as the worked client in the protocol doc does: `HELLO` with
-`RESUME=1`/`LASTSEQ=` per stream, falling back to a fresh `SNAP` on
-`ERR|CODE=REPLAY_MISS`. Because `RESUME=1` never accepts `SYM=*` (§17.1),
-the bridge resumes its wildcard `TOP`/`TRADE`/`STATE`/`AUCTION`
-subscriptions one concrete known symbol at a time — see §17.1 for the exact
-sequencing. `CB` (per-symbol, `SNAP`-eligible) and `DEPTH` (per-symbol, also
+If the bridge's CALF TCP connection drops, it reconnects with a plain `HELLO`
+and re-subscribes; the automatic `SNAP` each `SUB` triggers restores correct
+state for every snapshot-backed channel. Recovery beyond that is driven by
+`SEQ` rather than by the reconnect: the bridge keeps `last_seq` per
+`(CH, SYM)` across the drop, and repairs only the streams that actually lost
+something — a standalone `RESUME|CH=..|SYM=..|LASTSEQ=..` on `TRADE`, and a
+visible marker on the tape for what replay can no longer reach. Because
+`RESUME` never accepts `SYM=*` (§17.1), this is always per concrete symbol —
+see §17.1 for the exact sequencing. `CB` (per-symbol, `SNAP`-eligible) and `DEPTH` (per-symbol, also
 `SNAP`-eligible) follow the same per-symbol resume pattern already used for
 `DEPTH` in earlier revisions, scoped to whichever symbols currently have an
 open Symbol Detail view. `AUCTION`, like `TRADE`, has no baseline `SNAP` —
@@ -1714,40 +1716,42 @@ class CalfUplink:
   (§13) is open. Either trigger increments the same per-symbol reference
   count; `SUB|CH=CB|SYM=<symbol>` is issued when the count goes from zero
   to one, `UNSUB` when it returns to zero.
-- **Reconnect is where the wildcard subscriptions get more work, not less.**
-  `HELLO|RESUME=1` only ever resumes one `(CH, SYM)` stream per `HELLO`, and
+- **Recovery is driven by the sequence numbers, not by the reconnect.**
   `SYM=*` is invalid for `RESUME` on every channel — the gateway rejects it
   outright, even for `TOP`/`TRADE`/`STATE`/`AUCTION`, because there is no
-  wildcard snapshot baseline to fall back on for a replay miss (§920 of the
-  CALF reference, "Reconnect behavior"). So the bridge cannot simply resend
-  `HELLO|RESUME=1|CH=TOP|SYM=*|LASTSEQ=...` after a drop. Instead, on
-  reconnect the bridge:
-  1. Sends a plain `HELLO` (no `RESUME`) to re-establish the session and
-     get a fresh `WELCOME`.
-  2. Re-issues `SUB|CH=STATE,TOP,TRADE,AUCTION|SYM=*` and
-     `SUB|CH=INDEX|SYM=<index ids>` immediately — this restores live
-     delivery going forward for every symbol right away, same as first
-     connect. (`AUCTION` has no baseline `SNAP`, same as `TRADE` — see step
-     3's caveat.)
-  3. For any symbol the bridge was actively serving to a browser tab
-     (i.e. had non-empty `last_seq` for), issues a **separate**
-     `HELLO...RESUME=1|CH=<ch>|SYM=<that concrete symbol>|LASTSEQ=...`
-     per stream to backfill the gap between disconnect and step 2's fresh
-     `SUB`, exactly as the CALF reference's worked client example does —
-     just looped over concrete symbols instead of assumed to work with a
-     single wildcard call. `TRADE` and `AUCTION` have no baseline `SNAP`
-     (§4.3 gap 3), so this resume is best-effort against CALF's bounded
-     replay window, not a guarantee. This step overall is a best-effort
-     gap-fill, not a correctness requirement: `pm-terminal` is a
-     display-only viewer, so a brief tick gap during reconnect (visible to
-     the user only as a short `RECONNECTING` state, §6.6) is an acceptable
-     trade-off against the complexity of resuming every known symbol on
-     every reconnect.
-  4. `DEPTH` and `CB` subscriptions follow the same per-symbol resume
-     pattern in step 3, scoped to whichever symbols currently have a
-     reference count above zero (§6.5, §13.2) — there is no wildcard
-     `DEPTH`/`CB` to re-establish in step 2. Both get a baseline `SNAP` on
-     resume, unlike `TRADE`/`AUCTION`.
+  wildcard snapshot baseline to fall back on for a replay miss. So the bridge
+  cannot resume a wildcard subscription as such. Rather than loop `RESUME`
+  over every known symbol on every drop, it lets `SEQ` say which streams
+  actually lost anything:
+  1. On reconnect, send a plain `HELLO` and re-issue
+     `SUB|CH=STATE,TOP,TRADE,AUCTION|SYM=*`, `SUB|CH=INDEX|SYM=<index ids>`,
+     and the per-symbol `DEPTH`/`CB` subscriptions still referenced by an
+     open tab. This restores live delivery immediately, same as first
+     connect, and triggers a fresh `SNAP` on every snapshot-backed channel.
+  2. Keep `last_seq` per `(CH, SYM)` **across** the drop. The gateway's
+     counters live in its process, not the connection, so the value from
+     before the drop is exactly what reveals whether the drop cost anything.
+     Clearing it would make every reconnect look gap-free by definition.
+  3. `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB` need nothing further: step 1's `SNAP`
+     supersedes whatever was missed before anyone could act on knowing about
+     it, so a gap on those is not worth reporting.
+  4. `TRADE` has no such baseline, and is the one channel read as a *record*
+     rather than as current state (§11). A gap there gets a standalone
+     `RESUME|CH=TRADE|SYM=<symbol>|LASTSEQ=<last_seq>` when the next print on
+     that symbol exposes it. `AUCTION` shares the no-baseline shape but is
+     not resumed today; its gaps are reported instead.
+  5. What a `RESUME` cannot repair is **shown**, not swallowed: an
+     `ERR|CODE=REPLAY_MISS` (the gap outlasted the gateway's replay window)
+     becomes a marker row in the Trade Tape, in place among the prints it
+     falls between. A record with an unmarked hole in it is worse than one
+     that admits the hole, because people quote from it.
+
+  Three CALF behaviours this depends on, all in the Market Data Protocol doc:
+  a `RESUME` reply carries everything past `LASTSEQ`, so it re-sends messages
+  already delivered and the client must drop those (§7.3); a `SNAP`
+  re-baselines and is never a gap (§7.5); and a `REPLAY_MISS` on
+  `TRADE`/`AUCTION` is answered with the `ERR` alone, since there is no
+  snapshot of a print (§7.5).
 - Buffer partial TCP reads and split on `\n` — the same non-negotiable rule
   the CALF reference calls out ("TCP stream requirement"); do not assume one
   `recv`/`data` event is one message.

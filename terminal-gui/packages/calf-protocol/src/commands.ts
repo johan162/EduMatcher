@@ -17,9 +17,15 @@ export function buildHello(clientId: string): string {
  * rejected on every channel, including the four where `SUB` accepts it.
  *
  * CALF previously carried this as a `RESUME=1` flag on `HELLO`, which the
- * gateway only ever processed once per connection. The bridge does not use
- * this yet: it reconnects with a plain `HELLO` and re-subscribes, letting the
- * automatic `SNAP` baselines restore state — see `apps/bridge/src/calf/uplink.ts`.
+ * gateway only ever processed once per connection.
+ *
+ * The reply is every buffered message *past* `lastSeq`, so it necessarily
+ * re-sends anything already delivered above that point — a caller must drop
+ * what it has seen rather than assume the replay is disjoint from live
+ * traffic. If the gap has aged out of the gateway's replay window the answer
+ * is `ERR|CODE=REPLAY_MISS|CH=..|SYM=..`, followed by a fresh `SNAP` on the
+ * channels that have one; on `TRADE` and `AUCTION` the missed events are
+ * simply gone. See `apps/bridge/src/calf/uplink.ts` for a consumer.
  */
 export function buildResume(ch: Channel, symbol: string, lastSeq: number): string {
   return buildLine("RESUME", { CH: ch, SYM: symbol, LASTSEQ: String(lastSeq) });

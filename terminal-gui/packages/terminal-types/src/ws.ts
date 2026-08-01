@@ -220,6 +220,38 @@ export interface BridgeStatusFrame {
   wsClients: number;
 }
 
+/**
+ * A hole in one `(channel, symbol)` stream that the bridge could not repair
+ * (design T-H4/T-H5).
+ *
+ * `TOP`/`STATE`/`DEPTH`/`CB` are self-healing: the reconnect that caused the
+ * gap also triggers a fresh `SNAP`, so a viewer of current state never sees a
+ * stale value with unwarranted confidence. `TRADE` has no such baseline — a
+ * missed print is gone unless replayed — so the bridge attempts a `RESUME`
+ * before giving up and sending this. `AUCTION` is likewise snapshot-less but
+ * is not currently resumed (see the bridge's own reasoning in `uplink.ts`).
+ *
+ * Sent only when the gap could not be closed: a successful `RESUME` backfills
+ * the missed frames themselves and needs no separate marker.
+ */
+export interface GapFrame {
+  type: "gap";
+  ch: string;
+  sym: string;
+  /**
+   * `TS` of the message that revealed the hole — the gateway's clock, not the
+   * bridge's, on both paths that produce this frame.
+   *
+   * It has to be the gateway's: a viewer interleaves these with prints stamped
+   * there, so a marker stamped here would drift to the wrong point in the tape
+   * by whatever the two clocks disagree by. The revealing message is also the
+   * right *value*, not merely a convenient one — it is the upper bound of the
+   * hole, so the marker lands immediately below the first print known to have
+   * arrived after it.
+   */
+  ts: string;
+}
+
 export type ServerFrame =
   | HelloFrame
   | TopFrame
@@ -230,7 +262,8 @@ export type ServerFrame =
   | AuctionResultFrame
   | HaltContextFrame
   | SymbolsFrame
-  | BridgeStatusFrame;
+  | BridgeStatusFrame
+  | GapFrame;
 
 /**
  * Browser -> bridge control frames.

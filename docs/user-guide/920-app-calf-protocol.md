@@ -365,7 +365,10 @@ SUB|CH=CB|SYM=AAPL
 `LASTSEQ`, instead of starting from a `SNAP`.
 
 **Response:** replayed events in sequence order, or `ERR|CODE=REPLAY_MISS`
-followed by a fresh `SNAP` when the gap is wider than the replay window.
+when the gap is wider than the replay window. On the snapshot-backed channels
+(`TOP`, `STATE`, `INDEX`, `DEPTH`, `CB`) a fresh `SNAP` follows that error; on
+`TRADE` and `AUCTION` it does not, because a past print has no current state to
+snapshot. See "Reconnect behavior" below.
 
 | Field     | Req | Description                                      |
 |-----------|-----|--------------------------------------------------|
@@ -989,7 +992,7 @@ Normative error codes:
 | `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX, DEPTH, AUCTION, CB}`                     |
 | `INVALID_SYMBOL`  | Symbol not in the gateway's known instrument list (does not apply to `INDEX`, which has no known-id check — see "Subscription rules"), `SYM=*` used with `INDEX`/`DEPTH`/`CB` on `SUB` (alone or mixed with any other channel), `SYM=*` used at all on `RESUME` (every channel, including `TOP`/`TRADE`/`STATE`/`AUCTION`), a `SUB` with no `SYM` at all, or `CH=INDEX` combined with an empty symbol |
 | `SUB_LIMIT`       | Subscription would exceed `max_symbols_per_client`                              |
-| `REPLAY_MISS`     | `LASTSEQ` is older than the replay window; gateway sends a `SNAP` instead       |
+| `REPLAY_MISS`     | `LASTSEQ` is older than the replay window; a `SNAP` follows on `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, but not on `TRADE`/`AUCTION` |
 | `SLOW_CLIENT`     | Outbound queue exceeded `max_client_queue`; connection closed                   |
 | `BAD_MESSAGE`     | Parse failure, oversized line (> 4096 bytes), or unsupported message type       |
 | `RATE_LIMITED`    | Client exceeded `max_messages_per_second` (inbound token-bucket); connection stays open |
@@ -1060,8 +1063,28 @@ it wants that it has no sequence position for.
 - `LASTSEQ` must be a positive base-10 integer.
 - If missing events are inside replay window, gateway replays in order then
   continues live.
-- If missing range is outside window, gateway sends `ERR|CODE=REPLAY_MISS`
-  followed by a fresh `SNAP`.
+- If missing range is outside window, gateway sends `ERR|CODE=REPLAY_MISS`.
+  A fresh `SNAP` follows on `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`. It does **not**
+  on `TRADE` or `AUCTION`: those carry discrete events, and there is no
+  snapshot of a print that already happened, so the missed events are simply
+  gone. Do not wait for a baseline that will not arrive — and if you are
+  talking to an older gateway that sends one anyway, discard it: it is an
+  envelope with no payload, and a decoder keyed on `CH` alone will read it as
+  a print of zero shares at zero price.
+- **A `SNAP` re-baselines the stream; it is never a gap.** Whatever `SEQ` it
+  carries becomes your new `last_seq` for that stream, with no gap check. Gap
+  checking a `SNAP` would ask to replay history it just superseded, and on the
+  replay-miss path — whose answer *is* a `SNAP` — loops `RESUME` against a
+  window already known to be too old.
+- **A replay is not disjoint from live delivery.** `RESUME|LASTSEQ=n` returns
+  every buffered message with `SEQ > n`, and `n` is your position from *before*
+  the gap — so the reply re-sends the message that revealed the gap, plus
+  anything delivered live while your request was in flight. Replayed and live
+  lines share one ordered connection, so duplicates always arrive after their
+  originals. **Discard any message at or below the `SEQ` you have already
+  recorded, and never let one lower your `last_seq`.** Track which sequence
+  ranges you are actually missing: that is the only thing distinguishing the
+  backfill you asked for from a print you already have.
 - If the stream has no retained replay history at all yet (nothing has been
   emitted for that `(CH,SYM)` since the gateway started or the buffer last
   pruned it), the gateway returns zero replay lines and does **not** send
@@ -1260,8 +1283,9 @@ market_data_gateway:
   global counter.
 - Treat `RESUME` as single-stream only and validate `CH`, `SYM`, and
   `LASTSEQ` strictly.
-- Bound replay by configured window and emit deterministic `REPLAY_MISS` + fresh
-  `SNAP` behavior when outside window.
+- Bound replay by configured window and emit deterministic `REPLAY_MISS`
+  behavior when outside window — with a fresh `SNAP` only on the channels that
+  have one (`TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`), never on `TRADE`/`AUCTION`.
 - Apply slow-client backpressure deterministically: queue overflow must produce
   `SLOW_CLIENT` and disconnect.
 - Keep liveness signals (`HB`, `PING`, `PONG`) outside market-data sequencing;

@@ -406,8 +406,10 @@ CALF's `AUCTION` is also consistent with that existing precedent. This adds
 
 No new infrastructure — reuses `SequenceAllocator`/`ReplayBuffer` exactly as
 `DEPTH` did (`EduMatcher-CALF-Extensions.md` §6.5), keyed on
-`("AUCTION", symbol)`. `HELLO|RESUME=1|CH=AUCTION|SYM=AAPL|LASTSEQ=n`
-replays missed `AUCTION` events the same way any other channel does.
+`("AUCTION", symbol)`. `RESUME|CH=AUCTION|SYM=AAPL|LASTSEQ=n` replays
+missed `AUCTION` events the same way any other channel does — with one
+exception: `AUCTION` has no `SNAP`, so a `REPLAY_MISS` here is answered with
+the `ERR` alone and the missed events are gone (Market Data Protocol §7.5).
 `SYM=*` on `RESUME` remains rejected for every channel per existing base
 rules (`920-app-calf-protocol.md`'s `INVALID_SYMBOL` row), unaffected by
 §6.4's `SUB`-side wildcard allowance.
@@ -519,8 +521,10 @@ that same set today).
   to that wildcard subscriber.
 - `SUB|CH=AUCTION|SYM=AAPL` produces **no** `SNAP` line (regression check
   mirroring `TRADE`'s existing no-`SNAP` behavior).
-- `HELLO|RESUME=1|CH=AUCTION|SYM=AAPL|LASTSEQ=n` replays missed `AUCTION`
-  events from the replay buffer, identically to any other channel.
+- `RESUME|CH=AUCTION|SYM=AAPL|LASTSEQ=n` replays missed `AUCTION` events
+  from the replay buffer, identically to any other channel.
+- A `REPLAY_MISS` on `AUCTION` is **not** followed by a `SNAP`, since there is
+  none to send (Market Data Protocol §7.5).
 - A gateway that never received a prior `auction.result.` topic (e.g.
   freshly started mid-session, no auctions yet) does not error on `SUB`;
   it simply delivers nothing until the first uncross.
@@ -904,8 +908,8 @@ if ch in {"TOP", "STATE", "INDEX", "DEPTH", "CB"}:
   reflecting the halt in effect (`STATUS=HALTED` plus the same detail
   fields as the triggering `CB` event).
 - `SUB|CH=CB|SYM=*` is rejected with `ERR|CODE=INVALID_SYMBOL` (§7.5).
-- `HELLO|RESUME=1|CH=CB|SYM=AAPL|LASTSEQ=n` replays missed `CB` events
-  identically to any other channel.
+- `RESUME|CH=CB|SYM=AAPL|LASTSEQ=n` replays missed `CB` events identically
+  to any other channel.
 
 
 ## 8. Sequence Diagram — Auction Uncross and CB Halt/Resume End-to-End

@@ -200,8 +200,50 @@ the shared instance had made an in-place mutation reach through both.
 following several streams could recover one and had to take the gap on the
 rest. `RESUME|CH=..|SYM=..|LASTSEQ=..` is now sent after the handshake, as many
 times as needed, and a malformed one returns `ERR` without closing the session.
-`buildResume` is available in `packages/calf-protocol`; the bridge does not use
-it yet (see TODO).
+
+The bridge now uses it. `CalfUplink` tracks the last `SEQ` seen per
+`(channel, symbol)`, independent of any one connection — the gateway's own
+counters live in its process, not the socket, so a value from before a
+reconnect is exactly what is needed to notice the drop cost anything. A gap on
+`TOP`/`STATE`/`DEPTH`/`CB` is left for the `SNAP` the reconnect's `SUB` already
+triggers; those channels have a baseline, so resuming them too would just
+replay data about to be superseded. `TRADE` has no baseline — a missed print
+is gone unless replayed, and it is also the one channel read as a record
+rather than as current state (§11) — so a `TRADE` gap gets a per-symbol
+`RESUME` instead. `AUCTION` shares that no-baseline shape but is not resumed,
+to keep this change to the stream the report actually named; its gaps are
+still reported, same as a `TRADE` gap the gateway could no longer replay
+(`ERR|CODE=REPLAY_MISS`). The web app surfaces an unrepaired gap as a marker
+row in the Trade Tape, in place among the prints it falls between — a `TRADE`
+gap only; an `AUCTION` one is dropped in the store, because the marker says
+"prints were missed" and that is false of any other channel.
+
+Three things about `RESUME` are easy to get wrong and are worth stating.
+
+`replay_since` returns **everything** past `LASTSEQ`, not just what the client
+missed — so a reply re-sends the message that revealed the gap, and anything
+delivered live while the request was in flight. `CalfUplink` records the
+sequence range each `RESUME` was sent for and emits a below-baseline message
+only if it falls inside one; outside, it is a redelivery and is dropped.
+Getting this wrong in either direction is a data defect: emit the duplicates
+and the same trade prints twice, drop them all and the backfill is lost.
+
+A `SNAP` **re-baselines**, and is never a gap. The gateway answers
+`REPLAY_MISS` with one, so a `SNAP` that left the baseline behind would make
+the next live message look like a fresh gap and `RESUME` again, against a
+window already proved too old — once per print, indefinitely.
+
+A sequence going backwards on a *new connection* is a gateway that restarted,
+not a replay: its counters live in process memory and begin again at 1. That
+case adopts the new numbering. Treating it as duplicates would black the
+stream out for as long as the new gateway lives.
+
+Gateway-side, `RESUME` no longer sends a `SNAP` after `REPLAY_MISS` on `TRADE`
+or `AUCTION`. `_send_snapshot_for_stream` has no branch for either, so what it
+produced was an envelope with no payload — which `decodeTrade`, keyed on `CH`
+like every other line, read as a print of zero shares at zero price. The bridge
+drops such a `SNAP` too, since it has to work against gateways that still send
+one.
 
 **`REF` carries per-symbol display precision.** Every price on every screen
 was rendered at two decimals, because that is `price()`'s default and nothing
@@ -234,4 +276,4 @@ multiplier and currency land.
 
 ## TODO
 
-- The bridge does not use RESUME yet. It still reconnects and re-subscribes, which the design accepts for a display-only viewer; wiring it up needs per-stream last_seq tracking in the uplink and would change reconnect behaviour. Worth doing as its own change.
+- `AUCTION` gaps are reported but not resumed, unlike `TRADE` — see `CalfUplink`'s class docstring and `RESUMABLE_CHANNELS`. Worth doing if auction prints turn out to matter to a reader the way trade prints do.

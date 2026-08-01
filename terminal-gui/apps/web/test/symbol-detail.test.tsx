@@ -14,11 +14,18 @@ vi.mock("../src/lib/useTerminalStream.js", () => ({
 
 // Lightweight Charts needs a real canvas, which jsdom has not got. The chart's
 // data preparation is covered directly in bars.test.ts, so the panel itself is
-// stubbed to a marker here.
+// stubbed to a marker here. The `vwap` prop is surfaced as a data attribute so
+// tests can assert on what SymbolDetail decided to pass down (T-H2) without
+// needing a real chart render.
 vi.mock("../src/components/PriceChart.js", () => ({
-  PriceChart: () => <div data-testid="price-chart" />,
+  PriceChart: ({ vwap }: { vwap?: number }) => <div data-testid="price-chart" data-vwap={vwap ?? ""} />,
 }));
 
+// Spies so a test can override the resolved/rejected value, unlike
+// priceSnapshots below which no test needs to vary.
+const dailyWindow = vi.fn();
+const trades = vi.fn();
+const dailyRange = vi.fn();
 vi.mock("../src/lib/api.js", () => ({
   api: {
     dailyForSymbol: async () => ({
@@ -36,37 +43,12 @@ vi.mock("../src/lib/api.js", () => ({
         },
       ],
     }),
-    trades: async () => ({ trades: [] }),
-    dailyRange: async () => ({ daily: [] }),
+    trades: () => trades(),
+    dailyRange: () => dailyRange(),
     priceSnapshots: async () => ({ snapshots: [] }),
     // The lookback window the previous close is derived from: yesterday's
     // settled row plus the current session's, whose date marks "today".
-    dailyWindow: async () => ({
-      daily: [
-        {
-          date: "2026-07-29",
-          symbol: "AAPL",
-          open_price: 147.0,
-          high_price: 149.0,
-          low_price: 146.5,
-          close_price: 148.0,
-          vwap: 147.8,
-          volume: 150000,
-          trade_count: 900,
-        },
-        {
-          date: "2026-07-30",
-          symbol: "AAPL",
-          open_price: 149.7,
-          high_price: 152.05,
-          low_price: 148.1,
-          close_price: 149.7,
-          vwap: 149.94,
-          volume: 184300,
-          trade_count: 1204,
-        },
-      ],
-    }),
+    dailyWindow: () => dailyWindow(),
   },
 }));
 
@@ -94,6 +76,60 @@ function show(path = "/symbol/AAPL") {
 beforeEach(() => {
   sent.length = 0;
   useLiveStore.getState().reset();
+  dailyWindow.mockResolvedValue({
+    daily: [
+      {
+        date: "2026-07-29",
+        symbol: "AAPL",
+        open_price: 147.0,
+        high_price: 149.0,
+        low_price: 146.5,
+        close_price: 148.0,
+        vwap: 147.8,
+        volume: 150000,
+        trade_count: 900,
+      },
+      {
+        date: "2026-07-30",
+        symbol: "AAPL",
+        open_price: 149.7,
+        high_price: 152.05,
+        low_price: 148.1,
+        close_price: 149.7,
+        vwap: 149.94,
+        volume: 184300,
+        trade_count: 1204,
+      },
+    ],
+  });
+  trades.mockResolvedValue({
+    trades: [
+      {
+        ts: "2026-07-30T14:00:00Z",
+        trade_id: "T1",
+        symbol: "AAPL",
+        price: 150.0,
+        quantity: 100,
+        buy_gateway_id: "GW01",
+        sell_gateway_id: "GW02",
+      },
+    ],
+  });
+  dailyRange.mockResolvedValue({
+    daily: [
+      {
+        date: "2026-07-30",
+        symbol: "AAPL",
+        open_price: 149.7,
+        high_price: 152.05,
+        low_price: 148.1,
+        close_price: 149.7,
+        vwap: 149.94,
+        volume: 184300,
+        trade_count: 1204,
+      },
+    ],
+  });
 });
 afterEach(cleanup);
 
@@ -185,6 +221,18 @@ describe("header", () => {
   it("dashes the change before any price is known", () => {
     show();
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  it("banners when the previous-close window fails, instead of silently reading as vs-open", async () => {
+    // Regression for T-H1: this view had no banner at all for this outage —
+    // the header would fall back to "vs today's open" indistinguishably from
+    // a symbol simply having no history on record.
+    dailyWindow.mockRejectedValue(new Error("upstream unavailable"));
+    apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12 });
+    show();
+
+    expect((await screen.findAllByText("150.12")).length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getByText(/measured from today/)).toBeDefined());
   });
 });
 
@@ -413,5 +461,32 @@ describe("chart presets", () => {
     await user.click(screen.getByRole("button", { name: "5D" }));
 
     expect((screen.getByLabelText("OHLC") as HTMLInputElement).checked).toBe(false);
+  });
+
+  it("draws today's VWAP on the presets that stay within today", async () => {
+    // Regression for T-H2: only 1D and Live never scroll past the current
+    // session, so only they can draw today's VWAP as a real benchmark.
+    const user = userEvent.setup();
+    show();
+
+    await waitFor(() => expect(screen.getByTestId("price-chart").dataset.vwap).toBe("149.94"));
+
+    await user.click(screen.getByRole("button", { name: "Live" }));
+    expect(screen.getByTestId("price-chart").dataset.vwap).toBe("149.94");
+  });
+
+  it("suppresses the VWAP line on any preset spanning more than today", async () => {
+    // 5D is still trade-bucketed like 1D, but it spans five sessions, not
+    // one — a flat line at today's VWAP would be a real benchmark for only
+    // the last of those five days and a coincidence for the rest, the same
+    // failure the 1M/3M/YTD/All daily-bar presets have at a larger scale.
+    const user = userEvent.setup();
+    show();
+    await waitFor(() => expect(screen.getByTestId("price-chart").dataset.vwap).toBe("149.94"));
+
+    for (const preset of ["5D", "1M", "3M", "YTD", "All"]) {
+      await user.click(screen.getByRole("button", { name: preset }));
+      expect(screen.getByTestId("price-chart").dataset.vwap).toBe("");
+    }
   });
 });

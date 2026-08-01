@@ -96,7 +96,7 @@ export function OverviewView() {
   // Open and volume are not on the CALF wire at all — pm-stats recomputes the
   // daily row on every trade, so a short re-poll keeps them current without
   // this tab hand-accumulating anything it happened to observe (§8.5).
-  const { data, isError } = useQuery({
+  const { data, isError: dailyBarsError } = useQuery({
     queryKey: ["history", "daily"],
     queryFn: api.dailyBars,
     refetchInterval: 10_000,
@@ -109,7 +109,7 @@ export function OverviewView() {
     return bySymbol;
   }, [data]);
 
-  const prevClose = usePrevCloses();
+  const { closes: prevClose, unavailable: prevCloseGone } = usePrevCloses();
 
   const rows = useMemo(
     () => buildRows({ symbols, top, daily, prevClose, lastTradeTs, halted, watchlist, filter }),
@@ -200,9 +200,24 @@ export function OverviewView() {
           </div>
         }
       >
-        {isError && (
+        {/*
+         * Two failures, two meanings, so two notices (§ T-H1). The board does
+         * not stop showing %Chg when previous closes go: it silently starts
+         * measuring from the open instead, and "unavailable" over a full
+         * column of numbers is a false statement about figures the reader can
+         * see. Say what they now mean. The daily poll is the separate case
+         * where a figure really is missing rather than re-based.
+         */}
+        {prevCloseGone && (
           <p className="mb-2 text-xs text-halt">
-            Change and volume unavailable — the history service is not reachable. Live prices are unaffected.
+            %Chg is measured from today&rsquo;s open — previous closes are unavailable.
+          </p>
+        )}
+
+        {dailyBarsError && (
+          <p className="mb-2 text-xs text-halt">
+            Open, volume and turnover unavailable — the history service is not reachable. Live prices are
+            unaffected.
           </p>
         )}
 

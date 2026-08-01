@@ -897,7 +897,7 @@ not an oversight, and should not be "fixed" later without first revisiting
 - `SUB|CH=DEPTH|SYM=*` returns `ERR|CODE=INVALID_SYMBOL` (§6.9 regression
   test — must never regress alongside §5's wildcard work landing in the
   same release).
-- Reconnect with `HELLO|RESUME=1|CH=DEPTH|SYM=AAPL|LASTSEQ=...` replays
+- Reconnect with `RESUME|CH=DEPTH|SYM=AAPL|LASTSEQ=...` replays
   buffered `DEPTH` events exactly like any other channel (no
   `DEPTH`-specific replay code path — this test exists to prove that, not
   to test new logic).

@@ -58,6 +58,7 @@ Status: Design and Research Proposal
     - [7.2 First Connect (no prior sequence)](#72-first-connect-no-prior-sequence)
     - [7.3 Reconnect (gap recovery)](#73-reconnect-gap-recovery)
     - [7.4 Replay Buffer Implementation](#74-replay-buffer-implementation)
+    - [7.5 `REPLAY_MISS` on a channel with no snapshot](#75-replay_miss-on-a-channel-with-no-snapshot)
   - [8. Wire Format Specification](#8-wire-format-specification)
     - [8.1 Grammar](#81-grammar)
     - [8.2 Reserved Keys](#82-reserved-keys)
@@ -77,6 +78,7 @@ Status: Design and Research Proposal
     - [9.12 EXIT](#912-exit)
     - [9.13 DEPTH (Order Book Incremental Update)](#913-depth-order-book-incremental-update)
     - [9.14 IDX (Index Level Update)](#914-idx-index-level-update)
+    - [9.15 RESUME](#915-resume)
   - [10. pm-md-gwy Design and Implementation Guide](#10-pm-md-gwy-design-and-implementation-guide)
     - [10.1 Responsibilities](#101-responsibilities)
     - [10.2 Non-Responsibilities](#102-non-responsibilities)
@@ -257,6 +259,7 @@ stateDiagram-v2
 | `WELCOME` | Gateway → Client | Confirm session, advertise parameters |
 | `SUB` | Client → Gateway | Subscribe to channels/symbols |
 | `UNSUB` | Client → Gateway | Cancel subscriptions |
+| `RESUME` | Client → Gateway | Replay one stream from a last-seen sequence |
 | `PING` | Client → Gateway | Liveness probe |
 | `PONG` | Gateway → Client | Liveness probe reply |
 | `HB` | Gateway → Client | Heartbeat (no data in interval) |
@@ -375,14 +378,16 @@ sequenceDiagram
 
 ### 7.3 Reconnect (gap recovery)
 
-If a client reconnects after a brief disconnection, it sends `HELLO` with
-`RESUME=1` and the last sequence it received. The gateway checks its replay
-buffer:
+A gap is any `SEQ` greater than `last_seq + 1` on a `(CH, SYM)` stream —
+whether it follows a reconnect or opens mid-connection. The client recovers it
+by sending `RESUME` (§9.15) with the last sequence it received. The gateway
+checks its replay buffer:
 
-- If the gap is within the buffer (default: last 30 seconds), the gateway replays
-  the missing messages, then resumes live delivery.
-- If the gap is outside the buffer, the gateway sends `ERR|CODE=REPLAY_MISS`
-  immediately followed by a fresh `SNAP` at the current sequence.
+- If the gap is within the buffer (default: last 30 seconds), the gateway
+  replays the buffered messages, then resumes live delivery.
+- If the gap is outside the buffer, the gateway sends `ERR|CODE=REPLAY_MISS`,
+  followed by a fresh `SNAP` at the current sequence **on the snapshot-backed
+  channels only** — see §7.5.
 
 ```mermaid
 sequenceDiagram
@@ -391,8 +396,9 @@ sequenceDiagram
 
     Note over C: Client disconnected and last seen SEQ=1042 on TOP/AAPL
 
-    C->>G: HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
+    C->>G: HELLO|CLIENT=bot01|PROTO=CALF1
     G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+    C->>G: RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042
 
     alt Gap within replay window (SEQ 1043..1050 in buffer)
         G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1043|...
@@ -408,9 +414,20 @@ sequenceDiagram
     end
 ```
 
-> **RESUME applies to one `(CH, SYM)` stream per `HELLO`.** To resume multiple
-> streams, send a plain `HELLO` (no `RESUME`) then issue `SUB` for each stream.
-> The gateway will auto-send a fresh `SNAP` for each.
+> **`RESUME` is a standalone command, not a `HELLO` flag.** It may be sent at
+> any time after `WELCOME`, and as many times as there are streams to repair.
+> Earlier revisions of this document carried it as `HELLO|RESUME=1|CH=..`,
+> which could only ever be honoured once per connection — `HELLO` is dispatched
+> only while a session is unauthenticated — so a client following more than one
+> stream had no way to recover the rest. That form is no longer accepted.
+
+**Replay is not disjoint from live delivery.** `RESUME|LASTSEQ=n` returns every
+buffered message with `SEQ > n`, and `n` is the client's position from *before*
+the gap. The reply therefore re-sends the message that revealed the gap, plus
+anything delivered live while the request was in flight. Replayed and live
+lines share one ordered per-connection stream, so duplicates always arrive
+after their originals: **a client must discard any message at or below the
+`SEQ` it has already recorded**, and must not let one lower its `last_seq`.
 
 ### 7.4 Replay Buffer Implementation
 
@@ -422,6 +439,29 @@ Buffer size is bounded by time (`replay_window_sec`), not by message count.
 Messages older than `replay_window_sec` are evicted as new ones arrive.
 
 
+
+### 7.5 `REPLAY_MISS` on a channel with no snapshot
+
+`SNAP` expresses a stream's *current state*. `TOP`, `STATE`, `INDEX`, `DEPTH`
+and `CB` have one; `TRADE` and `AUCTION` do not — they carry discrete events,
+and there is no snapshot of a print that has already happened.
+
+So a `REPLAY_MISS` on `TRADE` or `AUCTION` is answered with the `ERR` alone.
+The missed events are gone, and the `ERR` is the whole of what the gateway can
+truthfully say. A client must not wait for a `SNAP` that will not arrive, and
+must treat an empty-payload `SNAP` from an older gateway as the absence of data
+rather than as an event — decoded by `CH` alone, one reads as a print of zero
+shares at zero price.
+
+Because a gap here cannot be repaired, a client that presents `TRADE` as a
+record — a time-and-sales tape — should mark the hole where it falls rather
+than close the two sides over it.
+
+**A `SNAP` re-baselines; it is never a gap.** Whatever `SEQ` it carries becomes
+the client's `last_seq` for that stream, without a gap check. Comparing one
+against the previous position would ask to replay history the snapshot just
+superseded, and on the `REPLAY_MISS` path — whose answer *is* a `SNAP` — would
+loop `RESUME` against a window already known to be too old.
 
 ## 8. Wire Format Specification
 
@@ -462,7 +502,7 @@ These keys have defined semantics across all message types:
 |---|---|---|
 | Price | Decimal text | `150.25` |
 | Quantity | Integer | `1200` |
-| Boolean flag | `0` or `1` | `RESUME=1` |
+| Boolean flag | `0` or `1` | _(reserved; no current field uses it)_ |
 | Timestamp | UTC ISO-8601 with ms | `2026-06-07T10:15:23.411Z` |
 | Missing optional field | Omit entirely | _(do not send `BID=`)_ |
 
@@ -482,8 +522,7 @@ Each message definition includes:
 
 **Direction:** Client → Gateway
 
-**Purpose:** Initiate the CALF session, identify the client, and optionally
-request gap replay from a last seen sequence.
+**Purpose:** Initiate the CALF session and identify the client.
 
 **Response:** Gateway replies with `WELCOME` on success, or `ERR` on failure.
 The client must wait for `WELCOME` before sending `SUB`.
@@ -492,15 +531,15 @@ The client must wait for `WELCOME` before sending `SUB`.
 |---|---|---|---|
 | `CLIENT` | ✓ | string | Client identifier; max 32 ASCII chars; used in gateway logs |
 | `PROTO` | ✓ | string | Must be exactly `CALF1`; triggers `ERR PROTO_MISMATCH` if unknown |
-| `RESUME` | — | `0`/`1` | Set to `1` to request gap replay for one stream |
-| `CH` | if `RESUME=1` | string | Single channel to resume (`TOP`, `TRADE`, `STATE`, `INDEX`, or `DEPTH`) |
-| `SYM` | if `RESUME=1` | string | Single symbol to resume |
-| `LASTSEQ` | if `RESUME=1` | int | Last sequence the client received for `(CH, SYM)` |
 
 ```text
 HELLO|CLIENT=bot01|PROTO=CALF1
-HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
 ```
+
+`HELLO` carries no `RESUME=1|CH=..|SYM=..|LASTSEQ=..` fields. Gap replay is
+`RESUME` (§9.15), a standalone command sent after `WELCOME`; see §7.3 for why.
+Exactly one `HELLO` is dispatched per connection — a second is answered with
+`ERR|CODE=BAD_MESSAGE`.
 
 
 
@@ -759,7 +798,7 @@ without parsing the human-readable `MSG`.
 | `INVALID_CHANNEL` | `CH` contains an unknown channel name | Correct and resend `SUB` |
 | `INVALID_SYMBOL` | `SYM` contains an unrecognised symbol, or `SYM=*` used with `TOP`/`TRADE` | Correct and resend `SUB` |
 | `SUB_LIMIT` | Symbol count exceeds `max_symbols_per_client` | Reduce symbol list and resend |
-| `REPLAY_MISS` | `LASTSEQ` is outside the replay window | Accept the following `SNAP` and continue live |
+| `REPLAY_MISS` | `LASTSEQ` is outside the replay window | On a snapshot-backed channel, accept the following `SNAP` and continue live. On `TRADE`/`AUCTION` no `SNAP` follows — the events are gone (§7.5) |
 | `SLOW_CLIENT` | Outbound queue overflow | Reconnect and resume via `LASTSEQ` |
 | `BAD_MESSAGE` | Unparseable line or line exceeds 4096 bytes | Fix client encoding or framing |
 
@@ -933,6 +972,56 @@ required (§6.2).
 
 
 
+### 9.15 RESUME
+
+**Direction:** Client → Gateway
+
+**Purpose:** Replay one `(CH, SYM)` stream from the last sequence the client
+received, closing a gap without dropping the connection.
+
+**Response:** The buffered messages, in sequence order, on success. Then live
+delivery continues. On failure, `ERR` — and the session stays open.
+
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `CH` | ✓ | string | Exactly one channel |
+| `SYM` | ✓ | string | Exactly one symbol; `*` is rejected on every channel |
+| `LASTSEQ` | ✓ | int | Last sequence received for `(CH, SYM)`; must be > 0 |
+
+```text
+RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042
+RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=8817
+```
+
+Repeatable, and valid at any point after `WELCOME`. One stream per message:
+`LASTSEQ` describes a single stream's position, so a multi-stream form would
+have nothing to mean. `RESUME` also subscribes the client to the stream, since
+replaying it without continuing it would leave a fresh gap behind.
+
+`SYM=*` is rejected even on the channels where `SUB` accepts it: there is no
+per-symbol replay buffer to serve a wildcard from, and the `REPLAY_MISS`
+fallback would look up a symbol literally named `*` and find nothing.
+
+**Errors**
+
+| Condition | Reply |
+|---|---|
+| `CH` or `SYM` is missing, empty, or lists more than one value | `ERR|CODE=BAD_MESSAGE` |
+| `LASTSEQ` absent, non-integer, or ≤ 0 | `ERR|CODE=BAD_MESSAGE` |
+| `CH` is not a known channel | `ERR|CODE=INVALID_CHANNEL` |
+| `SYM=*` | `ERR|CODE=INVALID_SYMBOL` |
+| Gap older than the replay window | `ERR|CODE=REPLAY_MISS`, then `SNAP` on snapshot-backed channels only (§7.5) |
+
+A malformed `RESUME` answers `ERR` and leaves the session open, matching `SUB`.
+Closing the connection was defensible when this could only arrive during the
+handshake; for a command a client may send many times, it would turn one bad
+request into a full resubscribe cycle.
+
+See §7.3 for the duplicate-suppression rule a caller must implement, and §7.5
+for what `REPLAY_MISS` means per channel.
+
+
+
 ## 10. pm-md-gwy Design and Implementation Guide
 
 > **Read this section before writing any code.** It covers the process
@@ -1084,7 +1173,8 @@ If a client cannot consume messages fast enough:
 1. Messages are queued in `ClientSession.outq` (cap: `max_client_queue`, default 10,000).
 2. When the queue is full, the gateway sends `ERR|CODE=SLOW_CLIENT` and immediately
    closes the TCP connection.
-3. The client must reconnect and use `RESUME=1` to recover.
+3. The client must reconnect and issue one `RESUME` (§9.15) per stream it was
+   following, to recover what was dropped.
 
 This keeps the gateway stable without complex QoS logic.
 
@@ -1357,6 +1447,10 @@ def main() -> None:
 
     # ── Sequence tracking: last seen SEQ per (CH, SYM) ─────────────────────
     last_seq: dict[tuple[str, str], int] = {}
+    # Sequence ranges a RESUME was sent for and which have not arrived yet.
+    # Without these a client cannot tell the backfill it asked for from the
+    # already-delivered messages the same reply carries (§7.3).
+    holes: dict[tuple[str, str], tuple[int, int]] = {}
 
     # ── Main loop ──────────────────────────────────────────────────────────
     try:
@@ -1372,9 +1466,33 @@ def main() -> None:
                     seq = int(kv["SEQ"])
                     key = (ch, sym)
                     prev = last_seq.get(key)
-                    if prev is not None and seq != prev + 1:
+
+                    # A SNAP is a baseline, never a continuation (§7.5): it
+                    # re-anchors the stream wherever the gateway now is.
+                    if mtype == "SNAP":
+                        last_seq[key] = seq
+                        holes.pop(key, None)
+                    elif prev is not None and seq <= prev:
+                        # Below the baseline: either backfill this client asked
+                        # for, or a replay of something already handled.
+                        # RESUME returns *everything* past LASTSEQ, so the two
+                        # are mixed and only the ranges tell them apart (§7.3).
+                        lo, hi = holes.get(key, (0, -1))
+                        if lo <= seq <= hi:
+                            holes[key] = (seq + 1, hi)   # take it, narrow the hole
+                            if seq + 1 > hi:
+                                holes.pop(key, None)
+                        else:
+                            continue                      # duplicate: drop it
+                    elif prev is not None and seq != prev + 1:
                         print(f"⚠  GAP on ({ch},{sym}): expected {prev+1}, got {seq}")
-                    last_seq[key] = seq
+                        holes[key] = (prev + 1, seq - 1)
+                        last_seq[key] = seq
+                        sock.sendall(
+                            f"RESUME|CH={ch}|SYM={sym}|LASTSEQ={prev}\n".encode()
+                        )
+                    else:
+                        last_seq[key] = seq
 
                 if mtype == "HB":
                     pass  # liveness confirmed; no action needed

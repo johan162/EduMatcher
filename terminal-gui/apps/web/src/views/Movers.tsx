@@ -45,7 +45,7 @@ export function MoversView() {
   // Open and volume are not on the CALF wire — same short re-poll the
   // Overview uses, and react-query dedupes the shared key so opening both
   // tabs costs one request rather than two.
-  const { data } = useQuery({
+  const { data, isError: dailyBarsError } = useQuery({
     queryKey: ["history", "daily"],
     queryFn: api.dailyBars,
     refetchInterval: 10_000,
@@ -58,7 +58,7 @@ export function MoversView() {
     return bySymbol;
   }, [data]);
 
-  const prevClose = usePrevCloses();
+  const { closes: prevClose, unavailable: prevCloseGone } = usePrevCloses();
   const tickDecimals = useTickDecimals();
 
   const rows = useMemo(
@@ -101,12 +101,37 @@ export function MoversView() {
           ))}
         </div>
         <span className="ml-auto flex items-baseline gap-3 text-sm text-fg-subtle">
-          <span className="text-xs">{tab === "active" ? "ranked by value traded" : "vs previous close"}</span>
+          {/*
+           * This label is the ranking's definition, so it has to follow the
+           * baseline actually used rather than the one intended (§ T-H1). A
+           * gainers list still headed "vs previous close" while it is in fact
+           * ranked from the open is a different list wearing the same name.
+           */}
+          <span className="text-xs">
+            {tab === "active"
+              ? "ranked by value traded"
+              : prevCloseGone
+                ? "vs today's open"
+                : "vs previous close"}
+          </span>
           <span className="tabular">
             {ranked.length} of {rows.length}
           </span>
         </span>
       </header>
+
+      {prevCloseGone && (
+        <p className="text-xs text-halt">
+          Ranked by change from today&rsquo;s open — previous closes are unavailable, so this is a different
+          ranking, not a missing one.
+        </p>
+      )}
+
+      {dailyBarsError && (
+        <p className="text-xs text-halt">
+          Ranking unavailable — the history service is not reachable. Live prices are unaffected.
+        </p>
+      )}
 
       <div className="overflow-hidden rounded border border-border">
         <table className="w-full text-sm">

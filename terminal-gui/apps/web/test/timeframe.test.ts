@@ -23,7 +23,22 @@ describe("granularity follows the window", () => {
 
 describe("windows", () => {
   it("asks trades for an ISO timestamp bound", () => {
-    expect(timeframeSpec("1D", NOW).from).toBe("2026-07-29T12:00:00.000Z");
+    expect(timeframeSpec("1D", NOW).from).toBe("2026-07-30T00:00:00.000Z");
+  });
+
+  it("starts 1D at today's open, not twenty-four hours back (T-H2)", () => {
+    // SymbolDetail draws today's VWAP across this window as a horizontal
+    // reference line, and a price line spans the whole chart — so a rolling
+    // window would put a benchmark for today over most of yesterday's session
+    // every morning. The window is what has to be honest.
+    const lateInTheDay = Date.parse("2026-07-30T23:59:00Z");
+    const earlyInTheDay = Date.parse("2026-07-30T00:30:00Z");
+    expect(timeframeSpec("1D", lateInTheDay).from).toBe("2026-07-30T00:00:00.000Z");
+    expect(timeframeSpec("1D", earlyInTheDay).from).toBe("2026-07-30T00:00:00.000Z");
+  });
+
+  it("keeps 5D rolling, since it spans sessions by design", () => {
+    expect(timeframeSpec("5D", NOW).from).toBe("2026-07-25T12:00:00.000Z");
   });
 
   it("asks daily for a plain date bound, which is what that endpoint takes", () => {

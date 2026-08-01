@@ -5,7 +5,15 @@
  * wildcard), and a Level 2 depth-of-book ladder (DEPTH) -- one client,
  * several channels, with a small top-of-book cache and a formatted depth
  * ladder rather than raw fields dumped to the terminal. Also demonstrates
- * per-(CH,SYM) sequence-gap detection and a clean SIGINT shutdown.
+ * per-(CH,SYM) sequence-gap detection *and repair* via RESUME, and a clean
+ * SIGINT shutdown.
+ *
+ * Prices are printed exactly as they arrived on the wire, so this client
+ * needs no WELCOME|REF= handling: reformatting a decimal is what creates
+ * the opportunity to reformat it wrongly. A client that parses prices into
+ * numbers and renders them itself does need REF -- tick_decimals is
+ * per-symbol, and assuming 2 is right only for the instruments that happen
+ * to quote that way. calf_subscriber.py shows that path.
  *
  * See docs/user-guide/920-app-calf-protocol.md for the normative wire
  * contract this client follows.
@@ -14,6 +22,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "calf_parser.h"
+#include "calf_recovery.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -27,7 +36,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define MAX_STREAMS 32 /* bounded (CH,SYM) sequence-tracking table */
 #define MAX_SYMBOLS 16 /* bounded top-of-book cache */
 #define FIELD_LEN 32
 
@@ -45,51 +53,13 @@ static void handle_sigint(int signum) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Per-(CH,SYM) sequence-gap detection.
- *
- * A gap means either a bug in this client or a dropped/delayed segment
- * the OS didn't fully recover -- either way, this client's local state
- * (the top-of-book cache below) may now be stale. A production client
- * would typically resync here (fresh SUB, or HELLO|RESUME=1); this
- * example only reports it.
+/* Sequence tracking lives in calf_recovery.c, which owns the three rules
+ * that make gap handling correct (replay overlaps live traffic; a SNAP
+ * re-baselines; a sequence only moves backward across connections). This
+ * file keeps the I/O and the display.
  * ------------------------------------------------------------------ */
 
-typedef struct {
-    char channel[CALF_MAX_KEY_LEN];
-    char symbol[CALF_MAX_VAL_LEN];
-    long seq;
-} stream_seq_t;
-
-static stream_seq_t g_streams[MAX_STREAMS];
-static int g_stream_count = 0;
-
-static void check_sequence(const char *channel, const char *symbol, const char *seq_str) {
-    if (!channel[0] || !seq_str) {
-        return;
-    }
-    long seq = strtol(seq_str, NULL, 10);
-
-    for (int i = 0; i < g_stream_count; i++) {
-        if (strcmp(g_streams[i].channel, channel) == 0 && strcmp(g_streams[i].symbol, symbol) == 0) {
-            if (seq != g_streams[i].seq + 1) {
-                fprintf(stderr, "!! sequence gap on (%s,%s): expected %ld, got %ld\n", channel, symbol,
-                        g_streams[i].seq + 1, seq);
-            }
-            g_streams[i].seq = seq;
-            return;
-        }
-    }
-    /* New stream. If the tracking table is full, this example simply
-     * stops tracking further new streams rather than fail the demo --
-     * MAX_STREAMS comfortably covers this example's own subscriptions.
-     */
-    if (g_stream_count < MAX_STREAMS) {
-        stream_seq_t *entry = &g_streams[g_stream_count++];
-        snprintf(entry->channel, sizeof(entry->channel), "%s", channel);
-        snprintf(entry->symbol, sizeof(entry->symbol), "%s", symbol);
-        entry->seq = seq;
-    }
-}
+static calf_recovery_t g_recovery;
 
 /* ------------------------------------------------------------------ */
 /* Top-of-book cache: MD updates omit sides that did not change, so they
@@ -266,12 +236,43 @@ static int connect_gateway(const char *host, int port) {
 
 /* ------------------------------------------------------------------ */
 
-static void handle_message(const calf_message_t *msg) {
+static void handle_message(int fd, const calf_message_t *msg) {
     const char *channel = calf_get_field(msg, "CH");
     const char *symbol = calf_get_field(msg, "SYM");
     channel = channel ? channel : "";
     symbol = symbol ? symbol : "";
-    check_sequence(channel, symbol, calf_get_field(msg, "SEQ"));
+
+    /* A replayed duplicate is dropped here, before it can be applied a
+     * second time; a detected gap is answered on the spot. */
+    const char *seq_str = calf_get_field(msg, "SEQ");
+    long seq = seq_str ? strtol(seq_str, NULL, 10) : 0;
+    calf_gap_t gap;
+    calf_action_t action =
+        calf_recovery_observe(&g_recovery, msg->msg_type, channel, symbol, seq, &gap);
+
+    if (action == CALF_DROP) {
+        return;
+    }
+    if (action == CALF_RESUME) {
+        char line[CALF_RESUME_LINE_LEN];
+        fprintf(stderr, "!! sequence gap on (%s,%s): %ld..%ld missing -- resuming\n",
+                gap.channel, gap.symbol, gap.first_seq, gap.last_seq);
+        if (calf_recovery_build_resume(line, sizeof(line), &gap) > 0 &&
+            send_line(fd, line) != 0) {
+            perror("send RESUME");
+        }
+    } else if (action == CALF_GAP_UNREPAIRABLE) {
+        fprintf(stderr, "!! gap on (%s,%s): %ld..%ld missing and unrecoverable\n",
+                gap.channel, gap.symbol, gap.first_seq, gap.last_seq);
+    }
+
+    /* A SNAP on TRADE or AUCTION carries an envelope and no payload -- an
+     * older gateway sends one after REPLAY_MISS. Decoded by CH like any
+     * other line it reads as a print of zero shares at zero price, so
+     * drop it rather than show a trade that never happened. */
+    if (strcmp(msg->msg_type, "SNAP") == 0 && channel[0] && !calf_channel_has_snapshot(channel)) {
+        return;
+    }
 
     if (strcmp(channel, "TOP") == 0 && (strcmp(msg->msg_type, "SNAP") == 0 || strcmp(msg->msg_type, "MD") == 0)) {
         top_of_book_t *book = get_book(symbol);
@@ -349,11 +350,17 @@ int main(int argc, char **argv) {
     sa.sa_flags = 0; /* no SA_RESTART: interrupt the blocking read() in recv_line() */
     sigaction(SIGINT, &sa, NULL);
 
+    calf_recovery_init(&g_recovery);
+
     int fd = connect_gateway(host, port);
     if (fd < 0) {
         perror("connect_gateway");
         return 1;
     }
+    /* Once per connection. This example does not reconnect, but a client
+     * that does must call it after every connect so a restarted gateway's
+     * renumbering is not mistaken for a stream of duplicates. */
+    calf_recovery_new_connection(&g_recovery);
 
     if (send_line(fd, "HELLO|CLIENT=ext-c-01|PROTO=CALF1") != 0) {
         perror("send HELLO");
@@ -436,7 +443,7 @@ int main(int argc, char **argv) {
             fprintf(stderr, "parse error: %s\n", line);
             continue;
         }
-        handle_message(&msg);
+        handle_message(fd, &msg);
     }
 
     close(fd);
