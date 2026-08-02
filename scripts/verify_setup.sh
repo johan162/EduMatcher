@@ -79,6 +79,11 @@ has_chrome() {
 }
 
 has_readline_dev() {
+    if is_fedora; then
+        rpm -q readline-devel &> /dev/null
+        return $?
+    fi
+
     pkg-config --exists readline 2>/dev/null || \
     [ -f /usr/include/readline/readline.h ] || \
     [ -f /usr/local/include/readline/readline.h ] || \
@@ -87,7 +92,9 @@ has_readline_dev() {
 }
 
 readline_detection_source() {
-    if pkg-config --exists readline 2>/dev/null; then
+    if is_fedora && rpm -q readline-devel &> /dev/null; then
+        echo "rpm:readline-devel"
+    elif pkg-config --exists readline 2>/dev/null; then
         echo "pkg-config:readline"
     elif [ -f /usr/include/readline/readline.h ]; then
         echo "/usr/include/readline/readline.h"
