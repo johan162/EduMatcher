@@ -398,7 +398,8 @@ if ! command -v pandoc &> /dev/null; then
         fi
     elif is_linux; then
         echo "ℹ️  Auto-install for pandoc is currently implemented only for Fedora Linux."
-        echo "   Install pandoc manually, then re-run this script."
+        echo "   Install pandoc manually, then re-run this script. "
+        echo "   Please note that we need pandoc version >= ${MIN_PANDOC_VERSION}."
         echo ""
         echo "Example commands for Debian/Ubuntu (apt):"
         echo "  sudo apt update"
