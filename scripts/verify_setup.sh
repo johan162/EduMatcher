@@ -50,7 +50,7 @@ print_linux_manual_help() {
     echo ""
     echo "Example commands for Debian/Ubuntu (apt):"
     echo "  sudo apt update"
-    echo "  sudo apt install poetry fonts-dejavu-core fonts-noto-core build-essential texlive-xetex"
+    echo "  sudo apt install poetry fonts-dejavu-core fonts-noto-core build-essential libreadline-dev texlive-xetex"
     echo "  sudo apt install chromium-browser  # or package name 'chromium' on some distros"
     echo ""
     echo "After installing the packages, run: ./scripts/verify_setup.sh"
@@ -76,6 +76,30 @@ has_chrome() {
     command -v chrome &> /dev/null || \
     command -v chromium &> /dev/null || \
     command -v chromium-browser &> /dev/null
+}
+
+has_readline_dev() {
+    pkg-config --exists readline 2>/dev/null || \
+    [ -f /usr/include/readline/readline.h ] || \
+    [ -f /usr/local/include/readline/readline.h ] || \
+    [ -f /opt/homebrew/opt/readline/include/readline/readline.h ] || \
+    [ -f /usr/local/opt/readline/include/readline/readline.h ]
+}
+
+readline_detection_source() {
+    if pkg-config --exists readline 2>/dev/null; then
+        echo "pkg-config:readline"
+    elif [ -f /usr/include/readline/readline.h ]; then
+        echo "/usr/include/readline/readline.h"
+    elif [ -f /usr/local/include/readline/readline.h ]; then
+        echo "/usr/local/include/readline/readline.h"
+    elif [ -f /opt/homebrew/opt/readline/include/readline/readline.h ]; then
+        echo "/opt/homebrew/opt/readline/include/readline/readline.h"
+    elif [ -f /usr/local/opt/readline/include/readline/readline.h ]; then
+        echo "/usr/local/opt/readline/include/readline/readline.h"
+    else
+        echo "unknown"
+    fi
 }
 
 echo "=== EduMatcher Dev Environment Setup & Verification ==="
@@ -163,6 +187,54 @@ if [ ${#missing_tools[@]} -gt 0 ]; then
     fi
 fi
 echo "✅ Required build tools are available: gcc, make"
+
+# Ensure readline development headers/library are available.
+if ! has_readline_dev; then
+    echo "❌ Readline development library not found"
+    if is_fedora; then
+        if confirm_action "Would you like to install readline development headers now via dnf?"; then
+            sudo dnf install -y readline-devel
+        else
+            echo "❌ Readline development library is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for readline development headers is currently implemented only for Fedora Linux."
+        echo "   Install readline development headers manually, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install libreadline-dev"
+        echo ""
+        echo "After installing libreadline-dev, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        if confirm_action "Would you like to install readline now via Homebrew?"; then
+            if ! command -v brew &> /dev/null; then
+                echo "❌ Homebrew not found. Install Homebrew first, then run:"
+                echo "   brew install readline"
+                exit 1
+            fi
+            brew install readline
+        else
+            echo "❌ Readline development library is required to continue"
+            echo "   Install readline (for example: brew install readline) and re-run this script"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    else
+        echo "❌ Readline development library is required to continue"
+        echo "   Install readline development headers with your system package manager, then re-run this script"
+        exit 1
+    fi
+fi
+echo "✅ Readline development library is available"
+echo "   Detected via: $(readline_detection_source)"
 
 # Ensure Chrome/Chromium browser is available.
 if ! has_chrome; then
