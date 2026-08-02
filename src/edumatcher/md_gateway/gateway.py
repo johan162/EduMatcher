@@ -99,6 +99,7 @@ class MarketDataGateway:
             "circuit_breaker.resume.",
             "circuit_breaker.extend.",
             "auction.result.",
+            "auction.indicative.",
         )
         self._index_sub = make_subscriber(config.index_pub_addr, "index.")
 
@@ -877,6 +878,23 @@ class MarketDataGateway:
                         sym, payload
                     )
                     self._emit_stream_event("CB", "CB", cb_sym, cb_fields, now_seconds)
+                    continue
+
+                if topic.startswith("auction.indicative."):
+                    self._dbg_count("auction_indicative_topics")
+                    (
+                        indic_sym,
+                        indic_fields,
+                    ) = self._normaliser.normalise_auction_indicative(payload)
+                    if indic_sym:
+                        # INDIC rather than AUCTION: same channel, different
+                        # statement. AUCTION says what happened at an uncross;
+                        # INDIC says what would happen if the phase ended now,
+                        # and a client must not mistake the second for the
+                        # first (T-M1).
+                        self._emit_stream_event(
+                            "INDIC", "AUCTION", indic_sym, indic_fields, now_seconds
+                        )
                     continue
 
                 if topic.startswith("auction.result."):

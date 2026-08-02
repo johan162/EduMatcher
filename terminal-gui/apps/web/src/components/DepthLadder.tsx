@@ -13,8 +13,16 @@
  * Bid ‖ Ask | # | Qty | Cum` — so the two touch prices meet in the middle and
  * the cumulative totals, the figure read at a distance from the touch, sit at
  * the outer edges where the eye ends up.
+ *
+ * Rows are evenly spaced whatever the prices are, because a ladder that
+ * spaced them by price would collapse to unreadable slivers the moment one
+ * level sat far out. What that costs is any sense of *how far away* the size
+ * is — `100.00 / 99.99 / 99.98` draws the same as `100.00 / 99.00 / 50.00`
+ * — so the distance from the touch is stated as a figure instead, beside
+ * each price, and a row whose gap is unusually wide is marked (T-L1).
  */
 
+import clsx from "clsx";
 import type { DepthFrame } from "@edumatcher/terminal-types";
 import { buildLadder, type LadderRow } from "../lib/depth.js";
 import { ABSENT, price, qty } from "../lib/format.js";
@@ -53,7 +61,9 @@ export function DepthLadder({
             <th className="py-1 text-right font-medium">Qty</th>
             <th className="py-1 text-right font-medium">#</th>
             <th className="py-1 text-right font-medium">Bid</th>
+            <th className="py-1 text-right font-medium">%</th>
             <th className="w-1/4 py-1" />
+            <th className="py-1 font-medium">%</th>
             <th className="py-1 font-medium">Ask</th>
             <th className="py-1 font-medium">#</th>
             <th className="py-1 font-medium">Qty</th>
@@ -65,7 +75,7 @@ export function DepthLadder({
             const bid = ladder.bids[i];
             const ask = ladder.asks[i];
             return (
-              <tr key={i} className={`border-b border-border/40 ${rowClass}`}>
+              <tr key={i} className={`border-b border-border-subtle ${rowClass}`}>
                 <td className="text-right font-medium text-fg-subtle">
                   {bid ? qty(bid.cumulative) : ABSENT}
                 </td>
@@ -74,6 +84,7 @@ export function DepthLadder({
                 <td className="text-right font-semibold text-up">
                   {bid ? price(bid.price, decimals) : ABSENT}
                 </td>
+                <Distance row={bid} peak={ladder.peakDistance} align="right" />
                 {/*
                  * Bars are the cumulative staircase, not the per-level size:
                  * a book with one heavy level and a book with five even ones
@@ -83,13 +94,14 @@ export function DepthLadder({
                 <td>
                   <div className="flex items-center gap-px">
                     <div className="flex flex-1 justify-end">
-                      <Bar row={bid} peak={peak} tone="bg-up/40" />
+                      <Bar row={bid} peak={peak} tone="bg-up-bg" />
                     </div>
                     <div className="flex-1">
-                      <Bar row={ask} peak={peak} tone="bg-down/40" />
+                      <Bar row={ask} peak={peak} tone="bg-down-bg" />
                     </div>
                   </div>
                 </td>
+                <Distance row={ask} peak={ladder.peakDistance} align="left" />
                 <td className="font-semibold text-down">{ask ? price(ask.price, decimals) : ABSENT}</td>
                 <td className="text-fg-faint">{ask ? qty(ask.orders) : ABSENT}</td>
                 <td>{ask ? qty(ask.qty) : ABSENT}</td>
@@ -102,6 +114,42 @@ export function DepthLadder({
 
       <Totals bidTotal={ladder.bidTotal} askTotal={ladder.askTotal} imbalance={ladder.imbalance} />
     </div>
+  );
+}
+
+/**
+ * How far this level sits from the touch, and whether that is a real gap.
+ *
+ * Shown as a percentage rather than in ticks so the figure means the same
+ * on a 5.00 instrument and a 500.00 one. The touch itself reads `—` rather
+ * than `0.00%`: it is the reference, not a measurement against it.
+ *
+ * A level more than halfway to the ladder's widest gap is marked, which is
+ * the case the even spacing hides worst — a lone level far out beyond a
+ * tight cluster looks like the next rung down.
+ */
+function Distance({
+  row,
+  peak,
+  align,
+}: {
+  row: LadderRow | undefined;
+  peak: number;
+  align: "left" | "right";
+}) {
+  const distance = row?.distance;
+  const far = distance !== undefined && peak > 0 && distance > peak / 2 && distance > 0;
+
+  return (
+    <td
+      className={clsx(
+        align === "right" ? "text-right" : "text-left",
+        far ? "text-fg-subtle" : "text-fg-faint",
+      )}
+      title={far ? "Far from the touch — the rows above are not adjacent prices" : undefined}
+    >
+      {distance === undefined || distance === 0 ? ABSENT : `${(distance * 100).toFixed(2)}%`}
+    </td>
   );
 }
 

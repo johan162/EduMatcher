@@ -93,6 +93,7 @@ from edumatcher.models.message import (
     make_quote_legs_msg,
     make_quote_status_msg,
     make_symbols_msg,
+    make_auction_indicative_msg,
     make_session_state_msg,
     make_auction_result_msg,
     make_oco_ack_msg,
@@ -131,6 +132,7 @@ from edumatcher.models.session import (
     SessionState,
     VALID_TRANSITIONS,
     accepts_orders,
+    is_auction_phase,
     is_matching_enabled,
 )
 from edumatcher.models.trade import Trade
@@ -246,6 +248,8 @@ class Engine:
         # Set of symbols whose book changed since last snapshot publish
         self._dirty_symbols: set[str] = set()
         self.snapshot_interval_sec: float = self.SNAPSHOT_INTERVAL
+        self.auction_indicative_interval_sec: float = 1.0
+        self._last_auction_indicative: float = 0.0
 
         # Combo-order tracking
         self._combos: dict[str, ComboOrder] = {}  # combo internal id → ComboOrder
@@ -266,6 +270,11 @@ class Engine:
         # Session state (auction / continuous matching)
         self._sessions_enabled: bool = False
         self._session_state: SessionState = SessionState.CONTINUOUS
+        # The next scheduled transition, as told by whoever drove the last
+        # one. Empty unless the scheduler supplied it -- see
+        # `_handle_session_transition` for why a manual transition clears it.
+        self._next_session_state: str = ""
+        self._next_session_at: str = ""
         self._enforce_collars: bool = True
         self._enforce_circuit_breakers: bool = True
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
@@ -294,6 +303,9 @@ class Engine:
                 if self._engine_config.reopening_random_seed is not None:
                     self._reopening_rng.seed(self._engine_config.reopening_random_seed)
                 self.snapshot_interval_sec = self._engine_config.snapshot_interval_sec
+                self.auction_indicative_interval_sec = (
+                    self._engine_config.auction_indicative_interval_sec
+                )
                 self.quote_history_maxlen = self._engine_config.quote_history_maxlen
                 self.drop_copy_buffer_size = self._engine_config.drop_copy_buffer_size
                 self.recent_trades_maxlen = self._engine_config.recent_trades_maxlen
@@ -433,6 +445,56 @@ class Engine:
                 symbol, recent_trades_maxlen=self.recent_trades_maxlen
             )
         return self.books[symbol]
+
+    def _flush_auction_indicative(self) -> None:
+        """Publish the indicative uncross for every symbol in a call phase.
+
+        This is the imbalance indicator a real venue disseminates while an
+        auction collects orders. The engine already computes exactly this at
+        the moment a phase *ends* (`_run_uncross`) and on the circuit-breaker
+        reopening path; what was missing is publishing it while there is
+        still time for anyone to act on it. A participant can only supply the
+        offsetting interest that resolves an imbalance if the imbalance is
+        visible beforehand, and the open and the close are where the largest
+        volume of the day prints (T-M1).
+
+        Every symbol every interval, including ones that would not cross at
+        all: "nothing would trade yet" is a real reading during a call phase,
+        and suppressing unchanged values would leave a client unable to tell a
+        stable indicative from a stalled feed.
+
+        Halted symbols are skipped. A halt is its own reopening auction with
+        its own corridor, and the circuit-breaker path already publishes an
+        indicative for it — two sources describing one symbol would sooner or
+        later disagree.
+        """
+        if not is_auction_phase(self._session_state):
+            return
+
+        now = time.monotonic()
+        if now - self._last_auction_indicative < self.auction_indicative_interval_sec:
+            return
+        self._last_auction_indicative = now
+
+        phase = self._session_state.value
+        for symbol, book in self.books.items():
+            if self._halted_symbols.get(symbol):
+                continue
+            indicative = compute_equilibrium(book)
+            self.pub_sock.send_multipart(
+                make_auction_indicative_msg(
+                    symbol,
+                    phase,
+                    (
+                        from_ticks(indicative.eq_price, symbol)
+                        if indicative.eq_price is not None
+                        else None
+                    ),
+                    indicative.eq_qty,
+                    indicative.imbalance_side,
+                    indicative.surplus,
+                )
+            )
 
     def _mark_dirty(self, symbol: str) -> None:
         """Flag a symbol as needing a snapshot publish."""
@@ -3191,6 +3253,19 @@ class Engine:
             )
             return
 
+        # Adopted from this command, whatever it says -- including nothing --
+        # but only once the transition is known to be going ahead. A rejected
+        # command must leave every trace of itself behind.
+        #
+        # A manual or admin-driven transition carries no timetable, and so
+        # *clears* whatever the scheduler last advertised: the engine has
+        # just moved somewhere the schedule did not predict, and the old
+        # target has stopped being a fact about anything. Leaving it would
+        # count a terminal down to a transition nobody is going to perform,
+        # which is the failure this field exists to avoid (T-M6).
+        self._next_session_state = str(payload.get("next_state", ""))
+        self._next_session_at = str(payload.get("next_at", ""))
+
         # --- Uncrossing on exit from auction / no-matching phases ---
         needs_uncross = not is_matching_enabled(from_state) and (
             is_matching_enabled(to_state) or to_state == SessionState.CLOSED
@@ -3233,7 +3308,12 @@ class Engine:
                 book.daily_trades = 0
 
         self.pub_sock.send_multipart(
-            make_session_state_msg(to_state.value, prev_state=from_state.value)
+            make_session_state_msg(
+                to_state.value,
+                prev_state=from_state.value,
+                next_state=self._next_session_state,
+                next_at=self._next_session_at,
+            )
         )
         log.info(f"Session: {from_state.value} → {to_state.value}")
 
@@ -4221,6 +4301,8 @@ class Engine:
             self._flush_snapshots()
             # Check circuit breaker timers — resume halted symbols
             self._flush_circuit_breakers()
+            # Publish where each symbol would uncross, while a call phase runs
+            self._flush_auction_indicative()
             self._flush_debug_summary()
 
         self._flush_debug_summary(force=True)

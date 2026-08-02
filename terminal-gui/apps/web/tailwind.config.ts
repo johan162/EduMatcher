@@ -17,6 +17,11 @@ const config: Config = {
         "bg-raised": "var(--bg-raised)",
         border: "var(--border)",
         "border-strong": "var(--border-strong)",
+        // A quieter divider than `border`, for the row rules inside a
+        // table. Declared rather than written as `border-border/40`, which
+        // compiles to nothing: these tokens are bare `var(--x)` and Tailwind
+        // cannot synthesise an alpha channel from one (T-L2's sibling).
+        "border-subtle": "var(--border-subtle)",
         fg: "var(--fg)",
         "fg-subtle": "var(--fg-subtle)",
         "fg-faint": "var(--fg-faint)",
@@ -25,6 +30,10 @@ const config: Config = {
 
         up: "var(--up)",
         down: "var(--down)",
+        // Semi-transparent fills for the depth ladder's cumulative bars,
+        // carrying their own opacity for the same reason `halt-bg` does.
+        "up-bg": "var(--up-bg)",
+        "down-bg": "var(--down-bg)",
         halt: "var(--halt)",
         "halt-bg": "var(--halt-bg)",
         auction: "var(--auction)",
@@ -48,6 +57,11 @@ const config: Config = {
         muted: "var(--bg-inset)",
         ok: "var(--up)",
         error: "var(--down)",
+        // The fifth of that set, missed when the other four were declared
+        // (T-L2). Used on the form controls in TradeTape and IndexView,
+        // where it had been resolving to nothing and leaving them
+        // transparent against the page.
+        surface: "var(--bg-raised)",
         // Amber. The backstop notice is a caution about how a price was
         // arrived at, which is the same register as a halt.
         warning: "var(--halt)",

@@ -345,3 +345,185 @@ describe("paging controls", () => {
     expect(screen.getByLabelText("Resume paging")).toBeDefined();
   });
 });
+
+describe("non-executable quotes (T-M2)", () => {
+  it("dims the quote group and banners the board when the market is closed", async () => {
+    apply(hello(["AAPL"]), { type: "state", sym: "*", seq: 1, ts: "t", session: "CLOSED" });
+    apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12, bid: 150.1, ask: 150.14 });
+    show();
+
+    // The figures stay: they are the session's record, and the reader wants
+    // them. What changes is the claim that they can be traded on.
+    expect(await screen.findByText("150.12")).toBeDefined();
+    await waitFor(() => expect(screen.getByText(/Market closed/)).toBeDefined());
+  });
+
+  it("stays silent while the session is continuous", async () => {
+    apply(hello(["AAPL"]), { type: "state", sym: "*", seq: 1, ts: "t", session: "CONTINUOUS" });
+    apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12, bid: 150.1, ask: 150.14 });
+    show();
+
+    expect(await screen.findByText("150.12")).toBeDefined();
+    expect(screen.queryByText(/Market closed/)).toBeNull();
+    expect(screen.queryByText(/Call auction/)).toBeNull();
+  });
+
+  it("marks a halted symbol's quote even while the exchange is open", async () => {
+    // The board banner must not fire for this: one symbol halted is not the
+    // market being shut, and saying so would overstate it.
+    apply(hello(["AAPL"]), { type: "state", sym: "*", seq: 1, ts: "t", session: "CONTINUOUS" });
+    apply({ type: "state", sym: "AAPL", seq: 2, ts: "t", session: "HALTED" });
+    apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150.12, bid: 150.1, ask: 150.14 });
+    show();
+
+    expect(await screen.findByText("HALT")).toBeDefined();
+    expect(screen.queryByText(/Market closed/)).toBeNull();
+    // The row-level tooltip carries the reason.
+    await waitFor(() => expect(screen.getAllByTitle(/Symbol halted/).length).toBeGreaterThan(0));
+  });
+});
+
+describe("sorting and search (T-M5)", () => {
+  it("sorts the grid when a column header is clicked", async () => {
+    const user = userEvent.setup();
+    apply(hello(["AAPL", "TSLA"]));
+    apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 10 });
+    apply({ type: "top", sym: "TSLA", seq: 1, ts: "t", last: 990 });
+    show();
+
+    await screen.findByText("AAPL");
+    await user.click(screen.getByRole("button", { name: /Last/ }));
+
+    // Descending on the first click: the question a trader asks by clicking
+    // a numeric header is "what is biggest".
+    const symbols = screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((r) => r.textContent);
+    expect(symbols[0]).toContain("TSLA");
+  });
+
+  it("holds automatic paging while sorted, because somebody is evidently reading", async () => {
+    const user = userEvent.setup();
+    apply(hello(["AAPL", "TSLA"]));
+    show();
+
+    await screen.findByText("AAPL");
+    await user.click(screen.getByRole("button", { name: /Symbol/ }));
+
+    await waitFor(() => expect(screen.getByText(/paging held/)).toBeDefined());
+  });
+
+  it("narrows to a typed symbol and says how many of how many", async () => {
+    const user = userEvent.setup();
+    apply(hello(["AAPL", "TSLA", "MSFT"]));
+    show();
+
+    await screen.findByText("AAPL");
+    await user.type(screen.getByLabelText("Find symbol"), "TS");
+
+    await waitFor(() => expect(screen.queryByText("AAPL")).toBeNull());
+    expect(screen.getByText("TSLA")).toBeDefined();
+    expect(screen.getByText(/1 symbol of 3/)).toBeDefined();
+  });
+
+  it("says nothing matched rather than looking like an empty feed", async () => {
+    const user = userEvent.setup();
+    apply(hello(["AAPL"]));
+    show();
+
+    await screen.findByText("AAPL");
+    await user.type(screen.getByLabelText("Find symbol"), "ZZZZ");
+
+    await waitFor(() => expect(screen.getByText(/No symbol matches/)).toBeDefined());
+    expect(screen.queryByText(/Awaiting the symbol list/)).toBeNull();
+  });
+
+  it("resets back to the unattended behaviour", async () => {
+    const user = userEvent.setup();
+    apply(hello(["AAPL", "TSLA"]));
+    show();
+
+    await screen.findByText("AAPL");
+    await user.type(screen.getByLabelText("Find symbol"), "TS");
+    await waitFor(() => expect(screen.getByText(/paging held/)).toBeDefined());
+
+    await user.click(screen.getByRole("button", { name: "Reset" }));
+    await waitFor(() => expect(screen.queryByText(/paging held/)).toBeNull());
+    expect(screen.getByText("AAPL")).toBeDefined();
+  });
+});
+
+describe("auction indicative on the grid (T-M1)", () => {
+  const auctionOn = () =>
+    apply(hello(["AAPL"]), { type: "state", sym: "*", seq: 1, ts: "t", session: "OPENING_AUCTION" });
+
+  it("shows where the book would cross, in place of the dead quote", async () => {
+    auctionOn();
+    apply({
+      type: "auction_indicative",
+      sym: "AAPL",
+      seq: 1,
+      ts: "t",
+      indicPrice: 150.25,
+      indicQty: 1200,
+      imbalanceQty: 300,
+      imbalanceSide: "BUY",
+    });
+    show();
+
+    expect(await screen.findByText("150.25")).toBeDefined();
+    expect(screen.getByText("Indic")).toBeDefined();
+    // The quote columns are gone: nothing is available during a call phase.
+    expect(screen.queryByText("Bid")).toBeNull();
+  });
+
+  it("says no cross rather than rendering a price of zero", async () => {
+    // The bids and offers collected so far do not overlap. That is a real
+    // reading, and a 0.00 would be a fabrication.
+    auctionOn();
+    apply({ type: "auction_indicative", sym: "AAPL", seq: 1, ts: "t", indicQty: 0, imbalanceQty: 0 });
+    show();
+
+    expect(await screen.findByText("no cross")).toBeDefined();
+    expect(screen.queryByText("0.00")).toBeNull();
+  });
+
+  it("calls a balanced book balanced, not a zero imbalance", async () => {
+    auctionOn();
+    apply({
+      type: "auction_indicative",
+      sym: "AAPL",
+      seq: 1,
+      ts: "t",
+      indicPrice: 150,
+      indicQty: 900,
+      imbalanceQty: 0,
+    });
+    show();
+
+    expect(await screen.findByText("balanced")).toBeDefined();
+  });
+
+  it("drops a stale indicative when the session moves on", async () => {
+    // An opening-auction indicative says nothing about continuous trading,
+    // and showing it under a live phase badge would be a stale price wearing
+    // a current label.
+    auctionOn();
+    apply({
+      type: "auction_indicative",
+      sym: "AAPL",
+      seq: 1,
+      ts: "t",
+      indicPrice: 150.25,
+      indicQty: 1200,
+      imbalanceQty: 0,
+    });
+    apply({ type: "state", sym: "*", seq: 2, ts: "t2", session: "CONTINUOUS" });
+    show();
+
+    await screen.findByText("AAPL");
+    expect(screen.queryByText("150.25")).toBeNull();
+    expect(screen.getByText("Bid")).toBeDefined();
+  });
+});

@@ -262,6 +262,7 @@ SUB|CH=CB|SYM=AAPL
 |-----------|-------------------|---------------------------------------|
 | `SNAP`    | Gateway -> Client | Point-in-time baseline for one stream |
 | `MD`      | Gateway -> Client | Incremental top-of-book update        |
+| `INDIC`   | Gateway -> Client | Indicative auction uncross, during a call phase |
 | `TRADE`   | Gateway -> Client | Trade print                           |
 | `STATE`   | Gateway -> Client | Session/symbol state transition       |
 | `IDX`     | Gateway -> Client | Index level update                    |
@@ -656,6 +657,8 @@ TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SI
 | `TS`      | Yes | Transition timestamp      |
 | `SESSION` | Yes | New state value           |
 | `PREV`    | No  | Previous state when known |
+| `NEXTPHASE` | No | Phase the session moves to next; `SYM=*` only |
+| `NEXTAT`  | No  | When that transition is scheduled, UTC ISO-8601; `SYM=*` only |
 
 Valid `SESSION` values:
 
@@ -667,10 +670,34 @@ Valid `SESSION` values:
 - `HALTED` (symbol-level)
 
 ```text
-STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
+STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION|NEXTPHASE=CLOSING_AUCTION|NEXTAT=2026-06-07T16:25:00.000Z
 STATE|CH=STATE|SYM=AAPL|SEQ=8|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
 STATE|CH=STATE|SYM=AAPL|SEQ=9|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
 ```
+
+**`NEXTPHASE`/`NEXTAT`: the next scheduled transition.**
+
+Both appear on the `SYM=*` stream only, and only when the transition that
+produced this state was driven by the session scheduler — the one component
+that knows the day's timetable. They are what lets a client show a countdown
+to the open, the closing auction, or the close, which is otherwise the
+most-glanced number on a trading screen and the one CALF could not answer.
+
+They are sent together or not at all. A phase with no time cannot be counted
+down to, and a time with no phase does not say what happens when it arrives.
+
+**Their absence is information.** A manual or admin-driven transition carries
+no timetable, and the engine *clears* whatever the scheduler last advertised
+rather than leaving it in place: it has just moved somewhere the schedule did
+not predict, so the old target has stopped being a fact about anything. A
+client must render that as silence, not as a countdown to zero — and must not
+substitute a schedule it read from configuration, which describes what
+*should* happen rather than what the engine is actually going to do.
+
+`NEXTAT` may pass without the transition arriving, if the scheduler is late or
+has stopped. A client should say so rather than run a negative clock or freeze
+at zero, since a late scheduler, a wedged one, and an absent one otherwise
+look identical.
 
 **An exchange transition is published twice: once as `SYM=*`, and once per
 symbol.** A subscription matches on `SYM=*` *or* an exact symbol, so a client
@@ -815,6 +842,64 @@ unless it also uses `RESUME` to replay recent history.
 AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|TS=2026-07-20T13:30:00.012Z|EQPX=150.10|EQQTY=48200|TRADES=37|IMBSIDE=BUY|IMBQTY=1400
 AUCTION|CH=AUCTION|SYM=TSLA|SEQ=4|TS=2026-07-20T20:00:00.004Z|EQQTY=0|TRADES=0|IMBQTY=0
 AUCTION|CH=AUCTION|SYM=MSFT|SEQ=2|TS=2026-07-20T13:30:00.031Z|EQPX=421.00|EQQTY=15000|TRADES=12|IMBQTY=0
+```
+
+
+### `INDIC`
+
+**Direction:** Gateway -> Client
+
+**Purpose:** Where a symbol *would* uncross if the call phase ended now.
+Published repeatedly, on an interval, for the whole of an `OPENING_AUCTION`
+or `CLOSING_AUCTION`.
+
+This is the same channel as `AUCTION` and a different statement. `AUCTION`
+reports what happened at an uncross; `INDIC` reports what would happen while
+there is still time to act on it. A client must not treat one as the other:
+an `INDIC` price is not a trade and nothing has printed at it.
+
+| Field      | Req | Description                                                              |
+|------------|-----|--------------------------------------------------------------------------|
+| `CH`       | Yes | `AUCTION`                                                                 |
+| `SYM`      | Yes | Symbol                                                                    |
+| `SEQ`      | Yes | Stream sequence for `(AUCTION, SYM)`                                     |
+| `TS`       | Yes | Event timestamp                                                           |
+| `INDICPX`  | No  | Indicative uncross price; **omitted when the book would not cross at all** |
+| `INDICQTY` | Yes | Quantity that would match at `INDICPX` (`0` when there is no cross)       |
+| `IMB`      | No  | Which side the surplus runs, `BUY` or `SELL`; omitted when balanced        |
+| `IMBQTY`   | Yes | Surplus quantity that would go unmatched (`0` when balanced)              |
+| `PHASE`    | No  | The call phase running, so a client need not infer it from `STATE`        |
+
+**`INDICPX` absent is a reading, not a gap.** It means the bids and offers
+collected so far do not overlap, so nothing would trade if the phase ended
+now. Rendering it as a price of zero is wrong in the way that matters: it
+asserts a clearing level the book does not have.
+
+**Why publish it at all.** An imbalance nobody can see before the uncross is
+an imbalance nobody can offset. Disseminating it is what lets participants
+supply the offsetting interest that resolves it — the same reasoning the
+circuit-breaker path already applies to a reopening, and it holds with more
+force at the open and the close, where the largest volume of the day prints.
+The field names are shared with that path deliberately: a reopening auction
+and a scheduled one are the same mechanism, and a client that learned to read
+one should not have to learn the other.
+
+**Cadence.** A fixed interval, configurable engine-side
+(`auction_indicative_interval_sec`, default 1s), not one message per book
+change: bounded cost regardless of how heavy order entry gets. Every symbol
+is republished every interval, including ones whose reading has not changed —
+otherwise a client cannot tell a stable indicative from a stalled feed.
+
+**Halted symbols are excluded.** A halt is its own reopening auction with its
+own corridor, and the `CB` channel already carries an indicative for it. Two
+sources describing one symbol would eventually disagree.
+
+Like `AUCTION`, `INDIC` has no baseline `SNAP`. A client joining mid-auction
+waits at most one interval for the next reading.
+
+```text
+INDIC|CH=AUCTION|SYM=AAPL|SEQ=12|TS=2026-07-20T13:29:45.000Z|INDICPX=150.10|INDICQTY=48200|IMB=BUY|IMBQTY=1400|PHASE=OPENING_AUCTION
+INDIC|CH=AUCTION|SYM=TSLA|SEQ=12|TS=2026-07-20T13:29:45.000Z|INDICQTY=0|IMBQTY=0|PHASE=OPENING_AUCTION
 ```
 
 The second example is a no-cross auction (`EQPX`/`IMBSIDE` both omitted, all

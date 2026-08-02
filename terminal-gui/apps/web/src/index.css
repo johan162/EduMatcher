@@ -23,6 +23,7 @@ html.dark {
   --bg-raised: #1a1f29;
   --border: #262d3a;
   --border-strong: #38414f;
+  --border-subtle: #232a36;
   --fg: #e8edf5;
   --fg-subtle: #8792a6;
   --fg-faint: #5a6478;
@@ -31,6 +32,8 @@ html.dark {
 
   --up: #26d07c;
   --down: #ff4d5e;
+  --up-bg: rgba(38, 208, 124, 0.4);
+  --down-bg: rgba(255, 77, 94, 0.4);
   --flash-up: rgba(38, 208, 124, 0.28);
   --flash-down: rgba(255, 77, 94, 0.28);
 
@@ -49,6 +52,7 @@ html:not(.dark) {
   --bg-raised: #ffffff;
   --border: #d5dbe3;
   --border-strong: #b3bcc9;
+  --border-subtle: #e4e8ee;
   --fg: #10141c;
   --fg-subtle: #55606f;
   --fg-faint: #808b9c;
@@ -57,6 +61,8 @@ html:not(.dark) {
 
   --up: #067647;
   --down: #c8102e;
+  --up-bg: rgba(6, 118, 71, 0.35);
+  --down-bg: rgba(200, 16, 46, 0.35);
   --flash-up: rgba(6, 118, 71, 0.16);
   --flash-down: rgba(200, 16, 46, 0.16);
 

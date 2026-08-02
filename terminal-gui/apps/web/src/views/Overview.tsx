@@ -14,22 +14,34 @@
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { ChevronLeft, ChevronRight, Pause, Play, Star } from "lucide-react";
-import { useMemo } from "react";
-import type { DailyBar } from "@edumatcher/terminal-types";
+import { useMemo, useState } from "react";
+import type { AuctionIndicativeFrame, DailyBar } from "@edumatcher/terminal-types";
 import { FlashCell } from "../components/FlashCell.js";
 import { EmptyState, Panel } from "../components/Panel.js";
 import { api } from "../lib/api.js";
 import { ABSENT, clockUtc, compact, price, qty } from "../lib/format.js";
+import { imbalanceOf, wouldCross } from "../lib/auction.js";
 import { buildRows, columnsFor, type OverviewColumn, type OverviewRow } from "../lib/overview-rows.js";
 import { pageSlice } from "../lib/paging.js";
 import { useTickDecimals } from "../lib/precision.js";
-import { STALE_AFTER_SEC, isStale, useNow } from "../lib/staleness.js";
+import { isStale, staleLabel, useNow } from "../lib/staleness.js";
+import { ageSec, formatAge, isLate } from "../lib/data-age.js";
+import {
+  filterBySymbol,
+  isAttended,
+  nextSort,
+  sortRows,
+  type SortKey,
+  type SortState,
+} from "../lib/overview-sort.js";
 import { useAutoPaging, useRowsPerPage } from "../lib/useAutoPaging.js";
 import { usePrevCloses } from "../lib/usePrevCloses.js";
+import { notExecutableLabel, notExecutableReason, type NotExecutableReason } from "../lib/executable.js";
 import { useLiveStore } from "../store/useLiveStore.js";
 import {
   DENSITY_ROW_CLASS,
   PAGE_DELAY_CHOICES,
+  STALE_AFTER_CHOICES,
   effectivePageDelaySec,
   usePrefsStore,
 } from "../store/usePrefsStore.js";
@@ -55,6 +67,30 @@ const HEADING: Record<OverviewColumn, string> = {
   volume: "Volume",
   turnover: "Turnover",
   lastTrade: "Time",
+  indic: "Indic",
+  indicQty: "Indic sz",
+  imbalance: "Imbalance",
+};
+
+/**
+ * Which sort key a column header offers, if any.
+ *
+ * `star` is excluded: pinning is a filter, not a magnitude, and the star
+ * toggle already occupies that header's click target.
+ */
+const SORT_KEY: Partial<Record<OverviewColumn, SortKey>> = {
+  symbol: "sym",
+  last: "last",
+  chg: "chg",
+  pctChg: "pctChg",
+  bidSz: "bidSz",
+  bid: "bid",
+  ask: "ask",
+  askSz: "askSz",
+  spread: "spread",
+  volume: "volume",
+  turnover: "turnover",
+  lastTrade: "lastTradeTs",
 };
 
 const NUMERIC: ReadonlySet<OverviewColumn> = new Set<OverviewColumn>([
@@ -69,6 +105,8 @@ const NUMERIC: ReadonlySet<OverviewColumn> = new Set<OverviewColumn>([
   "volume",
   "turnover",
   "lastTrade",
+  "indic",
+  "indicQty",
 ]);
 
 /**
@@ -84,6 +122,8 @@ export function OverviewView() {
   const top = useLiveStore((s) => s.top);
   const halted = useLiveStore((s) => s.halted);
   const lastTradeTs = useLiveStore((s) => s.lastTradeTs);
+  const sessionPhase = useLiveStore((s) => s.sessionPhase);
+  const indicative = useLiveStore((s) => s.indicative);
 
   const density = usePrefsStore((s) => s.density);
   const watchlist = usePrefsStore((s) => s.watchlist);
@@ -92,11 +132,17 @@ export function OverviewView() {
   const toggleWatchlist = usePrefsStore((s) => s.toggleWatchlist);
   const pageDelayPref = usePrefsStore((s) => s.pageDelaySec);
   const setPageDelaySec = usePrefsStore((s) => s.setPageDelaySec);
+  const staleAfterSec = usePrefsStore((s) => s.staleAfterSec);
+  const setStaleAfterSec = usePrefsStore((s) => s.setStaleAfterSec);
 
   // Open and volume are not on the CALF wire at all — pm-stats recomputes the
   // daily row on every trade, so a short re-poll keeps them current without
   // this tab hand-accumulating anything it happened to observe (§8.5).
-  const { data, isError: dailyBarsError } = useQuery({
+  const {
+    data,
+    isError: dailyBarsError,
+    dataUpdatedAt: dailyUpdatedAt,
+  } = useQuery({
     queryKey: ["history", "daily"],
     queryFn: api.dailyBars,
     refetchInterval: 10_000,
@@ -111,21 +157,46 @@ export function OverviewView() {
 
   const { closes: prevClose, unavailable: prevCloseGone } = usePrevCloses();
 
+  // Whether a quote can be acted on is a property of the session first and
+  // the symbol second, so the board-wide part is resolved once here rather
+  // than per row (§ T-M2).
+  const boardNotExecutable = notExecutableReason({ sessionPhase, halted: false });
+
+  // Session state, not a persisted preference: a wallboard left with a sort
+  // applied would sit paused indefinitely with nobody there to notice, which
+  // is a worse failure than a trader re-clicking a header after a reload
+  // (§ T-M5).
+  const [sort, setSort] = useState<SortState | null>(null);
+  const [query, setQuery] = useState("");
+
   const rows = useMemo(
     () => buildRows({ symbols, top, daily, prevClose, lastTradeTs, halted, watchlist, filter }),
     [symbols, top, daily, prevClose, lastTradeTs, halted, watchlist, filter],
   );
 
+  // Search narrows, then sort orders what is left. The other way round would
+  // sort rows that are about to be discarded.
+  const shown = useMemo(() => sortRows(filterBySymbol(rows, query), sort), [rows, query, sort]);
+
   // Staleness is a function of elapsed time, not of arriving data, so it needs
   // its own clock — a row goes stale precisely because nothing arrived.
   const now = useNow();
+  const dailyAge = ageSec(dailyUpdatedAt || null, now);
   const tickDecimals = useTickDecimals();
 
-  const columns = columnsFor(density);
+  // The auction columns replace the quote columns during a call phase; see
+  // `columnsFor`. A call phase is a different kind of market, not a display
+  // preference, so the grid follows it rather than offering a toggle.
+  const columns = columnsFor(density, sessionPhase);
   const delaySec = effectivePageDelaySec(pageDelayPref, density);
   const { ref, rows: perPage } = useRowsPerPage(ROW_HEIGHT[density]);
-  const paging = useAutoPaging(rows.length, perPage, delaySec);
-  const visible = pageSlice(rows, paging.page, perPage);
+  // Somebody is sorting or searching, so somebody is reading: stop moving
+  // the page under them. Expressed as a zero dwell rather than as a pause,
+  // because the manual page buttons should keep working — this suppresses
+  // the automatic advance, it does not take the view away from the reader.
+  const attended = isAttended(sort, query);
+  const paging = useAutoPaging(shown.length, perPage, attended ? 0 : delaySec);
+  const visible = pageSlice(shown, paging.page, perPage);
 
   // Only footnote what is actually on this page — carrying the note while the
   // marked row sits three pages away would be noise.
@@ -137,6 +208,34 @@ export function OverviewView() {
         title="Market overview"
         right={
           <div className="flex items-center gap-3 text-xs">
+            {/*
+             * Type-ahead rather than a dropdown: on an exchange of any size
+             * the list is longer than a menu is useful, and a trader
+             * reaching for a symbol is already spelling it.
+             */}
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Find symbol"
+              aria-label="Find symbol"
+              className="w-28 rounded border border-border bg-bg-inset px-2 py-0.5 text-xs placeholder:text-fg-faint"
+            />
+
+            {(sort !== null || query !== "") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSort(null);
+                  setQuery("");
+                }}
+                title="Clear the sort and search, and resume automatic paging"
+                className="text-fg-subtle hover:text-fg"
+              >
+                Reset
+              </button>
+            )}
+
             <div className="flex overflow-hidden rounded border border-border">
               {(["all", "watchlist"] as const).map((option) => (
                 <button
@@ -197,6 +296,26 @@ export function OverviewView() {
                 </option>
               ))}
             </select>
+
+            {/*
+             * The right silence threshold is a property of the exchange, not
+             * of the terminal: five minutes suits a liquid book and can fade
+             * every row on a thin classroom one permanently, at which point
+             * the mark carries no information (§ T-L3).
+             */}
+            <select
+              value={String(staleAfterSec)}
+              onChange={(event) => setStaleAfterSec(Number(event.target.value))}
+              aria-label="Fade a row after"
+              title="Fade a row after this much silence"
+              className="rounded border border-border bg-bg-inset px-1 py-0.5 text-xs text-fg-subtle"
+            >
+              {STALE_AFTER_CHOICES.map((seconds) => (
+                <option key={String(seconds)} value={String(seconds)}>
+                  fade {staleLabel(seconds)}
+                </option>
+              ))}
+            </select>
           </div>
         }
       >
@@ -208,6 +327,19 @@ export function OverviewView() {
          * see. Say what they now mean. The daily poll is the separate case
          * where a figure really is missing rather than re-based.
          */}
+        {/*
+         * A board-level fact deserves a board-level statement. After the
+         * close every row carries a full bid/ask that nobody can trade on,
+         * and dimming alone is too quiet for something that applies to the
+         * whole screen at once.
+         */}
+        {boardNotExecutable && (
+          <p className="mb-2 text-xs text-halt">
+            {notExecutableLabel(boardNotExecutable)}. Prices and volumes are the session&rsquo;s record and
+            remain accurate.
+          </p>
+        )}
+
         {prevCloseGone && (
           <p className="mb-2 text-xs text-halt">
             %Chg is measured from today&rsquo;s open — previous closes are unavailable.
@@ -221,11 +353,13 @@ export function OverviewView() {
           </p>
         )}
 
-        {rows.length === 0 ? (
+        {shown.length === 0 ? (
           <EmptyState>
-            {filter === "watchlist"
-              ? "No symbols pinned yet — star a row in the All view"
-              : "Awaiting the symbol list from the gateway"}
+            {query.trim() !== ""
+              ? `No symbol matches "${query.trim()}"`
+              : filter === "watchlist"
+                ? "No symbols pinned yet — star a row in the All view"
+                : "Awaiting the symbol list from the gateway"}
           </EmptyState>
         ) : (
           // Hovering pauses so a viewer can read a row without it sliding
@@ -239,14 +373,39 @@ export function OverviewView() {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-border text-[10px] uppercase tracking-widest text-fg-faint">
-                  {columns.map((column) => (
-                    <th
-                      key={column}
-                      className={clsx("py-1 font-medium", NUMERIC.has(column) && "text-right")}
-                    >
-                      {HEADING[column]}
-                    </th>
-                  ))}
+                  {columns.map((column) => {
+                    const key = SORT_KEY[column];
+                    const active = key !== undefined && sort?.key === key;
+                    return (
+                      <th
+                        key={column}
+                        aria-sort={
+                          active ? (sort.direction === "asc" ? "ascending" : "descending") : undefined
+                        }
+                        className={clsx("py-1 font-medium", NUMERIC.has(column) && "text-right")}
+                      >
+                        {key === undefined ? (
+                          HEADING[column]
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setSort((current) => nextSort(current, key))}
+                            title={`Sort by ${HEADING[column] || column}`}
+                            className={clsx("uppercase tracking-widest hover:text-fg", active && "text-fg")}
+                          >
+                            {HEADING[column]}
+                            {/*
+                             * A caret only on the active column. Reserving
+                             * space on every header would cost a character
+                             * of width per column on a grid that is already
+                             * dense, to say nothing eleven times over.
+                             */}
+                            {active && <span aria-hidden>{sort.direction === "asc" ? " ▲" : " ▼"}</span>}
+                          </button>
+                        )}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -256,8 +415,11 @@ export function OverviewView() {
                     row={row}
                     columns={columns}
                     rowClass={DENSITY_ROW_CLASS[density]}
-                    stale={isStale(row.lastTradeTs, now)}
+                    stale={isStale(row.lastTradeTs, now, staleAfterSec)}
                     decimals={tickDecimals(row.sym)}
+                    staleAfterSec={staleAfterSec}
+                    notExecutable={notExecutableReason({ sessionPhase, halted: row.halted })}
+                    indicative={indicative[row.sym]}
                     onTogglePin={() => toggleWatchlist(row.sym)}
                   />
                 ))}
@@ -268,12 +430,37 @@ export function OverviewView() {
 
         <div className="mt-2 flex items-center gap-3 border-t border-border pt-2 text-[10px] text-fg-faint">
           <span>
-            {rows.length} symbol{rows.length === 1 ? "" : "s"}
+            {shown.length} symbol{shown.length === 1 ? "" : "s"}
+            {shown.length !== rows.length && ` of ${rows.length}`}
           </span>
           <span>
-            {paging.advancing ? `advancing every ${delaySec}s` : paging.paused ? "paused" : "single page"}
+            {paging.advancing
+              ? `advancing every ${delaySec}s`
+              : attended
+                ? "paging held while sorted or filtered"
+                : paging.paused
+                  ? "paused"
+                  : "single page"}
           </span>
           <span>change vs previous close</span>
+          <span>dimmed quote = not executable</span>
+          {/*
+           * Naming the threshold is half the fix: a faded row is only
+           * readable if the reader knows what "faded" means here.
+           */}
+          {Number.isFinite(staleAfterSec) && <span>faded row = no print in {staleLabel(staleAfterSec)}</span>}
+          {/*
+           * A row looks like one reading taken at one instant and is not:
+           * the quote is live, the session totals are a ten-second poll.
+           * Naming the slower source is what stops the whole row passing
+           * for as fresh as its fastest column (§ T-M4).
+           */}
+          <span
+            className={clsx(isLate("daily", dailyAge) && "font-semibold text-halt")}
+            title="Volume, turnover and open come from the history service, not the live feed"
+          >
+            session totals {formatAge(dailyAge)} old
+          </span>
           {anyOpenBaseline && (
             <span>{OPEN_BASELINE_MARK} vs today&rsquo;s open — no previous close on record</span>
           )}
@@ -289,6 +476,9 @@ function Row({
   rowClass,
   stale,
   decimals,
+  staleAfterSec,
+  notExecutable,
+  indicative,
   onTogglePin,
 }: {
   row: OverviewRow;
@@ -297,18 +487,34 @@ function Row({
   stale: boolean;
   /** This symbol's display precision, from CALF `REF=`. */
   decimals: number;
+  /** The silence threshold in force, so the tooltip can state it. */
+  staleAfterSec: number;
+  /** Why this row's quote cannot be traded on, or null if it can (§ T-M2). */
+  notExecutable: NotExecutableReason | null;
+  /** This symbol's indicative uncross, during a call phase (§ T-M1). */
+  indicative: AuctionIndicativeFrame | undefined;
   onTogglePin: () => void;
 }) {
+  /*
+   * The quote group only. `last`, `chg`, `%chg`, `volume` and `turnover`
+   * remain in the ordinary register because they are statements about what
+   * *happened*, and those stay true after the close. Bid, ask, their sizes
+   * and the spread are statements about what is *available*, and those do
+   * not — which is the whole distinction T-M2 is about.
+   */
+  const quoteTone = notExecutable ? "text-fg-faint" : "text-fg-subtle";
+  const quotePriceTone = notExecutable ? "text-fg-faint" : undefined;
+  const quoteTitle = notExecutable ? notExecutableLabel(notExecutable) : undefined;
   return (
     <tr
-      className={clsx("border-b border-border/40", rowClass, stale && "opacity-50")}
+      className={clsx("border-b border-border-subtle", rowClass, stale && "opacity-50")}
       /*
        * Faded rather than recoloured. Dimming the whole row leaves the up/down
        * colours meaning exactly what they always mean — the row is simply
        * further away — where a grey repaint would collide with the one signal
        * the palette is reserved for.
        */
-      title={stale ? `No print in over ${STALE_AFTER_SEC / 60} minutes` : undefined}
+      title={stale ? `No print in over ${staleLabel(staleAfterSec)}` : undefined}
       data-stale={stale || undefined}
     >
       {columns.map((column) => {
@@ -379,35 +585,35 @@ function Row({
           // eye tracks down the column, and the sizes qualify them.
           case "bidSz":
             return (
-              <td key={column} className="text-right tabular text-fg-subtle">
+              <td key={column} className={clsx("text-right tabular", quoteTone)} title={quoteTitle}>
                 {qty(row.bidSz)}
               </td>
             );
 
           case "bid":
             return (
-              <td key={column} className="text-right">
+              <td key={column} className={clsx("text-right", quotePriceTone)} title={quoteTitle}>
                 <FlashCell value={row.bid}>{price(row.bid, decimals)}</FlashCell>
               </td>
             );
 
           case "ask":
             return (
-              <td key={column} className="text-right">
+              <td key={column} className={clsx("text-right", quotePriceTone)} title={quoteTitle}>
                 <FlashCell value={row.ask}>{price(row.ask, decimals)}</FlashCell>
               </td>
             );
 
           case "askSz":
             return (
-              <td key={column} className="text-right tabular text-fg-subtle">
+              <td key={column} className={clsx("text-right tabular", quoteTone)} title={quoteTitle}>
                 {qty(row.askSz)}
               </td>
             );
 
           case "spread":
             return (
-              <td key={column} className="text-right tabular text-fg-subtle">
+              <td key={column} className={clsx("text-right tabular", quoteTone)} title={quoteTitle}>
                 {price(row.spread, decimals)}
               </td>
             );
@@ -425,6 +631,58 @@ function Row({
                 {compact(row.turnover)}
               </td>
             );
+
+          case "indic":
+            return (
+              <td key={column} className="text-right">
+                {/*
+                 * "No cross" is a real reading during a call phase: the bids
+                 * and offers collected so far do not overlap, so nothing
+                 * would trade if it ended now. Rendering that as a price
+                 * would be a fabrication, so it renders as words.
+                 */}
+                {indicative === undefined ? (
+                  ABSENT
+                ) : wouldCross(indicative) ? (
+                  <FlashCell value={indicative.indicPrice}>
+                    {price(indicative.indicPrice, decimals)}
+                  </FlashCell>
+                ) : (
+                  <span className="text-fg-faint" title="Bids and offers do not overlap yet">
+                    no cross
+                  </span>
+                )}
+              </td>
+            );
+
+          case "indicQty":
+            return (
+              <td key={column} className="text-right tabular text-fg-subtle">
+                {indicative === undefined ? ABSENT : qty(indicative.indicQty)}
+              </td>
+            );
+
+          case "imbalance": {
+            const imbalance = imbalanceOf(indicative);
+            return (
+              <td key={column} className="text-right tabular">
+                {/*
+                 * Balanced is the state an auction converges toward, so it
+                 * reads as good news rather than as a zero. The caret is the
+                 * non-colour channel for the side (§ T-M3).
+                 */}
+                {indicative === undefined ? (
+                  ABSENT
+                ) : imbalance === null ? (
+                  <span className="text-fg-faint">balanced</span>
+                ) : (
+                  <span className={imbalance.side === "BUY" ? "text-up" : "text-down"}>
+                    <span aria-hidden>{imbalance.side === "BUY" ? "▲" : "▼"}</span> {qty(imbalance.qty)}
+                  </span>
+                )}
+              </td>
+            );
+          }
 
           case "lastTrade":
             return (

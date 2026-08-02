@@ -308,3 +308,55 @@ describe("ACE corridor", () => {
     expect(state().halted["AAPL"]).toBeUndefined();
   });
 });
+
+describe("data age (T-M4)", () => {
+  it("stamps arrival for market data", () => {
+    const before = Date.now();
+    apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150 });
+    expect(state().lastTickAt).toBeGreaterThanOrEqual(before);
+  });
+
+  it("is not advanced by frames that only prove the bridge is alive", () => {
+    // A gateway publishing nothing at all still sends these. Counting them
+    // would make a silent feed read as a live one, which is the exact
+    // confusion the reading exists to resolve.
+    apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", last: 150 });
+    const stamped = state().lastTickAt;
+
+    apply({ type: "bridge_status", calf: "ACTIVE", since: "t", wsClients: 1 });
+    apply({ type: "symbols", symbols: ["AAPL"] });
+
+    expect(state().lastTickAt).toBe(stamped);
+  });
+
+  it("has no reading before the first frame", () => {
+    // Null, not zero: nothing has arrived rather than something arriving at
+    // the epoch.
+    expect(state().lastTickAt).toBeNull();
+  });
+});
+
+describe("next session transition (T-M6)", () => {
+  it("records the timetable the feed supplied", () => {
+    apply(state_("*", "CONTINUOUS", { nextPhase: "CLOSING_AUCTION", nextAt: "2026-07-30T16:25:00.000Z" }));
+
+    expect(state().sessionNextPhase).toBe("CLOSING_AUCTION");
+    expect(state().sessionNextAt).toBe("2026-07-30T16:25:00.000Z");
+  });
+
+  it("clears the target when a later transition carries none", () => {
+    // The clearing is the signal. A manual transition moves the engine
+    // somewhere the schedule did not predict, so the old target has stopped
+    // being a fact about anything — keeping it would count the screen down
+    // to a transition nobody is going to perform.
+    apply(state_("*", "CONTINUOUS", { nextPhase: "CLOSING_AUCTION", nextAt: "2026-07-30T16:25:00.000Z" }));
+    apply(state_("*", "CLOSED"));
+
+    expect(state().sessionNextPhase).toBeNull();
+    expect(state().sessionNextAt).toBeNull();
+  });
+
+  it("has no target before any session frame", () => {
+    expect(state().sessionNextPhase).toBeNull();
+  });
+});

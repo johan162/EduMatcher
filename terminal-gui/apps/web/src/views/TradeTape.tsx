@@ -140,7 +140,7 @@ export function TradeTapeView() {
           aria-pressed={paused}
           className={clsx(
             "rounded border px-3 py-1 text-sm",
-            paused ? "border-warning/50 bg-warning/10 text-warning" : "border-border hover:bg-muted",
+            paused ? "border-halt bg-halt-bg text-warning" : "border-border hover:bg-muted",
           )}
         >
           {paused ? "Resume" : "Pause"}

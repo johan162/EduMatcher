@@ -22,6 +22,7 @@ import clsx from "clsx";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type {
+  AuctionIndicativeFrame,
   AuctionReason,
   DailyBar,
   HaltContextFrame,
@@ -38,9 +39,16 @@ import { ABSENT, clockUtc, compact, price, qty, resumeAt } from "../lib/format.j
 import { buildRows, type OverviewRow } from "../lib/overview-rows.js";
 import { useSymbolDecimals } from "../lib/precision.js";
 import { avgTradeSize, rangePosition, spreadBps } from "../lib/quote.js";
+import { imbalanceOf, indicativeVsLast, wouldCross } from "../lib/auction.js";
 import { PRESETS, timeframeSpec, type Preset } from "../lib/timeframe.js";
 import { sendControl } from "../lib/useTerminalStream.js";
 import { usePrevCloses } from "../lib/usePrevCloses.js";
+import {
+  notExecutableLabel,
+  notExecutableReason,
+  notExecutableShortLabel,
+  type NotExecutableReason,
+} from "../lib/executable.js";
 import { useLiveStore } from "../store/useLiveStore.js";
 import { DENSITY_ROW_CLASS, usePrefsStore } from "../store/usePrefsStore.js";
 
@@ -170,6 +178,11 @@ function SymbolDetail({ sym }: { sym: string }) {
 
   const last = top?.last;
   const phase = halted ? "HALTED" : sessionPhase;
+  // Whether anything quoted on this view can be acted on. Computed once for
+  // the symbol and shared by the Quote group and the depth ladder, so the
+  // two can never disagree about it (§ T-M2).
+  const quoteNotExecutable = notExecutableReason({ sessionPhase, halted: Boolean(halted) });
+  const indicative = useLiveStore((s) => s.indicative[sym]);
   const { closes: prevCloses, unavailable: prevCloseGone } = usePrevCloses();
   const prevClose = prevCloses[sym];
   // One symbol for the whole view, so one lookup rather than one per figure.
@@ -238,7 +251,7 @@ function SymbolDetail({ sym }: { sym: string }) {
       )}
 
       {auction && dismissedAuction !== auction.seq && (
-        <div className="flex items-center gap-3 rounded border border-auction/40 bg-auction-bg px-3 py-2 text-sm">
+        <div className="flex items-center gap-3 rounded border border-auction bg-auction-bg px-3 py-2 text-sm">
           <span className="font-semibold text-auction">{auctionTitle(auction.reason)}</span>
           <span className="tabular">
             {auction.eqPrice === undefined ? "no cross" : price(auction.eqPrice, decimals)} ·{" "}
@@ -328,6 +341,8 @@ function SymbolDetail({ sym }: { sym: string }) {
             phase={phase}
             rowClass={rowClass}
             decimals={decimals}
+            notExecutable={quoteNotExecutable}
+            indicative={indicative}
           />
         </Panel>
 
@@ -336,9 +351,30 @@ function SymbolDetail({ sym }: { sym: string }) {
          * (§9.2). Off by default: it is the one panel that costs an upstream
          * subscription.
          */}
-        <Panel title={showDepth ? `Depth — ${sym}` : "Depth"}>
+        {/*
+         * The ladder is a quote display like the Quote group above -- the
+         * whole book rather than just the touch -- so it carries the same
+         * qualifier. Marking one and not the other would read as an
+         * endorsement of the one left alone (§ T-M2).
+         */}
+        <Panel
+          title={
+            showDepth
+              ? `Depth — ${sym}${quoteNotExecutable ? ` (${notExecutableShortLabel(quoteNotExecutable)})` : ""}`
+              : "Depth"
+          }
+        >
           {showDepth ? (
-            <DepthLadder frame={depth?.sym === sym ? depth : null} rowClass={rowClass} decimals={decimals} />
+            <div
+              className={clsx(quoteNotExecutable && "opacity-60")}
+              title={quoteNotExecutable ? notExecutableLabel(quoteNotExecutable) : undefined}
+            >
+              <DepthLadder
+                frame={depth?.sym === sym ? depth : null}
+                rowClass={rowClass}
+                decimals={decimals}
+              />
+            </div>
           ) : (
             <EmptyState>Enable the Depth toggle to subscribe to the order book</EmptyState>
           )}
@@ -411,8 +447,8 @@ function CorridorBar({ context, decimals }: { context: HaltContextFrame; decimal
         <span>may reopen inside</span>
         <span className="tabular">{price(high, decimals)}</span>
       </div>
-      <div className="relative mt-1 h-2 rounded bg-halt/20">
-        <div className="absolute inset-y-0 left-0 right-0 rounded border border-halt/50" />
+      <div className="relative mt-1 h-2 rounded bg-halt-bg">
+        <div className="absolute inset-y-0 left-0 right-0 rounded border border-halt" />
         {indicativePrice !== undefined && (
           <div
             className={clsx("absolute top-1/2 h-3 w-0.5 -translate-y-1/2", outside ? "bg-error" : "bg-ok")}
@@ -444,13 +480,13 @@ function CorridorBar({ context, decimals }: { context: HaltContextFrame; decimal
 function HaltDetail({ context, decimals }: { context: HaltContextFrame; decimals: number }) {
   const extended = (context.expansion ?? 0) > 0;
   return (
-    <div className="rounded border border-halt/40 bg-halt-bg px-3 py-2 text-sm">
+    <div className="rounded border border-halt bg-halt-bg px-3 py-2 text-sm">
       <div className="flex flex-wrap items-center gap-4">
         <span className="font-semibold text-halt">Halted</span>
         {context.level && <span>Level {context.level}</span>}
         {extended && (
           <span
-            className="rounded bg-halt/20 px-1.5 py-0.5 text-xs"
+            className="rounded bg-halt-bg px-1.5 py-0.5 text-xs"
             title="The reopening auction has been extended because the price was outside the corridor"
           >
             extension {context.expansion}
@@ -488,7 +524,7 @@ function HaltDetail({ context, decimals }: { context: HaltContextFrame; decimals
 function BackstopNotice({ context, decimals }: { context: HaltContextFrame; decimals: number }) {
   if (context.reason !== "CLOSING_BACKSTOP") return null;
   return (
-    <div className="rounded border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+    <div className="rounded border border-halt bg-halt-bg px-3 py-2 text-sm">
       <span className="font-semibold text-warning">Closing backstop</span>
       <span className="ml-3">The trading day ended before the auction could reopen inside its corridor.</span>
       {context.printPrice !== undefined && (
@@ -536,6 +572,8 @@ function Values({
   phase,
   rowClass,
   decimals,
+  notExecutable,
+  indicative,
 }: {
   row: OverviewRow | undefined;
   top: TopOfBook | undefined;
@@ -544,10 +582,15 @@ function Values({
   phase: string | null;
   rowClass: string;
   decimals: number;
+  /** Why the quote group cannot be traded on, or null if it can (§ T-M2). */
+  notExecutable: NotExecutableReason | null;
+  /** Where this symbol would uncross, during a call phase (§ T-M1). */
+  indicative: AuctionIndicativeFrame | undefined;
 }) {
   const mid = midOf(top?.bid, top?.ask);
   const bps = spreadBps(top?.bid, top?.ask);
   const perTrade = avgTradeSize(today?.volume, today?.trade_count);
+  const vsLast = indicativeVsLast(indicative, top?.last);
 
   const quote: ValueRow[] = [
     { label: "Bid", value: price(top?.bid, decimals), note: sizeNote(top?.bidSz), tone: "text-up" },
@@ -578,6 +621,39 @@ function Values({
     },
   ];
 
+  // Only during a call phase, and only once the feed has said something.
+  // Outside one there is no auction for these to describe, and an empty
+  // group of dashes would be worse than no group.
+  const imbalance = imbalanceOf(indicative);
+  const auction: ValueRow[] =
+    indicative === undefined
+      ? []
+      : [
+          {
+            label: "Indicative",
+            // "No cross" is a state, not a missing number: the bids and
+            // offers collected so far do not overlap.
+            value: wouldCross(indicative) ? price(indicative.indicPrice, decimals) : "no cross",
+            ...(vsLast === undefined
+              ? {}
+              : {
+                  note: `${vsLast > 0 ? "+" : ""}${(vsLast * 100).toFixed(2)}% vs last`,
+                  tone: vsLast > 0 ? "text-up" : vsLast < 0 ? "text-down" : undefined,
+                }),
+          },
+          { label: "Would match", value: qty(indicative.indicQty) },
+          {
+            label: "Imbalance",
+            value: imbalance === null ? "balanced" : qty(imbalance.qty),
+            ...(imbalance === null
+              ? {}
+              : {
+                  note: `${imbalance.side === "BUY" ? "▲" : "▼"} ${imbalance.side}`,
+                  tone: imbalance.side === "BUY" ? "text-up" : "text-down",
+                }),
+          },
+        ];
+
   const activity: ValueRow[] = [
     { label: "Volume", value: qty(today?.volume) },
     { label: "Turnover", value: compact(row?.turnover) },
@@ -587,7 +663,26 @@ function Values({
 
   return (
     <table className="w-full text-left">
-      <Group title="Quote" rows={quote} rowClass={rowClass} />
+      {/*
+       * The quote group is the only one that has to be qualified: bid, ask
+       * and spread say what is *available*, and that stops being true under
+       * a halt or outside continuous trading. The session and activity
+       * groups below say what *happened*, which stays true (§ T-M2).
+       */}
+      {/*
+       * Above the quote, not below it. During a call phase this *is* the
+       * price information — the quote group beside it is a book nobody can
+       * hit — so it leads (§ T-M1).
+       */}
+      {auction.length > 0 && <Group title="Auction" rows={auction} rowClass={rowClass} />}
+
+      <Group
+        title={notExecutable ? `Quote — ${notExecutableShortLabel(notExecutable)}` : "Quote"}
+        rows={quote}
+        rowClass={rowClass}
+        muted={notExecutable !== null}
+        hint={notExecutable ? notExecutableLabel(notExecutable) : undefined}
+      />
       <Group title="Session" rows={session} rowClass={rowClass}>
         <DayRangeBar low={today?.low_price} high={today?.high_price} last={top?.last} decimals={decimals} />
       </Group>
@@ -612,11 +707,23 @@ function Group({
   title,
   rows,
   rowClass,
+  muted,
+  hint,
   children,
 }: {
   title: string;
   rows: ValueRow[];
   rowClass: string;
+  /**
+   * Render the figures as a record rather than as a live reading.
+   *
+   * Used for a quote nobody can trade on (§ T-M2). The values stay — they
+   * are the last real book and a reader wants them — but the tone stops
+   * claiming they are actionable.
+   */
+  muted?: boolean;
+  /** Tooltip on the group heading, explaining a muted group. */
+  hint?: string;
   children?: ReactNode;
 }) {
   return (
@@ -624,17 +731,18 @@ function Group({
       <tr>
         <th
           colSpan={2}
+          title={hint}
           className="pb-1 pt-3 text-left text-[10px] font-medium uppercase tracking-widest text-fg-faint"
         >
           {title}
         </th>
       </tr>
       {rows.map(({ label, value, note, tone }) => (
-        <tr key={label} className={`border-b border-border/40 ${rowClass}`}>
+        <tr key={label} className={`border-b border-border-subtle ${rowClass}`} title={hint}>
           <td className="text-fg-subtle">{label}</td>
           <td className="text-right tabular">
             {note && <span className="mr-1.5 text-xs text-fg-faint">{note}</span>}
-            <span className={tone} data-testid={`value-${label}`}>
+            <span className={muted ? "text-fg-faint" : tone} data-testid={`value-${label}`}>
               {value}
             </span>
           </td>

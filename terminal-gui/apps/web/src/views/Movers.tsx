@@ -161,7 +161,22 @@ export function MoversView() {
                     tab !== "active" && ((row.pctChg ?? 0) > 0 ? "text-up" : "text-down"),
                   )}
                 >
-                  {tab === "active" ? compact(row.turnover) : pct(row.pctChg)}
+                  {/*
+                   * The figure already carries its own sign, so direction is
+                   * not colour-only here (§ T-M3). The caret is for the bar
+                   * beside it, which has no other channel — and putting it on
+                   * the number keeps the two reading as one statement.
+                   */}
+                  {tab === "active" ? (
+                    compact(row.turnover)
+                  ) : (
+                    <>
+                      <span aria-hidden className="mr-0.5 text-[10px]">
+                        {(row.pctChg ?? 0) > 0 ? "▲" : "▼"}
+                      </span>
+                      {pct(row.pctChg)}
+                    </>
+                  )}
                 </td>
                 <td className="px-3 py-1">
                   <div className="h-2 rounded bg-muted">

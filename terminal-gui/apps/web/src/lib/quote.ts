@@ -56,6 +56,19 @@ export function spreadBps(bid: Maybe, ask: Maybe): number | undefined {
  * Ranking on share count alone flatters whatever is cheapest: a hundred
  * thousand shares of a 2.00 instrument is a smaller event than ten thousand of
  * a 200.00 one, and only the notional says so.
+ *
+ * **This is a reconstruction, not a reported figure** (T-L4). The exchange
+ * publishes no turnover; `volume × vwap` recovers it because VWAP is by
+ * definition the notional divided by the volume, so multiplying the two
+ * cancels back. That identity is exact only while VWAP is unrounded, and
+ * pm-stats rounds it to the symbol's tick precision before publishing — so
+ * this figure will not tie exactly to a sum over the Trade Tape, and the
+ * error grows with the number of prints behind it.
+ *
+ * Accurate enough for what it is used for: ranking symbols against each
+ * other on the Movers board, and giving a sense of scale on the Overview.
+ * Not accurate enough to reconcile against, and nothing on screen should
+ * invite anyone to try.
  */
 export function turnover(volume: Maybe, vwap: Maybe): number | undefined {
   const shares = value(volume);

@@ -35,6 +35,22 @@ export const DENSITY_ROW_CLASS: Record<Density, string> = {
 export const PAGE_DELAY_CHOICES = [3, 5, 8, 15, 30] as const;
 
 /**
+ * How long a symbol may go without printing before its row is faded, in
+ * seconds (design §8.7, T-L3).
+ *
+ * Exposed rather than hardcoded because the right value is a property of the
+ * exchange, not of the terminal. Five minutes is a reasonable default for a
+ * liquid book and badly wrong for a thin classroom one, where it can fade
+ * every row on the board permanently -- and a mark that is always on marks
+ * nothing. An instructor running a quiet session can widen it; a busy desk
+ * can tighten it until it discriminates again.
+ *
+ * `Infinity` turns the marking off, for a session so thin that no threshold
+ * is informative.
+ */
+export const STALE_AFTER_CHOICES = [60, 300, 900, 3600, Infinity] as const;
+
+/**
  * Default dwell per density (design §7.5): a lobby display is read from across
  * a room and needs longer on each page; a power user wants the cycle brisk.
  */
@@ -48,6 +64,8 @@ interface PrefsStore {
   density: Density;
   /** `null` means "follow the density default" rather than a chosen value. */
   pageDelaySec: number | null;
+  /** Silence after which a row is faded. See `STALE_AFTER_CHOICES`. */
+  staleAfterSec: number;
   watchlist: string[];
   overviewFilter: OverviewFilter;
 
@@ -56,6 +74,7 @@ interface PrefsStore {
   setDensity: (density: Density) => void;
   cycleDensity: () => void;
   setPageDelaySec: (seconds: number | null) => void;
+  setStaleAfterSec: (seconds: number) => void;
   toggleWatchlist: (sym: string) => void;
   setOverviewFilter: (filter: OverviewFilter) => void;
 }
@@ -66,6 +85,7 @@ export const usePrefsStore = create<PrefsStore>()(
       theme: "dark",
       density: "standard",
       pageDelaySec: null,
+      staleAfterSec: 300,
       watchlist: [],
       overviewFilter: "all",
 
@@ -79,6 +99,8 @@ export const usePrefsStore = create<PrefsStore>()(
       },
 
       setPageDelaySec: (pageDelaySec) => set({ pageDelaySec }),
+
+      setStaleAfterSec: (staleAfterSec) => set({ staleAfterSec }),
 
       toggleWatchlist: (sym) => {
         const current = get().watchlist;

@@ -54,6 +54,7 @@ import {
   buildSymbolsRequest,
   buildUnsub,
   decodeAuction,
+  decodeAuctionIndicative,
   decodeCb,
   decodeDepth,
   decodeIndex,
@@ -69,7 +70,13 @@ import {
   type Channel,
   type WelcomeInfo,
 } from "@edumatcher/calf-protocol";
-import type { CalfState, ServerFrame, TradeSide, WatchChannel } from "@edumatcher/terminal-types";
+import type {
+  CalfState,
+  ImbalanceSide,
+  ServerFrame,
+  TradeSide,
+  WatchChannel,
+} from "@edumatcher/terminal-types";
 import { SymbolRefCount } from "./symbol-refcount.js";
 import { TopCache } from "./top-cache.js";
 
@@ -520,6 +527,26 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
         return;
 
       case "AUCTION":
+        // One channel, two statements. `AUCTION` is the uncross that
+        // happened; `INDIC` is where the book would cross if the call phase
+        // ended now, and a client must never mistake the second for the
+        // first (T-M1).
+        if (msgType === "INDIC") {
+          const { imbalanceSide, phase, ...indic } = decodeAuctionIndicative(fields);
+          this.emit("frame", {
+            type: "auction_indicative",
+            sym,
+            seq,
+            ts,
+            ...indic,
+            // Narrowed here rather than in the decoder: the protocol package
+            // stays honest about the wire being free text, and the widening
+            // to a known set belongs where the frame contract is.
+            ...(imbalanceSide === undefined ? {} : { imbalanceSide: imbalanceSide as ImbalanceSide }),
+            ...(phase === undefined ? {} : { phase }),
+          });
+          return;
+        }
         this.emit("frame", { type: "auction_result", sym, seq, ts, ...decodeAuction(fields) });
         return;
 

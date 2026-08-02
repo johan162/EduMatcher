@@ -178,18 +178,36 @@ class SessionStatePayload:
 
     state: str
     prev_state: str = ""
+    #: The phase this session moves to next, and when, as UTC ISO-8601.
+    #:
+    #: Present only when the transition that produced this state was driven
+    #: by the scheduler, which is the only component that knows the day's
+    #: timetable. A manual or admin-driven transition leaves both empty, and
+    #: that is deliberate: the schedule says what *should* happen, while the
+    #: engine is where what *does* happen is decided. A countdown derived
+    #: from the timetable alone would keep ticking toward a transition
+    #: nobody is going to perform.
+    next_state: str = ""
+    next_at: str = ""
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "SessionStatePayload":
         return cls(
             state=str(payload.get("state", "")),
             prev_state=str(payload.get("prev_state", "")),
+            next_state=str(payload.get("next_state", "")),
+            next_at=str(payload.get("next_at", "")),
         )
 
     def to_dict(self) -> dict[str, Any]:
         result = {"state": self.state}
         if self.prev_state:
             result["prev_state"] = self.prev_state
+        # Both or neither: a next phase without a time cannot be counted
+        # down to, and a time without a phase does not say what happens.
+        if self.next_state and self.next_at:
+            result["next_state"] = self.next_state
+            result["next_at"] = self.next_at
         return result
 
 

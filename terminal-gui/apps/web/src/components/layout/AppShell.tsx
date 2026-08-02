@@ -24,7 +24,7 @@ export function AppShell() {
        */}
       {connection === "OFFLINE" ? (
         <main className="flex min-h-0 flex-1 items-center justify-center">
-          <div className="rounded border border-offline/40 bg-bg-subtle px-8 py-6 text-center">
+          <div className="rounded border border-offline bg-bg-subtle px-8 py-6 text-center">
             <p className="text-lg font-semibold text-offline">Disconnected from pm-terminal-bridge</p>
             <p className="mt-2 text-sm text-fg-subtle">
               Reconnecting automatically. Values are hidden rather than shown stale.

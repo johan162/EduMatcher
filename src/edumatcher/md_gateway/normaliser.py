@@ -111,6 +111,12 @@ class EngineNormaliser:
     # two clients on the same feed, disagreeing indefinitely.
     top_sent: dict[str, TopOfBook] = field(default_factory=dict)
     session_state: str = "CONTINUOUS"
+    # The next scheduled transition, as the engine reported it. Cached so a
+    # client connecting mid-session gets the countdown in its SNAP rather
+    # than waiting until the next transition -- which could be hours, and is
+    # exactly when a countdown is most useful (T-M6).
+    next_session_state: str = ""
+    next_session_at: str = ""
     symbol_state: dict[str, str] = field(default_factory=dict)
     index_cache: dict[str, dict[str, str]] = field(default_factory=dict)
     depth_cache: dict[str, DepthBook] = field(default_factory=dict)
@@ -213,10 +219,33 @@ class EngineNormaliser:
         if session:
             self.session_state = session
 
+        # Replaced wholesale, not merged: the engine clears these on any
+        # transition it was not given a timetable for, and that clearing is
+        # the signal. Keeping the old pair would resurrect a target the
+        # engine has just disowned.
+        self.next_session_state = str(payload.get("next_state", "")).upper()
+        self.next_session_at = str(payload.get("next_at", ""))
+
         fields = {"SESSION": self.session_state}
         if prev_state:
             fields["PREV"] = prev_state
+        fields.update(self._next_transition_fields())
         return "*", fields
+
+    def _next_transition_fields(self) -> dict[str, str]:
+        """``NEXTPHASE``/``NEXTAT``, or nothing when no transition is scheduled.
+
+        Both or neither: a phase with no time cannot be counted down to, and
+        a time with no phase does not say what happens when it arrives.
+        Absent means "nothing scheduled that this gateway knows of", which a
+        client must render as silence rather than as a countdown to zero.
+        """
+        if not self.next_session_state or not self.next_session_at:
+            return {}
+        return {
+            "NEXTPHASE": self.next_session_state,
+            "NEXTAT": self.next_session_at,
+        }
 
     def apply_session_to_symbols(
         self, symbols: Iterable[str]
@@ -317,7 +346,10 @@ class EngineNormaliser:
         """Return current STATE snapshot fields for symbol or wildcard."""
         sym = symbol.upper()
         if sym == "*":
-            return {"SESSION": self.session_state}
+            # The exchange-wide stream is the one that carries the timetable;
+            # a per-symbol STATE says whether *that instrument* is halted,
+            # which has nothing to do with the session clock.
+            return {"SESSION": self.session_state, **self._next_transition_fields()}
         return {"SESSION": self.symbol_state.get(sym, self.session_state)}
 
     def normalise_index_update(
@@ -371,6 +403,51 @@ class EngineNormaliser:
     def index_snapshot_fields(self, index_id: str) -> dict[str, str]:
         """Return cached snapshot fields for one index stream."""
         return dict(self.index_cache.get(index_id.upper(), {}))
+
+    def normalise_auction_indicative(
+        self, payload: dict[str, Any]
+    ) -> tuple[str, dict[str, str]]:
+        """Return ``(symbol, fields)`` for a CALF ``INDIC`` message.
+
+        Where a symbol *would* uncross if the call phase ended now, published
+        repeatedly while it runs. The reasoning is the one already written
+        into ``normalise_cb_halt``: an imbalance indicator is what lets
+        participants supply the offsetting interest that resolves it, and
+        that only works if they can see it while there is still time to act.
+        The opening and closing auctions are where the largest volume of the
+        day prints, and until now the terminal could show a phase badge for
+        them and nothing else (T-M1).
+
+        ``INDICPX`` is **omitted** when the book would not cross, which is a
+        real state during a call phase -- no price clears yet -- and is not
+        the same as a price of zero. ``INDICQTY`` and ``IMBQTY`` are always
+        present: zero is a true reading for both.
+
+        Field names are shared with the circuit-breaker path deliberately. A
+        reopening auction and a scheduled one are the same mechanism, and a
+        client that learned to read one should not have to learn the other.
+        """
+        sym = str(payload.get("symbol", "")).upper()
+        fields: dict[str, str] = {
+            "INDICQTY": _as_int_text(payload.get("eq_qty")) or "0",
+            "IMBQTY": _as_int_text(payload.get("imbalance_qty")) or "0",
+        }
+
+        indicative = payload.get("eq_price")
+        if indicative is not None:
+            price_text = _as_decimal(indicative)
+            if price_text is not None:
+                fields["INDICPX"] = price_text
+
+        imbalance = str(payload.get("imbalance_side", "")).upper()
+        if imbalance:
+            fields["IMB"] = imbalance
+
+        phase = str(payload.get("phase", "")).upper()
+        if phase:
+            fields["PHASE"] = phase
+
+        return sym, fields
 
     def normalise_auction_result(
         self, payload: dict[str, Any]

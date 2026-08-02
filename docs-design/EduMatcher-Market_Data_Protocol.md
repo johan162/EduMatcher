@@ -750,6 +750,8 @@ in a tradable state.
 | `TS` | ✓ | string | Transition timestamp |
 | `SESSION` | ✓ | string | New state — see table below |
 | `PREV` | — | string | Previous state — included when known; useful for logging |
+| `NEXTPHASE` | — | string | Phase the session moves to next; `SYM=*` only, scheduler-driven transitions only |
+| `NEXTAT` | — | string | When that transition is scheduled, UTC ISO-8601; sent with `NEXTPHASE` or not at all |
 
 **CALF `SESSION` values and their mapping from internal engine states:**
 
@@ -767,8 +769,32 @@ in a tradable state.
 >
 > Session-wide state changes (`PRE_OPEN`, `CONTINUOUS`, etc.) use `SYM=*`.
 
+**`NEXTPHASE`/`NEXTAT`: the next scheduled transition.**
+
+Both appear on the `SYM=*` stream only, and only when the transition that
+produced this state was driven by the session scheduler — the one component
+that knows the day's timetable. They are what lets a client show a countdown
+to the open, the closing auction, or the close, which is otherwise the
+most-glanced number on a trading screen and the one CALF could not answer.
+
+They are sent together or not at all. A phase with no time cannot be counted
+down to, and a time with no phase does not say what happens when it arrives.
+
+**Their absence is information.** A manual or admin-driven transition carries
+no timetable, and the engine *clears* whatever the scheduler last advertised
+rather than leaving it in place: it has just moved somewhere the schedule did
+not predict, so the old target has stopped being a fact about anything. A
+client must render that as silence, not as a countdown to zero — and must not
+substitute a schedule it read from configuration, which describes what
+*should* happen rather than what the engine is actually going to do.
+
+`NEXTAT` may pass without the transition arriving, if the scheduler is late or
+has stopped. A client should say so rather than run a negative clock or freeze
+at zero, since a late scheduler, a wedged one, and an absent one otherwise
+look identical.
+
 ```text
-STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
+STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION|NEXTPHASE=CLOSING_AUCTION|NEXTAT=2026-06-07T16:25:00.000Z
 STATE|CH=STATE|SYM=AAPL|SEQ=3|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
 ```
 

@@ -92,6 +92,18 @@ export interface StateFrame {
   ts: string;
   session: SessionPhase;
   prev?: SessionPhase;
+  /**
+   * The next scheduled transition, on the exchange-wide stream only.
+   *
+   * Present only when the transition that produced this state was driven by
+   * the scheduler, which is the only component that knows the day's
+   * timetable. Absent after a manual or admin-driven transition -- and that
+   * absence is information: the engine has moved somewhere the schedule did
+   * not predict, so there is no longer a target anyone can honestly count
+   * down to (T-M6).
+   */
+  nextPhase?: SessionPhase;
+  nextAt?: string;
 }
 
 export interface IndexFrame {
@@ -146,6 +158,34 @@ export interface AuctionResultFrame {
    * identical on the wire. Absent from a gateway that predates the field.
    */
   reason?: AuctionReason;
+}
+
+/**
+ * Where a symbol would uncross if the call phase ended now (T-M1).
+ *
+ * Republished on an interval for the whole of an `OPENING_AUCTION` or
+ * `CLOSING_AUCTION`, which is the difference between this and
+ * `AuctionResultFrame`: that one reports what happened at an uncross, this
+ * one reports what *would* happen while there is still time to act on it.
+ * An imbalance nobody can see before the uncross is an imbalance nobody can
+ * offset, and the open and close are where the largest volume of the day
+ * prints.
+ */
+export interface AuctionIndicativeFrame {
+  type: "auction_indicative";
+  sym: string;
+  seq: number;
+  ts: string;
+  /**
+   * Absent when the book would not cross at all — a real and informative
+   * state during a call phase ("nothing would trade yet"), and emphatically
+   * not the same as a price of zero.
+   */
+  indicPrice?: number;
+  indicQty: number;
+  imbalanceSide?: ImbalanceSide;
+  imbalanceQty: number;
+  phase?: SessionPhase;
 }
 
 export interface HaltContextFrame {
@@ -260,6 +300,7 @@ export type ServerFrame =
   | IndexFrame
   | DepthFrame
   | AuctionResultFrame
+  | AuctionIndicativeFrame
   | HaltContextFrame
   | SymbolsFrame
   | BridgeStatusFrame

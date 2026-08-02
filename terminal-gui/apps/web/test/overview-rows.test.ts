@@ -242,3 +242,49 @@ describe("column sets", () => {
     ]);
   });
 });
+
+describe("auction columns (T-M1)", () => {
+  it("keeps the quote columns outside a call phase", () => {
+    expect(columnsFor("standard", "CONTINUOUS")).toContain("bid");
+    expect(columnsFor("standard", "CONTINUOUS")).not.toContain("indic");
+    expect(columnsFor("standard", null)).toContain("bid");
+  });
+
+  it.each(["OPENING_AUCTION", "CLOSING_AUCTION"])(
+    "swaps the quote group for the auction group during %s",
+    (phase) => {
+      // Not added alongside: bid/ask/size/spread describe what is available,
+      // and during a call phase nothing is. The indicative price, matched
+      // size and surplus are what carry meaning at that moment.
+      const columns = columnsFor("standard", phase);
+
+      expect(columns).toEqual(expect.arrayContaining(["indic", "indicQty", "imbalance"]));
+      for (const quote of ["bidSz", "bid", "ask", "askSz", "spread"]) {
+        expect(columns).not.toContain(quote);
+      }
+    },
+  );
+
+  it("puts the auction group where the quote group was, not at the end", () => {
+    // The eye tracks a column position down the grid; moving the meaningful
+    // prices to the far right would cost the reader that.
+    const columns = columnsFor("standard", "CLOSING_AUCTION");
+    expect(columns.indexOf("indic")).toBeLessThan(columns.indexOf("volume"));
+  });
+
+  it("gives a lobby display the auction figures without growing the grid", () => {
+    // Lobby is four columns so the space can buy larger type for a room to
+    // read from a distance. Growing it during an auction would trade that
+    // away at exactly the moment most people are looking, so it swaps the
+    // stale pair (a pre-auction print and the change computed from it) for
+    // the two figures that describe the auction.
+    const columns = columnsFor("lobby", "OPENING_AUCTION");
+
+    expect(columns).toEqual(["symbol", "indic", "imbalance", "volume"]);
+    expect(columns).toHaveLength(columnsFor("lobby").length);
+  });
+
+  it("leaves the lobby columns alone outside a call phase", () => {
+    expect(columnsFor("lobby", "CONTINUOUS")).toEqual(columnsFor("lobby"));
+  });
+});

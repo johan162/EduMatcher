@@ -42,6 +42,12 @@ from edumatcher.engine.circuit_breaker import (
 _DEFAULT_MM_MAX_SPREAD_TICKS = 10
 _DEFAULT_MM_MIN_QTY = 100
 _DEFAULT_SNAPSHOT_INTERVAL_SEC = 0.5
+# How often to republish the indicative uncross during a call phase. One
+# second because price formation under an imbalance is something a reader
+# watches change, and a slower cadence would show it as a series of jumps
+# rather than as a process. Bounded work either way: one pass over the books
+# per interval, regardless of how heavy order entry is.
+_DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC = 1.0
 _DEFAULT_QUOTE_HISTORY_MAXLEN = 30
 _DEFAULT_DROP_COPY_BUFFER_SIZE = 10_000
 _DEFAULT_RECENT_TRADES_MAXLEN = 20
@@ -284,6 +290,7 @@ class EngineConfig:
         default_factory=dict
     )
     snapshot_interval_sec: float = _DEFAULT_SNAPSHOT_INTERVAL_SEC
+    auction_indicative_interval_sec: float = _DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC
     quote_history_maxlen: int = _DEFAULT_QUOTE_HISTORY_MAXLEN
     drop_copy_buffer_size: int = _DEFAULT_DROP_COPY_BUFFER_SIZE
     recent_trades_maxlen: int = _DEFAULT_RECENT_TRADES_MAXLEN
@@ -1175,6 +1182,18 @@ def load_engine_config(path: Path) -> EngineConfig:
     if snapshot_interval_sec <= 0:
         raise ValueError("Engine config 'snapshot_interval_sec' must be > 0")
 
+    auction_indicative_raw = raw.get(
+        "auction_indicative_interval_sec", _DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC
+    )
+    try:
+        auction_indicative_interval_sec = float(auction_indicative_raw)
+    except (TypeError, ValueError):
+        raise ValueError(
+            "Engine config 'auction_indicative_interval_sec' must be numeric"
+        )
+    if auction_indicative_interval_sec <= 0:
+        raise ValueError("Engine config 'auction_indicative_interval_sec' must be > 0")
+
     quote_history_raw = engine_tuning_raw.get(
         "quote_history_maxlen", _DEFAULT_QUOTE_HISTORY_MAXLEN
     )
@@ -1275,6 +1294,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         global_mm_obligation_policy=mm_global_policy,
         global_symbol_mm_obligation_policies=mm_global_symbol_policies,
         snapshot_interval_sec=snapshot_interval_sec,
+        auction_indicative_interval_sec=auction_indicative_interval_sec,
         quote_history_maxlen=quote_history_maxlen,
         drop_copy_buffer_size=drop_copy_buffer_size,
         recent_trades_maxlen=recent_trades_maxlen,

@@ -58,7 +58,7 @@ import signal
 import sys
 import time
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Callable
 
 import holidays
@@ -334,12 +334,31 @@ def _fixed_wait(seconds: float) -> Callable[[], float]:
     return _remaining
 
 
+def _to_utc_iso(target: datetime) -> str:
+    """A local naive schedule time as UTC ISO-8601 with milliseconds.
+
+    The schedule is written and reasoned about in local wall-clock time; CALF
+    timestamps are UTC throughout, and a countdown rendered by a browser in
+    another timezone has to be anchored to an absolute instant rather than to
+    a wall-clock reading the client would interpret as its own.
+    """
+    aware = target.astimezone() if target.tzinfo is None else target
+    return (
+        aware.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    )
+
+
 def _wait_until(target: datetime) -> Callable[[], float]:
     """Return a pre-send wait that counts down to an absolute local time."""
     return lambda: _seconds_until_local(target)
 
 
-def _send_transition(push_sock: zmq.Socket[bytes], state: str) -> bool:
+def _send_transition(
+    push_sock: zmq.Socket[bytes],
+    state: str,
+    next_state: str = "",
+    next_at: str = "",
+) -> bool:
     """Send one ``session.transition``; return ``False`` if not delivered.
 
     The PUSH socket carries a bounded send timeout (finding H2), so a send
@@ -349,7 +368,9 @@ def _send_transition(push_sock: zmq.Socket[bytes], state: str) -> bool:
     (review finding L7).
     """
     try:
-        push_sock.send_multipart(make_session_transition_msg(state))
+        push_sock.send_multipart(
+            make_session_transition_msg(state, next_state=next_state, next_at=next_at)
+        )
         return True
     except zmq.Again:
         log.warning(
@@ -450,11 +471,18 @@ def _catch_up_transitions(
 
 @dataclass(frozen=True)
 class _Step:
-    """One transition to drive: its target state, a live wait, and a log label."""
+    """One transition to drive: its target state, a live wait, and a log label.
+
+    ``at`` is the absolute local time this step is due, where one is known.
+    It exists so the *previous* step can tell the engine when the next
+    transition lands, which is what lets a terminal show a countdown to it
+    (T-M6). A catch-up step has no meaningful due time and leaves it None.
+    """
 
     state: str
     wait: Callable[[], float]  # seconds to wait before sending (evaluated live)
     label: str = ""
+    at: datetime | None = None
 
 
 def _run_transitions(
@@ -469,7 +497,7 @@ def _run_transitions(
     (review finding A1). Returns ``True`` if all steps completed, or ``False``
     if the run was interrupted.
     """
-    for step in steps:
+    for index, step in enumerate(steps):
         if not is_running():
             log.info("Interrupted")
             return False
@@ -488,8 +516,17 @@ def _run_transitions(
                 log.info("Interrupted")
                 return False
 
+        # The step after this one is what the engine will publish as the
+        # countdown target. The last step of the day has no successor, and
+        # sends nothing rather than inventing one.
+        following = steps[index + 1] if index + 1 < len(steps) else None
+        next_state = following.state if following and following.at else ""
+        next_at = _to_utc_iso(following.at) if following and following.at else ""
+
         log.info("-> %s", label)
-        _dispatch_transition(push_sock, confirm_sock, step.state)
+        _dispatch_transition(
+            push_sock, confirm_sock, step.state, next_state=next_state, next_at=next_at
+        )
 
     return True
 
@@ -498,9 +535,11 @@ def _dispatch_transition(
     push_sock: zmq.Socket[bytes],
     confirm_sock: zmq.Socket[bytes] | None,
     state: str,
+    next_state: str = "",
+    next_at: str = "",
 ) -> None:
     """Send a transition and, when possible, confirm the engine applied it."""
-    if not _send_transition(push_sock, state):
+    if not _send_transition(push_sock, state, next_state=next_state, next_at=next_at):
         return
     if confirm_sock is None:
         return
@@ -587,7 +626,9 @@ def _run_scheduled(
             _Step(state, _no_wait, label=f"{state} (catch-up, was due {hhmm})")
         )
     for hhmm, state, target in upcoming:
-        steps.append(_Step(state, _wait_until(target), label=f"{state} (at {hhmm})"))
+        steps.append(
+            _Step(state, _wait_until(target), label=f"{state} (at {hhmm})", at=target)
+        )
 
     if _run_transitions(push_sock, confirm_sock, running, steps):
         log.info("All transitions sent for today.")

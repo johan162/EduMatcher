@@ -108,7 +108,7 @@ export function SessionView() {
               {auctions.map((auction) => (
                 <tr
                   key={`${auction.sym}-${auction.seq}-${auction.ts}`}
-                  className={`border-b border-border/40 ${rowClass}`}
+                  className={`border-b border-border-subtle ${rowClass}`}
                 >
                   <td className="font-semibold">{auction.sym}</td>
                   {/*
@@ -161,7 +161,7 @@ function HaltRow({ entry, rowClass, decimals }: { entry: HaltedSymbol; rowClass:
   const source = cb?.haltSource;
 
   return (
-    <tr className={`border-b border-border/40 ${rowClass}`}>
+    <tr className={`border-b border-border-subtle ${rowClass}`}>
       <td className="font-semibold">{entry.sym}</td>
       <td>
         {cb?.level ? (

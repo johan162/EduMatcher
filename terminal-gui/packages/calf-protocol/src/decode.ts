@@ -233,14 +233,52 @@ export function decodeTrade(fields: Record<string, string>): TradePayload {
   };
 }
 
+export interface AuctionIndicativePayload {
+  /** Where the book would cross. Absent when it would not cross at all. */
+  indicPrice?: number;
+  indicQty: number;
+  imbalanceSide?: string;
+  imbalanceQty: number;
+  /** Which call phase is running, so a client need not infer it. */
+  phase?: string;
+}
+
+/**
+ * `INDIC` on the `AUCTION` channel: where a symbol *would* uncross now.
+ *
+ * `INDICPX` absent means the book would not cross at all — a real state
+ * during a call phase, and not the same as a price of zero, so it is left
+ * undefined rather than defaulted.
+ */
+export function decodeAuctionIndicative(fields: Record<string, string>): AuctionIndicativePayload {
+  const payload: AuctionIndicativePayload = {
+    indicQty: numOr(fields["INDICQTY"], 0),
+    imbalanceQty: numOr(fields["IMBQTY"], 0),
+  };
+  if (fields["INDICPX"]) payload.indicPrice = numOr(fields["INDICPX"], 0);
+  if (fields["IMB"]) payload.imbalanceSide = fields["IMB"];
+  if (fields["PHASE"]) payload.phase = fields["PHASE"];
+  return payload;
+}
+
 export interface StatePayload {
   session: string;
   prev?: string;
+  /** The phase this session moves to next, and when, as UTC ISO-8601. */
+  nextPhase?: string;
+  nextAt?: string;
 }
 
 export function decodeState(fields: Record<string, string>): StatePayload {
   const payload: StatePayload = { session: fields["SESSION"] ?? "" };
   if (fields["PREV"]) payload.prev = fields["PREV"];
+  // Both or neither. A phase with no time cannot be counted down to, and a
+  // time with no phase does not say what happens when it arrives, so a
+  // half-pair is treated as absent rather than half-adopted (T-M6).
+  if (fields["NEXTPHASE"] && fields["NEXTAT"]) {
+    payload.nextPhase = fields["NEXTPHASE"];
+    payload.nextAt = fields["NEXTAT"];
+  }
   return payload;
 }
 

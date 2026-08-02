@@ -12,11 +12,15 @@
 import { useEffect, useState } from "react";
 
 /**
- * Silence after which a row is shown as stale.
+ * Default silence after which a row is shown as stale.
  *
- * Five minutes is long enough that an ordinarily thin book is not permanently
- * greyed out, and short enough that a symbol which has genuinely stopped
- * trading says so while the session is still running.
+ * A *default*, not a rule (T-L3). Five minutes suits an ordinarily liquid
+ * book: long enough not to grey the board out, short enough that a symbol
+ * which has genuinely stopped trading says so while the session runs. On a
+ * thin classroom book it can be badly wrong in the direction that matters —
+ * every row faded, permanently, at which point the mark carries no
+ * information at all. The value in force is `usePrefsStore.staleAfterSec`,
+ * and the grid states it on screen so it is never a mystery.
  */
 export const STALE_AFTER_SEC = 300;
 
@@ -27,13 +31,34 @@ export const STALE_AFTER_SEC = 300;
  * untraded, which the empty price and change columns already say. Calling it
  * stale would imply it once had a fresh price that has since aged.
  */
-export function isStale(lastTradeTs: string | undefined, now: number): boolean {
+export function isStale(
+  lastTradeTs: string | undefined,
+  now: number,
+  afterSec: number = STALE_AFTER_SEC,
+): boolean {
   if (lastTradeTs === undefined) return false;
+  // Infinity turns the marking off entirely, for a session so quiet that no
+  // threshold discriminates between symbols.
+  if (!Number.isFinite(afterSec)) return false;
 
   const printed = new Date(lastTradeTs).getTime();
   if (Number.isNaN(printed)) return false;
 
-  return now - printed > STALE_AFTER_SEC * 1000;
+  return now - printed > afterSec * 1000;
+}
+
+/**
+ * A threshold as words, for a control or a footnote.
+ *
+ * Stated on screen because an arbitrary number that nobody can see is the
+ * thing T-L3 objects to: a faded row is only readable if the reader knows
+ * what "faded" means here.
+ */
+export function staleLabel(afterSec: number): string {
+  if (!Number.isFinite(afterSec)) return "off";
+  if (afterSec < 60) return `${afterSec}s`;
+  if (afterSec < 3600) return `${Math.round(afterSec / 60)} min`;
+  return `${Math.round(afterSec / 3600)} h`;
 }
 
 /**

@@ -23,6 +23,23 @@ export interface LadderRow {
   orders: number;
   /** This level plus every level nearer the touch. */
   cumulative: number;
+  /**
+   * Distance from this side's touch, as a fraction of the touch price.
+   *
+   * The ladder draws its levels evenly spaced whatever the prices are, so
+   * bids at `100.00 / 99.99 / 99.98` render identically to bids at
+   * `100.00 / 99.00 / 50.00` (T-L1). The cumulative column says how much
+   * size is behind the touch; without this there is nothing saying how far
+   * away it sits, and those are the two halves of the same question — a
+   * hundred thousand shares two ticks down is a wall, and the same size ten
+   * percent away is scenery.
+   *
+   * A fraction rather than ticks, so it is comparable between a 5.00
+   * instrument and a 500.00 one. Zero at the touch itself. Absent when the
+   * touch price is zero or missing, since a proportion of nothing says
+   * nothing.
+   */
+  distance?: number;
 }
 
 export interface Ladder {
@@ -42,6 +59,12 @@ export interface Ladder {
   peakCumulative: number;
   /** Rows to render — the deeper side's length, since sides need not match. */
   depth: number;
+  /**
+   * The widest distance on either side, as the shared scale for a gap
+   * indicator. Zero when every level sits at the touch, or when there is
+   * only one level a side.
+   */
+  peakDistance: number;
 }
 
 /**
@@ -54,9 +77,16 @@ export interface Ladder {
  */
 function accumulate(levels: readonly DepthLevel[]): LadderRow[] {
   let running = 0;
+  const touch = levels[0]?.[0];
+
   return levels.map(([price, qty, orders]) => {
     running += qty;
-    return { price, qty, orders, cumulative: running };
+    const row: LadderRow = { price, qty, orders, cumulative: running };
+    // Unsigned: which way it runs is already carried by which side of the
+    // ladder it is on, and a reader comparing the two sides wants their
+    // distances to be comparable rather than mirrored.
+    if (touch !== undefined && touch > 0) row.distance = Math.abs(price - touch) / touch;
+    return row;
   });
 }
 
@@ -77,6 +107,7 @@ export function buildLadder(frame: DepthFrame | null): Ladder | null {
     askTotal,
     peakCumulative: Math.max(bidTotal, askTotal),
     depth: Math.max(bids.length, asks.length),
+    peakDistance: Math.max(...[...bids, ...asks].map((row) => row.distance ?? 0), 0),
   };
   if (resting > 0) ladder.imbalance = bidTotal / resting;
 

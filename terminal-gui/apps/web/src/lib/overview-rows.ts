@@ -149,7 +149,10 @@ export type OverviewColumn =
   | "spread"
   | "volume"
   | "turnover"
-  | "lastTrade";
+  | "lastTrade"
+  | "indic"
+  | "indicQty"
+  | "imbalance";
 
 const LOBBY_COLUMNS: OverviewColumn[] = ["symbol", "last", "pctChg", "volume"];
 
@@ -194,8 +197,58 @@ const FULL_COLUMNS: OverviewColumn[] = [
  * for somebody deciding whether to trade, and nobody is doing that from
  * across a room.
  */
-export function columnsFor(density: "lobby" | "standard" | "dense"): OverviewColumn[] {
-  return density === "lobby" ? LOBBY_COLUMNS : FULL_COLUMNS;
+/**
+ * The quote group, replaced by the auction group during a call phase.
+ *
+ * Not added alongside: bid, ask, size and spread describe what is
+ * *available*, and during a call phase nothing is — they are already dimmed
+ * as non-executable (T-M2). The indicative price, the size that would
+ * match, and the surplus are what carry meaning at that moment, and they
+ * take the same space rather than pushing the grid wider (T-M1).
+ *
+ * The swap is a mode, not a layout preference: the reader is looking at a
+ * different kind of market, and the columns follow.
+ */
+const AUCTION_QUOTE_COLUMNS: OverviewColumn[] = ["indic", "indicQty", "imbalance"];
+
+const QUOTE_COLUMNS: ReadonlySet<OverviewColumn> = new Set<OverviewColumn>([
+  "bidSz",
+  "bid",
+  "ask",
+  "askSz",
+  "spread",
+]);
+
+export function columnsFor(
+  density: "lobby" | "standard" | "dense",
+  sessionPhase?: string | null,
+): OverviewColumn[] {
+  const base = density === "lobby" ? LOBBY_COLUMNS : FULL_COLUMNS;
+  if (!sessionPhase?.endsWith("AUCTION")) return base;
+
+  // Lobby swaps rather than adds, and stays at four columns. Its whole
+  // rationale is that the space buys larger type for a room to read from a
+  // distance; growing it to six during an auction would trade that away at
+  // exactly the moment most people are looking. `last` is a pre-auction
+  // print and `%Chg` is computed from it, so both are the stale pair worth
+  // giving up for the two figures that describe the auction itself.
+  if (density === "lobby") {
+    return ["symbol", "indic", "imbalance", "volume"];
+  }
+
+  const swapped: OverviewColumn[] = [];
+  let inserted = false;
+  for (const column of base) {
+    if (!QUOTE_COLUMNS.has(column)) {
+      swapped.push(column);
+      continue;
+    }
+    if (!inserted) {
+      swapped.push(...AUCTION_QUOTE_COLUMNS);
+      inserted = true;
+    }
+  }
+  return swapped;
 }
 
 // ---------------------------------------------------------------------------

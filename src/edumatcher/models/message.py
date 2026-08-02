@@ -501,15 +501,70 @@ def make_combo_status_msg(
 # ---------------------------------------------------------------------------
 
 
-def make_session_transition_msg(to_state: str) -> list[bytes]:
-    """Scheduler → engine: request session state transition."""
-    return encode("session.transition", {"to_state": to_state})
+def make_session_transition_msg(
+    to_state: str, next_state: str = "", next_at: str = ""
+) -> list[bytes]:
+    """Scheduler → engine: request session state transition.
+
+    ``next_state``/``next_at`` describe the transition *after* this one, so
+    the engine can publish a countdown target the terminal can render. Only
+    the scheduler knows the day's timetable, and only the process that will
+    actually perform the next transition has any business asserting when it
+    happens — a manual transition omits them, which clears any stale target
+    the engine was holding.
+    """
+    payload: dict[str, Any] = {"to_state": to_state}
+    if next_state and next_at:
+        payload["next_state"] = next_state
+        payload["next_at"] = next_at
+    return encode("session.transition", payload)
 
 
-def make_session_state_msg(state: str, prev_state: str = "") -> list[bytes]:
+def make_session_state_msg(
+    state: str, prev_state: str = "", next_state: str = "", next_at: str = ""
+) -> list[bytes]:
     """Engine → all: broadcast current session state."""
-    typed = SessionStatePayload(state=state, prev_state=prev_state)
+    typed = SessionStatePayload(
+        state=state, prev_state=prev_state, next_state=next_state, next_at=next_at
+    )
     return encode("session.state", typed.to_dict())
+
+
+def make_auction_indicative_msg(
+    symbol: str,
+    phase: str,
+    eq_price: float | None,
+    eq_qty: int,
+    imbalance_side: str,
+    imbalance_qty: int,
+) -> list[bytes]:
+    """Engine → all: where a symbol *would* uncross, mid-call-phase.
+
+    Published repeatedly while an opening or closing auction collects orders,
+    which is the difference between this and ``auction.result``: that one
+    reports what happened, this one reports what would happen if the phase
+    ended now. Both are needed. A participant can only supply the offsetting
+    interest that resolves an imbalance if the imbalance is visible while
+    there is still time to act on it -- which is the reasoning
+    ``normalise_cb_halt`` already applies to a reopening, and which holds
+    with more force at the open and the close, where the largest volume of
+    the day prints.
+
+    ``eq_price`` is ``None`` when the book would not cross at all. That is a
+    real and informative state during a call phase -- nothing would trade yet
+    -- and is not the same as a price of zero.
+    """
+    return encode(
+        f"auction.indicative.{symbol}",
+        {
+            "symbol": symbol,
+            "phase": phase,
+            "eq_price": eq_price,
+            "eq_qty": eq_qty,
+            "imbalance_side": imbalance_side,
+            "imbalance_qty": imbalance_qty,
+        },
+    )
 
 
 def make_auction_result_msg(
