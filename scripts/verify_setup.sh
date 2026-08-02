@@ -50,7 +50,8 @@ print_linux_manual_help() {
     echo ""
     echo "Example commands for Debian/Ubuntu (apt):"
     echo "  sudo apt update"
-    echo "  sudo apt install poetry fonts-dejavu-core fonts-noto-core build-essential"
+    echo "  sudo apt install poetry fonts-dejavu-core fonts-noto-core build-essential texlive-xetex"
+    echo "  sudo apt install chromium-browser  # or package name 'chromium' on some distros"
     echo ""
     echo "After installing the packages, run: ./scripts/verify_setup.sh"
 }
@@ -67,6 +68,14 @@ confirm_action() {
 
 print_non_interactive_install_hint() {
     echo "   Re-run without --non-interactive to allow this script to install it for you"
+}
+
+has_chrome() {
+    command -v google-chrome &> /dev/null || \
+    command -v google-chrome-stable &> /dev/null || \
+    command -v chrome &> /dev/null || \
+    command -v chromium &> /dev/null || \
+    command -v chromium-browser &> /dev/null
 }
 
 echo "=== EduMatcher Dev Environment Setup & Verification ==="
@@ -154,6 +163,87 @@ if [ ${#missing_tools[@]} -gt 0 ]; then
     fi
 fi
 echo "✅ Required build tools are available: gcc, make"
+
+# Ensure Chrome/Chromium browser is available.
+if ! has_chrome; then
+    echo "❌ Chrome/Chromium not found"
+    if is_fedora; then
+        if confirm_action "Would you like to install Google Chrome now via dnf?"; then
+            sudo dnf install -y google-chrome-stable || {
+                echo "⚠️  google-chrome-stable install failed."
+                echo "   Install Chrome manually or install Chromium, then re-run this script"
+                exit 1
+            }
+        else
+            echo "❌ Chrome/Chromium is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for Chrome is currently implemented only for Fedora Linux."
+        echo "   Install Chrome/Chromium manually, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install chromium-browser  # or package name 'chromium' on some distros"
+        echo ""
+        echo "After installing Chrome/Chromium, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        if confirm_action "Google Chrome was not found. Continue anyway?"; then
+            echo "⚠️  Continuing without Chrome may cause browser-based steps to fail"
+        else
+            echo "❌ Chrome/Chromium is required to continue"
+            echo "   Install Google Chrome and re-run this script"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    else
+        echo "❌ Chrome/Chromium is required to continue"
+        echo "   Install it with your system package manager and re-run this script"
+        exit 1
+    fi
+fi
+echo "✅ Chrome/Chromium is available"
+
+# Ensure xelatex is available for PDF generation.
+if ! command -v xelatex &> /dev/null; then
+    echo "❌ xelatex not found"
+    if is_fedora; then
+        if confirm_action "Would you like to install TeX Live XeLaTeX now via dnf?"; then
+            sudo dnf install -y texlive-xetex
+        else
+            echo "❌ xelatex is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for xelatex is currently implemented only for Fedora Linux."
+        echo "   Install TeX Live/XeLaTeX manually, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install texlive-xetex"
+        echo ""
+        echo "After installing xelatex, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        echo "❌ xelatex is required to continue"
+        echo "   Install MacTeX or BasicTeX, then re-run this script"
+        exit 1
+    else
+        echo "❌ xelatex is required to continue"
+        echo "   Install TeX Live (with xelatex) using your system package manager, then re-run this script"
+        exit 1
+    fi
+fi
+echo "✅ xelatex is available"
 
 
 # Ensure required fonts are available for PDF rendering.
