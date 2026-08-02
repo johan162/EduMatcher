@@ -156,12 +156,12 @@ echo "4/4 Copying verify_setup.sh as the standard user..."
 VERIFY_SETUP_REMOTE_PATH="/home/$NODE_USER/verify_setup.sh"
 multipass transfer "$VERIFY_SETUP_SCRIPT" "$NODE_NAME:$VERIFY_SETUP_REMOTE_PATH"
 echo "   Copied to: $VERIFY_SETUP_REMOTE_PATH"
-# multipass exec "$NODE_NAME" -- bash -lc "
-#   set -euo pipefail
-#   sudo chown '$NODE_USER:$NODE_USER' '$VERIFY_SETUP_REMOTE_PATH'
-#   chmod +x '$VERIFY_SETUP_REMOTE_PATH'
-#   '$VERIFY_SETUP_REMOTE_PATH' --non-interactive
-# "
+multipass exec "$NODE_NAME" -- bash -lc "
+  set -euo pipefail
+  sudo chown '$NODE_USER:$NODE_USER' '$VERIFY_SETUP_REMOTE_PATH'
+  chmod +x '$VERIFY_SETUP_REMOTE_PATH'
+  '$VERIFY_SETUP_REMOTE_PATH' --yes
+"
 # Standard updates
 # sudo apt update -y
 # sudo apt upgrade -y
@@ -181,7 +181,7 @@ echo "   Copied to: $VERIFY_SETUP_REMOTE_PATH"
 # sudo apt install -y /tmp/google-chrome-stable_current_amd64.deb
 
 echo ""
-echo "✅ Multipass dev node '$NODE_NAME' is ready."
+echo "✅ Multipass development node '$NODE_NAME' is ready."
 echo ""
 echo "Connect with:"
 echo "  multipass shell $NODE_NAME"

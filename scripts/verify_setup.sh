@@ -860,7 +860,7 @@ echo "✅ All checks passed!"
 echo "==================================="
 echo ""
 echo "Full development environment for EduMatcher is ready to use!"
-echo ""
+echo "Download EduMatcher by cloning the repository and running `poetry install` to set up the Python environment."
 echo "See development.md for more information on how to contribute and run tests."
 
 # End of script
