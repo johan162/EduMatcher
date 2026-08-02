@@ -137,7 +137,7 @@ if ! multipass launch "$NODE_IMAGE" \
 fi
 
 echo "2/4 Generating a fresh SSH key pair in the node..."
-multipass exec "$NODE_NAME" -- bash -lc "ssh-keygen -t ed25519 -f \"$HOME/.ssh/id_ed25519\" -N \"\""
+multipass exec "$NODE_NAME" -- bash -lc "ssh-keygen -t ed25519 -f \"/home/ubuntu/.ssh/id_ed25519\" -N \"\""
 
 echo "3/4 Installing the host SSH public key for user '$NODE_USER'..."
 multipass transfer "${SSH_KEY_PATH}.pub" "$NODE_NAME:/tmp/${NODE_NAME}.pub"
