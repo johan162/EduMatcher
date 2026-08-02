@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 NODE_NAME="pm-devnode"
 NODE_IMAGE="lts"
-NODE_CPUS="2"
+NODE_CPUS="4"
 NODE_MEMORY="12G"
 NODE_DISK="50G"
 NODE_USER="ubuntu"
@@ -156,12 +156,29 @@ echo "4/4 Copying and running verify_setup.sh as the standard user..."
 VERIFY_SETUP_REMOTE_PATH="/home/$NODE_USER/verify_setup.sh"
 multipass transfer "$VERIFY_SETUP_SCRIPT" "$NODE_NAME:$VERIFY_SETUP_REMOTE_PATH"
 echo "   Copied to: $VERIFY_SETUP_REMOTE_PATH"
-multipass exec "$NODE_NAME" -- bash -lc "
-  set -euo pipefail
-  sudo chown '$NODE_USER:$NODE_USER' '$VERIFY_SETUP_REMOTE_PATH'
-  chmod +x '$VERIFY_SETUP_REMOTE_PATH'
-  '$VERIFY_SETUP_REMOTE_PATH' --non-interactive
-"
+# multipass exec "$NODE_NAME" -- bash -lc "
+#   set -euo pipefail
+#   sudo chown '$NODE_USER:$NODE_USER' '$VERIFY_SETUP_REMOTE_PATH'
+#   chmod +x '$VERIFY_SETUP_REMOTE_PATH'
+#   '$VERIFY_SETUP_REMOTE_PATH' --non-interactive
+# "
+# Standard updates
+# sudo apt update -y
+# sudo apt upgrade -y
+# sudo apt install -y pipx
+# pipx install poetry
+# pipx ensurepath
+# sudo apt install -y make gcc libreadline-dev readline-common
+# sudo apt install -y texlive-latex-base texlive-fonts-recommended texlive-xetex
+# curl -LO https://github.com/jgm/pandoc/releases/download/3.10.1/pandoc-3.10.1-linux-amd64.tar.gz
+# tar -xzf pandoc-3.10.1-linux-amd64.tar.gz
+# mkdir -p ~/.local/bin
+# install -m 0755 pandoc-3.10.1/bin/pandoc ~/.local/bin/pandoc
+# install -m 0755 pandoc-3.10.1/bin/pandoc-lua ~/.local/bin/pandoc-lua
+# sudo apt install -y nodejs npm
+# wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+# mv google-chrome-stable_current_amd64.deb /tmp/
+# sudo apt install -y /tmp/google-chrome-stable_current_amd64.deb
 
 echo ""
 echo "✅ Multipass dev node '$NODE_NAME' is ready."

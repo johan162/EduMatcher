@@ -7,6 +7,7 @@
 set -e
 
 NON_INTERACTIVE=0
+APT_BOOTSTRAPPED=0
 for arg in "$@"; do
     case "$arg" in
         --non-interactive)
@@ -44,6 +45,10 @@ is_fedora() {
     is_linux && { [ "${OS_ID}" = "fedora" ] || [[ " ${OS_ID_LIKE} " == *" fedora "* ]]; }
 }
 
+is_ubuntu_based() {
+    is_linux && { [ "${OS_ID}" = "ubuntu" ] || [[ " ${OS_ID_LIKE} " == *" ubuntu "* ]] || [[ " ${OS_ID_LIKE} " == *" debian "* ]]; }
+}
+
 print_linux_manual_help() {
     echo "ℹ️  Auto-install on Linux is currently implemented only for Fedora."
     echo "   For other Linux distributions, install prerequisites manually, then re-run this script."
@@ -54,6 +59,32 @@ print_linux_manual_help() {
     echo "  sudo apt install chromium-browser  # or package name 'chromium' on some distros"
     echo ""
     echo "After installing the packages, run: ./scripts/verify_setup.sh"
+}
+
+run_apt_bootstrap_once() {
+    if [ "${APT_BOOTSTRAPPED}" -eq 0 ]; then
+        echo "ℹ️  Running apt bootstrap (update + upgrade)..."
+        sudo apt update -y
+        sudo apt upgrade -y
+        APT_BOOTSTRAPPED=1
+    fi
+}
+
+install_pandoc_310_local() {
+    local pandoc_archive="pandoc-3.10.1-linux-amd64.tar.gz"
+    local pandoc_dir="pandoc-3.10.1"
+
+    if ! command -v curl >/dev/null 2>&1; then
+        run_apt_bootstrap_once
+        sudo apt install -y curl
+    fi
+
+    curl -LO "https://github.com/jgm/pandoc/releases/download/3.10.1/${pandoc_archive}"
+    tar -xzf "${pandoc_archive}"
+    mkdir -p "$HOME/.local/bin"
+    install -m 0755 "${pandoc_dir}/bin/pandoc" "$HOME/.local/bin/pandoc"
+    install -m 0755 "${pandoc_dir}/bin/pandoc-lua" "$HOME/.local/bin/pandoc-lua"
+    export PATH="$HOME/.local/bin:$PATH"
 }
 
 confirm_action() {
@@ -141,6 +172,25 @@ if ! command -v poetry &> /dev/null; then
             fi
             exit 1
         fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install Poetry now via apt/pipx?"; then
+            run_apt_bootstrap_once
+            sudo apt install -y pipx
+            pipx ensurepath
+            export PATH="$HOME/.local/bin:$PATH"
+            if pipx list 2>/dev/null | grep -q 'package poetry'; then
+                pipx upgrade poetry
+            else
+                pipx install poetry
+            fi
+            hash -r
+        else
+            echo "❌ Poetry is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
     elif is_linux; then
         print_linux_manual_help
         exit 1
@@ -165,6 +215,17 @@ if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
     if is_fedora; then
         if confirm_action "Would you like to install Node.js and npm now via dnf?"; then
             sudo dnf install -y nodejs npm
+        else
+            echo "❌ Node.js and npm are required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install Node.js and npm now via apt?"; then
+            run_apt_bootstrap_once
+            sudo apt install -y nodejs npm
         else
             echo "❌ Node.js and npm are required to continue"
             if [ "${NON_INTERACTIVE}" -eq 1 ]; then
@@ -227,6 +288,17 @@ if [ ${#missing_tools[@]} -gt 0 ]; then
             fi
             exit 1
         fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install build tools now via apt?"; then
+            run_apt_bootstrap_once
+            sudo apt install -y make gcc libreadline-dev readline-common
+        else
+            echo "❌ Build tools (${missing_tools[*]}) are required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
     elif is_linux; then
         echo "ℹ️  Auto-install for build tools is currently implemented only for Fedora Linux."
         echo "   Install the missing tools manually, then re-run this script."
@@ -264,6 +336,17 @@ if ! has_readline_dev; then
     if is_fedora; then
         if confirm_action "Would you like to install readline development headers now via dnf?"; then
             sudo dnf install -y readline-devel
+        else
+            echo "❌ Readline development library is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install readline development headers now via apt?"; then
+            run_apt_bootstrap_once
+            sudo apt install -y libreadline-dev readline-common
         else
             echo "❌ Readline development library is required to continue"
             if [ "${NON_INTERACTIVE}" -eq 1 ]; then
@@ -323,6 +406,19 @@ if ! has_chrome; then
             fi
             exit 1
         fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install Google Chrome now via apt package file?"; then
+            run_apt_bootstrap_once
+            wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+            mv google-chrome-stable_current_amd64.deb /tmp/
+            sudo apt install -y /tmp/google-chrome-stable_current_amd64.deb
+        else
+            echo "❌ Chrome/Chromium is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
     elif is_linux; then
         echo "ℹ️  Auto-install for Chrome is currently implemented only for Fedora Linux."
         echo "   Install Chrome/Chromium manually, then re-run this script."
@@ -358,6 +454,17 @@ if ! command -v xelatex &> /dev/null; then
     if is_fedora; then
         if confirm_action "Would you like to install TeX Live XeLaTeX now via dnf?"; then
             sudo dnf install -y texlive-xetex
+        else
+            echo "❌ xelatex is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install xelatex now via apt?"; then
+            run_apt_bootstrap_once
+            sudo apt install -y texlive-latex-base texlive-fonts-recommended texlive-xetex
         else
             echo "❌ xelatex is required to continue"
             if [ "${NON_INTERACTIVE}" -eq 1 ]; then
@@ -409,6 +516,18 @@ if [ ${#missing_tex_files[@]} -gt 0 ]; then
             fi
             exit 1
         fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install TeX helper packages now via apt?"; then
+            run_apt_bootstrap_once
+            sudo apt install -y texlive-latex-extra texlive-pictures
+        else
+            echo "❌ Required TeX packages are missing"
+            echo "   Install texlive-latex-extra texlive-pictures and re-run this script"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
     elif is_linux; then
         echo "ℹ️  Auto-install for TeX helper packages is currently implemented only for Fedora Linux."
         echo "   Install packages providing shorttoc.sty, tcolorbox.sty, and tikzfill.image.sty, then re-run this script."
@@ -438,6 +557,16 @@ if ! command -v pandoc &> /dev/null; then
     if is_fedora; then
         if confirm_action "Would you like to install pandoc now via dnf?"; then
             sudo dnf install -y pandoc-cli
+        else
+            echo "❌ pandoc is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install Pandoc 3.10.1 locally in ~/.local/bin now?"; then
+            install_pandoc_310_local
         else
             echo "❌ pandoc is required to continue"
             if [ "${NON_INTERACTIVE}" -eq 1 ]; then
@@ -496,6 +625,21 @@ if ! version_ge "${pandoc_ver}" "${MIN_PANDOC_VERSION}"; then
         echo "   install -m 0755 pandoc-3.10.1/bin/pandoc ~/.local/bin/pandoc"
         echo "   export PATH=\"$HOME/.local/bin:$PATH\""
         echo "   Then re-run this script"
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install Pandoc 3.10.1 locally in ~/.local/bin now?"; then
+            install_pandoc_310_local
+            pandoc_ver="$(pandoc_version)"
+            if [ -z "${pandoc_ver}" ] || ! version_ge "${pandoc_ver}" "${MIN_PANDOC_VERSION}"; then
+                echo "❌ Pandoc upgrade did not yield the required version (>= ${MIN_PANDOC_VERSION})"
+                exit 1
+            fi
+        else
+            echo "❌ pandoc >= ${MIN_PANDOC_VERSION} is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
     elif is_linux; then
         echo "   Install a newer pandoc release (>= ${MIN_PANDOC_VERSION}) and re-run this script"
     else
