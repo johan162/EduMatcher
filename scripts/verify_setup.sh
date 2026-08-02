@@ -2,9 +2,28 @@
 # Setup and verification script for EduMatcher
 # Purpose: prepare a local development environment and verify prerequisites
 # CI/CD Support: Yes. Can be run in CI environments.
-# Usage: ./scripts/verify_setup.sh
+# Usage: ./scripts/verify_setup.sh [--non-interactive]
 
 set -e
+
+NON_INTERACTIVE=0
+for arg in "$@"; do
+    case "$arg" in
+        --non-interactive)
+            NON_INTERACTIVE=1
+            ;;
+        -h|--help)
+            echo "Usage: ./scripts/verify_setup.sh [--non-interactive]"
+            echo "  --non-interactive  Do not prompt; fail fast with guidance"
+            exit 0
+            ;;
+        *)
+            echo "❌ Unknown option: $arg"
+            echo "Usage: ./scripts/verify_setup.sh [--non-interactive]"
+            exit 1
+            ;;
+    esac
+done
 
 # Detect OS/distribution to provide package-manager specific guidance.
 OS_KERNEL="$(uname -s)"
@@ -31,9 +50,23 @@ print_linux_manual_help() {
     echo ""
     echo "Example commands for Debian/Ubuntu (apt):"
     echo "  sudo apt update"
-    echo "  sudo apt install poetry fonts-dejavu-core fonts-noto-core"
+    echo "  sudo apt install poetry fonts-dejavu-core fonts-noto-core build-essential"
     echo ""
     echo "After installing the packages, run: ./scripts/verify_setup.sh"
+}
+
+confirm_action() {
+    local prompt="$1"
+    if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+        return 1
+    fi
+    read -p "${prompt} (y/n) " -n 1 -r
+    echo ""
+    [[ $REPLY =~ ^[Yy]$ ]]
+}
+
+print_non_interactive_install_hint() {
+    echo "   Re-run without --non-interactive to allow this script to install it for you"
 }
 
 echo "=== EduMatcher Dev Environment Setup & Verification ==="
@@ -43,12 +76,13 @@ echo ""
 if ! command -v poetry &> /dev/null; then
     echo "❌ Poetry not found"
     if is_fedora; then
-        read -p "Would you like to install Poetry now via dnf? (y/n) " -n 1 -r
-        echo ""
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if confirm_action "Would you like to install Poetry now via dnf?"; then
             sudo dnf install -y poetry
         else
             echo "❌ Poetry is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
             exit 1
         fi
     elif is_linux; then
@@ -56,17 +90,70 @@ if ! command -v poetry &> /dev/null; then
         exit 1
     else
         echo "Install with: pip install poetry"
-        read -p "Would you like to install Poetry now? (y/n) " -n 1 -r
-        echo ""
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if confirm_action "Would you like to install Poetry now?"; then
             pip install poetry
         else
             echo "❌ Poetry is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
             exit 1
         fi
     fi
 fi
 echo "✅ Poetry is available"
+
+# Ensure native build tools are available.
+required_tools=(gcc make)
+missing_tools=()
+for tool in "${required_tools[@]}"; do
+    if ! command -v "${tool}" &> /dev/null; then
+        missing_tools+=("${tool}")
+    fi
+done
+
+if [ ${#missing_tools[@]} -gt 0 ]; then
+    echo "❌ Missing required build tools: ${missing_tools[*]}"
+    if is_fedora; then
+        if confirm_action "Would you like to install missing build tools now via dnf?"; then
+            sudo dnf install -y gcc make
+        else
+            echo "❌ Build tools (${missing_tools[*]}) are required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for build tools is currently implemented only for Fedora Linux."
+        echo "   Install the missing tools manually, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install build-essential"
+        echo ""
+        echo "After installing the tools, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        if confirm_action "Would you like to install Xcode Command Line Tools now?"; then
+            xcode-select --install || true
+            echo "ℹ️  Complete the Xcode Command Line Tools installation, then re-run this script."
+            exit 1
+        else
+            echo "❌ Build tools (${missing_tools[*]}) are required to continue"
+            echo "   Install Xcode Command Line Tools and re-run this script"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    else
+        echo "❌ Build tools (${missing_tools[*]}) are required to continue"
+        echo "   Install gcc and make with your system package manager, then re-run this script"
+        exit 1
+    fi
+fi
+echo "✅ Required build tools are available: gcc, make"
 
 
 # Ensure required fonts are available for PDF rendering.
@@ -101,25 +188,27 @@ if [ ${#missing_fonts[@]} -gt 0 ]; then
 
     if is_fedora; then
         if [[ " ${missing_fonts[*]} " == *" ${MONO_FONT_NAME} "* ]]; then
-            read -p "Would you like to install ${MONO_FONT_NAME} now via dnf? (y/n) " -n 1 -r
-            echo ""
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
+            if confirm_action "Would you like to install ${MONO_FONT_NAME} now via dnf?"; then
                 sudo dnf install -y dejavu-sans-mono-fonts || sudo dnf install -y dejavu-sans-mono
             else
                 echo "❌ ${MONO_FONT_NAME} is required for expected monospace PDF output"
                 echo "   Install it manually and re-run this script"
+                if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                    print_non_interactive_install_hint
+                fi
                 exit 1
             fi
         fi
 
         if [[ " ${missing_fonts[*]} " == *" ${BODY_FONT_NAME} "* ]]; then
-            read -p "Would you like to install fallback ${BODY_FONT_FALLBACK_NAME} now via dnf? (y/n) " -n 1 -r
-            echo ""
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
+            if confirm_action "Would you like to install fallback ${BODY_FONT_FALLBACK_NAME} now via dnf?"; then
                 sudo dnf install -y google-noto-sans-fonts
             else
                 echo "❌ ${BODY_FONT_NAME} (or fallback ${BODY_FONT_FALLBACK_NAME}) is required for expected PDF body font output"
                 echo "   Install it manually and re-run this script"
+                if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                    print_non_interactive_install_hint
+                fi
                 exit 1
             fi
         fi
@@ -141,10 +230,7 @@ if [ ${#missing_fonts[@]} -gt 0 ]; then
         exit 1
     else
         if [[ " ${missing_fonts[*]} " == *" ${MONO_FONT_NAME} "* ]]; then
-            read -p "Would you like to install ${MONO_FONT_NAME} now via Homebrew? (y/n) " -n 1 -r
-            echo ""
-
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
+            if confirm_action "Would you like to install ${MONO_FONT_NAME} now via Homebrew?"; then
                 if ! command -v brew &> /dev/null; then
                     echo "❌ Homebrew not found. Install Homebrew first, then run:"
                     echo "   brew install --cask font-dejavu"
@@ -155,15 +241,15 @@ if [ ${#missing_fonts[@]} -gt 0 ]; then
             else
                 echo "❌ ${MONO_FONT_NAME} is required for expected monospace PDF output"
                 echo "   Install it manually and re-run this script"
+                if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                    print_non_interactive_install_hint
+                fi
                 exit 1
             fi
         fi
 
         if [[ " ${missing_fonts[*]} " == *" ${BODY_FONT_NAME} "* ]]; then
-            read -p "Would you like to install ${BODY_FONT_NAME} now via Homebrew? (y/n) " -n 1 -r
-            echo ""
-
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
+            if confirm_action "Would you like to install ${BODY_FONT_NAME} now via Homebrew?"; then
                 if ! command -v brew &> /dev/null; then
                     echo "❌ Homebrew not found. Install Homebrew first, then run:"
                     echo "   brew install --cask ${BODY_FONT_CASK_NAME}"
@@ -174,19 +260,23 @@ if [ ${#missing_fonts[@]} -gt 0 ]; then
                     brew install --cask "${BODY_FONT_CASK_NAME}"
                 else
                     echo "⚠️  ${BODY_FONT_CASK_NAME} is not available in Homebrew casks."
-                    read -p "Install fallback ${BODY_FONT_FALLBACK_NAME} instead? (y/n) " -n 1 -r
-                    echo ""
-                    if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    if confirm_action "Install fallback ${BODY_FONT_FALLBACK_NAME} instead?"; then
                         brew install --cask font-noto-sans
                     else
                         echo "❌ ${BODY_FONT_NAME} is still missing and fallback was declined"
                         echo "   Install a compatible body font and re-run this script"
+                        if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                            print_non_interactive_install_hint
+                        fi
                         exit 1
                     fi
                 fi
             else
                 echo "❌ ${BODY_FONT_NAME} (or fallback ${BODY_FONT_FALLBACK_NAME}) is required for expected PDF body font output"
                 echo "   Install it manually and re-run this script"
+                if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                    print_non_interactive_install_hint
+                fi
                 exit 1
             fi
         fi
@@ -223,9 +313,7 @@ if [ -z "$VIRTUAL_ENV" ]; then
     echo "❌ No active virtual environment detected (VIRTUAL_ENV is unset)."
     echo "   Recommended: python -m venv .venv"
     # If the user accepts, recreate the Poetry-managed in-project environment.
-    read -p "Would you like to create and activate a virtual environment now? (y/n) " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if confirm_action "Would you like to create and activate a virtual environment now?"; then
         poetry config virtualenvs.in-project true --local
         poetry env remove --all
         rm -rf .venv
@@ -234,6 +322,9 @@ if [ -z "$VIRTUAL_ENV" ]; then
         echo "✅ Virtual environment created and activated"
     else
         echo "❌ An active virtual environment is required to continue"
+        if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+            print_non_interactive_install_hint
+        fi
         exit 1  
     fi
 fi
