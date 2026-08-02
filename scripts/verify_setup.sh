@@ -50,7 +50,7 @@ print_linux_manual_help() {
     echo ""
     echo "Example commands for Debian/Ubuntu (apt):"
     echo "  sudo apt update"
-    echo "  sudo apt install poetry nodejs npm fonts-dejavu-core fonts-noto-core build-essential libreadline-dev texlive-xetex"
+    echo "  sudo apt install poetry nodejs npm pandoc fonts-dejavu-core fonts-noto-core build-essential libreadline-dev texlive-xetex"
     echo "  sudo apt install chromium-browser  # or package name 'chromium' on some distros"
     echo ""
     echo "After installing the packages, run: ./scripts/verify_setup.sh"
@@ -107,6 +107,17 @@ readline_detection_source() {
     else
         echo "unknown"
     fi
+}
+
+version_ge() {
+    # Returns success when $1 >= $2 using semantic version sort.
+    local lhs="$1"
+    local rhs="$2"
+    [ "$(printf '%s\n' "${rhs}" "${lhs}" | sort -V | head -n 1)" = "${rhs}" ]
+}
+
+pandoc_version() {
+    pandoc --version 2>/dev/null | awk 'NR==1 {for (i=1; i<=NF; i++) if ($i ~ /^[0-9]+(\.[0-9]+)+$/) {print $i; exit}}'
 }
 
 echo "=== EduMatcher Dev Environment Setup & Verification ==="
@@ -370,6 +381,80 @@ if ! command -v xelatex &> /dev/null; then
     fi
 fi
 echo "✅ xelatex is available"
+
+# Ensure pandoc is available.
+MIN_PANDOC_VERSION="3.10.0"
+if ! command -v pandoc &> /dev/null; then
+    echo "❌ Missing required documentation tool: pandoc"
+    if is_fedora; then
+        if confirm_action "Would you like to install pandoc now via dnf?"; then
+            sudo dnf install -y pandoc-cli
+        else
+            echo "❌ pandoc is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for pandoc is currently implemented only for Fedora Linux."
+        echo "   Install pandoc manually, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install pandoc"
+        echo ""
+        echo "After installing pandoc, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        if confirm_action "Would you like to install pandoc now via Homebrew?"; then
+            if ! command -v brew &> /dev/null; then
+                echo "❌ Homebrew not found. Install Homebrew first, then run:"
+                echo "   brew install pandoc"
+                exit 1
+            fi
+            brew install pandoc
+        else
+            echo "❌ pandoc is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    else
+        echo "❌ pandoc is required to continue"
+        echo "   Install it with your system package manager, then re-run this script"
+        exit 1
+    fi
+fi
+
+pandoc_ver="$(pandoc_version)"
+if [ -z "${pandoc_ver}" ]; then
+    echo "❌ Could not determine pandoc version"
+    echo "   Ensure pandoc is correctly installed and on PATH, then re-run this script"
+    exit 1
+fi
+
+if ! version_ge "${pandoc_ver}" "${MIN_PANDOC_VERSION}"; then
+    echo "❌ Pandoc version ${pandoc_ver} is too old (required: >= ${MIN_PANDOC_VERSION})"
+    if is_fedora; then
+        echo "   Fedora repositories may provide an older pandoc by default."
+        echo "   Install a newer upstream binary in ~/.local/bin to avoid changing the global install:"
+        echo "   curl -LO https://github.com/jgm/pandoc/releases/download/3.10.1/pandoc-3.10.1-linux-amd64.tar.gz"
+        echo "   tar -xzf pandoc-3.10.1-linux-amd64.tar.gz"
+        echo "   mkdir -p ~/.local/bin"
+        echo "   install -m 0755 pandoc-3.10.1/bin/pandoc ~/.local/bin/pandoc"
+        echo "   export PATH=\"$HOME/.local/bin:$PATH\""
+        echo "   Then re-run this script"
+    elif is_linux; then
+        echo "   Install a newer pandoc release (>= ${MIN_PANDOC_VERSION}) and re-run this script"
+    else
+        echo "   Upgrade pandoc to >= ${MIN_PANDOC_VERSION} and re-run this script"
+    fi
+    exit 1
+fi
+echo "✅ Pandoc is available"
+echo "   Detected pandoc version: ${pandoc_ver}"
 
 
 # Ensure required fonts are available for PDF rendering.
