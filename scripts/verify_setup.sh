@@ -460,6 +460,8 @@ echo "   Detected pandoc version: ${pandoc_ver}"
 
 # Ensure required fonts are available for PDF rendering.
 MONO_FONT_NAME="DejaVu Sans Mono"
+DEJAVU_FONT_NAME="DejaVu Sans"
+DEJAVU_FONT_CASK_NAME="dejavu-sans-fonts"
 BODY_FONT_NAME="Arial Unicode MS"
 BODY_FONT_CASK_NAME="font-arial-unicode-ms"
 BODY_FONT_FALLBACK_NAME="Noto Sans"
@@ -480,6 +482,9 @@ has_body_font() {
 missing_fonts=()
 if ! has_font "${MONO_FONT_NAME}"; then
     missing_fonts+=("${MONO_FONT_NAME}")
+fi
+if ! has_font "${DEJAVU_FONT_NAME}"; then
+    missing_fonts+=("${DEJAVU_FONT_NAME}")
 fi
 if ! has_body_font; then
     missing_fonts+=("${BODY_FONT_NAME}")
