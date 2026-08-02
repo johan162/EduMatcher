@@ -50,7 +50,7 @@ print_linux_manual_help() {
     echo ""
     echo "Example commands for Debian/Ubuntu (apt):"
     echo "  sudo apt update"
-    echo "  sudo apt install poetry fonts-dejavu-core fonts-noto-core build-essential libreadline-dev texlive-xetex"
+    echo "  sudo apt install poetry nodejs npm fonts-dejavu-core fonts-noto-core build-essential libreadline-dev texlive-xetex"
     echo "  sudo apt install chromium-browser  # or package name 'chromium' on some distros"
     echo ""
     echo "After installing the packages, run: ./scripts/verify_setup.sh"
@@ -142,6 +142,53 @@ if ! command -v poetry &> /dev/null; then
     fi
 fi
 echo "✅ Poetry is available"
+
+# Ensure Node.js and npm are available.
+if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
+    echo "❌ Node.js and npm are required but not fully available"
+    if is_fedora; then
+        if confirm_action "Would you like to install Node.js and npm now via dnf?"; then
+            sudo dnf install -y nodejs npm
+        else
+            echo "❌ Node.js and npm are required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for Node.js/npm is currently implemented only for Fedora Linux."
+        echo "   Install Node.js and npm manually, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install nodejs npm"
+        echo ""
+        echo "After installing Node.js/npm, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        if confirm_action "Would you like to install Node.js (includes npm) now via Homebrew?"; then
+            if ! command -v brew &> /dev/null; then
+                echo "❌ Homebrew not found. Install Homebrew first, then run:"
+                echo "   brew install node"
+                exit 1
+            fi
+            brew install node
+        else
+            echo "❌ Node.js and npm are required to continue"
+            echo "   Install Node.js (for example: brew install node) and re-run this script"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    else
+        echo "❌ Node.js and npm are required to continue"
+        echo "   Install them with your system package manager, then re-run this script"
+        exit 1
+    fi
+fi
+echo "✅ Node.js and npm are available"
 
 # Ensure native build tools are available.
 required_tools=(gcc make)
