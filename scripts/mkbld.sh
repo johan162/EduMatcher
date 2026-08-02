@@ -325,21 +325,23 @@ print_step_colored ""
 print_step_colored "🧪 PHASE 2: STATIC ANALYSIS WITH FLAKE8, MYPY, AND BLACK"
 print_step_colored ""
 
-# Step 2.1: Code formatting check with black
-run_command "poetry run black --check --diff src/ tests/" "Checking code formatting with black"
+# # Step 2.1: Code formatting check with black
+# run_command "poetry run black --check --diff src/ tests/" "Checking code formatting with black"
 
-# Step 2.2: Static analysis with flake8
-run_command "poetry run flake8 src/${PROGRAMNAME} tests/" "Running flake8 static analysis"
+# # Step 2.2: Static analysis with flake8
+# run_command "poetry run flake8 src/${PROGRAMNAME} tests/" "Running flake8 static analysis"
 
-# Step 2.3: Type checking with mypy
-run_command "poetry run mypy src/ tests/ --strict --ignore-missing-imports" "Running mypy type checking"
+# # Step 2.3: Type checking with mypy
+# run_command "poetry run mypy src/ tests/ --strict --ignore-missing-imports" "Running mypy type checking"
 
-# Step 2.4: Run pyright for additional static analysis (optional, can be added if pyright is set up)
-if command -v pyright >/dev/null 2>&1; then
-    run_command "poetry run pyright src/ tests/" "Running pyright static analysis"
-else
-    print_warning "Pyright not found, skipping pyright static analysis. Install with 'pip install pyright' for enhanced linting."
-fi
+# # Step 2.4: Run pyright for additional static analysis (optional, can be added if pyright is set up)
+# if command -v pyright >/dev/null 2>&1; then
+#     run_command "poetry run pyright src/ tests/" "Running pyright static analysis"
+# else
+#     print_warning "Pyright not found, skipping pyright static analysis. Install with 'pip install pyright' for enhanced linting."
+# fi
+
+run_command "make check" "Running static analysis and formatting checks with Makefile"
 
 
 # =====================================
