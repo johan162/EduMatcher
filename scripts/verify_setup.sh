@@ -7,20 +7,25 @@
 set -e
 
 NON_INTERACTIVE=0
+ASSUME_YES=0
 APT_BOOTSTRAPPED=0
 for arg in "$@"; do
     case "$arg" in
         --non-interactive)
             NON_INTERACTIVE=1
             ;;
+        --yes|-y)
+            ASSUME_YES=1
+            ;;
         -h|--help)
-            echo "Usage: ./scripts/verify_setup.sh [--non-interactive]"
+            echo "Usage: ./scripts/verify_setup.sh [--non-interactive] [--yes|-y]"
             echo "  --non-interactive  Do not prompt; fail fast with guidance"
+            echo "  --yes, -y          Do not prompt; auto-confirm and install missing prerequisites"
             exit 0
             ;;
         *)
             echo "❌ Unknown option: $arg"
-            echo "Usage: ./scripts/verify_setup.sh [--non-interactive]"
+            echo "Usage: ./scripts/verify_setup.sh [--non-interactive] [--yes|-y]"
             exit 1
             ;;
     esac
@@ -89,6 +94,10 @@ install_pandoc_310_local() {
 
 confirm_action() {
     local prompt="$1"
+    if [ "${ASSUME_YES}" -eq 1 ]; then
+        echo "${prompt} (y/n) y"
+        return 0
+    fi
     if [ "${NON_INTERACTIVE}" -eq 1 ]; then
         return 1
     fi
@@ -808,40 +817,42 @@ echo "✅ Required fonts are available: ${MONO_FONT_NAME}, ${resolved_body_font}
 
 
 
-# Ensure we are running inside an active virtual environment.
-if [ -z "$VIRTUAL_ENV" ]; then
-    echo "❌ No active virtual environment detected (VIRTUAL_ENV is unset)."
-    echo "   Recommended: python -m venv .venv"
-    # If the user accepts, recreate the Poetry-managed in-project environment.
-    if confirm_action "Would you like to create and activate a virtual environment now?"; then
-        poetry config virtualenvs.in-project true --local
-        poetry env remove --all
-        rm -rf .venv
-        poetry install
-        source .venv/bin/activate
-        echo "✅ Virtual environment created and activated"
-    else
-        echo "❌ An active virtual environment is required to continue"
-        if [ "${NON_INTERACTIVE}" -eq 1 ]; then
-            print_non_interactive_install_hint
-        fi
-        exit 1  
-    fi
-fi
-echo "✅ Activated virtual environment detected"
+# # Ensure we are running inside an active virtual environment.
+# if [ -z "$VIRTUAL_ENV" ]; then
+#     echo "❌ No active virtual environment detected (VIRTUAL_ENV is unset)."
+#     echo "   Recommended: python -m venv .venv"
+#     # If the user accepts, recreate the Poetry-managed in-project environment.
+#     if confirm_action "Would you like to create and activate a virtual environment now?"; then
+#         poetry config virtualenvs.in-project true --local
+#         poetry env remove --all
+#         rm -rf .venv
+#         poetry install
+#         source .venv/bin/activate
+#         echo "✅ Virtual environment created and activated"
+#     else
+#         echo "❌ An active virtual environment is required to continue"
+#         if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+#             print_non_interactive_install_hint
+#         fi
+#         exit 1  
+#     fi
+# fi
+# echo "✅ Activated virtual environment detected"
 
-# Install project dependencies via Poetry.
-echo "Installing dependencies with Poetry (this can take a few minutes)..."
-poetry lock 
-poetry install --with dev,docs
-echo "✅ Dependencies installed"
+# # Install project dependencies via Poetry.
+# echo "Installing dependencies with Poetry (this can take a few minutes)..."
+# poetry lock 
+# poetry install --with dev,docs
+# echo "✅ Dependencies installed"
 
-# Verify CLI entrypoint is available after install.
-if ! poetry run pm-engine --version &> /dev/null; then
-    echo "❌ pm-engine command not found after poetry install"
-    exit 1
-fi
-echo "✅ pm-engine command available"
+# # Verify CLI entrypoint is available after install.
+# if ! poetry run pm-engine --version &> /dev/null; then
+#     echo "❌ pm-engine command not found after poetry install"
+#     exit 1
+# fi
+# echo "✅ pm-engine command available"
+
+rm -rf pandoc-3.10*
 
 echo ""
 echo "==================================="

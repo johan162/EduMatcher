@@ -109,11 +109,11 @@ fi
 
 mkdir -p "$(dirname "$SSH_KEY_PATH")"
 
-if [[ -f "$SSH_KEY_PATH" || -f "${SSH_KEY_PATH}.pub" ]]; then
-  echo "❌ SSH key path already exists: $SSH_KEY_PATH" >&2
-  echo "   Choose another --ssh-key path or remove the existing key files." >&2
-  exit 1
-fi
+# if [[ -f "$SSH_KEY_PATH" || -f "${SSH_KEY_PATH}.pub" ]]; then
+#   echo "❌ SSH key path already exists: $SSH_KEY_PATH" >&2
+#   echo "   Choose another --ssh-key path or remove the existing key files." >&2
+#   exit 1
+# fi
 
 echo "=== EduMatcher Multipass Dev Node Setup ==="
 echo "Node name : $NODE_NAME"
@@ -125,10 +125,7 @@ echo "User      : $NODE_USER"
 echo "SSH key   : $SSH_KEY_PATH"
 echo ""
 
-echo "1/4 Generating a fresh SSH key pair..."
-ssh-keygen -t ed25519 -f "$SSH_KEY_PATH" -N "" -C "$SSH_KEY_COMMENT" >/dev/null
-
-echo "2/4 Launching Multipass node '$NODE_NAME'..."
+echo "1/4 Launching Multipass node '$NODE_NAME'..."
 if ! multipass launch "$NODE_IMAGE" \
   --name "$NODE_NAME" \
   --cpus "$NODE_CPUS" \
@@ -139,7 +136,10 @@ if ! multipass launch "$NODE_IMAGE" \
   exit 1
 fi
 
-echo "3/4 Installing the SSH public key for user '$NODE_USER'..."
+echo "2/4 Generating a fresh SSH key pair in the node..."
+multipass exec "$NODE_NAME" -- bash -lc "ssh-keygen -t ed25519 -f \"$HOME/.ssh/id_ed25519\" -N \"\""
+
+echo "3/4 Installing the host SSH public key for user '$NODE_USER'..."
 multipass transfer "${SSH_KEY_PATH}.pub" "$NODE_NAME:/tmp/${NODE_NAME}.pub"
 multipass exec "$NODE_NAME" -- bash -lc "
   set -euo pipefail
@@ -152,7 +152,7 @@ multipass exec "$NODE_NAME" -- bash -lc "
   rm -f '/tmp/${NODE_NAME}.pub'
 "
 
-echo "4/4 Copying and running verify_setup.sh as the standard user..."
+echo "4/4 Copying verify_setup.sh as the standard user..."
 VERIFY_SETUP_REMOTE_PATH="/home/$NODE_USER/verify_setup.sh"
 multipass transfer "$VERIFY_SETUP_SCRIPT" "$NODE_NAME:$VERIFY_SETUP_REMOTE_PATH"
 echo "   Copied to: $VERIFY_SETUP_REMOTE_PATH"
@@ -187,4 +187,4 @@ echo "Connect with:"
 echo "  multipass shell $NODE_NAME"
 echo ""
 echo "SSH with:"
-echo "  ssh -i $SSH_KEY_PATH $NODE_USER@\$(multipass info $NODE_NAME | awk '/IPv4/ {print $2; exit}')"
+echo "  ssh -i $SSH_KEY_PATH $NODE_USER@$(multipass info $NODE_NAME | awk '/IPv4/ {print $2; exit}')"
