@@ -81,8 +81,8 @@ $(INSTALL_STAMP): pyproject.toml $(LOCK_FILE)
 	@echo -e "$(DARKYELLOW)- Installing dependencies...$(NC)"
 	@poetry config virtualenvs.in-project true --local
 	@poetry env remove --all
-	rm -rf .venv
-	@poetry install
+	@rm -rf .venv
+	@poetry install --with dev,docs
 	@sleep 1
 	source .venv/bin/activate
 	@touch $(INSTALL_STAMP)
