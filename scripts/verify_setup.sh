@@ -50,7 +50,7 @@ print_linux_manual_help() {
     echo ""
     echo "Example commands for Debian/Ubuntu (apt):"
     echo "  sudo apt update"
-    echo "  sudo apt install poetry nodejs npm pandoc fonts-dejavu-core fonts-noto-core build-essential libreadline-dev texlive-xetex"
+    echo "  sudo apt install poetry nodejs npm pandoc fonts-dejavu-core fonts-noto-core build-essential libreadline-dev texlive-xetex texlive-latex-extra texlive-pictures"
     echo "  sudo apt install chromium-browser  # or package name 'chromium' on some distros"
     echo ""
     echo "After installing the packages, run: ./scripts/verify_setup.sh"
@@ -76,6 +76,11 @@ has_chrome() {
     command -v chrome &> /dev/null || \
     command -v chromium &> /dev/null || \
     command -v chromium-browser &> /dev/null
+}
+
+has_tex_file() {
+    local tex_file="$1"
+    kpsewhich "${tex_file}" >/dev/null 2>&1
 }
 
 has_readline_dev() {
@@ -382,6 +387,50 @@ if ! command -v xelatex &> /dev/null; then
 fi
 echo "✅ xelatex is available"
 
+# Ensure required TeX packages used by the PDF templates are installed.
+required_tex_files=(shorttoc.sty tcolorbox.sty tikzfill.image.sty)
+missing_tex_files=()
+for tex_file in "${required_tex_files[@]}"; do
+    if ! has_tex_file "${tex_file}"; then
+        missing_tex_files+=("${tex_file}")
+    fi
+done
+
+if [ ${#missing_tex_files[@]} -gt 0 ]; then
+    echo "❌ Missing required TeX packages/files: ${missing_tex_files[*]}"
+    if is_fedora; then
+        if confirm_action "Would you like to install the missing TeX Live packages now via dnf?"; then
+            sudo dnf install -y texlive-shorttoc texlive-tcolorbox texlive-tikzfill
+        else
+            echo "❌ Required TeX packages are missing"
+            echo "   Install texlive-shorttoc texlive-tcolorbox texlive-tikzfill and re-run this script"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for TeX helper packages is currently implemented only for Fedora Linux."
+        echo "   Install packages providing shorttoc.sty, tcolorbox.sty, and tikzfill.image.sty, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install texlive-latex-extra texlive-pictures"
+        echo ""
+        echo "After installing the TeX packages, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        echo "❌ Required TeX packages are missing: ${missing_tex_files[*]}"
+        echo "   Update/install your TeX distribution so it provides shorttoc, tcolorbox, and tikzfill, then re-run this script"
+        exit 1
+    else
+        echo "❌ Required TeX packages are missing: ${missing_tex_files[*]}"
+        echo "   Install the TeX packages that provide these files, then re-run this script"
+        exit 1
+    fi
+fi
+echo "✅ Required TeX packages are available: shorttoc, tcolorbox, tikzfill"
+
 # Ensure pandoc is available.
 MIN_PANDOC_VERSION="3.10.0"
 if ! command -v pandoc &> /dev/null; then
@@ -611,7 +660,7 @@ else
     resolved_body_font="${BODY_FONT_FALLBACK_NAME}"
 fi
 
-echo "✅ Required fonts are available: ${MONO_FONT_NAME}, ${resolved_body_font}"
+echo "✅ Required fonts are available: ${MONO_FONT_NAME}, ${resolved_body_font}, ${DEJAVU_FONT_NAME}"
 
 
 
