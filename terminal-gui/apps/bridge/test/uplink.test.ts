@@ -838,3 +838,132 @@ describe("symbol discovery", () => {
     expect(harness.uplink.symbols()).toEqual([]);
   });
 });
+
+describe("book snapshot for a newly connected tab", () => {
+  it("hands over the current merged book for every symbol seen", async () => {
+    /*
+     * A browser that reconnects still has the pre-outage book on screen and
+     * no way to know it is stale — the gateway will not resend a SNAP to
+     * *this* bridge, whose own CALF session never dropped. Without this the
+     * tab renders a stale price with the status strip back to "connected",
+     * which is the one failure this terminal must not have.
+     */
+    const { gateway, uplink } = await connected();
+    gateway.emit("SNAP|CH=TOP|SYM=AAPL|SEQ=1|TS=t1|BID=150.10|BIDSZ=1400|ASK=150.12|ASKSZ=900");
+    gateway.emit("MD|CH=TOP|SYM=AAPL|SEQ=2|TS=t2|BID=150.11");
+    gateway.emit("SNAP|CH=TOP|SYM=MSFT|SEQ=1|TS=t1|BID=421.00|ASK=421.05");
+    await waitFor(() => frameOf(uplink.bookSnapshot(), "top").length === 2, 2000, "both symbols cached");
+
+    const byName = Object.fromEntries(frameOf(uplink.bookSnapshot(), "top").map((f) => [f.sym, f]));
+
+    // The merged view, not the last delta: an MD carries only what moved.
+    expect(byName["AAPL"]).toMatchObject({ type: "top", bid: 150.11, ask: 150.12, askSz: 900 });
+    expect(byName["MSFT"]).toMatchObject({ type: "top", bid: 421.0 });
+  });
+
+  it("marks the replay as carrying no stream position", async () => {
+    // SEQ=0 is this codebase's existing "no usable position", and a consumer
+    // must not gap-check a replay against the live stream it is not part of.
+    const { gateway, uplink } = await connected();
+    gateway.emit("SNAP|CH=TOP|SYM=AAPL|SEQ=7|TS=t1|BID=150.10");
+    await waitFor(() => frameOf(uplink.bookSnapshot(), "top").length === 1, 2000, "the cached book");
+
+    expect(frameOf(uplink.bookSnapshot(), "top")[0]).toMatchObject({ seq: 0, ts: "" });
+  });
+
+  it("is empty before anything has arrived, rather than inventing a book", async () => {
+    const { uplink } = await connected();
+    expect(uplink.bookSnapshot()).toEqual([]);
+  });
+
+  it("replays halt and session state, not just prices", async () => {
+    /*
+     * A HALT badge on a symbol that resumed during the outage, or its
+     * absence on one that halted, is wrong in the direction that matters —
+     * and the frames that would have corrected it were broadcast to nobody
+     * while the tab was away.
+     */
+    const { gateway, uplink } = await connected();
+    gateway.emit("STATE|CH=STATE|SYM=*|SEQ=1|TS=t1|SESSION=CLOSING_AUCTION");
+    gateway.emit("STATE|CH=STATE|SYM=TSLA|SEQ=1|TS=t1|SESSION=HALTED|PREV=CONTINUOUS");
+    gateway.emit("CB|CH=CB|SYM=TSLA|SEQ=1|TS=t1|STATUS=HALTED|LEVEL=L2");
+    await waitFor(() => uplink.bookSnapshot().length === 3, 2000, "the cached state");
+
+    const replay = uplink.bookSnapshot();
+    expect(
+      frameOf(replay, "state")
+        .map((f) => f.sym)
+        .sort(),
+    ).toEqual(["*", "TSLA"]);
+    expect(frameOf(replay, "halt_context")[0]).toMatchObject({ sym: "TSLA", level: "L2" });
+  });
+
+  it("keeps only the newest state per symbol, since it describes now", async () => {
+    // A resume supersedes the halt that preceded it; replaying both would
+    // hand a tab a contradiction to resolve.
+    const { gateway, uplink } = await connected();
+    gateway.emit("STATE|CH=STATE|SYM=TSLA|SEQ=1|TS=t1|SESSION=HALTED");
+    gateway.emit("STATE|CH=STATE|SYM=TSLA|SEQ=2|TS=t2|SESSION=CONTINUOUS|PREV=HALTED");
+    // Not on length: one entry is satisfied by the halt alone, so waiting on
+    // it would read the cache before the resume landed.
+    await waitFor(
+      () => frameOf(uplink.bookSnapshot(), "state")[0]?.session === "CONTINUOUS",
+      2000,
+      "the resume to supersede the halt",
+    );
+
+    expect(frameOf(uplink.bookSnapshot(), "state")[0]).toMatchObject({ session: "CONTINUOUS" });
+  });
+
+  it("puts session and halt state before the prices they qualify", async () => {
+    const { gateway, uplink } = await connected();
+    gateway.emit("SNAP|CH=TOP|SYM=AAPL|SEQ=1|TS=t1|BID=150.10");
+    gateway.emit("STATE|CH=STATE|SYM=*|SEQ=1|TS=t1|SESSION=CLOSED");
+    await waitFor(() => uplink.bookSnapshot().length === 2, 2000, "both cached");
+
+    // A tab should know the market is closed before it is handed a price to
+    // render under that heading.
+    expect(uplink.bookSnapshot()[0]?.type).toBe("state");
+  });
+
+  it("hands out detached copies, so a later delta cannot mutate what a tab was sent", async () => {
+    const { gateway, uplink } = await connected();
+    gateway.emit("SNAP|CH=TOP|SYM=AAPL|SEQ=1|TS=t1|BID=150.10");
+    await waitFor(() => frameOf(uplink.bookSnapshot(), "top").length === 1, 2000, "the cached book");
+
+    const sent = frameOf(uplink.bookSnapshot(), "top")[0];
+    gateway.emit("MD|CH=TOP|SYM=AAPL|SEQ=2|TS=t2|BID=999.99");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect(sent).toMatchObject({ bid: 150.1 });
+  });
+});
+
+describe("malformed market data", () => {
+  it("drops a TRADE with no price rather than printing it at zero", async () => {
+    // decodeTrade defaults a missing PX to 0 so its return type stays total,
+    // and 0 renders on the tape as a real print of 0.00 for 0 shares. The
+    // tape is allowed to be missing a print; it is not allowed to invent one.
+    const { gateway, frames, errors } = await connected();
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|QTY=100|SIDE=BUY");
+    await waitFor(() => errors.some((e) => e.code === "MALFORMED_TRADE"), 2000, "the rejection");
+
+    expect(frameOf(frames, "trade")).toEqual([]);
+  });
+
+  it("drops a TRADE with no size for the same reason", async () => {
+    const { gateway, frames, errors } = await connected();
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=150.10|SIDE=BUY");
+    await waitFor(() => errors.some((e) => e.code === "MALFORMED_TRADE"), 2000, "the rejection");
+
+    expect(frameOf(frames, "trade")).toEqual([]);
+  });
+
+  it("still passes a well-formed print through untouched", async () => {
+    const { gateway, frames } = await connected();
+    gateway.emit("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=t1|PX=150.10|QTY=100|SIDE=BUY");
+    await waitFor(() => frameOf(frames, "trade").length === 1, 2000, "the print");
+
+    expect(frameOf(frames, "trade")[0]).toMatchObject({ px: 150.1, qty: 100, side: "BUY" });
+  });
+});

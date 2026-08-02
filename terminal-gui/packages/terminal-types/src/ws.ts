@@ -55,7 +55,25 @@ export interface HelloFrame {
   gateway: string | null;
 }
 
-export interface TopFrame {
+/**
+ * Marks a frame the bridge restated from its own cache when a tab connected,
+ * rather than one that just arrived from the gateway.
+ *
+ * A reconnecting tab has to be told the current book, session phase and halt
+ * state or it will keep rendering pre-outage values with confidence. But a
+ * restatement is not an observation: it must not advance a freshness clock,
+ * or a feed that has been silent for an hour would read "last tick 0s ago"
+ * the moment somebody refreshed the page — the precise false signal the data
+ * age exists to prevent (§ T-M4).
+ *
+ * Explicit rather than inferred from a zero `SEQ` or an empty `TS`, because a
+ * reader should not have to know which sentinel means what.
+ */
+export interface Replayable {
+  replay?: true;
+}
+
+export interface TopFrame extends Replayable {
   type: "top";
   sym: string;
   seq: number;
@@ -78,7 +96,7 @@ export interface TradeFrame {
   side: TradeSide;
 }
 
-export interface StateFrame {
+export interface StateFrame extends Replayable {
   type: "state";
   /**
    * `"*"` for an exchange-wide session transition, a concrete symbol for a
@@ -188,7 +206,7 @@ export interface AuctionIndicativeFrame {
   phase?: SessionPhase;
 }
 
-export interface HaltContextFrame {
+export interface HaltContextFrame extends Replayable {
   type: "halt_context";
   sym: string;
   seq: number;

@@ -290,3 +290,114 @@ doing eventually for other reasons; it is not the answer to this.
 T-H3 blocks nothing but touches every price on every screen, so it should land before
 the display work in Medium rather than after it. T-H4 and T-H5 are one piece of work.
 T-M1 is a scoping exercise with the gateway owner before it is an implementation.
+
+---
+
+# Addendum: pre-ship review
+
+**Date:** 2026-08-02
+**Scope:** final read of `terminal-gui/` before the first trading floor, after
+T-H1–T-H5, T-M1–T-M6 and T-L1–T-L4 were implemented.
+
+**Standard applied:** wrong data is catastrophic; absent data is a future
+improvement. Everything below is sorted by that test alone, not by effort or
+by how interesting it is.
+
+## Ship-blockers found in this pass, and fixed
+
+Three defects of the *wrong data* class. All three predate the remediation
+work; none was named by the original review; all are now fixed with tests.
+
+### A. Standing subscriptions were silently lost on every reconnect
+
+`WsFanout.unregister` releases a tab's `DEPTH`/`CB` holds the moment its
+socket closes — correct, and reference-counted across tabs. But nothing on
+the browser side ever re-declared them: the subscribing effects in
+`SymbolDetail` and `Session` are keyed on the symbol, not on the connection,
+so they never fire again.
+
+After any reconnect — a laptop waking, a wifi blip, a bridge restart — the
+depth ladder **froze on its last pre-outage frame and stayed there**, and
+halt detail stopped arriving. Nothing said so; the status strip returned to
+"connected". A frozen order book presented as live is the worst single
+failure this screen can have, and it never self-healed without a page
+reload.
+
+Fixed in `lib/ws.ts`: the client now holds standing interest and replays it
+on every open, before the status change so nothing races it.
+
+### B. A reconnected tab kept rendering pre-outage prices
+
+A new WebSocket client received `hello` and nothing else. The store was never
+cleared, so the previous book stayed on screen — indefinitely for any symbol
+that did not tick again soon — under a green connection indicator.
+
+The header comment in `lib/ws.ts` asserted the opposite: *"The bridge re-sends
+`hello` and fresh snapshots on every new connection, so a reconnected tab
+needs no catch-up logic of its own."* That was never true. It is the same
+defect class as T-H1's `buildRows` docstring, and it is what let both A and B
+go unnoticed — the comment answered the question, so nobody asked it.
+
+Fixed: the bridge now replays its cached session phase, per-symbol state,
+halt context and merged top-of-book to each new tab. Its own CALF session is
+unaffected by a browser socket closing, so it holds the correct answer
+already.
+
+### C. A malformed `TRADE` printed on the tape at 0.00
+
+`decodeTrade` defaults a missing `PX`/`QTY` to `0` so its return type stays
+total. A `TRADE` line lacking either therefore rendered as a real print of
+`0.00` for 0 shares, on the one screen people quote from. The known path —
+the payload-less `SNAP` a gateway sent after a `TRADE` `REPLAY_MISS` — was
+closed during T-H5, but nothing stopped a malformed line arriving another
+way.
+
+Fixed at the bridge: a `TRADE` without both fields is rejected as
+`MALFORMED_TRADE` rather than defaulted onward. The tape may be missing a
+print; it may not invent one.
+
+### A bug introduced by fix B, caught before it shipped
+
+The replayed frames initially advanced `lastTickAt`, so a feed silent for an
+hour would have read "last tick 0s ago" the instant anyone refreshed — the
+precise false signal T-M4 exists to give honestly. Frames restated from cache
+now carry `replay: true` and do not advance the freshness clock. The marker is
+explicit rather than inferred from a zero `SEQ`, so no reader has to know
+which sentinel means what.
+
+## Verified correct, for the record
+
+Checked specifically for falsehood and found sound: `price()`/`qty()` render
+`—` for anything non-finite rather than a number; the `TopCache` merge treats
+an explicit `null` as a withdrawal rather than an overwrite, and hands out
+detached copies; `previousCloses` derives "today" from the newest date in the
+window rather than per symbol; the auction indicative is cleared on every
+session transition; `notExecutableReason` matches the engine's own
+`is_matching_enabled` exactly; and the store's `reduceFrame` is exhaustive
+over `ServerFrame`, so a new frame type cannot be silently ignored.
+
+## Residual risk accepted for this release
+
+**A brief window of pre-outage prices on reconnect.** Between the socket
+opening and the replay arriving, the previous book is still on screen. It is
+milliseconds, the data age indicator remains honest throughout, and blanking
+the board on every wifi blip would be worse. Noted rather than fixed.
+
+
+## Future improvements — deliberately not done
+
+Everything here is *absent information*, never wrong information, and none of
+it should hold the release.
+
+| ID | Improvement | Why it was left |
+|---|---|---|
+| T-F1 | A time series of the indicative through a call phase | T-M1 shows the current indicative, updating and flashing direction. Watching price *formation* as a curve is the fuller pedagogical answer and is its own screen. |
+| T-F2 | Auction indicative on `AUCTION`'s `SNAP` | The channel has no snapshot by design. A tab joining mid-auction waits at most one interval (default 1s). Adding one would mean giving `AUCTION` snapshot semantics it deliberately lacks. |
+| T-F3 | Per-source age for the previous close | The live feed's age and the ten-second poll's age are both shown. The previous close only goes stale across a session boundary, which its query key now invalidates. A third figure was judged clutter. |
+| T-F4 | `AUCTION` gap repair via `RESUME` | `TRADE` gaps are repaired; `AUCTION` gaps are reported but not resumed. Lower volume, and the review named only the tape. |
+| T-F5 | Persisted sort and search on the Overview | Deliberately session-only: a wallboard left sorted would sit paused indefinitely with nobody to notice. Revisit if desk users outnumber displays. |
+| T-F6 | Non-colour affordance on the Movers bar itself | The bar is `aria-hidden` and now sits beside a signed figure with a caret. The bar's own fill is still colour-only. |
+| T-F7 | `AUCTION`/`CB` channels in the example clients | `docs/examples/calf/` covers `TOP`/`TRADE`/`STATE`/`DEPTH`/`INDEX`. Neither newer channel has a worked example. |
+| T-F8 | Palette declared as `rgb(var(--x) / <alpha-value>)` | Would make opacity modifiers work throughout instead of compiling to nothing. Deferred as a theme-wide change needing visual sign-off; a test now fails the build on any new occurrence. |
+| T-F9 | Depth ladder spaced by price | T-L1 states the distance as a figure instead. True proportional spacing collapses to unreadable slivers when one level sits far out, and needs a design answer rather than a code one. |
+| T-F10 | Read-only tier on `/api/symbols` | The alternative to `REF` considered and rejected in the original review. Still worth doing for other consumers; no longer needed by this terminal. |

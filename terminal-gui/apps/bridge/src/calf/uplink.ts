@@ -209,6 +209,17 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
    * otherwise harmless; the map is bounded by stream count, like `streams`.
    */
   private readonly pendingResumeTs = new Map<string, string>();
+  /**
+   * Last `STATE` and `CB` seen per symbol, for replay to a new tab.
+   *
+   * The bridge's own CALF session is unaffected by a browser socket closing,
+   * so these were received during the outage and delivered to nobody. Both
+   * describe *current state* rather than events -- which symbol is halted,
+   * what phase the exchange is in -- so replaying the newest is correct,
+   * where replaying a trade print would not be.
+   */
+  private readonly stateCache = new Map<string, Extract<ServerFrame, { type: "state" }>>();
+  private readonly cbCache = new Map<string, Extract<ServerFrame, { type: "halt_context" }>>();
 
   private reconnectDelayMs = RECONNECT_MIN_MS;
   private reconnectTimer: NodeJS.Timeout | null = null;
@@ -509,14 +520,32 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
         return;
 
       case "TRADE": {
+        // A TRADE line without a price or a size is malformed, not a print
+        // at zero. `decodeTrade` defaults both to 0 so its return type can
+        // stay total, and a 0 renders on the tape as `0.00` for 0 shares --
+        // a trade that never happened, quoted from a record people quote
+        // from. Dropped here rather than defaulted onward: the tape is
+        // allowed to be missing a print, and is not allowed to invent one.
+        if (fields["PX"] === undefined || fields["QTY"] === undefined) {
+          this.emit("gatewayError", { code: "MALFORMED_TRADE", detail: { ch, sym, ...fields } });
+          return;
+        }
         const trade = decodeTrade(fields);
         this.emit("frame", { type: "trade", sym, seq, ts, ...trade, side: trade.side as TradeSide });
         return;
       }
 
-      case "STATE":
-        this.emit("frame", { type: "state", sym, seq, ts, ...decodeState(fields) });
+      case "STATE": {
+        const stateFrame = { type: "state" as const, sym, seq, ts, ...decodeState(fields) };
+        // Cached for replay: a browser that reconnects has whatever halt
+        // badges and session phase it held before the drop, and the frames
+        // that would have corrected them were broadcast to nobody while it
+        // was away. A HALT badge on a symbol that resumed, or its absence on
+        // one that halted, is wrong in the direction that matters.
+        this.stateCache.set(sym, stateFrame);
+        this.emit("frame", stateFrame);
         return;
+      }
 
       case "INDEX":
         this.emit("frame", { type: "index", sym, seq, ts, ...decodeIndex(fields) });
@@ -550,13 +579,48 @@ export class CalfUplink extends EventEmitter<CalfUplinkEvents> {
         this.emit("frame", { type: "auction_result", sym, seq, ts, ...decodeAuction(fields) });
         return;
 
-      case "CB":
-        this.emit("frame", { type: "halt_context", sym, seq, ts, ...decodeCb(fields) });
+      case "CB": {
+        const cbFrame = { type: "halt_context" as const, sym, seq, ts, ...decodeCb(fields) };
+        this.cbCache.set(sym, cbFrame);
+        this.emit("frame", cbFrame);
         return;
+      }
 
       default:
         this.emit("gatewayError", { code: "UNKNOWN_CHANNEL", detail: { ch, msgType } });
     }
+  }
+
+  /**
+   * The current top of book for every symbol seen, as ready-to-send frames.
+   *
+   * A browser that reconnects has whatever it last received still on screen
+   * and no way to know it is stale: the gateway will not resend a `SNAP` to
+   * *this* bridge, whose own CALF session never dropped. Replaying the cache
+   * is what turns a reconnect back into a correct screen rather than a
+   * confident one (see `ws.ts`).
+   *
+   * `seq: 0` and an empty `ts` mark these as a replay rather than a fresh
+   * observation. A consumer must not sequence-check them -- they carry no
+   * position on any stream -- which is exactly what a zero `SEQ` already
+   * means everywhere else in this file.
+   */
+  bookSnapshot(): ServerFrame[] {
+    return [
+      // Session and halt state first: a tab should know the exchange is
+      // closed, or a symbol halted, before it is handed prices to render
+      // under that heading.
+      ...[...this.stateCache.values()].map((frame) => ({ ...frame, replay: true as const })),
+      ...[...this.cbCache.values()].map((frame) => ({ ...frame, replay: true as const })),
+      ...this.topCache.entries().map(([sym, book]) => ({
+        type: "top" as const,
+        sym,
+        seq: 0,
+        ts: "",
+        replay: true as const,
+        ...book,
+      })),
+    ];
   }
 
   private learnSymbol(sym: string): void {

@@ -100,6 +100,18 @@ app.get("/ws/stream", { websocket: true }, (socket) => {
     calf: uplink.state,
     gateway: uplink.gateway,
   });
+  /*
+   * The current book for every symbol, immediately after `hello`.
+   *
+   * Without this a reconnected tab keeps rendering whatever it held before
+   * the drop, indefinitely for any symbol that does not tick again soon,
+   * with the status strip back to "connected". A stale price presented with
+   * confidence is the one failure this terminal must not have, and the
+   * bridge already holds the correct answer -- its own CALF session is
+   * unaffected by a browser socket closing.
+   */
+  for (const frame of uplink.bookSnapshot()) hub.sendTo(socket, frame);
+
   socket.on("close", () =>
     log.info("terminal-bridge.ws-fanout", `browser disconnected (${hub.clientCount} open)`),
   );

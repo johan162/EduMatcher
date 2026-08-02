@@ -3,8 +3,20 @@
  *
  * There is no auth frame to negotiate, so this needs none of a trading
  * client's session complexity — connect, read JSON frames, retry with capped
- * backoff. The bridge re-sends `hello` and fresh snapshots on every new
- * connection, so a reconnected tab needs no catch-up logic of its own.
+ * backoff.
+ *
+ * **Standing interest is replayed on every reconnect, and must be.** The
+ * bridge reference-counts per-symbol channels across tabs and releases a
+ * tab's holds the moment its socket closes, which is correct — but it means
+ * a reconnected tab is subscribed to nothing beyond the wildcards, while its
+ * components still believe they asked. `DEPTH` and `CB` would simply stop
+ * arriving, and a depth ladder frozen on its last pre-outage frame is a book
+ * that is wrong rather than absent. The views cannot notice this themselves:
+ * their effects are keyed on the symbol, not on the connection.
+ *
+ * An earlier revision of this comment claimed the bridge sent "fresh
+ * snapshots on every new connection", which was never true and is what let
+ * both halves of the problem go unnoticed.
  */
 
 import type { ClientFrame, ServerFrame } from "@edumatcher/terminal-types";
@@ -18,6 +30,14 @@ export class TerminalStreamClient {
   private socket: WebSocket | null = null;
   private retryDelayMs = RETRY_INITIAL_MS;
   private stopped = false;
+  /**
+   * Control frames that describe standing interest, keyed so a matching
+   * release removes the right one.
+   *
+   * Held rather than merely forwarded, because the bridge forgets them when
+   * the socket closes and the views will never say them again.
+   */
+  private readonly standing = new Map<string, ClientFrame>();
 
   constructor(
     private readonly onFrame: (frame: ServerFrame) => void,
@@ -39,6 +59,9 @@ export class TerminalStreamClient {
 
     socket.addEventListener("open", () => {
       this.retryDelayMs = RETRY_INITIAL_MS;
+      // Before the status change, so anything reacting to "open" finds the
+      // subscriptions already re-declared rather than racing them.
+      for (const frame of this.standing.values()) this.transmit(frame);
       this.onStatus("open");
     });
 
@@ -64,6 +87,35 @@ export class TerminalStreamClient {
   }
 
   send(frame: ClientFrame): void {
+    this.remember(frame);
+    this.transmit(frame);
+  }
+
+  /**
+   * Record or forget standing interest, so it can be replayed on reconnect.
+   *
+   * `ping` carries no state. Everything else here is a declaration that
+   * stays true until withdrawn, which is exactly what a new connection has
+   * to be told again.
+   */
+  private remember(frame: ClientFrame): void {
+    switch (frame.t) {
+      case "subscribe":
+        this.standing.set(`${frame.ch}|${frame.sym}`, frame);
+        return;
+      case "unsubscribe":
+        this.standing.delete(`${frame.ch}|${frame.sym}`);
+        return;
+      case "halt_board":
+        if (frame.open) this.standing.set("halt_board", frame);
+        else this.standing.delete("halt_board");
+        return;
+      case "ping":
+        return;
+    }
+  }
+
+  private transmit(frame: ClientFrame): void {
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(frame));
     }

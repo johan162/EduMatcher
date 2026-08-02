@@ -47,6 +47,17 @@ export class TopCache {
     return this.bySymbol.get(symbol);
   }
 
+  /**
+   * Every symbol's current merged book, for replay to a newly-connected tab.
+   *
+   * Detached copies, for the same reason `merge` returns one: these are
+   * about to be handed to a browser and must not alias what the next delta
+   * merges onto.
+   */
+  entries(): Array<[string, TopOfBook]> {
+    return [...this.bySymbol.entries()].map(([sym, book]) => [sym, { ...book }]);
+  }
+
   get size(): number {
     return this.bySymbol.size;
   }

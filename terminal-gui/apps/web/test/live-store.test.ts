@@ -360,3 +360,41 @@ describe("next session transition (T-M6)", () => {
     expect(state().sessionNextPhase).toBeNull();
   });
 });
+
+describe("replayed state on reconnect", () => {
+  it("adopts the restated book, so a pre-outage price is replaced", () => {
+    apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", bid: 150.1, ask: 150.12 });
+    apply({ type: "top", sym: "AAPL", seq: 0, ts: "", replay: true, bid: 148.0, ask: 148.05 });
+
+    expect(state().top["AAPL"]).toMatchObject({ bid: 148.0, ask: 148.05 });
+  });
+
+  it("does not let a replay reset the data age", () => {
+    // A restatement is not an observation. Counting it would make an
+    // hour-silent feed read "last tick 0s ago" the moment somebody
+    // refreshed the page — the exact false signal the clock exists to
+    // prevent (T-M4).
+    apply({ type: "top", sym: "AAPL", seq: 1, ts: "t", bid: 150.1 });
+    const observed = state().lastTickAt;
+
+    apply({ type: "top", sym: "AAPL", seq: 0, ts: "", replay: true, bid: 148.0 });
+    apply({ type: "state", sym: "*", seq: 1, ts: "t", session: "CLOSED", replay: true });
+
+    expect(state().lastTickAt).toBe(observed);
+  });
+
+  it("still has no age reading when the only frames so far are a replay", () => {
+    // A tab that connects to a bridge holding an old cache has seen nothing
+    // arrive, and must say so rather than claim a fresh tick.
+    apply({ type: "top", sym: "AAPL", seq: 0, ts: "", replay: true, bid: 148.0 });
+    expect(state().lastTickAt).toBeNull();
+  });
+
+  it("corrects a halt badge that went stale during the outage", () => {
+    apply(state_("TSLA", "HALTED"));
+    expect(state().haltedList()).toHaveLength(1);
+
+    apply({ type: "state", sym: "TSLA", seq: 9, ts: "t2", session: "CONTINUOUS", replay: true });
+    expect(state().haltedList()).toEqual([]);
+  });
+});

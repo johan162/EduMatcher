@@ -359,7 +359,12 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
       // forgot. Only real market data counts — a `bridge_status` heartbeat
       // means the bridge is alive, which is exactly the thing this is
       // supposed to distinguish itself from (§ T-M4).
-      return MARKET_DATA_FRAMES.has(frame.type) ? { ...next, lastTickAt: Date.now() } : next;
+      // A replay is the bridge restating what it already held, not a new
+      // observation. Counting it would reset the data age on reconnect and
+      // make an hour-silent feed read as live — which is exactly the signal
+      // this clock exists to give honestly (§ T-M4).
+      const observed = MARKET_DATA_FRAMES.has(frame.type) && !("replay" in frame && frame.replay);
+      return observed ? { ...next, lastTickAt: Date.now() } : next;
     }),
 
   connectionState: () => {
