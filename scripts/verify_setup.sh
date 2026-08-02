@@ -246,11 +246,11 @@ poetry install --with dev,docs
 echo "✅ Dependencies installed"
 
 # Verify CLI entrypoint is available after install.
-if ! poetry run edumatcher --version &> /dev/null; then
-    echo "❌ edumatcher command not found after poetry install"
+if ! poetry run pm-engine --version &> /dev/null; then
+    echo "❌ pm-engine command not found after poetry install"
     exit 1
 fi
-echo "✅ edumatcher command available"
+echo "✅ pm-engine command available"
 
 echo ""
 echo "==================================="
