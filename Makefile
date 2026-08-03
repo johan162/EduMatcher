@@ -77,11 +77,15 @@ BUILD_SDIST  := $(DIST_DIR)/$(PYPI_NAME)-$(PYPI_VERSION).tar.gz
 # ============================================================================================
 # Timestamp dependencies
 # ============================================================================================
+
+# Install dependencies if pyproject.toml or poetry.lock changed
+# The lockfile dependency will createthe initial ".venv/" directory
+# 	@poetry config virtualenvs.in-project true --local
+#	@poetry env remove --all
+#	@rm -rf .venv
+
 $(INSTALL_STAMP): pyproject.toml $(LOCK_FILE)
 	@echo -e "$(DARKYELLOW)- Installing dependencies...$(NC)"
-	@poetry config virtualenvs.in-project true --local
-	@poetry env remove --all
-	@rm -rf .venv
 	@poetry install --with dev,docs
 	# Check if .venv/bin/activate exists
 	@if [ ! -f .venv/bin/activate ]; then \
