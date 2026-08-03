@@ -12,7 +12,7 @@
     - how to subscribe to a filtered subset of symbols and channels
     - how snapshot delivery works and when to expect a `SNAP`
     - how to detect sequence gaps and recover with `RESUME`
-    - how to write a working Python subscriber using the library in `examples/calf/`
+    - how to write a working Python subscriber using the library in `docs/examples/calf/`, or the production `edumatcher.calf_client` package
     - the exact fields carried by every message on every channel
     - what kinds of tools you can build on the feed, and how a browser client
       reaches it through a server-side WebSocket bridge
@@ -218,7 +218,6 @@ CLI override options:
 
 | Option | Default | Description |
 |---|---|---|
-| `--config` / `-c` | `engine_config.yaml` | Engine config YAML path |
 | `--bind ADDR` | from config / `0.0.0.0` | Override TCP bind address |
 | `--port PORT` | from config / `5570` | Override TCP listen port |
 | `--engine-pub ADDR` | `tcp://127.0.0.1:5556` | Override engine PUB socket address — always the fixed engine-side default; not configurable via the `market_data_gateway` YAML block |
@@ -876,19 +875,88 @@ to force a `SNAP` rather than relying on `RESUME` alone.
     correct the request and try again.
 
 
-## Python subscriber example
+## Examples and libraries
 
-The `examples/calf/` directory contains ready-to-run Python and C libraries.
+`docs/examples/calf/` contains ready-to-run Python and C clients, plus a
+standalone gap-recovery library, and the package ships a production-grade
+Python client as `edumatcher.calf_client`. Pick based on what you're doing:
 
 ```
-examples/calf/
-├── calf_parser.py        # parser + serializer library
-├── calf_subscriber.py    # full working subscriber example
-├── calf_parser.h         # C parser library
+docs/examples/calf/
+├── README.md              # what's here, and when to reach for edumatcher.calf_client instead
+├── calf_parser.py         # minimal parser + serializer library (Python)
+├── calf_subscriber.py     # full working subscriber example (Python)
+├── calf_parser.h          # minimal parser + serializer library (C)
 ├── calf_parser.c
-├── calf_subscriber.c     # C subscriber example
-└── Makefile
+├── calf_recovery.h        # sequence tracking / gap detection / replay
+├── calf_recovery.c        #   reconciliation — pure functions, no sockets
+├── calf_recovery_test.c   # self-test for calf_recovery, no gateway needed
+├── calf_subscriber.c      # full working subscriber example (C)
+└── Makefile               # builds calf_subscriber and calf_recovery_test
 ```
+
+!!! tip "Writing a real Python client? Don't start from the example."
+    [`edumatcher.calf_client`](#the-production-python-client-edumatchercalf_client)
+    ships with the package and already handles reconnect, gap repair, `REF`
+    precision, and optional cached state. `calf_subscriber.py` is deliberately
+    standalone — it exists to show the protocol itself, in a form that ports
+    cleanly to a language with no library yet, not to be imported.
+
+Each piece, in order of "how much does it do for you":
+
+| Piece | Language | What it is | When to reach for it |
+|---|---|---|---|
+| `edumatcher.calf_client` | Python | Production client library: reconnect/backoff, gap repair, `REF` precision, cached `MarketState` | Building a real Python bot, recorder, or dashboard backend |
+| `calf_subscriber.py` | Python | Full example: `TOP`/`TRADE`/`STATE`/`DEPTH`/`INDEX`, gap detection **and** `RESUME` repair, `REF`-aware price formatting | Learning the protocol in Python; porting the pattern to a language with no library |
+| `calf_subscriber.c` | C | Same coverage as the Python example, prices printed verbatim (no `REF` formatting) | Learning the protocol in C; a latency-sensitive or dependency-free environment |
+| `calf_recovery.h`/`.c` | C | Just the sequence-tracking/gap/replay state machine, socket-free | Understanding or reusing the recovery logic in isolation, independent of I/O |
+| `calf_parser.py` / `calf_parser.h`+`.c` | Python / C | Just the line parser/serializer (`MSGTYPE\|KEY=VALUE`) | Bootstrapping a client in a new language; no channel semantics, no `REF`, no recovery |
+
+### The production Python client: `edumatcher.calf_client`
+
+For real Python usage — not learning the wire format — use this instead of
+`calf_subscriber.py`. It is the same package the engine's own tooling is
+built on, so it stays correct as the protocol grows.
+
+```python
+from edumatcher.calf_client import CalfClient, CalfClientOptions
+
+client = CalfClient(CalfClientOptions(symbols=["AAPL"]))
+client.run(on_frame=lambda f: print(f.msg_type, f.fields))
+```
+
+It gives you two layers, and you pick per use case:
+
+- **Raw frames** — every message, already de-duplicated and gap-checked,
+  via the `on_frame` callback above.
+- **Cached state** — `client.state` (a `MarketState`, present when
+  `track_state=True`, the default) folds those frames into current
+  top-of-book, depth ladder, session phase, and halt status, so you read
+  "what is true now" instead of replaying deltas yourself:
+
+```python
+def on_frame(frame):
+    book = client.state.top("AAPL")
+    if book:
+        print(client.reference.format_price("AAPL", book.bid))
+
+client.run(on_frame=on_frame, on_gap=lambda g: print("lost", g.count))
+```
+
+`CalfClientOptions` covers the same ground you would otherwise hand-roll:
+`host`/`port`/`client_name`, `channels`/`symbols`/`index_ids` to subscribe
+on connect and again after every reconnect, `extra_subscriptions` for
+additional `(channel, symbol)` pairs held across reconnects the same way —
+the route to per-symbol `DEPTH`/`CB` alongside a wildcard `TOP`/`TRADE`/
+`STATE` subscription, since those can't ride one wildcard `SUB` together,
+`reconnect`/`reconnect_min_sec`/`reconnect_max_sec`/`connect_timeout_sec`
+for backoff, `ping_interval_sec` for keepalive, `track_state` to
+enable/disable the `MarketState` cache, `request_symbols` to send `SYMBOLS`
+after the handshake (on by default, since `WELCOME|SYMBOLS=` is optional),
+and `auto_recover` to control whether gaps are repaired automatically or
+only reported via `on_gap` — set it `False` for a passive observer (a spy,
+a tap, a recorder) that must show the wire exactly as it is, with nothing
+sent upstream and nothing withheld.
 
 ### Zero-dependency minimal client
 
@@ -921,7 +989,7 @@ while True:
 
 ### Using the `calf_parser.py` library
 
-`calf_parser.py` in `examples/calf/` provides `parse_calf_line` and
+`calf_parser.py` in `docs/examples/calf/` provides `parse_calf_line` and
 `build_calf_line`:
 
 ```python
@@ -1060,26 +1128,102 @@ with socket.create_connection(("127.0.0.1", 5570), timeout=5) as sock:
 
 ### Run the bundled examples
 
+`calf_subscriber.py` has no `--channels` flag — the channel set is fixed by
+design (it demonstrates the Cartesian-subscribe pattern, not a configurable
+client): it always subscribes to `TOP,TRADE,STATE,DEPTH` for the symbols you
+pass, filtered down to whatever `WELCOME|CH_SUPPORTED=` actually advertises,
+plus a separate session-wide `STATE|SYM=*` unless you pass
+`--no-state-wildcard`. `INDEX` is opt-in via `--index`, since it needs an
+index id rather than a symbol.
+
 ```bash
 cd docs/examples/calf
 
-# Subscribe to TOP and TRADE for one symbol
-python3 calf_subscriber.py --host 127.0.0.1 --port 5570 \
-    --channels TOP,TRADE --symbols AAPL
+# Default run: TOP/TRADE/STATE/DEPTH for one symbol, plus session-wide STATE
+python3 calf_subscriber.py --host 127.0.0.1 --port 5570 --symbols AAPL
 
-# Multiple channels and symbols
-python3 calf_subscriber.py --channels TOP,TRADE,STATE --symbols AAPL,MSFT
+# Several symbols
+python3 calf_subscriber.py --symbols AAPL,MSFT
 
-# Reconnect with single-stream replay
+# Also subscribe an index feed (skipped with a warning if INDEX isn't advertised)
+python3 calf_subscriber.py --symbols AAPL --index EDU100
+
+# Skip the extra session-wide STATE|SYM=* subscription
+python3 calf_subscriber.py --symbols AAPL --no-state-wildcard
+
+# Send one explicit RESUME after the handshake, to see replay in isolation
+# (gaps noticed while running are always resumed automatically, regardless
+# of this flag)
 python3 calf_subscriber.py --resume --resume-ch TOP --resume-sym AAPL --lastseq 1042
 ```
 
-For a C client (useful for latency-sensitive or non-Python environments):
+Run `python3 calf_subscriber.py --help` for the full flag list.
+
+For a C client (useful for latency-sensitive or dependency-free
+environments — it prints wire values verbatim and needs no `REF` handling):
 
 ```bash
 cd docs/examples/calf && make
-./calf_subscriber 127.0.0.1 5570
+./calf_subscriber 127.0.0.1 5570 AAPL,MSFT EDU100
 ```
+
+Arguments are positional: `host [port [symbols [index_id]]]`. `symbols` is
+a comma-separated list (default `AAPL`); `index_id` is optional and, if
+omitted, the `INDEX` subscription is skipped entirely. Press Ctrl-C for a
+clean shutdown — the client traps `SIGINT` and closes the socket instead of
+being killed mid-syscall.
+
+### The recovery library in isolation: `calf_recovery`
+
+Both the Python and C examples detect a `SEQ` gap and repair it with
+`RESUME` — not just notice it. In the C example that logic is factored out
+into `calf_recovery.h`/`.c`: a small state machine with no sockets, threads,
+or timers, built around the same three rules documented under
+[Gap detection and replay recovery](#gap-detection-and-replay-recovery)
+above (replay overlaps live traffic; a `SNAP` re-baselines and is never a
+gap; sequence never moves backward within one connection). Feed it
+`(msg_type, CH, SYM, SEQ)` for each inbound line and it tells you whether to
+process the message and whether to send a `RESUME`:
+
+```c
+calf_recovery_t rec;
+calf_recovery_init(&rec);
+calf_recovery_new_connection(&rec);          // after each connect
+
+calf_gap_t gap;
+calf_action_t act = calf_recovery_observe(&rec, msg.msg_type,
+                                          ch, sym, seq, &gap);
+if (act == CALF_DROP) continue;              // replayed duplicate
+if (act == CALF_RESUME) {
+    char line[CALF_RESUME_LINE_LEN];
+    calf_recovery_build_resume(line, sizeof(line), &gap);
+    send_line(fd, line);
+}
+if (act == CALF_GAP_UNREPAIRABLE) {
+    // no RESUME will fill this: TRADE/AUCTION have no SNAP, or the hole is
+    // outside the replay window. Surface it -- an unmarked hole is worse
+    // than one that admits it -- then use the message.
+}
+// CALF_PROCESS, or after any of the above: use the message
+```
+
+A fourth outcome, `CALF_GAP_UNREPAIRABLE`, means the hole cannot be closed
+at all — either the channel has no replay path (`TRADE`/`AUCTION`) or the
+gap is already outside the replay window. Don't fold it silently into the
+same handling as `CALF_PROCESS`.
+
+Because it takes no socket, it has its own self-test that runs without a
+gateway:
+
+```bash
+cd docs/examples/calf
+make test
+```
+
+Worth reading even if you're not writing C: the header comments in
+`calf_recovery.h` are a second, denser statement of the same recovery rules
+`calf_subscriber.py`'s `SequenceTracker` class implements in Python — seeing
+the same logic in two languages is often what makes it click.
 
 
 ## Common errors and fixes
@@ -1234,6 +1378,7 @@ ws.onmessage = (e) => {
 - [External Protocols Overview](210-protocols-overview.md) — ALF, BALF, CALF, RALF at a glance
 - [Appendix — CALF Protocol](920-app-calf-protocol.md) — normative wire format, full field tables, sequencing rules, including the `AUCTION` and `CB` message definitions
 - [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) — read-only CLI for watching the raw feed, human-readable or JSON
+- `docs/examples/calf/README.md` — the examples directory's own guide to what's there and which client to start from
 - [Risk Controls](120-risk-controls.md) — circuit-breaker mechanics behind the `CB` channel and `STATE` halt/resume events
 - [API Gateway](260-api-gateway.md) — REST and WebSocket market data alternative
 - [Post-Trade Dissemination (RALF)](250-ralf-gateway.md) — fills and post-trade events
