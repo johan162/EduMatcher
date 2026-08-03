@@ -83,7 +83,6 @@ $(INSTALL_STAMP): pyproject.toml $(LOCK_FILE)
 	@poetry env remove --all
 	@rm -rf .venv
 	@poetry install --with dev,docs
-	@sleep 1
 	source .venv/bin/activate
 	@touch $(INSTALL_STAMP)
 	@echo -e "$(GREEN)✓ Project dependencies installed$(NC)"
@@ -193,6 +192,17 @@ help: ## Show this help message
 # ============================================================================================
 install: $(INSTALL_STAMP) ## Install project dependencies into .venv
 	@:
+
+info-venv: ## List the current virtual environment path
+	@poetry env info --path
+
+list-venv: ## List all virtual environments managed by poetry
+	@poetry env list --full-path
+
+rm-venv: ## Remove all current virtual environment managed by poetry
+	@poetry env remove --all
+	@rm -rf .venv
+	@echo -e "$(GREEN)✓ All virtual environments removed$(NC)"
 
 reinstall: clean-venv install ## Remove .venv and reinstall from scratch
 	@echo -e "$(GREEN)✓ Project reinstalled$(NC)"
