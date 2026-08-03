@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 NODE_NAME="pm-devnode"
 NODE_IMAGE="lts"
-NODE_CPUS="4"
+NODE_CPUS="6"
 NODE_MEMORY="12G"
 NODE_DISK="50G"
 NODE_USER="ubuntu"
@@ -162,6 +162,22 @@ multipass exec "$NODE_NAME" -- bash -lc "
   chmod +x '$VERIFY_SETUP_REMOTE_PATH'
   '$VERIFY_SETUP_REMOTE_PATH' --yes
 "
+
+echo "Restarting the node to ensure all changes take effect..."
+multipass restart "$NODE_NAME"
+sleep 5  # Wait a few seconds for the node to restart
+
+echo ""
+echo "✅ Multipass development node '$NODE_NAME' is ready."
+echo ""
+echo "Connect with:"
+echo "  multipass shell $NODE_NAME"
+echo ""
+echo "SSH with:"
+echo "  ssh -i $SSH_KEY_PATH $NODE_USER@$(multipass info $NODE_NAME | awk '/IPv4/ {print $2; exit}')"
+
+
+# Notes:
 # Standard updates
 # sudo apt update -y
 # sudo apt upgrade -y
@@ -179,12 +195,3 @@ multipass exec "$NODE_NAME" -- bash -lc "
 # wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 # mv google-chrome-stable_current_amd64.deb /tmp/
 # sudo apt install -y /tmp/google-chrome-stable_current_amd64.deb
-
-echo ""
-echo "✅ Multipass development node '$NODE_NAME' is ready."
-echo ""
-echo "Connect with:"
-echo "  multipass shell $NODE_NAME"
-echo ""
-echo "SSH with:"
-echo "  ssh -i $SSH_KEY_PATH $NODE_USER@$(multipass info $NODE_NAME | awk '/IPv4/ {print $2; exit}')"
