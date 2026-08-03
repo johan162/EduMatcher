@@ -510,7 +510,7 @@ function parseApiGateways(node: unknown, draft: EngineConfigDraft): void {
     gateways.push({
       name,
       enabled: asBool(value.enabled, true),
-      host: asString(value.host) ?? "127.0.0.1",
+      host: asString(value.host) ?? "0.0.0.0",
       port: asNumber(value.port) ?? 8080,
       swaggerEnabled: asBool(value.swagger_enabled, true),
       logLevel:

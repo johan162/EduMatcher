@@ -229,7 +229,7 @@ def test_builder_with_api_gateway_generates_credentials() -> None:
     payload = ConfigBuilder(spec).build()
 
     api_gateway = payload["api_gateways"]["desk"]
-    assert api_gateway["host"] == "127.0.0.1"
+    assert api_gateway["host"] == "0.0.0.0"
     assert api_gateway["port"] == 8080
     assert api_gateway["rate_limit"] == {"writes_per_second": 10, "burst": 20}
     assert api_gateway["timeouts"]["wait_ack_sec"] == 3.0

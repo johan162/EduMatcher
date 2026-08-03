@@ -58,7 +58,7 @@ class ApiGatewayConfig:
 
     name: str = "default"
     enabled: bool = True
-    host: str = "127.0.0.1"
+    host: str = "0.0.0.0"
     port: int = 8080
     engine_pull_addr: str = ENGINE_PULL_ADDR
     engine_pub_addr: str = ENGINE_PUB_ADDR
@@ -178,7 +178,7 @@ def _load_api_gateway_section(
     return ApiGatewayConfig(
         name=gateway_name,
         enabled=bool(section.get("enabled", True)),
-        host=str(section.get("host", "127.0.0.1")),
+        host=str(section.get("host", "0.0.0.0")),
         port=port,
         engine_pull_addr=str(section.get("engine_pull_addr", ENGINE_PULL_ADDR)),
         engine_pub_addr=str(section.get("engine_pub_addr", ENGINE_PUB_ADDR)),

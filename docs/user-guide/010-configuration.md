@@ -791,7 +791,7 @@ pm-config-gen \
   --outstanding-shares MSFT:7430000000 \
   --api-gateway \
   --api-gateway-readonly-key \
-  --api-gateway-host 127.0.0.1 \
+  --api-gateway-host 0.0.0.0 \
   --api-gateway-port 8080 \
   --seed 20260624 \
   --output engine_config.yaml
@@ -803,7 +803,7 @@ Expected emitted section shape:
 api_gateways:
   default:
     enabled: true
-    host: 127.0.0.1
+    host: 0.0.0.0
     port: 8080
     swagger_enabled: true
     log_level: info
@@ -1206,7 +1206,7 @@ Minimal generated example:
 api_gateways:
   desk:
     enabled: true
-    host: 127.0.0.1
+    host: 0.0.0.0
     port: 8080
     swagger_enabled: true
     log_level: info

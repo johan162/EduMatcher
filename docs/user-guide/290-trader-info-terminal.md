@@ -3,51 +3,49 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - What the Trader Information Terminal is, who it is for, and how it
-      relates to `pm-trading-ui`, `config-gui`, and the CALF market-data feed
-    - The architecture: a single Node/Fastify bridge process that holds the
-      one live CALF connection and proxies historical REST reads, in front of
-      a React/Vite frontend — and why no browser ever holds a credential
-    - Every way to run it — local development, or a single self-contained
-      container — and what each needs
-    - What each of the six screens shows, why it is organised the way it is,
-      and where the data on screen actually comes from
-    - A number of deliberate, sometimes surprising design choices — verified
-      against the shipped code, not just the design document — that are easy
-      to misread as bugs if you don't know the reasoning behind them
-    - How to configure the bridge and diagnose the most common problems
+    - What the Trader Information Terminal is for, and when to use it instead
+      of a trading or administration tool
+    - Which services must be running before the display becomes useful
+    - How to start the terminal locally or in a container
+    - What each of the six screens is meant to help a viewer understand
+    - How to recognise normal disconnected, missing-history, and no-index
+      states without mistaking them for broken screens
+    - Which settings an operator is most likely to adjust
 
 
 ## Overview
 
-**TapeDeck** is the friendly nick-name this guide uses 
-for this oart of the EduExchange with a systemn name of  `pm-terminal` 
-(directory: `terminal-gui/`) — a read-only, 
-credential-free market-data viewer for the EduMatcher exchange.
-It is, deliberately, *not* the trading application: there is no order entry,
-no login, and no write path anywhere in it. This is a window to the EduChange 
-market using several different views. This is way of visualizing 
-all the inforamtion the exchange make available throiugh its data-market-feed 
-protocol [CALF](240-calf-gateway.md)
+**TapeDeck** is the friendly nickname this guide uses for the Trader
+Information Terminal, whose system name is `pm-terminal` and whose source code
+lives in `terminal-gui/`. It is a read-only market display for the EduMatcher
+exchange: a browser window for watching live prices, trades, auctions, halts,
+indexes, and depth-of-book information.
+
+It is deliberately *not* a trading application. There is no order entry, no
+login screen, and no write path from the browser back into the exchange. Use it
+for a classroom wallboard, a demo display, an observer workstation, or a quick
+operator check that the market-data feed is alive. Use the trading client for
+placing orders, and the administration tools for changing exchange state.
+
+The terminal shows live data from the [CALF market-data feed](240-calf-gateway.md)
+and reads historical bars and index history through the [API Gateway](260-api-gateway.md).
+The browser never sees an API key; the small bridge process running beside the
+web UI holds the upstream connections.
 
 
-### Architecture in one paragraph
+### What starts when you run it
 
-A single Node/Fastify process, `pm-terminal-bridge` (`apps/bridge/`), holds
-**exactly one** upstream connection to the live market: a CALF TCP session to
-[`pm-md-gwy`](240-calf-gateway.md), subscribed to `TOP`, `TRADE`, `STATE`, and
-`AUCTION` for every symbol (`SYM=*`) plus `INDEX` for whichever indexes are
-configured. `DEPTH` and `CB` (circuit-breaker detail) are the two exceptions:
-both are per-symbol channels, so the bridge only subscribes to them for
-symbols someone is actually looking at, reference-counted across every open
-browser tab. The bridge translates every CALF line into a small JSON frame
-and fans it out over a WebSocket (`/ws/stream`) to every connected browser
-tab — there is no per-tab CALF session. Historical data (daily bars, intraday
-trades, index series, price-snapshot midpoints) is never on the CALF wire by
-design, so the bridge also proxies a handful of
-[`pm-api-gwy`](260-api-gateway.md) `GET /history/*` endpoints, holding the one
-read-only API key server-side. **No credential of any kind ever reaches the
-browser.**
+Running TapeDeck starts one server process, `pm-terminal-bridge`, and serves
+the web page from that same process in the container setup. The bridge opens
+one live CALF connection to [`pm-md-gwy`](240-calf-gateway.md), shares that
+single feed across every open browser tab, and opens history requests to
+[`pm-api-gwy`](260-api-gateway.md) when charts or previous-close data are
+needed. Optional operational logs go to
+[the centralized log server](280-log-srv.md) when it is available.
+
+Most users do not need the following diagram to operate the terminal, but it
+is useful when deciding which host names and ports to put in the container
+environment.
 
 ```mermaid
 flowchart LR
@@ -65,14 +63,132 @@ flowchart LR
 
 | Requirement | Notes |
 |---|---|
-| **Node.js ≥ 20** | Developed against Node 22 LTS. |
-| **npm ≥ 10** | Bundled with Node.js ≥ 20. |
-| A reachable **`pm-md-gwy`** ([CALF gateway](240-calf-gateway.md)) | The bridge's only live-data source. Without it, the UI renders its disconnected (`OFFLINE`) state — it never shows stale data instead. |
-| A reachable **`pm-api-gwy`** ([API Gateway](260-api-gateway.md)) with a read-only API key | Needed for every historical chart and the Overview/Movers `Open`/`Volume` columns. The live screens still work without it — only history requests fail. |
-| A reachable **`pm-log-srv`** ([Centralized Log Server](280-log-srv.md)) — optional | The bridge falls back to plain stdout logging if it is not reachable at startup; this is a normal condition, not an error. |
-| **Podman ≥ 4** or **Docker ≥ 24** with a Compose plugin — only for the container path | Same auto-detection convention as `config-gui`'s `Makefile`. |
+| **`pm-md-gwy`** ([CALF gateway](240-calf-gateway.md)) | Required for live prices, trades, session state, auctions, halts, indexes, and depth. The terminal can start without it, but it will show `RECONNECTING`/`OFFLINE` until the feed is reachable. |
+| **`pm-api-gwy`** ([API Gateway](260-api-gateway.md)) with a read-only API key | Required for charts, previous-close data, index history, and Overview/Movers `Open`/`Volume` columns. Live prices still tick without it. |
+| **`pm-log-srv`** ([Centralized Log Server](280-log-srv.md)) — optional | Used only for operational logs. If it is unavailable, the terminal still starts and writes to stdout or the local failover log directory. |
+| **Podman ≥ 4** or **Docker ≥ 24** with a Compose plugin | Needed for the recommended container run path. |
+| **Node.js ≥ 20** and **npm ≥ 10** | Needed only for local development without a container. |
 
 ## Running the application
+
+### Recommended: run the container
+
+Start the exchange services first, or at least know where they are reachable
+from inside the container:
+
+1. Start `pm-md-gwy` so live CALF market data is available.
+2. Start `pm-api-gwy` and provide a read-only `PM_TERMINAL_API_KEY` if you want
+    charts, previous-close comparisons, and historical index data.
+3. Optionally start `pm-log-srv` for centralized operational logs.
+4. Start TapeDeck and open the browser.
+
+From `terminal-gui/`:
+
+```bash
+export PM_TERMINAL_API_KEY='...'   # read-only API-gateway key, history only
+make up                            # auto-detects Docker or Podman
+```
+
+Then open **http://localhost:8090**. Use `make logs` to follow the bridge log
+and `make down` to stop the container.
+
+The Compose file defaults to services on the host machine. The defaults work
+on Docker Desktop. On Podman, or if Linux Docker cannot resolve
+`host.docker.internal`, set the host names explicitly before starting:
+
+```bash
+export CALF_HOST=host.containers.internal
+export API_GATEWAY_URL=http://host.containers.internal:8080
+export LOG_SRV_HOST=host.containers.internal
+make up
+```
+
+Use `TERMINAL_GUI_PORT` if port `8090` is already taken on the host:
+
+```bash
+TERMINAL_GUI_PORT=8091 make up
+```
+
+The container serves the built React frontend, the WebSocket endpoint, and the
+small read-only history proxy from the same port. There is no database volume:
+the only bind mount is `./logs:/app/logs`, used when the optional log server is
+not reachable after startup.
+
+### Alternative: direct Compose commands
+
+```bash
+PM_TERMINAL_API_KEY='...' docker compose up --build -d
+docker compose logs -f terminal-gui
+docker compose down
+```
+
+With Podman, use `podman-compose` for the same commands.
+
+### Running on a separate display server
+
+TapeDeck does not have to run on the same machine as the matching engine,
+`pm-md-gwy`, or `pm-api-gwy`. A common deployment is:
+
+- **Exchange server**: runs the engine, `pm-md-gwy`, `pm-api-gwy`, and
+  optionally `pm-log-srv`.
+- **Display server**: runs only the TapeDeck container and serves the browser
+  UI to viewers.
+
+No protocol change is needed on the exchange side. The terminal bridge is just
+another external CALF client plus a read-only history client. The practical
+requirements are:
+
+| Exchange-side item | What to check |
+|---|---|
+| `pm-md-gwy` | It normally binds to `0.0.0.0:5570`, so no application change is needed unless your config deliberately set `market_data_gateway.bind_address` to `127.0.0.1`. The display server must be able to open TCP `5570` on the exchange host. |
+| `pm-api-gwy` | It normally binds to `0.0.0.0:8080`, so no application change is needed unless your config deliberately set `api_gateways.<name>.host` to `127.0.0.1`. The display server must be able to reach HTTP `8080`. |
+| API key | Create or reuse a read-only `pm-api-gwy` key with `gateway_id: null`; TapeDeck only needs history reads and never sends the key to browsers. |
+| `pm-log-srv` | Optional. If you want centralized terminal logs, make TCP `5600` reachable and set `LOG_SRV_HOST` on the display server. If not, set `LOG_SRV_ENABLED=false` or let the container write its fallback log to `./logs`. |
+| Firewall / routing | Open only the ports the display server actually needs: TCP `5570` for CALF, TCP `8080` for history, and optionally TCP `5600` for logs. Browsers only need access to the display server's `8090` port, not to the exchange gateways. |
+
+On the display server, use the prepared image rather than building from source.
+The exact image name depends on how the release was delivered:
+
+```bash
+# Option A: image from a registry
+podman pull edumatcher-terminal-gui:<VERSION>
+
+# Option B: image tarball from a release bundle
+podman load --input edumatcher-terminal-gui-<VERSION>.tar.gz
+```
+
+Then run the container, pointing it at the exchange server's network name or IP
+address:
+
+```bash
+mkdir -p logs
+
+podman run -d --name terminal-gui \
+  --restart unless-stopped \
+  -p 8090:8090 \
+  -v "$PWD/logs:/app/logs" \
+  -e CALF_HOST=exchange.example.org \
+  -e CALF_PORT=5570 \
+  -e API_GATEWAY_URL=http://exchange.example.org:8080 \
+  -e PM_TERMINAL_API_KEY='...' \
+  -e INDEX_IDS=MAIN \
+  -e LOG_SRV_ENABLED=false \
+  edumatcher-terminal-gui:<VERSION>
+```
+
+Use `docker` instead of `podman` if that is your container runtime. If
+centralized logging is available, replace `LOG_SRV_ENABLED=false` with:
+
+```bash
+-e LOG_SRV_ENABLED=true \
+-e LOG_SRV_HOST=exchange.example.org \
+-e LOG_SRV_PORT=5600
+```
+
+After startup, open **http://display-server.example.org:8090** from a browser.
+If the page loads but shows `RECONNECTING`, the display server can serve the
+UI but cannot reach `pm-md-gwy`. If live prices tick but charts or previous
+close values are missing, check `API_GATEWAY_URL` and `PM_TERMINAL_API_KEY`.
 
 ### Local development
 
@@ -83,28 +199,12 @@ make install    # npm workspace install
 make dev        # bridge on :8090, Vite dev server on :5179
 ```
 
-`make dev-bridge` alone needs a running `pm-md-gwy` on `:5570` — the UI shows
-its disconnected state until one is reachable. `make dev-web` runs only the
-Vite dev server. `make test` runs the Vitest suite across every workspace.
-
-### Single container
-
-A production deployment is one container: the Fastify bridge serves the
-built React frontend itself, so there is exactly one port to expose.
-
-```bash
-docker compose up --build     # or: podman compose up --build
-```
-
-Reach the application at **http://localhost:8090**. Point the `CALF_HOST`,
-`API_GATEWAY_URL`, and `LOG_SRV_HOST` environment variables (see
-[Configuration reference](#configuration-reference)) at wherever those
-processes are actually reachable from inside the container —
-`host.docker.internal` is the usual choice for services running on the
-Docker/Podman host itself. Unlike `config-gui`, there is no database volume:
-the bridge holds no durable state of its own beyond its in-memory CALF
-bookkeeping. The one volume mount (`/app/logs`) exists only for the
-operational-log fallback file written when `pm-log-srv` is unreachable.
+Open **http://localhost:5179** for the Vite development server. The web app
+talks to the bridge on **http://localhost:8090**. If `pm-md-gwy` is not yet
+running, the page can load but the connection indicator will show
+`RECONNECTING`/`OFFLINE` until the feed appears. `make dev-bridge` runs only
+the bridge, `make dev-web` runs only the web server, and `make test` runs the
+Vitest suite across the workspace.
 
 ## A tour of the interface
 
@@ -137,8 +237,7 @@ numbers, not navigation chrome) holding:
 
 A single-line summary meant to be readable from across a room: the current
 session phase (blank/no badge during `CONTINUOUS` — the absence of a badge
-*is* the "everything is normal" signal, see
-[Design choices worth knowing about](#design-choices-worth-knowing-about)),
+*is* the "everything is normal" signal),
 a countdown to the next scheduled phase transition when the feed has named
 one, the number of currently-halted symbols, the total symbol count, the
 CALF connection state, **the age of the last market-data tick**, and a UTC
@@ -332,8 +431,7 @@ gap where the pause was.
     prints or, worse, saying nothing at all. A record with an unmarked hole
     in it is worse than one that admits the hole, because a viewer has no
     way to tell it apart from a genuinely quiet stretch. This is the direct
-    result of a real CALF protocol fix made while building TapeDeck — see
-    [Design choices worth knowing about](#design-choices-worth-knowing-about).
+    result of a real CALF protocol fix made while building TapeDeck.
 
 ### Movers
 
@@ -379,28 +477,29 @@ content. Suggested file: `images/terminal-gui/fig-08-session-board.png`.
 
 ## Configuration reference
 
-The bridge is configured entirely through environment variables as the
-normal way of running hte applicatio is as a container and all environment 
-variable are easily controlled in the container files.
+The container is configured with environment variables. Most installations only
+need to set `PM_TERMINAL_API_KEY` and, when the upstream services are not on the
+default host names, `CALF_HOST`, `API_GATEWAY_URL`, and `LOG_SRV_HOST`.
 
-| Variable | Default | Purpose |
+| Variable | Container default | Purpose |
 |---|---|---|
-| `HOST` / `PORT` | `127.0.0.1` / `8090` | Bridge bind address |
+| `TERMINAL_GUI_PORT` | `8090` | Host port exposed by `docker-compose.yml`; use this when `8090` is already in use. |
+| `HOST` / `PORT` | `0.0.0.0` / `8090` | Bridge bind address inside the container. |
 | `CORS_ORIGIN` | `*` | CORS allow-list |
 | `STATIC_DIR` | — | Serve a built frontend from here (single-container mode) |
 | `MAX_WS_CLIENTS` | `200` | Browser-tab cap |
-| `CALF_HOST` / `CALF_PORT` | `127.0.0.1` / `5570` | `pm-md-gwy` |
+| `CALF_HOST` / `CALF_PORT` | `host.docker.internal` / `5570` | `pm-md-gwy`; use `host.containers.internal` for Podman if needed. |
 | `CALF_CLIENT_ID` | `pm-terminal-bridge` | CALF `HELLO.CLIENT` |
 | `CALF_PING_INTERVAL_SEC` | `60` | Keepalive; belt-and-braces now that the gateway's idle timer honours outbound traffic too |
 | `INDEX_IDS` | — | Comma-separated index ids to subscribe to (CALF has no "list the indexes" request) |
-| `API_GATEWAY_URL` | `http://127.0.0.1:8080` | `pm-api-gwy` |
+| `API_GATEWAY_URL` | `http://host.docker.internal:8080` | `pm-api-gwy`; use `host.containers.internal` for Podman if needed. |
 | `PM_TERMINAL_API_KEY` | — | Read-only (`gateway_id: null`) key, history reads only — never sent to the browser |
 | `LOG_SRV_ENABLED` | `true` | `false` skips even the startup probe |
-| `LOG_SRV_HOST` / `LOG_SRV_PORT` | `127.0.0.1` / `5600` | `pm-log-srv` |
+| `LOG_SRV_HOST` / `LOG_SRV_PORT` | `host.docker.internal` / `5600` | `pm-log-srv`; use `host.containers.internal` for Podman if needed. |
 | `LOG_CONNECT_TIMEOUT_SEC` | `0.5` | Startup probe and each reconnect attempt |
 | `LOG_FAILOVER_TIMEOUT_SEC` | `30` | Grace window before the one-way switch to a local log file |
 | `LOG_QUEUE_MAXSIZE` | `2000` | Bounded backlog while reconnecting |
-| `LOG_FAILOVER_DIR` | `<data>/logs` | Where the post-failover log file goes |
+| `LOG_FAILOVER_DIR` | `/app/logs` | Where the post-failover log file goes; bind-mounted to `./logs` by Compose. |
 
 ## Troubleshooting
 

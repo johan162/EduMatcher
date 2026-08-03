@@ -148,7 +148,7 @@ export const DEFAULT_LOG_SERVER = {
 
 export const DEFAULT_API_GATEWAY = {
   name: "default",
-  host: "127.0.0.1",
+  host: "0.0.0.0",
   port: 8080,
   swaggerEnabled: true,
   logLevel: "info" as "debug" | "info" | "warning" | "error",

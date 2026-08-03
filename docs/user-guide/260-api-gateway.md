@@ -47,7 +47,7 @@ Use the top-level key `api_gateways` (underscore). The dashed form
 api_gateways:
   desk:
     enabled: true
-    host: 127.0.0.1
+    host: 0.0.0.0
     port: 8080
     swagger_enabled: true
     log_level: info
@@ -80,6 +80,11 @@ api_gateways:
 | `credentials[].gateway_id` | Engine gateway identity; `null` means read-only market-data access; non-null values must be unique across `api_gateways` entries |
 | `rate_limit` | Per-key write limiting for POST/PATCH/DELETE endpoints |
 | `timeouts` | Engine auth, request/reply, and synchronous ACK wait timeouts |
+
+`host` defaults to `0.0.0.0`, matching the external TCP gateways: the API
+gateway is intended to be reachable by browser clients, API clients, and
+read-only dashboards on other machines. Set it to `127.0.0.1` only for a
+loopback-only lab or when a reverse proxy on the same host is the only caller.
 
 The engine's `gateways.alf` allowlist remains authoritative. If a credential
 maps to `TRADER01` but `TRADER01` is not allowed by the engine config, the

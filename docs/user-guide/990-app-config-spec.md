@@ -450,7 +450,7 @@ be rejected.
 | Field | Type | Req | Default | Constraints |
 |-------|------|:---:|---------|-------------|
 | `enabled` | `Bool` | – | `true` | |
-| `host` | `Str` | – | `"127.0.0.1"` | |
+| `host` | `Str` | – | `"0.0.0.0"` | use `127.0.0.1` for loopback-only deployments |
 | `port` | `Port` | – | `8080` | `> 0` |
 | `log_level` | `Str` | – | `"info"` | |
 | `swagger_enabled` | `Bool` | – | `true` | |
