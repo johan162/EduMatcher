@@ -67,13 +67,13 @@ def index_zmq_pair() -> (
     reply on — bound on ports distinct from the real pm-index defaults so
     this never collides with a locally-running instance.
     """
-    pull_addr = "tcp://127.0.0.1:16559"
-    pub_addr = "tcp://127.0.0.1:16558"
     ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
     fake_pull = ctx.socket(zmq.PULL)
-    fake_pull.bind(pull_addr)
+    pull_port = fake_pull.bind_to_random_port("tcp://127.0.0.1")
+    pull_addr = f"tcp://127.0.0.1:{pull_port}"
     fake_pub = ctx.socket(zmq.PUB)
-    fake_pub.bind(pub_addr)
+    pub_port = fake_pub.bind_to_random_port("tcp://127.0.0.1")
+    pub_addr = f"tcp://127.0.0.1:{pub_port}"
     yield pull_addr, pub_addr, fake_pull, fake_pub
     fake_pull.close(linger=0)
     fake_pub.close(linger=0)

@@ -9,6 +9,7 @@ opening and closing auctions are where the largest volume of the day prints.
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from edumatcher.models.order import Order, OrderStatus, OrderType, Side, TIF
@@ -45,7 +46,9 @@ def _indicatives(pub: FakeSock) -> list[dict[str, Any]]:
 
 def _force_due(engine: Any) -> None:
     """Make the interval elapsed, so the next flush publishes."""
-    engine._last_auction_indicative = 0.0
+    engine._last_auction_indicative = (
+        time.monotonic() - engine.auction_indicative_interval_sec - 0.001
+    )
 
 
 def test_publishes_during_a_call_phase(monkeypatch, tmp_path) -> None:

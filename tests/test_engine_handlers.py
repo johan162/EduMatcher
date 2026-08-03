@@ -685,11 +685,15 @@ class TestFlushSnapshots:
         assert engine.depth_snapshot_tolerance_ticks == 250
 
     def test_flush_publishes_dirty_symbols(self, monkeypatch, tmp_path) -> None:
+        import time as _time
+
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         engine._handle_new_order(_make_order_payload())
-        # Force the throttle window to zero so flush always publishes
-        engine._last_snapshot["AAPL"] = 0.0
+        # Force the throttle window elapsed so flush always publishes.
+        engine._last_snapshot["AAPL"] = (
+            _time.monotonic() - engine.snapshot_interval_sec - 0.001
+        )
         engine._dirty_symbols.add("AAPL")
         count_before = len(pub_sock.sent)
         engine._flush_snapshots()

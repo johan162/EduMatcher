@@ -1277,7 +1277,9 @@ class TestMMBotDispatch:
         """Heartbeat triggers reissue when quote_id is None."""
         bot, push, sub = self._ready_bot(monkeypatch)
         bot._quote_id = None  # lost quote
-        bot._last_heartbeat = 0.0  # force heartbeat check
+        bot._last_heartbeat = (
+            time.monotonic() - bot._heartbeat_interval_sec - 0.001
+        )  # force heartbeat check
         push.sent.clear()
 
         bot._tick()
@@ -1295,7 +1297,9 @@ class TestMMBotDispatch:
         bot._state = BotState.REISSUING
         bot._quote_id = None
         bot._reissue_at = None  # no pending reissue timer
-        bot._last_heartbeat = 0.0  # force heartbeat check
+        bot._last_heartbeat = (
+            time.monotonic() - bot._heartbeat_interval_sec - 0.001
+        )  # force heartbeat check
         push.sent.clear()
 
         bot._tick()
@@ -1311,7 +1315,7 @@ class TestMMBotDispatch:
         bot._state = BotState.REISSUING
         bot._quote_id = None
         bot._reissue_at = time.monotonic() + 100.0  # pending, not yet due
-        bot._last_heartbeat = 0.0
+        bot._last_heartbeat = time.monotonic() - bot._heartbeat_interval_sec - 0.001
         push.sent.clear()
 
         bot._tick()
@@ -1721,7 +1725,9 @@ class TestAdditionalBotPaths:
     def test_tick_periodic_qlegs_request(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Periodic QLEGS reconciliation request is sent from heartbeat."""
         bot, push, sub = self._ready_bot(monkeypatch)
-        bot._last_qlegs_reconcile = 0.0  # force reconcile now
+        bot._last_qlegs_reconcile = (
+            time.monotonic() - bot._qlegs_reconcile_interval_sec - 0.001
+        )  # force reconcile now
         push.sent.clear()
 
         bot._tick()
