@@ -171,9 +171,9 @@ echo "Making a snapshot of core dev-node state..."
 SNAPSHOT_NAME="pm-devnode-core"
 if multipass info "$NODE_NAME" | grep -q "Snapshots"; then
   echo "   Deleting existing snapshot '$SNAPSHOT_NAME'..."
-  multipass snapshot "$NODE_NAME" --delete "$SNAPSHOT_NAME"
+  multipass delete "$SNAPSHOT_NAME" > /dev/null 2>&1 || true
 fi
-multipass snapshot "$NODE_NAME" "$SNAPSHOT_NAME"
+multipass snapshot "$NODE_NAME" --name "$SNAPSHOT_NAME" -comment "Core dev-node state with verify_setup.sh applied"
 
 multipass start "$NODE_NAME"
 
