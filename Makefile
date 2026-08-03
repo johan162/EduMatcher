@@ -83,6 +83,11 @@ $(INSTALL_STAMP): pyproject.toml $(LOCK_FILE)
 	@poetry env remove --all
 	@rm -rf .venv
 	@poetry install --with dev,docs
+	# Check if .venv/bin/activate exists
+	@if [ ! -f .venv/bin/activate ]; then \
+		echo -e "$(RED)✗ Virtual environment not created. Check poetry installation.$(NC)"; \
+		exit 1; \
+	fi
 	source .venv/bin/activate
 	@touch $(INSTALL_STAMP)
 	@echo -e "$(GREEN)✓ Project dependencies installed$(NC)"

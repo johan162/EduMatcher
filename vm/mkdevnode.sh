@@ -163,9 +163,19 @@ multipass exec "$NODE_NAME" -- bash -lc "
   '$VERIFY_SETUP_REMOTE_PATH' --yes
 "
 
-echo "Restarting the node to ensure all changes take effect..."
-multipass restart "$NODE_NAME"
-sleep 5  # Wait a few seconds for the node to restart
+echo "Restarting and snapshotting the node to ensure all changes take effect..."
+multipass stop "$NODE_NAME"
+sleep 3  # Wait a few seconds for the node to stop
+
+echo "Making a snapshot of core dev-node state..."
+SNAPSHOT_NAME="pm-devnode-core"
+if multipass info "$NODE_NAME" | grep -q "Snapshots"; then
+  echo "   Deleting existing snapshot '$SNAPSHOT_NAME'..."
+  multipass snapshot "$NODE_NAME" --delete "$SNAPSHOT_NAME"
+fi
+multipass snapshot "$NODE_NAME" "$SNAPSHOT_NAME"
+
+multipass start "$NODE_NAME"
 
 echo ""
 echo "✅ Multipass development node '$NODE_NAME' is ready."
