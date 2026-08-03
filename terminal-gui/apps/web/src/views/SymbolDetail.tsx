@@ -142,7 +142,11 @@ function SymbolDetail({ sym }: { sym: string }) {
   });
   const todayRow = dailyToday?.daily?.[0];
 
-  const { data: history, isLoading: historyLoading } = useQuery<ChartSeries>({
+  const {
+    data: history,
+    isLoading: historyLoading,
+    isError: historyError,
+  } = useQuery<ChartSeries>({
     queryKey: ["history", "series", sym, preset],
     queryFn: async () =>
       spec.source === "trades"
@@ -151,12 +155,17 @@ function SymbolDetail({ sym }: { sym: string }) {
     staleTime: 60_000,
   });
 
-  const { data: snapshots } = useQuery({
+  const { data: snapshots, isError: snapshotsError } = useQuery({
     queryKey: ["history", "snapshots", sym, preset],
     queryFn: () => api.priceSnapshots(sym, spec.from),
     staleTime: 60_000,
     enabled: showMidpoint,
   });
+
+  // Either query that feeds the chart failing means "no history" can't be
+  // trusted — that message is only correct on a successful empty response
+  // (Overview & Movers precedent, see module doc above).
+  const chartError = historyError || (showMidpoint && snapshotsError);
 
   const { bars, volume } = useMemo(() => {
     if (!history) return { bars: [], volume: [] };
@@ -298,6 +307,8 @@ function SymbolDetail({ sym }: { sym: string }) {
         <div className="h-[22rem]">
           {historyLoading ? (
             <EmptyState>Loading history…</EmptyState>
+          ) : chartError ? (
+            <EmptyState>History service unavailable</EmptyState>
           ) : bars.length === 0 && mid.live.length === 0 && mid.historical.length === 0 ? (
             <EmptyState>No history recorded for {sym} in this window</EmptyState>
           ) : (
