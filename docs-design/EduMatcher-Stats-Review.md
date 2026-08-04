@@ -475,7 +475,24 @@ combination most likely to bite.
 
 ## Documentation review — `140-statistics-and-reporting.md`
 
-### Statements that are factually wrong
+### Statements that are factually wrong — *all resolved*
+
+Every row below has been corrected in
+`docs/user-guide/140-statistics-and-reporting.md` and re-verified against the
+running tools: all 51 `pm-stats-cli` invocations in the guide execute
+successfully, and every subcommand's documented option table was diffed
+against the actual argument parser.
+
+Three further errors were found during that re-verification, introduced by the
+fixes themselves rather than present originally:
+
+- the `trades` example output and its CSV equivalent were missing the
+  `aggressor_side` column added with GAP-1;
+- the startup sequence still said "write intraday snapshots every 15 minutes",
+  contradicting the P1-5 fix that always writes the first one;
+- the trade-count recipe told the reader to subtract a header row it no longer
+  emitted after gaining `--no-header`.
+
 
 | Location | Claim | Reality |
 |---|---|---|
@@ -492,10 +509,26 @@ combination most likely to bite.
 | §Troubleshooting → symbols | "Verify the symbol is correct (case-sensitive)" | The CLI uppercases the argument. |
 | §price_snapshots | "captured every 15 minutes per symbol" | Captured *at most* every 15 minutes, and only when a `book.*` message arrives. The troubleshooting section says this correctly; the schema section overstates it. |
 
-### Schema documentation gaps
+### Schema documentation gaps — *all resolved*
 
-The schema tables list column name, type and description, but omit the things a
-consumer actually needs to write a correct query:
+Six of the eight were closed during the P0/P1 documentation work. Two survived
+until a later audit:
+
+- **Units** were only partly done. `level` and `divisor` are now stated as
+  dimensionless (with `level = aggregate_cap / divisor`, verified against
+  `index/calculator.py`), and `aggregate_cap` is called out as the one
+  monetary value in the database that is *not* in ticks — stored as display
+  money in a currency the database does not record at all.
+- **`rowid` stability** was never documented, and the retention guidance added
+  in the meantime *recommends a `VACUUM`* — precisely the operation whose
+  effect on `rowid` is unspecified. Three tables key their pagination cursors
+  on `rowid` (`trade_log`, `price_snapshots`, `index_level_snapshots`); the
+  other cursor-bearing tables use real columns and are unaffected. Measured on
+  SQLite 3.37: `VACUUM` left rowids untouched, but the specification only says
+  it *may* preserve them, so the guide now says "not guaranteed" and warns
+  against holding a cursor across one.
+
+The original list, for reference:
 
 - **No primary keys, indexes, uniqueness or nullability.** A reader cannot tell
   that `price_snapshots` is `PK(ts, symbol)` and that a same-second duplicate is
@@ -530,7 +563,21 @@ consumer actually needs to write a correct query:
   on `rowid` being insertion-ordered and stable. That is a schema invariant
   (`VACUUM` can renumber rowids) and belongs in the docs next to the tables.
 
-### Missing public functionality
+### Missing public functionality — *all resolved*
+
+Three were documentation-only and were closed with the P0 work. The fourth
+offered a choice — "either validate `>= 1` or document it" — and was initially
+only documented. Measured afterwards: at `--snapshot-interval 0.1`, six of
+eight book updates were silently discarded on the `(ts, symbol)` key. A
+sub-second interval is a setting the schema cannot honour, so it is now
+**rejected at startup** rather than accepted and quietly ignored. One second
+remains valid.
+
+Also note the third item is now stale in the reader's favour: the CLI *has*
+pagination (`--after` on six subcommands) and warns on truncation, rather than
+merely documenting that it lacks it.
+
+The original list, for reference:
 
 - **`from_date` / `to_date` range mode** of `query_daily` and `query_index_daily`
   is not documented anywhere, despite being exposed on `/api/v1/history/daily`

@@ -30,6 +30,7 @@ from edumatcher.stats.query import (
     query_price_snapshots,
     query_trades,
     resolve_session_timezone,
+    to_display_prices,
     validate_date,
     validate_iso_ts,
 )
@@ -265,7 +266,9 @@ async def history_trades(
                 status_code=422,
                 detail={"error": {"code": "VALIDATION", "message": str(exc)}},
             ) from exc
-    return _paginated_envelope("trades", trades, next_cursor)
+    return _paginated_envelope(
+        "trades", to_display_prices(trades, "trades"), next_cursor
+    )
 
 
 @router.get("/daily")
@@ -311,7 +314,7 @@ async def history_daily(
                 status_code=422,
                 detail={"error": {"code": "VALIDATION", "message": str(exc)}},
             ) from exc
-    return _paginated_envelope("daily", rows, next_cursor)
+    return _paginated_envelope("daily", to_display_prices(rows, "daily"), next_cursor)
 
 
 @router.get("/price-snapshots")
@@ -403,6 +406,8 @@ async def history_index_daily(
                 status_code=422,
                 detail={"error": {"code": "VALIDATION", "message": str(exc)}},
             ) from exc
+    # No tick conversion: index levels are computed, dimensionless numbers,
+    # not prices on a tick grid.
     return _paginated_envelope("daily", rows, next_cursor)
 
 

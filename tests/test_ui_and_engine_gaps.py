@@ -270,7 +270,7 @@ class TestStatsOnStartupSymbols:
             # Should have called send_multipart twice (once per symbol)
             assert fake_push.send_multipart.call_count == 2
         finally:
-            sp._conn.close()
+            sp.close()
 
     def test_on_startup_symbols_empty(self, tmp_path: Path) -> None:
         from edumatcher.stats.main import StatsProcess
@@ -287,7 +287,7 @@ class TestStatsOnStartupSymbols:
             # No requests sent
             fake_sock.send_multipart.assert_not_called()
         finally:
-            sp._conn.close()
+            sp.close()
 
 
 # ===========================================================================

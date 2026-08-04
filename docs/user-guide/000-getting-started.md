@@ -328,6 +328,30 @@ Full detail: [The trading date](080-session-scheduling.md#the-trading-date).
 
 
 
+## Prices: ticks vs. money
+
+The engine matches on **integer ticks**, not on decimal money. A tick is the
+smallest price increment a symbol trades in, set per symbol by
+`tick_decimals`: at `2`, one tick is `0.01`, so `150.25` is `15025` ticks.
+
+Working in integers is what keeps the arithmetic exact — no rounding, and a
+day's turnover that does not drift however many trades it spans. Two places
+you will meet it directly:
+
+- **`stats.db` and `clearing.db` store ticks.** Query them with `sqlite3` and
+  you will see `15025`. Divide by `10^tick_decimals`, a column carried on
+  every row, to get money.
+- **Published messages carry display money**, plus `tick_decimals` so a
+  subscriber can convert back exactly.
+
+Every CLI and API converts for you, so `pm-stats-cli` shows `150.25`. Only raw
+SQL shows the underlying integer.
+
+Full detail: [Prices are stored as integer
+ticks](140-statistics-and-reporting.md#prices-are-stored-as-integer-ticks).
+
+
+
 ## PM command family overview
 
 Use these tables as a quick index for every `pm-` entry point currently

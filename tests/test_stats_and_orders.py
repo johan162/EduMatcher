@@ -38,7 +38,7 @@ from edumatcher.ticker.main import _query_daily_stats
 
 @pytest.fixture
 def sp(tmp_path: Path):
-    """StatsProcess with fake ZMQ sockets; _conn closed after each test."""
+    """StatsProcess with fake ZMQ sockets; fully closed after each test."""
     fake_sock = MagicMock()
     with (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
@@ -46,7 +46,9 @@ def sp(tmp_path: Path):
     ):
         proc = StatsProcess(tmp_path / "test.db")
     yield proc
-    proc._conn.close()
+    # close(), not _conn.close(): StatsProcess also holds a writer-lock
+    # connection, and closing only the DB handle leaks it.
+    proc.close()
 
 
 def _in_memory_conn() -> sqlite3.Connection:
@@ -198,7 +200,7 @@ class TestOnTrade:
         sp._on_trade(payload)
         acc = sp._accum.get("MSFT")
         assert acc is not None
-        assert acc.close_price == 200.0
+        assert acc.close_price == 20000  # 200.00 in ticks
         assert acc.volume == 50
 
     def test_trade_missing_price_ignored(self, sp: StatsProcess) -> None:
@@ -248,15 +250,15 @@ class TestOnBook:
     def test_records_opening_bid_ask(self, sp: StatsProcess) -> None:
         sp._on_book("AAPL", self._book_payload())
         acc = sp._accum["AAPL"]
-        assert acc.open_bid == 149.5
-        assert acc.open_ask == 150.5
+        assert acc.open_bid == 14950  # 149.50 in ticks
+        assert acc.open_ask == 15050  # 150.50 in ticks
 
     def test_does_not_overwrite_opening_bid(self, sp: StatsProcess) -> None:
         sp._on_book("AAPL", self._book_payload(bid=149.5, ask=150.5))
         sp._on_book("AAPL", self._book_payload(bid=148.0, ask=151.0))
         acc = sp._accum["AAPL"]
-        assert acc.open_bid == 149.5  # first value preserved
-        assert acc.open_ask == 150.5
+        assert acc.open_bid == 14950  # 149.50 in ticks, first value preserved
+        assert acc.open_ask == 15050  # 150.50 in ticks
 
     def test_writes_snapshot_when_interval_elapsed(self, sp: StatsProcess) -> None:
         # Force interval to have elapsed (last snap was long ago)
@@ -277,7 +279,7 @@ class TestOnBook:
         snap = self._book_payload(bid=None, ask=None, last=155.0)
         sp._on_book("AAPL", snap)
         rows = sp._conn.execute("SELECT mid_price FROM price_snapshots").fetchall()
-        assert rows[0][0] == 155.0
+        assert rows[0][0] == 15500.0  # 155.00 in ticks; mid is a float
 
     def test_pct_change_computed_when_prev_mid_exists(self, sp: StatsProcess) -> None:
         sp._last_snap_ts["AAPL"] = time.monotonic() - SNAPSHOT_INTERVAL_SEC - 1
@@ -319,7 +321,7 @@ class TestOnEod:
         rows = sp._conn.execute(
             "SELECT close_bid, close_ask FROM daily_stats"
         ).fetchall()
-        assert rows[0] == (149.5, 150.5)
+        assert rows[0] == (14950, 15050)  # 149.50 / 150.50 in ticks
 
     def test_eod_ignores_empty_books(self, sp: StatsProcess) -> None:
         # Should not raise
@@ -1118,19 +1120,29 @@ class TestStatsMain:
         args = Namespace(log_level="INFO", verbose=2, quiet=True)
         assert _configure_logging(args) == 20
 
-    @patch("edumatcher.stats.main.StatsProcess.run", return_value=None)
     @patch("edumatcher.stats.main.make_pusher", return_value=MagicMock())
     @patch("edumatcher.stats.main.make_subscriber", return_value=MagicMock())
     def test_main_creates_process_and_runs(
         self,
         mock_sub: MagicMock,
         mock_push: MagicMock,
-        mock_run: MagicMock,
         tmp_path: Path,
     ) -> None:
-        mock_run.return_value = 0
-        with patch("sys.argv", ["pm-stats", "--db", str(tmp_path / "test.db")]):
-            with pytest.raises(SystemExit) as excinfo:
-                stats_main()
+        # run() is stubbed rather than patched away entirely so the process it
+        # built still gets closed. Patching it out left both the database and
+        # the writer-lock connection open for the rest of the session, which
+        # surfaces later as an "unclosed database" warning against whichever
+        # unrelated test happens to trigger garbage collection.
+        closed: list[bool] = []
+
+        def _run_and_close(self: StatsProcess) -> int:
+            self.close()
+            closed.append(True)
+            return 0
+
+        with patch.object(StatsProcess, "run", _run_and_close):
+            with patch("sys.argv", ["pm-stats", "--db", str(tmp_path / "test.db")]):
+                with pytest.raises(SystemExit) as excinfo:
+                    stats_main()
         assert excinfo.value.code == 0
-        mock_run.assert_called_once()
+        assert closed == [True]

@@ -30,7 +30,7 @@ def _make_gateway(gw_id: str = "GW01"):
 
 @pytest.fixture
 def stats_proc(tmp_path: Path):
-    """StatsProcess with fake ZMQ sockets; _conn closed after each test."""
+    """StatsProcess with fake ZMQ sockets; fully closed after each test."""
     from edumatcher.stats.main import StatsProcess
 
     fake_sub = MagicMock()
@@ -41,7 +41,9 @@ def stats_proc(tmp_path: Path):
     ):
         proc = StatsProcess(db_path=tmp_path / "stats.db")
     yield proc
-    proc._conn.close()
+    # close(), not _conn.close(): StatsProcess also holds a writer-lock
+    # connection, and closing only the DB handle leaks it.
+    proc.close()
 
 
 # ---------------------------------------------------------------------------

@@ -109,6 +109,58 @@ def open_readonly_connection(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
+#: Columns holding integer ticks, by table, for :func:`to_display_prices`.
+#: ``vwap`` and ``mid_price`` are in there too: both are derived and stored as
+#: floats, but they are floats *of ticks*, so they scale the same way.
+TICK_COLUMNS: dict[str, tuple[str, ...]] = {
+    "daily": (
+        "open_price",
+        "high_price",
+        "low_price",
+        "close_price",
+        "open_bid",
+        "open_ask",
+        "close_bid",
+        "close_ask",
+        "vwap",
+        "largest_trade_price",
+    ),
+    "trades": ("price",),
+    "snapshots": ("mid_price", "best_bid", "best_ask"),
+}
+
+
+def to_display_prices(rows: list[dict[str, Any]], kind: str) -> list[dict[str, Any]]:
+    """Return *rows* with tick columns converted to display money.
+
+    Storage is exact integer ticks; humans and charts want ``150.25``. The
+    conversion happens here, at the read boundary, using each row's own
+    ``tick_decimals`` — never a global assumption — which mirrors how
+    ``pm-clearing-cli`` presents its integer-minor-unit archive.
+
+    ``turnover`` is deliberately *not* converted: it is ticks x quantity, so
+    dividing by the tick scale alone would leave a half-converted number.
+    Convert it explicitly if you want notional in money.
+    """
+    fields = TICK_COLUMNS.get(kind)
+    if not fields:
+        return rows
+    converted: list[dict[str, Any]] = []
+    for row in rows:
+        tick_decimals = row.get("tick_decimals")
+        if tick_decimals is None:
+            converted.append(row)
+            continue
+        scale = float(10 ** int(tick_decimals))
+        out = dict(row)
+        for field in fields:
+            value = out.get(field)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                out[field] = value / scale
+        converted.append(out)
+    return converted
+
+
 def read_meta(conn: sqlite3.Connection, key: str) -> str | None:
     """Return one ``stats_meta`` value, or ``None`` if absent.
 
@@ -319,7 +371,7 @@ def query_daily(
     sql = (
         "SELECT date, symbol, open_price, high_price, low_price, close_price, "
         "open_bid, open_ask, close_bid, close_ask, volume, trade_count, "
-        "turnover, vwap, largest_trade_qty, largest_trade_price "
+        "turnover, vwap, largest_trade_qty, largest_trade_price, tick_decimals "
         "FROM daily_stats WHERE date = ?"
     )
     params: list[Any] = [selected_date]
@@ -346,7 +398,8 @@ def query_daily(
 _DAILY_COLUMNS = (
     "SELECT date, symbol, open_price, high_price, low_price, close_price, "
     "open_bid, open_ask, close_bid, close_ask, volume, trade_count, "
-    "turnover, vwap, largest_trade_qty, largest_trade_price FROM daily_stats"
+    "turnover, vwap, largest_trade_qty, largest_trade_price, tick_decimals "
+    "FROM daily_stats"
 )
 
 
@@ -415,7 +468,7 @@ def query_price_snapshots(
     """
     sql = (
         "SELECT rowid AS _rowid, ts, symbol, mid_price, best_bid, best_ask, "
-        "pct_change FROM price_snapshots WHERE symbol = ?"
+        "pct_change, tick_decimals FROM price_snapshots WHERE symbol = ?"
     )
     params: list[Any] = [symbol]
 
@@ -461,7 +514,8 @@ def query_trades(
     """
     sql = (
         "SELECT rowid AS _rowid, ts, trade_id, symbol, price, quantity, "
-        "buy_gateway_id, sell_gateway_id, aggressor_side FROM trade_log WHERE 1=1"
+        "tick_decimals, buy_gateway_id, sell_gateway_id, aggressor_side "
+        "FROM trade_log WHERE 1=1"
     )
     params: list[Any] = []
 

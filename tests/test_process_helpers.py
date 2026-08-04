@@ -32,53 +32,68 @@ from edumatcher.scheduler.main import (
 
 
 class TestDayAccum:
+    """Prices here are integer ticks, not display money.
+
+    At the default two tick decimals, 150.00 is 15000. The accumulator only
+    ever sees ticks — pm-stats converts at ingest — so these tests use the
+    same units the engine matches in.
+    """
+
     def _make(self) -> _DayAccum:
         return _DayAccum(date="2026-05-06", symbol="AAPL")
 
     def test_first_trade_sets_open(self) -> None:
         acc = self._make()
-        acc.on_trade(150.0, 100)
-        assert acc.open_price == 150.0
-        assert acc.close_price == 150.0
-        assert acc.high_price == 150.0
-        assert acc.low_price == 150.0
+        acc.on_trade(15000, 100)  # 150.00
+        assert acc.open_price == 15000
+        assert acc.close_price == 15000
+        assert acc.high_price == 15000
+        assert acc.low_price == 15000
         assert acc.volume == 100
         assert acc.trade_count == 1
 
     def test_high_low_tracking(self) -> None:
         acc = self._make()
-        acc.on_trade(100.0, 50)
-        acc.on_trade(120.0, 50)
-        acc.on_trade(90.0, 50)
-        assert acc.high_price == 120.0
-        assert acc.low_price == 90.0
-        assert acc.close_price == 90.0
-        assert acc.open_price == 100.0
+        acc.on_trade(10000, 50)  # 100.00
+        acc.on_trade(12000, 50)  # 120.00
+        acc.on_trade(9000, 50)  # 90.00
+        assert acc.high_price == 12000
+        assert acc.low_price == 9000
+        assert acc.close_price == 9000
+        assert acc.open_price == 10000
 
     def test_vwap_calculation(self) -> None:
         acc = self._make()
-        acc.on_trade(100.0, 100)
-        acc.on_trade(200.0, 100)
-        # VWAP = (100*100 + 200*100) / 200 = 150
-        assert acc.vwap == pytest.approx(150.0)
+        acc.on_trade(10000, 100)
+        acc.on_trade(20000, 100)
+        # VWAP = (10000*100 + 20000*100) / 200 = 15000 ticks = 150.00
+        assert acc.vwap == pytest.approx(15000.0)
 
     def test_vwap_none_when_no_trades(self) -> None:
         acc = self._make()
         assert acc.vwap is None
 
+    def test_turnover_is_an_exact_integer(self) -> None:
+        """The whole point of ticks: the day's notional cannot drift."""
+        acc = self._make()
+        acc.on_trade(10000, 100)
+        acc.on_trade(20000, 100)
+        assert acc.turnover == 10000 * 100 + 20000 * 100
+        assert isinstance(acc.turnover, int)
+
     def test_largest_trade_tracking(self) -> None:
         acc = self._make()
-        acc.on_trade(100.0, 50)
-        acc.on_trade(105.0, 200)
-        acc.on_trade(110.0, 100)
+        acc.on_trade(10000, 50)
+        acc.on_trade(10500, 200)
+        acc.on_trade(11000, 100)
         assert acc.largest_trade_qty == 200
-        assert acc.largest_trade_price == 105.0
+        assert acc.largest_trade_price == 10500
 
     def test_on_eod_book(self) -> None:
         acc = self._make()
-        acc.on_eod_book(149.5, 150.5)
-        assert acc.close_bid == 149.5
-        assert acc.close_ask == 150.5
+        acc.on_eod_book(14950, 15050)  # 149.50 / 150.50
+        assert acc.close_bid == 14950
+        assert acc.close_ask == 15050
 
     def test_on_eod_book_none_values(self) -> None:
         acc = self._make()
@@ -89,7 +104,7 @@ class TestDayAccum:
     def test_volume_accumulates(self) -> None:
         acc = self._make()
         for _ in range(5):
-            acc.on_trade(100.0, 20)
+            acc.on_trade(10000, 20)
         assert acc.volume == 100
         assert acc.trade_count == 5
 

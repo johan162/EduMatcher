@@ -105,6 +105,7 @@ from edumatcher.models.message import (
     make_book_snapshot_request_msg,
     make_symbols_request_msg,
 )
+from edumatcher.models.price import DEFAULT_TICK_DECIMALS
 from edumatcher.stats.event_types import UNKNOWN_EVENT_TYPE
 from edumatcher.stats.trading_day import (
     resolve_timezone,
@@ -124,6 +125,11 @@ _sql_log = logging.getLogger("edumatcher.stats.sql")
 # ---------------------------------------------------------------------------
 
 SNAPSHOT_INTERVAL_SEC = 15 * 60  # 15 minutes — overridable via --snapshot-interval
+
+#: Floor for --snapshot-interval. price_snapshots' primary key is (ts, symbol)
+#: with ts at second precision, so one second is the finest resolution the
+#: table can actually represent.
+MIN_SNAPSHOT_INTERVAL_SEC = 1.0
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 # Receive high-water mark for both subscriber sockets. ZMQ's default of 1000
@@ -140,32 +146,41 @@ _SUB_RCVHWM = 100_000
 
 @dataclass
 class _DayAccum:
-    """Holds intraday statistics for one symbol on one calendar date."""
+    """Holds intraday statistics for one symbol on one trading date.
+
+    Every price here is an integer count of ticks, never display money. The
+    engine matches in ticks and only converts to a float to publish, so
+    converting straight back at ingress keeps the arithmetic exact: the day's
+    turnover is an integer sum that cannot drift however many fills it spans.
+    """
 
     date: str  # ISO date string YYYY-MM-DD
     symbol: str
+    #: Decimal scale these ticks were captured at, carried through to the row
+    #: so a reader can turn them back into display money.
+    tick_decimals: int = DEFAULT_TICK_DECIMALS
 
-    open_price: Optional[float] = None
-    high_price: Optional[float] = None
-    low_price: Optional[float] = None
-    close_price: Optional[float] = None
+    open_price: Optional[int] = None
+    high_price: Optional[int] = None
+    low_price: Optional[int] = None
+    close_price: Optional[int] = None
 
-    open_bid: Optional[float] = None
-    open_ask: Optional[float] = None
-    close_bid: Optional[float] = None
-    close_ask: Optional[float] = None
+    open_bid: Optional[int] = None
+    open_ask: Optional[int] = None
+    close_bid: Optional[int] = None
+    close_ask: Optional[int] = None
 
     volume: int = 0
     trade_count: int = 0
 
-    # For VWAP: sum(price*qty) / sum(qty)
-    _pv_sum: float = field(default=0.0, repr=False)
+    # VWAP numerator, sum(price_ticks * qty). An exact integer.
+    _pv_sum: int = field(default=0, repr=False)
     _q_sum: int = field(default=0, repr=False)
 
     largest_trade_qty: int = 0
-    largest_trade_price: Optional[float] = None
+    largest_trade_price: Optional[int] = None
 
-    def on_trade(self, price: float, qty: int) -> None:
+    def on_trade(self, price: int, qty: int) -> None:
         if self.open_price is None:
             self.open_price = price
         self.close_price = price
@@ -183,14 +198,19 @@ class _DayAccum:
 
     @property
     def vwap(self) -> Optional[float]:
+        """Volume-weighted average price in ticks — derived, so a float.
+
+        Both inputs are stored exactly, so a consumer needing full precision
+        computes ``turnover / volume`` itself rather than reading this.
+        """
         return self._pv_sum / self._q_sum if self._q_sum else None
 
     @property
-    def turnover(self) -> float:
-        """Traded notional, ``sum(price * quantity)`` — the VWAP numerator."""
+    def turnover(self) -> int:
+        """Traded notional in ticks x quantity — the exact VWAP numerator."""
         return self._pv_sum
 
-    def restore_totals(self, *, trade_count: int, volume: int, pv_sum: float) -> None:
+    def restore_totals(self, *, trade_count: int, volume: int, pv_sum: int) -> None:
         """Seed the running totals from already-persisted trades.
 
         Used when rebuilding this accumulator after a restart. ``pv_sum`` is
@@ -202,7 +222,7 @@ class _DayAccum:
         self._pv_sum = pv_sum
         self._q_sum = volume
 
-    def on_eod_book(self, best_bid: Optional[float], best_ask: Optional[float]) -> None:
+    def on_eod_book(self, best_bid: Optional[int], best_ask: Optional[int]) -> None:
         self.close_bid = best_bid
         self.close_ask = best_ask
 
@@ -275,10 +295,45 @@ class _IndexDayAccum:
 #: 3 — added ``feed_gaps``; ``trade_log``'s primary key widened from
 #:     ``trade_id`` to ``(trade_id, ts)`` so post-restart id reuse is no longer
 #:     silently discarded.
-SCHEMA_VERSION = 3
+#: 4 — prices are stored as INTEGER ticks with a per-row ``tick_decimals``,
+#:     replacing REAL display floats. Index levels stay REAL: a level is a
+#:     computed, dimensionless number, not a price on a tick grid.
+SCHEMA_VERSION = 4
 
 #: Stream name recorded in ``feed_gaps.stream`` for engine trade prints.
 TRADE_STREAM = "trade.executed"
+
+
+def _payload_tick_decimals(payload: dict[str, Any]) -> int:
+    """Read the tick scale a payload's display prices were produced at.
+
+    Taken from the message rather than from the local tick registry: that
+    registry is populated from engine config at startup, which pm-stats does
+    not load, so trusting it would mean guessing. Every message carrying a
+    price now carries its scale.
+    """
+    try:
+        return int(payload.get("tick_decimals", DEFAULT_TICK_DECIMALS))
+    except (TypeError, ValueError):
+        return DEFAULT_TICK_DECIMALS
+
+
+def _to_ticks(price: float | int | None, tick_decimals: int) -> Optional[int]:
+    """Convert a published display price back to exact integer ticks.
+
+    The engine holds the price as an integer and divides by 10^tick_decimals
+    to publish it, so multiplying back and rounding to nearest recovers the
+    original integer exactly — the float only ever has to be within half a
+    tick of the true value, which it is by orders of magnitude.
+    """
+    if price is None:
+        return None
+    if isinstance(price, int):
+        # Already ticks — the engine never publishes an int price, so this is
+        # a caller passing through a value that was converted upstream.
+        return price
+    return int(round(price * (10**tick_decimals)))
+
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS stats_meta (
@@ -286,36 +341,48 @@ CREATE TABLE IF NOT EXISTS stats_meta (
     value TEXT
 );
 
+-- Price columns below are INTEGER *ticks*, not display money. Divide by
+-- 10^tick_decimals to get a display price. See the tick handling section of
+-- docs/user-guide/140-statistics-and-reporting.md.
 CREATE TABLE IF NOT EXISTS daily_stats (
     date                TEXT NOT NULL,
     symbol              TEXT NOT NULL,
-    open_price          REAL,
-    high_price          REAL,
-    low_price           REAL,
-    close_price         REAL,
-    open_bid            REAL,
-    open_ask            REAL,
-    close_bid           REAL,
-    close_ask           REAL,
+    open_price          INTEGER,
+    high_price          INTEGER,
+    low_price           INTEGER,
+    close_price         INTEGER,
+    open_bid            INTEGER,
+    open_ask            INTEGER,
+    close_bid           INTEGER,
+    close_ask           INTEGER,
     volume              INTEGER NOT NULL DEFAULT 0,
     trade_count         INTEGER NOT NULL DEFAULT 0,
-    -- Traded notional, sum(price * quantity). Also the VWAP numerator, so
-    -- storing it makes vwap exactly reproducible without a float round-trip
-    -- through vwap * volume.
-    turnover            REAL NOT NULL DEFAULT 0,
+    -- Traded notional in ticks x quantity: sum(price_ticks * quantity). Exact,
+    -- and the VWAP numerator — so vwap is exactly reproducible as
+    -- turnover / volume without any float round-trip.
+    turnover            INTEGER NOT NULL DEFAULT 0,
+    -- Derived, therefore REAL: turnover / volume is a ratio and lands between
+    -- ticks far more often than on one. The exact inputs are stored alongside,
+    -- so a consumer needing full precision computes it rather than reading it.
     vwap                REAL,
     largest_trade_qty   INTEGER,
-    largest_trade_price REAL,
+    largest_trade_price INTEGER,
+    tick_decimals       INTEGER NOT NULL DEFAULT 2,
     PRIMARY KEY (date, symbol)
 );
 
 CREATE TABLE IF NOT EXISTS price_snapshots (
-    ts          TEXT NOT NULL,
-    symbol      TEXT NOT NULL,
-    mid_price   REAL,
-    best_bid    REAL,
-    best_ask    REAL,
-    pct_change  REAL,
+    ts            TEXT NOT NULL,
+    symbol        TEXT NOT NULL,
+    -- Derived, therefore REAL and expressed in ticks: the midpoint of two
+    -- adjacent ticks is a half tick, which no integer can hold. best_bid and
+    -- best_ask beside it are exact.
+    mid_price     REAL,
+    best_bid      INTEGER,
+    best_ask      INTEGER,
+    -- A percentage, not money — never converted.
+    pct_change    REAL,
+    tick_decimals INTEGER NOT NULL DEFAULT 2,
     PRIMARY KEY (ts, symbol)
 );
 
@@ -334,8 +401,9 @@ CREATE TABLE IF NOT EXISTS trade_log (
     ts              TEXT NOT NULL,
     trade_id        TEXT NOT NULL,
     symbol          TEXT NOT NULL,
-    price           REAL NOT NULL,
+    price           INTEGER NOT NULL,
     quantity        INTEGER NOT NULL,
+    tick_decimals   INTEGER NOT NULL DEFAULT 2,
     buy_gateway_id  TEXT,
     sell_gateway_id TEXT,
     -- Mirrored from the engine payload verbatim: BUY or SELL for a
@@ -431,8 +499,8 @@ INSERT INTO daily_stats
     (date, symbol, open_price, high_price, low_price, close_price,
      open_bid, open_ask, close_bid, close_ask,
      volume, trade_count, turnover, vwap,
-     largest_trade_qty, largest_trade_price)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+     largest_trade_qty, largest_trade_price, tick_decimals)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(date, symbol) DO UPDATE SET
     open_price          = excluded.open_price,
     high_price          = excluded.high_price,
@@ -447,19 +515,21 @@ ON CONFLICT(date, symbol) DO UPDATE SET
     turnover            = excluded.turnover,
     vwap                = excluded.vwap,
     largest_trade_qty   = excluded.largest_trade_qty,
-    largest_trade_price = excluded.largest_trade_price
+    largest_trade_price = excluded.largest_trade_price,
+    tick_decimals       = excluded.tick_decimals
 """
 
 INSERT_SNAPSHOT = """
-INSERT OR IGNORE INTO price_snapshots (ts, symbol, mid_price, best_bid, best_ask, pct_change)
-VALUES (?,?,?,?,?,?)
+INSERT OR IGNORE INTO price_snapshots
+    (ts, symbol, mid_price, best_bid, best_ask, pct_change, tick_decimals)
+VALUES (?,?,?,?,?,?,?)
 """
 
 INSERT_TRADE = """
 INSERT OR IGNORE INTO trade_log
-    (ts, trade_id, symbol, price, quantity, buy_gateway_id, sell_gateway_id,
-     aggressor_side)
-VALUES (?,?,?,?,?,?,?,?)
+    (ts, trade_id, symbol, price, quantity, tick_decimals,
+     buy_gateway_id, sell_gateway_id, aggressor_side)
+VALUES (?,?,?,?,?,?,?,?,?)
 """
 
 UPSERT_META = """
@@ -881,6 +951,25 @@ class StatsProcess:
         )
         self._dbg_count("trades_missing", missing)
 
+    def _note_tick_decimals(self, acc: _DayAccum, tick_decimals: int) -> None:
+        """Record the scale this symbol's prices are being captured at.
+
+        A symbol's tick size changing mid-day would silently make the day's
+        integers incomparable with each other, so it is worth saying out loud
+        rather than quietly re-scaling. Callers must hold the lock.
+        """
+        if acc.trade_count == 0 and acc.open_bid is None and acc.open_ask is None:
+            acc.tick_decimals = tick_decimals
+        elif acc.tick_decimals != tick_decimals:
+            log.error(
+                "%s tick_decimals changed from %d to %d mid-day; "
+                "keeping %d so today's stored ticks stay comparable",
+                acc.symbol,
+                acc.tick_decimals,
+                tick_decimals,
+                acc.tick_decimals,
+            )
+
     def _trading_date(self, epoch_sec: float) -> str:
         """Trading date for an instant, in the configured session timezone."""
         return trading_date(epoch_sec, self._tz)
@@ -925,7 +1014,7 @@ class StatsProcess:
 
         count, volume, pv_sum, acc.low_price, acc.high_price = self._conn.execute(
             "SELECT COUNT(*) , COALESCE(SUM(quantity), 0), "
-            "COALESCE(SUM(price * quantity), 0.0), MIN(price), MAX(price) "
+            "COALESCE(SUM(price * quantity), 0), MIN(price), MAX(price) "
             "FROM trade_log WHERE symbol = ? AND ts >= ? AND ts < ?",
             window,
         ).fetchone()
@@ -952,12 +1041,21 @@ class StatsProcess:
             ).fetchone()
 
         quotes = self._conn.execute(
-            "SELECT open_bid, open_ask, close_bid, close_ask FROM daily_stats "
-            "WHERE date = ? AND symbol = ?",
+            "SELECT open_bid, open_ask, close_bid, close_ask, tick_decimals "
+            "FROM daily_stats WHERE date = ? AND symbol = ?",
             (day, symbol),
         ).fetchone()
         if quotes is not None:
-            acc.open_bid, acc.open_ask, acc.close_bid, acc.close_ask = quotes
+            (
+                acc.open_bid,
+                acc.open_ask,
+                acc.close_bid,
+                acc.close_ask,
+                # Restored so the day continues on the scale its stored
+                # integers were captured at, rather than silently reverting
+                # to the default and mixing two scales in one row.
+                acc.tick_decimals,
+            ) = quotes
 
         if acc.trade_count or quotes is not None:
             log.info(
@@ -995,6 +1093,7 @@ class StatsProcess:
                 acc.vwap,
                 acc.largest_trade_qty,
                 acc.largest_trade_price,
+                acc.tick_decimals,
             ),
         )
 
@@ -1106,7 +1205,14 @@ class StatsProcess:
             # trading day rolls over must not be booked into the next day
             # because it happened to be handled a few milliseconds late.
             acc = self._accum_for(symbol, self._trading_date(epoch_sec))
-            acc.on_trade(price, qty)
+            self._note_tick_decimals(acc, _payload_tick_decimals(payload))
+            # Convert with the accumulator's scale, not the payload's, so the
+            # integer written and the tick_decimals written beside it always
+            # describe each other — even if a payload disagrees mid-day.
+            tick_decimals = acc.tick_decimals
+            price_ticks = _to_ticks(price, tick_decimals)
+            assert price_ticks is not None  # price is not None, checked above
+            acc.on_trade(price_ticks, qty)
             # One transaction for both writes. The rollup is reconstructed
             # from trade_log on restart, so committing them separately would
             # let a crash in between leave the two permanently disagreeing.
@@ -1122,8 +1228,9 @@ class StatsProcess:
                         ts,
                         payload.get("id", ""),
                         symbol,
-                        price,
+                        price_ticks,
                         qty,
+                        tick_decimals,
                         payload.get("buy_gateway_id"),
                         payload.get("sell_gateway_id"),
                         payload.get("aggressor_side"),
@@ -1138,10 +1245,12 @@ class StatsProcess:
         with self._lock:
             # Record opening bid/ask once per day
             acc = self._accum_for(symbol, self._trading_date(now_epoch))
+            self._note_tick_decimals(acc, _payload_tick_decimals(payload))
+            tick_decimals = acc.tick_decimals
             bids = payload.get("bids", [])
             asks = payload.get("asks", [])
-            best_bid = bids[0].get("price") if bids else None
-            best_ask = asks[0].get("price") if asks else None
+            best_bid = _to_ticks(bids[0].get("price") if bids else None, tick_decimals)
+            best_ask = _to_ticks(asks[0].get("price") if asks else None, tick_decimals)
 
             if acc.open_bid is None and best_bid is not None:
                 acc.open_bid = best_bid
@@ -1157,15 +1266,18 @@ class StatsProcess:
             last_snap = self._last_snap_ts.get(symbol)
             if last_snap is None or now - last_snap >= self._snapshot_interval_sec:
                 self._last_snap_ts[symbol] = now
+                # In ticks, and a float: the midpoint of two adjacent ticks
+                # is a half tick, which no integer can hold.
                 mid: Optional[float] = None
                 if best_bid is not None and best_ask is not None:
-                    mid = round((best_bid + best_ask) / 2, 6)
+                    mid = (best_bid + best_ask) / 2
                 elif best_bid is not None:
-                    mid = best_bid
+                    mid = float(best_bid)
                 elif best_ask is not None:
-                    mid = best_ask
+                    mid = float(best_ask)
                 elif payload.get("last_price") is not None:
-                    mid = payload["last_price"]
+                    last_ticks = _to_ticks(payload["last_price"], tick_decimals)
+                    mid = None if last_ticks is None else float(last_ticks)
 
                 # pct_change is the move since the *immediately preceding
                 # persisted row* for this symbol, so a reader can reproduce it
@@ -1182,7 +1294,16 @@ class StatsProcess:
                 snap_ts = datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
                 with self._conn:
                     cursor = self._conn.execute(
-                        INSERT_SNAPSHOT, (snap_ts, symbol, mid, best_bid, best_ask, pct)
+                        INSERT_SNAPSHOT,
+                        (
+                            snap_ts,
+                            symbol,
+                            mid,
+                            best_bid,
+                            best_ask,
+                            pct,
+                            tick_decimals,
+                        ),
                     )
                 if not cursor.rowcount:
                     # INSERT OR IGNORE dropped it — another row already holds
@@ -1277,11 +1398,16 @@ class StatsProcess:
                 symbol = book.get("symbol", "")
                 if not symbol:
                     continue
+                acc = self._accum_for(symbol, day)
+                self._note_tick_decimals(acc, _payload_tick_decimals(book))
                 bids = book.get("bids", [])
                 asks = book.get("asks", [])
-                best_bid = bids[0].get("price") if bids else None
-                best_ask = asks[0].get("price") if asks else None
-                acc = self._accum_for(symbol, day)
+                best_bid = _to_ticks(
+                    bids[0].get("price") if bids else None, acc.tick_decimals
+                )
+                best_ask = _to_ticks(
+                    asks[0].get("price") if asks else None, acc.tick_decimals
+                )
                 acc.on_eod_book(best_bid, best_ask)
                 # close_price already set by last trade; if no trades today keep None
                 self._flush_daily(acc)
@@ -1765,8 +1891,16 @@ def main() -> None:
         args.snapshot_interval,
         args.timezone,
     )
-    if args.snapshot_interval <= 0:
-        parser.error("--snapshot-interval must be greater than 0")
+    if args.snapshot_interval < MIN_SNAPSHOT_INTERVAL_SEC:
+        # price_snapshots is keyed on (ts, symbol) at second precision, so a
+        # sub-second interval asks for rows the table cannot hold: the extras
+        # collide and INSERT OR IGNORE discards them without a word. Refuse
+        # rather than accept a setting that silently does not work.
+        parser.error(
+            f"--snapshot-interval must be at least {MIN_SNAPSHOT_INTERVAL_SEC} "
+            f"second: price_snapshots stores at most one row per second per "
+            f"symbol, so a shorter interval would silently discard rows"
+        )
     session_tz = resolve_timezone(args.timezone)
     if session_tz is None:
         parser.error(f"--timezone: unknown timezone {args.timezone!r}")

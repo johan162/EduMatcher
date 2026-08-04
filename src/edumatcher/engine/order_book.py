@@ -23,7 +23,7 @@ from collections import deque
 from typing import Any, Optional
 
 from edumatcher.models.clock import now_ns
-from edumatcher.models.price import from_ticks
+from edumatcher.models.price import from_ticks, get_tick_decimals
 
 from edumatcher.models.order import (
     Order,
@@ -630,6 +630,11 @@ class OrderBook:
 
         return {
             "symbol": self.symbol,
+            # The tick scale the display prices in this snapshot were produced
+            # at. Subscribers that store prices exactly (pm-stats) need it to
+            # convert back to integer ticks; without it they must guess, and
+            # guessing 2 for a 4-decimal symbol rounds the price away.
+            "tick_decimals": get_tick_decimals(self.symbol),
             "bids": sorted(bid_rows, key=lambda x: -x["price"]),
             "asks": sorted(ask_rows, key=lambda x: x["price"]),
             "last_price": (

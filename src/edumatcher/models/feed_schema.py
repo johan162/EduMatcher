@@ -113,11 +113,14 @@ class BookLevelPayload:
 class EodBookPayload:
     """One symbol book snapshot entry in ``system.eod``.
 
-    Unit: ``last_price`` and level prices are display floats.
+    Unit: ``last_price`` and level prices are display floats. ``tick_decimals``
+    is the scale they were produced at, so a subscriber that stores prices
+    exactly can convert back to integer ticks without guessing.
     """
 
     symbol: str
     last_price: float | None = None
+    tick_decimals: int = 2
     bids: list[BookLevelPayload] = field(default_factory=list)
     asks: list[BookLevelPayload] = field(default_factory=list)
 
@@ -138,6 +141,7 @@ class EodBookPayload:
         return cls(
             symbol=str(payload.get("symbol", "")),
             last_price=last_price,
+            tick_decimals=int(payload.get("tick_decimals", 2)),
             bids=bids,
             asks=asks,
         )
@@ -145,6 +149,7 @@ class EodBookPayload:
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
             "symbol": self.symbol,
+            "tick_decimals": self.tick_decimals,
             "bids": [b.to_dict() for b in self.bids],
             "asks": [a.to_dict() for a in self.asks],
         }

@@ -390,31 +390,30 @@ async def test_auth_dependency_success_and_failures() -> None:
 
 
 def prepare_history_db(path: Path) -> None:
+    """Seed a history DB using the recorder's own DDL.
+
+    Built from ``stats.main.SCHEMA`` rather than a hand-copied duplicate: the
+    copy silently drifted out of date twice as columns were added, and each
+    time the failure surfaced as an unrelated-looking "no such column" deep in
+    a query. Prices are integer ticks, matching what pm-stats writes.
+    """
+    from edumatcher.stats.main import SCHEMA
+
     conn = sqlite3.connect(path)
+    conn.executescript(SCHEMA)
     conn.executescript("""
-CREATE TABLE order_events (
-    seq INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, event_type TEXT, order_id TEXT,
-    gateway_id TEXT, symbol TEXT, side TEXT, order_type TEXT, tif TEXT, price REAL,
-    quantity INTEGER, remaining_qty INTEGER, status TEXT, fill_price REAL,
-    fill_qty INTEGER, trade_id TEXT, reason TEXT, client_order_id TEXT,
-    combo_parent_id TEXT, oco_group_id TEXT, priority_reset INTEGER
-);
-CREATE TABLE trade_log (
-    ts TEXT, trade_id TEXT, symbol TEXT, price REAL, quantity INTEGER,
-    buy_gateway_id TEXT, sell_gateway_id TEXT, aggressor_side TEXT
-);
-CREATE TABLE daily_stats (
-    date TEXT, symbol TEXT, open_price REAL, high_price REAL, low_price REAL,
-    close_price REAL, open_bid REAL, open_ask REAL, close_bid REAL, close_ask REAL,
-    volume INTEGER, trade_count INTEGER, turnover REAL, vwap REAL,
-    largest_trade_qty INTEGER, largest_trade_price REAL
-);
 INSERT INTO order_events (ts,event_type,order_id,gateway_id,symbol) VALUES
 ('2026-06-24T10:00:00','ACK','ORD1','GW01','AAPL'),
 ('2026-06-24T10:00:01','FILL','ORD1','GW01','AAPL');
-INSERT INTO trade_log VALUES ('2026-06-24T10:00:01','TRD1','AAPL',150.0,10,'GW01','GW02','BUY');
-INSERT INTO daily_stats VALUES ('2026-06-24','AAPL',150,151,149,150.5,NULL,NULL,NULL,NULL,10,1,1500,150,10,150);
+INSERT INTO trade_log (ts,trade_id,symbol,price,quantity,tick_decimals,
+                       buy_gateway_id,sell_gateway_id,aggressor_side)
+VALUES ('2026-06-24T10:00:01','TRD1','AAPL',15000,10,2,'GW01','GW02','BUY');
+INSERT INTO daily_stats (date,symbol,open_price,high_price,low_price,close_price,
+                         volume,trade_count,turnover,vwap,largest_trade_qty,
+                         largest_trade_price,tick_decimals)
+VALUES ('2026-06-24','AAPL',15000,15100,14900,15050,10,1,150000,15000,10,15000,2);
 """)
+    conn.commit()
     conn.close()
 
 

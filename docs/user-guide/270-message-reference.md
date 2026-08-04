@@ -1086,6 +1086,7 @@ Consumed by order-book viewers and the statistics process.
 | Field | Type | Description |
 |---|---|---|
 | `symbol` | string | Instrument ticker |
+| `tick_decimals` | integer | Symbol price precision (`d` where 1 tick = `10^-d`), matching `trade.executed`. Lets a subscriber that stores integerized prices convert the display floats below back to exact ticks instead of assuming a scale — assuming `2` for a 4-decimal symbol rounds the price away |
 | `bids` | array of level dicts | Sorted best-to-worst; each level: `{"price", "qty", "count"}` |
 | `asks` | array of level dicts | Sorted best-to-worst; each level: `{"price", "qty", "count"}` |
 | `last_price` | float \| null | Price of the most recent trade |

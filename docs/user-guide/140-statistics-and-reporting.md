@@ -105,13 +105,14 @@ The schema version is in `PRAGMA user_version`:
 
 ```console
 $ sqlite3 data/stats.db "PRAGMA user_version"
-3
+4
 ```
 
 The version is bumped both when the table definitions change and when the
 *meaning* of stored values changes — version 2 introduced the distinct combo,
 OCO and quote `event_type` values, which the DDL alone cannot express, and
-version 3 added `feed_gaps` and widened `trade_log`'s primary key.
+version 3 added `feed_gaps` and widened `trade_log`'s primary key, and
+version 4 moved prices from REAL display money to INTEGER ticks.
 
 `pm-stats` refuses to open a database whose `user_version` does not match the
 build, rather than writing new-format rows into an old-format file. If you hit
@@ -213,43 +214,106 @@ See [Processes — Environment variables](170-processes.md#environment-variables
 
 
 
-## Numeric Precision
+## Prices Are Stored As Integer Ticks
 
-Every monetary and level column in `stats.db` — `price`, `vwap`, `turnover`,
-`mid_price`, `best_bid`, `best_ask`, `level`, `aggregate_cap`, `divisor` — is a
-SQLite `REAL`, which is an IEEE-754 double. This is a deliberate choice for a
-teaching exchange, and it has consequences worth stating rather than
-discovering.
+**The single most important thing to know about this database: the price
+columns do not contain money.** They contain an integer count of ticks. If you
+open `stats.db` in a SQL browser and see `15025`, that is `150.25`.
 
-**What that gives you.** About 15–17 significant decimal digits. For instrument
-prices and VWAP at realistic magnitudes, that is far more precision than the
-tick size, so figures agree with a hand calculation well beyond any economically
-meaningful digit.
-
-**Where the error accumulates.** `vwap` and `turnover` are running sums of
-`price × quantity` over a whole trading day. Floating-point addition is not
-associative, so the stored value can differ in its last digits from the same sum
-computed in a different order — which is exactly what happens when you recompute
-VWAP from `trade_log` in a spreadsheet, in pandas, or with `awk`.
-
-**Therefore:** compare with a tolerance, never for exact equality.
-
-```python
-# Right
-assert abs(recomputed_vwap - stored_vwap) < 1e-9 * max(1.0, abs(stored_vwap))
-
-# Wrong — will fail sporadically on an active day
-assert recomputed_vwap == stored_vwap
+```console
+$ sqlite3 data/stats.db "SELECT symbol, price, quantity, tick_decimals FROM trade_log LIMIT 1"
+AAPL|15025|100|2
 ```
 
-`aggregate_cap` is the value most exposed to this: index market caps run to
-10^12 or beyond, where a double's absolute resolution is roughly 10^-4, so
-treat its last few digits as noise.
+```console
+$ pm-stats-cli trades --symbol AAPL --limit 1
+ts                            | trade_id | symbol | price  | quantity | ...
+------------------------------+----------+--------+--------+----------+----
+2026-06-14T09:00:01.000+00:00 | 1        | AAPL   | 150.25 | 100      | ...
+```
 
-If you need exact decimal arithmetic, `pm-clearing` stores prices as integer
-minor units alongside a `tick_decimals` column — see
-[P&L and Clearing](130-pnl-clearing.md). `stats.db` deliberately does not,
-because its consumers are charts and summaries rather than settlement.
+Same row. `pm-stats-cli` and the API convert for you; raw SQL does not.
+
+### The conversion rule
+
+Every table holding prices carries a `tick_decimals` column — the number of
+decimal places that symbol prices to. Divide by ten to that power:
+
+```text
+display price = price / 10^tick_decimals
+150.25        = 15025 / 10^2
+1.2345        = 12345 / 10^4
+```
+
+Always use the **row's own** `tick_decimals`. Symbols do not share a tick size:
+an FX pair at four decimals and an equity at two sit in the same table, and
+assuming `2` for both silently mangles the FX prices.
+
+```sql
+-- Right
+SELECT symbol, price / power(10, tick_decimals) AS display_price FROM trade_log;
+
+-- Wrong: breaks on any symbol that is not 2-decimal
+SELECT symbol, price / 100.0 FROM trade_log;
+```
+
+### Why integers
+
+The engine matches in integer ticks and converts to a float only to publish.
+`pm-stats` converts straight back at ingest, so the number stored is the exact
+number the engine matched on. Nothing rounds, and a day's turnover is an
+integer sum that cannot drift however many fills it spans — where a float sum
+would differ in its last digits depending on the order the trades were added.
+
+This also lets `daily_stats` reconcile *exactly* against `pm-clearing`, which
+stores its own archive the same way (see
+[P&L and Clearing](130-pnl-clearing.md)).
+
+### The three exceptions
+
+| Column | Type | Why |
+|--------|------|-----|
+| `daily_stats.vwap` | REAL | `turnover / volume` is a ratio and rarely lands on a tick. Both inputs are stored exactly beside it, so compute it yourself when you need full precision. |
+| `price_snapshots.mid_price` | REAL | The midpoint of two adjacent ticks is a *half* tick, which no integer can hold. `best_bid` and `best_ask` beside it are exact. |
+| index `level`, `aggregate_cap`, `divisor` | REAL | An index level is a computed, dimensionless number, not a price on a tick grid — there is no tick size to express it in. |
+
+Both REAL exceptions are still **in ticks**, not in money, so they convert with
+the same rule. Index levels are neither — they are already the number you want.
+
+### `turnover` is not in ticks either
+
+`turnover` is `sum(price_ticks × quantity)`, so it carries the tick scale
+*and* the quantity. Dividing by `10^tick_decimals` alone leaves a
+half-converted number:
+
+```text
+notional in money = turnover / 10^tick_decimals
+```
+
+`pm-stats-cli` deliberately does **not** convert `turnover` for you, because
+whether you want notional or the raw VWAP numerator depends on what you are
+computing. `vwap` in ticks is exactly `turnover / volume`.
+
+### What this means for exported data
+
+A CSV export carries the converted display prices, since the conversion happens
+before output. But `--wide` also includes `tick_decimals`, so the exact integers
+remain recoverable:
+
+```text
+price_ticks = round(display_price × 10^tick_decimals)
+```
+
+Keep that column if you intend to reconcile against `stats.db` or `clearing.db`
+later.
+
+### Residual float exposure
+
+After all of the above, the only values where floating point can still bite are
+the three REAL exceptions. `aggregate_cap` is the most exposed: index market
+caps run to 10^12 or beyond, where a double's absolute resolution is around
+10^-4. Treat its last few digits as noise, and compare with a tolerance rather
+than for equality.
 
 
 
@@ -257,6 +321,37 @@ because its consumers are charts and summaries rather than settlement.
 
 All statistics are stored in `data/stats.db`, a SQLite 3 database with seven data
 tables plus a metadata table.
+
+### Row identity and pagination cursors
+
+Keyset pagination (`--after`, and `next_cursor` on the API) needs a total
+ordering, so each cursor carries the last row's sort key plus a tiebreaker.
+Which tiebreaker depends on the table:
+
+| Table | Cursor tiebreaker | Stable across `VACUUM`? |
+|-------|-------------------|-------------------------|
+| `order_events` | `seq` — a real `INTEGER PRIMARY KEY AUTOINCREMENT` column | Yes |
+| `daily_stats` | `symbol` (with `date`) — real columns | Yes |
+| `index_daily_stats` | `index_id` (with `date`) — real columns | Yes |
+| `trade_log` | SQLite's implicit `rowid` | **Not guaranteed** |
+| `price_snapshots` | SQLite's implicit `rowid` | **Not guaranteed** |
+| `index_level_snapshots` | SQLite's implicit `rowid` | **Not guaranteed** |
+
+The last three have composite primary keys rather than an explicit `INTEGER
+PRIMARY KEY`, so SQLite is free to renumber their `rowid`s during a `VACUUM`.
+In practice it usually does not — SQLite 3.37 leaves them untouched in the
+straightforward case — but the documentation only says it *may*, so nothing
+should depend on it.
+
+!!! warning "Do not hold a cursor across a `VACUUM`"
+    A `VACUUM` between fetching one page and requesting the next can, on those
+    three tables, make the cursor's `rowid` refer to a different row. The
+    damage is bounded — `ts` is the primary sort and `rowid` only breaks ties —
+    so at worst you skip or repeat rows *sharing a single timestamp*. It will
+    not error.
+
+    This matters for the retention procedure below, which ends in a `VACUUM`.
+    Finish paginating first, or re-run the query from the start afterwards.
 
 ### `stats_meta`
 
@@ -281,20 +376,21 @@ Aggregated OHLCV (open, high, low, close, volume) and related metrics for each s
 |-----------------------|---------|-------|-------------------------------------------------------------------|
 | `date`                | TEXT    | no    | **Trading date** `YYYY-MM-DD` in the session timezone             |
 | `symbol`              | TEXT    | no    | Instrument ticker                                                 |
-| `open_price`          | REAL    | yes   | First trade price of the day; null if the day had no trades       |
-| `high_price`          | REAL    | yes   | Highest trade price; null if the day had no trades                |
-| `low_price`           | REAL    | yes   | Lowest trade price; null if the day had no trades                 |
-| `close_price`         | REAL    | yes   | Last trade price; null if the day had no trades                   |
+| `open_price`          | INTEGER | yes   | First trade price of the day, **in ticks**; null if no trades     |
+| `high_price`          | INTEGER | yes   | Highest trade price, **in ticks**                                 |
+| `low_price`           | INTEGER | yes   | Lowest trade price, **in ticks**                                  |
+| `close_price`         | INTEGER | yes   | Last trade price, **in ticks**                                    |
 | `volume`              | INTEGER | no    | Total traded quantity; `0` if the day had no trades               |
 | `trade_count`         | INTEGER | no    | Number of trades; `0` if the day had no trades                    |
-| `turnover`            | REAL    | no    | Traded notional, `sum(price × quantity)`; `0` if the day had no trades |
-| `vwap`                | REAL    | yes   | Volume-weighted average price; null if the day had no trades      |
-| `open_bid`            | REAL    | yes   | Best bid at first book update of the day                          |
-| `open_ask`            | REAL    | yes   | Best ask at first book update of the day                          |
-| `close_bid`           | REAL    | yes   | Best bid at engine shutdown                                       |
-| `close_ask`           | REAL    | yes   | Best ask at engine shutdown                                       |
+| `turnover`            | INTEGER | no    | `sum(price_ticks × quantity)` — exact. **Not** in ticks: see the turnover note above |
+| `vwap`                | REAL    | yes   | Volume-weighted average price **in ticks**. Derived (`turnover / volume`), so REAL |
+| `open_bid`            | INTEGER | yes   | Best bid at first book update of the day, **in ticks**            |
+| `open_ask`            | INTEGER | yes   | Best ask at first book update of the day, **in ticks**            |
+| `close_bid`           | INTEGER | yes   | Best bid at engine shutdown, **in ticks**                         |
+| `close_ask`           | INTEGER | yes   | Best ask at engine shutdown, **in ticks**                         |
 | `largest_trade_qty`   | INTEGER | yes   | Quantity of the single largest trade. Note this is `0`, not null, on a day with no trades |
-| `largest_trade_price` | REAL    | yes   | Price of the single largest trade; null on a day with no trades   |
+| `largest_trade_price` | INTEGER | yes   | Price of the single largest trade, **in ticks**                   |
+| `tick_decimals`       | INTEGER | no    | Decimal scale for this row's tick columns                         |
 
 **Use case**: End-of-day summaries, daily trend analysis, multi-day performance tracking.
 
@@ -317,16 +413,17 @@ Intraday mid-price, bid/ask, and percentage-change history, recorded at most onc
 |--------------|------|-------|---------------------------------------------------------------------------------|
 | `ts`         | TEXT | no    | ISO-8601 UTC instant, **second** precision, e.g. `2026-06-14T09:00:00+00:00`     |
 | `symbol`     | TEXT | no    | Instrument ticker                                                               |
-| `mid_price`  | REAL | yes   | See the fallback chain below — **not always a true mid**                        |
-| `best_bid`   | REAL | yes   | Best bid at snapshot time; null if the bid side was empty                       |
-| `best_ask`   | REAL | yes   | Best ask at snapshot time; null if the ask side was empty                       |
-| `pct_change` | REAL | yes   | Percentage change of `mid_price` from the previous snapshot (`1.25` means +1.25 %); null on the first snapshot |
+| `mid_price`  | REAL | yes   | Midpoint **in ticks**; REAL because a midpoint can be a half tick. See the fallback chain below — **not always a true mid** |
+| `best_bid`   | INTEGER | yes | Best bid at snapshot time **in ticks**; null if the bid side was empty          |
+| `best_ask`   | INTEGER | yes | Best ask at snapshot time **in ticks**; null if the ask side was empty          |
+| `pct_change` | REAL | yes   | Percentage change of `mid_price` from the previous persisted row (`1.25` means +1.25 %); a percentage, never converted |
+| `tick_decimals` | INTEGER | no | Decimal scale for this row's tick columns                                    |
 
 `mid_price` is resolved in this order, and only the first case is a genuine mid-price:
 
 | Book state | `mid_price` |
 |------------|-------------|
-| Both sides present | `(best_bid + best_ask) / 2` |
+| Both sides present | `(best_bid + best_ask) / 2`, in ticks — may be a half tick |
 | Bid only | `best_bid` |
 | Ask only | `best_ask` |
 | Neither, but a last trade exists | `last_price` |
@@ -364,8 +461,9 @@ Append-only record of every matched trade — no aggregation, one row per trade.
 | `ts`              | TEXT    | no    | ISO-8601 UTC instant, **millisecond** precision. This is the **engine's** trade timestamp |
 | `trade_id`        | TEXT    | no    | Engine trade counter, unique **within one engine run** only           |
 | `symbol`          | TEXT    | no    | Instrument ticker                                                    |
-| `price`           | REAL    | no    | Execution price                                                      |
+| `price`           | INTEGER | no    | Execution price, **in ticks** — divide by `10^tick_decimals`         |
 | `quantity`        | INTEGER | no    | Matched quantity                                                     |
+| `tick_decimals`   | INTEGER | no    | Decimal scale for `price`                                            |
 | `buy_gateway_id`  | TEXT    | yes   | Gateway that submitted the buy order                                 |
 | `sell_gateway_id` | TEXT    | yes   | Gateway that submitted the sell order                                |
 | `aggressor_side`  | TEXT    | yes   | `BUY` or `SELL` for a continuous match; `AUCTION` for an uncross print |
@@ -533,8 +631,8 @@ Aggregated daily OHLC (open, high, low, close) for each configured exchange inde
 | `low_level`            | REAL    | Lowest index level seen during the day                  |
 | `close_level`          | REAL    | Index level at the *most recently received* update — see the finality note below |
 | `close_session_state`  | TEXT    | Session state as of that most recent update (e.g. `CONTINUOUS`, `CLOSED`) — the key to knowing whether `close_level` is final |
-| `open_aggregate_cap`   | REAL    | Aggregate constituent market cap at the first update     |
-| `close_aggregate_cap`  | REAL    | Aggregate constituent market cap at the most recent update |
+| `open_aggregate_cap`   | REAL    | Aggregate constituent market cap at the first update, in **display money** |
+| `close_aggregate_cap`  | REAL    | Aggregate constituent market cap at the most recent update, in **display money** |
 | `update_count`         | INTEGER | Number of `index.update` events folded into this day's row |
 
 **Use case**: Daily index trend analysis, comparing index performance across trading dates, spotting days with unusually few updates (a thin `update_count` may indicate a quiet index or a connectivity gap), and — the most common ask — looking up an index's official end-of-day (EOD) closing level for a chosen date.
@@ -562,13 +660,26 @@ Time series of every index level update received from `pm-index`, one row per `i
 |-----------------|------|------------------------------------------------------------------------|
 | `ts`            | TEXT | ISO-8601 UTC instant, millisecond precision                            |
 | `index_id`      | TEXT | Index identifier                                                        |
-| `level`         | REAL | Current index level at this update                                      |
-| `aggregate_cap` | REAL | Aggregate constituent market cap at this update                         |
-| `divisor`       | REAL | Index divisor in effect at this update                                  |
+| `level`         | REAL | Current index level at this update. Dimensionless — an index level is a computed number, not a price, so it is neither in ticks nor in money |
+| `aggregate_cap` | REAL | Aggregate constituent market cap at this update, in **display money** — see the currency note below |
+| `divisor`       | REAL | Index divisor in effect at this update. Dimensionless: `level = aggregate_cap / divisor` |
 | `session_state` | TEXT | Index session state at this update — see the full set below            |
 | `day_open`      | REAL | Day's opening level, when known at this update                         |
 | `day_high`      | REAL | Day's high level so far, when known at this update                     |
 | `day_low`       | REAL | Day's low level so far, when known at this update                      |
+
+!!! note "`aggregate_cap` is money, but no currency is recorded"
+    Market cap is the one monetary value in `stats.db` that is **not** in
+    ticks — an index spans several instruments, so there is no single tick
+    grid to express it on, and it is stored as display money in whatever
+    currency the constituents are priced in. That currency is not recorded
+    anywhere in the database. If your exchange lists in more than one
+    currency, `aggregate_cap` sums across them and is not meaningful without
+    knowing the mix.
+
+    It is also the value most exposed to floating-point error: caps run to
+    10^12 or beyond, where a double resolves to roughly 10^-4. Treat its last
+    few digits as noise and compare with a tolerance.
 
 `session_state` (in both this table and `index_daily_stats.close_session_state`)
 takes exactly one of the five values from the engine's session model:
@@ -607,8 +718,8 @@ pm-stats
 1. Connect as a subscriber to the engine's PUB socket (:5556)
 2. Connect as a second, independent subscriber to `pm-index`'s own PUB socket (:5558 by default) for `index.update` events — `pm-index` binds a separate endpoint from the engine, so this is a distinct ZMQ connection, not an additional topic filter on the engine socket
 3. Wait briefly for ZMQ subscriptions to propagate, then request the symbol list from the engine via PUSH (:5555); on receipt, request a current book snapshot per symbol so opening bid/ask and initial price rows are captured even before new trading activity
-4. Begin recording trades to `daily_stats` as they execute
-5. Write intraday snapshots every 15 minutes
+4. Begin recording trades to `daily_stats` as they execute, detecting and logging any trades that never arrived (see [`feed_gaps`](#feed_gaps))
+5. Write an intraday snapshot on the first book update for a symbol, then at most one per `--snapshot-interval` (default 15 minutes) — a quiet symbol produces none
 6. Write trade-by-trade records to `trade_log` immediately
 7. Write private order lifecycle events to `order_events`
 8. Write every received index update to `index_level_snapshots` and upsert the day's rollup into `index_daily_stats` — no exchange indexes configured means no `index.update` traffic and these two tables simply stay empty, which is expected and not an error
@@ -620,7 +731,7 @@ pm-stats
 |--------------------------|-----------------|----------------------------------------------------------------------------------------|
 | `--db`                   | `data/stats.db` | Custom statistics database path                                                        |
 | `--timezone`             | `UTC`           | Exchange session timezone defining the trading date written to the `date` columns (IANA name). Recorded into the database, so readers pick it up automatically. Restarting against an existing database with a different value is refused |
-| `--snapshot-interval`    | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol. Lower values give finer intraday resolution at the cost of more database writes. Values below 1 second are not useful — `price_snapshots` is keyed to second precision, so sub-second rows collide and are dropped |
+| `--snapshot-interval`    | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol; minimum `1`. Lower values give finer intraday resolution at the cost of more database writes. Anything under a second is **rejected at startup**: `price_snapshots` is keyed on `(ts, symbol)` at second precision, so it cannot hold more than one row per second per symbol and the extras would be silently discarded |
 | `--sql-trace`            | off             | Log executed SQLite statements from the stats writer connection — useful for debugging what `pm-stats` is actually writing |
 | `--log-level`            | `WARNING`       | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                       |
 | `-v`, `--verbose`        | off             | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                   |
@@ -859,11 +970,11 @@ pm-stats-cli trades --limit 50
 **Example output:**
 
 ```
-ts                            | trade_id  | symbol | price | quantity | buy_gateway_id | sell_gateway_id
-------------------------------|-----------|--------|-------|----------|----------------|----------------
-2026-06-14T09:00:01.000+00:00 | T-AAPL-1  | AAPL   | 150   | 100      | TRADER01       | MM01
-2026-06-14T09:00:05.123+00:00 | T-AAPL-2  | AAPL   | 150.5 | 50       | MM01           | TRADER02
-2026-06-14T09:00:10.456+00:00 | T-AAPL-3  | AAPL   | 150.2 | 200      | TRADER02       | TRADER01
+ts                            | trade_id | symbol | price | quantity | aggressor_side | buy_gateway_id | sell_gateway_id
+------------------------------+----------+--------+-------+----------+----------------+----------------+----------------
+2026-06-14T09:00:01.000+00:00 | 1        | AAPL   | 150   | 100      | BUY            | TRADER01       | MM01
+2026-06-14T09:00:05.123+00:00 | 2        | AAPL   | 150.5 | 50       | AUCTION        | MM01           | TRADER02
+2026-06-14T09:00:10.456+00:00 | 3        | AAPL   | 150.2 | 200      | SELL           | TRADER02       | TRADER01
 ```
 
 #### `order-events` — Private Order Lifecycle Events
@@ -1174,9 +1285,9 @@ pm-stats-cli --format csv trades --symbol AAPL --date 2026-06-14 > trades.csv
 Output:
 
 ```
-ts,trade_id,symbol,price,quantity,buy_gateway_id,sell_gateway_id
-2026-06-14T09:00:01.000,T-AAPL-1,AAPL,150,100,TRADER01,MM01
-2026-06-14T09:00:05.123,T-AAPL-2,AAPL,150.5,50,MM01,TRADER02
+ts,trade_id,symbol,price,quantity,aggressor_side,buy_gateway_id,sell_gateway_id
+2026-06-14T09:00:01.000+00:00,1,AAPL,150.0,100,BUY,TRADER01,MM01
+2026-06-14T09:00:05.123+00:00,2,AAPL,150.5,50,AUCTION,MM01,TRADER02
 ```
 
 Good for: Excel, Google Sheets, R/Python data frames, general-purpose analysis.
@@ -1380,8 +1491,8 @@ After a trading session ends, verify key metrics:
 
 2. **Check trade count:**
    ```bash
-   # --limit must exceed the expected count, or the result is truncated.
-   # Subtract 1 for the CSV header row.
+   # --no-header so every line is a trade; --limit must exceed the expected
+   # count, or the result is silently truncated.
    pm-stats-cli --format csv --no-header trades --date 2026-06-14 --limit 100000 | wc -l
    ```
    Verify: matches expected number from the trading floor. If a
@@ -1661,7 +1772,9 @@ print(daily[['symbol', 'return_pct']])
 !!! note "Growth and retention"
     `trade_log` and `order_events` are append-only and unbounded — `pm-stats`
     never prunes them. On a long-running deployment, plan for periodic
-    archival (copy out with `VACUUM INTO`, then `DELETE` old rows and `VACUUM`)
+    archival (copy out with `VACUUM INTO`, then `DELETE` old rows and `VACUUM`
+    — see the cursor caveat under [Row identity and pagination
+    cursors](#row-identity-and-pagination-cursors))
     and monitor the file size. There is no built-in retention setting.
 
 ### Snapshot times seem wrong or are missing
@@ -1697,22 +1810,33 @@ This calculates $\sum(price \times qty) / \sum(qty)$ from the trade log. Compare
 pm-stats-cli daily --symbol AAPL --date 2026-06-14
 ```
 
-They should agree to within floating-point rounding — see
-[Numeric Precision](#numeric-precision). Expect agreement in the first ~15
-significant digits, not an exact string match. `turnover` in
-`daily_stats --wide` is the same sum the recorder accumulated, so comparing
-against that isolates a genuine discrepancy from summation order:
+The awk figure is in **display money** because `pm-stats-cli` converted the
+prices on the way out, while `daily_stats.vwap` is in **ticks**. Divide the
+stored VWAP by `10^tick_decimals` before comparing, or the two will differ by
+a factor of a hundred and look catastrophically wrong when nothing is:
 
 ```bash
 pm-stats-cli --format json daily --symbol AAPL --date 2026-06-14 --wide \
-  | python3 -c "import json,sys; r=json.load(sys.stdin)[0]; print(r['turnover']/r['volume'], r['vwap'])"
+  | python3 -c "
+import json, sys
+row = json.load(sys.stdin)[0]
+scale = 10 ** row['tick_decimals']
+print('vwap  (money):', row['vwap'])          # already converted on output
+print('vwap  (ticks):', row['vwap'] * scale)
+print('turnover/vol :', row['turnover'] / row['volume'] / scale)
+"
 ```
 
-If they disagree materially, check in this order:
+Because prices are stored as exact integers, the recomputation should now
+agree to full precision rather than merely to within rounding — `turnover` is
+an integer sum that does not depend on the order the trades were added.
 
-1. **Was the output truncated?** A `[WARN]` line on stderr means the awk sum
+If the figures disagree, check in this order:
+
+1. **Are you comparing ticks against money?** By far the most common cause.
+2. **Was the output truncated?** A `[WARN]` line on stderr means the awk sum
    covered only part of the day.
-2. **Do `pm-stats` and `pm-stats-cli` use the same `--timezone`?** If not,
+3. **Do `pm-stats` and `pm-stats-cli` use the same `--timezone`?** If not,
    `--date` selects a different set of trades than the one folded into the
    `daily_stats` row, and the two will never match.
 

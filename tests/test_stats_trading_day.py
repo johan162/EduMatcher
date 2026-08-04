@@ -20,6 +20,7 @@ from edumatcher.stats.main import (
     DatabaseInUseError,
     IncompatibleDatabaseError,
     StatsProcess,
+    main as stats_main,
 )
 from edumatcher.stats.query import (
     open_readonly_connection,
@@ -41,7 +42,7 @@ STOCKHOLM = ZoneInfo("Europe/Stockholm")
 
 @pytest.fixture
 def sp(tmp_path: Path):
-    """StatsProcess with fake ZMQ sockets; _conn closed after each test."""
+    """StatsProcess with fake ZMQ sockets; fully closed after each test."""
     fake_sock = MagicMock()
     with (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
@@ -310,14 +311,15 @@ def test_restart_preserves_the_days_ohlcv(tmp_path: Path) -> None:
     second.close()
 
     open_price, high, low, close, volume, count, vwap, largest = row
-    assert open_price == 100.0  # not 110.0 — the morning survived
-    assert high == 120.0
-    assert low == 90.0
-    assert close == 110.0
+    # Prices are integer ticks: 100.00 -> 10000 at two tick decimals.
+    assert open_price == 10000  # not 11000 — the morning survived
+    assert high == 12000
+    assert low == 9000
+    assert close == 11000
     assert volume == 100  # 10 + 30 + 20 + 40, not 40
     assert count == 4
     assert largest == 40
-    expected_vwap = (100.0 * 10 + 120.0 * 30 + 90.0 * 20 + 110.0 * 40) / 100
+    expected_vwap = (10000 * 10 + 12000 * 30 + 9000 * 20 + 11000 * 40) / 100
     assert vwap == pytest.approx(expected_vwap)
 
 
@@ -345,7 +347,7 @@ def test_restart_preserves_opening_quotes(tmp_path: Path) -> None:
     row = second._conn.execute("SELECT open_bid, open_ask FROM daily_stats").fetchone()
     second.close()
 
-    assert row == (99.0, 101.0)
+    assert row == (9900, 10100)  # ticks
 
 
 def test_index_restart_preserves_the_days_ohlc(tmp_path: Path) -> None:
@@ -409,7 +411,7 @@ def test_first_snapshot_is_written_on_a_freshly_booted_host(
     sp._on_book("AAPL", {"bids": [{"price": 99.0}], "asks": [{"price": 101.0}]})
 
     rows = sp._conn.execute("SELECT symbol, mid_price FROM price_snapshots").fetchall()
-    assert rows == [("AAPL", 100.0)]
+    assert rows == [("AAPL", 10000.0)]  # mid in ticks
 
 
 def test_subsequent_snapshots_still_respect_the_interval(
@@ -670,7 +672,7 @@ def test_pct_change_is_reproducible_from_consecutive_rows(
     rows = sp._conn.execute(
         "SELECT mid_price, pct_change FROM price_snapshots ORDER BY ts"
     ).fetchall()
-    assert [row[0] for row in rows] == [100.0, None, 110.0]
+    assert [row[0] for row in rows] == [10000.0, None, 11000.0]  # ticks
     # The third row's predecessor has no mid, so the move is undefined — not
     # silently measured against the 100.0 two intervals earlier.
     assert [row[1] for row in rows] == [None, None, None]
@@ -704,6 +706,34 @@ def test_pct_change_is_computed_between_adjacent_rows(
         "SELECT mid_price, pct_change FROM price_snapshots ORDER BY ts"
     ).fetchall()
     assert rows[1][1] == pytest.approx(10.0)  # 100 → 110
+
+
+@pytest.mark.parametrize("interval", ["0", "0.5", "0.999", "-1"])
+def test_sub_second_snapshot_interval_is_rejected(
+    monkeypatch: pytest.MonkeyPatch, interval: str
+) -> None:
+    """price_snapshots cannot hold more than one row per second per symbol.
+
+    A shorter interval is a setting the schema physically cannot honour: the
+    extra rows collide on ``(ts, symbol)`` and INSERT OR IGNORE discards them
+    without a word. Refusing at startup beats accepting a value that silently
+    does not work.
+    """
+    monkeypatch.setattr(
+        "sys.argv", ["pm-stats", "--snapshot-interval", interval, "--db", "/tmp/x.db"]
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        stats_main()
+    assert excinfo.value.code == 2  # argparse usage error
+
+
+def test_one_second_snapshot_interval_is_accepted(tmp_path: Path) -> None:
+    """The boundary must remain usable — one second is representable."""
+    proc = _make_process(
+        tmp_path / "stats.db", session_tz=timezone.utc, snapshot_interval_sec=1.0
+    )
+    assert proc._snapshot_interval_sec == 1.0
+    proc.close()
 
 
 def test_writer_opens_in_wal_mode(sp: StatsProcess) -> None:
@@ -957,5 +987,5 @@ def test_turnover_is_persisted_and_reproduces_vwap(sp: StatsProcess) -> None:
     turnover, volume, vwap = sp._conn.execute(
         "SELECT turnover, volume, vwap FROM daily_stats"
     ).fetchone()
-    assert turnover == pytest.approx(100.0 * 10 + 120.0 * 30)
+    assert turnover == 10000 * 10 + 12000 * 30  # exact integer, ticks x qty
     assert turnover / volume == pytest.approx(vwap)

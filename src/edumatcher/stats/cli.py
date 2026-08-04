@@ -28,6 +28,7 @@ from edumatcher.stats.query import (
     query_symbols,
     query_trades,
     resolve_session_timezone,
+    to_display_prices,
     validate_date,
     validate_iso_ts,
 )
@@ -62,6 +63,7 @@ _DAILY_WIDE_COLUMNS = [
     "vwap",
     "largest_trade_qty",
     "largest_trade_price",
+    "tick_decimals",
 ]
 _SNAPSHOTS_COLUMNS = ["ts", "symbol", "mid_price", "best_bid", "best_ask", "pct_change"]
 _TRADES_COLUMNS = [
@@ -393,7 +395,7 @@ def _run_query(
             to_date=args.to_date,
         )
         columns = _DAILY_WIDE_COLUMNS if args.wide else _DAILY_DEFAULT_COLUMNS
-        return columns, rows, next_cursor
+        return columns, to_display_prices(rows, "daily"), next_cursor
 
     if args.command == "snapshots":
         rows, next_cursor = query_price_snapshots(
@@ -406,7 +408,7 @@ def _run_query(
             tz=tz,
             after=args.after,
         )
-        return _SNAPSHOTS_COLUMNS, rows, next_cursor
+        return _SNAPSHOTS_COLUMNS, to_display_prices(rows, "snapshots"), next_cursor
 
     if args.command == "trades":
         rows, next_cursor = query_trades(
@@ -419,7 +421,7 @@ def _run_query(
             tz=tz,
             after=args.after,
         )
-        return _TRADES_COLUMNS, rows, next_cursor
+        return _TRADES_COLUMNS, to_display_prices(rows, "trades"), next_cursor
 
     if args.command == "order-events":
         rows, next_cursor = query_order_events(
