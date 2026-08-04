@@ -25,9 +25,11 @@ from edumatcher.stats.main import (
 )
 from edumatcher.stats.query import (
     open_readonly_connection,
+    query_instruments,
     query_trades,
     read_meta,
     resolve_session_timezone,
+    to_display_prices,
     validate_date,
 )
 from edumatcher.stats.trading_day import (
@@ -864,6 +866,169 @@ def test_depth_topic_does_not_match_a_book_subscription() -> None:
     topic, _ = decode(make_depth_msg("AAPL", {}))
     assert topic == "depth.AAPL"
     assert not topic.startswith("book.")
+
+
+def test_a_daily_row_is_self_consistent_in_both_unit_systems(
+    sp: StatsProcess,
+) -> None:
+    """turnover / volume must equal vwap whether reading ticks or money.
+
+    turnover was initially excluded from the read-boundary conversion on the
+    reasoning that ticks x quantity is "half-converted" by the tick scale.
+    That was wrong: sum(price_ticks * qty) / 10^td is sum(price_money * qty)
+    exactly. Excluding it made a single output row disagree with itself by a
+    factor of the tick scale.
+    """
+    base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
+    for i, (price, qty) in enumerate([(100.0, 10), (120.0, 30)]):
+        sp._on_trade(
+            {
+                "symbol": "AAPL",
+                "price": price,
+                "quantity": qty,
+                "id": str(i + 1),
+                "timestamp": base + i,
+                "tick_decimals": 2,
+            }
+        )
+
+    raw = dict(
+        zip(
+            ("turnover", "volume", "vwap", "tick_decimals"),
+            sp._conn.execute(
+                "SELECT turnover, volume, vwap, tick_decimals FROM daily_stats"
+            ).fetchone(),
+        )
+    )
+    # Stored: exact integer ticks, consistent among themselves.
+    assert raw["turnover"] == 10000 * 10 + 12000 * 30
+    assert raw["turnover"] / raw["volume"] == pytest.approx(raw["vwap"])
+
+    # Converted: still consistent, and now in money.
+    money = to_display_prices([raw], "daily")[0]
+    assert money["turnover"] == pytest.approx(100.0 * 10 + 120.0 * 30)
+    assert money["turnover"] / money["volume"] == pytest.approx(money["vwap"])
+
+
+def test_readonly_open_handles_a_path_containing_a_uri_delimiter(
+    tmp_path: Path,
+) -> None:
+    """A '?' in the path must not terminate the URI's path component.
+
+    Unencoded, SQLite read the remainder as query parameters: it opened a
+    *different* file and discarded mode=ro, so the read-only helper returned a
+    writable handle to the wrong database.
+    """
+    decoy = tmp_path / "stats"
+    conn = sqlite3.connect(str(decoy))
+    conn.execute("CREATE TABLE decoy(x)")
+    conn.commit()
+    conn.close()
+
+    target = tmp_path / "stats?x=1.db"
+    seed = sqlite3.connect(str(target))
+    seed.executescript(SCHEMA)
+    seed.commit()
+    seed.close()
+
+    ro = open_readonly_connection(target)
+    try:
+        opened = ro.execute("PRAGMA database_list").fetchall()[0][2]
+        assert Path(opened) == target.resolve()
+        with pytest.raises(sqlite3.OperationalError, match="readonly"):
+            ro.execute("CREATE TABLE proof(x)")
+    finally:
+        ro.close()
+
+
+# ---------------------------------------------------------------------------
+# GAP-5 (part) — instrument reference data makes the file self-describing
+# ---------------------------------------------------------------------------
+
+
+def test_symbol_meta_records_authoritative_tick_scale(sp: StatsProcess) -> None:
+    """tick_size from engine config is the authoritative scale.
+
+    It also covers symbols that never trade, which observation alone would
+    never reach.
+    """
+    sp._on_startup_symbols(
+        {
+            "symbols": ["AAPL", "FXPAIR"],
+            "symbol_meta": {
+                "AAPL": {"tick_size": 0.01},
+                "FXPAIR": {"tick_size": 0.0001},
+            },
+        }
+    )
+    conn = sp._conn
+    rows = {
+        r[0]: r[1:]
+        for r in conn.execute(
+            "SELECT symbol, tick_decimals, tick_size, currency, source "
+            "FROM instruments"
+        )
+    }
+    assert rows["AAPL"] == (2, 0.01, None, "config")
+    assert rows["FXPAIR"] == (4, 0.0001, None, "config")
+
+
+def test_a_symbol_absent_from_config_is_recorded_from_observation(
+    sp: StatsProcess,
+) -> None:
+    base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
+    sp._on_trade(
+        {
+            "symbol": "NEWCO",
+            "price": 12.5,
+            "quantity": 10,
+            "id": "1",
+            "timestamp": base,
+            "tick_decimals": 3,
+        }
+    )
+    row = sp._conn.execute(
+        "SELECT tick_decimals, tick_size, source FROM instruments WHERE symbol='NEWCO'"
+    ).fetchone()
+    assert row == (3, 0.001, "observed")
+
+
+def test_observation_never_overwrites_configured_tick_scale(
+    sp: StatsProcess,
+) -> None:
+    """Config is authoritative; a message only reveals one message's scale."""
+    sp._on_startup_symbols(
+        {"symbols": ["FXPAIR"], "symbol_meta": {"FXPAIR": {"tick_size": 0.0001}}}
+    )
+    base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
+    # A payload claiming a coarser scale must not downgrade the config value.
+    sp._on_trade(
+        {
+            "symbol": "FXPAIR",
+            "price": 1.2345,
+            "quantity": 1,
+            "id": "1",
+            "timestamp": base,
+            "tick_decimals": 2,
+        }
+    )
+    row = sp._conn.execute(
+        "SELECT tick_decimals, source FROM instruments WHERE symbol='FXPAIR'"
+    ).fetchone()
+    assert row == (4, "config")
+
+
+def test_currency_is_reserved_and_always_null(sp: StatsProcess) -> None:
+    """EduMatcher has no currency model; the column documents its absence."""
+    sp._on_startup_symbols(
+        {"symbols": ["AAPL"], "symbol_meta": {"AAPL": {"tick_size": 0.01}}}
+    )
+    conn = open_readonly_connection(Path(sp._db_path))
+    try:
+        rows = query_instruments(conn)
+    finally:
+        conn.close()
+    assert rows and all(r["currency"] is None for r in rows)
 
 
 def test_writer_opens_in_wal_mode(sp: StatsProcess) -> None:

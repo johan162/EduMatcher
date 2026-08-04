@@ -22,6 +22,7 @@ from edumatcher.stats.query import (
     query_index_daily,
     query_index_ids,
     query_index_snapshots,
+    query_instruments,
     query_order_events,
     query_order_lifecycle,
     query_price_snapshots,
@@ -135,6 +136,14 @@ _INDEX_SNAPSHOTS_COLUMNS = [
     "day_low",
 ]
 _INDEX_IDS_COLUMNS = ["index_id"]
+_INSTRUMENTS_COLUMNS = [
+    "symbol",
+    "tick_decimals",
+    "tick_size",
+    "currency",
+    "source",
+    "updated_ts",
+]
 _FEED_GAPS_COLUMNS = [
     "seq",
     "ts",
@@ -295,6 +304,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     index_ids = sub.add_parser("index-ids", help="List index IDs present in stats DB")
     index_ids.add_argument("--date", metavar="YYYY-MM-DD")
+
+    instruments = sub.add_parser(
+        "instruments",
+        help="Show instrument reference data (tick scale per symbol)",
+    )
+    instruments.add_argument("--symbol", metavar="SYMBOL")
 
     gaps = sub.add_parser(
         "gaps", help="Show detected feed gaps (trades the recorder never received)"
@@ -479,6 +494,12 @@ def _run_query(
             after=args.after,
         )
         return _INDEX_SNAPSHOTS_COLUMNS, rows, next_cursor
+
+    if args.command == "instruments":
+        rows = query_instruments(
+            conn, symbol=args.symbol.upper() if args.symbol else None
+        )
+        return _INSTRUMENTS_COLUMNS, rows, None
 
     if args.command == "gaps":
         rows = query_feed_gaps(

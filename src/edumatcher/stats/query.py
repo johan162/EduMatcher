@@ -8,6 +8,7 @@ import logging
 import sqlite3
 from datetime import datetime, timezone, tzinfo
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any
 
 from edumatcher.stats.trading_day import (
@@ -102,7 +103,13 @@ def open_readonly_connection(db_path: Path) -> sqlite3.Connection:
     if not db_path.exists():
         raise FileNotFoundError(f"Statistics DB not found: {db_path}")
     resolved_path = db_path.resolve()
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    # The path must be percent-encoded before it is pasted into a URI. A path
+    # containing '?' otherwise terminates the path component early: SQLite
+    # reads the remainder as query parameters, opens a *different* file, and
+    # discards mode=ro — so a read-only helper silently returns a writable
+    # handle to the wrong database.
+    uri = f"file:{quote(str(resolved_path))}?mode=ro"
+    conn = sqlite3.connect(uri, uri=True)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout = 5000")
     log.info("opened read-only stats DB connection path=%s", resolved_path)
@@ -124,6 +131,11 @@ TICK_COLUMNS: dict[str, tuple[str, ...]] = {
         "close_ask",
         "vwap",
         "largest_trade_price",
+        # turnover is sum(price_ticks * qty), so dividing by the tick scale
+        # yields sum(price_money * qty) — the money notional exactly, not a
+        # half-converted number. Converting it keeps the row self-consistent:
+        # turnover / volume == vwap in whichever unit system the reader is in.
+        "turnover",
     ),
     "trades": ("price",),
     "snapshots": ("mid_price", "best_bid", "best_ask"),
@@ -138,9 +150,11 @@ def to_display_prices(rows: list[dict[str, Any]], kind: str) -> list[dict[str, A
     ``tick_decimals`` — never a global assumption — which mirrors how
     ``pm-clearing-cli`` presents its integer-minor-unit archive.
 
-    ``turnover`` is deliberately *not* converted: it is ticks x quantity, so
-    dividing by the tick scale alone would leave a half-converted number.
-    Convert it explicitly if you want notional in money.
+    ``turnover`` converts too. It is ``sum(price_ticks * qty)``, so dividing
+    by the tick scale gives ``sum(price_money * qty)`` — the money notional
+    exactly. Leaving it out would make a row disagree with itself, since
+    ``turnover / volume`` must equal ``vwap`` in whichever unit the reader is
+    looking at.
     """
     fields = TICK_COLUMNS.get(kind)
     if not fields:
@@ -268,6 +282,28 @@ def _apply_time_filters(
     return sql
 
 
+def query_instruments(
+    conn: sqlite3.Connection, *, symbol: str | None = None
+) -> list[dict[str, Any]]:
+    """Return instrument reference data — tick scale per symbol.
+
+    ``currency`` is always NULL: EduMatcher has no currency model. The column
+    is reserved so a consumer can see the field is absent rather than assume
+    one.
+    """
+    sql = (
+        "SELECT symbol, tick_decimals, tick_size, currency, source, updated_ts "
+        "FROM instruments"
+    )
+    params: list[Any] = []
+    if symbol is not None:
+        sql += " WHERE symbol = ?"
+        params.append(symbol)
+    sql += " ORDER BY symbol ASC"
+    rows = _execute_fetchall(conn, sql, params)
+    return [dict(row) for row in rows]
+
+
 def query_feed_gaps(
     conn: sqlite3.Connection,
     *,
@@ -382,7 +418,8 @@ def query_daily(
         sql += " AND symbol > ?"
         params.append(cursor_symbol)
 
-    sql += " ORDER BY date DESC, symbol ASC LIMIT ?"
+    # date is pinned by WHERE date = ?, so symbol alone orders the page.
+    sql += " ORDER BY symbol ASC LIMIT ?"
     params.append(limit)
 
     rows = _execute_fetchall(conn, sql, params)
@@ -739,7 +776,8 @@ def query_index_daily(
         sql += " AND index_id > ?"
         params.append(cursor_index_id)
 
-    sql += " ORDER BY date DESC, index_id ASC LIMIT ?"
+    # date is pinned by WHERE date = ?, so index_id alone orders the page.
+    sql += " ORDER BY index_id ASC LIMIT ?"
     params.append(limit)
 
     rows = _execute_fetchall(conn, sql, params)

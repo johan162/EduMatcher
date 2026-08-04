@@ -72,6 +72,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import signal
 import sqlite3
 import sys
@@ -299,7 +300,9 @@ class _IndexDayAccum:
 #: 4 — prices are stored as INTEGER ticks with a per-row ``tick_decimals``,
 #:     replacing REAL display floats. Index levels stay REAL: a level is a
 #:     computed, dimensionless number, not a price on a tick grid.
-SCHEMA_VERSION = 4
+#: 5 — added ``instruments`` reference data (tick scale per symbol, plus a
+#:     reserved ``currency`` column).
+SCHEMA_VERSION = 5
 
 #: Stream name recorded in ``feed_gaps.stream`` for engine trade prints.
 TRADE_STREAM = "trade.executed"
@@ -340,6 +343,28 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS stats_meta (
     key   TEXT NOT NULL PRIMARY KEY,
     value TEXT
+);
+
+-- Reference data making the file self-describing: without it a consumer has
+-- the tick scale on every row but no statement of what an instrument *is*,
+-- and no way to list the instruments at all without scanning the tape.
+CREATE TABLE IF NOT EXISTS instruments (
+    symbol        TEXT    NOT NULL PRIMARY KEY,
+    -- Decimal places a price trades in; 1 tick = 10^-tick_decimals.
+    tick_decimals INTEGER NOT NULL,
+    -- Stored as well as derivable, so a BI tool can join without arithmetic.
+    tick_size     REAL    NOT NULL,
+    -- RESERVED FOR FUTURE USE. EduMatcher has no currency model: prices carry
+    -- no currency, aggregate_cap sums across whatever the constituents are
+    -- priced in, and nothing converts. Always NULL today. The column exists so
+    -- that adding a currency model later does not require a schema migration
+    -- of the reference table, and so a consumer can see the field is absent
+    -- rather than assume a currency.
+    currency      TEXT,
+    -- 'config'  — from the engine's symbol_meta, authoritative
+    -- 'observed'— inferred from a message's tick_decimals, best effort
+    source        TEXT    NOT NULL,
+    updated_ts    TEXT    NOT NULL
 );
 
 -- Price columns below are INTEGER *ticks*, not display money. Divide by
@@ -536,6 +561,22 @@ VALUES (?,?,?,?,?,?,?,?,?)
 UPSERT_META = """
 INSERT INTO stats_meta (key, value) VALUES (?,?)
 ON CONFLICT(key) DO UPDATE SET value = excluded.value
+"""
+
+UPSERT_INSTRUMENT = """
+INSERT INTO instruments (symbol, tick_decimals, tick_size, currency, source, updated_ts)
+VALUES (?,?,?,NULL,?,?)
+ON CONFLICT(symbol) DO UPDATE SET
+    tick_decimals = excluded.tick_decimals,
+    tick_size     = excluded.tick_size,
+    source        = excluded.source,
+    updated_ts    = excluded.updated_ts
+WHERE
+    -- Config is authoritative: never let an observed value overwrite it, and
+    -- never rewrite a row that already says the same thing.
+    (excluded.source = 'config' OR instruments.source != 'config')
+    AND (instruments.tick_decimals != excluded.tick_decimals
+         OR instruments.source != excluded.source)
 """
 
 INSERT_FEED_GAP = """
@@ -1015,6 +1056,25 @@ class StatsProcess:
         )
         self._dbg_count("trades_missing", missing)
 
+    def _record_instrument(self, symbol: str, tick_decimals: int, source: str) -> None:
+        """Upsert reference data for *symbol*.
+
+        Two sources, and config wins: ``system.symbols`` carries the engine's
+        configured tick size, while message payloads only reveal the scale a
+        particular message happened to be produced at. A symbol absent from
+        config still gets a row from observation, so the reference table
+        covers everything that actually traded rather than only what was
+        configured.
+        """
+        if not symbol:
+            return
+        now = datetime.now(tz=timezone.utc).isoformat(timespec="milliseconds")
+        with self._conn:
+            self._conn.execute(
+                UPSERT_INSTRUMENT,
+                (symbol, tick_decimals, 10.0**-tick_decimals, source, now),
+            )
+
     def _note_tick_decimals(self, acc: _DayAccum, tick_decimals: int) -> None:
         """Record the scale this symbol's prices are being captured at.
 
@@ -1033,6 +1093,8 @@ class StatsProcess:
                 tick_decimals,
                 acc.tick_decimals,
             )
+            return
+        self._record_instrument(acc.symbol, acc.tick_decimals, "observed")
 
     def _trading_date(self, epoch_sec: float) -> str:
         """Trading date for an instant, in the configured session timezone."""
@@ -1651,6 +1713,21 @@ class StatsProcess:
         arrive after the stats process starts.
         """
         symbols = payload.get("symbols", [])
+
+        # symbol_meta carries the engine's configured tick_size, which is the
+        # authoritative scale for every symbol — including ones that never
+        # trade and would otherwise never appear in the reference table.
+        symbol_meta = payload.get("symbol_meta") or {}
+        for sym, meta in symbol_meta.items():
+            tick_size = (meta or {}).get("tick_size")
+            if tick_size is None or tick_size <= 0:
+                continue
+            # tick_size is 10^-tick_decimals; recover the exponent.
+            tick_decimals = int(round(-math.log10(float(tick_size))))
+            self._record_instrument(str(sym).upper(), tick_decimals, "config")
+        if symbol_meta:
+            log.info("recorded tick metadata for %d symbol(s)", len(symbol_meta))
+
         with self._push_lock:
             for sym in symbols:
                 self.push.send_multipart(make_book_snapshot_request_msg(sym))

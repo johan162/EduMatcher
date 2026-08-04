@@ -649,9 +649,24 @@ timezone. A `stats.db` assembled across runs with different intervals is
 indistinguishable from one with gaps — a chart consumer cannot tell. Add a
 `recorder_runs` table (start ts, end ts, version, interval, db schema version).
 
-**GAP-5 — No currency, tick size, lot size or price precision.** Not stored
-anywhere in `stats.db`, so the file is not self-describing for a downstream BI
-consumer — which is precisely the use case §"Exporting to BI Tools" promotes.
+**GAP-5 — No currency, tick size, lot size or price precision.** *HALF
+HANDLED.*
+
+Tick metadata is now in the `instruments` table: `tick_decimals` and
+`tick_size` per symbol, sourced authoritatively from the engine's
+`symbol_meta` (so symbols that never trade are covered too) and falling back
+to observation for symbols absent from config, with config never overwritten
+by observation. Queryable via `pm-stats-cli instruments`. The file is
+self-describing for price interpretation.
+
+`currency` exists as a **reserved, always-NULL column**, documented as such:
+EduMatcher has no currency model, nothing converts, and
+`index_daily_stats.aggregate_cap` sums across whatever its constituents are
+priced in. The column is present so a consumer can see the field is *absent*
+rather than assume a currency, and so adding a currency model later needs no
+migration of the reference table.
+
+Still open: lot size, which nothing in the system currently models.
 
 **GAP-6 — No completeness/gap detection.** *HANDLED.*
 

@@ -105,14 +105,15 @@ The schema version is in `PRAGMA user_version`:
 
 ```console
 $ sqlite3 data/stats.db "PRAGMA user_version"
-4
+5
 ```
 
 The version is bumped both when the table definitions change and when the
 *meaning* of stored values changes — version 2 introduced the distinct combo,
 OCO and quote `event_type` values, which the DDL alone cannot express, and
 version 3 added `feed_gaps` and widened `trade_log`'s primary key, and
-version 4 moved prices from REAL display money to INTEGER ticks.
+version 4 moved prices from REAL display money to INTEGER ticks, and
+version 5 added the `instruments` reference table.
 
 `pm-stats` refuses to open a database whose `user_version` does not match the
 build, rather than writing new-format rows into an old-format file. If you hit
@@ -280,19 +281,22 @@ stores its own archive the same way (see
 Both REAL exceptions are still **in ticks**, not in money, so they convert with
 the same rule. Index levels are neither — they are already the number you want.
 
-### `turnover` is not in ticks either
+### `turnover` — stored in ticks, converted like a price
 
-`turnover` is `sum(price_ticks × quantity)`, so it carries the tick scale
-*and* the quantity. Dividing by `10^tick_decimals` alone leaves a
-half-converted number:
+`turnover` is `sum(price_ticks × quantity)`. Dividing by the tick scale gives
+`sum(price_money × quantity)` — the money notional, exactly:
 
 ```text
 notional in money = turnover / 10^tick_decimals
 ```
 
-`pm-stats-cli` deliberately does **not** convert `turnover` for you, because
-whether you want notional or the raw VWAP numerator depends on what you are
-computing. `vwap` in ticks is exactly `turnover / volume`.
+So `turnover` converts on output like every other tick column, and a row is
+self-consistent in whichever unit you are reading:
+
+| | `turnover` | `volume` | `vwap` | `turnover / volume` |
+|---|---|---|---|---|
+| Raw SQL (ticks) | `460000` | `40` | `11500.0` | `11500.0` = `vwap` ✔ |
+| `pm-stats-cli` (money) | `4600.0` | `40` | `115.0` | `115.0` = `vwap` ✔ |
 
 ### What this means for exported data
 
@@ -320,7 +324,7 @@ than for equality.
 ## The Statistics Database Schema
 
 All statistics are stored in `data/stats.db`, a SQLite 3 database with seven data
-tables plus a metadata table.
+tables, an instrument reference table, and a metadata table.
 
 ### Row identity and pagination cursors
 
@@ -353,6 +357,50 @@ should depend on it.
     This matters for the retention procedure below, which ends in a `VACUUM`.
     Finish paginating first, or re-run the query from the start afterwards.
 
+### `instruments`
+
+Reference data for every instrument seen, so the database describes itself
+rather than requiring outside knowledge to interpret.
+
+**Primary key**: `symbol`.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `symbol` | TEXT | Instrument ticker |
+| `tick_decimals` | INTEGER | Decimal places a price trades in; 1 tick = `10^-tick_decimals` |
+| `tick_size` | REAL | The tick as a number, e.g. `0.01`. Derivable from `tick_decimals`, stored so a BI tool can join without arithmetic |
+| `currency` | TEXT | **Reserved for future use — always NULL.** See below |
+| `source` | TEXT | `config` (authoritative, from engine `symbol_meta`) or `observed` (inferred from a message) |
+| `updated_ts` | TEXT | When the row was last written |
+
+Two sources populate it, and **config wins**:
+
+- **`config`** — the engine's `symbol_meta.tick_size`, received in the startup
+  `system.symbols` response. Authoritative, and covers symbols that never
+  trade and would otherwise never appear.
+- **`observed`** — the `tick_decimals` on a trade or book message, for a
+  symbol that has no config entry. Best effort: a message only reveals the
+  scale *that message* was produced at, so it never overwrites a `config` row.
+
+```console
+$ pm-stats-cli instruments
+symbol | tick_decimals | tick_size | currency | source   | updated_ts
+-------+---------------+-----------+----------+----------+------------------------------
+AAPL   | 2             | 0.01      |          | config   | 2026-06-14T08:59:12.004+00:00
+FXPAIR | 4             | 0.0001    |          | config   | 2026-06-14T08:59:12.004+00:00
+NEWCO  | 3             | 0.001     |          | observed | 2026-06-14T09:11:40.882+00:00
+```
+
+!!! note "`currency` is reserved, not merely empty"
+    EduMatcher has **no currency model at all**. Prices carry no currency, no
+    conversion happens anywhere, and `index_daily_stats.aggregate_cap` sums
+    across whatever the constituents happen to be priced in. The column is
+    present and always `NULL` so that a consumer can see the field is
+    *absent* rather than assume a currency — and so introducing a currency
+    model later does not require migrating the reference table.
+
+    Do not write to it, and do not infer a currency from its emptiness.
+
 ### `stats_meta`
 
 Key/value provenance for the file, written by `pm-stats` on every start.
@@ -382,7 +430,7 @@ Aggregated OHLCV (open, high, low, close, volume) and related metrics for each s
 | `close_price`         | INTEGER | yes   | Last trade price, **in ticks**                                    |
 | `volume`              | INTEGER | no    | Total traded quantity; `0` if the day had no trades               |
 | `trade_count`         | INTEGER | no    | Number of trades; `0` if the day had no trades                    |
-| `turnover`            | INTEGER | no    | `sum(price_ticks × quantity)` — exact. **Not** in ticks: see the turnover note above |
+| `turnover`            | INTEGER | no    | `sum(price_ticks × quantity)` — exact. Divide by `10^tick_decimals` for money notional |
 | `vwap`                | REAL    | yes   | Volume-weighted average price **in ticks**. Derived (`turnover / volume`), so REAL |
 | `open_bid`            | INTEGER | yes   | Best bid at first book update of the day, **in ticks**            |
 | `open_ask`            | INTEGER | yes   | Best ask at first book update of the day, **in ticks**            |
@@ -1134,6 +1182,25 @@ ts                            | index_id | level   | aggregate_cap | divisor | s
 2026-06-14T09:00:05.500+00:00 | EDU100   | 1043.85 | 7362000000000 | 1.25    | CONTINUOUS
 ```
 
+#### `instruments` — Instrument Reference Data
+
+Show the tick scale for each symbol, from the [`instruments`](#instruments)
+table.
+
+```bash
+pm-stats-cli instruments
+pm-stats-cli instruments --symbol AAPL
+```
+
+**Options:**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--symbol` | all | Limit to one symbol |
+
+Use this to interpret raw SQL output: divide any tick column by
+`10^tick_decimals` to get display money.
+
 #### `gaps` — Detected Feed Gaps
 
 Show trades the recorder never received, from `feed_gaps`.
@@ -1622,8 +1689,11 @@ EOF
       "SELECT value FROM stats_meta WHERE key = 'session_timezone'"
     ```
 
-    Currency, tick size and price precision are still not recorded anywhere in
-    `stats.db`; carry those separately.
+    Tick size and price precision **are** now recorded, in the
+    [`instruments`](#instruments) table — export it alongside your data and
+    the prices become interpretable on their own. Currency still is not:
+    EduMatcher has no currency model, and `instruments.currency` is a reserved
+    NULL rather than a value to read.
 
 ### Python / Pandas Integration
 
@@ -1675,7 +1745,8 @@ print(daily[['symbol', 'return_pct']])
    sqlite3 data/stats.db ".tables"
    ```
    You should see: `daily_stats`, `price_snapshots`, `trade_log`, `order_events`,
-   `index_daily_stats`, `index_level_snapshots`, `feed_gaps`, and `stats_meta`.
+   `index_daily_stats`, `index_level_snapshots`, `feed_gaps`, `instruments`,
+   and `stats_meta`.
 
 4. **Check for recent trades:**
    ```bash
@@ -1778,8 +1849,10 @@ print(daily[['symbol', 'return_pct']])
    ```
 
 !!! note "Growth and retention"
-    `trade_log` and `order_events` are append-only and unbounded — `pm-stats`
-    never prunes them. On a long-running deployment, plan for periodic
+    `trade_log`, `order_events` and `feed_gaps` are append-only and unbounded
+    — `pm-stats` never prunes them. **Never prune `feed_gaps`**: it is the only
+    record that a session was incomplete, and deleting it silently converts a
+    known-lossy dataset back into an apparently clean one. On a long-running deployment, plan for periodic
     archival (copy out with `VACUUM INTO`, then `DELETE` old rows and `VACUUM`
     — see the cursor caveat under [Row identity and pagination
     cursors](#row-identity-and-pagination-cursors))
