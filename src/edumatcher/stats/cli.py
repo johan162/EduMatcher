@@ -18,6 +18,7 @@ from edumatcher.stats.query import (
     open_readonly_connection,
     query_daily,
     query_dates,
+    query_feed_gaps,
     query_index_daily,
     query_index_ids,
     query_index_snapshots,
@@ -132,6 +133,14 @@ _INDEX_SNAPSHOTS_COLUMNS = [
     "day_low",
 ]
 _INDEX_IDS_COLUMNS = ["index_id"]
+_FEED_GAPS_COLUMNS = [
+    "seq",
+    "ts",
+    "stream",
+    "expected_id",
+    "received_id",
+    "missing_count",
+]
 
 _AFTER_HELP = (
     "Opaque cursor from a previous run's truncation notice; fetches the next page"
@@ -284,6 +293,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     index_ids = sub.add_parser("index-ids", help="List index IDs present in stats DB")
     index_ids.add_argument("--date", metavar="YYYY-MM-DD")
+
+    gaps = sub.add_parser(
+        "gaps", help="Show detected feed gaps (trades the recorder never received)"
+    )
+    gaps.add_argument("--date", metavar="YYYY-MM-DD")
+    gaps.add_argument("--from", dest="from_ts", metavar="ISO_TS")
+    gaps.add_argument("--to", dest="to_ts", metavar="ISO_TS")
+    gaps.add_argument("--limit", type=int, default=500, metavar="N")
 
     return parser
 
@@ -460,6 +477,17 @@ def _run_query(
             after=args.after,
         )
         return _INDEX_SNAPSHOTS_COLUMNS, rows, next_cursor
+
+    if args.command == "gaps":
+        rows = query_feed_gaps(
+            conn,
+            date_value=args.date,
+            from_ts=args.from_ts,
+            to_ts=args.to_ts,
+            limit=args.limit,
+            tz=tz,
+        )
+        return _FEED_GAPS_COLUMNS, rows, None
 
     assert args.command == "index-ids", f"Unhandled command: {args.command}"
     rows = query_index_ids(conn, date_value=args.date, tz=tz)

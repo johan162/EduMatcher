@@ -216,6 +216,35 @@ def _apply_time_filters(
     return sql
 
 
+def query_feed_gaps(
+    conn: sqlite3.Connection,
+    *,
+    date_value: str | None,
+    from_ts: str | None,
+    to_ts: str | None,
+    limit: int,
+    tz: tzinfo,
+) -> list[dict[str, Any]]:
+    """Return recorded feed gaps, newest last.
+
+    An empty result means no gap was *detected*, which is a weaker statement
+    than "nothing was lost" — see the completeness discussion in the user
+    guide for what detection does and does not cover.
+    """
+    sql = (
+        "SELECT seq, ts, stream, expected_id, received_id, missing_count "
+        "FROM feed_gaps WHERE 1=1"
+    )
+    params: list[Any] = []
+    sql = _apply_time_filters(
+        sql, params, date_value=date_value, from_ts=from_ts, to_ts=to_ts, tz=tz
+    )
+    sql += " ORDER BY ts ASC, seq ASC LIMIT ?"
+    params.append(limit)
+    rows = _execute_fetchall(conn, sql, params)
+    return [dict(row) for row in rows]
+
+
 def latest_daily_date(conn: sqlite3.Connection) -> str | None:
     rows = _execute_fetchall(conn, "SELECT MAX(date) AS d FROM daily_stats", [])
     row = rows[0] if rows else None

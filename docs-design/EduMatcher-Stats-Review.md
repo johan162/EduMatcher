@@ -601,14 +601,27 @@ indistinguishable from one with gaps — a chart consumer cannot tell. Add a
 anywhere in `stats.db`, so the file is not self-describing for a downstream BI
 consumer — which is precisely the use case §"Exporting to BI Tools" promotes.
 
-**GAP-6 — No completeness/gap detection.** No engine sequence numbers, no
-per-session expected-vs-received reconciliation, no `gaps` table. Combined with
-lossy PUB/SUB (P1-10), there is no evidence that `stats.db` is complete. For a
-system positioned as authoritative statistics this is the gap I would most want
-closed before the release *after* this one — and in the meantime, the
-documentation should say plainly that `stats.db` is a best-effort recording, not
-a guaranteed-complete audit source (`pm-audit-cli` presumably holds that role —
-the See Also link should make the distinction explicit).
+**GAP-6 — No completeness/gap detection.** *Partly closed with P1-10.*
+
+The trade stream is now covered: engine trade ids are a per-run monotonic
+counter, so `pm-stats` detects jumps and records them in `feed_gaps`, queryable
+via `pm-stats-cli gaps`. That covers the stream where loss corrupts `volume`,
+`turnover` and `vwap`.
+
+Still open: `book.*`, `order.*`, `combo.*`, `oco.*`, `quote.*` and
+`index.update` carry no sequence number, so loss on those remains undetectable.
+Closing them needs a publisher-side sequence stamped by the engine, which has
+~15 direct `send_multipart` call sites and no publish choke point — a
+cross-cutting change to the shared core rather than a stats-local one.
+
+**Correction to this review:** the `trade_log` section above described
+`trade_id` as "UUID from the engine (unique per trade)", copying the user
+guide. That was wrong — `models/trade.py` uses `itertools.count(1)`, restarting
+at 1 each engine run. `trade_log` keyed on `trade_id` alone therefore *silently
+discarded* the first trades of any restarted engine via `INSERT OR IGNORE`,
+understating volume for the rest of the day. This is the same defect
+`clearing/store.py` records as CL-C1, and it should have been a P0 finding. Its
+detection came out of building the gap check; the key is now `(trade_id, ts)`.
 
 **GAP-7 — No quote/spread statistics.** `daily_stats` carries open/close
 bid/ask but no time-weighted spread, no quoted depth, no time-at-touch. These

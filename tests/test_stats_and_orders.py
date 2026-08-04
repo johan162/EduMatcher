@@ -1075,7 +1075,7 @@ class TestStatsRun:
 
         calls: list[tuple[str, tuple[str, ...]]] = []
 
-        def _record_call(addr: str, *topics: str) -> MagicMock:
+        def _record_call(addr: str, *topics: str, **kwargs: object) -> MagicMock:
             calls.append((addr, topics))
             return MagicMock()
 
@@ -1084,7 +1084,7 @@ class TestStatsRun:
             patch("edumatcher.stats.main.make_pusher", return_value=MagicMock()),
         ):
             proc = StatsProcess(tmp_path / "addr_test.db")
-        proc._conn.close()
+        proc.close()
 
         addrs = [addr for addr, _topics in calls]
         assert ENGINE_PUB_ADDR in addrs

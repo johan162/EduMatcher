@@ -105,12 +105,13 @@ The schema version is in `PRAGMA user_version`:
 
 ```console
 $ sqlite3 data/stats.db "PRAGMA user_version"
-2
+3
 ```
 
 The version is bumped both when the table definitions change and when the
 *meaning* of stored values changes — version 2 introduced the distinct combo,
-OCO and quote `event_type` values, which the DDL alone cannot express.
+OCO and quote `event_type` values, which the DDL alone cannot express, and
+version 3 added `feed_gaps` and widened `trade_log`'s primary key.
 
 `pm-stats` refuses to open a database whose `user_version` does not match the
 build, rather than writing new-format rows into an old-format file. If you hit
@@ -214,7 +215,7 @@ See [Processes — Environment variables](170-processes.md#environment-variables
 
 ## The Statistics Database Schema
 
-All statistics are stored in `data/stats.db`, a SQLite 3 database with six data
+All statistics are stored in `data/stats.db`, a SQLite 3 database with seven data
 tables plus a metadata table.
 
 ### `stats_meta`
@@ -307,12 +308,21 @@ Intraday mid-price, bid/ask, and percentage-change history, recorded at most onc
 
 Append-only record of every matched trade — no aggregation, one row per trade.
 
-**Primary key**: `trade_id`. Inserts are `OR IGNORE`, so a repeated delivery of the same trade is deduplicated.
+**Primary key**: `(trade_id, ts)`. Inserts are `OR IGNORE`, so a repeated delivery of the same trade — same id *and* same timestamp — is deduplicated.
+
+!!! note "Why the key is composite"
+    `trade_id` is a counter that **restarts at 1 on every engine run**, not a
+    globally unique identifier. Keyed on `trade_id` alone, the first trade of
+    a restarted engine would collide with the first trade of the previous run
+    and be silently discarded, understating volume for the rest of the day.
+    Including `ts` keeps a post-restart id reuse as a distinct row while still
+    deduplicating a genuine duplicate delivery. `pm-clearing` records the same
+    defect against its own archive as finding CL-C1.
 
 | Column            | Type    | Null? | Description                                                          |
 |-------------------|---------|-------|----------------------------------------------------------------------|
 | `ts`              | TEXT    | no    | ISO-8601 UTC instant, **millisecond** precision. This is the **engine's** trade timestamp |
-| `trade_id`        | TEXT    | no    | UUID from the engine (unique per trade)                              |
+| `trade_id`        | TEXT    | no    | Engine trade counter, unique **within one engine run** only           |
 | `symbol`          | TEXT    | no    | Instrument ticker                                                    |
 | `price`           | REAL    | no    | Execution price                                                      |
 | `quantity`        | INTEGER | no    | Matched quantity                                                     |
@@ -348,6 +358,44 @@ print(dict(by_side))
 
 **Use case**: Trade-by-trade analysis, order-flow imbalance, separating auction
 from continuous volume, audit trails.
+
+### `feed_gaps`
+
+Trades the recorder can prove it never received.
+
+**Primary key**: `seq` (`AUTOINCREMENT`).
+**Index**: `(ts)`.
+
+| Column          | Type    | Description                                                     |
+|-----------------|---------|-----------------------------------------------------------------|
+| `seq`           | INTEGER | Monotonic local sequence                                        |
+| `ts`            | TEXT    | UTC instant of the trade that revealed the gap                  |
+| `stream`        | TEXT    | Which feed the gap was detected on (currently `trade.executed`) |
+| `expected_id`   | INTEGER | The trade id expected next                                      |
+| `received_id`   | INTEGER | The trade id that actually arrived                              |
+| `missing_count` | INTEGER | How many trades are unaccounted for between them                |
+
+ZeroMQ PUB/SUB drops messages silently once a subscriber falls behind its
+high-water mark, so without this table a session that lost trades is
+indistinguishable from a quiet one. Because the engine numbers trades with a
+monotonic counter, a jump in that counter is direct evidence of loss, and each
+jump is written here inside the same transaction as the trade that revealed it.
+
+**Use case**: answering "is this session's data complete?" before trusting a
+volume, VWAP or turnover figure.
+
+!!! warning "What gap detection does and does not cover"
+    **Covers**: the `trade.executed` stream — the one where loss corrupts
+    `volume`, `turnover` and `vwap`.
+
+    **Does not cover**: `book.*`, `order.*`, `combo.*`, `oco.*`, `quote.*` and
+    `index.update`. None of those carry a sequence number, so loss on them is
+    still undetectable. A missed book update costs at most one snapshot; a
+    missed order event leaves a hole in a lifecycle trail.
+
+    An empty `feed_gaps` therefore means "no loss was *detected*", which is a
+    weaker claim than "nothing was lost". Closing the remaining streams needs
+    a publisher-side sequence number in the engine.
 
 ### `order_events`
 
@@ -590,12 +638,34 @@ Two limits worth knowing:
   `index_level_snapshots` rows, which can be marginally lower than the number
   of updates originally received if any shared a millisecond.
 
-!!! warning "One recorder per database"
-    Exactly one `pm-stats` process may write to a given `stats.db`. Two
-    recorders against one file will each keep their own in-memory rollup and
-    overwrite each other's `daily_stats` rows, and will duplicate every
-    `order_events` row. This is not currently enforced — use a separate `--db`
-    path per recorder.
+### One recorder per database
+
+Exactly one `pm-stats` process may write to a given `stats.db`, and this is
+**enforced**. Two recorders against one file would each keep their own
+in-memory rollup and overwrite each other's `daily_stats` rows, producing
+figures that describe neither process — so a second one refuses to start:
+
+```console
+$ pm-stats --db data/stats.db
+[ERROR] fatal startup error: another pm-stats process is already recording to
+        data/stats.db (lock held on data/stats.db.lock). Two recorders on one
+        database overwrite each other's daily rollups — use a different --db.
+$ echo $?
+1
+```
+
+The lock is an exclusive transaction on a sidecar `stats.db.lock` file, held
+for the life of the process and released on shutdown. A few consequences worth
+knowing:
+
+- The `.lock` file appears alongside `stats.db`. It holds no data and can be
+  deleted when no recorder is running.
+- If `pm-stats` is killed with `SIGKILL`, the operating system releases the
+  lock along with the process — there is no stale lock to clean up by hand.
+- Readers are unaffected: `pm-stats-cli`, `pm-ticker` and the API Gateway never
+  take this lock.
+- Running two recorders deliberately is still fine, as long as each has its
+  own `--db`.
 
 
 
@@ -904,6 +974,37 @@ ts                            | index_id | level   | aggregate_cap | divisor | s
 2026-06-14T09:00:00.000+00:00 | EDU100   | 1042.10 | 7350000000000 | 1.25    | OPENING_AUCTION
 2026-06-14T09:00:05.500+00:00 | EDU100   | 1043.85 | 7362000000000 | 1.25    | CONTINUOUS
 ```
+
+#### `gaps` — Detected Feed Gaps
+
+Show trades the recorder never received, from `feed_gaps`.
+
+```bash
+pm-stats-cli gaps
+pm-stats-cli gaps --date 2026-06-14
+pm-stats-cli gaps --from 2026-06-14T09:00:00Z --to 2026-06-14T12:00:00Z
+```
+
+**Options:**
+
+| Option    | Default   | Description                  |
+|-----------|-----------|------------------------------|
+| `--date`  | all dates | Restrict to one trading date |
+| `--from`  | —         | Start timestamp (inclusive)  |
+| `--to`    | —         | End timestamp (inclusive)    |
+| `--limit` | 500       | Maximum rows to return       |
+
+**Example output:**
+
+```
+seq | ts                            | stream         | expected_id | received_id | missing_count
+----+-------------------------------+----------------+-------------+-------------+--------------
+1   | 2026-06-14T09:14:02.115+00:00 | trade.executed | 3           | 6           | 3
+2   | 2026-06-14T11:41:55.008+00:00 | trade.executed | 8           | 20          | 12
+```
+
+`No rows found.` is the healthy result. See the
+[`feed_gaps`](#feed_gaps) warning for what detection does and does not cover.
 
 #### `index-ids` — Index Discovery
 
@@ -1214,6 +1315,23 @@ print(f\"EOD close for {row['date']} {row['index_id']}: {row['close_level']}\")
 
 After a trading session ends, verify key metrics:
 
+0. **Check the recording is complete — do this first:**
+   ```bash
+   pm-stats-cli gaps --date 2026-06-14
+   ```
+   `No rows found.` means no loss was detected. Any row means the figures
+   below are computed from an incomplete trade record, and `volume`,
+   `turnover` and `vwap` for the affected symbols will be understated. There
+   is no way to recover the missing trades after the fact — ZeroMQ PUB/SUB has
+   no replay — so treat the day's numbers as approximate and investigate why
+   `pm-stats` fell behind.
+
+   `pm-stats` also logs a session total at `INFO` when it shuts down:
+
+   ```text
+   session totals: book_topics=10432, messages_received=12905, trades_persisted=2471
+   ```
+
 1. **Check daily summary recorded:**
    ```bash
    pm-stats-cli daily --date 2026-06-14
@@ -1398,7 +1516,7 @@ print(daily[['symbol', 'return_pct']])
    sqlite3 data/stats.db ".tables"
    ```
    You should see: `daily_stats`, `price_snapshots`, `trade_log`, `order_events`,
-   `index_daily_stats`, and `index_level_snapshots`.
+   `index_daily_stats`, `index_level_snapshots`, `feed_gaps`, and `stats_meta`.
 
 4. **Check for recent trades:**
    ```bash

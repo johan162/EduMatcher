@@ -61,12 +61,22 @@ def make_pusher(addr: str) -> zmq.Socket[bytes]:
     return sock  # type: ignore[no-any-return]
 
 
-def make_subscriber(addr: str, *topics: str) -> zmq.Socket[bytes]:
+def make_subscriber(
+    addr: str, *topics: str, rcvhwm: int | None = None
+) -> zmq.Socket[bytes]:
     """
     SUB socket — subscribes to one or more topic prefixes.
     Pass no topics (or empty string) to receive everything.
+
+    ``rcvhwm`` raises the receive high-water mark above ZMQ's default of 1000
+    messages. Past the mark a SUB socket drops silently, so a recorder that
+    must not miss messages wants a deeper buffer to ride out bursts. It is set
+    before ``connect()`` because ZMQ only applies the option to connections
+    made afterwards.
     """
     sock = get_context().socket(zmq.SUB)
+    if rcvhwm is not None:
+        sock.setsockopt(zmq.RCVHWM, rcvhwm)
     sock.connect(addr)
     if not topics:
         sock.setsockopt(zmq.SUBSCRIBE, b"")

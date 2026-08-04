@@ -17,6 +17,7 @@ import pytest
 from edumatcher.stats.main import (
     SCHEMA,
     SCHEMA_VERSION,
+    DatabaseInUseError,
     IncompatibleDatabaseError,
     StatsProcess,
 )
@@ -48,7 +49,7 @@ def sp(tmp_path: Path):
     ):
         proc = StatsProcess(tmp_path / "test.db", session_tz=STOCKHOLM)
     yield proc
-    proc._conn.close()
+    proc.close()
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +289,7 @@ def test_restart_preserves_the_days_ohlcv(tmp_path: Path) -> None:
                 "timestamp": base + i,
             }
         )
-    first._conn.close()
+    first.close()
 
     # Restart against the same database, then record one more trade.
     with patches[0], patches[1]:
@@ -306,7 +307,7 @@ def test_restart_preserves_the_days_ohlcv(tmp_path: Path) -> None:
         "SELECT open_price, high_price, low_price, close_price, volume, "
         "trade_count, vwap, largest_trade_qty FROM daily_stats"
     ).fetchone()
-    second._conn.close()
+    second.close()
 
     open_price, high, low, close, volume, count, vwap, largest = row
     assert open_price == 100.0  # not 110.0 — the morning survived
@@ -333,7 +334,7 @@ def test_restart_preserves_opening_quotes(tmp_path: Path) -> None:
     ):
         first = StatsProcess(db, session_tz=timezone.utc)
     first._on_book("AAPL", book)
-    first._conn.close()
+    first.close()
 
     with (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
@@ -342,7 +343,7 @@ def test_restart_preserves_opening_quotes(tmp_path: Path) -> None:
         second = StatsProcess(db, session_tz=timezone.utc)
     second._on_book("AAPL", {"bids": [{"price": 95.0}], "asks": [{"price": 96.0}]})
     row = second._conn.execute("SELECT open_bid, open_ask FROM daily_stats").fetchone()
-    second._conn.close()
+    second.close()
 
     assert row == (99.0, 101.0)
 
@@ -361,7 +362,7 @@ def test_index_restart_preserves_the_days_ohlc(tmp_path: Path) -> None:
         first._on_index_update(
             {"index_id": "EDU100", "level": level, "timestamp": base + i}
         )
-    first._conn.close()
+    first.close()
 
     with (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
@@ -375,7 +376,7 @@ def test_index_restart_preserves_the_days_ohlc(tmp_path: Path) -> None:
         "SELECT open_level, high_level, low_level, close_level, update_count "
         "FROM index_daily_stats"
     ).fetchone()
-    second._conn.close()
+    second.close()
 
     assert row == (1000.0, 1050.0, 990.0, 1010.0, 4)
 
@@ -451,6 +452,150 @@ def test_subsequent_snapshots_still_respect_the_interval(
     assert count == 2
 
 
+# ---------------------------------------------------------------------------
+# P1-10 — dropped trades must be detectable
+# ---------------------------------------------------------------------------
+
+
+def _trade(tid: str, epoch: float, qty: int = 1) -> dict:
+    return {
+        "symbol": "AAPL",
+        "price": 100.0,
+        "quantity": qty,
+        "id": tid,
+        "timestamp": epoch,
+    }
+
+
+def test_gap_in_trade_ids_is_recorded(sp: StatsProcess) -> None:
+    """ZMQ PUB/SUB drops silently past the high-water mark.
+
+    The engine numbers trades monotonically, so a jump in the id is the only
+    evidence a subscriber has that anything went missing.
+    """
+    base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
+    for i, tid in enumerate(["1", "2", "6"]):
+        sp._on_trade(_trade(tid, base + i))
+
+    rows = sp._conn.execute(
+        "SELECT stream, expected_id, received_id, missing_count FROM feed_gaps"
+    ).fetchall()
+    assert rows == [("trade.executed", 3, 6, 3)]
+
+
+def test_contiguous_trade_ids_record_no_gap(sp: StatsProcess) -> None:
+    base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
+    for i, tid in enumerate(["1", "2", "3"]):
+        sp._on_trade(_trade(tid, base + i))
+    assert sp._conn.execute("SELECT COUNT(*) FROM feed_gaps").fetchone()[0] == 0
+
+
+def test_engine_restart_is_not_reported_as_a_gap(sp: StatsProcess) -> None:
+    """Trade ids restart at 1 each engine run, so a decrease is a restart."""
+    base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
+    for i, tid in enumerate(["1", "2", "3", "1", "2"]):
+        sp._on_trade(_trade(tid, base + i))
+    assert sp._conn.execute("SELECT COUNT(*) FROM feed_gaps").fetchone()[0] == 0
+
+
+def test_post_restart_trades_are_not_silently_discarded(sp: StatsProcess) -> None:
+    """Trade ids repeat after an engine restart.
+
+    Keyed on ``trade_id`` alone, a run-2 trade "1" collided with the run-1
+    trade "1" and vanished into ``INSERT OR IGNORE``, understating volume for
+    the rest of the day. The same defect clearing records as CL-C1.
+    """
+    base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
+    for i, tid in enumerate(["1", "2", "1", "2"]):
+        sp._on_trade(_trade(tid, base + i, qty=10))
+
+    assert sp._conn.execute("SELECT COUNT(*) FROM trade_log").fetchone()[0] == 4
+    assert sp._conn.execute("SELECT volume FROM daily_stats").fetchone()[0] == 40
+
+
+def test_genuine_duplicate_delivery_is_still_deduplicated(sp: StatsProcess) -> None:
+    """Widening the key must not turn dedup off — same id *and* same ts."""
+    base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
+    sp._on_trade(_trade("1", base, qty=10))
+    sp._on_trade(_trade("1", base, qty=10))
+
+    assert sp._conn.execute("SELECT COUNT(*) FROM trade_log").fetchone()[0] == 1
+
+
+def test_non_numeric_trade_id_disables_detection_once(
+    sp: StatsProcess, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A synthetic id is not the engine counter; warn once, not per trade."""
+    import logging
+
+    base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
+    with caplog.at_level(logging.WARNING):
+        for i, tid in enumerate(["T-A", "T-B", "T-C"]):
+            sp._on_trade(_trade(tid, base + i))
+
+    assert caplog.text.count("trade-gap detection disabled") == 1
+    assert sp._conn.execute("SELECT COUNT(*) FROM feed_gaps").fetchone()[0] == 0
+    assert sp._conn.execute("SELECT COUNT(*) FROM trade_log").fetchone()[0] == 3
+
+
+def test_counters_are_recorded_without_debug_logging(
+    sp: StatsProcess, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Counting used to be skipped entirely unless DEBUG was enabled.
+
+    That left a production run with no record of how much it handled — the
+    first number you want when asking whether a session is complete.
+    """
+    import logging
+
+    base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
+    with caplog.at_level(logging.INFO):
+        sp._on_trade(_trade("1", base))
+    assert sp._debug_counts["trades_persisted"] == 1
+
+
+# ---------------------------------------------------------------------------
+# P1-11 — one recorder per database
+# ---------------------------------------------------------------------------
+
+
+def test_second_recorder_on_the_same_db_is_refused(tmp_path: Path) -> None:
+    """Two recorders each keep their own rollup and overwrite the other's."""
+    db = tmp_path / "stats.db"
+    first = _make_process(db, session_tz=timezone.utc)
+    try:
+        with pytest.raises(DatabaseInUseError, match="already recording"):
+            _make_process(db, session_tz=timezone.utc)
+    finally:
+        first.close()
+
+
+def test_lock_is_released_when_the_recorder_closes(tmp_path: Path) -> None:
+    db = tmp_path / "stats.db"
+    _make_process(db, session_tz=timezone.utc).close()
+    second = _make_process(db, session_tz=timezone.utc)
+    second.close()
+
+
+def test_a_refused_database_does_not_leave_the_lock_held(tmp_path: Path) -> None:
+    """Otherwise a corrected restart reports the file as in use by nobody."""
+    db = tmp_path / "stats.db"
+    _make_process(db, session_tz=STOCKHOLM).close()
+
+    with pytest.raises(IncompatibleDatabaseError):
+        _make_process(db, session_tz=timezone.utc)
+
+    # The lock must be free, so the correct timezone can start normally.
+    _make_process(db, session_tz=STOCKHOLM).close()
+
+
+def test_recorder_creates_a_missing_db_directory(tmp_path: Path) -> None:
+    """The lock is taken before the database is opened, so it owns the mkdir."""
+    db = tmp_path / "does" / "not" / "exist" / "stats.db"
+    _make_process(db, session_tz=timezone.utc).close()
+    assert db.exists()
+
+
 def test_writer_opens_in_wal_mode(sp: StatsProcess) -> None:
     """Without WAL a concurrent pm-stats-cli read makes the writer fail, and
     the receive loop's catch-all would swallow the dropped record."""
@@ -475,7 +620,7 @@ def _make_process(db: Path, **kwargs) -> StatsProcess:
 def test_new_database_is_stamped_with_the_schema_version(tmp_path: Path) -> None:
     proc = _make_process(tmp_path / "stats.db", session_tz=timezone.utc)
     version = proc._conn.execute("PRAGMA user_version").fetchone()[0]
-    proc._conn.close()
+    proc.close()
     assert version == SCHEMA_VERSION
 
 
@@ -486,7 +631,7 @@ def test_mismatched_schema_version_is_refused(tmp_path: Path) -> None:
     numbers, which is worse than refusing to start.
     """
     db = tmp_path / "stats.db"
-    _make_process(db, session_tz=timezone.utc)._conn.close()
+    _make_process(db, session_tz=timezone.utc).close()
 
     conn = sqlite3.connect(db)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION + 1}")
@@ -512,7 +657,7 @@ def test_refused_open_does_not_leak_the_connection(
     the warning, so this holds on every Python version.
     """
     db = tmp_path / "stats.db"
-    _make_process(db, session_tz=STOCKHOLM)._conn.close()
+    _make_process(db, session_tz=STOCKHOLM).close()
 
     if failure == "version":
         conn = sqlite3.connect(db)
@@ -624,7 +769,7 @@ def test_failed_socket_setup_closes_the_database(
 def test_session_timezone_is_recorded(tmp_path: Path) -> None:
     proc = _make_process(tmp_path / "stats.db", session_tz=STOCKHOLM)
     recorded = read_meta(proc._conn, "session_timezone")
-    proc._conn.close()
+    proc.close()
     assert recorded == "Europe/Stockholm"
 
 
@@ -633,7 +778,7 @@ def test_changing_session_timezone_on_an_existing_db_is_refused(
 ) -> None:
     """The date column would otherwise mean two different things in one file."""
     db = tmp_path / "stats.db"
-    _make_process(db, session_tz=STOCKHOLM)._conn.close()
+    _make_process(db, session_tz=STOCKHOLM).close()
 
     with pytest.raises(IncompatibleDatabaseError, match="session timezone"):
         _make_process(db, session_tz=timezone.utc)
@@ -642,7 +787,7 @@ def test_changing_session_timezone_on_an_existing_db_is_refused(
 def test_reader_resolves_timezone_from_the_database(tmp_path: Path) -> None:
     """A reader that passes nothing must still agree with the recorder."""
     db = tmp_path / "stats.db"
-    _make_process(db, session_tz=STOCKHOLM)._conn.close()
+    _make_process(db, session_tz=STOCKHOLM).close()
 
     conn = open_readonly_connection(db)
     tz, warning = resolve_session_timezone(conn)
@@ -653,7 +798,7 @@ def test_reader_resolves_timezone_from_the_database(tmp_path: Path) -> None:
 
 def test_reader_override_that_contradicts_the_database_warns(tmp_path: Path) -> None:
     db = tmp_path / "stats.db"
-    _make_process(db, session_tz=STOCKHOLM)._conn.close()
+    _make_process(db, session_tz=STOCKHOLM).close()
 
     conn = open_readonly_connection(db)
     tz, warning = resolve_session_timezone(conn, "UTC")

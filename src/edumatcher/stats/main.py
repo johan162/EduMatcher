@@ -126,6 +126,12 @@ _sql_log = logging.getLogger("edumatcher.stats.sql")
 SNAPSHOT_INTERVAL_SEC = 15 * 60  # 15 minutes — overridable via --snapshot-interval
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
+# Receive high-water mark for both subscriber sockets. ZMQ's default of 1000
+# messages is shallow for a recorder that also writes to SQLite between reads:
+# a burst deeper than the mark is dropped silently at the socket. Matches the
+# order of magnitude pm-log-srv already uses for its publisher.
+_SUB_RCVHWM = 100_000
+
 
 # ---------------------------------------------------------------------------
 # Per-symbol intraday accumulator
@@ -266,7 +272,13 @@ class _IndexDayAccum:
 #:     values for combo, OCO and quote events. The DDL is unchanged, but a file
 #:     holding both the old collapsed values and the new ones would filter
 #:     inconsistently, so old files are refused rather than appended to.
-SCHEMA_VERSION = 2
+#: 3 — added ``feed_gaps``; ``trade_log``'s primary key widened from
+#:     ``trade_id`` to ``(trade_id, ts)`` so post-restart id reuse is no longer
+#:     silently discarded.
+SCHEMA_VERSION = 3
+
+#: Stream name recorded in ``feed_gaps.stream`` for engine trade prints.
+TRADE_STREAM = "trade.executed"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS stats_meta (
@@ -310,8 +322,17 @@ CREATE TABLE IF NOT EXISTS price_snapshots (
 CREATE INDEX IF NOT EXISTS idx_ps_symbol_ts ON price_snapshots(symbol, ts);
 
 CREATE TABLE IF NOT EXISTS trade_log (
+    -- Composite identity (trade_id, ts). The engine's trade id is only unique
+    -- *within a single engine run* — models/trade.py numbers trades with a
+    -- per-process counter that restarts from 1 on every launch — so trade_id
+    -- alone is NOT safe as a key. Keyed on trade_id alone, a run-2 trade "1"
+    -- collides with a run-1 trade "1" and is silently discarded by INSERT OR
+    -- IGNORE, understating volume for the rest of the day. Adding ts keeps a
+    -- post-restart id reuse as a distinct row while still deduplicating a
+    -- genuine duplicate delivery, which repeats both fields. This is the same
+    -- defect clearing/store.py records as CL-C1.
     ts              TEXT NOT NULL,
-    trade_id        TEXT NOT NULL PRIMARY KEY,
+    trade_id        TEXT NOT NULL,
     symbol          TEXT NOT NULL,
     price           REAL NOT NULL,
     quantity        INTEGER NOT NULL,
@@ -322,10 +343,24 @@ CREATE TABLE IF NOT EXISTS trade_log (
     -- resting and there is no true aggressor. Without this column the table
     -- cannot support trade classification or order-flow imbalance, and
     -- auction prints are indistinguishable from continuous ones.
-    aggressor_side  TEXT
+    aggressor_side  TEXT,
+    PRIMARY KEY (trade_id, ts)
 );
 
 CREATE INDEX IF NOT EXISTS idx_tl_symbol_ts ON trade_log(symbol, ts);
+
+CREATE TABLE IF NOT EXISTS feed_gaps (
+    seq             INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts              TEXT    NOT NULL,
+    stream          TEXT    NOT NULL,
+    -- The id we expected next, the one that actually arrived, and how many
+    -- are unaccounted for between them.
+    expected_id     INTEGER NOT NULL,
+    received_id     INTEGER NOT NULL,
+    missing_count   INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_fg_ts ON feed_gaps(ts);
 
 CREATE TABLE IF NOT EXISTS order_events (
     seq             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -432,6 +467,11 @@ INSERT INTO stats_meta (key, value) VALUES (?,?)
 ON CONFLICT(key) DO UPDATE SET value = excluded.value
 """
 
+INSERT_FEED_GAP = """
+INSERT INTO feed_gaps (ts, stream, expected_id, received_id, missing_count)
+VALUES (?,?,?,?,?)
+"""
+
 INSERT_ORDER_EVENT = """
 INSERT INTO order_events
     (ts, event_type, order_id, gateway_id, symbol, side, order_type, tif, price,
@@ -487,6 +527,49 @@ PRAGMA busy_timeout = 5000;
 
 class IncompatibleDatabaseError(RuntimeError):
     """Raised when an existing stats DB cannot be safely written to."""
+
+
+class DatabaseInUseError(RuntimeError):
+    """Raised when another pm-stats process already owns the database."""
+
+
+def _acquire_writer_lock(db_path: Path) -> sqlite3.Connection:
+    """Take an exclusive, process-lifetime lock on *db_path*.
+
+    Two recorders against one file each keep their own in-memory rollup and
+    overwrite the other's ``daily_stats`` rows, so the figures end up
+    describing neither process. Nothing about that is visible in the output,
+    which makes it worth refusing outright.
+
+    The lock is an exclusive SQLite transaction on a sidecar ``.lock`` file
+    rather than an OS file lock: ``fcntl`` is not available on Windows, which
+    is a supported platform, whereas SQLite already implements whatever
+    locking the host provides. It lives in a separate file because an
+    exclusive transaction on ``stats.db`` itself would block every reader for
+    as long as the recorder ran.
+
+    Returns the connection holding the lock; closing it releases the lock, so
+    the caller must keep it alive.
+    """
+    # This runs before _open_db, so it is now the first thing to touch the
+    # path and owns creating the directory — otherwise pointing --db at a
+    # not-yet-existing directory fails here instead of being created.
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = db_path.with_name(db_path.name + ".lock")
+    conn = sqlite3.connect(str(lock_path))
+    # Fail immediately rather than waiting: a second recorder is a
+    # configuration mistake, not congestion to be ridden out.
+    conn.execute("PRAGMA busy_timeout = 0")
+    try:
+        conn.execute("BEGIN EXCLUSIVE")
+    except sqlite3.OperationalError as exc:
+        conn.close()
+        raise DatabaseInUseError(
+            f"another pm-stats process is already recording to {db_path} "
+            f"(lock held on {lock_path}). Two recorders on one database "
+            f"overwrite each other's daily rollups — use a different --db."
+        ) from exc
+    return conn
 
 
 def _check_schema_version(conn: sqlite3.Connection, path: Path) -> bool:
@@ -605,12 +688,22 @@ class StatsProcess:
     ) -> None:
         self._db_path = db_path
         self._sql_trace = bool(sql_trace)
-        self._conn = _open_db(
-            db_path,
-            sql_trace=self._sql_trace,
-            session_tz_name=timezone_name(session_tz),
-            snapshot_interval_sec=snapshot_interval_sec,
-        )
+        # Taken before the database is opened, so a rejected second recorder
+        # never touches the file at all.
+        self._lock_conn = _acquire_writer_lock(db_path)
+        try:
+            self._conn = _open_db(
+                db_path,
+                sql_trace=self._sql_trace,
+                session_tz_name=timezone_name(session_tz),
+                snapshot_interval_sec=snapshot_interval_sec,
+            )
+        except BaseException:
+            # A refused database must not leave the lock held, or a corrected
+            # restart would report the file as in use by a process that no
+            # longer exists.
+            self._lock_conn.close()
+            raise
         self._lock = threading.Lock()
         self._running = True
         self._snapshot_interval_sec = snapshot_interval_sec
@@ -637,6 +730,12 @@ class StatsProcess:
 
         # index_id → _IndexDayAccum for current calendar date
         self._index_accum: dict[str, _IndexDayAccum] = {}
+
+        # Last engine trade id seen, for gap detection. None until the first
+        # trade; _trade_seq_disabled latches when ids are not the engine's
+        # numeric counter so the warning is logged once rather than per trade.
+        self._last_trade_id: int | None = None
+        self._trade_seq_disabled = False
 
         # Initialised before the sockets so close() is safe to call for
         # cleanup if socket construction fails part-way — it flushes the
@@ -667,6 +766,7 @@ class StatsProcess:
                 "oco.cancelled.",
                 "quote.ack.",
                 "quote.status.",
+                rcvhwm=_SUB_RCVHWM,
             )
             # Separate socket: pm-index binds its own PUB endpoint, distinct
             # from the engine's PUB (mirrors md_gateway's two-subscriber
@@ -675,6 +775,7 @@ class StatsProcess:
             self.index_sub = make_subscriber(
                 INDEX_PUB_CONNECT_ADDR,
                 "index.update",
+                rcvhwm=_SUB_RCVHWM,
             )
             self.push = make_pusher(ENGINE_PULL_ADDR)
         except BaseException:
@@ -693,8 +794,13 @@ class StatsProcess:
             log.info("SQLite SQL trace enabled for stats writer connection")
 
     def _dbg_count(self, key: str, amount: int = 1) -> None:
-        if not log.isEnabledFor(logging.DEBUG):
-            return
+        """Count an event. Always counts; only the *summary* needs DEBUG.
+
+        Counting used to be skipped entirely unless DEBUG was on, which meant
+        a production run had no record of how many messages it handled or
+        dropped — exactly the numbers you want when asking whether the
+        recording is complete. A dict increment is far too cheap to gate.
+        """
         self._debug_counts[key] += amount
         self._flush_debug_summary()
 
@@ -717,6 +823,60 @@ class StatsProcess:
     # ------------------------------------------------------------------
     # Accumulator helpers
     # ------------------------------------------------------------------
+
+    def _check_trade_sequence(self, raw_id: str, ts: str) -> None:
+        """Detect trades the recorder never received.
+
+        The engine numbers trades with a monotonic counter starting at 1
+        (``models/trade.py``), so a jump in the id means messages were lost
+        between the engine and here — ZMQ PUB/SUB drops silently once a
+        subscriber falls behind its high-water mark, and nothing else in the
+        pipeline would reveal it. Recording the gap is what lets a reader
+        distinguish "this is the whole session" from "this is what survived".
+
+        The counter restarts at 1 on every engine run, so an id that moves
+        *backwards* is a restart rather than a gap. Callers must hold the lock.
+        """
+        try:
+            received = int(raw_id)
+        except (TypeError, ValueError):
+            # Not the engine's counter — a synthetic or gateway-supplied id.
+            # Sequence checking does not apply; say so once, not per trade.
+            if not self._trade_seq_disabled:
+                self._trade_seq_disabled = True
+                log.warning(
+                    "trade id %r is not the engine's numeric counter; "
+                    "trade-gap detection disabled for this run",
+                    raw_id,
+                )
+            return
+
+        last = self._last_trade_id
+        self._last_trade_id = received
+        if last is None:
+            return
+        if received <= last:
+            log.info(
+                "trade id went from %d to %d — engine restart; "
+                "resuming gap detection from the new sequence",
+                last,
+                received,
+            )
+            return
+        missing = received - last - 1
+        if not missing:
+            return
+
+        log.error(
+            "detected %d missing trade(s): expected id %d, received %d",
+            missing,
+            last + 1,
+            received,
+        )
+        self._conn.execute(
+            INSERT_FEED_GAP, (ts, TRADE_STREAM, last + 1, received, missing)
+        )
+        self._dbg_count("trades_missing", missing)
 
     def _trading_date(self, epoch_sec: float) -> str:
         """Trading date for an instant, in the configured session timezone."""
@@ -948,6 +1108,10 @@ class StatsProcess:
             # from trade_log on restart, so committing them separately would
             # let a crash in between leave the two permanently disagreeing.
             with self._conn:
+                # Inside the same transaction as the trade itself, so a
+                # recorded gap can never survive without the trade that
+                # revealed it, or vice versa.
+                self._check_trade_sequence(str(payload.get("id", "")), ts)
                 self._write_daily(acc)
                 self._conn.execute(
                     INSERT_TRADE,
@@ -1291,8 +1455,30 @@ class StatsProcess:
         self._running = False
         log.info("stopped")
 
+    def _log_session_totals(self) -> None:
+        """Report what this run actually recorded, at INFO.
+
+        The per-interval summary is DEBUG-only, so without this a normal run
+        ends having said nothing about how much it handled or dropped — the
+        first question anyone asks when checking whether a session's figures
+        are complete.
+        """
+        counts = getattr(self, "_debug_counts", None)
+        if not counts:
+            return
+        summary = ", ".join(f"{key}={value}" for key, value in sorted(counts.items()))
+        log.info("session totals: %s", summary)
+        missing = counts.get("trades_missing", 0)
+        if missing:
+            log.error(
+                "%d trade(s) were never received this session; see the "
+                "feed_gaps table for the affected id ranges",
+                missing,
+            )
+
     def close(self) -> None:
         self._flush_debug_summary(force=True)
+        self._log_session_totals()
         log.info("closing stats process")
         # Held so the connection cannot be closed out from under a receive
         # thread that is still inside a transaction.
@@ -1308,6 +1494,10 @@ class StatsProcess:
             self.index_sub.close()
         if hasattr(self, "push") and getattr(self.push, "closed", False) is not True:
             self.push.close()
+        # Released last: no other recorder should be able to take over until
+        # this one has finished writing and closed its sockets.
+        if hasattr(self, "_lock_conn"):
+            self._lock_conn.close()
 
 
 def _is_order_event_topic(topic: str) -> bool:
