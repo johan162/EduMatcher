@@ -1106,6 +1106,14 @@ Published alongside `book.{SYMBOL}` after every state change (same throttle).
 Contains depth and imbalance metrics computed within ±100 ticks of the last trade.  
 Absent (not published) until at least one trade has occurred for the symbol.
 
+!!! note "Constructed with `make_depth_msg`"
+    The topic is `depth.{SYMBOL}`, deliberately **not** `book.depth.{SYMBOL}`.
+    A `book.` prefix subscription matches any sub-topic, so publishing depth
+    under `book.depth.…` would deliver it to every book subscriber — and
+    pm-stats, which derives the symbol as everything after the first dot,
+    would record a phantom instrument named `depth.AAPL`. Use
+    `models.message.make_depth_msg`; do not construct the topic by hand.
+
 | Field | Type | Description |
 |---|---|---|
 | `symbol` | string | Instrument ticker |
@@ -1506,6 +1514,25 @@ and the statistics process to know what trading mode is currently active.
 | `prev_state` | string \| absent | Previous session state; the key is **omitted entirely** (not sent as an empty string) on the first transition, when there is no previous state |
 
 
+
+### `auction.indicative.{SYMBOL}`
+
+**Motivation:** Shows where a symbol *would* uncross while a call phase is still collecting orders, so a participant can supply the offsetting interest that resolves an imbalance while there is still time to act.
+**Published by:** pm-engine via PUB :5556
+
+Published repeatedly during an opening or closing auction, throttled by
+`engine_tuning.auction_indicative_interval_sec`. This is the counterpart to
+`auction.result.{SYMBOL}`: that reports what *happened*, this reports what
+*would* happen if the phase ended now.
+
+| Field            | Type          | Description                                                     |
+|------------------|---------------|-----------------------------------------------------------------|
+| `symbol`         | string        | Instrument ticker                                               |
+| `phase`          | string        | The call phase in progress, e.g. `OPENING_AUCTION`              |
+| `eq_price`       | float \| null | Indicative equilibrium price; `null` when the book would not cross at all — a real state during a call phase, and **not** the same as a price of zero |
+| `eq_qty`         | integer       | Quantity that would match at `eq_price`                         |
+| `imbalance_side` | string        | `"BUY"`, `"SELL"`, or `""` (balanced)                           |
+| `imbalance_qty`  | integer       | Surplus quantity that would not match                           |
 
 ### `auction.result.{SYMBOL}`
 

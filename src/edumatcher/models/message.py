@@ -1131,8 +1131,21 @@ def make_index_error_msg(gateway_id: str, reason: str) -> list[bytes]:
 
 
 def make_depth_msg(symbol: str, depth: dict[str, Any]) -> list[bytes]:
-    """Engine → subscribers: depth ladder snapshot."""
-    return encode(f"book.depth.{symbol}", depth)
+    """Engine → subscribers: depth ladder snapshot.
+
+    The topic is ``depth.{symbol}``, **not** ``book.depth.{symbol}``. It
+    published under the latter until this was corrected, which made the
+    factory a trap: the engine publishes depth inline as ``depth.{symbol}``,
+    every subscriber filters on ``depth.``, and the reference documents
+    ``depth.{SYMBOL}`` — so a caller using this factory produced messages that
+    no subscriber received.
+
+    Worse, ``book.depth.X`` matches a ``book.`` prefix subscription. pm-stats
+    subscribes to ``book.`` and derives the symbol as everything after the
+    first dot, so it recorded a phantom instrument literally named
+    ``depth.AAPL`` into daily_stats.
+    """
+    return encode(f"depth.{symbol}", depth)
 
 
 # ---------------------------------------------------------------------------

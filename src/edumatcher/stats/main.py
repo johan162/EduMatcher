@@ -1586,27 +1586,46 @@ class StatsProcess:
             self._check_topic_sequence(topic, decode_sequence(frames))
 
             try:
-                if topic.startswith("trade.executed"):
-                    self._dbg_count("trade_topics")
-                    self._on_trade(payload)
-                elif topic.startswith("book."):
-                    self._dbg_count("book_topics")
-                    symbol = topic.split(".", 1)[1]
-                    self._on_book(symbol, payload)
-                elif topic == "system.eod":
-                    self._dbg_count("eod_topics")
-                    self._on_eod(payload)
-                elif topic == "system.symbols.STATS":
-                    self._dbg_count("startup_symbols_topics")
-                    self._on_startup_symbols(payload)
-                elif _is_order_event_topic(topic):
-                    self._dbg_count("order_event_topics")
-                    self._on_order_event(topic, payload)
+                self._dispatch(topic, payload)
             except Exception as exc:
                 # Reaching here means the event was not persisted. That is a
                 # dropped record, not a warning-level curiosity.
                 log.error("failed to record topic=%s err=%s", topic, exc)
                 self._dbg_count("records_dropped")
+
+    def _dispatch(self, topic: str, payload: dict[str, Any]) -> None:
+        """Route one decoded engine message to its handler.
+
+        Split out of the receive loop so the topic-matching rules are
+        reachable from a test without driving a socket.
+        """
+        if topic.startswith("trade.executed"):
+            self._dbg_count("trade_topics")
+            self._on_trade(payload)
+        elif topic.startswith("book."):
+            self._dbg_count("book_topics")
+            symbol = topic.split(".", 1)[1]
+            # A `book.` subscription also matches any sub-topic such as
+            # `book.depth.AAPL`, and naively taking everything after the first
+            # dot would record a phantom instrument named "depth.AAPL".
+            # Symbols are alphanumeric (balf_gwy/protocol.py::validate_symbol),
+            # so a dot here means this is not a single-symbol book snapshot.
+            if "." in symbol:
+                self._dbg_count("book_subtopics_ignored")
+                log.warning(
+                    "ignoring %s: not a book snapshot for a single symbol", topic
+                )
+            else:
+                self._on_book(symbol, payload)
+        elif topic == "system.eod":
+            self._dbg_count("eod_topics")
+            self._on_eod(payload)
+        elif topic == "system.symbols.STATS":
+            self._dbg_count("startup_symbols_topics")
+            self._on_startup_symbols(payload)
+        elif _is_order_event_topic(topic):
+            self._dbg_count("order_event_topics")
+            self._on_order_event(topic, payload)
 
     def _receive_one_index_message(self) -> None:
         try:

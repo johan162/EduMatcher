@@ -73,6 +73,7 @@ from edumatcher.models.message import (
     make_ack_msg,
     make_amended_msg,
     make_book_msg,
+    make_depth_msg,
     make_cancelled_msg,
     make_combo_ack_msg,
     make_combo_status_msg,
@@ -519,7 +520,10 @@ class Engine:
                         tolerance_ticks=self.depth_snapshot_tolerance_ticks
                     )
                     if depth:
-                        self.pub_sock.send_multipart(encode(f"depth.{symbol}", depth))
+                        # Via the factory, not an inline encode: the two drifted
+                        # apart once already, leaving make_depth_msg publishing a
+                        # topic nobody subscribed to.
+                        self.pub_sock.send_multipart(make_depth_msg(symbol, depth))
                 self._last_snapshot[symbol] = now
                 sent.add(symbol)
         self._dirty_symbols -= sent

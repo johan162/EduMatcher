@@ -826,6 +826,46 @@ def test_unsequenced_topic_warns_once(
     assert sp._conn.execute("SELECT COUNT(*) FROM feed_gaps").fetchone()[0] == 0
 
 
+# ---------------------------------------------------------------------------
+# Topic drift — a `book.` subscription must not invent a symbol
+# ---------------------------------------------------------------------------
+
+
+def test_book_subtopic_does_not_create_a_phantom_symbol(
+    sp: StatsProcess, caplog: pytest.LogCaptureFixture
+) -> None:
+    """`book.` matches sub-topics too, and the naive split invented a symbol.
+
+    `make_depth_msg` published `book.depth.AAPL` while every subscriber
+    listened for `depth.`, so nothing received it. Had anything used the
+    factory, pm-stats would have recorded an instrument literally named
+    "depth.AAPL" into daily_stats — verified before the fix. This pins the
+    recorder against any future `book.<something>.<symbol>` topic.
+    """
+    import logging
+
+    book = {"bids": [{"price": 100.0}], "asks": [{"price": 101.0}], "tick_decimals": 2}
+    with caplog.at_level(logging.WARNING):
+        sp._dispatch("book.depth.AAPL", book)
+
+    assert "not a book snapshot" in caplog.text
+    assert sp._conn.execute("SELECT COUNT(*) FROM daily_stats").fetchone()[0] == 0
+
+    # A genuine single-symbol book snapshot still routes normally.
+    sp._dispatch("book.AAPL", book)
+    rows = sp._conn.execute("SELECT symbol FROM daily_stats").fetchall()
+    assert rows == [("AAPL",)]
+
+
+def test_depth_topic_does_not_match_a_book_subscription() -> None:
+    """The fix, stated as the property that matters."""
+    from edumatcher.models.message import decode, make_depth_msg
+
+    topic, _ = decode(make_depth_msg("AAPL", {}))
+    assert topic == "depth.AAPL"
+    assert not topic.startswith("book.")
+
+
 def test_writer_opens_in_wal_mode(sp: StatsProcess) -> None:
     """Without WAL a concurrent pm-stats-cli read makes the writer fail, and
     the receive loop's catch-all would swallow the dropped record."""

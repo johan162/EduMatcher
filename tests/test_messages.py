@@ -609,6 +609,16 @@ class TestMMQuoteAndRiskMessages:
         assert payload["resumed_symbols"] == 5
 
     def test_make_depth_msg(self) -> None:
+        """Topic must be depth.{symbol}, matching the engine and subscribers.
+
+        It was book.depth.AAPL, which no subscriber listened for — and which
+        a `book.` prefix subscription swallows, making pm-stats invent a
+        phantom symbol called "depth.AAPL".
+        """
         topic, payload = _rt(make_depth_msg("AAPL", {"bids": [[10000, 10]]}))
-        assert topic == "book.depth.AAPL"
+        assert topic == "depth.AAPL"
         assert payload["bids"][0][0] == 10000
+
+    def test_depth_topic_is_not_swallowed_by_a_book_subscription(self) -> None:
+        topic, _ = _rt(make_depth_msg("AAPL", {}))
+        assert not topic.startswith("book.")
