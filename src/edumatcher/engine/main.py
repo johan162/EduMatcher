@@ -157,6 +157,12 @@ _TRADE_TOPIC = b"trade.executed"
 _FILL_STATUSES = frozenset({OrderStatus.PARTIAL, OrderStatus.FILLED})
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
+#: How often the resting book is checkpointed to disk while the session runs.
+#: This is the upper bound on what an abrupt termination can lose. Five
+#: seconds keeps the write volume negligible next to the 200 ms poll tick
+#: while bounding the exposure to something an operator can reason about.
+_PERSIST_INTERVAL_SEC = 5.0
+
 
 def order_to_display_dict(order: Order) -> dict[str, Any]:
     """Serialize an order for an outbound snapshot in *display* units (L3).
@@ -208,6 +214,14 @@ class Engine:
         self._running = False
         self._error_count = 0
         self._unknown_topic_count = 0
+        # A fourth failure mode, distinct from the two above: the message
+        # could not be decoded at all, so it has no topic to route and no
+        # gateway to reject to.
+        self._undecodable_count = 0
+        # Monotonic timestamp of the last persistence checkpoint. Starts at 0
+        # so the first tick writes one immediately rather than waiting out an
+        # interval on a freshly started engine.
+        self._last_persist = 0.0
         # If None → no symbol restrictions (backward-compat mode)
         self._allowed_symbols: frozenset[str] | None = None
         self._allowed_fix_gateways: frozenset[str] | None = None
@@ -4114,6 +4128,48 @@ class Engine:
     # Shutdown
     # ------------------------------------------------------------------
 
+    def _resting_gtc_orders(self) -> list[Order]:
+        """GTC orders that should survive a restart.
+
+        Quote legs are excluded: they are re-seeded from config on every
+        startup, so persisting them accumulates duplicates across restarts.
+        """
+        resting: list[Order] = []
+        for book in self.books.values():
+            for order in book.resting_orders():
+                if order.tif == TIF.GTC and order.origin != OrderOrigin.QUOTE:
+                    resting.append(order)
+        return resting
+
+    def _flush_persistence(self, force: bool = False) -> None:
+        """Checkpoint the resting book, at most once per interval.
+
+        Persisting only at shutdown meant the entire resting book was lost to
+        anything that was not a polite exit — SIGKILL, OOM, container
+        eviction, power loss, or any unhandled exception in the loop. This
+        bounds that loss to the checkpoint interval instead.
+
+        Unlike :meth:`_shutdown`, this never mutates state: it does not expire
+        DAY orders and publishes nothing, so it is safe to run mid-session on
+        the poll tick.
+        """
+        now = time.monotonic()
+        if not force and now - self._last_persist < _PERSIST_INTERVAL_SEC:
+            return
+        self._last_persist = now
+        try:
+            save_gtc_orders(self._resting_gtc_orders(), GTC_ORDERS_FILE)
+            save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)
+            save_book_stats(self.books, BOOK_STATS_FILE)
+        except Exception as exc:
+            # A failed checkpoint must not end the session — the previous
+            # checkpoint is still intact on disk because the writes are
+            # atomic, so the correct response is to complain and carry on.
+            self._dbg_count("persist_errors")
+            log.error("Checkpoint failed: %s", exc)
+        else:
+            self._dbg_count("persist_checkpoints")
+
     def _shutdown(self) -> None:
         log.info("Shutting down …")
         self._running = False
@@ -4296,15 +4352,39 @@ class Engine:
             except zmq.ZMQError:
                 break
             if self.pull_sock in socks:
-                frames = self.pull_sock.recv_multipart()
-                topic, payload = decode(frames)
-                self._dbg_count("pull_messages")
-                self._dbg_count(f"topic_{topic}")
-                self._dispatch_pull_message(topic, payload)
+                # Receiving and decoding sit inside the guard, not only the
+                # dispatch behind them. decode() raises on input any peer
+                # controls — a single frame, malformed JSON, a non-UTF8 topic
+                # — and the PULL socket accepts from anyone who connects,
+                # with gateway identity checked inside the handlers, i.e.
+                # after this point. Unguarded, one such message ended the loop,
+                # which skipped _shutdown() and with it the only code that
+                # persisted the resting book.
+                try:
+                    frames = self.pull_sock.recv_multipart()
+                    topic, payload = decode(frames)
+                except Exception as exc:
+                    # No decodable topic means no gateway to reject to, so the
+                    # message can only be discarded — but it is counted, so
+                    # the condition is visible rather than silent.
+                    self._undecodable_count += 1
+                    self._dbg_count("undecodable_messages")
+                    log.warning(
+                        "Discarding undecodable PULL message (#%d): %s",
+                        self._undecodable_count,
+                        exc,
+                    )
+                else:
+                    self._dbg_count("pull_messages")
+                    self._dbg_count(f"topic_{topic}")
+                    self._dispatch_pull_message(topic, payload)
             # Throttled snapshot publish — runs every poll tick (max 200ms)
             self._flush_snapshots()
             # Check circuit breaker timers — resume halted symbols
             self._flush_circuit_breakers()
+            # Checkpoint the resting book so an abrupt exit loses at most
+            # _PERSIST_INTERVAL_SEC of changes rather than all of it.
+            self._flush_persistence()
             # Publish where each symbol would uncross, while a call phase runs
             self._flush_auction_indicative()
             self._flush_debug_summary()
