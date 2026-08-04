@@ -23,7 +23,7 @@
 \urlstyle{same}
 \hypersetup{
   colorlinks=true,
-  linkcolor=RoyalBlue,   % internal links (TOC, refs)
+  linkcolor=brandblue,   % internal links (TOC, refs)
   urlcolor=BrickRed,     % external URLs
   citecolor=ForestGreen, % citations
   hypertexnames=false,
