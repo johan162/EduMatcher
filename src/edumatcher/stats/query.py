@@ -6,9 +6,15 @@ import base64
 import json
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 from typing import Any
+
+from edumatcher.stats.trading_day import (
+    normalise_ts_bound,
+    resolve_timezone,
+    trading_day_bounds,
+)
 
 log = logging.getLogger(__name__)
 
@@ -86,33 +92,128 @@ def _decode_two_field_cursor(
 
 
 def open_readonly_connection(db_path: Path) -> sqlite3.Connection:
-    """Open stats SQLite DB in read-only mode."""
+    """Open stats SQLite DB in read-only mode.
+
+    ``busy_timeout`` matters even for a reader: with WAL the recorder and this
+    connection no longer block each other for normal traffic, but a checkpoint
+    still takes a brief exclusive lock, and failing instantly on it would turn
+    a routine query into a spurious error.
+    """
     if not db_path.exists():
         raise FileNotFoundError(f"Statistics DB not found: {db_path}")
     resolved_path = db_path.resolve()
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 5000")
     log.info("opened read-only stats DB connection path=%s", resolved_path)
     return conn
 
 
-def validate_date(raw: str) -> None:
+def read_meta(conn: sqlite3.Connection, key: str) -> str | None:
+    """Return one ``stats_meta`` value, or ``None`` if absent.
+
+    Tolerates the table being missing so a caller can still read a database
+    produced before ``stats_meta`` existed instead of failing outright.
+    """
     try:
-        datetime.strptime(raw, "%Y-%m-%d")
+        row = conn.execute(
+            "SELECT value FROM stats_meta WHERE key = ?", (key,)
+        ).fetchone()
+    except sqlite3.Error:
+        return None
+    return None if row is None else str(row[0])
+
+
+def resolve_session_timezone(
+    conn: sqlite3.Connection, override: str | None = None
+) -> tuple[tzinfo, str | None]:
+    """Resolve the session timezone for a read.
+
+    Returns ``(tz, warning)``. The timezone recorded in the database wins by
+    default, so a reader cannot silently disagree with the recorder about
+    which trading day a ``--date`` refers to. An explicit *override* is
+    honoured but produces a warning when it contradicts the file — that
+    combination is almost always a mistake, and its symptom (too few rows, or
+    none) looks identical to there being no data.
+
+    Raises :class:`ValueError` if *override* is not a known timezone.
+    """
+    recorded = read_meta(conn, "session_timezone")
+    if override is not None:
+        chosen = resolve_timezone(override)
+        if chosen is None:
+            raise ValueError(f"Unknown timezone: {override}")
+        if recorded is not None and recorded != override:
+            return chosen, (
+                f"--timezone {override} differs from the session timezone this "
+                f"database was recorded with ({recorded}); --date will resolve "
+                f"to a different trading day than pm-stats used"
+            )
+        return chosen, None
+    if recorded is None:
+        return timezone.utc, None
+    resolved = resolve_timezone(recorded)
+    if resolved is None:
+        return timezone.utc, (
+            f"database records an unknown session timezone {recorded!r}; "
+            f"falling back to UTC"
+        )
+    return resolved, None
+
+
+def validate_date(raw: str) -> None:
+    """Validate a trading date, requiring the exact stored ``YYYY-MM-DD`` form.
+
+    ``strptime`` alone would accept ``2026-6-4``, which then never equals the
+    zero-padded text in ``daily_stats.date`` — the query would succeed and
+    return nothing rather than reporting the malformed input.
+    """
+    try:
+        parsed = datetime.strptime(raw, "%Y-%m-%d")
     except ValueError as exc:
         raise ValueError(f"Invalid date format: {raw} (expected YYYY-MM-DD)") from exc
+    if parsed.strftime("%Y-%m-%d") != raw:
+        raise ValueError(f"Invalid date format: {raw} (expected YYYY-MM-DD)")
 
 
 def validate_iso_ts(raw: str) -> None:
-    candidate = raw.strip()
-    if candidate.endswith("Z"):
-        candidate = candidate[:-1] + "+00:00"
+    """Validate an ISO timestamp bound using the same parser the queries use."""
     try:
-        datetime.fromisoformat(candidate)
+        normalise_ts_bound(raw, timezone.utc)
     except ValueError as exc:
         raise ValueError(
             f"Invalid timestamp format: {raw} (expected ISO timestamp)"
         ) from exc
+
+
+def _apply_time_filters(
+    sql: str,
+    params: list[Any],
+    *,
+    date_value: str | None,
+    from_ts: str | None,
+    to_ts: str | None,
+    tz: tzinfo,
+) -> str:
+    """Append trading-date and ISO-bound filters to *sql*, extending *params*.
+
+    ``date_value`` is a trading date, so it resolves to the half-open UTC
+    instant range that date covers in the session timezone — not to
+    ``substr(ts, 1, 10)``, which is a *UTC* date and disagrees with
+    ``daily_stats.date`` for any session timezone other than UTC. The range
+    form is also index-friendly, which ``substr`` was not.
+    """
+    if date_value is not None:
+        day_start, day_end = trading_day_bounds(date_value, tz)
+        sql += " AND ts >= ? AND ts < ?"
+        params.extend([day_start, day_end])
+    if from_ts is not None:
+        sql += " AND ts >= ?"
+        params.append(normalise_ts_bound(from_ts, tz))
+    if to_ts is not None:
+        sql += " AND ts <= ?"
+        params.append(normalise_ts_bound(to_ts, tz))
+    return sql
 
 
 def latest_daily_date(conn: sqlite3.Connection) -> str | None:
@@ -188,8 +289,8 @@ def query_daily(
 
     sql = (
         "SELECT date, symbol, open_price, high_price, low_price, close_price, "
-        "open_bid, open_ask, close_bid, close_ask, volume, trade_count, vwap, "
-        "largest_trade_qty, largest_trade_price "
+        "open_bid, open_ask, close_bid, close_ask, volume, trade_count, "
+        "turnover, vwap, largest_trade_qty, largest_trade_price "
         "FROM daily_stats WHERE date = ?"
     )
     params: list[Any] = [selected_date]
@@ -215,8 +316,8 @@ def query_daily(
 
 _DAILY_COLUMNS = (
     "SELECT date, symbol, open_price, high_price, low_price, close_price, "
-    "open_bid, open_ask, close_bid, close_ask, volume, trade_count, vwap, "
-    "largest_trade_qty, largest_trade_price FROM daily_stats"
+    "open_bid, open_ask, close_bid, close_ask, volume, trade_count, "
+    "turnover, vwap, largest_trade_qty, largest_trade_price FROM daily_stats"
 )
 
 
@@ -265,38 +366,6 @@ def _query_daily_range(
     return results, next_cursor
 
 
-def query_snapshots(
-    conn: sqlite3.Connection,
-    *,
-    symbol: str,
-    date_value: str | None,
-    from_ts: str | None,
-    to_ts: str | None,
-    limit: int,
-) -> list[dict[str, Any]]:
-    sql = (
-        "SELECT ts, symbol, mid_price, best_bid, best_ask, pct_change "
-        "FROM price_snapshots WHERE symbol = ?"
-    )
-    params: list[Any] = [symbol]
-
-    if date_value is not None:
-        sql += " AND substr(ts, 1, 10) = ?"
-        params.append(date_value)
-    if from_ts is not None:
-        sql += " AND ts >= ?"
-        params.append(from_ts)
-    if to_ts is not None:
-        sql += " AND ts <= ?"
-        params.append(to_ts)
-
-    sql += " ORDER BY ts ASC LIMIT ?"
-    params.append(limit)
-
-    rows = _execute_fetchall(conn, sql, params)
-    return [dict(row) for row in rows]
-
-
 def query_price_snapshots(
     conn: sqlite3.Connection,
     *,
@@ -305,6 +374,7 @@ def query_price_snapshots(
     from_ts: str | None,
     to_ts: str | None,
     limit: int,
+    tz: tzinfo,
     after: str | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Return up to *limit* price snapshots plus a next-page cursor.
@@ -312,11 +382,7 @@ def query_price_snapshots(
     ``price_snapshots``' primary key is ``(ts, symbol)``, but multiple
     symbols can share a ``ts`` — since this query is already scoped to one
     ``symbol``, ``rowid`` (insertion order) still serves as the tiebreaker
-    for any same-``ts`` rows within that single symbol. This is the
-    paginated sibling of :func:`query_snapshots`, which predates the
-    keyset-pagination work and is left as-is since ``pm-stats-cli``'s
-    ``snapshots`` subcommand still depends on its non-paginated return
-    shape.
+    for any same-``ts`` rows within that single symbol.
     """
     sql = (
         "SELECT rowid AS _rowid, ts, symbol, mid_price, best_bid, best_ask, "
@@ -324,15 +390,9 @@ def query_price_snapshots(
     )
     params: list[Any] = [symbol]
 
-    if date_value is not None:
-        sql += " AND substr(ts, 1, 10) = ?"
-        params.append(date_value)
-    if from_ts is not None:
-        sql += " AND ts >= ?"
-        params.append(from_ts)
-    if to_ts is not None:
-        sql += " AND ts <= ?"
-        params.append(to_ts)
+    sql = _apply_time_filters(
+        sql, params, date_value=date_value, from_ts=from_ts, to_ts=to_ts, tz=tz
+    )
     if after is not None:
         after_ts, after_rowid = _decode_two_field_cursor(after, "ts", "rowid")
         sql += " AND (ts > ? OR (ts = ? AND rowid > ?))"
@@ -360,6 +420,7 @@ def query_trades(
     from_ts: str | None,
     to_ts: str | None,
     limit: int,
+    tz: tzinfo,
     after: str | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Return up to *limit* trades plus a next-page cursor (or ``None``).
@@ -371,22 +432,16 @@ def query_trades(
     """
     sql = (
         "SELECT rowid AS _rowid, ts, trade_id, symbol, price, quantity, "
-        "buy_gateway_id, sell_gateway_id FROM trade_log WHERE 1=1"
+        "buy_gateway_id, sell_gateway_id, aggressor_side FROM trade_log WHERE 1=1"
     )
     params: list[Any] = []
 
     if symbol is not None:
         sql += " AND symbol = ?"
         params.append(symbol)
-    if date_value is not None:
-        sql += " AND substr(ts, 1, 10) = ?"
-        params.append(date_value)
-    if from_ts is not None:
-        sql += " AND ts >= ?"
-        params.append(from_ts)
-    if to_ts is not None:
-        sql += " AND ts <= ?"
-        params.append(to_ts)
+    sql = _apply_time_filters(
+        sql, params, date_value=date_value, from_ts=from_ts, to_ts=to_ts, tz=tz
+    )
     if after is not None:
         after_ts, after_rowid = _decode_two_field_cursor(after, "ts", "rowid")
         sql += " AND (ts > ? OR (ts = ? AND rowid > ?))"
@@ -416,6 +471,7 @@ def query_order_events(
     from_ts: str | None,
     to_ts: str | None,
     limit: int,
+    tz: tzinfo,
     after: str | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Return up to *limit* order events plus a next-page cursor (or ``None``).
@@ -432,15 +488,9 @@ def query_order_events(
     if event_type is not None:
         sql += " AND event_type = ?"
         params.append(event_type)
-    if date_value is not None:
-        sql += " AND substr(ts, 1, 10) = ?"
-        params.append(date_value)
-    if from_ts is not None:
-        sql += " AND ts >= ?"
-        params.append(from_ts)
-    if to_ts is not None:
-        sql += " AND ts <= ?"
-        params.append(to_ts)
+    sql = _apply_time_filters(
+        sql, params, date_value=date_value, from_ts=from_ts, to_ts=to_ts, tz=tz
+    )
     if after is not None:
         after_ts, after_seq = _decode_two_field_cursor(after, "ts", "seq")
         sql += " AND (ts > ? OR (ts = ? AND seq > ?))"
@@ -475,7 +525,17 @@ def query_symbols(
     conn: sqlite3.Connection,
     *,
     date_value: str | None,
+    tz: tzinfo,
 ) -> list[dict[str, Any]]:
+    """List symbols present in the stats DB, optionally for one trading date.
+
+    All three branches of the UNION resolve *the same* trading date:
+    ``daily_stats.date`` stores it directly, while the two ``ts`` tables are
+    matched against the UTC instant range that date covers in the session
+    timezone. Filtering the ``ts`` tables on ``substr(ts, 1, 10)`` instead
+    would mix a UTC date into a union with a trading date and report symbols
+    from two different days.
+    """
     if date_value is None:
         sql = (
             "SELECT symbol FROM daily_stats "
@@ -485,13 +545,14 @@ def query_symbols(
         )
         params: list[Any] = []
     else:
+        day_start, day_end = trading_day_bounds(date_value, tz)
         sql = (
             "SELECT symbol FROM daily_stats WHERE date = ? "
-            "UNION SELECT symbol FROM price_snapshots WHERE substr(ts, 1, 10) = ? "
-            "UNION SELECT symbol FROM trade_log WHERE substr(ts, 1, 10) = ? "
+            "UNION SELECT symbol FROM price_snapshots WHERE ts >= ? AND ts < ? "
+            "UNION SELECT symbol FROM trade_log WHERE ts >= ? AND ts < ? "
             "ORDER BY symbol ASC"
         )
-        params = [date_value, date_value, date_value]
+        params = [date_value, day_start, day_end, day_start, day_end]
 
     rows = _execute_fetchall(conn, sql, params)
     return [dict(row) for row in rows]
@@ -668,6 +729,7 @@ def query_index_snapshots(
     from_ts: str | None,
     to_ts: str | None,
     limit: int,
+    tz: tzinfo,
     after: str | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Return up to *limit* index snapshots plus a next-page cursor.
@@ -684,15 +746,9 @@ def query_index_snapshots(
     )
     params: list[Any] = [index_id]
 
-    if date_value is not None:
-        sql += " AND substr(ts, 1, 10) = ?"
-        params.append(date_value)
-    if from_ts is not None:
-        sql += " AND ts >= ?"
-        params.append(from_ts)
-    if to_ts is not None:
-        sql += " AND ts <= ?"
-        params.append(to_ts)
+    sql = _apply_time_filters(
+        sql, params, date_value=date_value, from_ts=from_ts, to_ts=to_ts, tz=tz
+    )
     if after is not None:
         after_ts, after_rowid = _decode_two_field_cursor(after, "ts", "rowid")
         sql += " AND (ts > ? OR (ts = ? AND rowid > ?))"
@@ -716,7 +772,13 @@ def query_index_ids(
     conn: sqlite3.Connection,
     *,
     date_value: str | None,
+    tz: tzinfo,
 ) -> list[dict[str, Any]]:
+    """List index IDs present in the stats DB, optionally for one trading date.
+
+    Resolves the trading date consistently across both branches of the UNION —
+    see :func:`query_symbols` for why.
+    """
     if date_value is None:
         sql = (
             "SELECT index_id FROM index_daily_stats "
@@ -725,12 +787,14 @@ def query_index_ids(
         )
         params: list[Any] = []
     else:
+        day_start, day_end = trading_day_bounds(date_value, tz)
         sql = (
             "SELECT index_id FROM index_daily_stats WHERE date = ? "
-            "UNION SELECT index_id FROM index_level_snapshots WHERE substr(ts, 1, 10) = ? "
+            "UNION SELECT index_id FROM index_level_snapshots "
+            "WHERE ts >= ? AND ts < ? "
             "ORDER BY index_id ASC"
         )
-        params = [date_value, date_value]
+        params = [date_value, day_start, day_end]
 
     rows = _execute_fetchall(conn, sql, params)
     return [dict(row) for row in rows]

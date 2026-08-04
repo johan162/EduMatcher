@@ -4,10 +4,12 @@ over ZMQ for its structural/audit log."""
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import time
 import uuid
 from contextlib import closing
+from datetime import tzinfo
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -26,11 +28,30 @@ from edumatcher.stats.query import (
     query_order_lifecycle,
     query_price_snapshots,
     query_trades,
+    resolve_session_timezone,
     validate_date,
     validate_iso_ts,
 )
 
+log = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/v1/history", tags=["history"])
+
+
+def _session_tz(request: Request, conn: sqlite3.Connection) -> tzinfo:
+    """Session timezone that ``date`` filters resolve their trading day in.
+
+    Read from the statistics database, so the gateway cannot disagree with the
+    recorder about which trading day a ``date`` refers to. ``session_timezone``
+    in the gateway config is an explicit override for the unusual case where
+    it must differ; it is validated at config load, so an unknown name cannot
+    reach here.
+    """
+    override = request.app.state.config.session_timezone
+    resolved, warning = resolve_session_timezone(conn, override)
+    if warning is not None:
+        log.warning("history: %s", warning)
+    return resolved
 
 
 def _open_stats(request: Request) -> sqlite3.Connection:
@@ -108,6 +129,7 @@ async def history_orders(
         try:
             events, next_cursor = query_order_events(
                 conn,
+                tz=_session_tz(request, conn),
                 gateway_id=gateway_id,
                 symbol=symbol.upper() if symbol else None,
                 event_type=event_type.upper() if event_type else None,
@@ -160,6 +182,7 @@ async def history_fills(
         try:
             events, next_cursor = query_order_events(
                 conn,
+                tz=_session_tz(request, conn),
                 gateway_id=gateway_id,
                 symbol=symbol.upper() if symbol else None,
                 event_type="FILL",
@@ -200,6 +223,7 @@ async def history_trades(
         try:
             trades, next_cursor = query_trades(
                 conn,
+                tz=_session_tz(request, conn),
                 symbol=symbol.upper() if symbol else None,
                 date_value=date,
                 from_ts=from_ts,
@@ -289,6 +313,7 @@ async def history_price_snapshots(
         try:
             rows, next_cursor = query_price_snapshots(
                 conn,
+                tz=_session_tz(request, conn),
                 symbol=symbol.upper(),
                 date_value=date,
                 from_ts=from_ts,
@@ -380,6 +405,7 @@ async def history_index_snapshots(
         try:
             rows, next_cursor = query_index_snapshots(
                 conn,
+                tz=_session_tz(request, conn),
                 index_id=index_id.upper(),
                 date_value=date,
                 from_ts=from_ts,
@@ -413,7 +439,7 @@ async def history_index_ids(
     if date is not None:
         _validate_time_filters(date, None, None)
     with closing(_open_stats(request)) as conn:
-        rows = query_index_ids(conn, date_value=date)
+        rows = query_index_ids(conn, date_value=date, tz=_session_tz(request, conn))
     index_ids = [row["index_id"] for row in rows]
     return {"index_ids": index_ids, "count": len(index_ids)}
 

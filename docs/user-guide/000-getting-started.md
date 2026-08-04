@@ -286,6 +286,48 @@ configurations. Install a configuration with `pm-config-deploy`.
 
 
 
+## Dates: instants vs. the trading date
+
+EduMatcher records two different kinds of date, and it is worth knowing the
+difference before you read any report.
+
+- **Instants** — every timestamp (`ts` columns, log lines, message payloads)
+  is UTC, written in full ISO-8601 form with an explicit offset:
+  `2026-06-14T09:00:01.000+00:00`.
+- **The trading date** — every *daily* figure (daily OHLCV, index closes,
+  clearing summaries) is bucketed by the calendar date **in the exchange's
+  local wall clock**, written as `2026-06-14`.
+
+These are not the same thing, and neither is the date on your own machine. An
+exchange's daily rollup describes the session its participants traded, so a
+venue whose session runs past midnight UTC still produces one row per trading
+day rather than two half-days.
+
+The exchange's local wall clock is set with `--timezone`, an IANA timezone
+name, defaulting to `UTC`. Only the two recorders need it — each stores it in
+its own database, and the query tools read it back:
+
+```bash
+pm-stats     --timezone Europe/Stockholm
+pm-clearing  --timezone Europe/Stockholm
+
+pm-stats-cli daily      # picks up Europe/Stockholm from the database
+pm-ticker               # same
+```
+
+!!! warning "Give both recorders the same value"
+    `pm-stats` and `pm-clearing` write separate databases and nothing
+    cross-checks them, so a mismatch between the two will quietly produce
+    figures that do not reconcile. Set it once in whatever starts your
+    processes.
+
+    **If your exchange runs in UTC, leave both at the default and none of this
+    affects you.**
+
+Full detail: [The trading date](080-session-scheduling.md#the-trading-date).
+
+
+
 ## PM command family overview
 
 Use these tables as a quick index for every `pm-` entry point currently

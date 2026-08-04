@@ -973,7 +973,7 @@ class TestStatsReceivePaths:
     def test_on_eod_empty_books(self, stats_proc) -> None:
         proc = stats_proc
         # Add some accumulator data first
-        proc._accum_for("AAPL")
+        proc._accum_for("AAPL", "2026-06-14")
         proc._on_eod({"books": []})
         # Should not crash
 

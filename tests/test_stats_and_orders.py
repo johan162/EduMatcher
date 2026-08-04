@@ -632,14 +632,14 @@ class TestReceiveOneIndexMessage:
 
 class TestIndexAccumFor:
     def test_creates_new_accum_first_time(self, sp: StatsProcess) -> None:
-        acc = sp._index_accum_for("EDU100")
+        acc = sp._index_accum_for("EDU100", "2026-06-14")
         assert acc.index_id == "EDU100"
-        assert acc.date == sp._today()
+        assert acc.date == "2026-06-14"
 
     def test_reuses_existing_accum_same_day(self, sp: StatsProcess) -> None:
-        acc1 = sp._index_accum_for("EDU100")
+        acc1 = sp._index_accum_for("EDU100", "2026-06-14")
         acc1.on_update(1000.0, aggregate_cap=None)
-        acc2 = sp._index_accum_for("EDU100")
+        acc2 = sp._index_accum_for("EDU100", "2026-06-14")
         assert acc2 is acc1
         assert acc2.close_level == 1000.0
 
@@ -647,18 +647,17 @@ class TestIndexAccumFor:
         self, sp: StatsProcess
     ) -> None:
         """Mirrors the equivalent _accum_for rollover behavior for symbols:
-        when the calendar date changes, the prior day's accumulator must be
+        when the trading date changes, the prior day's accumulator must be
         flushed to index_daily_stats before a fresh one starts, so no data
-        is silently lost across midnight.
+        is silently lost across the rollover.
         """
-        acc = sp._index_accum_for("EDU100")
-        acc.date = "2020-01-01"  # simulate a stale accumulator from "yesterday"
+        acc = sp._index_accum_for("EDU100", "2020-01-01")
         acc.on_update(999.0, aggregate_cap=None)
 
         # Next call detects the date mismatch and rolls over
-        new_acc = sp._index_accum_for("EDU100")
+        new_acc = sp._index_accum_for("EDU100", "2020-01-02")
         assert new_acc is not acc
-        assert new_acc.date == sp._today()
+        assert new_acc.date == "2020-01-02"
 
         # The stale day's data must have been flushed to the DB before rollover
         flushed = sp._conn.execute(
@@ -674,21 +673,22 @@ class TestIndexAccumFor:
 
 class TestAccumFor:
     def test_creates_new_accum_first_time(self, sp: StatsProcess) -> None:
-        acc = sp._accum_for("AAPL")
+        acc = sp._accum_for("AAPL", "2026-06-14")
         assert acc.symbol == "AAPL"
+        assert acc.date == "2026-06-14"
         assert acc is sp._accum["AAPL"]
 
     def test_returns_existing_accum_same_day(self, sp: StatsProcess) -> None:
-        acc1 = sp._accum_for("AAPL")
-        acc2 = sp._accum_for("AAPL")
+        acc1 = sp._accum_for("AAPL", "2026-06-14")
+        acc2 = sp._accum_for("AAPL", "2026-06-14")
         assert acc1 is acc2
 
     def test_rolls_over_on_new_date(self, sp: StatsProcess) -> None:
         # Seed yesterday's accumulator
         sp._accum["AAPL"] = _DayAccum(date="2000-01-01", symbol="AAPL")
         sp._accum["AAPL"].open_price = 100.0
-        new_acc = sp._accum_for("AAPL")
-        assert new_acc.date != "2000-01-01"
+        new_acc = sp._accum_for("AAPL", "2000-01-02")
+        assert new_acc.date == "2000-01-02"
         # Old data should have been flushed
         rows = sp._conn.execute("SELECT date, symbol FROM daily_stats").fetchall()
         assert ("2000-01-01", "AAPL") in rows
@@ -1059,6 +1059,9 @@ class TestStatsMain:
         mock_run: MagicMock,
         tmp_path: Path,
     ) -> None:
+        mock_run.return_value = 0
         with patch("sys.argv", ["pm-stats", "--db", str(tmp_path / "test.db")]):
-            stats_main()
+            with pytest.raises(SystemExit) as excinfo:
+                stats_main()
+        assert excinfo.value.code == 0
         mock_run.assert_called_once()

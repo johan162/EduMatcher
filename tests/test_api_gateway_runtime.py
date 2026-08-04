@@ -401,19 +401,19 @@ CREATE TABLE order_events (
 );
 CREATE TABLE trade_log (
     ts TEXT, trade_id TEXT, symbol TEXT, price REAL, quantity INTEGER,
-    buy_gateway_id TEXT, sell_gateway_id TEXT
+    buy_gateway_id TEXT, sell_gateway_id TEXT, aggressor_side TEXT
 );
 CREATE TABLE daily_stats (
     date TEXT, symbol TEXT, open_price REAL, high_price REAL, low_price REAL,
     close_price REAL, open_bid REAL, open_ask REAL, close_bid REAL, close_ask REAL,
-    volume INTEGER, trade_count INTEGER, vwap REAL, largest_trade_qty INTEGER,
-    largest_trade_price REAL
+    volume INTEGER, trade_count INTEGER, turnover REAL, vwap REAL,
+    largest_trade_qty INTEGER, largest_trade_price REAL
 );
 INSERT INTO order_events (ts,event_type,order_id,gateway_id,symbol) VALUES
 ('2026-06-24T10:00:00','ACK','ORD1','GW01','AAPL'),
 ('2026-06-24T10:00:01','FILL','ORD1','GW01','AAPL');
-INSERT INTO trade_log VALUES ('2026-06-24T10:00:01','TRD1','AAPL',150.0,10,'GW01','GW02');
-INSERT INTO daily_stats VALUES ('2026-06-24','AAPL',150,151,149,150.5,NULL,NULL,NULL,NULL,10,1,150,10,150);
+INSERT INTO trade_log VALUES ('2026-06-24T10:00:01','TRD1','AAPL',150.0,10,'GW01','GW02','BUY');
+INSERT INTO daily_stats VALUES ('2026-06-24','AAPL',150,151,149,150.5,NULL,NULL,NULL,NULL,10,1,1500,150,10,150);
 """)
     conn.close()
 

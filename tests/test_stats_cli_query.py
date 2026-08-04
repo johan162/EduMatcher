@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import sqlite3
+from datetime import timezone
 from pathlib import Path
 
 import pytest
@@ -19,7 +20,6 @@ from edumatcher.stats.query import (
     query_index_snapshots,
     query_order_events,
     query_price_snapshots,
-    query_snapshots,
     query_symbols,
     query_trades,
 )
@@ -246,8 +246,9 @@ def test_query_daily_symbol_filter(seeded_db: Path) -> None:
 
 def test_query_snapshots_filters_by_date_and_time_window(seeded_db: Path) -> None:
     conn = open_readonly_connection(seeded_db)
-    rows = query_snapshots(
+    rows, _next_cursor = query_price_snapshots(
         conn,
+        tz=timezone.utc,
         symbol="AAPL",
         date_value="2026-06-14",
         from_ts="2026-06-14T09:10:00+00:00",
@@ -264,6 +265,7 @@ def test_query_trades_symbol_and_date_filter(seeded_db: Path) -> None:
     conn = open_readonly_connection(seeded_db)
     rows, next_cursor = query_trades(
         conn,
+        tz=timezone.utc,
         symbol="AAPL",
         date_value="2026-06-14",
         from_ts=None,
@@ -279,7 +281,7 @@ def test_query_trades_symbol_and_date_filter(seeded_db: Path) -> None:
 
 def test_query_symbols_uses_union_across_tables(seeded_db: Path) -> None:
     conn = open_readonly_connection(seeded_db)
-    rows = query_symbols(conn, date_value=None)
+    rows = query_symbols(conn, date_value=None, tz=timezone.utc)
     conn.close()
 
     symbols = [row["symbol"] for row in rows]
@@ -403,6 +405,7 @@ def test_query_index_snapshots_filters_by_time_window(seeded_db: Path) -> None:
     conn = open_readonly_connection(seeded_db)
     rows, _next_cursor = query_index_snapshots(
         conn,
+        tz=timezone.utc,
         index_id="EDU100",
         date_value="2026-06-14",
         from_ts="2026-06-14T09:10:00+00:00",
@@ -430,6 +433,7 @@ def test_query_index_snapshots_does_not_leak_across_indexes(
     conn = open_readonly_connection(seeded_db)
     rows, _next_cursor = query_index_snapshots(
         conn,
+        tz=timezone.utc,
         index_id="EDUFIN",
         date_value=None,
         from_ts=None,
@@ -446,6 +450,7 @@ def test_query_index_snapshots_orders_chronologically(seeded_db: Path) -> None:
     conn = open_readonly_connection(seeded_db)
     rows, _next_cursor = query_index_snapshots(
         conn,
+        tz=timezone.utc,
         index_id="EDU100",
         date_value=None,
         from_ts=None,
@@ -467,7 +472,13 @@ def test_query_index_snapshots_paginates_without_gaps_or_duplicates(
     """
     conn = open_readonly_connection(seeded_db)
     full_rows, _ = query_index_snapshots(
-        conn, index_id="EDU100", date_value=None, from_ts=None, to_ts=None, limit=500
+        conn,
+        tz=timezone.utc,
+        index_id="EDU100",
+        date_value=None,
+        from_ts=None,
+        to_ts=None,
+        limit=500,
     )
 
     paged_ts: list[str] = []
@@ -475,6 +486,7 @@ def test_query_index_snapshots_paginates_without_gaps_or_duplicates(
     for _ in range(len(full_rows) + 1):
         page, next_cursor = query_index_snapshots(
             conn,
+            tz=timezone.utc,
             index_id="EDU100",
             date_value=None,
             from_ts=None,
@@ -497,6 +509,7 @@ def test_query_price_snapshots_filters_by_time_window(seeded_db: Path) -> None:
     conn = open_readonly_connection(seeded_db)
     rows, _next_cursor = query_price_snapshots(
         conn,
+        tz=timezone.utc,
         symbol="AAPL",
         date_value="2026-06-14",
         from_ts="2026-06-14T09:10:00+00:00",
@@ -522,6 +535,7 @@ def test_query_price_snapshots_does_not_leak_across_symbols(
     conn = open_readonly_connection(seeded_db)
     rows, _next_cursor = query_price_snapshots(
         conn,
+        tz=timezone.utc,
         symbol="MSFT",
         date_value=None,
         from_ts=None,
@@ -538,6 +552,7 @@ def test_query_price_snapshots_orders_chronologically(seeded_db: Path) -> None:
     conn = open_readonly_connection(seeded_db)
     rows, _next_cursor = query_price_snapshots(
         conn,
+        tz=timezone.utc,
         symbol="AAPL",
         date_value=None,
         from_ts=None,
@@ -589,7 +604,13 @@ def test_query_price_snapshots_paginates_without_gaps_or_duplicates(
 
     conn = open_readonly_connection(db_path)
     full_rows, _ = query_price_snapshots(
-        conn, symbol="AAPL", date_value=None, from_ts=None, to_ts=None, limit=500
+        conn,
+        tz=timezone.utc,
+        symbol="AAPL",
+        date_value=None,
+        from_ts=None,
+        to_ts=None,
+        limit=500,
     )
 
     paged_mid_prices: list[float] = []
@@ -597,6 +618,7 @@ def test_query_price_snapshots_paginates_without_gaps_or_duplicates(
     for _ in range(len(full_rows) + 1):
         page, next_cursor = query_price_snapshots(
             conn,
+            tz=timezone.utc,
             symbol="AAPL",
             date_value=None,
             from_ts=None,
@@ -622,6 +644,7 @@ def test_query_price_snapshots_rejects_malformed_cursor(seeded_db: Path) -> None
     with pytest.raises(InvalidCursorError):
         query_price_snapshots(
             conn,
+            tz=timezone.utc,
             symbol="AAPL",
             date_value=None,
             from_ts=None,
@@ -643,6 +666,7 @@ def test_query_price_snapshots_rejects_cursor_missing_required_fields(
     with pytest.raises(InvalidCursorError):
         query_price_snapshots(
             conn,
+            tz=timezone.utc,
             symbol="AAPL",
             date_value=None,
             from_ts=None,
@@ -655,7 +679,7 @@ def test_query_price_snapshots_rejects_cursor_missing_required_fields(
 
 def test_query_index_ids_uses_union_across_tables(seeded_db: Path) -> None:
     conn = open_readonly_connection(seeded_db)
-    rows = query_index_ids(conn, date_value=None)
+    rows = query_index_ids(conn, date_value=None, tz=timezone.utc)
     conn.close()
 
     index_ids = [row["index_id"] for row in rows]
@@ -680,7 +704,7 @@ def test_query_index_ids_empty_db_returns_no_rows(tmp_path: Path) -> None:
     conn.close()
 
     conn = open_readonly_connection(db_path)
-    rows = query_index_ids(conn, date_value=None)
+    rows = query_index_ids(conn, date_value=None, tz=timezone.utc)
     conn.close()
 
     assert rows == []
@@ -732,6 +756,7 @@ def test_query_trades_paginates_same_timestamp_rows_without_gaps_or_duplicates(
     for _ in range(10):
         page, next_cursor = query_trades(
             conn,
+            tz=timezone.utc,
             symbol=None,
             date_value=None,
             from_ts=None,
@@ -754,6 +779,7 @@ def test_query_trades_rejects_malformed_cursor(seeded_db: Path) -> None:
     with pytest.raises(InvalidCursorError):
         query_trades(
             conn,
+            tz=timezone.utc,
             symbol=None,
             date_value=None,
             from_ts=None,
@@ -776,6 +802,7 @@ def test_query_trades_rejects_cursor_missing_required_fields(
     with pytest.raises(InvalidCursorError):
         query_trades(
             conn,
+            tz=timezone.utc,
             symbol=None,
             date_value=None,
             from_ts=None,
@@ -815,6 +842,7 @@ def test_query_order_events_paginates_using_seq_tiebreaker(tmp_path: Path) -> No
     for _ in range(10):
         page, next_cursor = query_order_events(
             conn,
+            tz=timezone.utc,
             gateway_id="GW01",
             symbol=None,
             event_type=None,
@@ -1011,6 +1039,7 @@ def test_query_trades_rejects_wrong_typed_tiebreaker(seeded_db: Path) -> None:
     with pytest.raises(InvalidCursorError):
         query_trades(
             conn,
+            tz=timezone.utc,
             symbol=None,
             date_value=None,
             from_ts=None,
@@ -1022,6 +1051,7 @@ def test_query_trades_rejects_wrong_typed_tiebreaker(seeded_db: Path) -> None:
     with pytest.raises(InvalidCursorError):
         query_trades(
             conn,
+            tz=timezone.utc,
             symbol=None,
             date_value=None,
             from_ts=None,

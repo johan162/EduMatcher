@@ -24,6 +24,7 @@ from edumatcher.config import (
     INDEX_PUB_ADDR,
     STATS_DB_FILE,
 )
+from edumatcher.stats.trading_day import resolve_timezone
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,12 @@ class ApiGatewayConfig:
     index_pull_addr: str = INDEX_PULL_ADDR
     index_pub_addr: str = INDEX_PUB_ADDR
     stats_db: Path = STATS_DB_FILE
+    #: Optional override for the session timezone that ``date`` filters on the
+    #: history endpoints resolve their trading day in. ``None`` — the default —
+    #: means "use the timezone ``stats_db`` was recorded with", which is what
+    #: keeps the gateway and the recorder from disagreeing. Set this only when
+    #: it must deliberately differ.
+    session_timezone: str | None = None
     log_level: str = "info"
     swagger_enabled: bool = True
     credentials: tuple[ApiCredential, ...] = ()
@@ -175,6 +182,15 @@ def _load_api_gateway_section(
     stats_db_raw = section.get("stats_db", STATS_DB_FILE)
     stats_db = Path(str(stats_db_raw)).expanduser()
 
+    session_timezone_raw = section.get("session_timezone")
+    session_timezone = (
+        None if session_timezone_raw is None else str(session_timezone_raw)
+    )
+    if session_timezone is not None and resolve_timezone(session_timezone) is None:
+        raise ValueError(
+            f"{section_name}.session_timezone: unknown timezone {session_timezone!r}"
+        )
+
     return ApiGatewayConfig(
         name=gateway_name,
         enabled=bool(section.get("enabled", True)),
@@ -185,6 +201,7 @@ def _load_api_gateway_section(
         index_pull_addr=str(section.get("index_pull_addr", INDEX_PULL_ADDR)),
         index_pub_addr=str(section.get("index_pub_addr", INDEX_PUB_ADDR)),
         stats_db=stats_db,
+        session_timezone=session_timezone,
         log_level=str(section.get("log_level", "info")),
         swagger_enabled=bool(section.get("swagger_enabled", True)),
         credentials=_load_credentials(section.get("credentials"), section_name),

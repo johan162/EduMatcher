@@ -581,16 +581,21 @@ class TestTickerMain:
         captured: dict[str, object] = {}
 
         class _FakeProcess:
-            def __init__(self, db_path: Path, db_interval: float) -> None:
+            def __init__(
+                self, db_path: Path, db_interval: float, session_tz: object
+            ) -> None:
                 captured["db_path"] = db_path
                 captured["db_interval"] = db_interval
+                captured["session_tz"] = session_tz
 
             def run(self) -> None:
                 captured["ran"] = True
 
         monkeypatch.setattr(
             "edumatcher.ticker.main.argparse.ArgumentParser.parse_args",
-            lambda _self: argparse.Namespace(db="/tmp/stats.db", db_interval=44.0),
+            lambda _self: argparse.Namespace(
+                db="/tmp/stats.db", db_interval=44.0, timezone="UTC"
+            ),
         )
         monkeypatch.setattr(ticker_main, "TickerProcess", _FakeProcess)
 

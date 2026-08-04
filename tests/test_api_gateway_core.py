@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import timezone
 from pathlib import Path
 
 import pytest
@@ -106,6 +107,7 @@ VALUES
         from_ts=None,
         to_ts=None,
         limit=10,
+        tz=timezone.utc,
     )
     lifecycle = query_order_lifecycle(conn, gateway_id="GW01", order_id="ORD1")
     assert [event["event_type"] for event in events] == ["ACK", "FILL"]

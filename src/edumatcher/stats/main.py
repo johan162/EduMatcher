@@ -3,6 +3,15 @@ Statistics Process — records market data to a SQLite database.
 
 Usage:
   poetry run pm-stats [--db data/stats.db] [--snapshot-interval SEC]
+                      [--timezone TZ]
+
+Dates and timestamps
+--------------------
+  ``ts`` columns are UTC instants. ``date`` columns hold the *trading date* —
+  the calendar date in the exchange's session timezone (``--timezone``,
+  default UTC) that the event's own timestamp falls on. Start pm-stats and
+  pm-clearing with the same ``--timezone`` or their daily rollups will not
+  reconcile. See edumatcher/stats/trading_day.py.
 
 Subscribes to (engine PUB, ENGINE_PUB_ADDR):
   trade.executed  — to track OHLCV, VWAP, min/max, volume
@@ -70,7 +79,7 @@ import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 from typing import Any, Optional
 
@@ -95,6 +104,12 @@ from edumatcher.models.message import (
     decode,
     make_book_snapshot_request_msg,
     make_symbols_request_msg,
+)
+from edumatcher.stats.trading_day import (
+    resolve_timezone,
+    timezone_name,
+    trading_date,
+    trading_day_bounds,
 )
 
 _CLIENT_NAME = "pm-stats"
@@ -163,6 +178,23 @@ class _DayAccum:
     def vwap(self) -> Optional[float]:
         return self._pv_sum / self._q_sum if self._q_sum else None
 
+    @property
+    def turnover(self) -> float:
+        """Traded notional, ``sum(price * quantity)`` — the VWAP numerator."""
+        return self._pv_sum
+
+    def restore_totals(self, *, trade_count: int, volume: int, pv_sum: float) -> None:
+        """Seed the running totals from already-persisted trades.
+
+        Used when rebuilding this accumulator after a restart. ``pv_sum`` is
+        the VWAP numerator, ``sum(price * qty)``; the denominator is always
+        the traded volume, so it is derived rather than passed separately.
+        """
+        self.trade_count = trade_count
+        self.volume = volume
+        self._pv_sum = pv_sum
+        self._q_sum = volume
+
     def on_eod_book(self, best_bid: Optional[float], best_ask: Optional[float]) -> None:
         self.close_bid = best_bid
         self.close_ask = best_ask
@@ -224,7 +256,17 @@ class _IndexDayAccum:
 # Database helpers
 # ---------------------------------------------------------------------------
 
+#: Bumped whenever the DDL below changes in a way that makes an older file
+#: unreadable. Stamped into ``PRAGMA user_version`` at creation and checked on
+#: every open — see :func:`_check_schema_version`.
+SCHEMA_VERSION = 1
+
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS stats_meta (
+    key   TEXT NOT NULL PRIMARY KEY,
+    value TEXT
+);
+
 CREATE TABLE IF NOT EXISTS daily_stats (
     date                TEXT NOT NULL,
     symbol              TEXT NOT NULL,
@@ -238,6 +280,10 @@ CREATE TABLE IF NOT EXISTS daily_stats (
     close_ask           REAL,
     volume              INTEGER NOT NULL DEFAULT 0,
     trade_count         INTEGER NOT NULL DEFAULT 0,
+    -- Traded notional, sum(price * quantity). Also the VWAP numerator, so
+    -- storing it makes vwap exactly reproducible without a float round-trip
+    -- through vwap * volume.
+    turnover            REAL NOT NULL DEFAULT 0,
     vwap                REAL,
     largest_trade_qty   INTEGER,
     largest_trade_price REAL,
@@ -263,8 +309,16 @@ CREATE TABLE IF NOT EXISTS trade_log (
     price           REAL NOT NULL,
     quantity        INTEGER NOT NULL,
     buy_gateway_id  TEXT,
-    sell_gateway_id TEXT
+    sell_gateway_id TEXT,
+    -- Mirrored from the engine payload verbatim: BUY or SELL for a
+    -- continuous match, AUCTION for an uncross print where both sides were
+    -- resting and there is no true aggressor. Without this column the table
+    -- cannot support trade classification or order-flow imbalance, and
+    -- auction prints are indistinguishable from continuous ones.
+    aggressor_side  TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_tl_symbol_ts ON trade_log(symbol, ts);
 
 CREATE TABLE IF NOT EXISTS order_events (
     seq             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -334,8 +388,9 @@ UPSERT_DAILY = """
 INSERT INTO daily_stats
     (date, symbol, open_price, high_price, low_price, close_price,
      open_bid, open_ask, close_bid, close_ask,
-     volume, trade_count, vwap, largest_trade_qty, largest_trade_price)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+     volume, trade_count, turnover, vwap,
+     largest_trade_qty, largest_trade_price)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(date, symbol) DO UPDATE SET
     open_price          = excluded.open_price,
     high_price          = excluded.high_price,
@@ -347,6 +402,7 @@ ON CONFLICT(date, symbol) DO UPDATE SET
     close_ask           = excluded.close_ask,
     volume              = excluded.volume,
     trade_count         = excluded.trade_count,
+    turnover            = excluded.turnover,
     vwap                = excluded.vwap,
     largest_trade_qty   = excluded.largest_trade_qty,
     largest_trade_price = excluded.largest_trade_price
@@ -358,8 +414,15 @@ VALUES (?,?,?,?,?,?)
 """
 
 INSERT_TRADE = """
-INSERT OR IGNORE INTO trade_log (ts, trade_id, symbol, price, quantity, buy_gateway_id, sell_gateway_id)
-VALUES (?,?,?,?,?,?,?)
+INSERT OR IGNORE INTO trade_log
+    (ts, trade_id, symbol, price, quantity, buy_gateway_id, sell_gateway_id,
+     aggressor_side)
+VALUES (?,?,?,?,?,?,?,?)
+"""
+
+UPSERT_META = """
+INSERT INTO stats_meta (key, value) VALUES (?,?)
+ON CONFLICT(key) DO UPDATE SET value = excluded.value
 """
 
 INSERT_ORDER_EVENT = """
@@ -408,14 +471,115 @@ def _configure_sql_trace(conn: sqlite3.Connection, enabled: bool) -> None:
     conn.set_trace_callback(_trace)
 
 
-def _open_db(path: Path, *, sql_trace: bool = False) -> sqlite3.Connection:
+_PRAGMAS = """
+PRAGMA journal_mode = WAL;
+PRAGMA synchronous = NORMAL;
+PRAGMA busy_timeout = 5000;
+"""
+
+
+class IncompatibleDatabaseError(RuntimeError):
+    """Raised when an existing stats DB cannot be safely written to."""
+
+
+def _check_schema_version(conn: sqlite3.Connection, path: Path) -> bool:
+    """Validate ``user_version``. Returns True if the file is newly created.
+
+    A file whose version does not match this build is refused outright rather
+    than opened optimistically. Silently writing new-format rows into an
+    old-format file is exactly the kind of failure that produces a database
+    that looks fine and reports wrong numbers.
+    """
+    found = int(conn.execute("PRAGMA user_version").fetchone()[0])
+    is_new = found == 0 and not _has_tables(conn)
+    if is_new:
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        return True
+    if found != SCHEMA_VERSION:
+        raise IncompatibleDatabaseError(
+            f"{path} was written with statistics schema version {found}, "
+            f"but this build requires version {SCHEMA_VERSION}. "
+            f"Move or delete the file and let pm-stats create a new one."
+        )
+    return False
+
+
+def _has_tables(conn: sqlite3.Connection) -> bool:
+    row = conn.execute(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
+        "AND name NOT LIKE 'sqlite_%'"
+    ).fetchone()
+    return bool(row[0])
+
+
+def _reconcile_meta(conn: sqlite3.Connection, path: Path, session_tz_name: str) -> None:
+    """Record the session timezone, or refuse if it contradicts the file.
+
+    The session timezone determines which trading date every rollup is filed
+    under, so it cannot change part-way through a database's life without
+    making the ``date`` column mean two different things. Recording it also
+    lets readers resolve it themselves instead of relying on every operator
+    passing a matching ``--timezone``.
+    """
+    row = conn.execute(
+        "SELECT value FROM stats_meta WHERE key = 'session_timezone'"
+    ).fetchone()
+    if row is not None and row[0] != session_tz_name:
+        raise IncompatibleDatabaseError(
+            f"{path} was recorded with session timezone {row[0]!r}, but "
+            f"pm-stats was started with {session_tz_name!r}. Its date columns "
+            f"would then mean two different things. Use --timezone {row[0]} or "
+            f"record into a different --db."
+        )
+    conn.execute(UPSERT_META, ("session_timezone", session_tz_name))
+
+
+def _open_db(
+    path: Path,
+    *,
+    sql_trace: bool = False,
+    session_tz_name: str = "UTC",
+    snapshot_interval_sec: float = SNAPSHOT_INTERVAL_SEC,
+) -> sqlite3.Connection:
+    """Open the writer connection.
+
+    WAL matters for correctness here, not just speed: in the default rollback
+    journal a concurrent reader (pm-stats-cli, pm-ticker) holds a lock that
+    makes the recorder's write fail, and the receive loop's catch-all handler
+    would swallow that failure and silently drop the record. WAL lets readers
+    and the single writer proceed together, and busy_timeout absorbs the brief
+    exclusive lock taken during a checkpoint instead of failing instantly.
+    Mirrors clearing/store.py, which already runs this way.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     resolved_path = path.resolve()
     conn = sqlite3.connect(str(path), check_same_thread=False)
-    conn.executescript(SCHEMA)
-    _configure_sql_trace(conn, enabled=sql_trace)
-    conn.commit()
-    log.info("opened stats DB connection path=%s", resolved_path)
+    # Everything from here on can reject the file. Close the connection before
+    # letting that escape: the caller only ever sees the exception, so it has
+    # no handle to close, and the orphan lingers until GC (which on Python
+    # 3.13+ also raises a "unclosed database" ResourceWarning).
+    try:
+        conn.executescript(_PRAGMAS)
+        is_new = _check_schema_version(conn, resolved_path)
+        conn.executescript(SCHEMA)
+        _reconcile_meta(conn, resolved_path, session_tz_name)
+        conn.execute(UPSERT_META, ("snapshot_interval_sec", str(snapshot_interval_sec)))
+        conn.execute(UPSERT_META, ("recorder", _CLIENT_NAME))
+        _configure_sql_trace(conn, enabled=sql_trace)
+        conn.commit()
+    except BaseException:
+        conn.close()
+        raise
+    journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+    log.info(
+        "opened stats DB connection path=%s journal_mode=%s schema_version=%d "
+        "session_timezone=%s%s",
+        resolved_path,
+        journal_mode,
+        SCHEMA_VERSION,
+        session_tz_name,
+        " (new file)" if is_new else "",
+    )
     return conn
 
 
@@ -430,13 +594,24 @@ class StatsProcess:
         db_path: Path,
         snapshot_interval_sec: float = SNAPSHOT_INTERVAL_SEC,
         sql_trace: bool = False,
+        session_tz: tzinfo = timezone.utc,
     ) -> None:
         self._db_path = db_path
         self._sql_trace = bool(sql_trace)
-        self._conn = _open_db(db_path, sql_trace=self._sql_trace)
+        self._conn = _open_db(
+            db_path,
+            sql_trace=self._sql_trace,
+            session_tz_name=timezone_name(session_tz),
+            snapshot_interval_sec=snapshot_interval_sec,
+        )
         self._lock = threading.Lock()
         self._running = True
         self._snapshot_interval_sec = snapshot_interval_sec
+        self._tz = session_tz
+        # Set when the receive thread stops for any reason other than a clean
+        # shutdown request, so run() can exit non-zero instead of reporting
+        # success after having recorded nothing.
+        self._receive_failure: str | None = None
 
         # symbol → _DayAccum for current calendar date
         self._accum: dict[str, _DayAccum] = {}
@@ -450,35 +625,49 @@ class StatsProcess:
         # index_id → _IndexDayAccum for current calendar date
         self._index_accum: dict[str, _IndexDayAccum] = {}
 
-        self.sub = make_subscriber(
-            ENGINE_PUB_ADDR,
-            "trade.executed",
-            "book.",
-            "system.eod",
-            "system.symbols.STATS",
-            "order.ack.",
-            "order.fill.",
-            "order.amended.",
-            "order.cancelled.",
-            "order.expired.",
-            "combo.ack.",
-            "combo.status.",
-            "oco.ack.",
-            "oco.cancelled.",
-            "quote.ack.",
-            "quote.status.",
-        )
-        # Separate socket: pm-index binds its own PUB endpoint, distinct from
-        # the engine's PUB (mirrors md_gateway's two-subscriber pattern for
-        # the same reason — index.update is not an engine topic).
-        self.index_sub = make_subscriber(
-            INDEX_PUB_CONNECT_ADDR,
-            "index.update",
-        )
-        self.push = make_pusher(ENGINE_PULL_ADDR)
+        # Initialised before the sockets so close() is safe to call for
+        # cleanup if socket construction fails part-way — it flushes the
+        # debug counters, which must therefore already exist.
         self._push_lock = threading.Lock()
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = time.monotonic()
+
+        # The database is already open at this point, and each socket after
+        # the first compounds what is left dangling if a later one fails.
+        # close() guards every attribute with hasattr, so it handles a
+        # partially-built instance.
+        try:
+            self.sub = make_subscriber(
+                ENGINE_PUB_ADDR,
+                "trade.executed",
+                "book.",
+                "system.eod",
+                "system.symbols.STATS",
+                "order.ack.",
+                "order.fill.",
+                "order.amended.",
+                "order.cancelled.",
+                "order.expired.",
+                "combo.ack.",
+                "combo.status.",
+                "oco.ack.",
+                "oco.cancelled.",
+                "quote.ack.",
+                "quote.status.",
+            )
+            # Separate socket: pm-index binds its own PUB endpoint, distinct
+            # from the engine's PUB (mirrors md_gateway's two-subscriber
+            # pattern for the same reason — index.update is not an engine
+            # topic).
+            self.index_sub = make_subscriber(
+                INDEX_PUB_CONNECT_ADDR,
+                "index.update",
+            )
+            self.push = make_pusher(ENGINE_PULL_ADDR)
+        except BaseException:
+            self.close()
+            raise
+
         log.debug(
             "stats process initialized db=%s snapshot_interval=%ss sub=%s push=%s index_sub=%s",
             self._db_path,
@@ -516,71 +705,203 @@ class StatsProcess:
     # Accumulator helpers
     # ------------------------------------------------------------------
 
-    def _today(self) -> str:
-        return date.today().isoformat()
+    def _trading_date(self, epoch_sec: float) -> str:
+        """Trading date for an instant, in the configured session timezone."""
+        return trading_date(epoch_sec, self._tz)
 
-    def _accum_for(self, symbol: str) -> _DayAccum:
-        today = self._today()
+    def _accum_for(self, symbol: str, day: str) -> _DayAccum:
+        """Return the accumulator for *symbol* on trading date *day*.
+
+        On the *first* touch in this process the accumulator is rebuilt from
+        what is already in the database. Without that, a mid-session restart
+        starts from a blank accumulator and the next flush overwrites the
+        day's real open/high/low/volume/VWAP with post-restart-only figures —
+        silently, and with volume going *down*.
+
+        A same-process day rollover does not rehydrate: the outgoing day was
+        fully accumulated in memory and has just been flushed, so the incoming
+        day genuinely starts empty.
+        """
         acc = self._accum.get(symbol)
-        if acc is None or acc.date != today:
-            # New day (or first time) — flush old if any
-            if acc is not None:
-                self._flush_daily(acc)
-            acc = _DayAccum(date=today, symbol=symbol)
-            self._accum[symbol] = acc
+        if acc is not None and acc.date == day:
+            return acc
+        if acc is None:
+            acc = self._rehydrate_daily(symbol, day)
+        else:
+            self._flush_daily(acc)
+            acc = _DayAccum(date=day, symbol=symbol)
+        self._accum[symbol] = acc
+        return acc
+
+    def _rehydrate_daily(self, symbol: str, day: str) -> _DayAccum:
+        """Rebuild one symbol's accumulator for *day* from persisted rows.
+
+        Trade-derived fields come from ``trade_log`` rather than from
+        ``daily_stats``: it is keyed on ``trade_id`` with ``INSERT OR IGNORE``,
+        so it is a lossless per-trade record and reproduces the running sums
+        exactly, including the VWAP numerator. The bid/ask fields have no
+        per-event table behind them and are carried over from the existing
+        ``daily_stats`` row.
+        """
+        acc = _DayAccum(date=day, symbol=symbol)
+        day_start, day_end = trading_day_bounds(day, self._tz)
+        window = (symbol, day_start, day_end)
+
+        count, volume, pv_sum, acc.low_price, acc.high_price = self._conn.execute(
+            "SELECT COUNT(*) , COALESCE(SUM(quantity), 0), "
+            "COALESCE(SUM(price * quantity), 0.0), MIN(price), MAX(price) "
+            "FROM trade_log WHERE symbol = ? AND ts >= ? AND ts < ?",
+            window,
+        ).fetchone()
+        acc.restore_totals(trade_count=count, volume=volume, pv_sum=pv_sum)
+
+        if acc.trade_count:
+            acc.open_price = self._conn.execute(
+                "SELECT price FROM trade_log WHERE symbol = ? AND ts >= ? AND ts < ? "
+                "ORDER BY ts ASC, rowid ASC LIMIT 1",
+                window,
+            ).fetchone()[0]
+            acc.close_price = self._conn.execute(
+                "SELECT price FROM trade_log WHERE symbol = ? AND ts >= ? AND ts < ? "
+                "ORDER BY ts DESC, rowid DESC LIMIT 1",
+                window,
+            ).fetchone()[0]
+            # Ties go to the earliest trade, matching _DayAccum.on_trade's
+            # strict `>` comparison.
+            acc.largest_trade_qty, acc.largest_trade_price = self._conn.execute(
+                "SELECT quantity, price FROM trade_log "
+                "WHERE symbol = ? AND ts >= ? AND ts < ? "
+                "ORDER BY quantity DESC, ts ASC, rowid ASC LIMIT 1",
+                window,
+            ).fetchone()
+
+        quotes = self._conn.execute(
+            "SELECT open_bid, open_ask, close_bid, close_ask FROM daily_stats "
+            "WHERE date = ? AND symbol = ?",
+            (day, symbol),
+        ).fetchone()
+        if quotes is not None:
+            acc.open_bid, acc.open_ask, acc.close_bid, acc.close_ask = quotes
+
+        if acc.trade_count or quotes is not None:
+            log.info(
+                "rehydrated %s for %s: %d trade(s), volume=%d",
+                symbol,
+                day,
+                acc.trade_count,
+                acc.volume,
+            )
         return acc
 
     def _flush_daily(self, acc: _DayAccum) -> None:
+        """Persist *acc* in its own transaction."""
         with self._conn:
-            self._conn.execute(
-                UPSERT_DAILY,
-                (
-                    acc.date,
-                    acc.symbol,
-                    acc.open_price,
-                    acc.high_price,
-                    acc.low_price,
-                    acc.close_price,
-                    acc.open_bid,
-                    acc.open_ask,
-                    acc.close_bid,
-                    acc.close_ask,
-                    acc.volume,
-                    acc.trade_count,
-                    acc.vwap,
-                    acc.largest_trade_qty,
-                    acc.largest_trade_price,
-                ),
-            )
+            self._write_daily(acc)
 
-    def _index_accum_for(self, index_id: str) -> _IndexDayAccum:
-        today = self._today()
+    def _write_daily(self, acc: _DayAccum) -> None:
+        """Persist *acc* without opening a transaction — caller owns one."""
+        self._conn.execute(
+            UPSERT_DAILY,
+            (
+                acc.date,
+                acc.symbol,
+                acc.open_price,
+                acc.high_price,
+                acc.low_price,
+                acc.close_price,
+                acc.open_bid,
+                acc.open_ask,
+                acc.close_bid,
+                acc.close_ask,
+                acc.volume,
+                acc.trade_count,
+                acc.turnover,
+                acc.vwap,
+                acc.largest_trade_qty,
+                acc.largest_trade_price,
+            ),
+        )
+
+    def _index_accum_for(self, index_id: str, day: str) -> _IndexDayAccum:
+        """Index counterpart of :meth:`_accum_for`, with the same restart rule."""
         acc = self._index_accum.get(index_id)
-        if acc is None or acc.date != today:
-            # New day (or first time) — flush old if any
-            if acc is not None:
-                self._flush_index_daily(acc)
-            acc = _IndexDayAccum(date=today, index_id=index_id)
-            self._index_accum[index_id] = acc
+        if acc is not None and acc.date == day:
+            return acc
+        if acc is None:
+            acc = self._rehydrate_index_daily(index_id, day)
+        else:
+            self._flush_index_daily(acc)
+            acc = _IndexDayAccum(date=day, index_id=index_id)
+        self._index_accum[index_id] = acc
+        return acc
+
+    def _rehydrate_index_daily(self, index_id: str, day: str) -> _IndexDayAccum:
+        """Rebuild one index's accumulator for *day* from persisted snapshots.
+
+        ``update_count`` is recovered as the number of retained snapshot rows.
+        ``index_level_snapshots`` inserts are ``OR IGNORE`` on ``(ts,
+        index_id)``, so two updates landing in the same millisecond leave only
+        one row and the recovered count can be a shade lower than the number
+        of updates originally received.
+        """
+        acc = _IndexDayAccum(date=day, index_id=index_id)
+        day_start, day_end = trading_day_bounds(day, self._tz)
+        window = (index_id, day_start, day_end)
+
+        acc.update_count, acc.low_level, acc.high_level = self._conn.execute(
+            "SELECT COUNT(*), MIN(level), MAX(level) FROM index_level_snapshots "
+            "WHERE index_id = ? AND ts >= ? AND ts < ?",
+            window,
+        ).fetchone()
+        if not acc.update_count:
+            return acc
+
+        acc.open_level, acc.open_aggregate_cap = self._conn.execute(
+            "SELECT level, aggregate_cap FROM index_level_snapshots "
+            "WHERE index_id = ? AND ts >= ? AND ts < ? "
+            "ORDER BY ts ASC, rowid ASC LIMIT 1",
+            window,
+        ).fetchone()
+        (
+            acc.close_level,
+            acc.close_aggregate_cap,
+            acc.close_session_state,
+        ) = self._conn.execute(
+            "SELECT level, aggregate_cap, session_state FROM index_level_snapshots "
+            "WHERE index_id = ? AND ts >= ? AND ts < ? "
+            "ORDER BY ts DESC, rowid DESC LIMIT 1",
+            window,
+        ).fetchone()
+        log.info(
+            "rehydrated index %s for %s: %d update(s)",
+            index_id,
+            day,
+            acc.update_count,
+        )
         return acc
 
     def _flush_index_daily(self, acc: _IndexDayAccum) -> None:
+        """Persist *acc* in its own transaction."""
         with self._conn:
-            self._conn.execute(
-                UPSERT_INDEX_DAILY,
-                (
-                    acc.date,
-                    acc.index_id,
-                    acc.open_level,
-                    acc.high_level,
-                    acc.low_level,
-                    acc.close_level,
-                    acc.close_session_state,
-                    acc.open_aggregate_cap,
-                    acc.close_aggregate_cap,
-                    acc.update_count,
-                ),
-            )
+            self._write_index_daily(acc)
+
+    def _write_index_daily(self, acc: _IndexDayAccum) -> None:
+        """Persist *acc* without opening a transaction — caller owns one."""
+        self._conn.execute(
+            UPSERT_INDEX_DAILY,
+            (
+                acc.date,
+                acc.index_id,
+                acc.open_level,
+                acc.high_level,
+                acc.low_level,
+                acc.close_level,
+                acc.close_session_state,
+                acc.open_aggregate_cap,
+                acc.close_aggregate_cap,
+                acc.update_count,
+            ),
+        )
 
     # ------------------------------------------------------------------
     # Message handlers
@@ -593,15 +914,28 @@ class StatsProcess:
         if not symbol or price is None or qty is None:
             return
 
-        ts = datetime.fromtimestamp(
-            payload.get("timestamp", time.time()), tz=timezone.utc
-        ).isoformat(timespec="milliseconds")
+        epoch_sec = payload.get("timestamp")
+        if epoch_sec is None:
+            epoch_sec = time.time()
+            log.warning(
+                "trade %s has no engine timestamp; using receipt time",
+                payload.get("id", ""),
+            )
+        ts = datetime.fromtimestamp(epoch_sec, tz=timezone.utc).isoformat(
+            timespec="milliseconds"
+        )
         with self._lock:
-            acc = self._accum_for(symbol)
+            # Bucket on the trade's own timestamp, not on wall-clock time at
+            # the moment of processing: a trade printed just before the
+            # trading day rolls over must not be booked into the next day
+            # because it happened to be handled a few milliseconds late.
+            acc = self._accum_for(symbol, self._trading_date(epoch_sec))
             acc.on_trade(price, qty)
-            self._flush_daily(acc)
-
+            # One transaction for both writes. The rollup is reconstructed
+            # from trade_log on restart, so committing them separately would
+            # let a crash in between leave the two permanently disagreeing.
             with self._conn:
+                self._write_daily(acc)
                 self._conn.execute(
                     INSERT_TRADE,
                     (
@@ -612,14 +946,18 @@ class StatsProcess:
                         qty,
                         payload.get("buy_gateway_id"),
                         payload.get("sell_gateway_id"),
+                        payload.get("aggressor_side"),
                     ),
                 )
         self._dbg_count("trades_persisted")
 
     def _on_book(self, symbol: str, payload: dict[str, Any]) -> None:
+        # A book message is a snapshot of "now" and carries no timestamp of
+        # its own, so receipt time is the event time.
+        now_epoch = time.time()
         with self._lock:
             # Record opening bid/ask once per day
-            acc = self._accum_for(symbol)
+            acc = self._accum_for(symbol, self._trading_date(now_epoch))
             bids = payload.get("bids", [])
             asks = payload.get("asks", [])
             best_bid = bids[0].get("price") if bids else None
@@ -694,16 +1032,18 @@ class StatsProcess:
         day_high = payload.get("day_high")
         day_low = payload.get("day_low")
 
-        ts = datetime.fromtimestamp(
-            payload.get("timestamp", time.time()), tz=timezone.utc
-        ).isoformat(timespec="milliseconds")
+        epoch_sec = payload.get("timestamp", time.time())
+        ts = datetime.fromtimestamp(epoch_sec, tz=timezone.utc).isoformat(
+            timespec="milliseconds"
+        )
 
         with self._lock:
-            acc = self._index_accum_for(index_id)
+            acc = self._index_accum_for(index_id, self._trading_date(epoch_sec))
             acc.on_update(level, aggregate_cap, session_state)
-            self._flush_index_daily(acc)
-
+            # Single transaction — the rollup is reconstructed from these
+            # snapshot rows on restart, so the two must not diverge.
             with self._conn:
+                self._write_index_daily(acc)
                 self._conn.execute(
                     INSERT_INDEX_SNAPSHOT,
                     (
@@ -728,6 +1068,7 @@ class StatsProcess:
         self._dbg_count("index_updates_persisted")
 
     def _on_eod(self, payload: dict[str, Any]) -> None:
+        day = self._trading_date(time.time())
         with self._lock:
             for book in payload.get("books", []):
                 symbol = book.get("symbol", "")
@@ -737,7 +1078,7 @@ class StatsProcess:
                 asks = book.get("asks", [])
                 best_bid = bids[0].get("price") if bids else None
                 best_ask = asks[0].get("price") if asks else None
-                acc = self._accum_for(symbol)
+                acc = self._accum_for(symbol, day)
                 acc.on_eod_book(best_bid, best_ask)
                 # close_price already set by last trade; if no trades today keep None
                 self._flush_daily(acc)
@@ -800,6 +1141,23 @@ class StatsProcess:
     # ------------------------------------------------------------------
 
     def _receive(self) -> None:
+        """Poll both sockets until stopped.
+
+        Any exit other than ``self._running`` going false is a failure that
+        must stop the whole process. Leaving ``_running`` set here would park
+        run() in a busy loop joining a dead thread: the process would stay up,
+        keep logging "recording market statistics", record nothing at all, and
+        eventually exit 0 — invisible to anything watching the process table.
+        """
+        try:
+            self._receive_loop()
+        except Exception as exc:
+            self._receive_failure = f"{type(exc).__name__}: {exc}"
+            log.exception("stats receive loop terminated")
+        finally:
+            self._running = False
+
+    def _receive_loop(self) -> None:
         poller = zmq.Poller()
         poller.register(self.sub, zmq.POLLIN)
         poller.register(self.index_sub, zmq.POLLIN)
@@ -809,7 +1167,8 @@ class StatsProcess:
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
                     raise
-                break
+                self._receive_failure = "interrupted while polling (EINTR)"
+                return
 
             if self.index_sub in socks:
                 self._receive_one_index_message()
@@ -819,7 +1178,9 @@ class StatsProcess:
             try:
                 frames = self.sub.recv_multipart()
                 topic, payload = decode(frames)
-            except Exception:
+            except Exception as exc:
+                log.warning("failed to decode engine message: %s", exc)
+                self._dbg_count("messages_undecodable")
                 continue
 
             self._dbg_count("messages_received")
@@ -842,7 +1203,10 @@ class StatsProcess:
                     self._dbg_count("order_event_topics")
                     self._on_order_event(topic, payload)
             except Exception as exc:
-                log.warning("error handling topic=%s err=%s", topic, exc)
+                # Reaching here means the event was not persisted. That is a
+                # dropped record, not a warning-level curiosity.
+                log.error("failed to record topic=%s err=%s", topic, exc)
+                self._dbg_count("records_dropped")
 
     def _receive_one_index_message(self) -> None:
         try:
@@ -873,7 +1237,8 @@ class StatsProcess:
         if symbols:
             log.info("requested opening snapshots for: %s", ", ".join(symbols))
 
-    def run(self) -> None:
+    def run(self) -> int:
+        """Run until stopped. Returns the intended process exit code."""
         signal.signal(signal.SIGINT, lambda *_: self._stop())
         signal.signal(signal.SIGTERM, lambda *_: self._stop())
 
@@ -896,7 +1261,17 @@ class StatsProcess:
             # Wait for the receive thread to finish its current message before
             # closing the database and sockets to avoid mid-transaction errors.
             t.join(timeout=1.0)
+            if t.is_alive():
+                log.error(
+                    "receive thread did not stop within 1s; "
+                    "closing anyway may abort an in-flight write"
+                )
             self.close()
+
+        if self._receive_failure is not None:
+            log.error("pm-stats stopped recording: %s", self._receive_failure)
+            return 1
+        return 0
 
     def _stop(self) -> None:
         self._running = False
@@ -905,8 +1280,11 @@ class StatsProcess:
     def close(self) -> None:
         self._flush_debug_summary(force=True)
         log.info("closing stats process")
-        if hasattr(self, "_conn"):
-            self._conn.close()
+        # Held so the connection cannot be closed out from under a receive
+        # thread that is still inside a transaction.
+        with self._lock:
+            if hasattr(self, "_conn"):
+                self._conn.close()
         if hasattr(self, "sub") and getattr(self.sub, "closed", False) is not True:
             self.sub.close()
         if (
@@ -989,6 +1367,17 @@ def _build_parser() -> argparse.ArgumentParser:
             f"(default: {SNAPSHOT_INTERVAL_SEC} = 15 min). "
             "Use a smaller value for higher-resolution intraday history, "
             "e.g. 60 for one-minute snapshots."
+        ),
+    )
+    parser.add_argument(
+        "--timezone",
+        metavar="TZ",
+        default="UTC",
+        help=(
+            "Exchange session timezone that defines the trading date used by "
+            "the date columns of daily_stats and index_daily_stats (IANA name, "
+            "e.g. Europe/Stockholm; default: UTC). Must match pm-clearing's "
+            "--timezone or the two daily rollups will not reconcile."
         ),
     )
     parser.add_argument(
@@ -1103,22 +1492,27 @@ def main() -> None:
         _enable_sql_trace_logging()
     log.info("starting pm-stats with log level %s", logging.getLevelName(log_level))
     log.debug(
-        "resolved stats config: db=%s snapshot_interval=%s",
+        "resolved stats config: db=%s snapshot_interval=%s timezone=%s",
         args.db,
         args.snapshot_interval,
+        args.timezone,
     )
     if args.snapshot_interval <= 0:
         parser.error("--snapshot-interval must be greater than 0")
+    session_tz = resolve_timezone(args.timezone)
+    if session_tz is None:
+        parser.error(f"--timezone: unknown timezone {args.timezone!r}")
     try:
         process = StatsProcess(
             Path(args.db),
             snapshot_interval_sec=args.snapshot_interval,
             sql_trace=args.sql_trace,
+            session_tz=session_tz,
         )
     except Exception as exc:
         log.error("fatal startup error: %s", exc)
         sys.exit(1)
-    process.run()
+    sys.exit(process.run())
 
 
 if __name__ == "__main__":
