@@ -64,7 +64,13 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
             yield
         finally:
             for gateway_id in engine.active_gateways():
-                engine.send_disconnect(gateway_id, "api gateway shutdown")
+                # Best-effort: a 503 raised here would skip the two
+                # stop_listener calls below and leak the reader threads, and
+                # "the engine is already gone" is the ordinary case at
+                # shutdown, not an error.
+                engine.send_disconnect(
+                    gateway_id, "api gateway shutdown", require_engine=False
+                )
             engine.stop_listener()
             index_client.stop_listener()
 

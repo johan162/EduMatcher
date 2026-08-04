@@ -1,7 +1,9 @@
-"""Regression tests for engine review findings E1 and E2.
+"""Regression tests for engine review findings E1-E3 and E5.
 
-Both concern the same consequence: the resting book surviving something other
-than a polite shutdown.
+E1 and E2 concern the same consequence: the resting book surviving something
+other than a polite shutdown. E3 concerns the protocol invariant that every
+order terminates in an ack or a reject. E5 concerns the per-tick maintenance
+flushes, which are a second route into E2.
 """
 
 from __future__ import annotations
@@ -184,6 +186,165 @@ def test_atomic_write_leaves_no_temp_file_on_success(tmp_path: Path) -> None:
     _atomic_write_text(target, '{"a": 1}')
     assert target.read_text() == '{"a": 1}'
     assert [p.name for p in tmp_path.iterdir()] == ["x.json"]
+
+
+# ---------------------------------------------------------------------------
+# E3 — a handler exception must still answer the client
+# ---------------------------------------------------------------------------
+
+
+def _sent_ack(engine) -> dict:
+    """The single ack the engine published, decoded."""
+    calls = engine.pub_sock.send_multipart.call_args_list
+    assert len(calls) == 1, f"expected exactly one message, got {len(calls)}"
+    topic, body = calls[0][0][0][:2]
+    return {"topic": topic.decode(), **json.loads(body)}
+
+
+def test_handler_exception_rejects_the_order(tmp_path: Path) -> None:
+    """Unanswered is the one outcome the client cannot act on: a timeout is
+    indistinguishable from a slow engine, so the order's fate is unknown."""
+    engine = _engine_without_sockets(tmp_path)
+    with patch.object(engine, "_handle_new_order", side_effect=RuntimeError("boom")):
+        engine._dispatch_pull_message(
+            "order.new", {"id": "ORD-1", "gateway_id": "GW01"}
+        )
+
+    ack = _sent_ack(engine)
+    assert ack["topic"] == "order.ack.GW01"
+    assert ack["order_id"] == "ORD-1"
+    assert ack["accepted"] is False
+    assert ack["reason"] == "Internal error processing order"
+    # Still logged and counted — the reject answers the client, it does not
+    # make the defect invisible.
+    assert engine._error_count == 1
+
+
+def test_reject_after_a_fill_says_so(tmp_path: Path) -> None:
+    """A bare "rejected" is a lie once anything has printed: the participant
+    holds a position the reject implicitly denies."""
+    engine = _engine_without_sockets(tmp_path)
+
+    def _fill_then_raise(_payload: dict) -> None:
+        engine._fills_published += 1
+        raise RuntimeError("boom after the print")
+
+    with patch.object(engine, "_handle_new_order", side_effect=_fill_then_raise):
+        engine._dispatch_pull_message(
+            "order.new", {"id": "ORD-2", "gateway_id": "GW01"}
+        )
+
+    reason = _sent_ack(engine)["reason"]
+    assert "after execution" in reason
+    assert "drop copy" in reason
+
+
+def test_no_reject_for_topics_that_are_not_orders(tmp_path: Path) -> None:
+    """A query has nothing resting on it, and an order-reject addressed to an
+    id that is not an order is worse than silence."""
+    engine = _engine_without_sockets(tmp_path)
+    with patch.object(
+        engine, "_handle_symbols_request", side_effect=RuntimeError("boom")
+    ):
+        engine._dispatch_pull_message(
+            "system.symbols_request", {"gateway_id": "GW01", "id": "REQ-1"}
+        )
+    engine.pub_sock.send_multipart.assert_not_called()
+    assert engine._error_count == 1
+
+
+def test_unaddressable_payload_is_reported_not_guessed(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The payload that broke the handler may be the one missing these very
+    fields, so there is no one to answer."""
+    import logging
+
+    engine = _engine_without_sockets(tmp_path)
+    with (
+        caplog.at_level(logging.ERROR),
+        patch.object(engine, "_handle_new_order", side_effect=RuntimeError("boom")),
+    ):
+        engine._dispatch_pull_message("order.new", {"id": "ORD-3"})  # no gateway_id
+
+    engine.pub_sock.send_multipart.assert_not_called()
+    assert "No reject sent for order.new" in caplog.text
+
+
+def test_a_failed_reject_does_not_take_the_venue_down(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The reject is best-effort — raising here would escape run() over a
+    message that already failed once."""
+    import logging
+
+    engine = _engine_without_sockets(tmp_path)
+    engine.pub_sock.send_multipart.side_effect = OSError("socket gone")
+    with (
+        caplog.at_level(logging.ERROR),
+        patch.object(engine, "_handle_new_order", side_effect=RuntimeError("boom")),
+    ):
+        engine._dispatch_pull_message(
+            "order.new", {"id": "ORD-4", "gateway_id": "GW01"}
+        )
+    assert "could not be sent" in caplog.text
+    assert engine._running is True
+
+
+def test_a_successful_handler_sends_no_reject(tmp_path: Path) -> None:
+    """The guard must not answer orders that were handled normally."""
+    engine = _engine_without_sockets(tmp_path)
+    with patch.object(engine, "_handle_new_order"):
+        engine._dispatch_pull_message(
+            "order.new", {"id": "ORD-5", "gateway_id": "GW01"}
+        )
+    engine.pub_sock.send_multipart.assert_not_called()
+    assert engine._error_count == 0
+
+
+# ---------------------------------------------------------------------------
+# E5 — a failed maintenance flush must not end the session
+# ---------------------------------------------------------------------------
+
+
+def test_a_failing_flush_does_not_end_the_session(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Each flush publishes on pub_sock; unguarded, a ZMQError there ended
+    run() and took the resting book with it (E2)."""
+    import logging
+
+    engine = _engine_without_sockets(tmp_path)
+    with (
+        caplog.at_level(logging.ERROR),
+        patch.object(
+            engine,
+            "_flush_snapshots",
+            MagicMock(
+                side_effect=RuntimeError("zmq gone"), __name__="_flush_snapshots"
+            ),
+        ),
+    ):
+        engine._run_maintenance()
+
+    assert engine._flush_error_count == 1
+    assert "_flush_snapshots failed" in caplog.text
+    assert engine._running is True
+
+
+def test_one_failing_flush_does_not_skip_the_others(tmp_path: Path) -> None:
+    """Guarded as a block rather than per call, a market-data failure would
+    skip the circuit-breaker timers — a safety function."""
+    engine = _engine_without_sockets(tmp_path)
+    with (
+        patch.object(engine, "_flush_snapshots", side_effect=RuntimeError("boom")),
+        patch.object(engine, "_flush_circuit_breakers") as breakers,
+        patch.object(engine, "_flush_auction_indicative") as auction,
+    ):
+        engine._run_maintenance()
+
+    breakers.assert_called_once()
+    auction.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

@@ -319,7 +319,9 @@ async def test_create_app_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
         def active_gateways(self) -> set[str]:
             return {"GW01"}
 
-        def send_disconnect(self, gateway_id: str, reason: str) -> None:
+        def send_disconnect(
+            self, gateway_id: str, reason: str, *, require_engine: bool = True
+        ) -> None:
             self.disconnects.append((gateway_id, reason))
 
         def stop_listener(self) -> None:

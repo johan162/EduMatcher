@@ -163,6 +163,24 @@ _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 #: while bounding the exposure to something an operator can reason about.
 _PERSIST_INTERVAL_SEC = 5.0
 
+#: Topics whose payload names an order the submitting gateway is waiting on an
+#: ack for. If a handler for one of these raises, the client is left with no
+#: ACK and no REJECT, so the except path owes it a reject. Query topics
+#: (``*_request``) and session/risk control topics are absent deliberately:
+#: nothing is resting on them, and a spurious order-reject addressed to an id
+#: that is not an order is worse than silence.
+_ORDER_TOPICS = frozenset(
+    {
+        "order.new",
+        "order.cancel",
+        "order.amend",
+        "order.combo",
+        "order.combo_cancel",
+        "order.oco",
+        "order.oco_cancel",
+    }
+)
+
 
 def order_to_display_dict(order: Order) -> dict[str, Any]:
     """Serialize an order for an outbound snapshot in *display* units (L3).
@@ -218,6 +236,12 @@ class Engine:
         # could not be decoded at all, so it has no topic to route and no
         # gateway to reject to.
         self._undecodable_count = 0
+        # Every fill published, counted so a handler that raises part-way can
+        # tell whether anything already printed (see _reject_after_error).
+        self._fills_published = 0
+        # Maintenance flushes that failed. Degraded market data is preferable
+        # to an ended session, but the degradation must be visible.
+        self._flush_error_count = 0
         # Monotonic timestamp of the last persistence checkpoint. Starts at 0
         # so the first tick writes one immediately rather than waiting out an
         # interval on a freshly started engine.
@@ -662,6 +686,7 @@ class Engine:
                         if evt.status in _FILL_STATUSES:
                             if evt.id not in _seed_fill_ids:
                                 _seed_fill_ids.add(evt.id)
+                                self._fills_published += 1
                                 self.pub_sock.send_multipart(
                                     make_fill_msg(
                                         evt.gateway_id,
@@ -1161,6 +1186,7 @@ class Engine:
             _filled_qty = evt.quantity - evt.remaining_qty
             if _filled_qty > 0 and evt.id not in _published_fill_ids:
                 _published_fill_ids.add(evt.id)
+                self._fills_published += 1
                 # Hot path: fill payload built inline with pre-cached topic
                 # bytes; for the aggressor (evt is order) canonical string values
                 # from the payload are reused (see docs-design/perf-notes.md).
@@ -2435,6 +2461,7 @@ class Engine:
                 if evt.status in _FILL_STATUSES:
                     if evt.id not in _pub_fill_ids:
                         _pub_fill_ids.add(evt.id)
+                        self._fills_published += 1
                         self.pub_sock.send_multipart(
                             make_fill_msg(
                                 evt.gateway_id,
@@ -3026,6 +3053,7 @@ class Engine:
                 if evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
                     if evt.id not in _pub_fill_ids:
                         _pub_fill_ids.add(evt.id)
+                        self._fills_published += 1
                         self.pub_sock.send_multipart(
                             make_fill_msg(
                                 evt.gateway_id,
@@ -3416,6 +3444,7 @@ class Engine:
                     if evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
                         if evt.id not in _pub_fill_ids:
                             _pub_fill_ids.add(evt.id)
+                            self._fills_published += 1
                             self.pub_sock.send_multipart(
                                 make_fill_msg(
                                     evt.gateway_id,
@@ -3447,6 +3476,7 @@ class Engine:
                         if sub_evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
                             if sub_evt.id not in published_stop_ids:
                                 published_stop_ids.add(sub_evt.id)
+                                self._fills_published += 1
                                 self.pub_sock.send_multipart(
                                     make_fill_msg(
                                         sub_evt.gateway_id,
@@ -3704,6 +3734,7 @@ class Engine:
                 if evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
                     if evt.id not in _pub_fill_ids:
                         _pub_fill_ids.add(evt.id)
+                        self._fills_published += 1
                         self.pub_sock.send_multipart(
                             make_fill_msg(
                                 evt.gateway_id,
@@ -4090,6 +4121,7 @@ class Engine:
             filled = evt.quantity - evt.remaining_qty
             if filled > 0 and evt.id not in published_fill_ids:
                 published_fill_ids.add(evt.id)
+                self._fills_published += 1
                 self.pub_sock.send_multipart(
                     make_fill_msg(
                         evt.gateway_id,
@@ -4240,7 +4272,12 @@ class Engine:
         handler raised) — "no handler is registered for this topic at all"
         is a routing/completeness bug, not a runtime exception, and
         operators benefit from being able to tell the two apart.
+
+        When a *known* handler raises, the except path also sends a reject —
+        see `_reject_after_error`. Logging alone left the submitting gateway
+        waiting on an ack that would never arrive.
         """
+        fills_before = self._fills_published
         try:
             if topic == "order.new":
                 self._handle_new_order(payload)
@@ -4316,6 +4353,94 @@ class Engine:
                 self._error_count,
                 exc,
             )
+            self._reject_after_error(topic, payload, fills_before)
+
+    def _reject_after_error(
+        self, topic: str, payload: dict[str, Any], fills_before: int
+    ) -> None:
+        """Answer an order whose handler raised, so its fate is not indefinite.
+
+        Every other path through the order handlers terminates in an ACK or a
+        reasoned NACK. An exception part-way through used to terminate in
+        neither, and the difference is not visible to the client: the API
+        gateway eventually raises TimeoutError, which is indistinguishable
+        from a slow engine, and ALF/BALF simply wait forever.
+
+        Two distinct reasons, because a bare "rejected" is a lie if anything
+        already printed. `fills_before` is the fill count as of entry to the
+        handler, so a fill published during the handler — even one belonging
+        to a *resting counterparty* rather than this order — moves the reject
+        to the partial-execution wording. That is deliberately conservative:
+        over-warning costs a participant a reconciliation against the drop
+        copy, while under-warning tells them an executed order never traded.
+        """
+        if topic not in _ORDER_TOPICS:
+            return
+        gateway_id = str(payload.get("gateway_id", ""))
+        order_id = payload.get("order_id") or payload.get("id")
+        if not gateway_id or not order_id:
+            # Nothing to address: the payload that broke the handler may be
+            # the very thing missing these fields. Say so rather than
+            # pretending the contract held.
+            log.error(
+                "No reject sent for %s — payload carries no gateway_id/order_id",
+                topic,
+            )
+            return
+        if self._fills_published > fills_before:
+            reason = (
+                "Internal error after execution — "
+                "fills already printed, reconcile against the drop copy"
+            )
+        else:
+            reason = "Internal error processing order"
+        try:
+            self.pub_sock.send_multipart(
+                make_ack_msg(gateway_id, str(order_id), accepted=False, reason=reason)
+            )
+        except Exception as send_exc:
+            # The reject is best-effort: raising here would escape run() and
+            # take the venue down over a message that already failed once.
+            log.error("Reject for %s could not be sent: %s", order_id, send_exc)
+        else:
+            log.info("REJECTED %s — %s", str(order_id)[:8], reason)
+
+    def _run_maintenance(self) -> None:
+        """Run the per-tick maintenance flushes, each guarded separately.
+
+        Every one of these publishes on `pub_sock`. Unguarded, a ZMQError
+        here ended run() — which skipped _shutdown(), and with it the only
+        code that persisted the resting book. Degraded market data is a much
+        smaller loss than the book.
+
+        Guarded per call rather than as a block, because a failure to publish
+        a snapshot must not skip the circuit-breaker timers behind it: those
+        resume halted symbols and are a safety function, not a convenience.
+        """
+        for flush in (
+            # Throttled snapshot publish — runs every poll tick (max 200ms)
+            self._flush_snapshots,
+            # Check circuit breaker timers — resume halted symbols
+            self._flush_circuit_breakers,
+            # Checkpoint the resting book so an abrupt exit loses at most
+            # _PERSIST_INTERVAL_SEC of changes rather than all of it.
+            self._flush_persistence,
+            # Publish where each symbol would uncross, while a call phase runs
+            self._flush_auction_indicative,
+            self._flush_debug_summary,
+        ):
+            try:
+                flush()
+            except Exception as exc:
+                self._flush_error_count += 1
+                log.error(
+                    "Maintenance flush %s failed (#%d): %s",
+                    # getattr, not .__name__: a handler that raises while
+                    # reporting a failure defeats the guard entirely.
+                    getattr(flush, "__name__", "?"),
+                    self._flush_error_count,
+                    exc,
+                )
 
     def run(self) -> None:
         self._restore_gtc()
@@ -4378,16 +4503,7 @@ class Engine:
                     self._dbg_count("pull_messages")
                     self._dbg_count(f"topic_{topic}")
                     self._dispatch_pull_message(topic, payload)
-            # Throttled snapshot publish — runs every poll tick (max 200ms)
-            self._flush_snapshots()
-            # Check circuit breaker timers — resume halted symbols
-            self._flush_circuit_breakers()
-            # Checkpoint the resting book so an abrupt exit loses at most
-            # _PERSIST_INTERVAL_SEC of changes rather than all of it.
-            self._flush_persistence()
-            # Publish where each symbol would uncross, while a call phase runs
-            self._flush_auction_indicative()
-            self._flush_debug_summary()
+            self._run_maintenance()
 
         self._flush_debug_summary(force=True)
         self._shutdown()
