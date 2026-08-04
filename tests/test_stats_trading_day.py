@@ -596,6 +596,116 @@ def test_recorder_creates_a_missing_db_directory(tmp_path: Path) -> None:
     assert db.exists()
 
 
+# ---------------------------------------------------------------------------
+# P1-7 / P1-8 / P1-9 — smaller correctness fixes
+# ---------------------------------------------------------------------------
+
+
+def test_zero_quantity_order_event_is_preserved(sp: StatsProcess) -> None:
+    """``payload.get("quantity") or payload.get("qty")`` treated 0 as absent."""
+    sp._on_order_event(
+        "order.ack.GW01",
+        {"order_id": "O1", "symbol": "AAPL", "accepted": True, "quantity": 0},
+    )
+    stored = sp._conn.execute("SELECT quantity FROM order_events").fetchone()[0]
+    assert stored == 0
+
+
+def test_quantity_falls_back_to_qty_when_absent(sp: StatsProcess) -> None:
+    sp._on_order_event(
+        "order.ack.GW01",
+        {"order_id": "O1", "symbol": "AAPL", "accepted": True, "qty": 25},
+    )
+    stored = sp._conn.execute("SELECT quantity FROM order_events").fetchone()[0]
+    assert stored == 25
+
+
+def test_index_update_without_timestamp_warns(
+    sp: StatsProcess, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Receipt time is a different clock; substituting it must not be silent."""
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        sp._on_index_update({"index_id": "EDU100", "level": 1000.0})
+    assert "no timestamp" in caplog.text
+
+
+def test_pct_change_is_reproducible_from_consecutive_rows(
+    sp: StatsProcess, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A NULL-mid row becomes the baseline instead of being skipped over.
+
+    Previously the baseline only advanced on a usable mid, so the row after a
+    gap reported a multi-interval move as though it were a single step — a
+    number no reader could reproduce from the table.
+    """
+    clock = {"now": 12.0}
+    epoch = datetime(2026, 6, 14, 9, 0, 0, tzinfo=timezone.utc)
+
+    class _FakeDatetime:
+        @staticmethod
+        def now(tz=None):
+            return epoch + timedelta(seconds=clock["now"])
+
+        @staticmethod
+        def fromtimestamp(value, tz=None):
+            return datetime.fromtimestamp(value, tz)
+
+    monkeypatch.setattr(
+        "edumatcher.stats.main.time.monotonic", lambda: clock["now"], raising=True
+    )
+    monkeypatch.setattr("edumatcher.stats.main.datetime", _FakeDatetime)
+
+    def advance() -> None:
+        clock["now"] += sp._snapshot_interval_sec
+
+    sp._on_book("AAPL", {"bids": [{"price": 99.0}], "asks": [{"price": 101.0}]})
+    advance()
+    # Empty book and no last price — this row has no usable mid.
+    sp._on_book("AAPL", {"bids": [], "asks": []})
+    advance()
+    sp._on_book("AAPL", {"bids": [{"price": 109.0}], "asks": [{"price": 111.0}]})
+
+    rows = sp._conn.execute(
+        "SELECT mid_price, pct_change FROM price_snapshots ORDER BY ts"
+    ).fetchall()
+    assert [row[0] for row in rows] == [100.0, None, 110.0]
+    # The third row's predecessor has no mid, so the move is undefined — not
+    # silently measured against the 100.0 two intervals earlier.
+    assert [row[1] for row in rows] == [None, None, None]
+
+
+def test_pct_change_is_computed_between_adjacent_rows(
+    sp: StatsProcess, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = {"now": 12.0}
+    epoch = datetime(2026, 6, 14, 9, 0, 0, tzinfo=timezone.utc)
+
+    class _FakeDatetime:
+        @staticmethod
+        def now(tz=None):
+            return epoch + timedelta(seconds=clock["now"])
+
+        @staticmethod
+        def fromtimestamp(value, tz=None):
+            return datetime.fromtimestamp(value, tz)
+
+    monkeypatch.setattr(
+        "edumatcher.stats.main.time.monotonic", lambda: clock["now"], raising=True
+    )
+    monkeypatch.setattr("edumatcher.stats.main.datetime", _FakeDatetime)
+
+    sp._on_book("AAPL", {"bids": [{"price": 99.0}], "asks": [{"price": 101.0}]})
+    clock["now"] += sp._snapshot_interval_sec
+    sp._on_book("AAPL", {"bids": [{"price": 109.0}], "asks": [{"price": 111.0}]})
+
+    rows = sp._conn.execute(
+        "SELECT mid_price, pct_change FROM price_snapshots ORDER BY ts"
+    ).fetchall()
+    assert rows[1][1] == pytest.approx(10.0)  # 100 → 110
+
+
 def test_writer_opens_in_wal_mode(sp: StatsProcess) -> None:
     """Without WAL a concurrent pm-stats-cli read makes the writer fail, and
     the receive loop's catch-all would swallow the dropped record."""

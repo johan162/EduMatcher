@@ -717,7 +717,10 @@ class StatsProcess:
         self._accum: dict[str, _DayAccum] = {}
 
         # symbol → last snapshot mid_price (for % change)
-        self._last_snap_mid: dict[str, float] = {}
+        # symbol → mid_price of the last *persisted* snapshot row. The value
+        # may be None: a row with no usable mid still becomes the baseline, so
+        # pct_change always refers to the immediately preceding row.
+        self._last_snap_mid: dict[str, Optional[float]] = {}
 
         # symbol → timestamp of last snapshot written
         # symbol → time.monotonic() of the last snapshot written. A plain dict
@@ -1164,18 +1167,31 @@ class StatsProcess:
                 elif payload.get("last_price") is not None:
                     mid = payload["last_price"]
 
+                # pct_change is the move since the *immediately preceding
+                # persisted row* for this symbol, so a reader can reproduce it
+                # from two consecutive rows. That means the baseline may only
+                # advance once a row is actually written, and a row whose mid
+                # is NULL becomes the new baseline rather than being skipped
+                # over — otherwise a percentage silently spans several
+                # intervals while still looking like a one-interval move.
                 prev = self._last_snap_mid.get(symbol)
                 pct = None
                 if mid is not None and prev is not None and prev != 0:
                     pct = round((mid - prev) / prev * 100, 4)
-                if mid is not None:
-                    self._last_snap_mid[symbol] = mid
 
                 snap_ts = datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
                 with self._conn:
-                    self._conn.execute(
+                    cursor = self._conn.execute(
                         INSERT_SNAPSHOT, (snap_ts, symbol, mid, best_bid, best_ask, pct)
                     )
+                if not cursor.rowcount:
+                    # INSERT OR IGNORE dropped it — another row already holds
+                    # this (ts, symbol). Advancing the baseline to a value that
+                    # was never stored would make the next row's percentage
+                    # reference something absent from the table.
+                    self._dbg_count("snapshots_deduplicated")
+                    return
+                self._last_snap_mid[symbol] = mid
                 log.debug(
                     "wrote snapshot symbol=%s ts=%s",
                     symbol,
@@ -1210,7 +1226,16 @@ class StatsProcess:
         day_high = payload.get("day_high")
         day_low = payload.get("day_low")
 
-        epoch_sec = payload.get("timestamp", time.time())
+        epoch_sec = payload.get("timestamp")
+        if epoch_sec is None:
+            # Receipt time is a different clock from the rest of the series;
+            # silently mixing the two would make an index history that looks
+            # continuous but is not.
+            epoch_sec = time.time()
+            log.warning(
+                "index.update for %s has no timestamp; using receipt time",
+                index_id,
+            )
         ts = datetime.fromtimestamp(epoch_sec, tz=timezone.utc).isoformat(
             timespec="milliseconds"
         )
@@ -1282,6 +1307,12 @@ class StatsProcess:
         if not order_id or not gateway_id:
             return
         ts = datetime.now(tz=timezone.utc).isoformat(timespec="milliseconds")
+        # `or` would treat a legitimate quantity of 0 as absent and fall
+        # through to `qty`, recording NULL when that is missing too.
+        quantity = payload.get("quantity")
+        if quantity is None:
+            quantity = payload.get("qty")
+
         with self._lock, self._conn:
             self._conn.execute(
                 INSERT_ORDER_EVENT,
@@ -1295,7 +1326,7 @@ class StatsProcess:
                     payload.get("order_type"),
                     payload.get("tif"),
                     payload.get("price"),
-                    payload.get("quantity") or payload.get("qty"),
+                    quantity,
                     payload.get("remaining_qty"),
                     payload.get("status"),
                     payload.get("fill_price"),

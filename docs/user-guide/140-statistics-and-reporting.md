@@ -213,6 +213,46 @@ See [Processes — Environment variables](170-processes.md#environment-variables
 
 
 
+## Numeric Precision
+
+Every monetary and level column in `stats.db` — `price`, `vwap`, `turnover`,
+`mid_price`, `best_bid`, `best_ask`, `level`, `aggregate_cap`, `divisor` — is a
+SQLite `REAL`, which is an IEEE-754 double. This is a deliberate choice for a
+teaching exchange, and it has consequences worth stating rather than
+discovering.
+
+**What that gives you.** About 15–17 significant decimal digits. For instrument
+prices and VWAP at realistic magnitudes, that is far more precision than the
+tick size, so figures agree with a hand calculation well beyond any economically
+meaningful digit.
+
+**Where the error accumulates.** `vwap` and `turnover` are running sums of
+`price × quantity` over a whole trading day. Floating-point addition is not
+associative, so the stored value can differ in its last digits from the same sum
+computed in a different order — which is exactly what happens when you recompute
+VWAP from `trade_log` in a spreadsheet, in pandas, or with `awk`.
+
+**Therefore:** compare with a tolerance, never for exact equality.
+
+```python
+# Right
+assert abs(recomputed_vwap - stored_vwap) < 1e-9 * max(1.0, abs(stored_vwap))
+
+# Wrong — will fail sporadically on an active day
+assert recomputed_vwap == stored_vwap
+```
+
+`aggregate_cap` is the value most exposed to this: index market caps run to
+10^12 or beyond, where a double's absolute resolution is roughly 10^-4, so
+treat its last few digits as noise.
+
+If you need exact decimal arithmetic, `pm-clearing` stores prices as integer
+minor units alongside a `tick_decimals` column — see
+[P&L and Clearing](130-pnl-clearing.md). `stats.db` deliberately does not,
+because its consumers are charts and summaries rather than settlement.
+
+
+
 ## The Statistics Database Schema
 
 All statistics are stored in `data/stats.db`, a SQLite 3 database with seven data
@@ -1657,9 +1697,16 @@ This calculates $\sum(price \times qty) / \sum(qty)$ from the trade log. Compare
 pm-stats-cli daily --symbol AAPL --date 2026-06-14
 ```
 
-They should agree to within floating-point rounding — prices and VWAP are
-stored as SQLite `REAL` (IEEE-754 double), so expect agreement in the first
-~15 significant digits, not an exact string match.
+They should agree to within floating-point rounding — see
+[Numeric Precision](#numeric-precision). Expect agreement in the first ~15
+significant digits, not an exact string match. `turnover` in
+`daily_stats --wide` is the same sum the recorder accumulated, so comparing
+against that isolates a genuine discrepancy from summation order:
+
+```bash
+pm-stats-cli --format json daily --symbol AAPL --date 2026-06-14 --wide \
+  | python3 -c "import json,sys; r=json.load(sys.stdin)[0]; print(r['turnover']/r['volume'], r['vwap'])"
+```
 
 If they disagree materially, check in this order:
 
