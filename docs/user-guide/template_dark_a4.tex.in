@@ -78,7 +78,7 @@
 % Pandoc 3.x may wrap images with \pandocbounded{...}.
 \providecommand{\pandocbounded}[1]{#1}
 
-\definecolor{brandblue}{HTML}{129ADD}
+\definecolor{brandblue}{HTML}{59B8E7}
 \definecolor{brandgray}{HTML}{6B7583}
 \definecolor{lightorange}{HTML}{FFA500}
 \definecolor{darkorange}{HTML}{FF8C00}
