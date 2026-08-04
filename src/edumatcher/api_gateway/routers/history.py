@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from edumatcher.api_gateway.index_client import IndexHistoryError
 from edumatcher.api_gateway.sessions import Session, auth, require_trading
 from edumatcher.index.history import STRUCTURAL_RECORD_TYPES
+from edumatcher.stats.event_types import EVENT_TYPES
 from edumatcher.stats.query import (
     InvalidCursorError,
     open_readonly_connection,
@@ -84,6 +85,33 @@ def _validate_time_filters(
         ) from exc
 
 
+def _validate_event_type(event_type: str | None) -> str | None:
+    """Normalize and reject unknown ``event_type`` filters.
+
+    An unrecognised value previously matched nothing and returned an empty
+    page, which is indistinguishable from "this gateway had no such events" —
+    so a caller using a stale value (say ``COMBO``, which no longer exists)
+    would quietly conclude there was no activity.
+    """
+    if event_type is None:
+        return None
+    normalized = event_type.upper()
+    if normalized not in EVENT_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": {
+                    "code": "VALIDATION",
+                    "message": (
+                        f"Unknown event_type {event_type!r}; expected one of "
+                        + ", ".join(EVENT_TYPES)
+                    ),
+                }
+            },
+        )
+    return normalized
+
+
 def _paginated_envelope(
     key: str, rows: list[dict[str, object]], next_cursor: str | None
 ) -> dict[str, object]:
@@ -125,6 +153,7 @@ async def history_orders(
     """
     gateway_id = require_trading(session)
     _validate_time_filters(date, from_ts, to_ts)
+    normalized_event_type = _validate_event_type(event_type)
     with closing(_open_stats(request)) as conn:
         try:
             events, next_cursor = query_order_events(
@@ -132,7 +161,7 @@ async def history_orders(
                 tz=_session_tz(request, conn),
                 gateway_id=gateway_id,
                 symbol=symbol.upper() if symbol else None,
-                event_type=event_type.upper() if event_type else None,
+                event_type=normalized_event_type,
                 date_value=date,
                 from_ts=from_ts,
                 to_ts=to_ts,

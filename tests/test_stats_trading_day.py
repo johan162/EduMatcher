@@ -7,7 +7,7 @@ error, so a regression would otherwise be invisible.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
@@ -383,6 +383,72 @@ def test_index_restart_preserves_the_days_ohlc(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # P0-6 — the writer must run in WAL
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# P1-5 — the opening snapshot must not depend on host uptime
+# ---------------------------------------------------------------------------
+
+
+def test_first_snapshot_is_written_on_a_freshly_booted_host(
+    sp: StatsProcess, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``time.monotonic()`` is seconds since boot on Linux and macOS.
+
+    The old code compared it against a ``defaultdict(float)`` zero, so the
+    first snapshot required the *host* to have been up for a whole snapshot
+    interval. On a fresh VM, container or demo laptop that silently skipped
+    the opening snapshot — the very row the startup book request exists to
+    capture.
+    """
+    # Host up for 12 seconds, well under the 900 s default interval.
+    monkeypatch.setattr(
+        "edumatcher.stats.main.time.monotonic", lambda: 12.0, raising=True
+    )
+    sp._on_book("AAPL", {"bids": [{"price": 99.0}], "asks": [{"price": 101.0}]})
+
+    rows = sp._conn.execute("SELECT symbol, mid_price FROM price_snapshots").fetchall()
+    assert rows == [("AAPL", 100.0)]
+
+
+def test_subsequent_snapshots_still_respect_the_interval(
+    sp: StatsProcess, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fixing the first snapshot must not turn every book update into a row.
+
+    Both clocks have to advance together: the throttle is driven by
+    ``time.monotonic()``, but the row's key is a wall-clock ``ts`` at second
+    precision, so leaving the wall clock still would make ``INSERT OR IGNORE``
+    swallow the second row and hide a broken throttle.
+    """
+    clock = {"now": 12.0}
+    epoch = datetime(2026, 6, 14, 9, 0, 0, tzinfo=timezone.utc)
+
+    class _FakeDatetime:
+        @staticmethod
+        def now(tz=None):
+            return epoch + timedelta(seconds=clock["now"])
+
+        @staticmethod
+        def fromtimestamp(value, tz=None):
+            return datetime.fromtimestamp(value, tz)
+
+    monkeypatch.setattr(
+        "edumatcher.stats.main.time.monotonic", lambda: clock["now"], raising=True
+    )
+    monkeypatch.setattr("edumatcher.stats.main.datetime", _FakeDatetime)
+    book = {"bids": [{"price": 99.0}], "asks": [{"price": 101.0}]}
+
+    sp._on_book("AAPL", book)  # first — always written
+    clock["now"] += 10.0
+    sp._on_book("AAPL", book)  # inside the interval — skipped
+    count = sp._conn.execute("SELECT COUNT(*) FROM price_snapshots").fetchone()[0]
+    assert count == 1
+
+    clock["now"] += sp._snapshot_interval_sec
+    sp._on_book("AAPL", book)  # interval elapsed — written
+    count = sp._conn.execute("SELECT COUNT(*) FROM price_snapshots").fetchone()[0]
+    assert count == 2
 
 
 def test_writer_opens_in_wal_mode(sp: StatsProcess) -> None:

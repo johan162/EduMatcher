@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from edumatcher.config import STATS_DB_FILE
+from edumatcher.stats.event_types import EVENT_TYPES
 from edumatcher.stats.query import (
     InvalidCursorError,
     open_readonly_connection,
@@ -221,7 +222,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     order_events.add_argument("--gateway", required=True, metavar="GATEWAY_ID")
     order_events.add_argument("--symbol", metavar="SYMBOL")
-    order_events.add_argument("--event-type", metavar="TYPE")
+    order_events.add_argument(
+        "--event-type",
+        metavar="TYPE",
+        choices=EVENT_TYPES,
+        type=str.upper,
+        help="One of: " + ", ".join(EVENT_TYPES),
+    )
     order_events.add_argument("--date", metavar="YYYY-MM-DD")
     order_events.add_argument("--from", dest="from_ts", metavar="ISO_TS")
     order_events.add_argument("--to", dest="to_ts", metavar="ISO_TS")

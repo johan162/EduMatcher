@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import edumatcher.stats.main as stats_main_mod
+from edumatcher.stats.event_types import EVENT_TYPES, UNKNOWN_EVENT_TYPE
 from edumatcher.stats.main import (
     SNAPSHOT_INTERVAL_SEC,
     SCHEMA,
@@ -923,14 +924,82 @@ class TestEventTypeFromTopic:
     def test_expire(self) -> None:
         assert _event_type_from_topic("order.expired.GW01", {}) == "EXPIRE"
 
-    def test_combo(self) -> None:
-        assert _event_type_from_topic("combo.ack.GW01", {}) == "COMBO"
+    def test_combo_accepted_and_rejected_are_distinct(self) -> None:
+        """A rejected combo must not look like an accepted one."""
+        assert (
+            _event_type_from_topic("combo.ack.GW01", {"accepted": True}) == "COMBO_ACK"
+        )
+        assert (
+            _event_type_from_topic("combo.ack.GW01", {"accepted": False})
+            == "COMBO_REJECT"
+        )
 
-    def test_oco(self) -> None:
-        assert _event_type_from_topic("oco.ack.GW01", {}) == "OCO"
+    def test_combo_status_is_not_an_ack(self) -> None:
+        assert _event_type_from_topic("combo.status.GW01", {}) == "COMBO_STATUS"
 
-    def test_quote(self) -> None:
-        assert _event_type_from_topic("quote.ack.GW01", {}) == "QUOTE"
+    def test_oco_accepted_and_rejected_are_distinct(self) -> None:
+        assert _event_type_from_topic("oco.ack.GW01", {"accepted": True}) == "OCO_ACK"
+        assert (
+            _event_type_from_topic("oco.ack.GW01", {"accepted": False}) == "OCO_REJECT"
+        )
+
+    def test_oco_cancelled_is_a_cancel_not_a_bare_family_name(self) -> None:
+        """Previously recorded as ``OCO``, where no cancel filter could find it."""
+        assert _event_type_from_topic("oco.cancelled.GW01", {}) == "OCO_CANCEL"
+
+    def test_quote_accepted_and_rejected_are_distinct(self) -> None:
+        assert (
+            _event_type_from_topic("quote.ack.GW01", {"accepted": True}) == "QUOTE_ACK"
+        )
+        assert (
+            _event_type_from_topic("quote.ack.GW01", {"accepted": False})
+            == "QUOTE_REJECT"
+        )
+
+    def test_quote_status_is_not_an_ack(self) -> None:
+        assert _event_type_from_topic("quote.status.GW01", {}) == "QUOTE_STATUS"
+
+    @pytest.mark.parametrize(
+        "topic",
+        ["order.ack.GW01", "combo.ack.GW01", "oco.ack.GW01", "quote.ack.GW01"],
+    )
+    def test_missing_accepted_flag_records_unknown_not_reject(
+        self, topic: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Never fabricate a rejection from an absent flag.
+
+        Recording a confident REJECT because a field was missing writes a fact
+        into the audit trail that was never asserted by the engine.
+        """
+        with caplog.at_level(logging.ERROR):
+            assert _event_type_from_topic(topic, {}) == UNKNOWN_EVENT_TYPE
+        assert "no 'accepted' flag" in caplog.text
+
+    def test_every_produced_value_is_declared(self) -> None:
+        """EVENT_TYPES is what the CLI and API validate against."""
+        produced = {
+            _event_type_from_topic(topic, payload)
+            for topic, payload in [
+                ("order.ack.GW01", {"accepted": True}),
+                ("order.ack.GW01", {"accepted": False}),
+                ("order.fill.GW01", {}),
+                ("order.amended.GW01", {}),
+                ("order.cancelled.GW01", {}),
+                ("order.expired.GW01", {}),
+                ("combo.ack.GW01", {"accepted": True}),
+                ("combo.ack.GW01", {"accepted": False}),
+                ("combo.status.GW01", {}),
+                ("oco.ack.GW01", {"accepted": True}),
+                ("oco.ack.GW01", {"accepted": False}),
+                ("oco.cancelled.GW01", {}),
+                ("quote.ack.GW01", {"accepted": True}),
+                ("quote.ack.GW01", {"accepted": False}),
+                ("quote.status.GW01", {}),
+                ("order.ack.GW01", {}),
+                ("system.eod", {}),
+            ]
+        }
+        assert produced == set(EVENT_TYPES)
 
     def test_unknown(self) -> None:
         assert _event_type_from_topic("system.eod", {}) == "EVENT"

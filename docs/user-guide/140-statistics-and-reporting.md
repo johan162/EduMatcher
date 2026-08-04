@@ -105,8 +105,12 @@ The schema version is in `PRAGMA user_version`:
 
 ```console
 $ sqlite3 data/stats.db "PRAGMA user_version"
-1
+2
 ```
+
+The version is bumped both when the table definitions change and when the
+*meaning* of stored values changes — version 2 introduced the distinct combo,
+OCO and quote `event_type` values, which the DDL alone cannot express.
 
 `pm-stats` refuses to open a database whose `user_version` does not match the
 build, rather than writing new-format rows into an old-format file. If you hit
@@ -364,7 +368,7 @@ Append-only order lifecycle history captured from private engine topics. This ta
 |-------------------|---------|----------------------------------------------------------------------------------------------------------------------|
 | `seq`             | INTEGER | Monotonic local sequence assigned by SQLite for stable event ordering                                                |
 | `ts`              | TEXT    | ISO-8601 timestamp (UTC, millisecond precision) when `pm-stats` recorded the event                                   |
-| `event_type`      | TEXT    | Normalized event category: `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, `QUOTE`, or `EVENT` |
+| `event_type`      | TEXT    | Normalized event category — see the full value table below                                                            |
 | `order_id`        | TEXT    | Order-like identifier; for combo/OCO/quote events this may be `combo_id`, `oco_id`, or `quote_id`                    |
 | `gateway_id`      | TEXT    | Gateway identity that owns the private event                                                                         |
 | `symbol`          | TEXT    | Instrument ticker when present in the event payload                                                                  |
@@ -386,15 +390,44 @@ Append-only order lifecycle history captured from private engine topics. This ta
 
 **Use case**: API Gateway order history, support investigations, per-gateway audit trails, fill-only history, and lifecycle reconstruction for a single order ID.
 
-!!! note "`event_type` is coarser for combo, OCO and quote events"
-    `order.ack` resolves to `ACK` or `REJECT` based on the event's `accepted`
-    flag. Combo, OCO and quote events do **not**: every `combo.*` topic is
-    recorded as `COMBO`, every `oco.*` topic as `OCO`, and every `quote.*`
-    topic as `QUOTE`, regardless of whether the event was an acceptance, a
-    rejection, a status update, or a cancellation. In particular
-    `oco.cancelled` is stored as `OCO`, not `CANCEL`, so
-    `--event-type CANCEL` will not find it. Inspect the `status` and `reason`
-    columns to distinguish these cases.
+#### `event_type` values
+
+Every value the recorder can write, and the engine topic it comes from:
+
+| `event_type` | Source topic | Meaning |
+|--------------|--------------|---------|
+| `ACK` | `order.ack.*` with `accepted: true` | Order accepted |
+| `REJECT` | `order.ack.*` with `accepted: false` | Order rejected |
+| `FILL` | `order.fill.*` | Execution against the order |
+| `AMEND` | `order.amended.*` | Order amended |
+| `CANCEL` | `order.cancelled.*` | Order cancelled |
+| `EXPIRE` | `order.expired.*` | Order expired |
+| `COMBO_ACK` | `combo.ack.*` with `accepted: true` | Combo accepted |
+| `COMBO_REJECT` | `combo.ack.*` with `accepted: false` | Combo rejected |
+| `COMBO_STATUS` | `combo.status.*` | Combo status update |
+| `OCO_ACK` | `oco.ack.*` with `accepted: true` | OCO pair accepted |
+| `OCO_REJECT` | `oco.ack.*` with `accepted: false` | OCO pair rejected |
+| `OCO_CANCEL` | `oco.cancelled.*` | One leg of an OCO pair cancelled |
+| `QUOTE_ACK` | `quote.ack.*` with `accepted: true` | Quote accepted |
+| `QUOTE_REJECT` | `quote.ack.*` with `accepted: false` | Quote rejected |
+| `QUOTE_STATUS` | `quote.status.*` | Quote status update |
+| `UNKNOWN` | any ack topic missing its `accepted` flag | See the note below |
+| `EVENT` | any other subscribed private topic | Unclassified |
+
+Combo, OCO and quote events each carry their own accept / reject / cancel /
+status value rather than a single family name, so a rejected combo is
+distinguishable from an accepted one and `oco.cancelled` is findable as a
+cancellation. Filters are validated against this list — `pm-stats-cli` rejects
+an unknown `--event-type` at parse time and the API returns `422`, rather than
+silently returning an empty page.
+
+!!! note "`UNKNOWN` means the engine did not say"
+    Every ack-style payload carries an `accepted` flag, so its absence
+    indicates a bug or a corrupted message. When that happens the recorder
+    writes `UNKNOWN` and logs at `ERROR`, rather than defaulting to `REJECT` —
+    recording a rejection the engine never asserted would put a fabricated
+    fact into the audit trail. If you see `UNKNOWN` rows, check the `pm-stats`
+    log for the topic that produced them.
 
 ### `index_daily_stats`
 
@@ -742,7 +775,7 @@ pm-stats-cli --format json order-events --gateway TRADER01 --from 2026-06-14T09:
 |--------|----------|---------|-------------|
 | `--gateway` | Yes | - | Gateway ID that owns the private events |
 | `--symbol` | No | all symbols | Restrict to one symbol |
-| `--event-type` | No | all event types | Restrict to one normalized type such as `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, `QUOTE`, or `EVENT` |
+| `--event-type` | No | all event types | Restrict to one normalized type — see [`event_type` values](#event_type-values). An unknown value is rejected at parse time |
 | `--date` | No | all dates | Restrict to one trading date |
 | `--from` | No | - | Start timestamp (inclusive) |
 | `--to` | No | - | End timestamp (inclusive) |
@@ -919,7 +952,7 @@ API filters for `/api/v1/history/orders`:
 | Query parameter | Required | Description |
 |-----------------|----------|-------------|
 | `symbol` | No | Restrict to one symbol |
-| `event_type` | No | Restrict to one normalized type such as `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, `QUOTE`, or `EVENT` |
+| `event_type` | No | Restrict to one normalized type — see [`event_type` values](#event_type-values). An unknown value returns `422` |
 | `date` | No | Restrict to one `YYYY-MM-DD` date based on `order_events.ts` |
 | `from` | No | Inclusive ISO timestamp lower bound |
 | `to` | No | Inclusive ISO timestamp upper bound |
@@ -1243,11 +1276,22 @@ pm-stats-cli order-events --gateway TRADER01 --symbol AAPL --event-type FILL --d
 
 Use this workflow to answer:
 
-- Was the order accepted or rejected?
+- Was the order accepted or rejected? (`ACK` / `REJECT`, and equally
+  `COMBO_ACK` / `COMBO_REJECT`, `OCO_ACK` / `OCO_REJECT`,
+  `QUOTE_ACK` / `QUOTE_REJECT`)
 - Did an amend reset priority?
 - Which fills belong to this order ID?
-- Was the order cancelled, expired, or linked to a combo/OCO group?
+- Was the order cancelled or expired? (`CANCEL`, `EXPIRE`, and `OCO_CANCEL`
+  for an OCO leg)
+- Was it linked to a combo or OCO group? (`combo_parent_id`, `oco_group_id`)
 - Does API Gateway history match the live private WebSocket events seen by the client?
+
+```bash
+# Every rejection across all event families for one gateway
+for t in REJECT COMBO_REJECT OCO_REJECT QUOTE_REJECT; do
+  pm-stats-cli order-events --gateway TRADER01 --event-type "$t"
+done
+```
 
 
 
@@ -1464,7 +1508,7 @@ print(daily[['symbol', 'return_pct']])
 
 ### Snapshot times seem wrong or are missing
 
-- Snapshots are written when a `book.*` message arrives **and** the configured interval has elapsed since the last snapshot for that symbol.
+- The **first** `book.*` message for a symbol always writes a snapshot. After that, a snapshot is written when a `book.*` message arrives **and** the configured interval has elapsed since the last one for that symbol.
 - The default interval is **15 minutes** (`--snapshot-interval 900`). If you need finer resolution, start `pm-stats` with a smaller value, e.g. `--snapshot-interval 60` for one-minute snapshots.
 - If trading is light and no book updates occur during the interval, no snapshot is recorded for that period. This is by design — snapshots only record when the market moves.
 

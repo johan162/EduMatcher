@@ -105,6 +105,7 @@ from edumatcher.models.message import (
     make_book_snapshot_request_msg,
     make_symbols_request_msg,
 )
+from edumatcher.stats.event_types import UNKNOWN_EVENT_TYPE
 from edumatcher.stats.trading_day import (
     resolve_timezone,
     timezone_name,
@@ -257,9 +258,15 @@ class _IndexDayAccum:
 # ---------------------------------------------------------------------------
 
 #: Bumped whenever the DDL below changes in a way that makes an older file
-#: unreadable. Stamped into ``PRAGMA user_version`` at creation and checked on
-#: every open — see :func:`_check_schema_version`.
-SCHEMA_VERSION = 1
+#: unreadable, or whenever the *meaning* of stored values changes. Stamped into
+#: ``PRAGMA user_version`` at creation and checked on every open — see
+#: :func:`_check_schema_version`.
+#:
+#: 2 — ``order_events.event_type`` gained distinct accept/reject/cancel/status
+#:     values for combo, OCO and quote events. The DDL is unchanged, but a file
+#:     holding both the old collapsed values and the new ones would filter
+#:     inconsistently, so old files are refused rather than appended to.
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS stats_meta (
@@ -620,7 +627,13 @@ class StatsProcess:
         self._last_snap_mid: dict[str, float] = {}
 
         # symbol → timestamp of last snapshot written
-        self._last_snap_ts: dict[str, float] = defaultdict(float)
+        # symbol → time.monotonic() of the last snapshot written. A plain dict
+        # with an explicit "absent means never" check, not defaultdict(float):
+        # monotonic() is seconds since boot on Linux/macOS, so a 0.0 default
+        # made the first snapshot wait until the *host* had been up for a full
+        # snapshot interval. On a fresh VM or container that silently skipped
+        # the opening snapshot the startup book request exists to capture.
+        self._last_snap_ts: dict[str, float] = {}
 
         # index_id → _IndexDayAccum for current calendar date
         self._index_accum: dict[str, _IndexDayAccum] = {}
@@ -974,7 +987,8 @@ class StatsProcess:
 
             # 15-minute price snapshot
             now = time.monotonic()
-            if now - self._last_snap_ts[symbol] >= self._snapshot_interval_sec:
+            last_snap = self._last_snap_ts.get(symbol)
+            if last_snap is None or now - last_snap >= self._snapshot_interval_sec:
                 self._last_snap_ts[symbol] = now
                 mid: Optional[float] = None
                 if best_bid is not None and best_ask is not None:
@@ -1295,13 +1309,6 @@ class StatsProcess:
         if hasattr(self, "push") and getattr(self.push, "closed", False) is not True:
             self.push.close()
 
-    def __del__(self) -> None:
-        try:
-            self.close()
-        except Exception:
-            # Never raise during GC finalization.
-            pass
-
 
 def _is_order_event_topic(topic: str) -> bool:
     return topic.startswith(
@@ -1321,9 +1328,43 @@ def _is_order_event_topic(topic: str) -> bool:
     )
 
 
+def _accept_reject(
+    topic: str,
+    payload: dict[str, Any],
+    accepted_value: str,
+    rejected_value: str,
+) -> str:
+    """Resolve an ack-style event to its accepted or rejected type.
+
+    A missing ``accepted`` flag records :data:`UNKNOWN_EVENT_TYPE` rather than
+    falling through to the rejected value. Every one of these payloads carries
+    the flag today, so its absence means a bug or a corrupted message — and
+    writing a confident "rejected" into an audit trail on that basis fabricates
+    a fact. Missing information is recoverable; wrong information is not.
+    """
+    accepted = payload.get("accepted")
+    if accepted is None:
+        log.error(
+            "%s carries no 'accepted' flag; recording %s rather than assuming "
+            "a rejection",
+            topic,
+            UNKNOWN_EVENT_TYPE,
+        )
+        return UNKNOWN_EVENT_TYPE
+    return accepted_value if accepted else rejected_value
+
+
 def _event_type_from_topic(topic: str, payload: dict[str, Any]) -> str:
+    """Map a private engine topic to a normalized ``order_events.event_type``.
+
+    Combo, OCO and quote topics resolve to their own accept / reject / cancel /
+    status values instead of collapsing to a bare family name. Collapsing them
+    made a rejected combo indistinguishable from an accepted one, and filed
+    ``oco.cancelled`` under ``OCO``, where no cancel-oriented filter could
+    find it.
+    """
     if topic.startswith("order.ack."):
-        return "ACK" if payload.get("accepted") else "REJECT"
+        return _accept_reject(topic, payload, "ACK", "REJECT")
     if topic.startswith("order.fill."):
         return "FILL"
     if topic.startswith("order.amended."):
@@ -1332,12 +1373,18 @@ def _event_type_from_topic(topic: str, payload: dict[str, Any]) -> str:
         return "CANCEL"
     if topic.startswith("order.expired."):
         return "EXPIRE"
-    if topic.startswith("combo."):
-        return "COMBO"
-    if topic.startswith("oco."):
-        return "OCO"
-    if topic.startswith("quote."):
-        return "QUOTE"
+    if topic.startswith("combo.ack."):
+        return _accept_reject(topic, payload, "COMBO_ACK", "COMBO_REJECT")
+    if topic.startswith("combo.status."):
+        return "COMBO_STATUS"
+    if topic.startswith("oco.ack."):
+        return _accept_reject(topic, payload, "OCO_ACK", "OCO_REJECT")
+    if topic.startswith("oco.cancelled."):
+        return "OCO_CANCEL"
+    if topic.startswith("quote.ack."):
+        return _accept_reject(topic, payload, "QUOTE_ACK", "QUOTE_REJECT")
+    if topic.startswith("quote.status."):
+        return "QUOTE_STATUS"
     return "EVENT"
 
 
