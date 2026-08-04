@@ -7,9 +7,14 @@
 
 import type { AckStore } from "./ack-store.js";
 import { computeFingerprint } from "./fingerprint.js";
+import { LOG_LEVELS, type LogLevel } from "@edumatcher/log-types";
 import type { Issue, LogRow } from "@edumatcher/log-types";
 
-const FINGERPRINTABLE_LEVELS = new Set(["WARNING", "ERROR", "CRITICAL"]);
+/** Ordinal rank of a level, used for every `minLevel` comparison here. */
+function rank(level: string): number {
+  const index = (LOG_LEVELS as readonly string[]).indexOf(level);
+  return index === -1 ? -1 : index;
+}
 
 interface IssueState {
   fingerprint: string;
@@ -25,8 +30,21 @@ interface IssueState {
 
 export class IssueIndex {
   private readonly issues = new Map<string, IssueState>();
+  private readonly minRank: number;
 
-  constructor(private readonly ackStore: AckStore) {}
+  /**
+   * `minLevel` gates *both* the startup seed and live ingest. Previously the
+   * seed used the configured level while live rows were tested against a
+   * hard-coded WARNING/ERROR/CRITICAL set, so raising ISSUES_MIN_LEVEL made
+   * the index disagree with itself across a restart: warnings indexed while
+   * running, absent after a rebuild.
+   */
+  constructor(
+    private readonly ackStore: AckStore,
+    minLevel: LogLevel = "WARNING",
+  ) {
+    this.minRank = rank(minLevel);
+  }
 
   /** Feed a batch of rows during the startup backfill scan (no events emitted). */
   seed(rows: LogRow[]): void {
@@ -46,7 +64,7 @@ export class IssueIndex {
   }
 
   private absorb(row: LogRow): IssueState | null {
-    if (!FINGERPRINTABLE_LEVELS.has(row.level)) return null;
+    if (rank(row.level) < this.minRank) return null;
     const fingerprint = computeFingerprint(row);
     const existing = this.issues.get(fingerprint);
     if (existing) {
@@ -88,17 +106,10 @@ export class IssueIndex {
   }
 
   list(opts: { acked?: boolean; minLevel?: string } = {}): Issue[] {
-    const levelRank: Record<string, number> = {
-      DEBUG: 10,
-      INFO: 20,
-      WARNING: 30,
-      ERROR: 40,
-      CRITICAL: 50,
-    };
-    const floor = opts.minLevel ? levelRank[opts.minLevel] ?? 0 : 0;
+    const floor = opts.minLevel ? rank(opts.minLevel) : -1;
     const out: Issue[] = [];
     for (const state of this.issues.values()) {
-      if ((levelRank[state.level] ?? 0) < floor) continue;
+      if (rank(state.level) < floor) continue;
       const issue = this.toIssue(state);
       if (opts.acked === true && issue.ack === null) continue;
       if (opts.acked === false && issue.ack !== null && !issue.recurredSinceAck) continue;

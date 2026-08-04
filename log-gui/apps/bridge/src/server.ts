@@ -18,6 +18,7 @@ import { loadBridgeConfig } from "./config.js";
 import { RollingCounters } from "./counters.js";
 import { IssueIndex } from "./issue-index.js";
 import { LalfPsUplink } from "./lalf-ps-uplink.js";
+import { LiveBatcher } from "./live-batcher.js";
 import { LogDb } from "./log-db.js";
 import { registerDiagnosticsRoutes } from "./routes/diagnostics.js";
 import { registerIssuesRoutes } from "./routes/issues.js";
@@ -25,6 +26,7 @@ import { registerLogsRoutes } from "./routes/logs.js";
 import { registerProcessesRoutes } from "./routes/processes.js";
 import { registerStatsRoutes } from "./routes/stats.js";
 import { registerStatusRoutes } from "./routes/status.js";
+import { registerUiConfigRoutes } from "./routes/ui-config.js";
 import { WsHub } from "./ws-hub.js";
 
 const config = loadBridgeConfig();
@@ -43,9 +45,17 @@ const logDb = new LogDb(config.logDb.path);
 logDb.open();
 
 const ackStore = new AckStore(config.ackStore.path);
-const issueIndex = new IssueIndex(ackStore);
+const issueIndex = new IssueIndex(ackStore, config.issues.minLevel);
 const counters = new RollingCounters();
 const wsHub = new WsHub();
+
+// Live rows go out one frame each until the ingest rate exceeds
+// LIVE_BATCH_THRESHOLD_PER_SEC, then coalesced (design §6.4, §17).
+const liveBatcher = new LiveBatcher({
+  thresholdPerSec: config.limits.liveBatchThresholdPerSec,
+  emitOne: (row) => wsHub.broadcastRow(row),
+  emitMany: (rows) => wsHub.broadcastRows(rows),
+});
 
 // Backfill the fingerprint index over the issue-retention window at startup
 // (design §11.5) — rebuildable, so a failure here is non-fatal.
@@ -72,7 +82,7 @@ const uplink = new LalfPsUplink({
 uplink.on("event", (rows) => {
   for (const row of rows) {
     counters.ingest(row);
-    wsHub.broadcastRow(row);
+    liveBatcher.ingest(row);
 
     const issue = issueIndex.ingest(row);
     if (issue) {
@@ -138,7 +148,8 @@ app.get("/ws/stream", { websocket: true }, (socket) => {
   socket.send(JSON.stringify(hello));
 });
 
-registerLogsRoutes(app, logDb, config.limits.queryMaxRows);
+registerLogsRoutes(app, logDb, config.limits.queryMaxRows, config.limits.exportMaxRows);
+registerUiConfigRoutes(app, config);
 registerStatsRoutes(app, logDb);
 registerProcessesRoutes(app, logDb);
 registerIssuesRoutes(app, issueIndex, ackStore, logDb, wsHub);
@@ -159,6 +170,8 @@ if (config.staticDir) {
 }
 
 async function shutdown(): Promise<void> {
+  // Flush before the sockets close, or a buffered batch is silently dropped.
+  liveBatcher.stop();
   await uplink.stop();
   await app.close();
   process.exit(0);

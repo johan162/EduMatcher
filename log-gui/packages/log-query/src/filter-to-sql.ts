@@ -28,10 +28,23 @@ function allowedLevels(minLevel?: LogLevel): LogLevel[] {
   return LOG_LEVELS.filter((level) => LEVEL_ORDER[level] >= floor);
 }
 
+/**
+ * Every value type this compiler ever binds.
+ *
+ * Deliberately narrower than `unknown[]`. `node:sqlite`'s `all()`/`get()`
+ * accept `SQLInputValue`, so an `unknown[]` does not type-check at the call
+ * site — and widening it there with a cast would throw away the property this
+ * module exists to guarantee: that every bound value came from the
+ * allow-listed compilation below rather than from raw request input.
+ *
+ * Add to this union only when a new binding genuinely needs it.
+ */
+export type SqlParam = string | number;
+
 export interface CompiledWhere {
   /** e.g. "WHERE a = ? AND b = ?", or "" when the filter has no predicates. */
   whereSql: string;
-  params: unknown[];
+  params: SqlParam[];
 }
 
 /**
@@ -46,7 +59,7 @@ export function compileWhere(
   opts: { seqAfter?: number; seqBefore?: number } = {},
 ): CompiledWhere {
   const clauses: string[] = [];
-  const params: unknown[] = [];
+  const params: SqlParam[] = [];
 
   const levels = allowedLevels(filter.minLevel);
   if (levels.length > 0) {
@@ -103,7 +116,7 @@ export type SortDirection = "ASC" | "DESC";
 export function compileOrderLimit(
   direction: SortDirection,
   limit: number,
-): { sql: string; params: unknown[] } {
+): { sql: string; params: SqlParam[] } {
   const dir: SortDirection = direction === "ASC" ? "ASC" : "DESC";
   const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 200;
   return { sql: `ORDER BY seq ${dir} LIMIT ?`, params: [safeLimit] };

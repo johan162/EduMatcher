@@ -62,6 +62,22 @@ environment variables (`LOG_SRV_HOST`, `LOG_SRV_PUB_PORT`, `LOG_SRV_PULL_PORT`,
 `LOG_DB_PATH`, `ACK_STORE_PATH`) — see `apps/bridge/src/config.ts` for the
 full list and defaults, which mirror the design's §20 config reference.
 
+### Settings the frontend needs
+
+`alertLevel`, `issuesMinLevel`, `processSilenceSec` and the `errorRate`
+thresholds reach the browser through **`GET /api/ui-config`**
+(`apps/bridge/src/routes/ui-config.ts`). The frontend deliberately keeps **no
+local defaults** for these — a fallback constant in a component is how these
+settings previously ended up parsed-but-ignored, with the bridge reading an
+environment variable while the UI used a hard-coded number. When adding a
+setting the UI must respect, extend `UiConfig` in
+`packages/log-types/src/ui-config.ts` and read it via `useUiConfig()`; do not
+introduce a component-level constant.
+
+Anything shared between the two sides belongs in `@edumatcher/log-types` for
+the same reason — `classifyErrorRate()` lives there so the bridge and the
+browser cannot disagree about where a severity band begins.
+
 ### A note on `package-lock.json` and a known npm dedup bug
 
 `make install` runs `npm ci` once `package-lock.json` exists, exactly like

@@ -5,6 +5,7 @@ import { Activity, AlertTriangle, Gauge, HeartPulse, LayoutDashboard, Stethoscop
 import { NavLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api.js";
+import { useUiConfig } from "../../lib/useUiConfig.js";
 
 const DESTINATIONS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -16,9 +17,11 @@ const DESTINATIONS = [
 ] as const;
 
 export function NavRail() {
+  const alertLevel = useUiConfig()?.alertLevel;
   const { data } = useQuery({
-    queryKey: ["issues", { acked: false, minLevel: "ERROR" }],
-    queryFn: () => api.issues({ acked: false, minLevel: "ERROR" }),
+    queryKey: ["issues", { acked: false, minLevel: alertLevel }],
+    queryFn: () => api.issues({ acked: false, minLevel: alertLevel }),
+    enabled: alertLevel !== undefined,
     refetchInterval: 15_000,
   });
   const unackedCount = data?.issues.length ?? 0;

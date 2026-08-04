@@ -22,7 +22,12 @@ function filterFromQuery(q: Record<string, unknown>): LogFilter {
   };
 }
 
-export function registerLogsRoutes(app: FastifyInstance, logDb: LogDb, queryMaxRows: number): void {
+export function registerLogsRoutes(
+  app: FastifyInstance,
+  logDb: LogDb,
+  queryMaxRows: number,
+  exportMaxRows: number,
+): void {
   app.get("/api/logs", async (request, reply) => {
     const q = request.query as Record<string, unknown>;
     const filter = filterFromQuery(q);
@@ -56,13 +61,22 @@ export function registerLogsRoutes(app: FastifyInstance, logDb: LogDb, queryMaxR
     const q = request.query as Record<string, unknown>;
     const filter = filterFromQuery(q);
     const format = q.format === "json" ? "json" : "csv";
-    const cap = 1_000_000;
 
     let rows;
     try {
-      rows = logDb.queryEvents(filter, { limit: cap, direction: "ASC" });
+      rows = logDb.queryEvents(filter, { limit: exportMaxRows, direction: "ASC" });
     } catch (err) {
       return reply.status(503).send({ error: "log_db_unavailable", message: String(err) });
+    }
+
+    // Hitting the cap is indistinguishable from "that was all of them" unless
+    // we say so — a silently short export is worse than a refused one.
+    if (rows.length >= exportMaxRows) {
+      reply.header("X-Export-Truncated", "true");
+      reply.header("X-Export-Max-Rows", String(exportMaxRows));
+      request.log.warn(
+        `Export truncated at EXPORT_MAX_ROWS=${exportMaxRows}; narrow the filter or use pm-log-cli`,
+      );
     }
 
     if (format === "json") {
