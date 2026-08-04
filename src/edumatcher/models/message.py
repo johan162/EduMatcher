@@ -72,10 +72,30 @@ def encode(topic: str, payload: dict[str, Any]) -> list[bytes]:
 
 
 def decode(frames: list[bytes]) -> tuple[str, dict[str, Any]]:
-    """Parse a two-frame ZMQ multipart message."""
+    """Parse a ZMQ multipart message.
+
+    Reads only the topic and payload frames. Publishers append a third frame
+    carrying a per-topic sequence number (see ``messaging/bus.py``); it is
+    ignored here so every subscriber keeps working unchanged. Use
+    :func:`decode_sequence` to read it.
+    """
     topic = frames[0].decode()
     payload = _loads(frames[1])
     return topic, payload
+
+
+def decode_sequence(frames: list[bytes]) -> int | None:
+    """Return the publisher's per-topic sequence number, if the frame is there.
+
+    ``None`` means the message came from a publisher that does not stamp
+    sequences, so the receiver cannot tell whether anything was dropped.
+    """
+    if len(frames) < 3:
+        return None
+    try:
+        return int(frames[2])
+    except (ValueError, TypeError):
+        return None
 
 
 def dumps(payload: dict[str, Any]) -> bytes:

@@ -102,6 +102,7 @@ from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_pusher, make_subscriber
 from edumatcher.models.message import (
     decode,
+    decode_sequence,
     make_book_snapshot_request_msg,
     make_symbols_request_msg,
 )
@@ -810,6 +811,12 @@ class StatsProcess:
         self._last_trade_id: int | None = None
         self._trade_seq_disabled = False
 
+        # topic -> last publisher sequence seen, for detecting drops on every
+        # subscribed stream. _unsequenced_topics latches topics with no
+        # sequence frame so the warning is logged once per topic.
+        self._last_topic_seq: dict[str, int] = {}
+        self._unsequenced_topics: set[str] = set()
+
         # Initialised before the sockets so close() is safe to call for
         # cleanup if socket construction fails part-way — it flushes the
         # debug counters, which must therefore already exist.
@@ -896,6 +903,63 @@ class StatsProcess:
     # ------------------------------------------------------------------
     # Accumulator helpers
     # ------------------------------------------------------------------
+
+    def _check_topic_sequence(self, topic: str, seq: int | None) -> None:
+        """Detect messages dropped between a publisher and this recorder.
+
+        Publishers stamp a per-topic monotonic counter (``messaging/bus.py``),
+        so a jump means ZeroMQ discarded messages at the high-water mark —
+        the one failure mode that otherwise leaves no trace at all. Covers
+        every subscribed stream, not just trades.
+
+        A counter that moves *backwards* is a publisher restart, since
+        sequences begin again at 1. Runs on the receive thread, outside the
+        write lock, so it takes the lock itself.
+        """
+        if seq is None:
+            if topic not in self._unsequenced_topics:
+                self._unsequenced_topics.add(topic)
+                log.warning(
+                    "topic %s carries no sequence frame; loss on it cannot be "
+                    "detected",
+                    topic,
+                )
+            return
+
+        last = self._last_topic_seq.get(topic)
+        self._last_topic_seq[topic] = seq
+        if last is None or seq <= last:
+            if last is not None and seq <= last:
+                log.info(
+                    "%s sequence went from %d to %d — publisher restart",
+                    topic,
+                    last,
+                    seq,
+                )
+            return
+        missing = seq - last - 1
+        if not missing:
+            return
+
+        log.error(
+            "detected %d missing message(s) on %s: expected %d, received %d",
+            missing,
+            topic,
+            last + 1,
+            seq,
+        )
+        with self._lock, self._conn:
+            self._conn.execute(
+                INSERT_FEED_GAP,
+                (
+                    datetime.now(tz=timezone.utc).isoformat(timespec="milliseconds"),
+                    topic,
+                    last + 1,
+                    seq,
+                    missing,
+                ),
+            )
+        self._dbg_count("messages_missing", missing)
 
     def _check_trade_sequence(self, raw_id: str, ts: str) -> None:
         """Detect trades the recorder never received.
@@ -1519,6 +1583,7 @@ class StatsProcess:
                 continue
 
             self._dbg_count("messages_received")
+            self._check_topic_sequence(topic, decode_sequence(frames))
 
             try:
                 if topic.startswith("trade.executed"):
@@ -1552,6 +1617,7 @@ class StatsProcess:
             return
 
         self._dbg_count("index_messages_received")
+        self._check_topic_sequence(topic, decode_sequence(frames))
         try:
             if topic == "index.update":
                 self._dbg_count("index_update_topics")

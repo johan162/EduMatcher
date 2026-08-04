@@ -616,7 +616,12 @@ production shipment needs:
 These are *omissions*, not errors. Each is safe to defer, but the decision
 should be recorded.
 
-**GAP-1 — No aggressor side or trade condition.** `trade_log` records
+**GAP-1 — No aggressor side or trade condition.** *HANDLED.*
+`trade_log.aggressor_side` records `BUY`/`SELL` for a continuous match and
+`AUCTION` for an uncross print, mirrored verbatim from the engine payload —
+which was already on the wire and being discarded. That covers both the
+aggressor and the auction-vs-continuous distinction, so order-flow imbalance
+and trade classification are now computable. Original finding: `trade_log` records
 `buy_gateway_id` and `sell_gateway_id` but not which side lifted, nor whether the
 print came from an auction uncross, a continuous match, or a cross. The guide's
 "Trade Flow Analysis" and "detecting potential market manipulation" use cases
@@ -648,18 +653,30 @@ indistinguishable from one with gaps — a chart consumer cannot tell. Add a
 anywhere in `stats.db`, so the file is not self-describing for a downstream BI
 consumer — which is precisely the use case §"Exporting to BI Tools" promotes.
 
-**GAP-6 — No completeness/gap detection.** *Partly closed with P1-10.*
+**GAP-6 — No completeness/gap detection.** *HANDLED.*
 
-The trade stream is now covered: engine trade ids are a per-run monotonic
-counter, so `pm-stats` detects jumps and records them in `feed_gaps`, queryable
-via `pm-stats-cli gaps`. That covers the stream where loss corrupts `volume`,
-`turnover` and `vwap`.
+Two independent mechanisms now write to `feed_gaps`:
 
-Still open: `book.*`, `order.*`, `combo.*`, `oco.*`, `quote.*` and
-`index.update` carry no sequence number, so loss on those remains undetectable.
-Closing them needs a publisher-side sequence stamped by the engine, which has
-~15 direct `send_multipart` call sites and no publish choke point — a
-cross-cutting change to the shared core rather than a stats-local one.
+- **Publisher sequence.** `make_publisher` returns a `SequencedPublisher` that
+  appends a third ZeroMQ frame carrying a monotonic counter. Every subscribed
+  stream is covered, from both the engine and pm-index, since both publish
+  through it. `decode()` reads two frames and ignores the third, so no
+  existing subscriber needed changing.
+- **Engine trade id.** Retained from P1-10. It still catches loss occurring
+  *upstream* of the publisher, which a publisher-side counter cannot see by
+  construction.
+
+The counter is **per topic, not per socket** — a correction to the approach
+originally agreed. A SUB socket filters by prefix, so against a socket-wide
+counter a subscriber taking `trade.executed` but not `depth.` would see the
+counter jump on every message it filtered out and report continuous phantom
+gaps. Verified over a real inproc PUB/SUB pair: a filtering subscriber observes
+`1,2,3,4,5`.
+
+Residual limits, documented in the guide: a publisher restart resets the
+counter to 1 and is treated as a restart rather than a gap, so loss straddling
+a restart stays invisible; and a topic from an unsequenced publisher is
+reported once at `WARNING`, so a silent stream cannot pass as a clean one.
 
 **Correction to this review:** the `trade_log` section above described
 `trade_id` as "UUID from the engine (unique per trade)", copying the user

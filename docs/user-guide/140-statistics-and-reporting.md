@@ -522,18 +522,26 @@ jump is written here inside the same transaction as the trade that revealed it.
 **Use case**: answering "is this session's data complete?" before trusting a
 volume, VWAP or turnover figure.
 
-!!! warning "What gap detection does and does not cover"
-    **Covers**: the `trade.executed` stream — the one where loss corrupts
-    `volume`, `turnover` and `vwap`.
+Detection works two ways, and both write here:
 
-    **Does not cover**: `book.*`, `order.*`, `combo.*`, `oco.*`, `quote.*` and
-    `index.update`. None of those carry a sequence number, so loss on them is
-    still undetectable. A missed book update costs at most one snapshot; a
-    missed order event leaves a hole in a lifecycle trail.
+| Source | Mechanism | Covers |
+|--------|-----------|--------|
+| Publisher sequence | Every published message carries a per-topic monotonic counter in a third ZeroMQ frame; a jump means messages were dropped | **Every subscribed stream** — `trade.executed`, `book.*`, `order.*`, `combo.*`, `oco.*`, `quote.*`, `index.update` |
+| Engine trade id | Engine trade ids are monotonic within a run, so a jump is independent evidence | `trade.executed` only |
 
-    An empty `feed_gaps` therefore means "no loss was *detected*", which is a
-    weaker claim than "nothing was lost". Closing the remaining streams needs
-    a publisher-side sequence number in the engine.
+The two overlap on trades deliberately: the trade-id check still catches loss
+that happened upstream of the publisher, which a publisher-side counter cannot
+see by construction.
+
+!!! note "What an empty `feed_gaps` does and does not prove"
+    A sequence counter restarts at 1 when its publisher restarts, so the
+    recorder treats a *decrease* as a restart rather than a gap — messages
+    genuinely lost across a publisher restart are not detectable.
+
+    A topic published by a process that does not stamp sequences is reported
+    once at `WARNING` ("carries no sequence frame; loss on it cannot be
+    detected") and then ignored, so a silent stream cannot masquerade as a
+    clean one.
 
 ### `order_events`
 

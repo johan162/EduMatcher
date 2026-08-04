@@ -7,6 +7,7 @@ error, so a regression would otherwise be invisible.
 from __future__ import annotations
 
 import sqlite3
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -734,6 +735,95 @@ def test_one_second_snapshot_interval_is_accepted(tmp_path: Path) -> None:
     )
     assert proc._snapshot_interval_sec == 1.0
     proc.close()
+
+
+# ---------------------------------------------------------------------------
+# GAP-6 — publisher sequence covers every stream, not just trades
+# ---------------------------------------------------------------------------
+
+
+def test_a_filtering_subscriber_sees_a_contiguous_sequence() -> None:
+    """The counter must be per topic, not per socket.
+
+    A SUB socket filters by topic prefix. Against a socket-wide counter a
+    subscriber taking only ``trade.executed`` would see it jump on every
+    message it filtered out and report continuous phantom gaps — a detector
+    that cries wolf is worse than none.
+    """
+    import zmq
+
+    from edumatcher.messaging.bus import SequencedPublisher
+    from edumatcher.models.message import decode_sequence
+
+    ctx: zmq.Context = zmq.Context.instance()
+    raw = ctx.socket(zmq.PUB)
+    raw.bind("inproc://gap6test")
+    pub = SequencedPublisher(raw)
+    sub = ctx.socket(zmq.SUB)
+    sub.connect("inproc://gap6test")
+    sub.setsockopt(zmq.SUBSCRIBE, b"trade.executed")
+    time.sleep(0.2)
+
+    try:
+        for _ in range(5):
+            pub.send_multipart([b"trade.executed", b"{}"])
+            pub.send_multipart([b"depth.AAPL", b"{}"])  # not subscribed
+        time.sleep(0.2)
+
+        seen = []
+        while True:
+            try:
+                seen.append(decode_sequence(sub.recv_multipart(zmq.NOBLOCK)))
+            except zmq.Again:
+                break
+        assert seen == [1, 2, 3, 4, 5]
+    finally:
+        sub.close()
+        raw.close()
+
+
+def test_sequence_frame_does_not_disturb_existing_subscribers() -> None:
+    """decode() reads two frames, so every current consumer is unaffected."""
+    from edumatcher.models.message import decode, decode_sequence, encode
+
+    frames = encode("trade.executed", {"symbol": "AAPL"})
+    assert decode(frames) == ("trade.executed", {"symbol": "AAPL"})
+    assert decode_sequence(frames) is None  # unsequenced publisher
+
+    stamped = [*frames, b"7"]
+    assert decode(stamped) == ("trade.executed", {"symbol": "AAPL"})
+    assert decode_sequence(stamped) == 7
+
+
+def test_gap_on_a_non_trade_stream_is_recorded(sp: StatsProcess) -> None:
+    """The whole point of GAP-6: loss on book/order streams was invisible."""
+    for seq in (1, 2, 8):
+        sp._check_topic_sequence("book.AAPL", seq)
+
+    rows = sp._conn.execute(
+        "SELECT stream, expected_id, received_id, missing_count FROM feed_gaps"
+    ).fetchall()
+    assert rows == [("book.AAPL", 3, 8, 5)]
+
+
+def test_publisher_restart_is_not_reported_as_a_gap(sp: StatsProcess) -> None:
+    """Sequences begin again at 1, so a decrease is a restart."""
+    for seq in (1, 2, 3, 1, 2):
+        sp._check_topic_sequence("index.update", seq)
+    assert sp._conn.execute("SELECT COUNT(*) FROM feed_gaps").fetchone()[0] == 0
+
+
+def test_unsequenced_topic_warns_once(
+    sp: StatsProcess, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A silent stream must not masquerade as a clean one."""
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        for _ in range(3):
+            sp._check_topic_sequence("session.state", None)
+    assert caplog.text.count("carries no sequence frame") == 1
+    assert sp._conn.execute("SELECT COUNT(*) FROM feed_gaps").fetchone()[0] == 0
 
 
 def test_writer_opens_in_wal_mode(sp: StatsProcess) -> None:
