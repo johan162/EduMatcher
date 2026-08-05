@@ -1043,10 +1043,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#layer-2-schema-s001s103" class="md-nav__link">
+  <a href="#layer-2-schema-s001s112" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Layer 2 — Schema (S001–S103)
+        Layer 2 — Schema (S001–S112)
       
     </span>
   </a>
@@ -1185,14 +1185,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway-reference/" class="md-nav__link">
+      <a href="../051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1977,6 +2005,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3737,7 +3821,7 @@ reporting scripts.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="layer-2-schema-s001s103">Layer 2 — Schema (<code>S001</code>–<code>S103</code>)<a class="headerlink" href="#layer-2-schema-s001s103" title="Permanent link">&para;</a></h3>
+<h3 id="layer-2-schema-s001s112">Layer 2 — Schema (<code>S001</code>–<code>S112</code>)<a class="headerlink" href="#layer-2-schema-s001s112" title="Permanent link">&para;</a></h3>
 <p><strong>Top-level structure</strong></p>
 <table>
 <thead>
@@ -3862,10 +3946,6 @@ these codes cover the per-symbol equivalents.</p>
 <td><code>S068</code></td>
 <td><code>symbols.&lt;SYMBOL&gt;.circuit_breaker.levels.&lt;LEVEL&gt;.halt_duration_ns</code> not a positive integer</td>
 </tr>
-<tr>
-<td><code>S069</code></td>
-<td><code>symbols.&lt;SYMBOL&gt;.circuit_breaker.levels.&lt;LEVEL&gt;.resumption_mode</code> not <code>AUCTION</code> or <code>CONTINUOUS</code></td>
-</tr>
 </tbody>
 </table>
 <p><strong>Gateway fields</strong></p>
@@ -3951,10 +4031,6 @@ these codes cover the per-symbol equivalents.</p>
 <tr>
 <td><code>S033</code></td>
 <td><code>halt_duration_ns</code> not a positive integer</td>
-</tr>
-<tr>
-<td><code>S034</code></td>
-<td><code>resumption_mode</code> not <code>AUCTION</code> or <code>CONTINUOUS</code></td>
 </tr>
 <tr>
 <td><code>S035</code></td>
@@ -4086,6 +4162,60 @@ these codes cover the per-symbol equivalents.</p>
 </tr>
 </tbody>
 </table>
+<p><strong>Reopening / Automated Corridor Expansion (<code>circuit_breaker.reopening</code>)</strong></p>
+<p>Applied to both <code>circuit_breaker_defaults.reopening</code> and each
+<code>symbols.&lt;SYM&gt;.circuit_breaker.reopening</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S104</code></td>
+<td><code>reopening</code> is present but not a mapping</td>
+</tr>
+<tr>
+<td><code>S105</code></td>
+<td><code>reopening.enabled</code> is not a boolean</td>
+</tr>
+<tr>
+<td><code>S106</code></td>
+<td><code>reopening.initial_band_pct</code> is outside <code>(0, 1)</code></td>
+</tr>
+<tr>
+<td><code>S107</code></td>
+<td><code>reopening.expansions</code> is not a non-empty list, or an entry is not a mapping</td>
+</tr>
+<tr>
+<td><code>S108</code></td>
+<td><code>reopening.expansions[].widen_pct</code> is missing or outside <code>(0, 1)</code></td>
+</tr>
+<tr>
+<td><code>S109</code></td>
+<td><code>reopening.expansions[].min_duration_ns</code> is missing or not <code>&gt; 0</code></td>
+</tr>
+<tr>
+<td><code>S110</code></td>
+<td><code>reopening.random_seed</code> is set on a symbol — it is engine-wide and belongs in <code>circuit_breaker_defaults</code></td>
+</tr>
+<tr>
+<td><code>S111</code></td>
+<td><code>reopening.random_end_max_ns</code> is not an integer <code>&gt;= 0</code></td>
+</tr>
+<tr>
+<td><code>S112</code></td>
+<td><code>reopening.expansions</code> is set on a symbol — the ladder is exchange-wide and belongs in <code>circuit_breaker_defaults</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>S110</code> and <code>S112</code> are errors rather than warnings because both keys would
+otherwise be accepted, stored and then ignored. The random-end generator is one
+engine-wide instance, and the expansion ladder is read from the exchange
+defaults, so in each case the symbol would appear configured while behaving
+exactly as if it were not.</p>
 <p><strong>MM obligation defaults (<code>mm_obligation_defaults</code>)</strong></p>
 <table>
 <thead>

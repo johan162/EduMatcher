@@ -958,14 +958,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/050-gateway-reference/" class="md-nav__link">
+      <a href="../../user-guide/051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1750,6 +1778,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3579,8 +3663,8 @@ binary frames into the same engine semantics used by ALF command workflows.</p>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
 </code></pre></div>
 <p>Start processes with that config:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine<span class="w"> </span>--verbose<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-balf-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-balf-gwy
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: <code>pm-balf-gwy</code> starts, logs that it is listening on port 5560, and reports a successful engine ZMQ connection.</p>
 <h2 id="exercise-2-verify-the-port-is-listening-with-cli-tools">Exercise 2: Verify the Port Is Listening with CLI Tools<a class="headerlink" href="#exercise-2-verify-the-port-is-listening-with-cli-tools" title="Permanent link">&para;</a></h2>

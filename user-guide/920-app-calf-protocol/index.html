@@ -961,14 +961,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway-reference/" class="md-nav__link">
+      <a href="../051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1773,6 +1801,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -2235,6 +2319,45 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#resume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RESUME
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#symbols" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SYMBOLS
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SYMBOLS">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ref-per-symbol-display-precision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        REF — per-symbol display precision
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#unsub" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2264,6 +2387,34 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="MD">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#withdrawal-of-a-book-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Withdrawal of a book side
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#last-after-a-trade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LAST after a trade
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -2323,6 +2474,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#indic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        INDIC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#cb" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2330,6 +2492,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="CB">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ace-corridor-expansions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ACE corridor expansions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -2428,10 +2607,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#reconnect-behavior-resume1" class="md-nav__link">
+  <a href="#reconnect-behavior-resume" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reconnect behavior (RESUME=1)
+        Reconnect behavior (RESUME)
       
     </span>
   </a>
@@ -3939,16 +4118,16 @@ behavior.</p>
 <li>aggregated multi-level order book updates (<code>DEPTH</code>) — Level 2, not
   order-by-order</li>
 <li>auction uncross results (<code>AUCTION</code>) — equilibrium price, matched quantity,
-  and imbalance for open/close auctions and circuit-breaker resumption
+  and imbalance for open/close auctions and circuit-breaker reopening
   auctions</li>
 <li>full circuit-breaker halt/resume detail (<code>CB</code>) — trigger price, reference
-  price, ladder level, auto-resume time, and resumption mode, alongside the
+  price, ladder level, auto-resume time, and halt cause, alongside the
   coarse <code>STATE</code> transition</li>
 <li>point-in-time stream baselines (<code>SNAP</code>) for <code>TOP</code>, <code>STATE</code>, <code>INDEX</code>,
   <code>DEPTH</code>, and <code>CB</code></li>
 <li>per-stream sequence numbers on <code>(CH, SYM)</code></li>
 <li><code>SYM=*</code> wildcard subscriptions for <code>STATE</code>, <code>TOP</code>, <code>TRADE</code>, and <code>AUCTION</code></li>
-<li>bounded replay on reconnect (<code>RESUME=1</code> + <code>LASTSEQ</code>)</li>
+<li>bounded replay on reconnect (<code>RESUME</code> + <code>LASTSEQ</code>)</li>
 <li>heartbeat and liveness signaling</li>
 <li>gateway capability advertisement via <code>WELCOME|CH_SUPPORTED=</code></li>
 </ul>
@@ -3997,7 +4176,7 @@ behavior.</p>
 <ul>
 <li>Client must send <code>HELLO</code> within 5 seconds of TCP connect.</li>
 <li>Gateway replies with <code>WELCOME</code> on success.</li>
-<li>Client may then send <code>SUB</code>, <code>UNSUB</code>, <code>PING</code>, and <code>EXIT</code>.</li>
+<li>Client may then send <code>SUB</code>, <code>RESUME</code>, <code>UNSUB</code>, <code>SYMBOLS</code>, <code>PING</code>, and <code>EXIT</code>.</li>
 <li>Gateway streams <code>SNAP</code>, <code>MD</code>, <code>TRADE</code>, <code>STATE</code>, <code>IDX</code>, <code>DEPTH</code>, <code>AUCTION</code>,
   <code>CB</code>, <code>HB</code>, and <code>ERR</code>.</li>
 </ul>
@@ -4076,7 +4255,7 @@ contain half a line, one full line, or many lines.</p>
 <tr>
 <td>Boolean flag</td>
 <td><code>0</code> or <code>1</code></td>
-<td><code>RESUME=1</code></td>
+<td><code>EXC=1</code></td>
 </tr>
 <tr>
 <td>Timestamp</td>
@@ -4085,7 +4264,10 @@ contain half a line, one full line, or many lines.</p>
 </tr>
 </tbody>
 </table>
-<p>Optional fields are omitted when not present. Empty required values are invalid.</p>
+<p>Optional fields are omitted when not present. Empty required values are invalid.
+One optional field pair carries meaning when empty rather than being malformed:
+<code>MD</code>'s <code>BID</code>/<code>ASK</code>, where an empty value marks that book side as withdrawn —
+see <strong>Withdrawal of a book side</strong> under <code>MD</code>.</p>
 <h2 id="channel-model">Channel model<a class="headerlink" href="#channel-model" title="Permanent link">&para;</a></h2>
 <p>CALF groups market data into logical channels.</p>
 <table>
@@ -4205,7 +4387,7 @@ burst per symbol on subscribe.</p>
 <tr>
 <td><code>HELLO</code></td>
 <td>Client -&gt; Gateway</td>
-<td>Start session; optional single-stream resume</td>
+<td>Start session</td>
 </tr>
 <tr>
 <td><code>WELCOME</code></td>
@@ -4218,9 +4400,19 @@ burst per symbol on subscribe.</p>
 <td>Add subscriptions</td>
 </tr>
 <tr>
+<td><code>RESUME</code></td>
+<td>Client -&gt; Gateway</td>
+<td>Replay one stream from a known sequence</td>
+</tr>
+<tr>
 <td><code>UNSUB</code></td>
 <td>Client -&gt; Gateway</td>
 <td>Remove subscriptions</td>
+</tr>
+<tr>
+<td><code>SYMBOLS</code></td>
+<td>Both directions</td>
+<td>Request, and reply with, the instrument universe</td>
 </tr>
 <tr>
 <td><code>PING</code></td>
@@ -4270,6 +4462,11 @@ burst per symbol on subscribe.</p>
 <td>Incremental top-of-book update</td>
 </tr>
 <tr>
+<td><code>INDIC</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Indicative auction uncross, during a call phase</td>
+</tr>
+<tr>
 <td><code>TRADE</code></td>
 <td>Gateway -&gt; Client</td>
 <td>Trade print</td>
@@ -4304,16 +4501,9 @@ burst per symbol on subscribe.</p>
 <h2 id="message-definitions">Message definitions<a class="headerlink" href="#message-definitions" title="Permanent link">&para;</a></h2>
 <h3 id="hello"><code>HELLO</code><a class="headerlink" href="#hello" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Client -&gt; Gateway</p>
-<p><strong>Purpose:</strong> Session handshake. Optional replay request for one stream.</p>
+<p><strong>Purpose:</strong> Session handshake.</p>
 <p><strong>Response:</strong> <code>WELCOME</code> on successful handshake, or <code>ERR|CODE=PROTO_MISMATCH</code>
-(connection closed) if <code>CLIENT</code>/<code>PROTO</code> fail validation. When <code>RESUME=1</code> is
-present and the handshake itself succeeds, the gateway always sends
-<code>WELCOME</code> first and then evaluates the resume request separately — an
-invalid resume (bad <code>CH</code>/<code>SYM</code>/<code>LASTSEQ</code> shape, or a replay miss) produces
-<code>WELCOME</code> followed by an <code>ERR</code> (<code>BAD_MESSAGE</code> or <code>REPLAY_MISS</code>), not <code>ERR</code>
-alone. A <code>BAD_MESSAGE</code> resume error closes the connection after the queued
-messages are flushed; a <code>REPLAY_MISS</code> does not — it is followed by a <code>SNAP</code>
-and the session continues.</p>
+(connection closed) if <code>CLIENT</code>/<code>PROTO</code> fail validation.</p>
 <table>
 <thead>
 <tr>
@@ -4333,38 +4523,25 @@ and the session continues.</p>
 <td>Yes</td>
 <td>Must be <code>CALF1</code></td>
 </tr>
-<tr>
-<td><code>RESUME</code></td>
-<td>No</td>
-<td><code>1</code> enables replay request</td>
-</tr>
-<tr>
-<td><code>CH</code></td>
-<td>If <code>RESUME=1</code></td>
-<td>One channel to resume</td>
-</tr>
-<tr>
-<td><code>SYM</code></td>
-<td>If <code>RESUME=1</code></td>
-<td>One symbol for resumed stream</td>
-</tr>
-<tr>
-<td><code>LASTSEQ</code></td>
-<td>If <code>RESUME=1</code></td>
-<td>Last received sequence for that stream</td>
-</tr>
 </tbody>
 </table>
 <p>Validation rules:</p>
 <ul>
 <li>Messages other than <code>HELLO</code> sent before successful handshake receive
   <code>ERR|CODE=AUTH_REQUIRED</code>.</li>
-<li><code>RESUME=1</code> with missing <code>CH</code>, <code>SYM</code>, or <code>LASTSEQ</code> is invalid.</li>
-<li><code>RESUME=1</code> with multi-value <code>CH</code> or <code>SYM</code> is invalid.</li>
+<li><code>HELLO</code> is only accepted while a session is unauthenticated. A second
+  <code>HELLO</code> on an established session receives <code>ERR|CODE=BAD_MESSAGE</code>.</li>
 </ul>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>HELLO|CLIENT=bot01|PROTO=CALF1
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
 </code></pre></div>
+<blockquote>
+<p><strong>Changed:</strong> replay is no longer requested through a <code>RESUME=1</code> flag on
+<code>HELLO</code>. Because <code>HELLO</code> is only ever processed once per connection, that
+form could resume a single stream and no more — leaving any client that
+follows several streams, which is most of them, unable to recover the rest
+after a reconnect. Replay now has its own repeatable
+<a href="#resume"><code>RESUME</code></a> command, sent after the handshake.</p>
+</blockquote>
 <h3 id="welcome"><code>WELCOME</code><a class="headerlink" href="#welcome" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>
 <table>
@@ -4402,13 +4579,18 @@ and the session continues.</p>
 <td>Comma-separated snapshot of instrument symbols known to the gateway at connect time. Omitted when the gateway has no known symbols yet. The known-symbol set can grow after <code>WELCOME</code> is sent, as new <code>book.{SYMBOL}</code>/trade events arrive from the engine — this field is a point-in-time snapshot, not a fixed universe, and a symbol absent here may still become subscribable later without a new <code>WELCOME</code>.</td>
 </tr>
 <tr>
+<td><code>REF</code></td>
+<td>No</td>
+<td>Per-symbol reference data as <code>SYM:DEC</code> tuples, where <code>DEC</code> is the instrument's display precision (<code>tick_decimals</code>). Covers exactly the symbols listed in <code>SYMBOLS=</code>, and is omitted whenever that field is. Absent entirely from gateways predating CALF <code>1.1.0</code> — a client detects support by its presence, not by <code>PROTO</code>, and falls back to <code>2</code> decimals when it is missing.</td>
+</tr>
+<tr>
 <td><code>CH_SUPPORTED</code></td>
 <td>No</td>
 <td>Comma-separated list of channels this gateway build supports. Present on every CALF <code>1.0.0</code>+ gateway; omitted entirely by earlier gateways. A client uses its presence — not the <code>PROTO</code> value, which does not change — to detect whether <code>DEPTH</code>/<code>INDEX</code> and the <code>SYM=*</code> wildcard extension are available.</td>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE|REF=AAPL:2,MSFT:4
 </code></pre></div>
 <p>A client that receives no <code>CH_SUPPORTED</code> field must assume only <code>TOP</code>,
 <code>TRADE</code>, and <code>STATE</code> are available and must not rely on <code>SYM=*</code> for <code>TOP</code>/
@@ -4455,6 +4637,135 @@ possible <code>ERR|CODE=INVALID_CHANNEL</code>/<code>INVALID_SYMBOL</code> respo
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>SUB|CH=AUCTION|SYM=*
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>SUB|CH=CB|SYM=AAPL
 </code></pre></div>
+<h3 id="resume"><code>RESUME</code><a class="headerlink" href="#resume" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Client -&gt; Gateway</p>
+<p><strong>Purpose:</strong> Subscribe to one stream and replay what was missed since
+<code>LASTSEQ</code>, instead of starting from a <code>SNAP</code>.</p>
+<p><strong>Response:</strong> replayed events in sequence order, or <code>ERR|CODE=REPLAY_MISS</code>
+when the gap is wider than the replay window. On the snapshot-backed channels
+(<code>TOP</code>, <code>STATE</code>, <code>INDEX</code>, <code>DEPTH</code>, <code>CB</code>) a fresh <code>SNAP</code> follows that error; on
+<code>TRADE</code> and <code>AUCTION</code> it does not, because a past print has no current state to
+snapshot. See "Reconnect behavior" below.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Yes</td>
+<td>Exactly one channel</td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Exactly one concrete symbol; <code>SYM=*</code> is invalid</td>
+</tr>
+<tr>
+<td><code>LASTSEQ</code></td>
+<td>Yes</td>
+<td>Last sequence the client received on that stream</td>
+</tr>
+</tbody>
+</table>
+<p>Send one <code>RESUME</code> per stream being recovered. Unlike <code>SUB</code>, this message
+takes no comma-separated lists: <code>LASTSEQ</code> describes a single stream's
+position, so a multi-stream <code>RESUME</code> would have no coherent meaning.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>RESUME|CH=DEPTH|SYM=MSFT|LASTSEQ=310
+</code></pre></div>
+<p>Validation rules:</p>
+<ul>
+<li><code>CH</code> or <code>SYM</code> carrying more than one value is <code>ERR|CODE=BAD_MESSAGE</code>.</li>
+<li>A missing or non-positive <code>LASTSEQ</code> is <code>ERR|CODE=BAD_MESSAGE</code>.</li>
+<li>An unknown channel is <code>ERR|CODE=INVALID_CHANNEL</code>.</li>
+<li><code>SYM=*</code> is <code>ERR|CODE=INVALID_SYMBOL</code> on every channel — see
+  "Reconnect behavior".</li>
+</ul>
+<p>All of these leave the session open. A client recovering several streams
+sends several <code>RESUME</code> messages, and one bad request must not cost it the
+others; only handshake-level failures close a connection.</p>
+<h3 id="symbols"><code>SYMBOLS</code><a class="headerlink" href="#symbols" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Client -&gt; Gateway (request), Gateway -&gt; Client (reply)</p>
+<p><strong>Purpose:</strong> Ask which instruments this gateway knows about.</p>
+<p>The request carries no fields:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>SYMBOLS
+</code></pre></div>
+<p>The reply:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>COUNT</code></td>
+<td>Yes</td>
+<td>How many symbols are known; <code>0</code> is a valid answer</td>
+</tr>
+<tr>
+<td><code>SYMBOLS</code></td>
+<td>No</td>
+<td>Comma-separated symbols, sorted; omitted when <code>COUNT=0</code></td>
+</tr>
+<tr>
+<td><code>REF</code></td>
+<td>No</td>
+<td>Per-symbol <code>SYM:DEC</code> display precision; same set as <code>SYMBOLS</code>, omitted alongside it</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>SYMBOLS|COUNT=3|SYMBOLS=AAPL,MSFT,TSLA|REF=AAPL:2,MSFT:2,TSLA:4
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>SYMBOLS|COUNT=0
+</code></pre></div>
+<p>Read <code>COUNT</code>, not the presence of <code>SYMBOLS</code>. An empty universe omits the field
+rather than sending it empty, so the two must not be conflated with a
+malformed reply.</p>
+<p><strong>Why this exists, given <code>WELCOME|SYMBOLS=</code>.</strong> That field is optional, sent
+once, and omitted entirely when the gateway was started without a readable
+engine config — a misconfiguration that otherwise looks, from the client side,
+exactly like an exchange with no instruments. The gateway's set also <em>grows</em>
+as symbols first appear on the engine bus, so a client that connected before a
+given instrument traded could not learn of it without reconnecting. <code>SYMBOLS</code>
+makes the universe both askable and refreshable.</p>
+<p>Repeatable at any time. A client that needs the universe up front should send
+it immediately after <code>WELCOME</code> rather than depending on the handshake field.</p>
+<h4 id="ref-per-symbol-display-precision"><code>REF</code> — per-symbol display precision<a class="headerlink" href="#ref-per-symbol-display-precision" title="Permanent link">&para;</a></h4>
+<p><code>REF</code> answers "how many decimal places does this instrument quote in?", which
+a client otherwise has no way to discover. The only other source is
+<code>GET /api/symbols</code> on the API gateway, which requires a <em>trading</em> credential —
+something a market data consumer has no business holding — so before this field
+existed every CALF client had to assume the default of <code>2</code> and was quietly
+wrong about any instrument configured otherwise.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>REF=AAPL:2,MSFT:2,TSLA:4
+</code></pre></div>
+<p>Three properties are deliberate:</p>
+<ul>
+<li><strong>It is reference data, not market data.</strong> <code>tick_decimals</code> never changes for
+  a symbol, so it rides the handshake and this reply rather than <code>TOP</code> or
+  <code>TRADE</code>. Repeating a constant on every tick would be exactly what <code>MD</code>'s
+  delta encoding exists to avoid.</li>
+<li><strong>Its presence is the capability signal.</strong> Like <code>CH_SUPPORTED</code>, and for the
+  same reason: <code>PROTO</code> stays <code>CALF1</code>. A client seeing no <code>REF</code> falls back to
+  <code>2</code> <em>knowingly</em> rather than by accident.</li>
+<li><strong>The tuple has room to grow.</strong> <code>SYM:DEC</code> reuses the colon-delimited grammar
+  <code>DEPTH</code> already uses for <code>price:qty:count</code>, and extends to
+  <code>SYM:DEC:MULT:CCY</code> as further reference fields are defined — without another
+  protocol change. Clients must ignore trailing components they do not
+  recognise rather than treating the entry as malformed.</li>
+</ul>
+<p>Every symbol in <code>SYMBOLS</code> appears in <code>REF</code>, so a client never has to reason
+about one being listed in one field and missing from the other. A symbol first
+seen on the engine bus, which has no configured precision, is reported at the
+default rather than omitted.</p>
 <h3 id="unsub"><code>UNSUB</code><a class="headerlink" href="#unsub" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Client -&gt; Gateway</p>
 <table>
@@ -4479,7 +4790,7 @@ possible <code>ERR|CODE=INVALID_CHANNEL</code>/<code>INVALID_SYMBOL</code> respo
 </tbody>
 </table>
 <p><code>UNSUB</code> is idempotent. Removing a non-existent <code>(CH,SYM)</code> pair has no effect.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>UNSUB|CH=TOP|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>UNSUB|CH=TOP|SYM=AAPL
 </code></pre></div>
 <h3 id="snap"><code>SNAP</code><a class="headerlink" href="#snap" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>
@@ -4593,15 +4904,15 @@ below. Reflects the <strong>last known</strong> circuit-breaker status for the s
 <li>Neither <code>CH=TRADE</code> nor <code>CH=AUCTION</code> has a <code>SNAP</code> variant in CALF <code>1.0.0</code> —
   both are pure event streams with no persistent "current value."</li>
 <li>Delivery for both starts from events that occur after the subscription is
-  active (plus any replay via <code>RESUME=1</code>, see "Sequence and recovery
+  active (plus any replay via <code>RESUME</code>, see "Sequence and recovery
   semantics").</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>SNAP|CH=TOP|SYM=AAPL|SEQ=100|TS=2026-06-07T10:16:00.000Z|BID=150.10|BIDSZ=1200|ASK=150.12|ASKSZ=900|LAST=150.11|LASTSZ=300
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>SNAP|CH=STATE|SYM=*|SEQ=5|TS=2026-06-07T10:16:00.000Z|SESSION=CONTINUOUS
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>SNAP|CH=INDEX|SYM=EDU100|SEQ=42|TS=2026-06-12T10:15:23.000Z|LEVEL=1048.73|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|SESSION=CONTINUOUS
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>SNAP|CH=DEPTH|SYM=AAPL|SEQ=1|TS=2026-07-11T14:32:00.000Z|LEVELS=10|BIDS=150.10:1200:3,150.09:800:2|ASKS=150.12:900:2,150.13:600:1
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>SNAP|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T14:05:00.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|MODE=AUCTION
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>SNAP|CH=CB|SYM=MSFT|SEQ=1|TS=2026-07-20T14:05:00.000Z|STATUS=ACTIVE
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>SNAP|CH=TOP|SYM=AAPL|SEQ=100|TS=2026-06-07T10:16:00.000Z|BID=150.10|BIDSZ=1200|ASK=150.12|ASKSZ=900|LAST=150.11|LASTSZ=300
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>SNAP|CH=STATE|SYM=*|SEQ=5|TS=2026-06-07T10:16:00.000Z|SESSION=CONTINUOUS
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>SNAP|CH=INDEX|SYM=EDU100|SEQ=42|TS=2026-06-12T10:15:23.000Z|LEVEL=1048.73|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|SESSION=CONTINUOUS
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>SNAP|CH=DEPTH|SYM=AAPL|SEQ=1|TS=2026-07-11T14:32:00.000Z|LEVELS=10|BIDS=150.10:1200:3,150.09:800:2|ASKS=150.12:900:2,150.13:600:1
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>SNAP|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T14:05:00.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|SRC=CB
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>SNAP|CH=CB|SYM=MSFT|SEQ=1|TS=2026-07-20T14:05:00.000Z|STATUS=ACTIVE
 </code></pre></div>
 <h3 id="md"><code>MD</code><a class="headerlink" href="#md" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>
@@ -4638,7 +4949,7 @@ below. Reflects the <strong>last known</strong> circuit-breaker status for the s
 <tr>
 <td><code>BID</code></td>
 <td>No</td>
-<td>Updated bid</td>
+<td>Updated bid; <strong>empty value means the bid side is now empty</strong></td>
 </tr>
 <tr>
 <td><code>BIDSZ</code></td>
@@ -4648,7 +4959,7 @@ below. Reflects the <strong>last known</strong> circuit-breaker status for the s
 <tr>
 <td><code>ASK</code></td>
 <td>No</td>
-<td>Updated ask</td>
+<td>Updated ask; <strong>empty value means the ask side is now empty</strong></td>
 </tr>
 <tr>
 <td><code>ASKSZ</code></td>
@@ -4667,8 +4978,79 @@ below. Reflects the <strong>last known</strong> circuit-breaker status for the s
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>MD|CH=TOP|SYM=AAPL|SEQ=1051|TS=2026-06-07T10:16:00.115Z|BID=150.11|BIDSZ=1400|ASK=150.13|ASKSZ=800
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>MD|CH=TOP|SYM=AAPL|SEQ=1051|TS=2026-06-07T10:16:00.115Z|BID=150.11|BIDSZ=1400|ASK=150.13|ASKSZ=800
 </code></pre></div>
+<h4 id="withdrawal-of-a-book-side">Withdrawal of a book side<a class="headerlink" href="#withdrawal-of-a-book-side" title="Permanent link">&para;</a></h4>
+<p><code>BID</code> and <code>ASK</code> have three distinct states on an <code>MD</code>, and a client must treat
+them differently:</p>
+<table>
+<thead>
+<tr>
+<th>On the wire</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BID=150.11</code></td>
+<td>New value for this side</td>
+</tr>
+<tr>
+<td><code>BID=</code></td>
+<td>This side is now <strong>empty</strong> — discard the price</td>
+</tr>
+<tr>
+<td><em>(absent)</em></td>
+<td>Unchanged since the previous message</td>
+</tr>
+</tbody>
+</table>
+<p>An empty value is the <em>only</em> way the gateway can say "there is no bid". This
+is the one documented exception to <strong>Wire value types</strong> above: <code>BID</code>/<code>ASK</code> are
+optional fields, and for these two an empty value is meaningful rather than
+malformed.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>MD|CH=TOP|SYM=AAPL|SEQ=1052|TS=2026-06-07T10:16:00.210Z|BID=|BIDSZ=0
+</code></pre></div>
+<p>A client that treats a withdrawal as "unchanged" will display the last known
+price indefinitely, and will disagree with any client that reconnects and
+receives a fresh <code>SNAP</code> — which omits the side correctly. Merging code must
+therefore <em>remove</em> the field on an empty value, not overwrite it.</p>
+<p><code>LAST</code>/<code>LASTSZ</code> are never withdrawn: once a symbol has traded, its last price
+persists for the session, so an empty value is not valid for those fields.</p>
+<h4 id="last-after-a-trade"><code>LAST</code> after a trade<a class="headerlink" href="#last-after-a-trade" title="Permanent link">&para;</a></h4>
+<p>A trade updates <code>LAST</code>/<code>LASTSZ</code> on the <code>TOP</code> channel as well as producing a
+<code>TRADE</code> message. The two arrive at different times and neither replaces the
+other:</p>
+<table>
+<thead>
+<tr>
+<th>Channel</th>
+<th>Carries</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TRADE</code></td>
+<td>Every individual print (<code>PX</code>, <code>QTY</code>, <code>SIDE</code>)</td>
+<td>Immediately, one message per trade</td>
+</tr>
+<tr>
+<td><code>TOP</code></td>
+<td>The latest price only (<code>LAST</code>, <code>LASTSZ</code>)</td>
+<td>With the next book republish, throttled by the engine's <code>snapshot_interval_sec</code></td>
+</tr>
+</tbody>
+</table>
+<p>A client that wants every print subscribes to <code>TRADE</code>; a client that only wants
+"what did this last trade at" can rely on <code>TOP</code> alone, including its <code>SNAP</code>
+baseline. Several trades inside one throttle window collapse to the latest
+price on <code>TOP</code> — that is the intended behaviour, not a dropped update.</p>
+<p>A <code>SNAP</code> reports a trade immediately, without waiting for the next book
+republish, so a client subscribing between the two is not handed a stale
+price. Gateway builds before this was fixed suppressed <code>LAST</code> from the
+following <code>MD</code> entirely, leaving a continuously-connected client on the price
+baked into its original <code>SNAP</code> while a reconnecting client saw the true value.</p>
 <h3 id="trade"><code>TRADE</code><a class="headerlink" href="#trade" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>
 <table>
@@ -4717,7 +5099,7 @@ below. Reflects the <strong>last known</strong> circuit-breaker status for the s
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SIDE=BUY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SIDE=BUY
 </code></pre></div>
 <h3 id="state"><code>STATE</code><a class="headerlink" href="#state" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>
@@ -4760,6 +5142,16 @@ below. Reflects the <strong>last known</strong> circuit-breaker status for the s
 <td>No</td>
 <td>Previous state when known</td>
 </tr>
+<tr>
+<td><code>NEXTPHASE</code></td>
+<td>No</td>
+<td>Phase the session moves to next; <code>SYM=*</code> only</td>
+</tr>
+<tr>
+<td><code>NEXTAT</code></td>
+<td>No</td>
+<td>When that transition is scheduled, UTC ISO-8601; <code>SYM=*</code> only</td>
+</tr>
 </tbody>
 </table>
 <p>Valid <code>SESSION</code> values:</p>
@@ -4771,9 +5163,44 @@ below. Reflects the <strong>last known</strong> circuit-breaker status for the s
 <li><code>CLOSED</code></li>
 <li><code>HALTED</code> (symbol-level)</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>STATE|CH=STATE|SYM=AAPL|SEQ=3|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION|NEXTPHASE=CLOSING_AUCTION|NEXTAT=2026-06-07T16:25:00.000Z
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>STATE|CH=STATE|SYM=AAPL|SEQ=8|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>STATE|CH=STATE|SYM=AAPL|SEQ=9|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
 </code></pre></div>
+<p><strong><code>NEXTPHASE</code>/<code>NEXTAT</code>: the next scheduled transition.</strong></p>
+<p>Both appear on the <code>SYM=*</code> stream only, and only when the transition that
+produced this state was driven by the session scheduler — the one component
+that knows the day's timetable. They are what lets a client show a countdown
+to the open, the closing auction, or the close, which is otherwise the
+most-glanced number on a trading screen and the one CALF could not answer.</p>
+<p>They are sent together or not at all. A phase with no time cannot be counted
+down to, and a time with no phase does not say what happens when it arrives.</p>
+<p><strong>Their absence is information.</strong> A manual or admin-driven transition carries
+no timetable, and the engine <em>clears</em> whatever the scheduler last advertised
+rather than leaving it in place: it has just moved somewhere the schedule did
+not predict, so the old target has stopped being a fact about anything. A
+client must render that as silence, not as a countdown to zero — and must not
+substitute a schedule it read from configuration, which describes what
+<em>should</em> happen rather than what the engine is actually going to do.</p>
+<p><code>NEXTAT</code> may pass without the transition arriving, if the scheduler is late or
+has stopped. A client should say so rather than run a negative clock or freeze
+at zero, since a late scheduler, a wedged one, and an absent one otherwise
+look identical.</p>
+<p><strong>An exchange transition is published twice: once as <code>SYM=*</code>, and once per
+symbol.</strong> A subscription matches on <code>SYM=*</code> <em>or</em> an exact symbol, so a client
+that subscribed to one instrument would otherwise see its halts and resumes
+but never the session around them — it would not learn the exchange had
+opened or closed. Wildcard subscribers receive both forms; that is
+deliberate, and the <code>SYM=*</code> line remains the authoritative exchange-level
+event.</p>
+<p>A symbol that is halted is <strong>not</strong> moved by an exchange transition. Its halt
+outlives the phase it began in, and the engine publishes an explicit resume
+when it ends.</p>
+<p>A resume returns the symbol to whatever the exchange is doing <em>at that
+moment</em>, which is not necessarily <code>CONTINUOUS</code>. Circuit-breaker halts expire
+on elapsed time with no session check, so an L2 halt — 15 minutes by default
+— triggered shortly before the close resumes into <code>CLOSING_AUCTION</code> or
+<code>CLOSED</code>.</p>
 <h3 id="idx"><code>IDX</code><a class="headerlink" href="#idx" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>
 <p><strong>Purpose:</strong> Index level update for one <code>INDEX</code> stream.</p>
@@ -4850,7 +5277,7 @@ below. Reflects the <strong>last known</strong> circuit-breaker status for the s
 </table>
 <p><code>IDX</code> has no baseline <code>SNAP</code> variant in CALF <code>1.0.0</code>. Delivery starts from
 events that occur after the subscription becomes active.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>IDX|CH=INDEX|SYM=EDU50|SEQ=12|TS=2026-06-07T10:16:00.000Z|LEVEL=5123.45|SESSION=CONTINUOUS|OPEN=5100.00|CHG=+23.45|PCTCHG=+0.46
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>IDX|CH=INDEX|SYM=EDU50|SEQ=12|TS=2026-06-07T10:16:00.000Z|LEVEL=5123.45|SESSION=CONTINUOUS|OPEN=5100.00|CHG=+23.45|PCTCHG=+0.46
 </code></pre></div>
 <h3 id="depth"><code>DEPTH</code><a class="headerlink" href="#depth" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>
@@ -4912,14 +5339,14 @@ levels actually changed since the previous <code>DEPTH</code>/<code>SNAP</code> 
 </tbody>
 </table>
 <p><strong>Level encoding grammar</strong> (applies to both <code>BIDS</code> and <code>ASKS</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>&lt;LEVELS_VALUE&gt; ::= &lt;LEVEL&gt; (&quot;,&quot; &lt;LEVEL&gt;)*
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>&lt;LEVEL&gt;        ::= &lt;PRICE&gt; &quot;:&quot; &lt;QTY&gt; &quot;:&quot; &lt;COUNT&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>&lt;LEVELS_VALUE&gt; ::= &lt;LEVEL&gt; (&quot;,&quot; &lt;LEVEL&gt;)*
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>&lt;LEVEL&gt;        ::= &lt;PRICE&gt; &quot;:&quot; &lt;QTY&gt; &quot;:&quot; &lt;COUNT&gt;
 </code></pre></div>
 <p><code>PRICE</code> is decimal text, <code>QTY</code> is the aggregated resting quantity at that
 price, <code>COUNT</code> is the number of individual resting orders aggregated into
 it. <code>:</code> and <code>,</code> are ordinary field-value characters in CALF — the only
 reserved wire character is <code>|</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>DEPTH|CH=DEPTH|SYM=AAPL|SEQ=2|TS=2026-07-11T14:32:00.512Z|LEVELS=10|BIDS=150.10:1400:4,150.09:800:2,150.08:400:1|ASKS=150.12:900:2,150.13:600:1,150.14:250:1
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>DEPTH|CH=DEPTH|SYM=AAPL|SEQ=2|TS=2026-07-11T14:32:00.512Z|LEVELS=10|BIDS=150.10:1400:4,150.09:800:2,150.08:400:1|ASKS=150.12:900:2,150.13:600:1,150.14:250:1
 </code></pre></div>
 <p><code>SYM=*</code> is invalid for <code>SUB|CH=DEPTH</code> — see "Subscription rules" above.</p>
 <pre class="mermaid"><code>sequenceDiagram
@@ -4938,8 +5365,9 @@ reserved wire character is <code>|</code>.</p>
 <h3 id="auction"><code>AUCTION</code><a class="headerlink" href="#auction" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>
 <p><strong>Purpose:</strong> Result of one auction uncross for a symbol — a scheduled
-opening/closing auction, or a circuit-breaker resumption auction. Published
-exactly once per uncross, even when there was no crossable interest at all.</p>
+opening/closing auction, a circuit-breaker reopening auction, or the pass
+over restored GTC orders at engine startup. Published exactly once per
+uncross, even when there was no crossable interest at all.</p>
 <table>
 <thead>
 <tr>
@@ -4994,14 +5422,113 @@ exactly once per uncross, even when there was no crossable interest at all.</p>
 <td>Yes</td>
 <td>Residual imbalance quantity at <code>EQPX</code> (<code>0</code> when balanced or no cross)</td>
 </tr>
+<tr>
+<td><code>REASON</code></td>
+<td>No</td>
+<td>Which uncross this was: <code>SCHEDULED</code> (leaving an auction or other non-matching phase), <code>REOPEN</code> (a halted symbol reopening) or <code>RECOVERY</code> (restored GTC orders at engine startup)</td>
+</tr>
 </tbody>
 </table>
+<p>Without <code>REASON</code> the three are indistinguishable — the fields are otherwise
+identical — so a client cannot tell a circuit-breaker reopening from the
+closing auction. Treat an unrecognised value as absent rather than as an
+error: it means a gateway newer than the client.</p>
 <p><code>AUCTION</code> has no baseline <code>SNAP</code> (see "Channel model" above) — a new
 subscriber only receives auction results from the next uncross onward,
-unless it also uses <code>RESUME=1</code> to replay recent history.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|TS=2026-07-20T13:30:00.012Z|EQPX=150.10|EQQTY=48200|TRADES=37|IMBSIDE=BUY|IMBQTY=1400
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>AUCTION|CH=AUCTION|SYM=TSLA|SEQ=4|TS=2026-07-20T20:00:00.004Z|EQQTY=0|TRADES=0|IMBQTY=0
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>AUCTION|CH=AUCTION|SYM=MSFT|SEQ=2|TS=2026-07-20T13:30:00.031Z|EQPX=421.00|EQQTY=15000|TRADES=12|IMBQTY=0
+unless it also uses <code>RESUME</code> to replay recent history.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|TS=2026-07-20T13:30:00.012Z|EQPX=150.10|EQQTY=48200|TRADES=37|IMBSIDE=BUY|IMBQTY=1400
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>AUCTION|CH=AUCTION|SYM=TSLA|SEQ=4|TS=2026-07-20T20:00:00.004Z|EQQTY=0|TRADES=0|IMBQTY=0
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>AUCTION|CH=AUCTION|SYM=MSFT|SEQ=2|TS=2026-07-20T13:30:00.031Z|EQPX=421.00|EQQTY=15000|TRADES=12|IMBQTY=0
+</code></pre></div>
+<h3 id="indic"><code>INDIC</code><a class="headerlink" href="#indic" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Gateway -&gt; Client</p>
+<p><strong>Purpose:</strong> Where a symbol <em>would</em> uncross if the call phase ended now.
+Published repeatedly, on an interval, for the whole of an <code>OPENING_AUCTION</code>
+or <code>CLOSING_AUCTION</code>.</p>
+<p>This is the same channel as <code>AUCTION</code> and a different statement. <code>AUCTION</code>
+reports what happened at an uncross; <code>INDIC</code> reports what would happen while
+there is still time to act on it. A client must not treat one as the other:
+an <code>INDIC</code> price is not a trade and nothing has printed at it.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Yes</td>
+<td><code>AUCTION</code></td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Symbol</td>
+</tr>
+<tr>
+<td><code>SEQ</code></td>
+<td>Yes</td>
+<td>Stream sequence for <code>(AUCTION, SYM)</code></td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td>Yes</td>
+<td>Event timestamp</td>
+</tr>
+<tr>
+<td><code>INDICPX</code></td>
+<td>No</td>
+<td>Indicative uncross price; <strong>omitted when the book would not cross at all</strong></td>
+</tr>
+<tr>
+<td><code>INDICQTY</code></td>
+<td>Yes</td>
+<td>Quantity that would match at <code>INDICPX</code> (<code>0</code> when there is no cross)</td>
+</tr>
+<tr>
+<td><code>IMB</code></td>
+<td>No</td>
+<td>Which side the surplus runs, <code>BUY</code> or <code>SELL</code>; omitted when balanced</td>
+</tr>
+<tr>
+<td><code>IMBQTY</code></td>
+<td>Yes</td>
+<td>Surplus quantity that would go unmatched (<code>0</code> when balanced)</td>
+</tr>
+<tr>
+<td><code>PHASE</code></td>
+<td>No</td>
+<td>The call phase running, so a client need not infer it from <code>STATE</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>INDICPX</code> absent is a reading, not a gap.</strong> It means the bids and offers
+collected so far do not overlap, so nothing would trade if the phase ended
+now. Rendering it as a price of zero is wrong in the way that matters: it
+asserts a clearing level the book does not have.</p>
+<p><strong>Why publish it at all.</strong> An imbalance nobody can see before the uncross is
+an imbalance nobody can offset. Disseminating it is what lets participants
+supply the offsetting interest that resolves it — the same reasoning the
+circuit-breaker path already applies to a reopening, and it holds with more
+force at the open and the close, where the largest volume of the day prints.
+The field names are shared with that path deliberately: a reopening auction
+and a scheduled one are the same mechanism, and a client that learned to read
+one should not have to learn the other.</p>
+<p><strong>Cadence.</strong> A fixed interval, configurable engine-side
+(<code>auction_indicative_interval_sec</code>, default 1s), not one message per book
+change: bounded cost regardless of how heavy order entry gets. Every symbol
+is republished every interval, including ones whose reading has not changed —
+otherwise a client cannot tell a stable indicative from a stalled feed.</p>
+<p><strong>Halted symbols are excluded.</strong> A halt is its own reopening auction with its
+own corridor, and the <code>CB</code> channel already carries an indicative for it. Two
+sources describing one symbol would eventually disagree.</p>
+<p>Like <code>AUCTION</code>, <code>INDIC</code> has no baseline <code>SNAP</code>. A client joining mid-auction
+waits at most one interval for the next reading.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>INDIC|CH=AUCTION|SYM=AAPL|SEQ=12|TS=2026-07-20T13:29:45.000Z|INDICPX=150.10|INDICQTY=48200|IMB=BUY|IMBQTY=1400|PHASE=OPENING_AUCTION
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>INDIC|CH=AUCTION|SYM=TSLA|SEQ=12|TS=2026-07-20T13:29:45.000Z|INDICQTY=0|IMBQTY=0|PHASE=OPENING_AUCTION
 </code></pre></div>
 <p>The second example is a no-cross auction (<code>EQPX</code>/<code>IMBSIDE</code> both omitted, all
 counts <code>0</code>); the third is a perfectly balanced cross (<code>IMBSIDE</code> omitted,
@@ -5010,7 +5537,7 @@ counts <code>0</code>); the third is a perfectly balanced cross (<code>IMBSIDE</
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>
 <p><strong>Purpose:</strong> Full circuit-breaker halt/resume detail for one symbol —
 trigger price, reference price, ladder level, scheduled auto-resume time,
-and resumption mode. <code>STATE</code> (above) still carries the coarse
+and what caused the halt. <code>STATE</code> (above) still carries the coarse
 <code>SESSION=HALTED</code>/<code>SESSION=CONTINUOUS</code> transition unchanged; <code>CB</code> is emitted
 <strong>alongside</strong> <code>STATE</code>, from the same underlying engine event, for clients
 that also want the detail.</p>
@@ -5069,35 +5596,110 @@ that also want the detail.</p>
 <td>Scheduled auto-resume time, UTC ISO-8601 with ms (same format as <code>TS</code>); present only for a timed halt currently in effect — absent for rest-of-day or manual/<code>ADMIN_*</code> halts</td>
 </tr>
 <tr>
-<td><code>MODE</code></td>
+<td><code>SRC</code></td>
 <td>No</td>
-<td><code>AUCTION</code>, <code>CONTINUOUS</code>, or <code>MANUAL</code>; present only when <code>STATUS=HALTED</code></td>
+<td>What halted the symbol: <code>CB</code> for an automatic breaker trigger, <code>ADMIN</code> for an operator halt</td>
+</tr>
+<tr>
+<td><code>CORRLO</code></td>
+<td>No</td>
+<td>Lower bound of the ACE reopening corridor; present only while <code>STATUS=HALTED</code> and ACE is enabled for the symbol</td>
+</tr>
+<tr>
+<td><code>CORRHI</code></td>
+<td>No</td>
+<td>Upper bound of the same corridor</td>
+</tr>
+<tr>
+<td><code>EXP</code></td>
+<td>No</td>
+<td>Number of ACE extensions consumed so far. <code>0</code> on the initial halt</td>
+</tr>
+<tr>
+<td><code>INDICPX</code></td>
+<td>No</td>
+<td>Indicative uncross price observed at the end of a call phase. Extension events only</td>
+</tr>
+<tr>
+<td><code>INDICQTY</code></td>
+<td>No</td>
+<td>Quantity that would have executed at <code>INDICPX</code>. Extension events only</td>
+</tr>
+<tr>
+<td><code>IMB</code></td>
+<td>No</td>
+<td><code>BUY</code> or <code>SELL</code> — which side the imbalance ran. Extension events only</td>
+</tr>
+<tr>
+<td><code>REASON</code></td>
+<td>No</td>
+<td><code>CLOSING_BACKSTOP</code> when the resume was forced by the end of the trading day. Resume events only</td>
+</tr>
+<tr>
+<td><code>CLAMPED</code></td>
+<td>No</td>
+<td><code>1</code> when the backstop printed <em>at</em> the corridor boundary rather than at the equilibrium. Resume events only</td>
+</tr>
+<tr>
+<td><code>PRINTPX</code></td>
+<td>No</td>
+<td>The price the backstop printed at. Resume events only</td>
 </tr>
 </tbody>
 </table>
-<p><code>LEVEL</code>/<code>TRIGGERPX</code>/<code>REFPX</code>/<code>RESUMEAT</code> describe the halt that just ended and
-are always omitted on a resume event (<code>STATUS=ACTIVE</code>) — only <code>MODE</code> carries
-over, since it is meaningful for both halt and resume (which resumption
-mechanism applies/applied).</p>
-<blockquote>
-<p><strong>Internal field-name note:</strong> the engine's own halt payload uses the field
-name <code>resumption_mode</code>, while its resume payload uses <code>mode</code> for the same
-concept — an inconsistency in the underlying <code>circuit_breaker.halt.*</code>/
-<code>circuit_breaker.resume.*</code> engine topics. CALF normalizes this: both the
-<code>CB</code> halt event and the <code>CB</code> resume event use the same wire key, <code>MODE</code>, so
-a CALF client never needs to know about the internal inconsistency.</p>
-</blockquote>
+<p><code>LEVEL</code>/<code>TRIGGERPX</code>/<code>REFPX</code>/<code>RESUMEAT</code>/<code>CORRLO</code>/<code>CORRHI</code>/<code>EXP</code> describe the
+halt that just ended and are always omitted on a resume event
+(<code>STATUS=ACTIVE</code>) — only <code>SRC</code> carries over, since what caused the halt is
+meaningful on the way out as well as in.</p>
+<h4 id="ace-corridor-expansions">ACE corridor expansions<a class="headerlink" href="#ace-corridor-expansions" title="Permanent link">&para;</a></h4>
+<p>A halt does not necessarily end when <code>RESUMEAT</code> arrives. If the indicative
+uncross price falls outside <code>[CORRLO, CORRHI]</code>, the symbol stays halted, the
+corridor widens by one ladder rung and a fresh call phase begins — see
+<a href="../120-risk-controls/#automated-corridor-expansion-ace">Risk Controls - Automated Corridor Expansion</a>.</p>
+<p>The gateway publishes this as a further <code>CB</code> event with <code>STATUS=HALTED</code> and an
+updated <code>RESUMEAT</code>, <code>CORRLO</code>, <code>CORRHI</code> and <code>EXP</code>. <strong>A client that ignores these
+will show a <code>RESUMEAT</code> that has already passed and report the symbol as overdue
+to reopen.</strong> No <code>STATE</code> event accompanies an extension: the symbol was halted
+before and is halted after, so the coarse session state has not changed.</p>
+<p><code>INDICPX</code>/<code>INDICQTY</code>/<code>IMB</code> are carried on extension events only. They are
+computed once, at the instant the call phase ends, so they are deliberately
+absent from the <code>SNAP</code> baseline — replaying them later would assert a stale
+price for a book that has kept moving. Disseminating them at all mirrors the
+order-imbalance indicator real venues publish during a reopening, which is
+what lets participants supply the offsetting interest that resolves the halt.</p>
+<p><code>CORRLO</code>/<code>CORRHI</code>/<code>EXP</code> <em>are</em> part of the <code>SNAP</code> baseline, because they
+describe the halt still in force: a client subscribing mid-halt otherwise
+cannot tell where the symbol is permitted to reopen.</p>
+<p><strong>A halt is a reopening auction's call phase.</strong> While a symbol is halted the
+engine accepts LIMIT orders and rests them, rejects MARKET/FOK/IOC, and runs
+no matching; when the halt ends it uncrosses at the equilibrium price and
+publishes an <code>AUCTION</code> with <code>REASON=REOPEN</code> before the <code>STATE</code> and <code>CB</code>
+resume events. There is no separate "resumption mode" to choose, and CALF no
+longer carries one: crossed interest accumulates during the call, so
+restarting continuous matching without an uncross would begin on a crossed
+book. <code>RESUMEAT</code> says whether the halt ends by itself; <code>SRC</code> says who
+started it. The two are independent.</p>
 <p><code>CB</code> has a baseline <code>SNAP</code> (see the <code>SNAP</code> section above) reflecting the
 last known status for the symbol.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T14:05:00.010Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|MODE=AUCTION
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>CB|CH=CB|SYM=TSLA|SEQ=1|TS=2026-07-20T15:00:00.000Z|STATUS=HALTED|LEVEL=ADMIN_ALL|MODE=MANUAL
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T14:20:00.010Z|STATUS=ACTIVE|MODE=AUCTION
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T14:05:00.010Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|SRC=CB
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>CB|CH=CB|SYM=TSLA|SEQ=1|TS=2026-07-20T15:00:00.000Z|STATUS=HALTED|LEVEL=ADMIN_ALL|SRC=ADMIN
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T14:20:00.010Z|STATUS=ACTIVE|SRC=CB
+</code></pre></div>
+<p>An ACE sequence — halt, one extension, then a reopen inside the widened
+corridor:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T13:30:00.010Z|STATUS=HALTED|LEVEL=L1|TRIGGERPX=122.00|REFPX=100.00|RESUMEAT=2026-07-20T13:35:00.000Z|CORRLO=90.00|CORRHI=110.00|EXP=0|SRC=CB
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T13:35:00.010Z|STATUS=HALTED|LEVEL=L1|TRIGGERPX=122.00|REFPX=100.00|RESUMEAT=2026-07-20T13:37:00.000Z|CORRLO=80.00|CORRHI=120.00|EXP=1|SRC=CB|INDICPX=122.00|INDICQTY=500|IMB=BUY
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>CB|CH=CB|SYM=AAPL|SEQ=6|TS=2026-07-20T13:37:00.010Z|STATUS=ACTIVE|SRC=CB
+</code></pre></div>
+<p>And a halt the trading day ended before ACE could resolve, printed at the
+corridor boundary rather than at the equilibrium:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>CB|CH=CB|SYM=AAPL|SEQ=9|TS=2026-07-20T16:05:00.010Z|STATUS=ACTIVE|SRC=CB|REASON=CLOSING_BACKSTOP|CLAMPED=1|PRINTPX=120.00
 </code></pre></div>
 <p>The first example is an automatic threshold-breach halt (all detail fields
 present); the second is an ADMIN exchange-wide halt (<code>trigger</code>/<code>reference</code>/
 <code>resume</code> all omitted, matching the engine's <code>None</code> values for that path);
 the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>, only
-<code>MODE</code> retained).</p>
+<code>SRC</code> retained).</p>
 <p><code>SYM=*</code> is invalid for <code>SUB|CH=CB</code> — see "Subscription rules" above.</p>
 <pre class="mermaid"><code>sequenceDiagram
     participant E as pm-engine
@@ -5111,12 +5713,12 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
     Note over E: large trade shifts price beyond the L2 threshold
     E--&gt;&gt;G: circuit_breaker.halt.AAPL
     G--&gt;&gt;C: STATE|CH=STATE|SYM=AAPL|SEQ=10|SESSION=HALTED|PREV=CONTINUOUS
-    G--&gt;&gt;C: CB|CH=CB|SYM=AAPL|SEQ=3|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=...|MODE=AUCTION
+    G--&gt;&gt;C: CB|CH=CB|SYM=AAPL|SEQ=3|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=...|SRC=CB
 
     Note over E: halt duration elapses engine resumes and re-auctions AAPL
     E--&gt;&gt;G: circuit_breaker.resume.AAPL
     G--&gt;&gt;C: STATE|CH=STATE|SYM=AAPL|SEQ=11|SESSION=CONTINUOUS|PREV=HALTED
-    G--&gt;&gt;C: CB|CH=CB|SYM=AAPL|SEQ=4|STATUS=ACTIVE|MODE=AUCTION
+    G--&gt;&gt;C: CB|CH=CB|SYM=AAPL|SEQ=4|STATUS=ACTIVE|SRC=CB
     E--&gt;&gt;G: auction.result.AAPL
     G--&gt;&gt;C: AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|EQPX=149.80|EQQTY=6200|TRADES=5|IMBSIDE=SELL|IMBQTY=300</code></pre>
 <h3 id="hb"><code>HB</code><a class="headerlink" href="#hb" title="Permanent link">&para;</a></h3>
@@ -5138,12 +5740,12 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>HB|TS=2026-06-07T10:16:05.000Z
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>HB|TS=2026-06-07T10:16:05.000Z
 </code></pre></div>
 <h3 id="ping-pong"><code>PING</code> / <code>PONG</code><a class="headerlink" href="#ping-pong" title="Permanent link">&para;</a></h3>
 <p><code>PING</code> is client-initiated liveness check. <code>PONG</code> is immediate reply.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>PING
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>PONG
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>PING
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>PONG
 </code></pre></div>
 <h3 id="err"><code>ERR</code><a class="headerlink" href="#err" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>
@@ -5201,7 +5803,7 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
 </tr>
 <tr>
 <td><code>INVALID_SYMBOL</code></td>
-<td>Symbol not in the gateway's known instrument list (does not apply to <code>INDEX</code>, which has no known-id check — see "Subscription rules"), <code>SYM=*</code> used with <code>INDEX</code>/<code>DEPTH</code>/<code>CB</code> on <code>SUB</code> (alone or mixed with any other channel), <code>SYM=*</code> used at all on <code>HELLO|RESUME=1</code> (every channel, including <code>TOP</code>/<code>TRADE</code>/<code>STATE</code>/<code>AUCTION</code>), a <code>SUB</code> with no <code>SYM</code> at all, or <code>CH=INDEX</code> combined with an empty symbol</td>
+<td>Symbol not in the gateway's known instrument list (does not apply to <code>INDEX</code>, which has no known-id check — see "Subscription rules"), <code>SYM=*</code> used with <code>INDEX</code>/<code>DEPTH</code>/<code>CB</code> on <code>SUB</code> (alone or mixed with any other channel), <code>SYM=*</code> used at all on <code>RESUME</code> (every channel, including <code>TOP</code>/<code>TRADE</code>/<code>STATE</code>/<code>AUCTION</code>), a <code>SUB</code> with no <code>SYM</code> at all, or <code>CH=INDEX</code> combined with an empty symbol</td>
 </tr>
 <tr>
 <td><code>SUB_LIMIT</code></td>
@@ -5209,7 +5811,7 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
 </tr>
 <tr>
 <td><code>REPLAY_MISS</code></td>
-<td><code>LASTSEQ</code> is older than the replay window; gateway sends a <code>SNAP</code> instead</td>
+<td><code>LASTSEQ</code> is older than the replay window; a <code>SNAP</code> follows on <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code>, but not on <code>TRADE</code>/<code>AUCTION</code></td>
 </tr>
 <tr>
 <td><code>SLOW_CLIENT</code></td>
@@ -5233,12 +5835,12 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
   connection remains open. The client may retry once its send rate is back
   under <code>max_messages_per_second</code>.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>ERR|CODE=REPLAY_MISS|MSG=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>ERR|CODE=REPLAY_MISS|MSG=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
 </code></pre></div>
 <h3 id="exit"><code>EXIT</code><a class="headerlink" href="#exit" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Client -&gt; Gateway</p>
 <p>Requests clean disconnect.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>EXIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>EXIT
 </code></pre></div>
 <h2 id="sequence-and-recovery-semantics">Sequence and recovery semantics<a class="headerlink" href="#sequence-and-recovery-semantics" title="Permanent link">&para;</a></h2>
 <h3 id="stream-identity">Stream identity<a class="headerlink" href="#stream-identity" title="Permanent link">&para;</a></h3>
@@ -5265,35 +5867,58 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
 <li>Next incremental event for that stream must be <code>SEQ + 1</code>.</li>
 </ol>
 <p><code>TRADE</code> and <code>AUCTION</code> have no step 1 — see the <code>SNAP</code> section above.</p>
-<h3 id="reconnect-behavior-resume1">Reconnect behavior (<code>RESUME=1</code>)<a class="headerlink" href="#reconnect-behavior-resume1" title="Permanent link">&para;</a></h3>
-<p><code>RESUME=1</code> applies to one stream per <code>HELLO</code>.</p>
+<h3 id="reconnect-behavior-resume">Reconnect behavior (<code>RESUME</code>)<a class="headerlink" href="#reconnect-behavior-resume" title="Permanent link">&para;</a></h3>
+<p><code>RESUME</code> applies to one stream per message, and may be sent as many times as
+there are streams to recover. Reconnect therefore looks like: <code>HELLO</code>, then
+one <code>RESUME</code> per stream the client was following, then a <code>SUB</code> for anything
+it wants that it has no sequence position for.</p>
 <ul>
 <li>Client supplies <code>CH</code>, <code>SYM</code>, and <code>LASTSEQ</code>.</li>
-<li><code>CH</code> and <code>SYM</code> must each contain exactly one value when <code>RESUME=1</code>.</li>
+<li><code>CH</code> and <code>SYM</code> must each contain exactly one value.</li>
 <li><code>LASTSEQ</code> must be a positive base-10 integer.</li>
 <li>If missing events are inside replay window, gateway replays in order then
   continues live.</li>
-<li>If missing range is outside window, gateway sends <code>ERR|CODE=REPLAY_MISS</code>
-  followed by a fresh <code>SNAP</code>.</li>
+<li>If missing range is outside window, gateway sends <code>ERR|CODE=REPLAY_MISS</code>.
+  A fresh <code>SNAP</code> follows on <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code>. It does <strong>not</strong>
+  on <code>TRADE</code> or <code>AUCTION</code>: those carry discrete events, and there is no
+  snapshot of a print that already happened, so the missed events are simply
+  gone. Do not wait for a baseline that will not arrive — and if you are
+  talking to an older gateway that sends one anyway, discard it: it is an
+  envelope with no payload, and a decoder keyed on <code>CH</code> alone will read it as
+  a print of zero shares at zero price.</li>
+<li><strong>A <code>SNAP</code> re-baselines the stream; it is never a gap.</strong> Whatever <code>SEQ</code> it
+  carries becomes your new <code>last_seq</code> for that stream, with no gap check. Gap
+  checking a <code>SNAP</code> would ask to replay history it just superseded, and on the
+  replay-miss path — whose answer <em>is</em> a <code>SNAP</code> — loops <code>RESUME</code> against a
+  window already known to be too old.</li>
+<li><strong>A replay is not disjoint from live delivery.</strong> <code>RESUME|LASTSEQ=n</code> returns
+  every buffered message with <code>SEQ &gt; n</code>, and <code>n</code> is your position from <em>before</em>
+  the gap — so the reply re-sends the message that revealed the gap, plus
+  anything delivered live while your request was in flight. Replayed and live
+  lines share one ordered connection, so duplicates always arrive after their
+  originals. <strong>Discard any message at or below the <code>SEQ</code> you have already
+  recorded, and never let one lower your <code>last_seq</code>.</strong> Track which sequence
+  ranges you are actually missing: that is the only thing distinguishing the
+  backfill you asked for from a print you already have.</li>
 <li>If the stream has no retained replay history at all yet (nothing has been
   emitted for that <code>(CH,SYM)</code> since the gateway started or the buffer last
   pruned it), the gateway returns zero replay lines and does <strong>not</strong> send
   <code>ERR|CODE=REPLAY_MISS</code> or a <code>SNAP</code> — the client resumes live from
   whatever the next emitted event turns out to be. This differs from the
   replay-miss case above and is easy to mistake for a silently dropped
-  resume; clients that need a guaranteed baseline after <code>RESUME=1</code> should
+  resume; clients that need a guaranteed baseline after <code>RESUME</code> should
   also send an explicit <code>SUB</code> for the same stream, which always triggers a
-  <code>SNAP</code> for <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code> regardless of replay state.</li>
-<li><code>SYM=*</code> is always invalid for <code>RESUME=1</code>, for every channel, even for
-  <code>TOP</code>/<code>TRADE</code>/<code>STATE</code> where <code>SYM=*</code> is otherwise allowed on <code>SUB</code>.
-  <code>RESUME</code> has no equivalent of <code>SUB</code>'s per-symbol snapshot burst, 
-  so a wildcard resume cannot be served a meaningful
-  baseline on a replay miss. <code>HELLO|RESUME=1|CH=TOP|SYM=*</code> returns
-  <code>ERR|CODE=INVALID_SYMBOL</code> and closes the connection, the same as an
-  ineligible wildcard on <code>SUB</code>. Clients must always resume a single
-  concrete symbol and, if they also want an "everything" subscription,
-  add it separately via <code>SUB|SYM=*</code> after reconnecting.</li>
-<li>Beyond the wildcard rule above, <code>RESUME=1</code>'s <code>SYM</code> value is otherwise
+  <code>SNAP</code> for <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code> regardless of replay state.</li>
+<li><code>SYM=*</code> is always invalid for <code>RESUME</code>, for every channel, even for
+  <code>TOP</code>/<code>TRADE</code>/<code>STATE</code>/<code>AUCTION</code> where <code>SYM=*</code> is otherwise allowed on
+  <code>SUB</code>. <code>RESUME</code> has no equivalent of <code>SUB</code>'s per-symbol snapshot burst,
+  so a wildcard resume cannot be served a meaningful baseline on a replay
+  miss. <code>RESUME|CH=TOP|SYM=*</code> returns <code>ERR|CODE=INVALID_SYMBOL</code> and, unlike
+  an ineligible wildcard on <code>HELLO</code> previously, leaves the session open.
+  Clients must always resume a single concrete symbol and, if they also
+  want an "everything" subscription, add it separately via <code>SUB|SYM=*</code>
+  after reconnecting.</li>
+<li>Beyond the wildcard rule above, <code>RESUME</code>'s <code>SYM</code> value is otherwise
   <strong>not</strong> checked against the gateway's known-symbol list the way <code>SUB</code>'s
   is — a resume for a symbol the gateway doesn't currently know about is
   still accepted and added to the session's subscriptions; it simply won't
@@ -5303,9 +5928,11 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
     participant C as Client
     participant G as pm-md-gwy
 
-    Note over C,G: Last seen on (TOP,AAPL): SEQ=1042
-    C-&gt;&gt;G: HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
+    Note over C,G: Last seen on (TOP,AAPL): SEQ=1042, (TRADE,AAPL): SEQ=88
+    C-&gt;&gt;G: HELLO|CLIENT=bot01|PROTO=CALF1
     G--&gt;&gt;C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+    C-&gt;&gt;G: RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042
+    C-&gt;&gt;G: RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88
 
     alt Replay hit
         G--&gt;&gt;C: MD|CH=TOP|SYM=AAPL|SEQ=1043|...
@@ -5470,19 +6097,19 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
   fewer levels — there is no per-client <code>LEVELS=</code> override in CALF <code>1.0.0</code>.</li>
 </ul>
 <p><strong>Example:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nt">market_data_gateway</span><span class="p">:</span>
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;md-gwy01&quot;</span>
-<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span>
-<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5570</span>
-<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">  </span><span class="nt">replay_window_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
-<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">  </span><span class="nt">max_connections</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
-<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">  </span><span class="nt">max_messages_per_second</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
-<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="w">  </span><span class="nt">max_symbols_per_client</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
-<a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
-<a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a><span class="w">  </span><span class="nt">depth_levels</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="nt">market_data_gateway</span><span class="p">:</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;md-gwy01&quot;</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5570</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="w">  </span><span class="nt">replay_window_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="w">  </span><span class="nt">max_connections</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a><span class="w">  </span><span class="nt">max_messages_per_second</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
+<a id="__codelineno-28-11" name="__codelineno-28-11" href="#__codelineno-28-11"></a><span class="w">  </span><span class="nt">max_symbols_per_client</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
+<a id="__codelineno-28-12" name="__codelineno-28-12" href="#__codelineno-28-12"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+<a id="__codelineno-28-13" name="__codelineno-28-13" href="#__codelineno-28-13"></a><span class="w">  </span><span class="nt">depth_levels</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
 </code></pre></div>
 <h2 id="what-to-watch-out-for-during-implementation">What to watch out for during implementation<a class="headerlink" href="#what-to-watch-out-for-during-implementation" title="Permanent link">&para;</a></h2>
 <ul>
@@ -5509,15 +6136,15 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
   let <code>CB</code>'s richer detail leak into <code>STATE</code>'s field set, and do not let a
   <code>CB</code> normaliser failure suppress the <code>STATE</code> emission (or vice versa);
   both should be independent <code>_emit_stream_event</code> calls from the same handler.</li>
-<li>Normalize the engine's <code>resumption_mode</code>/<code>mode</code> field-name inconsistency
-  (halt payload vs. resume payload) onto a single wire key, <code>MODE</code>, in <code>CB</code> —
+<li>Carry the halt's cause on a single wire key, <code>SRC</code>, in <code>CB</code> —
   do not propagate the internal inconsistency to clients.</li>
 <li>Track sequence numbers independently per <code>(CH,SYM)</code> stream; never use a single
   global counter.</li>
-<li>Treat <code>RESUME=1</code> as single-stream only and validate <code>CH</code>, <code>SYM</code>, and
+<li>Treat <code>RESUME</code> as single-stream only and validate <code>CH</code>, <code>SYM</code>, and
   <code>LASTSEQ</code> strictly.</li>
-<li>Bound replay by configured window and emit deterministic <code>REPLAY_MISS</code> + fresh
-  <code>SNAP</code> behavior when outside window.</li>
+<li>Bound replay by configured window and emit deterministic <code>REPLAY_MISS</code>
+  behavior when outside window — with a fresh <code>SNAP</code> only on the channels that
+  have one (<code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code>), never on <code>TRADE</code>/<code>AUCTION</code>.</li>
 <li>Apply slow-client backpressure deterministically: queue overflow must produce
   <code>SLOW_CLIENT</code> and disconnect.</li>
 <li>Keep liveness signals (<code>HB</code>, <code>PING</code>, <code>PONG</code>) outside market-data sequencing;
@@ -5534,7 +6161,7 @@ the third is the resume that follows the first halt (<code>STATUS=ACTIVE</code>,
    — never for <code>INDEX</code>, <code>DEPTH</code>, or <code>CB</code>.</li>
 <li>A wildcard <code>TOP</code> subscription never yields a <code>SNAP</code> with a literal
    <code>SYM=*</code>; it yields one real <code>SNAP</code> per known symbol.</li>
-<li>Replay resume is single-stream per <code>HELLO|RESUME=1</code>.</li>
+<li>Replay resume is single-stream per <code>RESUME</code>; send one per stream.</li>
 <li>On replay miss, client must accept fresh <code>SNAP</code> and reset local baseline.</li>
 <li><code>DEPTH</code> messages replace a side's entire tracked ladder, never a single
    price level in isolation.</li>

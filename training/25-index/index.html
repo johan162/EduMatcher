@@ -958,14 +958,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/050-gateway-reference/" class="md-nav__link">
+      <a href="../../user-guide/051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1750,6 +1778,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3771,7 +3855,7 @@ Without it <code>pm-index</code> will refuse to start.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>engine_config.yaml</code> contains a valid <code>indices:</code> block with all three symbols.</p>
 <h2 id="exercise-2-start-pm-index">Exercise 2: Start <code>pm-index</code><a class="headerlink" href="#exercise-2-start-pm-index" title="Permanent link">&para;</a></h2>
 <p>In a dedicated terminal, start the index calculation process:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-index<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-index
 </code></pre></div>
 <p>Expected startup output:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[INFO] pm-index starting — 1 index configured
@@ -4055,7 +4139,7 @@ timestamps instead:</p>
 <a id="__codelineno-34-15" name="__codelineno-34-15" href="#__codelineno-34-15"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Restart <code>pm-index</code> with <code>--reset</code> to clear state and re-initialise:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-index<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--reset
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-index<span class="w"> </span>--reset
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title"><code>--reset</code> discards divisors</p>
@@ -4124,7 +4208,7 @@ time-series data, neither of those tools applies — use <code>pm-stats-cli</cod
 <tbody>
 <tr>
 <td>Start index process</td>
-<td><code>pm-index --config engine_config.yaml</code></td>
+<td><code>pm-index</code></td>
 </tr>
 <tr>
 <td>Re-initialise from scratch</td>

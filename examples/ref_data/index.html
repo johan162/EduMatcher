@@ -952,14 +952,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/050-gateway-reference/" class="md-nav__link">
+      <a href="../../user-guide/051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1744,6 +1772,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3289,6 +3373,13 @@
 <li><code>mkrefdata.sh</code></li>
 <li><code>engine_config.yaml</code></li>
 </ul>
+<h2 id="regenerating-configs">Regenerating configs<a class="headerlink" href="#regenerating-configs" title="Permanent link">&para;</a></h2>
+<p>A <code>Makefile</code> is provided to regenerate all configs at once:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w">          </span><span class="c1"># regenerates all 12 subdirectories (default target: configs)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>make<span class="w"> </span>configs<span class="w">  </span><span class="c1"># same</span>
+</code></pre></div>
+<p>Each subdirectory's <code>mkrefdata.sh</code> is discovered automatically via wildcard
+expansion, so new setups are picked up without editing the Makefile.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>pm-config-gen</code> supports emitting both RALF (<code>post_trade_gateway</code>) and CALF (<code>market_data_gateway</code>) sections via native flags.</li>

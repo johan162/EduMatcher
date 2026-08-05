@@ -961,14 +961,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway-reference/" class="md-nav__link">
+      <a href="../051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -2049,6 +2077,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3745,7 +3829,7 @@ accumulating stores each have their own chapter (linked in the table).</p>
 gateway of recently-inactivated MM quotes (filled or cancelled), used to
 answer the ALF <code>QLEGS|SHOW=RECENT</code> / <code>SHOW=ALL</code> subcommands and the
 equivalent <code>system.quote_legs_request</code> wire message — see
-<a href="../050-gateway-reference/#qlegs-inspect-mm-quote-legs-and-fill-flags">Gateway → QLEGS</a>
+<a href="../055-alf-console/#qlegs-inspect-mm-quote-legs-and-fill-flags">ALF Console → QLEGS</a>
 and <a href="../270-message-reference/#systemquote_legs_request-systemquote_legsgw_id">Messages → <code>system.quote_legs_request</code></a>.
 Unlike <code>gtc_orders.json</code>/<code>gtc_combos.json</code>, this history is <strong>not</strong> written
 to disk and does not survive an engine restart — a fresh engine process

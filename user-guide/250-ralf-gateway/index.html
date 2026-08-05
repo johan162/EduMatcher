@@ -961,14 +961,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway-reference/" class="md-nav__link">
+      <a href="../051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -2248,6 +2276,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3874,7 +3958,7 @@ messages according to subscriptions.</p>
 <a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AUDIT</span>
 </code></pre></div>
 <p>CLI overrides:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-ralf-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--bind<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5580</span><span class="w"> </span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-ralf-gwy<span class="w"> </span>--bind<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5580</span><span class="w"> </span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556
 </code></pre></div>
 <table>
 <thead>
@@ -4390,11 +4474,11 @@ highlight the key RALF patterns.</p>
 <h3 id="start-commands">Start commands<a class="headerlink" href="#start-commands" title="Permanent link">&para;</a></h3>
 <p>Installed mode:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-engine<span class="w"> </span>--verbose
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>pm-ralf-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>pm-ralf-gwy
 </code></pre></div>
 <p>Developer mode:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ralf-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ralf-gwy
 </code></pre></div>
 <h3 id="minimal-client-probe">Minimal client probe<a class="headerlink" href="#minimal-client-probe" title="Permanent link">&para;</a></h3>
 <p>Manual probe using <code>nc</code>:</p>

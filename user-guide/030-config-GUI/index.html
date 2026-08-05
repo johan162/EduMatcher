@@ -1544,14 +1544,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway-reference/" class="md-nav__link">
+      <a href="../051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -2336,6 +2364,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -4043,13 +4127,13 @@ effort. Pick the one that matches your situation.</p>
 <td><a href="#option-1-one-command-with-the-container-stack">Container stack</a></td>
 <td>Most users; production</td>
 <td>Podman/Docker + Make</td>
-<td><code>http://localhost:8080</code></td>
+<td><code>http://localhost:8092</code></td>
 </tr>
 <tr>
 <td><a href="#option-2-a-pre-built-image-artifact">Pre-built image artifact</a></td>
 <td>Offline hosts, no repo clone</td>
 <td>Podman/Docker only</td>
-<td><code>http://localhost:8080</code></td>
+<td><code>http://localhost:8092</code></td>
 </tr>
 <tr>
 <td><a href="#option-3-local-development">Local development</a></td>
@@ -4066,7 +4150,7 @@ path. From the <code>config-gui/</code> directory:</p>
 </code></pre></div>
 <p><code>make up</code> auto-detects Podman or Docker (preferring Podman), starts the Podman
 machine on macOS if needed, builds the image, and starts the stack in the
-background. Open <strong>http://localhost:8080</strong> once the build completes.</p>
+background. Open <strong>http://localhost:8092</strong> once the build completes.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>make<span class="w"> </span>down<span class="w">     </span><span class="c1"># stop and remove the stack</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>make<span class="w"> </span>logs<span class="w">     </span><span class="c1"># follow the container log</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>make<span class="w"> </span>ps<span class="w">       </span><span class="c1"># show stack status</span>
@@ -4087,14 +4171,14 @@ compiled frontend, and the Fastify backend) with no external dependencies. Load
 and run it on the target host:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Podman</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>podman<span class="w"> </span>load<span class="w">  </span>--input<span class="w"> </span>edumatcher-config-gui-&lt;version&gt;.tar
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>podman<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>config-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8080</span>:8080<span class="w"> </span>edumatcher-config-gui:&lt;version&gt;
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>podman<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>config-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8092</span>:8092<span class="w"> </span>edumatcher-config-gui:&lt;version&gt;
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># Docker</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>docker<span class="w"> </span>load<span class="w">  </span>--input<span class="w"> </span>edumatcher-config-gui-&lt;version&gt;.tar
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>config-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8080</span>:8080<span class="w"> </span>edumatcher-config-gui:&lt;version&gt;
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>config-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8092</span>:8092<span class="w"> </span>edumatcher-config-gui:&lt;version&gt;
 </code></pre></div>
 <p>The <code>load</code> command prints the exact image tag, e.g. <code>edumatcher-config-gui:1.0.0</code>.
-Open <strong>http://localhost:8080</strong>. Stop and remove with
+Open <strong>http://localhost:8092</strong>. Stop and remove with
 <code>podman stop config-gui &amp;&amp; podman rm config-gui</code> (or the <code>docker</code> equivalents).
 Pass any <a href="#backend-environment-variables">backend environment variable</a> with
 <code>-e</code>, for example <code>-e CORS_ORIGIN="https://myhost.example"</code>.</p>
@@ -4844,9 +4928,18 @@ Suggested file: <code>images/config-gui/fig-11-import.png</code>.</p>
 </ul>
 </li>
 </ol>
-<p>Once downloaded, the file is ready for the engine and its companion processes —
-see <a href="../040-running-the-exchange/">Running the Engine</a> and, for a first end-to-end
-run, <a href="../000-getting-started/">Getting Started</a>.</p>
+<p>The download is an <strong>authored</strong> <code>engine_config.yaml</code> — the file you keep and
+version, not the one the exchange runs. Install it before starting anything:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-config-deploy<span class="w"> </span>~/Downloads/engine_config.yaml
+</code></pre></div>
+<p>That validates it, resolves every default, and writes the compiled artifact the
+processes actually read. Because the GUI already refuses to export while any
+error exists, a file downloaded from here should deploy first time; if it does
+not, the deploy output names the finding.</p>
+<p>See <a href="../010-configuration/#file-location">Configuration — File Location</a> for what
+compiling does, <a href="../040-running-the-exchange/">Running the Engine</a> for starting
+the processes, and <a href="../000-getting-started/">Getting Started</a> for a first
+end-to-end run.</p>
 <div class="admonition note">
 <p class="admonition-title">📷 Figure 12 — Review &amp; Export with YAML preview</p>
 <p><em>Screenshot placeholder.</em> Capture the Review tab showing the diagnostics
@@ -4866,11 +4959,11 @@ assets. The API serves the UI and falls back to <code>index.html</code> for clie
 routes.</p>
 <h3 id="manual-production-build">Manual production build<a class="headerlink" href="#manual-production-build" title="Permanent link">&para;</a></h3>
 <p>To run the pieces yourself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">cd</span><span class="w"> </span>config-gui
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>npm<span class="w"> </span>install
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>npm<span class="w"> </span>run<span class="w"> </span>build<span class="w">            </span><span class="c1"># emits the static UI to apps/web/dist</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="nv">STATIC_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">/apps/web/dist&quot;</span><span class="w"> </span><span class="nv">HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="nv">PORT</span><span class="o">=</span><span class="m">8080</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span>npm<span class="w"> </span>run<span class="w"> </span>start<span class="w"> </span>--workspace<span class="w"> </span>@edumatcher/server
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>config-gui
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>npm<span class="w"> </span>install
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>npm<span class="w"> </span>run<span class="w"> </span>build<span class="w">            </span><span class="c1"># emits the static UI to apps/web/dist</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nv">STATIC_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">/apps/web/dist&quot;</span><span class="w"> </span><span class="nv">HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="nv">PORT</span><span class="o">=</span><span class="m">8092</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span>npm<span class="w"> </span>run<span class="w"> </span>start<span class="w"> </span>--workspace<span class="w"> </span>@edumatcher/server
 </code></pre></div>
 <p>Alternatively host <code>apps/web/dist</code> on any static server and run the API
 separately; then either reverse-proxy <code>/api</code> under the same origin or set
@@ -4894,7 +4987,7 @@ separately; then either reverse-proxy <code>/api</code> under the same origin or
 <tr>
 <td><code>PORT</code></td>
 <td><code>5175</code></td>
-<td>API port (<code>8080</code> in the container image)</td>
+<td>API port (<code>8092</code> in the container image)</td>
 </tr>
 <tr>
 <td><code>STATIC_DIR</code></td>
@@ -4929,7 +5022,7 @@ inherit your host's npm or proxy settings</strong> — it has its own network an
 empty npm config. Behind a proxy or a TLS-intercepting firewall, <code>npm install</code>
 may <strong>hang</strong> (the connection is silently dropped) rather than fail fast.</p>
 <p>First confirm the registry is reachable from inside a container:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>node:22-slim<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;npm config set fetch-timeout 30000 &amp;&amp; npm ping&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>node:22-slim<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;npm config set fetch-timeout 30000 &amp;&amp; npm ping&quot;</span>
 </code></pre></div>
 <p>If that hangs, pass build arguments to route around it. <code>docker compose</code> picks
 up your shell's proxy variables automatically:</p>
@@ -4955,9 +5048,9 @@ up your shell's proxy variables automatically:</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">HTTPS_PROXY</span><span class="o">=</span>http://proxy.corp.example:8080
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NPM_REGISTRY</span><span class="o">=</span>https://artifactory.corp.example/api/npm/npm-remote/
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>--build
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">HTTPS_PROXY</span><span class="o">=</span>http://proxy.corp.example:8092
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">NPM_REGISTRY</span><span class="o">=</span>https://artifactory.corp.example/api/npm/npm-remote/
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>--build
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">TLS interception (custom root CA)</p>
@@ -5078,7 +5171,7 @@ server can also serve the built UI, collapsing the two into one container.</p>
 </tr>
 <tr>
 <td><strong>Port already in use</strong></td>
-<td>Another process holds <code>5174</code>/<code>5175</code>/<code>8080</code></td>
+<td>Another process holds <code>5174</code>/<code>5175</code>/<code>8092</code></td>
 <td>Change <code>PORT</code> (API) or <code>server.port</code> / proxy target in <code>config-gui/apps/web/vite.config.ts</code> (web).</td>
 </tr>
 <tr>

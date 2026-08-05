@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/800-examples/">
       
       
-        <link rel="prev" href="../280-log-srv/">
+        <link rel="prev" href="../290-trader-info-terminal/">
       
       
         <link rel="next" href="../810-example-configs/">
@@ -961,14 +961,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway-reference/" class="md-nav__link">
+      <a href="../051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1753,6 +1781,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -4610,13 +4694,13 @@ logic is provided.  To exercise BALF end-to-end, connect a TCP client to
 (Python: <a href="../../examples/balf/balf_parser.py"><code>balf_parser.py</code></a>) or the C
 reference decoder's parsing functions.</p>
 <h3 id="run-the-gateway">Run the gateway<a class="headerlink" href="#run-the-gateway" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-balf-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-balf-gwy
 <a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>
 <a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="c1"># Override bind port</span>
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>pm-balf-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--port<span class="w"> </span><span class="m">5560</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>pm-balf-gwy<span class="w"> </span>--port<span class="w"> </span><span class="m">5560</span>
 <a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>
 <a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="c1"># Override engine host</span>
-<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>pm-balf-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--engine-host<span class="w"> </span><span class="m">10</span>.0.0.5
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>pm-balf-gwy<span class="w"> </span>--engine-host<span class="w"> </span><span class="m">10</span>.0.0.5
 </code></pre></div>
 <p>The gateway binds on port <strong>5560</strong> by default.  BALF uses fixed-length binary
 frames so there is no text-mode manual sanity check; use the Python parser

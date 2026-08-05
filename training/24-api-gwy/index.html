@@ -958,14 +958,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/050-gateway-reference/" class="md-nav__link">
+      <a href="../../user-guide/051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1750,6 +1778,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3536,9 +3620,9 @@ separation.</p>
 <p>Recommended startup order:</p>
 <ol>
 <li>Generate <code>engine_config.yaml</code>.</li>
-<li>Start <code>pm-engine --verbose --config engine_config.yaml</code>.</li>
-<li>Start <code>pm-stats --config engine_config.yaml</code>.</li>
-<li>Start <code>pm-api-gwy --config engine_config.yaml --instance desk</code>.</li>
+<li>Start <code>pm-engine --verbose</code>.</li>
+<li>Start <code>pm-stats</code>.</li>
+<li>Start <code>pm-api-gwy --instance desk</code>.</li>
 </ol>
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p><code>pm-api-gwy</code> is an HTTP and WebSocket wrapper around the matching engine. It
@@ -3589,9 +3673,9 @@ private session and event state owned by one API gateway process. Read-only
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can identify one trading key and one read-only key in the config.</p>
 <h2 id="exercise-2-start-the-api-gateway-process">Exercise 2: Start the API Gateway Process<a class="headerlink" href="#exercise-2-start-the-api-gateway-process" title="Permanent link">&para;</a></h2>
 <p>Start the core processes with the generated config:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine<span class="w"> </span>--verbose<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-stats<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pm-api-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-stats
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>desk
 </code></pre></div>
 <p>If the config contains only one <code>api_gateways</code> entry, <code>--instance</code> can be omitted.
 Use it anyway in labs so the selected process is explicit.</p>
@@ -3707,8 +3791,8 @@ algorithmic trading:</p>
 <a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Start each named process in a separate terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-api-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-api-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>algos
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>desk
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>algos
 </code></pre></div>
 <p>Try an invalid duplicate assignment:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>

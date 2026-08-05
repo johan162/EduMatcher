@@ -958,14 +958,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/050-gateway-reference/" class="md-nav__link">
+      <a href="../../user-guide/051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1750,6 +1778,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3590,7 +3674,7 @@ verify it is available:</p>
 </code></pre></div>
 <h3 id="step-2-bootstrap-the-vm-with-one-command">Step 2: Bootstrap the VM with one command<a class="headerlink" href="#step-2-bootstrap-the-vm-with-one-command" title="Permanent link">&para;</a></h3>
 <p>Run the curl bootstrap script (pinned to this release):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.17.0<span class="w"> </span>--snapshot
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.18.0<span class="w"> </span>--snapshot
 </code></pre></div>
 <p>This command will:</p>
 <ol>
@@ -3604,7 +3688,7 @@ verify it is available:</p>
 <p>If you prefer to inspect scripts before running them:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.17.0<span class="w"> </span>--snapshot
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.18.0<span class="w"> </span>--snapshot
 </code></pre></div></p>
 </div>
 <h3 id="step-3-enter-the-vm-and-verify-commands">Step 3: Enter the VM and verify commands<a class="headerlink" href="#step-3-enter-the-vm-and-verify-commands" title="Permanent link">&para;</a></h3>
@@ -3654,29 +3738,27 @@ and clients) following the run order from the User Guide. </p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-setup — EduMatcher session initialisation
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>==================================================
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>  ✓ Created data directory:          /Users/you/.local/share/edumatcher
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>  ✓ Sample config written to:        /Users/you/session/engine_config.yaml
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    → Edit this file before starting the engine.
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>  ✓ Sample config compiled to:       /Users/you/.local/share/edumatcher/ref_data/engine_config.json
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    3 symbol(s) ready to trade.
 <a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
 <a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>  Shell environment snippet — add to your shell profile:
 <a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>  (~/.zshrc)
 <a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>
 <a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>  ----------------------------------------------
 <a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>  export EDUMATCHER_DATA_DIR=&quot;/Users/you/.local/share/edumatcher&quot;
-<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>  export EDUMATCHER_CONFIG=&quot;/Users/you/session/engine_config.yaml&quot;
-<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>  ----------------------------------------------
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>  ----------------------------------------------
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Re-running pm-setup</p>
-<p>Use <code>pm-setup --force</code> to overwrite an existing sample config with the
-latest version from the package.</p>
+<p>Use <code>pm-setup --force</code> to replace an already-deployed config with the
+latest sample from the package.</p>
 </div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> data directory exists; sample config in place.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> data directory exists; sample config deployed.</p>
 <h2 id="exercise-3-set-environment-variables">Exercise 3: Set Environment Variables<a class="headerlink" href="#exercise-3-set-environment-variables" title="Permanent link">&para;</a></h2>
 <p><strong><em>If you have used the VM (Multipass) this step can be skipped as it has already been done as part of the VM setup.</em></strong></p>
 <p>Add the exports to your shell profile:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Add to ~/.zshrc (macOS) or ~/.bashrc (Linux)</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/.local/share/edumatcher&quot;</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_CONFIG</span><span class="o">=</span><span class="s2">&quot;./engine_config.yaml&quot;</span>
 </code></pre></div>
 <p>Then reload:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nb">source</span><span class="w"> </span>~/.zshrc<span class="w">   </span><span class="c1"># or source ~/.bashrc</span>
@@ -3692,28 +3774,29 @@ latest version from the package.</p>
 <tbody>
 <tr>
 <td><code>EDUMATCHER_DATA_DIR</code></td>
-<td>Where persistent data (stats DB, logs, state) is stored</td>
+<td>Where persistent data (stats DB, logs, state) <strong>and the deployed engine configuration</strong> live</td>
 <td><code>~/.local/share/edumatcher</code></td>
-</tr>
-<tr>
-<td><code>EDUMATCHER_CONFIG</code></td>
-<td>Path to the engine configuration YAML</td>
-<td><code>./engine_config.yaml</code></td>
 </tr>
 </tbody>
 </table>
+<p>This is the only variable there is. The engine configuration is always read
+from <code>&lt;EDUMATCHER_DATA_DIR&gt;/ref_data/engine_config.json</code>, and no process takes
+a path to it, so two processes cannot be started on different configurations.</p>
 <div class="admonition tip">
-<p class="admonition-title">Override per-session</p>
-<p>You can point to a different config for different scenarios:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nv">EDUMATCHER_CONFIG</span><span class="o">=</span>~/configs/classroom.yaml<span class="w"> </span>pm-engine
+<p class="admonition-title">Switching scenarios</p>
+<p>Install a different configuration and restart:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-config-deploy<span class="w"> </span>~/configs/classroom.yaml
 </code></pre></div>
-The <code>--config</code> flag on <code>pm-engine</code> and <code>pm-scheduler</code> takes precedence
-over the environment variable.</p>
+Or give the scenario its own data directory, which isolates its
+statistics and logs as well:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span>~/sessions/classroom
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-config-deploy<span class="w"> </span>~/configs/classroom.yaml
+</code></pre></div></p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>echo $EDUMATCHER_DATA_DIR</code> prints the correct path.</p>
 <h2 id="exercise-4-verify-the-data-directory">Exercise 4: Verify the Data Directory<a class="headerlink" href="#exercise-4-verify-the-data-directory" title="Permanent link">&para;</a></h2>
 <p>Check that the data directory was created and is writable:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>
 </code></pre></div>
 <p>This directory will hold:</p>
 <ul>
@@ -3724,19 +3807,19 @@ over the environment variable.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> directory exists and is writable.</p>
 <h2 id="exercise-5-inspect-the-sample-configuration">Exercise 5: Inspect the Sample Configuration<a class="headerlink" href="#exercise-5-inspect-the-sample-configuration" title="Permanent link">&para;</a></h2>
 <p>Open the generated config:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>cat<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>cat<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>You should see a <code>symbols:</code> section and a <code>gateways:</code> section. This is the file
 you will customise in the next chapter.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> sample config contains symbols and gateways.</p>
 <h2 id="exercise-6-confirm-all-entry-points">Exercise 6: Confirm All Entry Points<a class="headerlink" href="#exercise-6-confirm-all-entry-points" title="Permanent link">&para;</a></h2>
 <p>Verify that the key commands are available:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-engine<span class="w"> </span>--help
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-scheduler<span class="w"> </span>--help
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>pm-alf-console<span class="w"> </span>--help
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>pm-setup<span class="w"> </span>--help
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>pm-config-gen<span class="w"> </span>--help
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>pm-mm-bot<span class="w"> </span>--help
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-engine<span class="w"> </span>--help
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>pm-scheduler<span class="w"> </span>--help
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>pm-alf-console<span class="w"> </span>--help
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>pm-setup<span class="w"> </span>--help
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>pm-config-gen<span class="w"> </span>--help
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>pm-mm-bot<span class="w"> </span>--help
 </code></pre></div>
 <p>Each should print usage information without errors.</p>
 <div class="admonition note">
@@ -3758,10 +3841,10 @@ then introduces equivalent bot-based workflow.</p>
 <p>Confirm every item before starting Chapter 01 — each one is a prerequisite
 that chapter assumes without re-explaining:</p>
 <ul>
-<li>[ ] <code>engine_config.yaml</code> exists in your working directory (<code>ls engine_config.yaml</code>).</li>
-<li>[ ] <code>EDUMATCHER_DATA_DIR</code> and <code>EDUMATCHER_CONFIG</code> are set <strong>in the shell you
-      will use for the next chapter</strong> (<code>echo $EDUMATCHER_DATA_DIR</code>) — these do
-      not persist across new terminal windows unless added to your shell profile.</li>
+<li>[ ] A configuration is deployed (<code>pm-config-deploy --show</code>, then <code>ls</code> that path).</li>
+<li>[ ] <code>EDUMATCHER_DATA_DIR</code> is set <strong>in the shell you will use for the next
+      chapter</strong> (<code>echo $EDUMATCHER_DATA_DIR</code>) — it does not persist across new
+      terminal windows unless added to your shell profile.</li>
 <li>[ ] <code>pm-engine --version</code> and <code>pm-engine --help</code> both resolve without a
       <code>command not found</code> error in that same shell.</li>
 </ul>

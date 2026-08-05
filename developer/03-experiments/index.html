@@ -958,14 +958,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/050-gateway-reference/" class="md-nav__link">
+      <a href="../../user-guide/051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1750,6 +1778,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -4425,7 +4509,7 @@ EduMatcher supports two run modes: <strong>source mode</strong> (Poetry + git cl
 <li>Starts the engine in <strong>installed mode</strong> using the same config, runs the same 50-order scenario.</li>
 <li>Compares audit logs and book state between modes; they should match exactly.</li>
 <li>Test both configuration resolution paths:</li>
-<li>Via <code>EDUMATCHER_CONFIG</code> env var.</li>
+<li>Via the deployed copy under <code>EDUMATCHER_DATA_DIR</code>.</li>
 <li>Via default fallback (current directory, then <code>~/.local/share/edumatcher</code>).</li>
 <li>Verify data directory resolution:</li>
 <li>Via <code>EDUMATCHER_DATA_DIR</code> env var.</li>
@@ -4436,7 +4520,7 @@ CI pipeline gains a gate that prevents installed mode regressions. Users are con
 <p>How to verify:</p>
 <ul>
 <li>Build parity test: install edumatcher with <code>pipx</code>, run test suite, assert it passes.</li>
-<li>Config path test: test that <code>EDUMATCHER_CONFIG</code> and <code>EDUMATCHER_DATA_DIR</code> override defaults correctly in both modes.</li>
+<li>Config path test: test that <code>EDUMATCHER_DATA_DIR</code> relocates the deployed config along with every other data file, in both modes.</li>
 <li>Audit log equivalence: run test scenario in both modes, assert audit logs are byte-identical.</li>
 <li>Performance parity: measure latency per order in both modes; should differ by &lt; 5%.</li>
 </ul>

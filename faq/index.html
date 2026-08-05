@@ -956,14 +956,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../user-guide/050-gateway-reference/" class="md-nav__link">
+      <a href="../user-guide/051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1748,6 +1776,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3372,10 +3456,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#why-did-pm-scheduler-config-exit-immediately" class="md-nav__link">
+  <a href="#why-did-pm-scheduler-exit-immediately" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why did pm-scheduler --config ... exit immediately?
+        Why did pm-scheduler exit immediately?
       
     </span>
   </a>
@@ -3832,11 +3916,12 @@ book is empty the snapshot is also empty.</p>
 <p><strong>Fix:</strong> Submit a resting order, enable market-maker quote seeds for that
 symbol, or verify that you are watching a configured symbol.</p>
 <hr />
-<h3 id="why-did-pm-scheduler-config-exit-immediately">Why did <code>pm-scheduler --config ...</code> exit immediately?<a class="headerlink" href="#why-did-pm-scheduler-config-exit-immediately" title="Permanent link">&para;</a></h3>
-<p>An explicit <code>--config</code> path is treated strictly. If the file does not exist,
-the scheduler exits with a fatal error instead of silently falling back.</p>
-<p>If you omit <code>--config</code>, the scheduler uses <code>engine_config.yaml</code> when present and
-otherwise falls back to its built-in default times.</p>
+<h3 id="why-did-pm-scheduler-exit-immediately">Why did <code>pm-scheduler</code> exit immediately?<a class="headerlink" href="#why-did-pm-scheduler-exit-immediately" title="Permanent link">&para;</a></h3>
+<p>Because no configuration is deployed. The scheduler exits with a fatal error
+rather than falling back to its built-in default times — running a timetable
+the engine has never seen is worse than not starting at all.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
+</code></pre></div>
 <hr />
 <h3 id="why-doesnt-launch_allsh-work-on-my-machine">Why doesn't <code>./launch_all.sh</code> work on my machine?<a class="headerlink" href="#why-doesnt-launch_allsh-work-on-my-machine" title="Permanent link">&para;</a></h3>
 <p><code>launch_all.sh</code> is macOS-specific. It uses <code>osascript</code> to open Terminal windows,
@@ -3861,17 +3946,17 @@ aggregation. Using integer ticks makes price-time matching and level math exact.
 <hr />
 <h3 id="how-do-i-reset-all-persisted-state-to-start-fresh">How do I reset all persisted state to start fresh?<a class="headerlink" href="#how-do-i-reset-all-persisted-state-to-start-fresh" title="Permanent link">&para;</a></h3>
 <p>Delete the contents of the data directory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Installed mode (default data dir)</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>rm<span class="w"> </span>-f<span class="w"> </span>~/.local/share/edumatcher/*.json<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">       </span>~/.local/share/edumatcher/*.csv<span class="w">  </span><span class="se">\</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">       </span>~/.local/share/edumatcher/*.db<span class="w">   </span><span class="se">\</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">       </span>~/.local/share/edumatcher/audit.log
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Source checkout</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>rm<span class="w"> </span>-f<span class="w"> </span>src/data/*.json<span class="w"> </span>src/data/*.csv<span class="w"> </span>src/data/*.db<span class="w"> </span>src/data/audit.log
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># Or with a custom directory</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>rm<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>/*.json<span class="w"> </span>...
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Installed mode (default data dir)</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>rm<span class="w"> </span>-f<span class="w"> </span>~/.local/share/edumatcher/*.json<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">       </span>~/.local/share/edumatcher/*.csv<span class="w">  </span><span class="se">\</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">       </span>~/.local/share/edumatcher/*.db<span class="w">   </span><span class="se">\</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">       </span>~/.local/share/edumatcher/audit.log
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># Source checkout</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>rm<span class="w"> </span>-f<span class="w"> </span>src/data/*.json<span class="w"> </span>src/data/*.csv<span class="w"> </span>src/data/*.db<span class="w"> </span>src/data/audit.log
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># Or with a custom directory</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>rm<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>/*.json<span class="w"> </span>...
 </code></pre></div>
 <p>This resets GTC orders, book statistics, clearing history, and audit logs.
 The engine will re-seed MM quotes as if it were day 1 (because <code>book_stats.json</code>
@@ -3882,7 +3967,7 @@ no longer exists).</p>
 <p>IOC (Immediate-Or-Cancel) orders <strong>cannot rest on the book</strong>, so they are
 rejected during any non-matching phase (PRE_OPEN, OPENING_AUCTION,
 CLOSING_AUCTION, CLOSED). IOC is only valid during <code>CONTINUOUS</code> trading.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[GW01] order.ack: accepted=false reason=&quot;IOC rejected outside CONTINUOUS phase&quot;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[GW01] order.ack: accepted=false reason=&quot;IOC rejected outside CONTINUOUS phase&quot;
 </code></pre></div>
 <p><strong>Fix:</strong> The gateway has no <code>SESSION</code> command. Watch the scheduler output,
 run <code>pm-audit --terminal</code>, or use <code>pm-viewer</code> / <code>pm-orders</code> to see
@@ -3893,8 +3978,8 @@ with <code>TIF=DAY</code> if you're willing to have the order rest.</p>
 <p>STOP orders only trigger from <strong>last trade price</strong> events. If no trades have
 occurred since you submitted the STOP, the trigger is never evaluated —
 regardless of the current bid/ask quotes.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a># This SELL STOP at 148 won&#39;t fire if no trades have happened yet
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=148.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a># This SELL STOP at 148 won&#39;t fire if no trades have happened yet
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=148.00
 </code></pre></div>
 <p><strong>Fix:</strong> Check whether any trades have printed in the engine output (<code>--verbose</code>
 mode) or in the audit log. A stop only becomes relevant once the market is
@@ -3918,9 +4003,9 @@ Neither gives both.</p>
 <p>FOK checks whether the <strong>entire quantity</strong> can be filled at the limit price
 <em>before</em> executing. It does not execute at all unless the full size is
 available.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a># Book has only 80 shares at 150.00, but you want 100
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=100|PRICE=150.00
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a># → REJECTED because 80 &lt; 100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a># Book has only 80 shares at 150.00, but you want 100
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=100|PRICE=150.00
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a># → REJECTED because 80 &lt; 100
 </code></pre></div>
 <p><strong>Fix:</strong> Reduce <code>QTY</code> to match available liquidity, or use a <code>LIMIT</code> order
 and accept a partial fill.</p>
@@ -3964,8 +4049,8 @@ price moves.</p>
 reflect the new shares at the new price. This is standard practice for
 tracking the true cost basis of a position built over multiple trades.</p>
 <p><strong>Example:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>Buy 100 shares @ 150.00  →  avg_cost = 150.00
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>Buy 100 shares @ 152.00  →  avg_cost = (150 × 100 + 152 × 100) / 200 = 151.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>Buy 100 shares @ 150.00  →  avg_cost = 150.00
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>Buy 100 shares @ 152.00  →  avg_cost = (150 × 100 + 152 × 100) / 200 = 151.00
 </code></pre></div></p>
 <p>See <a href="../user-guide/130-pnl-clearing/#vwap-average-cost">P&amp;L &amp; Clearing — VWAP Average Cost</a>.</p>
 <hr />
@@ -4016,10 +4101,10 @@ If the engine was killed mid-session, the file may be stale or missing.</p>
 <h3 id="why-is-my-order-rejected-with-gateway-not-authenticated">Why is my order rejected with "Gateway not authenticated"?<a class="headerlink" href="#why-is-my-order-rejected-with-gateway-not-authenticated" title="Permanent link">&para;</a></h3>
 <p>Your gateway ID is not in the engine's allowlist. Gateway IDs must be
 pre-configured in <code>engine_config.yaml</code> under <code>gateways.alf</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW01</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">My first trader</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">    </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW01</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">My first trader</span>
 </code></pre></div>
 <p>Restart the engine after editing the config.</p>
 <hr />
@@ -4028,8 +4113,8 @@ pre-configured in <code>engine_config.yaml</code> under <code>gateways.alf</code
 <p><strong>Self Match Prevention (SMP)</strong> stops you from accidentally trading against
 your own resting orders. If you submit a buy that would match a sell you
 already have on the same book, SMP kicks in.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a># Submit a buy that would cross with your own resting sell
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=151.00|SMP=CANCEL_AGGRESSOR
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a># Submit a buy that would cross with your own resting sell
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=151.00|SMP=CANCEL_AGGRESSOR
 </code></pre></div>
 <p>With <code>SMP=CANCEL_AGGRESSOR</code>, the incoming buy is cancelled instead of
 filling against your own sell. Options:</p>
@@ -4089,9 +4174,9 @@ all <code>pm-*</code> commands are on your PATH and ready to use.</p>
 <hr />
 <h3 id="i-installed-with-pipx-but-pm-engine-is-not-found-what-do-i-do">I installed with pipx but <code>pm-engine</code> is not found. What do I do?<a class="headerlink" href="#i-installed-with-pipx-but-pm-engine-is-not-found-what-do-i-do" title="Permanent link">&para;</a></h3>
 <p>pipx installs scripts to <code>~/.local/bin</code>, which may not be on your PATH yet.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pipx<span class="w"> </span>ensurepath<span class="w">        </span><span class="c1"># adds ~/.local/bin to your shell profile</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nb">exec</span><span class="w"> </span><span class="nv">$SHELL</span><span class="w">            </span><span class="c1"># reload your current shell</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>which<span class="w"> </span>pm-engine<span class="w">        </span><span class="c1"># should now print a path</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pipx<span class="w"> </span>ensurepath<span class="w">        </span><span class="c1"># adds ~/.local/bin to your shell profile</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">exec</span><span class="w"> </span><span class="nv">$SHELL</span><span class="w">            </span><span class="c1"># reload your current shell</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>which<span class="w"> </span>pm-engine<span class="w">        </span><span class="c1"># should now print a path</span>
 </code></pre></div>
 <p>If you just installed pipx itself for the first time, open a <strong>new terminal
 window</strong> after running <code>pipx ensurepath</code> — the PATH change only takes effect
@@ -4112,37 +4197,41 @@ get the sample config so you have a starting point to edit.</p>
 <p>Developer mode (Poetry + source checkout) does not need <code>pm-setup</code> at all.</p>
 <hr />
 <h3 id="the-engine-says-it-cannot-find-engine_configyaml-where-should-the-file-be">The engine says it cannot find <code>engine_config.yaml</code>. Where should the file be?<a class="headerlink" href="#the-engine-says-it-cannot-find-engine_configyaml-where-should-the-file-be" title="Permanent link">&para;</a></h3>
-<p>The search path depends on how you are running EduMatcher:</p>
+<p>In exactly one place, always:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>&lt;EDUMATCHER_DATA_DIR&gt;/ref_data/engine_config.json
+</code></pre></div>
 <table>
 <thead>
 <tr>
 <th>Mode</th>
-<th>Default config location</th>
+<th>Data directory</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><strong>pipx installed</strong></td>
-<td><code>engine_config.yaml</code> in the <strong>current working directory</strong></td>
+<td><code>~/.local/share/edumatcher</code></td>
 </tr>
 <tr>
 <td><strong>Source checkout</strong></td>
-<td><code>engine_config.yaml</code> in the <strong>repository root</strong></td>
+<td><code>&lt;repo&gt;/src/data/</code></td>
 </tr>
 <tr>
 <td><strong>Either</strong></td>
-<td><code>EDUMATCHER_CONFIG</code> environment variable (highest priority)</td>
+<td><code>EDUMATCHER_DATA_DIR</code>, if set</td>
 </tr>
 </tbody>
 </table>
-<p>The most common mistake is running <code>pm-engine</code> from a directory that does not
-contain <code>engine_config.yaml</code>. Either <code>cd</code> to the directory that has the file,
-or point to it explicitly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>~/my-session/engine_config.yaml
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="c1"># or:</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_CONFIG</span><span class="o">=</span>~/my-session/engine_config.yaml
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>pm-engine
+<p>The message means nothing has been deployed there yet. Install a configuration
+and the error goes away:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-config-deploy<span class="w"> </span>~/my-session/engine_config.yaml
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-config-deploy<span class="w"> </span>--show<span class="w">        </span><span class="c1"># print the path it deployed to</span>
 </code></pre></div>
+<p>There is no <code>--config</code> flag and no <code>EDUMATCHER_CONFIG</code> variable. Both used to
+exist, and the reason they no longer do is that they let one process be
+started against a configuration the rest of the exchange had never seen — the
+resulting symptom (a gateway reporting no instruments while the engine happily
+traded ten) gave no hint of the cause.</p>
 <hr />
 <h3 id="where-are-my-data-files-stored">Where are my data files stored?<a class="headerlink" href="#where-are-my-data-files-stored" title="Permanent link">&para;</a></h3>
 <p>Data files (<code>gtc_orders.json</code>, <code>stats.db</code>, <code>audit.log</code>, etc.) go to:</p>
@@ -4170,16 +4259,16 @@ or point to it explicitly:</p>
 </table>
 <p>To isolate two sessions from each other, run each in its own directory and set
 <code>EDUMATCHER_DATA_DIR</code> to a different path:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span>~/sessions/morning
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>~/sessions/morning/engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span>~/sessions/morning
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>pm-engine
 </code></pre></div>
 <hr />
 <h3 id="how-do-i-upgrade-edumatcher-to-a-newer-version">How do I upgrade EduMatcher to a newer version?<a class="headerlink" href="#how-do-i-upgrade-edumatcher-to-a-newer-version" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pipx<span class="w"> </span>upgrade<span class="w"> </span>edumatcher<span class="w">            </span><span class="c1"># upgrade from PyPI</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="c1"># or, to install a locally built wheel:</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>poetry<span class="w"> </span>build
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>pipx<span class="w"> </span>install<span class="w"> </span>dist/edumatcher-*.whl<span class="w"> </span>--force
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>pm-setup<span class="w"> </span>--force<span class="w">                   </span><span class="c1"># refresh the sample config if needed</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pipx<span class="w"> </span>upgrade<span class="w"> </span>edumatcher<span class="w">            </span><span class="c1"># upgrade from PyPI</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="c1"># or, to install a locally built wheel:</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>poetry<span class="w"> </span>build
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>pipx<span class="w"> </span>install<span class="w"> </span>dist/edumatcher-*.whl<span class="w"> </span>--force
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>pm-setup<span class="w"> </span>--force<span class="w">                   </span><span class="c1"># refresh the sample config if needed</span>
 </code></pre></div>
 <p>Your existing <code>engine_config.yaml</code> and data files are not touched by the upgrade.</p>
 <hr />

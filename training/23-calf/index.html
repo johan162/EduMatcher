@@ -958,14 +958,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/050-gateway-reference/" class="md-nav__link">
+      <a href="../../user-guide/051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1750,6 +1778,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -2895,6 +2979,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#exercise-3b-pm-calf-spy-the-read-only-diagnostic-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3B: pm-calf-spy — the Read-Only Diagnostic CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#exercise-4-state-channel-and-wildcard-behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2917,6 +3012,39 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#exercise-4c-indicative-auction-price-indic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 4C: Indicative Auction Price (INDIC)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-4d-automated-corridor-expansion-ace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 4D: Automated Corridor Expansion (ACE)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-4e-reference-data-tick-decimals-ref" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 4E: Reference Data — Tick Decimals (REF)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#exercise-5-protocol-control-messages-ping-unsub-exit" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2928,10 +3056,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-6-replay-and-recovery-with-resume1" class="md-nav__link">
+  <a href="#exercise-6-replay-and-recovery-with-resume" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 6: Replay and Recovery with RESUME=1
+        Exercise 6: Replay and Recovery with RESUME
       
     </span>
   </a>
@@ -3524,6 +3652,8 @@ consumption, heartbeats, replay checkpoints, and recovery/error behavior.</p>
 <li>Chapters 01-22 completed.</li>
 <li>Engine running and producing market activity.</li>
 <li><code>pm-md-gwy</code> running and reachable on TCP (default 5570).</li>
+<li><code>pm-calf-spy</code> installed (ships with the <code>edumatcher</code> package — no separate
+  build step).</li>
 <li>Support libraries and clients available in <code>docs/examples/calf</code>:</li>
 <li>calf_parser.py, calf_subscriber.py</li>
 <li>calf_parser.h, calf_parser.c, calf_subscriber.c</li>
@@ -3540,13 +3670,19 @@ consumption, heartbeats, replay checkpoints, and recovery/error behavior.</p>
 Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</p>
 <p>In this chapter, the most important operational ideas are:</p>
 <ul>
-<li>Session establishment with HELLO and WELCOME</li>
-<li>Channel and symbol subscription with SUB and UNSUB</li>
-<li>Baseline snapshots (<code>SNAP</code>) plus incremental live events (<code>MD</code>, <code>TRADE</code>, <code>STATE</code>, <code>AUCTION</code>, <code>CB</code>)</li>
+<li>Session establishment with HELLO and WELCOME, including per-symbol
+  reference data (<code>REF=SYM:DEC</code>) for display precision</li>
+<li>Channel and symbol subscription with SUB and UNSUB, across all seven
+  channels: TOP, TRADE, STATE, INDEX, DEPTH, AUCTION, CB</li>
+<li>Baseline snapshots (<code>SNAP</code>) plus incremental live events (<code>MD</code>, <code>TRADE</code>, <code>STATE</code>, <code>AUCTION</code>, <code>INDIC</code>, <code>CB</code>)</li>
 <li>Liveness with HB and PING/PONG</li>
-<li>Replay with RESUME=1 / LASTSEQ and REPLAY_MISS handling</li>
-<li>Auction uncross results (<code>AUCTION</code>) and circuit-breaker detail (<code>CB</code>) as
-  the two newer channels beyond the original TOP/TRADE/STATE/INDEX/DEPTH set</li>
+<li>Replay with the standalone <code>RESUME</code> command / LASTSEQ, and REPLAY_MISS handling</li>
+<li>Auction uncross results (<code>AUCTION</code>, with a <code>REASON</code> for what kind of
+  uncross it was) and indicative pricing during the call phase (<code>INDIC</code>)</li>
+<li>Circuit-breaker detail (<code>CB</code>), including its cause (<code>SRC</code>) and Automated
+  Corridor Expansion (<code>CORRLO</code>/<code>CORRHI</code>/<code>EXP</code>, closing backstop prints)</li>
+<li><code>pm-calf-spy</code> as the ready-made, read-only way to inspect any of the above
+  without writing a client</li>
 </ul>
 <h2 id="exercise-1-prepare-a-config-that-enables-calf">Exercise 1: Prepare a Config That Enables CALF<a class="headerlink" href="#exercise-1-prepare-a-config-that-enables-calf" title="Permanent link">&para;</a></h2>
 <p>Generate <code>engine_config.yaml</code> with a market_data_gateway section:</p>
@@ -3563,8 +3699,8 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Start or restart processes with that config:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-engine<span class="w"> </span>--verbose<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-md-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-md-gwy
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: gateway starts and listens on the configured port.</p>
 <h2 id="exercise-2-use-the-python-example-as-a-toptrade-consumer">Exercise 2: Use the Python Example as a TOP/TRADE Consumer<a class="headerlink" href="#exercise-2-use-the-python-example-as-a-toptrade-consumer" title="Permanent link">&para;</a></h2>
@@ -3613,14 +3749,52 @@ the symbols you pass:</p>
 <li>MSG lines for live traffic</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: C subscriber connects, parses, and prints live CALF events.</p>
+<h2 id="exercise-3b-pm-calf-spy-the-read-only-diagnostic-cli">Exercise 3B: <code>pm-calf-spy</code> — the Read-Only Diagnostic CLI<a class="headerlink" href="#exercise-3b-pm-calf-spy-the-read-only-diagnostic-cli" title="Permanent link">&para;</a></h2>
+<p><code>calf_subscriber.py</code>/<code>.c</code> are example <em>libraries</em> to build on; <code>pm-calf-spy</code>
+is a ready-made, read-only diagnostic client for watching the wire directly,
+with no code to write. It runs fully passively — no reconnect, no
+auto-recovery, no local state rebuild — so what you see is exactly what the
+gateway sent, nothing injected or inferred on your behalf.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>TOP,TRADE<span class="w"> </span>--symbols<span class="w"> </span>AAPL
+</code></pre></div>
+<p>Try a few variations:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Every channel the gateway advertises, every symbol (default)</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pm-calf-spy
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># JSON output instead of human-readable</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>TOP,TRADE<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>--format<span class="w"> </span>json
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># Show heartbeats too (suppressed by default)</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>STATE<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>--show-heartbeats
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># Raw wire line alongside the formatted one</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>TOP<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>--raw
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1"># One-shot replay of a single stream</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>pm-calf-spy<span class="w"> </span>--resume<span class="w"> </span>TOP:AAPL:1042<span class="w"> </span>--channels<span class="w"> </span>TOP<span class="w"> </span>--symbols<span class="w"> </span>AAPL
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="c1"># Stop after 20 data-carrying lines</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>TRADE<span class="w"> </span>--symbols<span class="w"> </span><span class="s1">&#39;*&#39;</span><span class="w"> </span>--count<span class="w"> </span><span class="m">20</span>
+</code></pre></div>
+<p>Now try the wildcard default against a mix of eligible and ineligible
+channels:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span><span class="s1">&#39;*&#39;</span><span class="w"> </span>--symbols<span class="w"> </span><span class="s1">&#39;*&#39;</span>
+</code></pre></div>
+<p>Since <code>SYM=*</code> is only valid for <code>TOP</code>/<code>TRADE</code>/<code>STATE</code>/<code>AUCTION</code>, a naive
+single <code>SUB|CH=*|SYM=*</code> would be rejected outright by the gateway.
+<code>pm-calf-spy</code> instead splits the request into one <code>SUB</code> for the
+wildcard-eligible channels and one per concrete symbol for <code>DEPTH</code>/<code>INDEX</code>/
+<code>CB</code>, and reports which channels it skipped for the wildcard rather than
+failing the whole subscription.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain why <code>pm-calf-spy</code> runs with reconnect and auto-recovery both off, and why <code>--channels '*' --symbols '*'</code> doesn't produce a single rejected <code>SUB</code>.</p>
 <h2 id="exercise-4-state-channel-and-wildcard-behavior">Exercise 4: State Channel and Wildcard Behavior<a class="headerlink" href="#exercise-4-state-channel-and-wildcard-behavior" title="Permanent link">&para;</a></h2>
 <p><code>calf_subscriber.py</code> automatically adds a session-wide <code>SUB|CH=STATE|SYM=*</code>
 on top of its per-symbol subscriptions (pass <code>--no-state-wildcard</code> to skip
 it):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python3<span class="w"> </span>docs/examples/calf/calf_subscriber.py<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>python3<span class="w"> </span>docs/examples/calf/calf_subscriber.py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
@@ -3632,6 +3806,21 @@ it):</p>
 <p>Note: as of CALF <code>1.0.0</code>, <code>SYM=*</code> is also valid for <code>TOP</code> and <code>TRADE</code> (see
 Exercise 7 below); as of the <code>AUCTION</code>/<code>CB</code> extension, <code>SYM=*</code> is valid for
 <code>AUCTION</code> too. It remains invalid for <code>INDEX</code>, <code>DEPTH</code>, and <code>CB</code>.</p>
+<p>Note also: a symbol-level <code>STATE</code> subscription (<code>CH=STATE|SYM=AAPL</code>) no
+longer only reports that symbol's own halts and resumes. On every
+session-wide transition (open, close, phase change) the gateway now fans
+out a <code>STATE</code> event per known, non-halted symbol as well as the <code>SYM=*</code>
+line — so a client watching one instrument learns the exchange opened or
+closed without also subscribing to <code>SYM=*</code>. A halted symbol is skipped by
+this fan-out; its halt outlives the session phase it began in, and only an
+explicit resume moves it.</p>
+<p>To see this, open two <code>nc</code> sessions: one <code>SUB|CH=STATE|SYM=*</code>, one
+<code>SUB|CH=STATE|SYM=AAPL</code>. Trigger (or wait for) a session-phase transition
+and compare — both should print a <code>STATE</code> line for the transition, not just
+the wildcard session.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain why a
+single-symbol <code>STATE</code> subscriber needs this fan-out to know the exchange
+opened or closed, and why a halted symbol is excluded from it.</p>
 <h2 id="exercise-4b-auction-results-and-circuit-breaker-detail">Exercise 4B: Auction Results and Circuit-Breaker Detail<a class="headerlink" href="#exercise-4b-auction-results-and-circuit-breaker-detail" title="Permanent link">&para;</a></h2>
 <p>Two channels extend the original five: <code>AUCTION</code> (auction uncross results —
 no baseline <code>SNAP</code>, <code>SYM=*</code> allowed, mirrors <code>TRADE</code>) and <code>CB</code>
@@ -3639,11 +3828,11 @@ no baseline <code>SNAP</code>, <code>SYM=*</code> allowed, mirrors <code>TRADE</
 allowed, mirrors <code>DEPTH</code>/<code>INDEX</code>). <code>calf_subscriber.py</code> does not drive these
 two channels, so exercise them manually with <code>nc</code>, alongside <code>STATE</code> for
 comparison:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>HELLO|CLIENT=manual03|PROTO=CALF1
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>SUB|CH=CB,STATE|SYM=AAPL
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>SUB|CH=AUCTION|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>HELLO|CLIENT=manual03|PROTO=CALF1
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>SUB|CH=CB,STATE|SYM=AAPL
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>SUB|CH=AUCTION|SYM=AAPL
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
@@ -3652,10 +3841,16 @@ comparison:</p>
   same as <code>TRADE</code></li>
 <li>an <code>AUCTION|...</code> line the next time AAPL's auction uncrosses (open, close,
   or a re-opening auction after a halt), carrying <code>EQPX</code>/<code>EQQTY</code>/<code>TRADES</code>
-  and, if a residual exists, <code>IMBSIDE</code>/<code>IMBQTY</code></li>
+  and, if a residual exists, <code>IMBSIDE</code>/<code>IMBQTY</code>, plus a <code>REASON</code> of
+  <code>SCHEDULED</code> (leaving an auction/other non-matching phase), <code>REOPEN</code> (a
+  halted symbol reopening), or <code>RECOVERY</code> (GTC orders restored at engine
+  startup) — without <code>REASON</code> the three would be indistinguishable on the
+  wire</li>
 <li>a <code>CB|...</code> line on the next halt (<code>STATUS=HALTED</code> with <code>LEVEL</code>,
-  <code>TRIGGERPX</code>, <code>REFPX</code>, <code>RESUMEAT</code>, <code>MODE</code>) and a matching one on resume
-  (<code>STATUS=ACTIVE</code> with <code>MODE</code>)</li>
+  <code>TRIGGERPX</code>, <code>REFPX</code>, <code>RESUMEAT</code>, <code>SRC</code>) and a matching one on resume
+  (<code>STATUS=ACTIVE</code> with <code>SRC</code>) — <code>SRC</code> is <code>CB</code> for an automatic breaker
+  trigger or <code>ADMIN</code> for an operator halt; it says what caused the halt,
+  not how it will resume</li>
 <li>a <code>STATE|...</code> line for the same halt/resume, independently — compare the
   two: <code>STATE</code> gives you the simple <code>SESSION=HALTED</code>/<code>SESSION=CONTINUOUS</code>
   flag, <code>CB</code> gives you the operational detail behind it. They fire
@@ -3664,17 +3859,92 @@ comparison:</p>
 <p>In a second <code>nc</code> session, try <code>SUB|CH=CB|SYM=*</code> and confirm it is rejected
 with <code>ERR|CODE=INVALID_SYMBOL</code> — unlike <code>AUCTION</code>, <code>TOP</code>, <code>TRADE</code>, and
 <code>STATE</code>, <code>CB</code> never accepts a wildcard symbol.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain why <code>AUCTION</code> has no <code>SNAP</code> but <code>CB</code> does, and why <code>CB</code> rejects <code>SYM=*</code> while <code>AUCTION</code> accepts it.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain why <code>AUCTION</code> has no <code>SNAP</code> but <code>CB</code> does, why <code>CB</code> rejects <code>SYM=*</code> while <code>AUCTION</code> accepts it, and what each <code>AUCTION|REASON=</code> value tells you that the rest of the fields don't.</p>
+<h2 id="exercise-4c-indicative-auction-price-indic">Exercise 4C: Indicative Auction Price (<code>INDIC</code>)<a class="headerlink" href="#exercise-4c-indicative-auction-price-indic" title="Permanent link">&para;</a></h2>
+<p>While an opening or closing auction's call phase is running, the gateway
+publishes a repeated <em>indicative</em> uncross price on the same <code>AUCTION</code>
+channel — a different message type, <code>INDIC</code>, not a preview of <code>AUCTION</code>
+itself. It says what would happen if the phase ended right now, not what did
+happen.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>HELLO|CLIENT=manual04|PROTO=CALF1
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>SUB|CH=AUCTION|SYM=AAPL
+</code></pre></div>
+<p>Time this around the opening or closing auction window (or trigger one via
+your session-state controls) and observe:</p>
+<ul>
+<li>repeated <code>INDIC|CH=AUCTION|SYM=AAPL|...</code> lines during the call phase, on a
+  fixed interval (<code>auction_indicative_interval_sec</code>, default 1s) — every
+  reading republishes, even unchanged ones, so a client can tell a stable
+  indicative from a stalled feed</li>
+<li><code>INDICQTY</code> and <code>IMBQTY</code> always present; <code>INDICPX</code> omitted when the book
+  would not cross at all — that omission is a reading ("nothing would
+  trade"), not a gap</li>
+<li>exactly one final <code>AUCTION|...</code> line when the call phase ends and the
+  symbol actually uncrosses</li>
+</ul>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain why <code>INDIC</code> and <code>AUCTION</code> share a channel but are different message types, and why a missing <code>INDICPX</code> must not be rendered as a zero price.</p>
+<h2 id="exercise-4d-automated-corridor-expansion-ace">Exercise 4D: Automated Corridor Expansion (ACE)<a class="headerlink" href="#exercise-4d-automated-corridor-expansion-ace" title="Permanent link">&para;</a></h2>
+<p>A circuit-breaker halt does not always end at its first scheduled
+<code>RESUMEAT</code>. If the indicative uncross price at that instant falls outside
+the reopening corridor (<code>CORRLO</code>..<code>CORRHI</code>), the halt extends: the corridor
+widens one rung, <code>RESUMEAT</code> moves out, and a fresh call phase begins. The
+<code>CB</code> channel carries this as a further <code>STATUS=HALTED</code> event on the same
+stream, not a new one.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>HELLO|CLIENT=manual05|PROTO=CALF1
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>SUB|CH=CB,STATE|SYM=AAPL
+</code></pre></div>
+<p>Trigger a halt whose reopening indicative lands outside the corridor (or
+replay a recorded scenario that does) and observe:</p>
+<ul>
+<li>the initial halt's <code>SNAP</code>/<code>CB</code> line carrying <code>CORRLO</code>, <code>CORRHI</code>, <code>EXP=0</code>
+  alongside the familiar <code>LEVEL</code>/<code>TRIGGERPX</code>/<code>REFPX</code>/<code>RESUMEAT</code>/<code>SRC</code></li>
+<li>an extension event: <code>STATUS=HALTED</code> again, with <code>EXP</code> incremented, a later
+  <code>RESUMEAT</code>, a wider <code>[CORRLO, CORRHI]</code>, and event-only <code>INDICPX</code>/
+  <code>INDICQTY</code>/<code>IMB</code> describing the call phase that just failed to clear
+  inside the old corridor</li>
+<li><strong>no accompanying <code>STATE</code> line for the extension</strong> — the symbol was
+  halted before and after, so the coarse session state hasn't changed; only
+  <code>CB</code> reports it</li>
+<li>eventually a resume (<code>STATUS=ACTIVE</code>) once an indicative lands inside the
+  corridor, or — if the trading day ends first — a resume carrying
+  <code>REASON=CLOSING_BACKSTOP</code>, <code>CLAMPED=1</code>, and <code>PRINTPX</code>, meaning the
+  exchange printed at the corridor boundary rather than a price the book
+  discovered</li>
+</ul>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain why a client that ignores <code>EXP</code>/<code>CORRLO</code>/<code>CORRHI</code> will wrongly report a halted symbol as overdue to reopen, and what <code>CLAMPED=1</code> tells you about a <code>CLOSING_BACKSTOP</code> print.</p>
+<h2 id="exercise-4e-reference-data-tick-decimals-ref">Exercise 4E: Reference Data — Tick Decimals (<code>REF</code>)<a class="headerlink" href="#exercise-4e-reference-data-tick-decimals-ref" title="Permanent link">&para;</a></h2>
+<p>Every instrument has a display precision (<code>tick_decimals</code>) that a market
+data client otherwise has no way to discover. <code>WELCOME</code> and the <code>SYMBOLS</code>
+reply both carry it as <code>REF=SYM:DEC,...</code>, matching the symbol set in
+<code>SYMBOLS=</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>HELLO|CLIENT=manual06|PROTO=CALF1
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>SYMBOLS
+</code></pre></div>
+<p>Observe:</p>
+<ul>
+<li><code>WELCOME|...|SYMBOLS=...|REF=...</code> on connect — <code>REF</code> covers exactly the
+  symbols listed in <code>SYMBOLS</code>, in the same <code>SYM:DEC</code> order</li>
+<li>the <code>SYMBOLS</code> reply repeats the same pairing: <code>SYMBOLS|COUNT=n|SYMBOLS=...|REF=...</code></li>
+<li>a symbol you configured with a non-default <code>tick_decimals</code> (e.g. <code>4</code>)
+  reports that value, not the fallback of <code>2</code></li>
+</ul>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain why <code>REF</code> rides the handshake/<code>SYMBOLS</code> reply instead of being repeated on every <code>TOP</code>/<code>MD</code> line, and what a client should assume for a symbol missing from <code>REF</code> entirely (older gateway, no capability).</p>
 <h2 id="exercise-5-protocol-control-messages-ping-unsub-exit">Exercise 5: Protocol Control Messages (PING, UNSUB, EXIT)<a class="headerlink" href="#exercise-5-protocol-control-messages-ping-unsub-exit" title="Permanent link">&para;</a></h2>
 <p>Use netcat for manual control-message testing:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
 </code></pre></div>
 <p>Then send lines:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>HELLO|CLIENT=manual02|PROTO=CALF1
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>SUB|CH=TOP|SYM=AAPL
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>PING
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>UNSUB|CH=TOP|SYM=AAPL
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>EXIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>HELLO|CLIENT=manual02|PROTO=CALF1
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>SUB|CH=TOP|SYM=AAPL
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>PING
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>UNSUB|CH=TOP|SYM=AAPL
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>EXIT
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
@@ -3683,28 +3953,46 @@ with <code>ERR|CODE=INVALID_SYMBOL</code> — unlike <code>AUCTION</code>, <code
 <li>EXIT closes session cleanly</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can manually drive and verify control flow.</p>
-<h2 id="exercise-6-replay-and-recovery-with-resume1">Exercise 6: Replay and Recovery with RESUME=1<a class="headerlink" href="#exercise-6-replay-and-recovery-with-resume1" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-6-replay-and-recovery-with-resume">Exercise 6: Replay and Recovery with RESUME<a class="headerlink" href="#exercise-6-replay-and-recovery-with-resume" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Start a subscriber and note the highest SEQ for (TOP, AAPL).</li>
 <li>Disconnect client.</li>
 <li>Generate additional market activity.</li>
-<li>Reconnect with RESUME=1 for that stream:</li>
+<li>Reconnect with a plain <code>HELLO</code>, then send <code>RESUME</code> for that stream:</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>HELLO|CLIENT=replay01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=&lt;saved_seq&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>HELLO|CLIENT=replay01|PROTO=CALF1
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>RESUME|CH=TOP|SYM=AAPL|LASTSEQ=&lt;saved_seq&gt;
 </code></pre></div>
+<p><code>RESUME</code> is a command in its own right, sent after <code>WELCOME</code>, and
+repeatable — send one per stream you were following. Older builds carried
+it as a <code>RESUME=1</code> flag on <code>HELLO</code>, which could only ever be honoured once
+per connection; that form is no longer accepted.</p>
 <p>Observe replay behavior:</p>
 <ul>
 <li>replayed events for SEQ greater than LASTSEQ when retained</li>
-<li>REPLAY_MISS plus SNAP baseline when outside replay window</li>
+<li>
+<p>REPLAY_MISS plus a SNAP baseline when outside the replay window — but on
+  <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code> only. On <code>TRADE</code> and <code>AUCTION</code> no SNAP
+  follows, because there is no snapshot of a print that already happened.</p>
+</li>
+<li>
+<p>Now repeat step 4 on <code>TRADE</code> instead of <code>TOP</code>, with a <code>LASTSEQ</code> several
+   messages behind. Count the prints you receive against the ones you had
+   already seen.</p>
+</li>
 </ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can describe recovery for both replay-hit and replay-miss cases.</p>
+<p>The reply carries <strong>everything</strong> past <code>LASTSEQ</code>, not just what you missed —
+including the message that revealed the gap. Work out what a tape would
+look like if the client rendered them all, then read how
+<code>docs/examples/calf/calf_subscriber.py</code> avoids it.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can describe recovery for both replay-hit and replay-miss cases, say which channels get a SNAP on a miss, and explain why a replay reply must be de-duplicated.</p>
 <h2 id="exercise-7-error-conditions-and-operational-interpretation">Exercise 7: Error Conditions and Operational Interpretation<a class="headerlink" href="#exercise-7-error-conditions-and-operational-interpretation" title="Permanent link">&para;</a></h2>
 <p>Test typical protocol errors with malformed lines:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>SUB|CH=TOP|SYM=AAPL                 (before HELLO)
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>HELLO|CLIENT=x|PROTO=BAD
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>SUB|CH=UNKNOWN|SYM=AAPL
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>SUB|CH=DEPTH|SYM=*                  (invalid wildcard usage — DEPTH requires an explicit symbol)
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>SUB|CH=CB|SYM=*                     (invalid wildcard usage — CB requires an explicit symbol)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>SUB|CH=TOP|SYM=AAPL                 (before HELLO)
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>HELLO|CLIENT=x|PROTO=BAD
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>SUB|CH=UNKNOWN|SYM=AAPL
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>SUB|CH=DEPTH|SYM=*                  (invalid wildcard usage — DEPTH requires an explicit symbol)
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>SUB|CH=CB|SYM=*                     (invalid wildcard usage — CB requires an explicit symbol)
 </code></pre></div>
 <p>Note: as of CALF <code>1.0.0</code>, <code>SYM=*</code> is valid for <code>TOP</code>, <code>TRADE</code>, and <code>STATE</code>
 (e.g. <code>SUB|CH=TOP|SYM=*</code> now succeeds and returns one <code>SNAP</code> per known
@@ -3730,20 +4018,31 @@ details.</p>
 <li>docs/examples/calf/calf_parser.h</li>
 <li>docs/examples/calf/calf_parser.c</li>
 <li>docs/examples/calf/calf_subscriber.c</li>
+<li><code>pm-calf-spy</code> (installed CLI — no source to read, but the fastest way to
+  point at a running gateway and see the wire)</li>
 </ul>
-<p>Use these to bootstrap both quick lab subscribers and production-like integration test harnesses.</p>
+<p>Use these to bootstrap both quick lab subscribers and production-like
+integration test harnesses. Note that <code>calf_subscriber.py</code>/<code>.c</code> only drive
+<code>TOP</code>, <code>TRADE</code>, <code>STATE</code>, and <code>DEPTH</code> (filtered by <code>WELCOME|CH_SUPPORTED=</code>) —
+they do not touch <code>AUCTION</code>, <code>INDIC</code>, or <code>CB</code>. Reach for <code>pm-calf-spy</code> or a
+manual <code>nc</code> session for those, as this chapter's exercises do.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You have now covered major CALF protocol usage patterns:</p>
 <ul>
 <li>provisioning configuration with pm-config-gen</li>
-<li>connecting external clients through example libraries</li>
-<li>handling channel/symbol subscriptions and snapshots</li>
+<li>connecting external clients through example libraries, and through the
+  read-only <code>pm-calf-spy</code> CLI</li>
+<li>handling channel/symbol subscriptions and snapshots across all seven
+  channels</li>
 <li>distinguishing channels with a baseline <code>SNAP</code> (<code>TOP</code>, <code>STATE</code>, <code>INDEX</code>,
-  <code>DEPTH</code>, <code>CB</code>) from those without one (<code>TRADE</code>, <code>AUCTION</code>)</li>
-<li>reading auction uncross results (<code>AUCTION</code>) and circuit-breaker operational
-  detail (<code>CB</code>) alongside the simpler <code>STATE</code> halt/resume flag</li>
+  <code>DEPTH</code>, <code>CB</code>) from those without one (<code>TRADE</code>, <code>AUCTION</code>, <code>INDIC</code>)</li>
+<li>reading auction uncross results (<code>AUCTION</code>, with <code>REASON</code>), indicative
+  pricing during a call phase (<code>INDIC</code>), and circuit-breaker operational
+  detail (<code>CB</code>, with <code>SRC</code> and Automated Corridor Expansion) alongside the
+  simpler <code>STATE</code> halt/resume flag and its per-symbol session fan-out</li>
+<li>discovering per-symbol display precision via <code>REF</code></li>
 <li>using control messages and liveness probes</li>
-<li>recovering with RESUME=1/LASTSEQ semantics</li>
+<li>recovering with <code>RESUME</code>/LASTSEQ semantics, including de-duplicating a replay</li>
 <li>diagnosing protocol errors operationally</li>
 </ul>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>

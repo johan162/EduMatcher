@@ -961,14 +961,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway-reference/" class="md-nav__link">
+      <a href="../051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -2049,6 +2077,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3906,7 +3990,7 @@ you:</p>
 </code></pre></div>
 <p>Once enabled, every fill for that gateway arrives asynchronously as a
 <code>DC_FILL</code> line — see
-<a href="../050-gateway-reference/#dc-toggle-drop-copy-relay">Gateway → DC</a> and
+<a href="../055-alf-console/#dc-toggle-drop-copy-relay">ALF Console → DC</a> and
 <a href="../220-alf-gateway/#dc-toggle-drop-copy-relay">ALF TCP Gateway → DC</a> for the
 full command reference. Internally this is exactly the same ZMQ SUB
 connection to <code>drop_copy.event.{gateway_id}</code> described above — <code>pm-alf-gwy</code>
@@ -3987,7 +4071,7 @@ checks, see <a href="../930-app-ralf-protocol/">RALF protocol reference</a> and
 <ul>
 <li><a href="../202-dc-spy-cli/">Drop-Copy Spy (pm-dc-spy)</a> — read-only CLI for inspecting this feed without writing a subscriber</li>
 <li><a href="../201-dc-gateway/">Drop-Copy TCP Gateway (pm-dc-gwy)</a> — plain-TCP relay of this feed for non-ZeroMQ external clients</li>
-<li><a href="../050-gateway-reference/#dc-toggle-drop-copy-relay">Gateway → DC</a> — relay this feed through your own <code>pm-alf-console</code> session</li>
+<li><a href="../055-alf-console/#dc-toggle-drop-copy-relay">ALF Console → DC</a> — relay this feed through your own <code>pm-alf-console</code> session</li>
 <li><a href="../220-alf-gateway/#dc-toggle-drop-copy-relay">ALF TCP Gateway → DC</a> — relay this feed through your own <code>pm-alf-gwy</code> session</li>
 <li><a href="../170-processes/">Processes</a> — full ZeroMQ topology</li>
 <li><a href="../120-risk-controls/">Risk Controls</a> — halt, collar, and circuit breaker events</li>

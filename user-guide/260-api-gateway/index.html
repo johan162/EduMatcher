@@ -961,14 +961,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway-reference/" class="md-nav__link">
+      <a href="../051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1872,6 +1900,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#daily-rollups-one-date-or-a-series" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Daily rollups: one date, or a series
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pagination" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2099,6 +2138,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3674,7 +3769,7 @@ the existing CALF and RALF gateway pattern.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">api_gateways</span><span class="p">:</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">desk</span><span class="p">:</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0.0.0</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nt">swagger_enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="nt">log_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">info</span>
@@ -3735,6 +3830,10 @@ the existing CALF and RALF gateway pattern.</p>
 </tr>
 </tbody>
 </table>
+<p><code>host</code> defaults to <code>0.0.0.0</code>, matching the external TCP gateways: the API
+gateway is intended to be reachable by browser clients, API clients, and
+read-only dashboards on other machines. Set it to <code>127.0.0.1</code> only for a
+loopback-only lab or when a reverse proxy on the same host is the only caller.</p>
 <p>The engine's <code>gateways.alf</code> allowlist remains authoritative. If a credential
 maps to <code>TRADER01</code> but <code>TRADER01</code> is not allowed by the engine config, the
 engine rejects the API gateway handshake and every request using that
@@ -3748,12 +3847,12 @@ credentials can appear in more than one entry.</p>
 <p>Installed mode:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-engine<span class="w"> </span>--verbose
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-stats
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pm-api-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>desk
 </code></pre></div>
 <p>Developer mode:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-api-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>desk
 </code></pre></div>
 <p>Useful options:</p>
 <table>
@@ -3781,11 +3880,6 @@ credentials can appear in more than one entry.</p>
 <td>Select a named <code>api_gateways</code> entry</td>
 </tr>
 <tr>
-<td><code>--config PATH</code></td>
-<td style="text-align: right;"><code>EDUMATCHER_CONFIG</code> resolution</td>
-<td>Central engine config path</td>
-</tr>
-<tr>
 <td><code>--engine-host HOST</code></td>
 <td style="text-align: right;">config value</td>
 <td>Override engine host for ZMQ ports <code>5555</code>/<code>5556</code></td>
@@ -3804,7 +3898,7 @@ credentials can appear in more than one entry.</p>
 </table>
 <p>Uvicorn writes access and application logs to stdout/stderr. Redirect them with
 your shell or service manager:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-api-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk<span class="w"> </span>--log-level<span class="w"> </span>debug<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>desk<span class="w"> </span>--log-level<span class="w"> </span>debug<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>&gt;<span class="w"> </span>api-gateway.log<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span>
 </code></pre></div>
 <h2 id="swagger-interface">Swagger interface<a class="headerlink" href="#swagger-interface" title="Permanent link">&para;</a></h2>
@@ -4324,8 +4418,8 @@ with no <code>gateway_id</code>.</p>
 </tr>
 <tr>
 <td><code>GET /history/daily</code></td>
-<td><code>symbol</code>, <code>date</code>, <code>limit</code>, <code>after</code></td>
-<td>Omitting <code>date</code> returns the latest available date; no <code>from</code>/<code>to</code> range support</td>
+<td><code>symbol</code>, <code>date</code>, <code>from</code>, <code>to</code>, <code>limit</code>, <code>after</code></td>
+<td>Omitting every time filter returns the latest available date; <code>from</code>/<code>to</code> (inclusive, dates not timestamps) return a series across days, oldest first</td>
 </tr>
 <tr>
 <td><code>GET /history/price-snapshots</code></td>
@@ -4334,8 +4428,8 @@ with no <code>gateway_id</code>.</p>
 </tr>
 <tr>
 <td><code>GET /history/index-daily</code></td>
-<td><code>index_id</code>, <code>date</code>, <code>limit</code>, <code>after</code></td>
-<td>Same shape as <code>/daily</code> but for exchange indexes; omitting <code>date</code> returns the latest available date</td>
+<td><code>index_id</code>, <code>date</code>, <code>from</code>, <code>to</code>, <code>limit</code>, <code>after</code></td>
+<td>Same shape as <code>/daily</code> but for exchange indexes, including the <code>from</code>/<code>to</code> range</td>
 </tr>
 <tr>
 <td><code>GET /history/index-snapshots</code></td>
@@ -4354,6 +4448,44 @@ with no <code>gateway_id</code>.</p>
 </tr>
 </tbody>
 </table>
+<h4 id="daily-rollups-one-date-or-a-series">Daily rollups: one date, or a series<a class="headerlink" href="#daily-rollups-one-date-or-a-series" title="Permanent link">&para;</a></h4>
+<p><code>/history/daily</code> and <code>/history/index-daily</code> answer two different questions
+depending on which time filter you pass:</p>
+<table>
+<thead>
+<tr>
+<th>Parameters</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>(none)</em></td>
+<td>The latest available date only</td>
+</tr>
+<tr>
+<td><code>date=YYYY-MM-DD</code></td>
+<td>That one date</td>
+</tr>
+<tr>
+<td><code>from=</code> and/or <code>to=</code></td>
+<td>Every date in range, <strong>oldest first</strong>; bounds are inclusive and either may be omitted</td>
+</tr>
+</tbody>
+</table>
+<p><code>from</code>/<code>to</code> here are <strong>dates</strong> (<code>YYYY-MM-DD</code>), unlike <code>/trades</code> and
+<code>/price-snapshots</code> where they are ISO timestamps — these tables are keyed by
+date, not by tick time. Passing <code>date</code> together with a range is not an error;
+the specific date wins.</p>
+<p>Use the range for anything spanning days, such as a multi-day OHLC chart.
+Without it, a month of bars would take one request per calendar day.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="err">GET /api/v1/history/daily?symbol=AAPL&amp;from=2026-06-01&amp;to=2026-06-30</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
+</code></pre></div>
+<p>The cursor differs between the two modes. Within a single date, <code>symbol</code> (or
+<code>index_id</code>) alone identifies a row. Across a range it does not — the same
+symbol appears on every date — so the range cursor carries <code>(date, symbol)</code>.
+Both are opaque either way; just pass <code>next_cursor</code> back as <code>after</code>.</p>
 <h4 id="pagination">Pagination<a class="headerlink" href="#pagination" title="Permanent link">&para;</a></h4>
 <p>Every list-returning endpoint wraps its rows in an envelope with <code>count</code> and
 <code>has_more</code> — a boolean that is <code>true</code> when the page came back full (exactly
@@ -4374,21 +4506,21 @@ documented separately below as intentionally unbounded/unpaginated.
 all</strong>, since it's a single order's full lifecycle rather than an
 open-ended list.</p>
 </div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="err">GET /api/v1/history/trades?symbol=EDU100&amp;limit=2</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="err">GET /api/v1/history/trades?symbol=EDU100&amp;limit=2</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">&quot;trades&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-14T09:00:00.000+00:00&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;trade_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;T000&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EDU100&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">100.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;quantity&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;buy_gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GW1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;sell_gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GW2&quot;</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-14T09:01:00.000+00:00&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;trade_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;T001&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EDU100&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">100.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;quantity&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;buy_gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GW1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;sell_gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GW2&quot;</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">  </span><span class="p">],</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">  </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">  </span><span class="nt">&quot;has_more&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">  </span><span class="nt">&quot;next_cursor&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;eyJyb3dpZCI6MiwidHMiOiIyMDI2LTA2LTE0VDA5OjAxOjAwLjAwMCswMDowMCJ9&quot;</span>
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="p">{</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">&quot;trades&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-14T09:00:00.000+00:00&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;trade_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;T000&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EDU100&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">100.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;quantity&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;buy_gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GW1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;sell_gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GW2&quot;</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-14T09:01:00.000+00:00&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;trade_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;T001&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EDU100&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">100.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;quantity&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;buy_gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GW1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;sell_gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GW2&quot;</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">  </span><span class="nt">&quot;has_more&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span><span class="nt">&quot;next_cursor&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;eyJyb3dpZCI6MiwidHMiOiIyMDI2LTA2LTE0VDA5OjAxOjAwLjAwMCswMDowMCJ9&quot;</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="p">}</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="err">GET /api/v1/history/trades?symbol=EDU100&amp;limit=2&amp;after=eyJyb3dpZCI6MiwidHMiOiIyMDI2LTA2LTE0VDA5OjAxOjAwLjAwMCswMDowMCJ9</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="err">GET /api/v1/history/trades?symbol=EDU100&amp;limit=2&amp;after=eyJyb3dpZCI6MiwidHMiOiIyMDI2LTA2LTE0VDA5OjAxOjAwLjAwMCswMDowMCJ9</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
 </code></pre></div>
 <p>returns the next two trades, and so on until a response comes back with
 <code>has_more: false</code> and no <code>next_cursor</code>. A malformed or expired-schema
@@ -4396,17 +4528,17 @@ open-ended list.</p>
 <p><code>/history/index-ids</code> has no <code>limit</code>/<code>after</code> — the number of distinct
 exchange indexes is always small (EduMatcher caps this at 5 per config
 file), so it is intentionally unbounded and unpaginated.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="err">GET /api/v1/history/price-snapshots?symbol=AAPL&amp;from=2026-06-14T09:00:00%2B00:00&amp;to=2026-06-14T16:30:00%2B00:00&amp;limit=100</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="err">GET /api/v1/history/price-snapshots?symbol=AAPL&amp;from=2026-06-14T09:00:00%2B00:00&amp;to=2026-06-14T16:30:00%2B00:00&amp;limit=100</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="p">{</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">&quot;snapshots&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-14T09:00:00.000+00:00&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;mid_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">150.5</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;best_bid&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">150.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;best_ask&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">151.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pct_change&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-14T09:15:00.000+00:00&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;mid_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">151.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;best_bid&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">150.5</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;best_ask&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">151.5</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pct_change&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.3322</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">  </span><span class="p">],</span>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">  </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">  </span><span class="nt">&quot;has_more&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
-<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="p">{</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">&quot;snapshots&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-14T09:00:00.000+00:00&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;mid_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">150.5</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;best_bid&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">150.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;best_ask&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">151.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pct_change&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-14T09:15:00.000+00:00&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;mid_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">151.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;best_bid&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">150.5</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;best_ask&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">151.5</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;pct_change&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.3322</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">  </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="w">  </span><span class="nt">&quot;has_more&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="p">}</span>
 </code></pre></div>
 <p>Rows come from <code>pm-stats</code>' periodic book snapshots — recorded at a fixed
 interval (15 minutes by default, overridable via <code>pm-stats --snapshot-interval
@@ -4416,27 +4548,27 @@ not a substitute for a live feed. <code>pct_change</code> is the percent change 
 the <em>previous recorded snapshot</em> for that symbol (not versus the day's
 open), and is <code>null</code> for the first snapshot recorded for a symbol since
 <code>pm-stats</code> started, since there is no prior snapshot to compare against.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="err">GET /api/v1/history/index-daily?index_id=EDU100&amp;date=2026-06-14</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="err">GET /api/v1/history/index-daily?index_id=EDU100&amp;date=2026-06-14</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="p">{</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">&quot;daily&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">      </span><span class="nt">&quot;date&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-14&quot;</span><span class="p">,</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">      </span><span class="nt">&quot;index_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EDU100&quot;</span><span class="p">,</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">      </span><span class="nt">&quot;open_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1042.10</span><span class="p">,</span>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">      </span><span class="nt">&quot;high_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1056.30</span><span class="p">,</span>
-<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="w">      </span><span class="nt">&quot;low_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1040.05</span><span class="p">,</span>
-<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="w">      </span><span class="nt">&quot;close_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1048.73</span><span class="p">,</span>
-<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="w">      </span><span class="nt">&quot;close_session_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CLOSED&quot;</span><span class="p">,</span>
-<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="w">      </span><span class="nt">&quot;open_aggregate_cap&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">7300000000000.0</span><span class="p">,</span>
-<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="w">      </span><span class="nt">&quot;close_aggregate_cap&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">7350000000000.0</span><span class="p">,</span>
-<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="w">      </span><span class="nt">&quot;update_count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">512</span>
-<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a><span class="w">  </span><span class="p">],</span>
-<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a><span class="w">  </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a><span class="w">  </span><span class="nt">&quot;has_more&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
-<a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="p">{</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">&quot;daily&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">      </span><span class="nt">&quot;date&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-14&quot;</span><span class="p">,</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">      </span><span class="nt">&quot;index_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EDU100&quot;</span><span class="p">,</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">      </span><span class="nt">&quot;open_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1042.10</span><span class="p">,</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">      </span><span class="nt">&quot;high_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1056.30</span><span class="p">,</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="w">      </span><span class="nt">&quot;low_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1040.05</span><span class="p">,</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="w">      </span><span class="nt">&quot;close_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1048.73</span><span class="p">,</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="w">      </span><span class="nt">&quot;close_session_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CLOSED&quot;</span><span class="p">,</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="w">      </span><span class="nt">&quot;open_aggregate_cap&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">7300000000000.0</span><span class="p">,</span>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a><span class="w">      </span><span class="nt">&quot;close_aggregate_cap&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">7350000000000.0</span><span class="p">,</span>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="w">      </span><span class="nt">&quot;update_count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">512</span>
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a><span class="w">  </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-17-17" name="__codelineno-17-17" href="#__codelineno-17-17"></a><span class="w">  </span><span class="nt">&quot;has_more&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<a id="__codelineno-17-18" name="__codelineno-17-18" href="#__codelineno-17-18"></a><span class="p">}</span>
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title"><code>close_level</code> is only final once <code>close_session_state</code> is <code>CLOSED</code></p>
@@ -4447,13 +4579,13 @@ and will keep changing — check <code>close_session_state == "CLOSED"</code> (o
 for the date to roll over) before treating it as the official close. See
 <a href="../140-statistics-and-reporting/#getting-the-eod-index-level-for-a-date">Statistics &amp; Reporting</a>.</p>
 </div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="err">GET /api/v1/history/index-snapshots?index_id=EDU100&amp;from=2026-06-14T09:00:00%2B00:00&amp;to=2026-06-14T16:30:00%2B00:00&amp;limit=100</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="err">GET /api/v1/history/index-ids</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="err">GET /api/v1/history/index-snapshots?index_id=EDU100&amp;from=2026-06-14T09:00:00%2B00:00&amp;to=2026-06-14T16:30:00%2B00:00&amp;limit=100</span>
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;index_ids&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;EDU100&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;EDUFIN&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="err">GET /api/v1/history/index-ids</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;index_ids&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;EDU100&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;EDUFIN&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div>
 <p>If no exchange index is configured, or <code>pm-index</code>/<code>pm-stats</code> have not run
 yet, <code>index-daily</code>, <code>index-snapshots</code>, and <code>price-snapshots</code> return an empty
@@ -4475,16 +4607,16 @@ the <code>pm-index</code> process itself. Practically, this means:</p>
   and max 10,000) caps the reply size directly, matching <code>pm-index</code>'s own
   request/reply contract.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="err">GET /api/v1/history/index-events?index_id=EDU100&amp;from=1750000000&amp;to=1760000000</span>
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="err">GET /api/v1/history/index-events?index_id=EDU100&amp;from=1750000000&amp;to=1760000000</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="err">Authorization: Bearer key-readonly-demo</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="p">{</span>
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="nt">&quot;events&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;INIT&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1750000012.5</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;index_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EDU100&quot;</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CORP_ACTION&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1751234000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;index_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EDU100&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;SPLIT&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">  </span><span class="p">],</span>
-<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="w">  </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
-<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="p">{</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span><span class="nt">&quot;events&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;INIT&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1750000012.5</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;index_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EDU100&quot;</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CORP_ACTION&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1751234000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;index_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EDU100&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;SPLIT&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">  </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="p">}</span>
 </code></pre></div>
 <p><code>from</code>/<code>to</code> are Unix timestamps in seconds (not the ISO-8601 strings used by
 the SQLite-backed endpoints), defaulting to the last 30 days and now
@@ -4648,21 +4780,21 @@ authentication it sends <code>{ "type": "authenticated" }</code> and then stream
 engine event (order, fill, cancel, session, and circuit-breaker) across all
 gateways. Non-admin keys receive an error frame and are disconnected.</p>
 <p>Private event envelope:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="p">{</span>
-<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;order.fill&quot;</span><span class="p">,</span>
-<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">  </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-24T10:15:03.221Z&quot;</span><span class="p">,</span>
-<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">  </span><span class="nt">&quot;gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TRADER01&quot;</span><span class="p">,</span>
-<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">  </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">    </span><span class="nt">&quot;order_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ORD-...&quot;</span><span class="p">,</span>
-<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w">    </span><span class="nt">&quot;fill_qty&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
-<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="w">    </span><span class="nt">&quot;fill_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">150.50</span><span class="p">,</span>
-<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="w">    </span><span class="nt">&quot;remaining_qty&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
-<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="w">    </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PARTIAL&quot;</span>
-<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="p">{</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;order.fill&quot;</span><span class="p">,</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">  </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-24T10:15:03.221Z&quot;</span><span class="p">,</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="w">  </span><span class="nt">&quot;gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TRADER01&quot;</span><span class="p">,</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="w">  </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="w">    </span><span class="nt">&quot;order_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ORD-...&quot;</span><span class="p">,</span>
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="w">    </span><span class="nt">&quot;fill_qty&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a><span class="w">    </span><span class="nt">&quot;fill_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">150.50</span><span class="p">,</span>
+<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a><span class="w">    </span><span class="nt">&quot;remaining_qty&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a><span class="w">    </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PARTIAL&quot;</span>
+<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a><span class="p">}</span>
 </code></pre></div>
 <p>Market-data subscription control:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;subscribe&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbols&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;MSFT&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;channels&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;book&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;trades&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;depth&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;auction&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;subscribe&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbols&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;MSFT&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;channels&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;book&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;trades&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;depth&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;auction&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div>
 <p>Available market-data channels are <code>book</code>, <code>trades</code>, <code>depth</code>, and <code>auction</code>.
 The <code>auction</code> channel delivers auction uncross results
@@ -4672,19 +4804,19 @@ is delivered on each subscribed channel. Send a non-empty <code>symbols</code> l
 narrow the feed to specific instruments.</p>
 <p>Session and circuit-breaker events are always delivered after authentication.</p>
 <h2 id="python-rest-example">Python REST example<a class="headerlink" href="#python-rest-example" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>
-<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span><span class="s2">&quot;http://127.0.0.1:8080&quot;</span><span class="p">,</span> <span class="s2">&quot;key-trader-demo&quot;</span><span class="p">)</span>
-<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">&quot;/api/v1/status&quot;</span><span class="p">))</span>
-<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">&quot;/api/v1/symbols&quot;</span><span class="p">))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span><span class="s2">&quot;http://127.0.0.1:8080&quot;</span><span class="p">,</span> <span class="s2">&quot;key-trader-demo&quot;</span><span class="p">)</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">&quot;/api/v1/status&quot;</span><span class="p">))</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">&quot;/api/v1/symbols&quot;</span><span class="p">))</span>
 </code></pre></div>
 <p>Runnable examples live under <code>docs/examples/REST/python/</code>.</p>
 <h2 id="c-rest-example">C REST example<a class="headerlink" href="#c-rest-example" title="Permanent link">&para;</a></h2>
 <p>The C example uses a small POSIX socket helper for simple HTTP GET calls:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="n">ApiGatewayClient</span><span class="w"> </span><span class="n">client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_client</span><span class="p">(</span><span class="s">&quot;127.0.0.1&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">8080</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;key-trader-demo&quot;</span><span class="p">);</span>
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_get</span><span class="p">(</span><span class="o">&amp;</span><span class="n">client</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;/api/v1/status&quot;</span><span class="p">);</span>
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="n">puts</span><span class="p">(</span><span class="n">body</span><span class="p">);</span>
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="n">free</span><span class="p">(</span><span class="n">body</span><span class="p">);</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="n">ApiGatewayClient</span><span class="w"> </span><span class="n">client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_client</span><span class="p">(</span><span class="s">&quot;127.0.0.1&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">8080</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;key-trader-demo&quot;</span><span class="p">);</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_get</span><span class="p">(</span><span class="o">&amp;</span><span class="n">client</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;/api/v1/status&quot;</span><span class="p">);</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="n">puts</span><span class="p">(</span><span class="n">body</span><span class="p">);</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="n">free</span><span class="p">(</span><span class="n">body</span><span class="p">);</span>
 </code></pre></div>
 <p>Runnable examples live under <code>docs/examples/REST/c/</code>.</p>
 <h2 id="implementation-notes-and-design-deviations">Implementation notes and design deviations<a class="headerlink" href="#implementation-notes-and-design-deviations" title="Permanent link">&para;</a></h2>
@@ -4731,14 +4863,14 @@ created and populated the configured database.</p>
 <p>The script below lives at <code>docs/examples/REST/python/submit_market_order.py</code>
 and reuses the same <code>ApiGatewayClient</code> library used by <code>demo_info.py</code>.</p>
 <p>Run it from the examples directory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/python
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w">  </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>SELL<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--qty<span class="w"> </span><span class="m">50</span><span class="w"> </span>--wait-ack
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/python
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w">  </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>SELL<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--qty<span class="w"> </span><span class="m">50</span><span class="w"> </span>--wait-ack
 </code></pre></div>
 <p>Override gateway URL and key with environment variables:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="nv">EDUMATCHER_API_URL</span><span class="o">=</span>http://127.0.0.1:8080<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span>key-trader-demo<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="nv">EDUMATCHER_API_URL</span><span class="o">=</span>http://127.0.0.1:8080<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span>key-trader-demo<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
 </code></pre></div>
 <table>
 <thead>
@@ -4789,19 +4921,19 @@ and reuses the same <code>ApiGatewayClient</code> library used by <code>demo_inf
 </tbody>
 </table>
 <p>Example output without <code>--wait-ack</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>order_id  : ORD-3a7f1e2c
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>status    : PENDING
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>order_id  : ORD-3a7f1e2c
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>status    : PENDING
 </code></pre></div>
 <p>Example output with <code>--wait-ack</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>order_id  : ORD-3a7f1e2c
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>status    : ACKED
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>accepted  : True
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>engine ack:
-<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>{
-<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>  &quot;order_id&quot;: &quot;ORD-3a7f1e2c&quot;,
-<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>  &quot;accepted&quot;: true,
-<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>  &quot;reason&quot;: null
-<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>order_id  : ORD-3a7f1e2c
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>status    : ACKED
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>accepted  : True
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>engine ack:
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>{
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>  &quot;order_id&quot;: &quot;ORD-3a7f1e2c&quot;,
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>  &quot;accepted&quot;: true,
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>  &quot;reason&quot;: null
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>}
 </code></pre></div>
 <p>MARKET orders must not include <code>price</code> or <code>stop_price</code>. The gateway validates
 this and returns <code>400 VALIDATION</code> if either field is present.</p>
@@ -4810,28 +4942,28 @@ this and returns <code>400 VALIDATION</code> if either field is present.</p>
 <p>Before starting <code>pm-api-gwy</code>, or when a client cannot connect, verify that
 something is listening on the configured port (default <code>8080</code>).</p>
 <p><strong>macOS:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># lsof — shows the process name and PID holding the port</span>
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:8080<span class="w"> </span>-sTCP:LISTEN
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1"># BSD netstat (ships with macOS)</span>
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>netstat<span class="w"> </span>-an<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>LISTEN<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">8080</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># lsof — shows the process name and PID holding the port</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:8080<span class="w"> </span>-sTCP:LISTEN
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="c1"># BSD netstat (ships with macOS)</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>netstat<span class="w"> </span>-an<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>LISTEN<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">8080</span>
 </code></pre></div>
 <p><strong>Linux:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># ss — preferred on modern Linux</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>ss<span class="w"> </span>-tlnp<span class="w"> </span><span class="s1">&#39;sport = :8080&#39;</span>
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="c1"># lsof</span>
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:8080<span class="w"> </span>-sTCP:LISTEN
-<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>
-<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="c1"># netstat (older distributions)</span>
-<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>netstat<span class="w"> </span>-tlnp<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">8080</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># ss — preferred on modern Linux</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>ss<span class="w"> </span>-tlnp<span class="w"> </span><span class="s1">&#39;sport = :8080&#39;</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="c1"># lsof</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:8080<span class="w"> </span>-sTCP:LISTEN
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="c1"># netstat (older distributions)</span>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>netstat<span class="w"> </span>-tlnp<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">8080</span>
 </code></pre></div>
 <p>Replace <code>8080</code> with the <code>port</code> value from your <code>api_gateways.&lt;name&gt;</code> config block.
 If no output appears, the gateway is not running.</p>
 <h3 id="test-http-connectivity-from-the-command-line">Test HTTP connectivity from the command line<a class="headerlink" href="#test-http-connectivity-from-the-command-line" title="Permanent link">&para;</a></h3>
 <p>The health endpoint requires no authentication and is the fastest connectivity check:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8080/api/v1/healthz
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="c1"># Expected: {&quot;ok&quot;: true, &quot;enabled&quot;: true, &quot;active_gateways&quot;: [&quot;TRADER01&quot;]}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8080/api/v1/healthz
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="c1"># Expected: {&quot;ok&quot;: true, &quot;enabled&quot;: true, &quot;active_gateways&quot;: [&quot;TRADER01&quot;]}</span>
 </code></pre></div>
 <p><code>ok</code> reflects whether the gateway is <code>enabled</code> in config <strong>and</strong> whether its
 own engine-event listener thread is alive — it does <strong>not</strong> confirm that
@@ -4841,19 +4973,19 @@ can report <code>{"ok": true}</code> even before <code>pm-engine</code> has ever
 only flips to <code>false</code> if the gateway itself is disabled or its listener
 thread has crashed.</p>
 <p>Test an authenticated endpoint:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer key-trader-demo&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/status
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer key-trader-demo&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/status
 </code></pre></div>
 <p>Test WebSocket connectivity:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="c1"># websocat (brew install websocat / apt install websocat)</span>
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>websocat<span class="w"> </span>ws://127.0.0.1:8080/api/v1/market-data
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>
-<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="c1"># curl — look for HTTP 101 Switching Protocols in the response headers</span>
-<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>curl<span class="w"> </span>-v<span class="w"> </span>--no-buffer<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">&quot;Connection: Upgrade&quot;</span><span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Upgrade: websocket&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">&quot;Sec-WebSocket-Version: 13&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">&quot;Sec-WebSocket-Key: dGhlc2FtcGxla2V5&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/market-data
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="c1"># websocat (brew install websocat / apt install websocat)</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>websocat<span class="w"> </span>ws://127.0.0.1:8080/api/v1/market-data
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="c1"># curl — look for HTTP 101 Switching Protocols in the response headers</span>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>curl<span class="w"> </span>-v<span class="w"> </span>--no-buffer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">&quot;Connection: Upgrade&quot;</span><span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Upgrade: websocket&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">&quot;Sec-WebSocket-Version: 13&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">&quot;Sec-WebSocket-Key: dGhlc2FtcGxla2V5&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/market-data
 </code></pre></div>
 <h3 id="common-problems">Common problems<a class="headerlink" href="#common-problems" title="Permanent link">&para;</a></h3>
 <table>

@@ -961,14 +961,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway-reference/" class="md-nav__link">
+      <a href="../051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1753,6 +1781,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3811,8 +3895,8 @@ governs. For worked examples, recipes, and rationale, see
 A loader given a non-mapping root MUST reject the file. <code>load_engine_config()</code>
 itself MUST raise <code>FileNotFoundError</code> for a missing path — it does not implement
 a fallback. The <em>caller</em>, <code>pm-engine</code> (<code>engine/main.py</code>), checks for the file's
-existence before calling the loader: if the resolved config path (from <code>--config</code>,
-<code>$EDUMATCHER_CONFIG</code>, or the default <code>engine_config.yaml</code> location) does not
+existence before calling the loader: if the deployed config
+(compiled to <code>&lt;EDUMATCHER_DATA_DIR&gt;/ref_data/engine_config.json</code>) does not
 exist, <code>pm-engine</code> skips loading entirely and starts in <em>unrestricted mode</em> (no
 symbol/gateway allowlist, sessions disabled) rather than failing. That fallback
 is implemented by <code>pm-engine</code>, not by the loader, and is out of scope here —
@@ -3992,11 +4076,6 @@ load. Producers MAY write any case; consumers compare upper-case.</p>
 <td><code>SmpAction</code></td>
 <td><code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code></td>
 <td>combo legs, <code>gateways.alf[].smp_action</code></td>
-</tr>
-<tr>
-<td><code>ResumptionMode</code></td>
-<td><code>AUCTION</code>, <code>CONTINUOUS</code></td>
-<td>circuit-breaker levels</td>
 </tr>
 <tr>
 <td><code>DuplicateSessionPolicy</code></td>
@@ -4573,6 +4652,13 @@ rejected; define circuit breakers under <code>circuit_breaker_defaults</code> (�
 <td>built-in <code>L1/L2/L3</code></td>
 <td>non-empty after merge</td>
 </tr>
+<tr>
+<td><code>reopening</code></td>
+<td><code>ReopeningSpec</code></td>
+<td style="text-align: center;">–</td>
+<td>built-in ACE defaults</td>
+<td>merges field-by-field</td>
+</tr>
 </tbody>
 </table>
 <p><code>CBLevelSpec</code>:</p>
@@ -4601,12 +4687,82 @@ rejected; define circuit breakers under <code>circuit_breaker_defaults</code> (�
 <td>—</td>
 <td><code>&gt; 0</code> when set; <code>null</code> = halt for the rest of the trading day</td>
 </tr>
+</tbody>
+</table>
+<p><code>ReopeningSpec</code> (Automated Corridor Expansion):</p>
+<table>
+<thead>
 <tr>
-<td><code>resumption_mode</code></td>
-<td><code>Enum&lt;ResumptionMode&gt;</code></td>
+<th>Field</th>
+<th>Type</th>
+<th style="text-align: center;">Req</th>
+<th>Default</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enabled</code></td>
+<td><code>Bool</code></td>
 <td style="text-align: center;">–</td>
-<td><code>AUCTION</code></td>
-<td></td>
+<td><code>true</code></td>
+<td>–</td>
+</tr>
+<tr>
+<td><code>initial_band_pct</code></td>
+<td><code>Pct01</code></td>
+<td style="text-align: center;">–</td>
+<td><code>0.10</code></td>
+<td><code>0 &lt; x &lt; 1</code></td>
+</tr>
+<tr>
+<td><code>expansions</code></td>
+<td><code>List&lt;ExpansionSpec&gt;</code></td>
+<td style="text-align: center;">–</td>
+<td><code>[{0.10, 120e9}, {0.20, 300e9}]</code></td>
+<td>non-empty; final entry repeats indefinitely; only valid under <code>circuit_breaker_defaults</code></td>
+</tr>
+<tr>
+<td><code>random_end_max_ns</code></td>
+<td><code>Nanos</code></td>
+<td style="text-align: center;">–</td>
+<td><code>30000000000</code></td>
+<td><code>&gt;= 0</code>; <code>0</code> disables the random end</td>
+</tr>
+<tr>
+<td><code>random_seed</code></td>
+<td><code>Int</code> | <code>null</code></td>
+<td style="text-align: center;">–</td>
+<td><code>null</code></td>
+<td>engine-wide; only valid under <code>circuit_breaker_defaults</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>ExpansionSpec</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th style="text-align: center;">Req</th>
+<th>Default</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>widen_pct</code></td>
+<td><code>Pct01</code></td>
+<td style="text-align: center;">✔</td>
+<td>—</td>
+<td><code>0 &lt; x &lt; 1</code>; additive on the reference price</td>
+</tr>
+<tr>
+<td><code>min_duration_ns</code></td>
+<td><code>Nanos</code></td>
+<td style="text-align: center;">✔</td>
+<td>—</td>
+<td><code>&gt; 0</code></td>
 </tr>
 </tbody>
 </table>
@@ -5063,8 +5219,8 @@ be rejected.</p>
 <td><code>host</code></td>
 <td><code>Str</code></td>
 <td style="text-align: center;">–</td>
-<td><code>"127.0.0.1"</code></td>
-<td></td>
+<td><code>"0.0.0.0"</code></td>
+<td>use <code>127.0.0.1</code> for loopback-only deployments</td>
 </tr>
 <tr>
 <td><code>port</code></td>
@@ -5455,7 +5611,11 @@ rejected at load.</p>
 </tr>
 <tr>
 <td>CV12</td>
-<td><code>collar.*_band_pct</code> ∈ (0,1); <code>circuit_breaker.levels.&lt;L&gt;.price_shift_pct</code> ∈ (0,1); <code>halt_duration_ns</code> is <code>&gt; 0</code> or <code>null</code>; <code>resumption_mode</code> ∈ {AUCTION, CONTINUOUS}.</td>
+<td><code>collar.*_band_pct</code> ∈ (0,1); <code>circuit_breaker.levels.&lt;L&gt;.price_shift_pct</code> ∈ (0,1); <code>halt_duration_ns</code> is <code>&gt; 0</code> or <code>null</code>.</td>
+</tr>
+<tr>
+<td>CV13</td>
+<td><code>circuit_breaker.reopening.initial_band_pct</code> and every <code>expansions[].widen_pct</code> ∈ (0,1); <code>expansions</code> is non-empty; <code>expansions[].min_duration_ns</code> is <code>&gt; 0</code>; <code>random_end_max_ns</code> is <code>&gt;= 0</code>; <code>random_seed</code> and <code>expansions</code> appear only under <code>circuit_breaker_defaults</code>.</td>
 </tr>
 <tr>
 <td>CV13</td>

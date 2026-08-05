@@ -961,14 +961,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway-reference/" class="md-nav__link">
+      <a href="../051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -2497,6 +2525,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#auctionindicativesymbol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        auction.indicative.{SYMBOL}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#auctionresultsymbol" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2890,6 +2929,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -4577,7 +4672,7 @@
 <tr>
 <td><code>order.fill.{GW_ID}</code></td>
 <td>pm-engine via PUB :5556</td>
-<td>Notifies a gateway (and the order monitor) of a partial or full fill. A derived copy of each fill is separately relayed as <code>drop_copy.event.{gateway_id}</code> on :5557 — see below and <a href="../200-drop-copy/">Drop Copy</a>. Can also be relayed to a participant's own ALF session as <code>DC_FILL</code> via <code>DC\|STATE=ON</code> — see <a href="../050-gateway-reference/#dc-toggle-drop-copy-relay">Gateway → DC</a>.</td>
+<td>Notifies a gateway (and the order monitor) of a partial or full fill. A derived copy of each fill is separately relayed as <code>drop_copy.event.{gateway_id}</code> on :5557 — see below and <a href="../200-drop-copy/">Drop Copy</a>. Can also be relayed to a participant's own ALF session as <code>DC_FILL</code> via <code>DC\|STATE=ON</code> — see <a href="../055-alf-console/#dc-toggle-drop-copy-relay">ALF Console → DC</a>.</td>
 </tr>
 <tr>
 <td><code>order.cancelled.{GW_ID}</code></td>
@@ -4703,6 +4798,11 @@
 <td><code>circuit_breaker.resume.{SYMBOL}</code></td>
 <td>pm-engine via PUB :5556</td>
 <td>Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions.</td>
+</tr>
+<tr>
+<td><code>circuit_breaker.extend.{SYMBOL}</code></td>
+<td>pm-engine via PUB :5556</td>
+<td>An ACE corridor expansion: the call phase ended with the indicative price outside the corridor, so the symbol stays halted, the corridor widens and a fresh call phase begins. A consumer that ignores this keeps a <code>resume_at_ns</code> that has already passed.</td>
 </tr>
 <tr>
 <td><code>session.transition</code></td>
@@ -5779,7 +5879,7 @@ Role requirements and MM obligation controls are documented in
 </tr>
 </tbody>
 </table>
-<p>The engine also publishes <code>circuit_breaker.halt.{SYMBOL}</code> with <code>resumption_mode = "MANUAL"</code> when a symbol is halted this way.</p>
+<p>The engine also publishes <code>circuit_breaker.halt.{SYMBOL}</code> with <code>halt_source = "ADMIN"</code> when a symbol is halted this way.</p>
 <h3 id="risksymbol_resume"><code>risk.symbol_resume</code><a class="headerlink" href="#risksymbol_resume" title="Permanent link">&para;</a></h3>
 <p><strong>Motivation:</strong> Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
 <strong>Published by:</strong> Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
@@ -5827,7 +5927,7 @@ Role requirements and MM obligation controls are documented in
 </tr>
 </tbody>
 </table>
-<p>The engine publishes <code>circuit_breaker.resume.{SYMBOL}</code> with <code>mode = "MANUAL"</code> when the symbol is resumed.</p>
+<p>The engine publishes <code>circuit_breaker.resume.{SYMBOL}</code> with <code>halt_source = "ADMIN"</code> when the symbol is resumed.</p>
 <h3 id="riskcancel_symbol"><code>risk.cancel_symbol</code><a class="headerlink" href="#riskcancel_symbol" title="Permanent link">&para;</a></h3>
 <p><strong>Motivation:</strong> Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
 <strong>Published by:</strong> Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
@@ -5894,7 +5994,7 @@ Only gateways configured with <code>role: ADMIN</code> are authorized.</p>
 <ul>
 <li>This is an exchange-wide manual halt. It is not timer-based.</li>
 <li>The engine marks affected symbols as halted and publishes
-  <code>circuit_breaker.halt.&lt;SYMBOL&gt;</code> with <code>resumption_mode = "MANUAL"</code> and
+  <code>circuit_breaker.halt.&lt;SYMBOL&gt;</code> with <code>halt_source = "ADMIN"</code> and
   <code>resume_at_ns = null</code>.</li>
 <li>While halted, quote entry is rejected and immediate-execution order types are
   rejected under the normal halt rules.</li>
@@ -5960,7 +6060,7 @@ Only gateways configured with <code>role: ADMIN</code> are authorized.</p>
 <ul>
 <li>The engine iterates all symbols currently marked as halted, sets each to
   non-halted, and deactivates any in-memory circuit-breaker state.</li>
-<li>A <code>circuit_breaker.resume.&lt;SYMBOL&gt;</code> event (with <code>mode = "MANUAL"</code>) is
+<li>A <code>circuit_breaker.resume.&lt;SYMBOL&gt;</code> event (with <code>halt_source = "ADMIN"</code>) is
   published for each resumed symbol.</li>
 <li>Only symbols that are currently halted are touched; symbols that are already
   trading are left unchanged.</li>
@@ -6037,14 +6137,14 @@ session and marks its role as <code>ADMIN</code>.</p>
 <li>Verify the gateway is connected and carries role <code>ADMIN</code>.</li>
 <li>Collect every known symbol (from order books, circuit-breaker state, and
    engine configuration).</li>
-<li>Mark each symbol as halted with <code>resumption_mode = "MANUAL"</code>.</li>
+<li>Mark each symbol as halted with <code>halt_source = "ADMIN"</code>.</li>
 <li>Cancel all outstanding MM quote legs (both sides).</li>
 <li>Publish one <code>circuit_breaker.halt.&lt;SYMBOL&gt;</code> event per symbol.</li>
 <li>Acknowledge with <code>risk.circuit_breaker_halt_all_ack.GW_ADMIN</code>.</li>
 </ol>
 <p>Expected inbound events (subscribe to <code>circuit_breaker.*</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>circuit_breaker.halt.AAPL  → { symbol: &quot;AAPL&quot;, resumption_mode: &quot;MANUAL&quot;, level: &quot;ADMIN_ALL&quot;, ... }
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>circuit_breaker.halt.MSFT  → { symbol: &quot;MSFT&quot;, resumption_mode: &quot;MANUAL&quot;, level: &quot;ADMIN_ALL&quot;, ... }
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>circuit_breaker.halt.AAPL  → { symbol: &quot;AAPL&quot;, halt_source: &quot;ADMIN&quot;, level: &quot;ADMIN_ALL&quot;, ... }
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>circuit_breaker.halt.MSFT  → { symbol: &quot;MSFT&quot;, halt_source: &quot;ADMIN&quot;, level: &quot;ADMIN_ALL&quot;, ... }
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>...
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>risk.circuit_breaker_halt_all_ack.GW_ADMIN → { accepted: true, halted_symbols: N, cancelled_quotes: M }
 </code></pre></div>
@@ -6337,7 +6437,7 @@ ZMQ SUB client, or <code>pm-dc-spy</code> for ad-hoc inspection — see
 participant's own ALF session via <code>pm-alf-console --drop-copy</code> /
 <code>DC|STATE=ON</code> or <code>pm-alf-gwy</code>'s <code>DC|STATE=ON</code> command, which re-emits it
 as an ALF <code>DC_FILL</code> line scoped to that session's own <code>gateway_id</code>. See
-<a href="../050-gateway-reference/#dc-toggle-drop-copy-relay">Gateway → DC</a> and
+<a href="../055-alf-console/#dc-toggle-drop-copy-relay">ALF Console → DC</a> and
 <a href="../220-alf-gateway/#dc-toggle-drop-copy-relay">ALF TCP Gateway → DC</a>.</p>
 </div>
 <table>
@@ -6724,6 +6824,11 @@ Consumed by order-book viewers and the statistics process.</p>
 <td>Instrument ticker</td>
 </tr>
 <tr>
+<td><code>tick_decimals</code></td>
+<td>integer</td>
+<td>Symbol price precision (<code>d</code> where 1 tick = <code>10^-d</code>), matching <code>trade.executed</code>. Lets a subscriber that stores integerized prices convert the display floats below back to exact ticks instead of assuming a scale — assuming <code>2</code> for a 4-decimal symbol rounds the price away</td>
+</tr>
+<tr>
 <td><code>bids</code></td>
 <td>array of level dicts</td>
 <td>Sorted best-to-worst; each level: <code>{"price", "qty", "count"}</code></td>
@@ -6766,6 +6871,15 @@ Consumed by order-book viewers and the statistics process.</p>
 <p>Published alongside <code>book.{SYMBOL}</code> after every state change (same throttle).<br />
 Contains depth and imbalance metrics computed within ±100 ticks of the last trade.<br />
 Absent (not published) until at least one trade has occurred for the symbol.</p>
+<div class="admonition note">
+<p class="admonition-title">Constructed with <code>make_depth_msg</code></p>
+<p>The topic is <code>depth.{SYMBOL}</code>, deliberately <strong>not</strong> <code>book.depth.{SYMBOL}</code>.
+A <code>book.</code> prefix subscription matches any sub-topic, so publishing depth
+under <code>book.depth.…</code> would deliver it to every book subscriber — and
+pm-stats, which derives the symbol as everything after the first dot,
+would record a phantom instrument named <code>depth.AAPL</code>. Use
+<code>models.message.make_depth_msg</code>; do not construct the topic by hand.</p>
+</div>
 <table>
 <thead>
 <tr>
@@ -7220,7 +7334,7 @@ forwards <code>QLEGS</code> requests from its own ALF sessions to this message a
 renders <code>legs</code> (as <code>LEG</code> lines), <code>recent</code> (as <code>RECENT_LEG</code> lines), and
 <code>bid_leg</code>/<code>ask_leg</code> (as <code>RECENT_BID_LEG</code>/<code>RECENT_ASK_LEG</code> lines, emitted only
 when present) — see
-<a href="../050-gateway-reference/#qlegs-inspect-mm-quote-legs-and-fill-flags">Gateway → QLEGS</a>.
+<a href="../055-alf-console/#qlegs-inspect-mm-quote-legs-and-fill-flags">ALF Console → QLEGS</a>.
 <code>pm-alf-console</code>'s own <code>QLEGS</code> command does <strong>not</strong> use this message at all —
 it continues to render entirely from its own local, session-scoped cache
 (unrelated code path, unaffected by any of the above).</p>
@@ -7497,7 +7611,7 @@ from edge events alone.</p>
 </table>
 <p>Each entry in <code>halted</code> always has <code>symbol</code>; the other three fields are present
 <strong>only when the symbol has a configured circuit breaker</strong> (<code>resume_at_ns</code>,
-<code>level</code>, and <code>resumption_mode</code> are omitted entirely, not sent as <code>null</code>, for a
+<code>level</code>, and <code>halt_source</code> are omitted entirely, not sent as <code>null</code>, for a
 halted symbol with no circuit-breaker configuration):</p>
 <table>
 <thead>
@@ -7524,9 +7638,9 @@ halted symbol with no circuit-breaker configuration):</p>
 <td>CB ladder level that triggered the halt: <code>"L1"</code>, <code>"L2"</code>, <code>"L3"</code>, <code>"ADMIN_ALL"</code> (operator-initiated global halt), or <code>"ADMIN_SYMBOL"</code> (operator-initiated single-symbol halt)</td>
 </tr>
 <tr>
-<td><code>resumption_mode</code></td>
+<td><code>halt_source</code></td>
 <td>string | absent</td>
-<td><code>"AUCTION"</code>, <code>"CONTINUOUS"</code>, or <code>"MANUAL"</code></td>
+<td>What halted the symbol: <code>"CB"</code> for an automatic breaker trigger, <code>"ADMIN"</code> for an operator halt</td>
 </tr>
 </tbody>
 </table>
@@ -7635,12 +7749,63 @@ and the statistics process to know what trading mode is currently active.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="auctionindicativesymbol"><code>auction.indicative.{SYMBOL}</code><a class="headerlink" href="#auctionindicativesymbol" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Shows where a symbol <em>would</em> uncross while a call phase is still collecting orders, so a participant can supply the offsetting interest that resolves an imbalance while there is still time to act.
+<strong>Published by:</strong> pm-engine via PUB :5556</p>
+<p>Published repeatedly during an opening or closing auction, throttled by
+<code>engine_tuning.auction_indicative_interval_sec</code>. This is the counterpart to
+<code>auction.result.{SYMBOL}</code>: that reports what <em>happened</em>, this reports what
+<em>would</em> happen if the phase ended now.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td>string</td>
+<td>Instrument ticker</td>
+</tr>
+<tr>
+<td><code>phase</code></td>
+<td>string</td>
+<td>The call phase in progress, e.g. <code>OPENING_AUCTION</code></td>
+</tr>
+<tr>
+<td><code>eq_price</code></td>
+<td>float | null</td>
+<td>Indicative equilibrium price; <code>null</code> when the book would not cross at all — a real state during a call phase, and <strong>not</strong> the same as a price of zero</td>
+</tr>
+<tr>
+<td><code>eq_qty</code></td>
+<td>integer</td>
+<td>Quantity that would match at <code>eq_price</code></td>
+</tr>
+<tr>
+<td><code>imbalance_side</code></td>
+<td>string</td>
+<td><code>"BUY"</code>, <code>"SELL"</code>, or <code>""</code> (balanced)</td>
+</tr>
+<tr>
+<td><code>imbalance_qty</code></td>
+<td>integer</td>
+<td>Surplus quantity that would not match</td>
+</tr>
+</tbody>
+</table>
 <h3 id="auctionresultsymbol"><code>auction.result.{SYMBOL}</code><a class="headerlink" href="#auctionresultsymbol" title="Permanent link">&para;</a></h3>
 <p><strong>Motivation:</strong> Publishes venue/session lifecycle transitions that gate trading behavior and downstream workflows.
 <strong>Published by:</strong> pm-engine via PUB :5556</p>
-<p>Broadcast once per symbol after an auction uncross completes (i.e. when
-transitioning out of OPENING_AUCTION or CLOSING_AUCTION).  Reports the
+<p>Broadcast once per symbol after an auction uncross completes.  Reports the
 equilibrium price, quantity matched, and any imbalance.</p>
+<p>Three different events produce it, and <code>reason</code> is the only field that
+distinguishes them: leaving an auction or other non-matching session phase,
+a halted symbol reopening at the end of its halt, and the pass over restored
+GTC orders at engine startup.</p>
 <table>
 <thead>
 <tr>
@@ -7679,6 +7844,11 @@ equilibrium price, quantity matched, and any imbalance.</p>
 <td><code>imbalance_qty</code></td>
 <td>integer</td>
 <td>Surplus quantity that could not be matched</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>string</td>
+<td><code>"SCHEDULED"</code>, <code>"REOPEN"</code>, or <code>"RECOVERY"</code></td>
 </tr>
 </tbody>
 </table>
@@ -7738,9 +7908,9 @@ Consumed by the statistics process to record end-of-day closing bid/ask prices.<
 <td>Engine nanosecond timestamp when the halt will auto-expire; <code>null</code> for manual (<code>ADMIN_ALL</code>/<code>ADMIN_SYMBOL</code>) halts</td>
 </tr>
 <tr>
-<td><code>resumption_mode</code></td>
-<td><code>"AUCTION"</code> | <code>"CONTINUOUS"</code> | <code>"MANUAL"</code></td>
-<td>How the symbol will reopen: auction uncross, immediate continuous matching, or explicit operator resume</td>
+<td><code>halt_source</code></td>
+<td><code>"CB"</code> | <code>"ADMIN"</code></td>
+<td>What halted the symbol. Not how it reopens: every halt is a reopening auction's call phase and always ends in an uncross, because LIMIT orders rest freely while halted and resuming without one would start continuous matching on a crossed book</td>
 </tr>
 <tr>
 <td><code>level</code></td>
@@ -7767,12 +7937,14 @@ Consumed by the statistics process to record end-of-day closing bid/ask prices.<
 <td>Resumed instrument ticker</td>
 </tr>
 <tr>
-<td><code>mode</code></td>
-<td><code>"AUCTION"</code> | <code>"CONTINUOUS"</code> | <code>"MANUAL"</code></td>
-<td>How the symbol reopened</td>
+<td><code>halt_source</code></td>
+<td><code>"CB"</code> | <code>"ADMIN"</code></td>
+<td>What had halted the symbol</td>
 </tr>
 </tbody>
 </table>
+<p>The reopening uncross is published first, as an <code>auction.result.{SYMBOL}</code>
+with <code>reason: "REOPEN"</code>, and this event follows it.</p>
 <h2 id="session-messages-scheduler-engine">Session messages (scheduler → engine)<a class="headerlink" href="#session-messages-scheduler-engine" title="Permanent link">&para;</a></h2>
 <h3 id="sessiontransition"><code>session.transition</code><a class="headerlink" href="#sessiontransition" title="Permanent link">&para;</a></h3>
 <p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
@@ -9246,7 +9418,7 @@ one-to-one mapping of the <code>log_events</code> table (see
 </tr>
 <tr>
 <td>Market-data gateway (<code>pm-md-gwy</code>)</td>
-<td><code>book.</code>, <code>trade.executed</code>, <code>session.state</code>, <code>circuit_breaker.halt.</code>, <code>circuit_breaker.resume.</code>, <code>index.</code></td>
+<td><code>book.</code>, <code>trade.executed</code>, <code>session.state</code>, <code>circuit_breaker.halt.</code>, <code>circuit_breaker.resume.</code>, <code>auction.result.</code>, <code>index.</code></td>
 </tr>
 <tr>
 <td>Log subscriber (viewer/UI, on <code>pm-log-srv</code>'s own PUB <code>:5601</code>)</td>
@@ -9266,6 +9438,7 @@ normalises, re-sequences, and reshapes them into CALF's own message types.</p>
 <th>Channel</th>
 <th>Message type</th>
 <th>Wildcard (<code>SYM=*</code>)</th>
+<th>Baseline <code>SNAP</code>?</th>
 <th>Carries</th>
 </tr>
 </thead>
@@ -9274,17 +9447,20 @@ normalises, re-sequences, and reshapes them into CALF's own message types.</p>
 <td><code>TOP</code></td>
 <td><code>MD</code></td>
 <td>Yes</td>
+<td>Yes</td>
 <td>Best bid/ask/last</td>
 </tr>
 <tr>
 <td><code>TRADE</code></td>
 <td><code>TRADE</code></td>
 <td>Yes</td>
+<td>No</td>
 <td>Individual trade prints</td>
 </tr>
 <tr>
 <td><code>STATE</code></td>
 <td><code>STATE</code></td>
+<td>Yes</td>
 <td>Yes</td>
 <td>Session/symbol state transitions</td>
 </tr>
@@ -9292,20 +9468,57 @@ normalises, re-sequences, and reshapes them into CALF's own message types.</p>
 <td><code>INDEX</code></td>
 <td><code>IDX</code></td>
 <td>No</td>
+<td>Yes</td>
 <td>Index level updates</td>
 </tr>
 <tr>
 <td><code>DEPTH</code></td>
 <td><code>DEPTH</code></td>
 <td>No</td>
-<td>Aggregated multi-level order book</td>
+<td>Yes</td>
+<td>Aggregated multi-level order book (Level 2)</td>
+</tr>
+<tr>
+<td><code>AUCTION</code></td>
+<td><code>AUCTION</code></td>
+<td>Yes</td>
+<td>No</td>
+<td>Auction uncross result (equilibrium price/qty, imbalance)</td>
+</tr>
+<tr>
+<td><code>CB</code></td>
+<td><code>CB</code></td>
+<td>No</td>
+<td>Yes</td>
+<td>Circuit-breaker halt/resume detail beyond <code>STATE</code>'s coarse transition</td>
 </tr>
 </tbody>
 </table>
-<p>Client requests are <code>HELLO</code> (authenticate, optionally <code>RESUME=1</code> for replay),
-<code>SUB</code>/<code>UNSUB</code> (subscribe/cancel), <code>PING</code>, and <code>EXIT</code>. Gateway replies include
-<code>WELCOME</code>, a baseline <code>SNAP</code> per new stream, the five message types above,
-periodic <code>HB</code> heartbeats, and <code>ERR</code> on protocol/subscription violations.</p>
+<p>Client requests are <code>HELLO</code> (authenticate), <code>SUB</code>/<code>UNSUB</code> (subscribe/cancel),
+<code>RESUME</code> (replay one stream from a known sequence — repeatable, one per
+stream), <code>SYMBOLS</code> (ask which instruments exist), <code>PING</code>, and <code>EXIT</code>. Gateway replies include <code>WELCOME</code>, a baseline
+<code>SNAP</code> per new stream on the five channels that have one, the seven message
+types above, periodic <code>HB</code> heartbeats, and <code>ERR</code> on protocol/subscription
+violations.</p>
+<p>Two behaviours are easy to get wrong from the table alone:</p>
+<ul>
+<li><strong><code>MD</code> is a delta, and an empty value is meaningful.</strong> Only changed fields
+  are sent; an omitted field means <em>unchanged</em>. An explicitly empty <code>BID=</code> or
+  <code>ASK=</code> means that book side is now <strong>empty</strong> and the client must discard the
+  price rather than keep the last one it saw.</li>
+<li><strong><code>RESUME</code> is per stream.</strong> <code>LASTSEQ</code> describes one <code>(CH, SYM)</code> position, so
+  a reconnecting client sends one <code>RESUME</code> per stream it was following. It is
+  not a flag on <code>HELLO</code>.</li>
+<li><strong>Ask for the symbol universe; do not wait for it.</strong> <code>WELCOME|SYMBOLS=</code> is
+  optional and omitted entirely by a gateway started without a readable engine
+  config. Send <code>SYMBOLS</code> after the handshake, and read its <code>COUNT</code> — an empty
+  universe omits the list rather than sending it empty.</li>
+<li><strong>Read <code>REF=</code> before you format a price.</strong> It carries each symbol's display
+  precision as <code>SYM:DEC</code> tuples, on both <code>WELCOME</code> and the <code>SYMBOLS</code> reply, and
+  is the only route a market data client has to that value. A gateway that
+  predates the field omits it entirely, in which case assume <code>2</code> decimals —
+  knowingly, because getting this wrong rounds every price the client shows.</li>
+</ul>
 <p>The full protocol — every field table, the <code>WELCOME</code>/<code>SNAP</code> handshake,
 sequence-gap detection and <code>RESUME</code> recovery, subscription limits, and the
 complete error-code table — is maintained in one place to avoid drift:
@@ -9315,7 +9528,7 @@ wire-format specification in the
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../170-processes/">Processes</a> — which process subscribes to which topic prefix</li>
-<li><a href="../050-gateway-reference/">Gateway</a> — how participants receive fill, book, and risk events</li>
+<li><a href="../055-alf-console/">ALF Console</a> — how participants receive fill, book, and risk events</li>
 <li><a href="../160-exchange-commands/">Commands</a> — <code>ExchangeCommandClient</code> methods and their underlying message topics</li>
 <li><a href="../200-drop-copy/">Drop Copy</a> — the separate :5557 socket for fill-only event feeds</li>
 <li><a href="../120-risk-controls/">Risk Controls</a> — <code>risk.*</code> message payloads in detail</li>

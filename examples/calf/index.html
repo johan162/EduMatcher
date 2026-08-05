@@ -952,14 +952,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/050-gateway-reference/" class="md-nav__link">
+      <a href="../../user-guide/051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1744,6 +1772,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3287,38 +3371,66 @@
 <li><code>calf_parser.py</code>: Python parser/serializer library for CALF lines</li>
 <li><code>calf_subscriber.py</code>: Python subscriber example using the Python library</li>
 <li><code>calf_parser.h</code> + <code>calf_parser.c</code>: C parser library for CALF lines</li>
-<li><code>calf_subscriber.c</code>: C subscriber example using the C library</li>
-<li><code>Makefile</code>: build helper for the C client</li>
+<li><code>calf_recovery.h</code> + <code>calf_recovery.c</code>: C sequence tracking, gap detection
+  and replay reconciliation -- pure functions, no sockets or threads</li>
+<li><code>calf_recovery_test.c</code>: self-test for the above (<code>make test</code>)</li>
+<li><code>calf_subscriber.c</code>: C subscriber example using both C libraries</li>
+<li><code>Makefile</code>: build helper for the C client and its test</li>
 </ul>
+<blockquote>
+<p><strong>Writing a Python client?</strong> Prefer
+<a href="../../../src/edumatcher/calf_client/"><code>edumatcher.calf_client</code></a>, which is
+shipped with the package and handles reconnect, gap repair, replay
+de-duplication, <code>REF</code> precision and optional cached state for you:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.calf_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">CalfClient</span><span class="p">,</span> <span class="n">CalfClientOptions</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">client</span> <span class="o">=</span> <span class="n">CalfClient</span><span class="p">(</span><span class="n">CalfClientOptions</span><span class="p">(</span><span class="n">symbols</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;AAPL&quot;</span><span class="p">]))</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">client</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">on_frame</span><span class="o">=</span><span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">msg_type</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">fields</span><span class="p">))</span>
+</code></pre></div>
+<p>The examples here stay deliberately standalone -- they show the protocol
+itself rather than a library over it, which is what you want when porting
+to a language that has no library yet.</p>
+</blockquote>
 <p>Both subscribers demonstrate more than a single trivial subscription: they
 combine <code>TOP</code>, <code>TRADE</code>, <code>STATE</code> (including the session-wide <code>SYM=*</code>
 wildcard), and Level 2 <code>DEPTH</code> in one client, maintain a small top-of-book
 cache (so incremental <code>MD</code> updates -- which omit unchanged sides -- render
 correctly), pretty-print the <code>DEPTH</code> ladder, detect gaps in the
-per-<code>(CH,SYM)</code> <code>SEQ</code> counters, and check <code>WELCOME|CH_SUPPORTED=</code> before
-relying on channels that may not exist on an older gateway build.</p>
+per-<code>(CH,SYM)</code> <code>SEQ</code> counters <strong>and repair them with <code>RESUME</code></strong>, and check
+<code>WELCOME|CH_SUPPORTED=</code> before relying on channels that may not exist on an
+older gateway build.</p>
+<p>The Python client additionally reads <code>WELCOME|REF=</code> / <code>SYMBOLS|REF=</code> and
+renders every price at that symbol's own <code>tick_decimals</code>. The C client
+prints wire values verbatim and so needs no <code>REF</code> handling -- reformatting
+a decimal is what creates the chance to reformat it wrongly.</p>
 <p>See <a href="../../user-guide/920-app-calf-protocol/">docs/user-guide/920-app-calf-protocol.md</a>
 for the normative wire contract both clients follow.</p>
 <h2 id="calf-wire-format">CALF wire format<a class="headerlink" href="#calf-wire-format" title="Permanent link">&para;</a></h2>
 <p>Messages are text lines:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>MSGTYPE|KEY=VALUE|KEY=VALUE\n
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>MSGTYPE|KEY=VALUE|KEY=VALUE\n
 </code></pre></div>
 <h2 id="run-python-example">Run Python example<a class="headerlink" href="#run-python-example" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/calf
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span>--symbols<span class="w"> </span>AAPL,MSFT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/calf
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span>--symbols<span class="w"> </span>AAPL,MSFT
 </code></pre></div>
 <p>Also subscribe to an index feed (skipped if the gateway doesn't advertise
 <code>INDEX</code> support):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>--index<span class="w"> </span>EDU100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>--index<span class="w"> </span>EDU100
 </code></pre></div>
-<p>For the single-stream resume handshake:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span>--resume<span class="w"> </span>--resume-ch<span class="w"> </span>TOP<span class="w"> </span>--resume-sym<span class="w"> </span>AAPL<span class="w"> </span>--lastseq<span class="w"> </span><span class="m">1042</span>
+<p>To send one explicit <code>RESUME</code> after the handshake, replaying a stream from
+a known position:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span>--resume<span class="w"> </span>--resume-ch<span class="w"> </span>TOP<span class="w"> </span>--resume-sym<span class="w"> </span>AAPL<span class="w"> </span>--lastseq<span class="w"> </span><span class="m">1042</span>
 </code></pre></div>
+<p><code>RESUME</code> is a standalone, repeatable command, not a <code>HELLO</code> flag -- as a
+flag it could only ever run once per connection, which is no use to a
+client following several streams. Both examples also send one
+automatically for any gap they notice while running, so this flag is only
+needed to demonstrate the message in isolation.</p>
 <p>Run <code>python3 calf_subscriber.py --help</code> for the full flag list.</p>
 <h2 id="build-and-run-c-example">Build and run C example<a class="headerlink" href="#build-and-run-c-example" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/calf
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>make
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>./calf_subscriber<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span><span class="w"> </span>AAPL,MSFT<span class="w"> </span>EDU100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/calf
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>make
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>./calf_subscriber<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span><span class="w"> </span>AAPL,MSFT<span class="w"> </span>EDU100
 </code></pre></div>
 <p>Arguments are positional: <code>host [port [symbols [index_id]]]</code>. <code>symbols</code> is
 a comma-separated list (default <code>AAPL</code>); <code>index_id</code> is optional (default:
@@ -3331,11 +3443,26 @@ skip the <code>INDEX</code> subscription). Press Ctrl-C for a clean shutdown.</p
 <li><code>SUB|CH=STATE|SYM=*</code> (a <em>separate</em> subscription -- session-wide state is
   a different stream from a symbol's own state)</li>
 <li><code>SUB|CH=INDEX|SYM=&lt;index_id&gt;</code> (only if <code>--index</code>/an index id argument is given)</li>
+<li><code>SYMBOLS</code> (Python only -- <code>WELCOME|SYMBOLS=</code> is optional, so this is the
+  reliable route to the instrument universe, and it carries <code>REF=</code> too)</li>
+<li><code>RESUME|CH=..|SYM=..|LASTSEQ=..</code>, one per stream, whenever a <code>SEQ</code> gap
+  appears</li>
 </ul>
 <p>Then they parse incoming gateway messages and put them to use: a
 formatted top-of-book line per symbol, a rendered <code>DEPTH</code> ladder, clear
 <code>STATE</code>/<code>TRADE</code>/<code>IDX</code> lines, and a <code>!! sequence gap</code> warning on stderr if
 a stream's <code>SEQ</code> counter skips.</p>
+<p>Three details in the gap handling are worth reading the code for, because
+each is easy to get wrong and none is obvious:</p>
+<ul>
+<li>A <code>RESUME</code> reply carries <strong>everything</strong> past <code>LASTSEQ</code>, so it re-sends
+  messages already delivered. Both clients track which sequence ranges
+  they are actually missing; without that a client either prints every
+  trade twice or discards the backfill it just asked for.</li>
+<li>A <code>SNAP</code> re-baselines a stream and is never a gap.</li>
+<li>A <code>REPLAY_MISS</code> on <code>TRADE</code>/<code>AUCTION</code> is <strong>not</strong> followed by a <code>SNAP</code> --
+  those events are simply gone.</li>
+</ul>
 
 
 

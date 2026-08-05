@@ -462,12 +462,28 @@ chapters-pdf: chapters-pdf-a4-bundle  ## Build a zip bundle of all A4 chapter PD
 $(NODE_MODULES_PATH):
 	@echo -e "$(DARKYELLOW)- Installing shared Node dependencies for Mermaid rendering in $(NODE_TOOLS_DIR)...$(NC)"
 	@mkdir -p $(NODE_TOOLS_DIR)
-	@npm install --prefix $(NODE_TOOLS_DIR) --save-dev mermaid-filter @mermaid-js/mermaid-cli
+	@PUPPETEER_SKIP_DOWNLOAD=1 npm install --prefix $(NODE_TOOLS_DIR) --save-dev mermaid-filter @mermaid-js/mermaid-cli
 	@echo -e "$(GREEN)✓ Shared Node dependencies installed$(NC)"
 
 # ============================================================================================
 # Documentation Targets
 # ============================================================================================
+linux-clean-puppeteer-cache:  ## Clean Puppeteer cache on Ubuntu (to free disk space)
+	@echo -e "$(DARKYELLOW)- Cleaning Puppeteer cache on...$(NC)"
+	@rm -rf ~/.cache/puppeteer
+	@rm -rf build-tools/node_modules build-tools/package-lock.json
+	@echo -e "$(GREEN)✓ Puppeteer cache cleaned$(NC)"
+
+linux-pdf-docs: check-latex-engine  cover-user-guide  ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel on Ubuntu
+	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
+	@rm -rf $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
+	@PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome $(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
+	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
+	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
+
+linux-docs: $(DOC_STAMP)  ## Build the HTML project documentation with MkDocs on Ubuntu
+	@PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome $(MAKE) docs
+
 docs: $(DOC_STAMP) ## Build the HTML project documentation with MkDocs
 	@:
 

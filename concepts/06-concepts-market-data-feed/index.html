@@ -1146,14 +1146,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/050-gateway-reference/" class="md-nav__link">
+      <a href="../../user-guide/051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1938,6 +1966,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3697,9 +3781,18 @@ Every incremental message (<code>MD</code>, <code>TRADE</code>, <code>STATE</cod
 <code>SEQ = last_seen + 1</code>. As long as the sequence is gapless you are fully in sync.</p>
 <h3 id="reconnect">Reconnect<a class="headerlink" href="#reconnect" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Send <code>HELLO</code> with <code>RESUME=1</code> and <code>LASTSEQ</code> for one stream</li>
-<li>If gap is within replay window, gateway replays missing messages</li>
-<li>If not, gateway sends <code>ERR|CODE=REPLAY_MISS</code> and then a fresh <code>SNAP</code></li>
+<li>Send a plain <code>HELLO</code>, then one <code>RESUME|CH=..|SYM=..|LASTSEQ=..</code> per stream
+  you were following. <code>RESUME</code> is a standalone, repeatable command — as a
+  <code>HELLO</code> flag it could only ever run once per connection.</li>
+<li>If the gap is within the replay window, the gateway replays the missing
+  messages. Note it replays <em>everything</em> past <code>LASTSEQ</code>, so the reply also
+  re-sends messages you already have: discard anything at or below the <code>SEQ</code>
+  you last recorded.</li>
+<li>If not, the gateway sends <code>ERR|CODE=REPLAY_MISS</code>, then a fresh <code>SNAP</code> on
+  <code>TOP</code>/<code>STATE</code>/<code>INDEX</code>/<code>DEPTH</code>/<code>CB</code>. On <code>TRADE</code> and <code>AUCTION</code> no <code>SNAP</code>
+  follows — there is no snapshot of a print that already happened, so those
+  events are gone.</li>
+<li>A <code>SNAP</code> re-baselines the stream; it is never itself a gap.</li>
 </ul>
 <pre class="mermaid"><code>flowchart TD
     D[Client detects sequence gap] --&gt; E{Reconnect with RESUME and LASTSEQ}
@@ -3762,7 +3855,7 @@ and replay semantics they already use for <code>TOP</code>/<code>TRADE</code>/<c
 <li><strong>Track <code>last_seq</code> per stream</strong> — keep a dict keyed by <code>(CH, SYM)</code> and check every incoming <code>SEQ</code>.</li>
 <li><strong>Treat missing fields in <code>MD</code> as unchanged</strong> — if an <code>MD</code> message has no <code>ASK</code> field, the ask price has not moved since the last <code>SNAP</code> or <code>MD</code> that carried it. Do not reset it to zero.</li>
 <li><strong>Handle <code>HB</code></strong> — a heartbeat means the gateway is alive but quiet. If neither data nor <code>HB</code> arrives, the connection may be dead.</li>
-<li><strong>On gap, attempt replay; on replay miss, reset from <code>SNAP</code></strong> — send <code>HELLO|RESUME=1|LASTSEQ=&lt;n&gt;</code>; if you get <code>ERR CODE=REPLAY_MISS</code> instead of replayed messages, accept the fresh <code>SNAP</code> that follows.</li>
+<li><strong>On gap, attempt replay; on replay miss, reset from <code>SNAP</code></strong> — send <code>RESUME|CH=&lt;ch&gt;|SYM=&lt;sym&gt;|LASTSEQ=&lt;n&gt;</code>, and drop any replayed message at or below the <code>SEQ</code> you already recorded. If you get <code>ERR CODE=REPLAY_MISS</code> instead, accept the fresh <code>SNAP</code> that follows on the snapshot-backed channels; on <code>TRADE</code>/<code>AUCTION</code> none follows and the gap is permanent.</li>
 <li><strong>Keep subscriptions narrow</strong> — only subscribe to <code>(CH, SYM)</code> pairs your process actually uses.</li>
 </ol>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>

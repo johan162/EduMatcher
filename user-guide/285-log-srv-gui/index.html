@@ -1,0 +1,4963 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/285-log-srv-gui/">
+      
+      
+        <link rel="prev" href="../280-log-srv/">
+      
+      
+        <link rel="next" href="../290-trader-info-terminal/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Log Operator Console (pm-log-ui) - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#log-operator-console-pm-log-ui" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Log Operator Console (pm-log-ui)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../000-getting-started/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../training/" class="md-tabs__link">
+          
+  
+  
+  Training
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/07-concepts-implied-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implied Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../000-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../010-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../020-config-verifier/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config Verifier
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../030-config-GUI/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration GUI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../051-gateway-intro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../060-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../070-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../080-session-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../090-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../100-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market-Maker Bot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../110-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../120-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../130-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../140-statistics-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../150-market-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../152-index-admin-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index Admin CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../160-exchange-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exchange Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../170-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../180-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../190-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Trail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../200-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../201-dc-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy TCP Gateway (pm-dc-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Protocols Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../220-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../230-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../240-calf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../241-calf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CALF Protocol Spy (pm-calf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-Trade Dissemination (RALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../251-ralf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RALF Protocol Spy (pm-ralf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../260-api-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../270-message-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../280-log-srv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-relates-to-the-log-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it relates to the log server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lalf-lalf-ps-and-where-the-console-sits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LALF, LALF-PS, and where the console sits
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LALF, LALF-PS, and where the console sits">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-bridge-does-on-the-lalf-ps-wire" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the bridge does on the LALF-PS wire
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-application" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the application
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running the application">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-1-one-command-with-the-container-stack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option 1 — One command with the container stack
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-2-a-pre-built-image-artifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option 2 — A pre-built image artifact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-3-local-development" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option 3 — Local development
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#developer-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Developer commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-tour-of-the-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A tour of the interface
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="A tour of the interface">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-six-views-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The six views at a glance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dashboard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logs-the-explorer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logs (the Explorer)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alerts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alerts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#processes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Processes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#diagnostics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnostics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#health" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Health
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exporting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exporting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#network-and-serving" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network and serving
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#thresholds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thresholds
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-the-frontend-learns-these" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the frontend learns these
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keeping-the-console-in-sync-with-pm-log-srv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keeping the console in sync with pm-log-srv
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See Also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../800-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../810-example-configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../890-known-limitations-bugs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Limitations & Bugs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../900-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../910-app-balf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../920-app-calf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../930-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../940-app-lalf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: LALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../990-app-config-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: Engine Config Specification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/00-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    00 — Installation & Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/01-configuring-startup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    01 — Configuring & Starting Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/02-setting-up-MM-bots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    02 — Setting Up Market-Maker Liquidity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/03-the-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    03 — The First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/04-amending-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04 — Amending Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/05-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05 — Order Types Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/06-time-in-force-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    06 — Time-in-Force & Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/07-auctions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    07 — Auctions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/08-cancelling-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    08 — Cancelling & Managing Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/09-market-making/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    09 — Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/10-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10 — Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/11-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11 — Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/12-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12 — P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/13-market-data-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13 — Market Data & Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/14-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14 — AI Traders & Swarm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/15-statistics-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15 — Statistics & Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/16-persistence-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16 — Persistence & Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/17-capstone-scenario/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17 — Capstone Scenario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/18-exchange-observer-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18 — Exchange Observer Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/19-advanced-admin-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    19 — Advanced Admin Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/20-drop-copy-replay-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20 — Drop-Copy Replay & Recovery Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/21-automation-commandclient-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21 — Automation with CommandClient & MM Bot Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/22-ralf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/24-api-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24 — API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/25-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/26-alf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 - ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/27-balf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27 - BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/05-vm-runtime-image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Runtime Image
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="log-operator-console-pm-log-ui">Log Operator Console (<code>pm-log-ui</code>)<a class="headerlink" href="#log-operator-console-pm-log-ui" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will understand:</p>
+<ul>
+<li>What the Log Operator Console is for, and the one question it is built to answer</li>
+<li>How it relates to <code>pm-log-srv</code> and <code>pm-log-cli</code>, and why it replaces neither</li>
+<li>Where LALF and LALF-PS fit — and why the console speaks only one of them</li>
+<li>Every way to start the application, and what each one needs</li>
+<li>What each of the six views shows and how to work with it</li>
+<li>The acknowledgement model, and why it is shared rather than per-browser</li>
+<li>How to configure, secure, and troubleshoot a deployment</li>
+</ul>
+</div>
+<div class="admonition info">
+<p class="admonition-title">About the figures on this page</p>
+<p>Blocks marked <strong>📷 Figure N</strong> are placeholders indicating where a UI
+screenshot should be added, together with a short description of what to
+capture and a suggested asset path under
+<code>docs/user-guide/images/log-gui/</code>. Replace each block with the image and
+an italic caption once the screenshots are taken.</p>
+</div>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>The <strong>Log Operator Console</strong> (<code>pm-log-ui</code>) is a browser-based console over the
+logging collected by <a href="../280-log-srv/"><code>pm-log-srv</code></a>. Where <code>pm-log-cli</code>
+answers "what did this process log?", the console answers a different and more
+operational question:</p>
+<blockquote>
+<p><strong>Is anything wrong right now — and has someone dealt with it?</strong></p>
+</blockquote>
+<p>That second clause is the part no CLI provides. A <code>diagnose</code> report tells you
+something is broken; it cannot tell you that a colleague already looked at it
+twenty minutes ago and decided it was benign. The console adds a shared
+acknowledgement layer on top of the same data, so a room full of operators
+converges on one view of what is outstanding rather than each re-investigating
+the same recurring error.</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Role</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>pm-log-srv</code></strong></td>
+<td>Collector — receives LALF from every <code>pm-*</code> process, appends to <code>log.db</code>, republishes live rows over LALF-PS</td>
+<td>Long-running process</td>
+</tr>
+<tr>
+<td><strong><code>pm-log-cli</code></strong></td>
+<td>Query/troubleshooting CLI — reads <code>log.db</code> directly</td>
+<td>One-shot CLI</td>
+</tr>
+<tr>
+<td><strong><code>pm-log-ui</code> bridge</strong></td>
+<td>Backend — one LALF-PS subscription, read-only <code>log.db</code> access, WebSocket fan-out, acknowledgement store</td>
+<td>Long-running process</td>
+</tr>
+<tr>
+<td><strong><code>pm-log-ui</code> web</strong></td>
+<td>Frontend — six views over the bridge's REST + WebSocket API</td>
+<td>Browser application</td>
+</tr>
+</tbody>
+</table>
+<p>The console is <strong>strictly additive</strong>. It never writes to <code>log.db</code>, never
+alters <code>pm-log-srv</code>'s behaviour, and can be stopped at any time without
+affecting log collection. Everything it displays remains available through
+<code>pm-log-cli</code> whether the console is running or not.</p>
+<pre class="mermaid"><code>flowchart LR
+    subgraph procs["Any pm-* process"]
+        ENGINE["pm-engine"]
+        GWY["pm-*-gwy"]
+        OTHER["...every other pm-* process"]
+    end
+
+    ENGINE --&gt;|"LALF / TCP :5600"| LOGSRV["pm-log-srv"]
+    GWY --&gt;|"LALF / TCP :5600"| LOGSRV
+    OTHER --&gt;|"LALF / TCP :5600"| LOGSRV
+
+    LOGSRV --&gt;|"appends"| DB[("log.db (SQLite)")]
+    LOGSRV --&gt;|"LALF-PS PUB :5601"| BRIDGE["pm-log-ui bridge"]
+    BRIDGE --&gt;|"LALF-PS PUSH :5602"| LOGSRV
+    DB --&gt;|"read-only SQL"| BRIDGE
+    BRIDGE --&gt;|"read-write"| ACK[("log-ui-acks.db")]
+    BRIDGE --&gt;|"REST + WebSocket :8091"| WEB["Browser"]
+    CLI["pm-log-cli"] --&gt;|"read-only SQL"| DB
+    BRIDGE -. "execFile --format json diagnose" .-&gt; CLI</code></pre>
+<h2 id="how-it-relates-to-the-log-server">How it relates to the log server<a class="headerlink" href="#how-it-relates-to-the-log-server" title="Permanent link">&para;</a></h2>
+<p>The console is a <strong>consumer</strong> of <code>pm-log-srv</code>, and it consumes it through two
+independent channels that fail independently — a distinction that matters
+because the UI reports them separately rather than collapsing them into one
+"connected" light.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Live channel</th>
+<th>History channel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source</td>
+<td>LALF-PS (ZeroMQ) from <code>pm-log-srv</code></td>
+<td><code>log.db</code> read directly from disk</td>
+</tr>
+<tr>
+<td>Carries</td>
+<td>New rows as they land, server heartbeats</td>
+<td>Search, aggregation, counts, export</td>
+</tr>
+<tr>
+<td>Works when <code>pm-log-srv</code> is stopped</td>
+<td>No</td>
+<td><strong>Yes</strong></td>
+</tr>
+<tr>
+<td>Works when <code>log.db</code> is unreachable</td>
+<td><strong>Yes</strong></td>
+<td>No</td>
+</tr>
+<tr>
+<td>Latency</td>
+<td>Pushed on commit</td>
+<td>Query-time</td>
+</tr>
+</tbody>
+</table>
+<p>Because history comes from the file rather than the wire, the console
+deliberately <strong>never sends <code>log.backfill_request</code></strong>. Backfill exists in
+LALF-PS for subscribers with no filesystem access to <code>log.db</code>; this bridge has
+that access, so replaying history over ZeroMQ would be strictly worse — slower,
+bounded by the server's backfill limits, and competing with live delivery.</p>
+<p>Three consequences worth internalising before you deploy:</p>
+<ul>
+<li><strong>Stop <code>pm-log-srv</code> and the console still works</strong> for everything historical.
+  The top bar shows <em>log server down</em>, the live tail stops, and search,
+  aggregation and export continue unaffected.</li>
+<li><strong>Move <code>log.db</code> out from under the bridge and the live tail still works.</strong>
+  The top bar shows <em>log.db unavailable</em>, and history views return a clean
+  503 rather than a blank page.</li>
+<li><strong>The bridge holds exactly one LALF-PS subscription</strong> no matter how many
+  browser tabs are open. Ten operators watching the console cost
+  <code>pm-log-srv</code> one subscriber, not ten. Fan-out to tabs happens over the
+  bridge's own WebSocket.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">The console is not a substitute for <code>pm-log-cli</code></p>
+<p><code>pm-log-cli</code> remains the tool of record for scripting, for exporting large
+ranges, for hosts with no browser, and for any situation where you need
+the log data without a running service. The console is a <em>viewing</em> layer;
+<code>pm-log-cli</code> is the <em>access</em> layer. The Diagnostics view makes this
+explicit by shelling out to <code>pm-log-cli</code> rather than reimplementing it.</p>
+</div>
+<h2 id="lalf-lalf-ps-and-where-the-console-sits">LALF, LALF-PS, and where the console sits<a class="headerlink" href="#lalf-lalf-ps-and-where-the-console-sits" title="Permanent link">&para;</a></h2>
+<p>This is the single most common source of confusion, so it is worth stating
+plainly:</p>
+<p><strong>The Log Operator Console does not speak LALF.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Protocol</th>
+<th>Direction</th>
+<th>Transport</th>
+<th>Who speaks it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LALF</strong></td>
+<td><code>pm-*</code> process → <code>pm-log-srv</code></td>
+<td>TCP <code>:5600</code>, line-oriented text</td>
+<td>Every process that logs. Normative spec: <a href="../940-app-lalf-protocol/">LALF Protocol Reference</a></td>
+</tr>
+<tr>
+<td><strong>LALF-PS</strong></td>
+<td><code>pm-log-srv</code> → subscriber</td>
+<td>ZeroMQ <code>PUB :5601</code> / <code>PULL :5602</code>, JSON</td>
+<td>Live viewers, including this console. Reference: <a href="../280-log-srv/#lalf-ps-the-zeromq-log-distribution-interface">LALF-PS</a></td>
+</tr>
+</tbody>
+</table>
+<p>LALF is a <em>producer</em> protocol: a process opens one long-lived TCP connection,
+does a <code>HELLO</code>/<code>WELCOME</code> handshake, and streams its own <code>LOG</code> records until it
+exits. It is unidirectional and subscription-free — a LALF client can only
+ever send its own logging, never read anyone else's.</p>
+<p>That property is exactly why the console cannot use it. A viewer needs to
+<em>read</em> everything, which is the opposite of what LALF offers. So <code>pm-log-srv</code>
+exposes a second, separate interface — LALF-PS — and the console subscribes to
+that.</p>
+<p>Read <a href="../940-app-lalf-protocol/">Appendix: LALF Protocol Reference</a> when you are
+instrumenting a process to send its logs. Read it for this console only to
+understand the shape of the rows that eventually arrive: the <code>LOG</code> header field
+set in §"<code>LOG</code>" is what becomes a row in every table and detail pane described
+below.</p>
+<h3 id="what-the-bridge-does-on-the-lalf-ps-wire">What the bridge does on the LALF-PS wire<a class="headerlink" href="#what-the-bridge-does-on-the-lalf-ps-wire" title="Permanent link">&para;</a></h3>
+<p>The bridge implements the subscriber side in
+<code>log-gui/apps/bridge/src/lalf-ps-uplink.ts</code>. The sequence, in order:</p>
+<ol>
+<li>Connect <code>SUB</code> to <code>:5601</code> and <code>PUSH</code> to <code>:5602</code>.</li>
+<li>Subscribe to the ZeroMQ topic prefix <strong><code>log.</code></strong> — not <code>log.&lt;sub_id&gt;</code>.
+   The server publishes per-subscriber topics as <code>log.&lt;msgtype&gt;.&lt;sub_id&gt;</code>
+   (plus the broadcast <code>log.server_state</code>), so the shared prefix is the only
+   filter that catches them all. The bridge then discards anything not
+   addressed to its own <code>sub_id</code>.</li>
+<li>Wait 200 ms before sending anything. ZeroMQ's <strong>slow-joiner</strong> behaviour
+   silently drops messages published before a <code>SUB</code> connection finishes
+   establishing; without this settle the first <code>subscribe_ack</code> can vanish.</li>
+<li>Send <code>log.subscribe</code> with <code>mode: STREAM</code> and a lease.</li>
+<li>Retry the subscribe if no ack arrives within one second. Subscribe is
+   idempotent by <code>sub_id</code>, so a duplicate is harmless.</li>
+<li>Renew at <strong>half the lease interval</strong>, using <code>renew_before_sec</code> from the
+   ack when the server supplies one.</li>
+<li>On <code>log.lease_expired</code> or a <code>log.error</code> with <code>UNKNOWN_SUB</code>, re-subscribe
+   immediately rather than assuming the old lease survived.</li>
+</ol>
+<p>The <code>sub_id</code> is <code>pm-log-bridge-&lt;pid&gt;</code> by default, so two bridges on one host do
+not collide. It is shown in the Health view — quote it if you need to
+correlate the console against <code>pm-log-srv</code>'s own subscriber list.</p>
+<p>The bridge tracks four uplink states, surfaced in the top bar:</p>
+<table>
+<thead>
+<tr>
+<th>Uplink state</th>
+<th>Top bar</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CONNECTING</code></td>
+<td>reconnecting…</td>
+<td>Subscribe sent, no ack yet</td>
+</tr>
+<tr>
+<td><code>ACTIVE</code></td>
+<td>log-srv up</td>
+<td>Lease held, rows flowing</td>
+</tr>
+<tr>
+<td><code>RECONNECTING</code></td>
+<td>reconnecting…</td>
+<td>Lease expired or unknown; re-subscribing</td>
+</tr>
+<tr>
+<td><code>SERVER_DOWN</code></td>
+<td>log server down</td>
+<td><code>log.server_state</code> said <code>DOWN</code>, or heartbeats stopped</td>
+</tr>
+</tbody>
+</table>
+<h2 id="running-the-application">Running the application<a class="headerlink" href="#running-the-application" title="Permanent link">&para;</a></h2>
+<p>Three supported ways, in increasing order of setup effort.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Best for</th>
+<th>Needs</th>
+<th>URL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#option-1-one-command-with-the-container-stack">Container stack</a></td>
+<td>Most users; production</td>
+<td>Podman/Docker + Make</td>
+<td><code>http://localhost:8091</code></td>
+</tr>
+<tr>
+<td><a href="#option-2-a-pre-built-image-artifact">Pre-built image artifact</a></td>
+<td>Offline hosts, no repo clone</td>
+<td>Podman/Docker only</td>
+<td><code>http://localhost:8091</code></td>
+</tr>
+<tr>
+<td><a href="#option-3-local-development">Local development</a></td>
+<td>Contributing to the console itself</td>
+<td>Node.js + npm</td>
+<td><code>http://127.0.0.1:5178</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
+<p>Whichever method you choose, the console needs to reach <strong>both</strong> of its
+sources:</p>
+<ul>
+<li><strong><code>pm-log-srv</code>'s LALF-PS ports</strong> — <code>5601</code> (PUB) and <code>5602</code> (PULL) by
+  default. Note these are <em>not</em> the LALF port <code>5600</code>; the console has no use
+  for that one.</li>
+<li><strong>A filesystem path to <code>log.db</code></strong> — read access is sufficient, and
+  read-<em>only</em> is preferred.</li>
+</ul>
+<p>Any modern browser (Chrome/Edge ≥ 110, Firefox ≥ 115, Safari ≥ 16). No
+extensions are required.</p>
+<h3 id="option-1-one-command-with-the-container-stack">Option 1 — One command with the container stack<a class="headerlink" href="#option-1-one-command-with-the-container-stack" title="Permanent link">&para;</a></h3>
+<p>The fastest path with a repository checkout and a container runtime. From the
+<code>log-gui/</code> directory:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w"> </span>up
+</code></pre></div>
+<p><code>make up</code> auto-detects Podman or Docker (preferring Podman), starts the Podman
+machine on macOS if needed, builds the image, and starts the stack detached.
+Open <strong>http://localhost:8091</strong>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>make<span class="w"> </span>down<span class="w">      </span><span class="c1"># stop and remove the stack</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>make<span class="w"> </span>restart<span class="w">   </span><span class="c1"># restart it</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>make<span class="w"> </span>logs<span class="w">      </span><span class="c1"># follow the container log</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>make<span class="w"> </span>ps<span class="w">        </span><span class="c1"># show stack status</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>make<span class="w"> </span><span class="nb">help</span><span class="w">      </span><span class="c1"># list every target</span>
+</code></pre></div>
+<p>The compose file mounts two separate volumes, deliberately:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">volumes</span><span class="p">:</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="c1"># pm-log-srv&#39;s directory, mounted READ-ONLY</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./logsrv-data:/app/logsrv-data:ro</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="c1"># this project&#39;s own ack store, read-write</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./ack-data:/app/ack-data</span>
+</code></pre></div>
+<p>The <code>:ro</code> on the first mount is not decoration. "This project never writes to
+<code>log.db</code>" is enforced by the kernel rather than by application code, so a bug
+in the console cannot corrupt the collector's database.</p>
+<p>Set <code>LOG_SRV_HOST</code> in <code>docker-compose.yml</code> to wherever <code>pm-log-srv</code> is
+reachable <em>from inside the container</em> — <code>host.docker.internal</code> on Docker
+Desktop, <code>host.containers.internal</code> on Podman, or a real hostname.</p>
+<h3 id="option-2-a-pre-built-image-artifact">Option 2 — A pre-built image artifact<a class="headerlink" href="#option-2-a-pre-built-image-artifact" title="Permanent link">&para;</a></h3>
+<p>For a host with no repository clone, build a self-contained OCI archive:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>dist
+</code></pre></div>
+<p>This produces <code>dist/edumatcher-log-gui-&lt;version&gt;.tar.gz</code> containing the Node
+runtime, the compiled frontend and the bridge — no external dependencies. On
+the target host:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Podman</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>podman<span class="w"> </span>load<span class="w"> </span>--input<span class="w"> </span>edumatcher-log-gui-&lt;version&gt;.tar.gz
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>podman<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>log-gui<span class="w"> </span>-p<span class="w"> </span><span class="m">8091</span>:8091<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">LOG_SRV_HOST</span><span class="o">=</span>logsrv.example<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span>-v<span class="w"> </span>/srv/logsrv-data:/app/logsrv-data:ro<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span>-v<span class="w"> </span>/srv/log-ui-acks:/app/ack-data<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span>edumatcher-log-gui:&lt;version&gt;
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="c1"># Docker — identical, substituting `docker` for `podman`</span>
+</code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">No Node.js or npm required</p>
+<p>The archive is fully self-contained. The host needs only Podman or Docker.</p>
+</div>
+<h3 id="option-3-local-development">Option 3 — Local development<a class="headerlink" href="#option-3-local-development" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>log-gui
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>make<span class="w"> </span>install<span class="w">      </span><span class="c1"># npm ci from the lockfile</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>make<span class="w"> </span>dev<span class="w">          </span><span class="c1"># bridge (8091) + web dev server (5178) together</span>
+</code></pre></div>
+<p>Open <strong>http://127.0.0.1:5178</strong>. The Vite dev server hot-reloads on save and
+proxies both <code>/api/*</code> and <code>/ws/*</code> to the bridge, so you only ever open the
+<code>5178</code> URL.</p>
+<p>For separate logs, run the two halves in two terminals:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>make<span class="w"> </span>dev-bridge<span class="w">   </span><span class="c1"># Fastify: LALF-PS + log.db + WebSocket</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>make<span class="w"> </span>dev-web<span class="w">      </span><span class="c1"># Vite dev server only</span>
+</code></pre></div>
+<p>This assumes <code>pm-log-srv</code> is running locally on its default ports and that
+<code>log.db</code> exists. The bridge resolves <code>log.db</code>'s location by mirroring
+<code>edumatcher.config._resolve_data_dir()</code>'s priority order exactly —
+<code>EDUMATCHER_DATA_DIR</code>, then <code>&lt;repo&gt;/src/data</code>, then the installed-package home
+directory fallback — so in a normal checkout neither side needs configuring to
+agree with the other. It logs the resolved absolute paths at startup; check
+that line first if a view is unexpectedly empty.</p>
+<div class="admonition warning">
+<p class="admonition-title">A known npm dedup bug</p>
+<p>If <code>package-lock.json</code> is ever deleted and regenerated, some npm versions
+(observed on 11.17.0) crash with <code>TypeError: Invalid Version:</code> from
+<code>@npmcli/arborist</code>'s dedup step. <code>make install</code> already works around this
+by running <code>npm install --no-dedupe</code> for the first resolution. If you hit
+the crash by calling <code>npm install</code> directly, rerun with <code>--no-dedupe</code>.
+See <code>log-gui/README.md</code> for the full explanation.</p>
+</div>
+<h3 id="developer-commands">Developer commands<a class="headerlink" href="#developer-commands" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>make<span class="w"> </span><span class="nb">test</span><span class="w">        </span><span class="c1"># Vitest: log-query, fingerprinting, issue index, ack store</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>make<span class="w"> </span>typecheck<span class="w">   </span><span class="c1"># type-check every workspace</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>make<span class="w"> </span>build<span class="w">       </span><span class="c1"># production frontend bundle</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>make<span class="w"> </span>lint<span class="w">        </span><span class="c1"># type-check (lint alias)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>make<span class="w"> </span>format<span class="w">      </span><span class="c1"># Prettier</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>make<span class="w"> </span>clean<span class="w">       </span><span class="c1"># remove build artifacts and dist/</span>
+</code></pre></div>
+<h2 id="a-tour-of-the-interface">A tour of the interface<a class="headerlink" href="#a-tour-of-the-interface" title="Permanent link">&para;</a></h2>
+<p>The window is a fixed shell: a <strong>top bar</strong> carrying global state, a <strong>six-item
+navigation rail</strong> on the left, and the active view filling the rest.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>┌────────────────────────────────────────────────────────────────────┐
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>│ pm-log-ui v0.1.0  ● log-srv up   ⚠ 3 unacked              ☾        │
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>├──────┬─────────────────────────────────────────────────────────────┤
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>│ ▣ Dash│                                                             │
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>│ ▤ Logs│                                                             │
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>│ ⚠ Ale.│                     active view                             │
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>│ ◈ Proc│                                                             │
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>│ ⚕ Diag│                                                             │
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>│ ♥ Heal│                                                             │
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>└──────┴─────────────────────────────────────────────────────────────┘
+</code></pre></div>
+<p>The top bar is deliberately sparse — three things, always visible:</p>
+<ul>
+<li><strong>Source state dot</strong> — green <em>log-srv up</em>, yellow <em>reconnecting…</em>, red
+  <em>log server down</em> or <em>log.db unavailable</em>. The two red states are distinct
+  because they mean different things and have different fixes.</li>
+<li><strong>Unacked count</strong> — a link to Alerts, styled red when non-zero. Also
+  mirrored as a badge on the Alerts rail item.</li>
+<li><strong>Theme toggle</strong> — light/dark. The icon shows the theme a click switches
+  <em>to</em>, not the one currently active.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 1 — The main window</p>
+<p><em>Screenshot placeholder.</em> Capture the console in dark theme on the
+<strong>Dashboard</strong> with at least one unacknowledged issue, so the red banner,
+the top-bar unacked link and the Alerts rail badge are all visible
+together. Suggested file: <code>images/log-gui/fig-01-main-window.png</code>.</p>
+</div>
+<h3 id="the-six-views-at-a-glance">The six views at a glance<a class="headerlink" href="#the-six-views-at-a-glance" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>View</th>
+<th>Answers</th>
+<th>Refresh</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#dashboard">Dashboard</a></td>
+<td>Is anything wrong right now?</td>
+<td>Live counters + 15–30 s polls</td>
+</tr>
+<tr>
+<td><a href="#logs-the-explorer">Logs</a></td>
+<td>What exactly happened?</td>
+<td>Live tail or on-demand query</td>
+</tr>
+<tr>
+<td><a href="#alerts">Alerts</a></td>
+<td>What is outstanding, and who has it?</td>
+<td>10 s</td>
+</tr>
+<tr>
+<td><a href="#processes">Processes</a></td>
+<td>Is everything still reporting in?</td>
+<td>10 s</td>
+</tr>
+<tr>
+<td><a href="#diagnostics">Diagnostics</a></td>
+<td>What would <code>pm-log-cli diagnose</code> say?</td>
+<td>60 s</td>
+</tr>
+<tr>
+<td><a href="#health">Health</a></td>
+<td>Which component is degraded?</td>
+<td>10–30 s</td>
+</tr>
+</tbody>
+</table>
+<h3 id="dashboard">Dashboard<a class="headerlink" href="#dashboard" title="Permanent link">&para;</a></h3>
+<p>The at-a-glance view, designed to be readable from across a room.</p>
+<p>Top of the view is an <strong>alert banner</strong>, shown only when unacknowledged issues
+exist. It pulses, names the most recent affected process, and links straight to
+Alerts. When nothing is outstanding the banner is absent entirely — the absence
+of red is the signal.</p>
+<p>Below it, five meter tiles: total events, current error rate per minute,
+warnings in the last 60 s, process count, and log-server state. Then two
+charts — events over time (1-minute buckets over the last hour) and top
+processes by error count — and a compact list of the five most recent errors.</p>
+<p>The <strong>error-rate tile is banded</strong> — it carries a colour and a word (<code>normal</code>,
+<code>elevated</code>, <code>high</code>, <code>SEVERE</code>) rather than a bare number, because "18 errors a
+minute" means nothing without knowing what this venue considers busy. The
+boundaries are the <a href="#thresholds"><code>ERROR_RATE_*</code> thresholds</a>.</p>
+<p>The error rate and the 60-second warning count come from the <strong>live</strong>
+WebSocket stream and update every second. Everything else is polled from
+<code>log.db</code>. This is why the tiles can briefly disagree during a burst: the live
+counters have already seen rows the aggregate query has not yet been re-run
+for.</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 2 — Dashboard with an active alert</p>
+<p><em>Screenshot placeholder.</em> Capture the full Dashboard during a period with
+errors, so the pulsing banner, all five meter tiles with real numbers,
+both charts populated, and the recent-errors list are visible.
+Suggested file: <code>images/log-gui/fig-02-dashboard.png</code>.</p>
+</div>
+<h3 id="logs-the-explorer">Logs (the Explorer)<a class="headerlink" href="#logs-the-explorer" title="Permanent link">&para;</a></h3>
+<p>The workhorse view: a virtualised log table that runs in one of two modes,
+toggled by the <strong>▶ LIVE / history</strong> button.</p>
+<ul>
+<li><strong>LIVE</strong> streams from the WebSocket into an in-memory ring buffer of the
+  <strong>most recent 2 000 rows</strong>, newest first. Rows flash briefly as they arrive.</li>
+<li><strong>history</strong> queries <code>log.db</code> through the bridge and shows a match count.</li>
+</ul>
+<p>The filter bar applies to both modes, and every filter is <strong>kept in the URL
+query string</strong> — so a filtered view is a link you can paste into a ticket or a
+chat message and a colleague opens exactly what you were looking at.</p>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>message contains…</code></td>
+<td>Substring match on the message body</td>
+</tr>
+<tr>
+<td>Level dropdown</td>
+<td>Minimum severity (<code>WARNING+</code>, <code>ERROR+</code>, …)</td>
+</tr>
+<tr>
+<td><code>exceptions only</code></td>
+<td>Restrict to rows carrying a traceback</td>
+</tr>
+<tr>
+<td>▶ LIVE / history</td>
+<td>Switch between the live buffer and <code>log.db</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Scrolling down in LIVE mode pauses the tail.</strong> This is intentional — you
+cannot read a fast-moving log that keeps jumping. A banner appears showing how
+many rows arrived while paused; clicking it jumps back to the top and resumes.
+The rows are not lost, they simply were not rendered.</p>
+<div class="admonition note">
+<p class="admonition-title">Delivery adapts to the rate</p>
+<p>Under <code>LIVE_BATCH_THRESHOLD_PER_SEC</code> rows per second, each row is sent as
+its own WebSocket frame, which is what makes the tail feel immediate. Above
+it the bridge coalesces rows into batched frames flushed every 100 ms.</p>
+<p>This is automatic in both directions and needs no operator action. It
+matters during a storm: at a few thousand rows a second, one frame per row
+is thousands of encodes, socket writes and React updates per second <em>per
+tab</em>, and the browser stops keeping up long before the bridge does.
+Ordering is preserved unconditionally — once anything is buffered, later
+rows queue behind it even if the rate drops back.</p>
+</div>
+<p>Clicking any row opens a <strong>detail pane</strong> on the right with the full <code>LOG</code>
+header field set — logger, module and line, pid and host, session and sequence
+number — plus the untruncated message. Two actions there:</p>
+<ul>
+<li><strong>Copy</strong> — the message text to the clipboard.</li>
+<li><strong>Filter to this process</strong> — rewrites the URL filter, which is usually the
+  next thing you want after spotting one bad row.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 3 — The Explorer in live mode with a row selected</p>
+<p><em>Screenshot placeholder.</em> Capture the Logs view in LIVE mode with a level
+filter applied, several severity-coloured rows visible (at least one
+ERROR with the ⚠ exception marker), and the right-hand detail pane open
+on a row with a traceback. Suggested file:
+<code>images/log-gui/fig-03-explorer.png</code>.</p>
+</div>
+<h3 id="alerts">Alerts<a class="headerlink" href="#alerts" title="Permanent link">&para;</a></h3>
+<p>Where the console earns its keep. <code>WARNING</code>-and-above rows are <strong>fingerprinted</strong>
+— normalised so that the same fault recurring a thousand times collapses into
+one entry with a count, rather than a thousand lines to scroll past.</p>
+<p>Each issue card carries the level, process and logger, the occurrence count, a
+sample message, and first/last-seen times. Three tabs filter by state:
+<strong>unacked</strong>, <strong>acked</strong>, <strong>all</strong>.</p>
+<p>The acknowledgement model:</p>
+<ul>
+<li><strong>Acknowledge</strong> marks the issue handled, attributed to the name in the
+  operator field, with an optional free-text note recording <em>what was done</em>.</li>
+<li><strong>Un-ack</strong> reverses it.</li>
+<li><strong><code>recurred since ack</code></strong> is flagged prominently when a fingerprint fires
+  again after being acknowledged. This is the case that matters most: it means
+  the fix did not hold, and it is visually distinct from a fresh issue.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Acknowledgements are shared, not per-browser</p>
+<p>Acks live in the bridge's own SQLite file, so every operator sees the same
+state. That is the entire point — it is how the console prevents two
+people investigating the same error in parallel. It also means an ack is
+a <strong>statement to your colleagues</strong>, not a personal "hide this" toggle.
+Set your name in the operator field before acknowledging anything;
+unnamed acks are attributed to <code>unknown</code> and are much less useful during
+a post-mortem.</p>
+</div>
+<p>Issues with no activity beyond the retention window (7 days by default) are
+pruned hourly. The index is rebuilt from <code>log.db</code> at startup, so restarting the
+bridge loses nothing except issues that had already aged out.</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 4 — Alerts with a recurred-since-ack issue</p>
+<p><em>Screenshot placeholder.</em> Capture the Alerts view on the <strong>all</strong> tab
+showing a mix: one unacknowledged CRITICAL, one acknowledged issue with
+its "✓ acked … by … — note" line, and ideally one carrying the
+<code>recurred since ack</code> chip. Suggested file:
+<code>images/log-gui/fig-04-alerts.png</code>.</p>
+</div>
+<h3 id="processes">Processes<a class="headerlink" href="#processes" title="Permanent link">&para;</a></h3>
+<p>A registry of every process that has ever connected, with a status glyph:</p>
+<table>
+<thead>
+<tr>
+<th>Glyph</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>●</code></td>
+<td>Connected and logging</td>
+</tr>
+<tr>
+<td><code>⚠</code></td>
+<td>Connected but silent for <strong><code>PROCESS_SILENCE_SEC</code></strong> or more (30 s by default)</td>
+</tr>
+<tr>
+<td><code>○</code></td>
+<td>Disconnected</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>⚠</code> state is the one to watch. A process that connected and then went
+quiet is not obviously broken from any single log line — there is nothing to
+see, which is precisely the problem. Alongside each row: pid, host, connect
+time, idle time, total log count and error count.</p>
+<p>The threshold is <code>PROCESS_SILENCE_SEC</code> (30 s by default) and is stated in the
+legend above the table, so the glyph is never ambiguous.</p>
+<p>Clicking any row navigates to the Explorer pre-filtered to that process.</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 5 — The Processes board</p>
+<p><em>Screenshot placeholder.</em> Capture the table with a mix of all three status
+glyphs — at least one live process, one silent (<code>⚠</code>), and one
+disconnected (<code>○</code>) — with non-zero error counts on at least one row.
+Suggested file: <code>images/log-gui/fig-05-processes.png</code>.</p>
+</div>
+<h3 id="diagnostics">Diagnostics<a class="headerlink" href="#diagnostics" title="Permanent link">&para;</a></h3>
+<p>Surfaces <code>pm-log-cli</code>'s rule-based heuristics on a 60-second schedule, with a
+manual <strong>Re-run</strong> button.</p>
+<p>Each finding shows the heuristic name, what was found, a recommendation, and —
+importantly — the <strong>exact <code>pm-log-cli</code> command to reproduce it</strong>. Heuristics
+that found nothing are listed compactly at the bottom, because "we checked and
+it was fine" is information too.</p>
+<div class="admonition note">
+<p class="admonition-title">This view calls <code>pm-log-cli</code>, it does not reimplement it</p>
+<p><code>GET /api/diagnostics</code> shells out to <code>pm-log-cli --format json diagnose</code>
+so there is exactly one implementation of the heuristics to keep correct.
+The consequence: <code>pm-log-cli</code> must be installed and on <code>PATH</code> wherever
+<strong>the bridge</strong> runs — which, in the container deployment, it is not by
+default. If it is missing, this one view reports it and every other view
+keeps working. Override the command with <code>LOG_CLI_COMMAND</code>, e.g.
+<code>LOG_CLI_COMMAND="poetry run pm-log-cli"</code>.</p>
+</div>
+<p>See <a href="../280-log-srv/#diagnose-rule-based-troubleshooting-report"><code>diagnose</code></a> for
+what each heuristic actually checks.</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 6 — Diagnostics with findings</p>
+<p><em>Screenshot placeholder.</em> Capture the view with at least two findings of
+differing severity (one error-bordered, one warning-bordered), each
+showing its recommendation and repro command, plus the "✓ No findings
+for:" line. Suggested file: <code>images/log-gui/fig-06-diagnostics.png</code>.</p>
+</div>
+<h3 id="health">Health<a class="headerlink" href="#health" title="Permanent link">&para;</a></h3>
+<p>Four panels for four components that <strong>fail independently</strong>, kept separate
+rather than merged into a single status light:</p>
+<table>
+<thead>
+<tr>
+<th>Panel</th>
+<th>Shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>pm-log-srv</code></strong></td>
+<td>Up/unknown, server name, lifetime events, connections, truncations, errors sent</td>
+</tr>
+<tr>
+<td><strong>LALF-PS</strong></td>
+<td>State, subscriber count, active backfills, last sequence, inbox drops, default lease</td>
+</tr>
+<tr>
+<td><strong><code>log.db</code></strong></td>
+<td>Path, size, row count, oldest retained row</td>
+</tr>
+<tr>
+<td><strong>Bridge</strong></td>
+<td>WebSocket client count, fingerprints indexed, acks stored, <code>sub_id</code>, <code>log.db</code> reachability</td>
+</tr>
+</tbody>
+</table>
+<p>Start here when something looks wrong but you do not yet know what. The
+resolved <code>log.db</code> <strong>path</strong> in particular answers the most common
+misconfiguration — a bridge reading a different database than the one
+<code>pm-log-srv</code> is writing.</p>
+<p><code>inbox dropped</code> is worth a periodic glance: a rising count means <code>pm-log-srv</code>
+is shedding inbound LALF-PS messages, which is a capacity signal rather than a
+console problem.</p>
+<div class="admonition note">
+<p class="admonition-title">📷 Figure 7 — The Health view</p>
+<p><em>Screenshot placeholder.</em> Capture all four panels populated against a
+running server, with the resolved <code>log.db</code> path and the bridge <code>sub_id</code>
+legible. Suggested file: <code>images/log-gui/fig-07-health.png</code>.</p>
+</div>
+<h2 id="exporting">Exporting<a class="headerlink" href="#exporting" title="Permanent link">&para;</a></h2>
+<p><code>GET /api/logs/export</code> returns the current filter's matches as CSV (default)
+or JSON:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>curl<span class="w"> </span>-o<span class="w"> </span>logs.csv<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="s1">&#39;http://localhost:8091/api/logs/export?minLevel=ERROR&amp;processes=pm-engine&amp;format=csv&#39;</span>
+</code></pre></div>
+<p>The CSV carries <code>seq,client_ts,level,process,logger,message</code>. Export is capped
+at <code>EXPORT_MAX_ROWS</code> (1 000 000 by default), and the whole result set is
+materialised in memory before it is sent — a full-cap export is a large
+allocation in the bridge, so prefer a narrowed filter.</p>
+<p>If the cap is reached the response carries <code>X-Export-Truncated: true</code> and
+<code>X-Export-Max-Rows</code>, and the bridge logs a warning. Check that header before
+treating an export as complete: a silently short file is the failure mode that
+matters here, because nothing about the CSV itself reveals that rows are
+missing. For anything larger — or for scripted extraction —
+use <a href="../280-log-srv/#query-filtered-historical-search"><code>pm-log-cli query --format json</code></a>
+instead; it reads the same database with no HTTP layer in between.</p>
+<h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
+<p>All bridge configuration is environment variables.</p>
+<h3 id="network-and-serving">Network and serving<a class="headerlink" href="#network-and-serving" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HOST</code></td>
+<td><code>127.0.0.1</code></td>
+<td>Bind address. The container sets <code>0.0.0.0</code>.</td>
+</tr>
+<tr>
+<td><code>PORT</code></td>
+<td><code>8091</code></td>
+<td>HTTP/WebSocket port</td>
+</tr>
+<tr>
+<td><code>CORS_ORIGIN</code></td>
+<td><code>*</code></td>
+<td>Allowed origin. <strong>Restrict this</strong> when exposed beyond localhost.</td>
+</tr>
+<tr>
+<td><code>STATIC_DIR</code></td>
+<td><em>(unset)</em></td>
+<td>Serve the built frontend from here (single-container mode)</td>
+</tr>
+<tr>
+<td><code>LOG_LEVEL</code></td>
+<td><code>info</code></td>
+<td>The bridge's own logging verbosity</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LOG_SRV_HOST</code></td>
+<td><code>127.0.0.1</code></td>
+<td>Where <code>pm-log-srv</code> is reachable</td>
+</tr>
+<tr>
+<td><code>LOG_SRV_PUB_PORT</code></td>
+<td><code>5601</code></td>
+<td>LALF-PS <code>PUB</code> port</td>
+</tr>
+<tr>
+<td><code>LOG_SRV_PULL_PORT</code></td>
+<td><code>5602</code></td>
+<td>LALF-PS <code>PULL</code> port</td>
+</tr>
+<tr>
+<td><code>SUB_ID_PREFIX</code></td>
+<td><code>pm-log-bridge</code></td>
+<td>Subscriber id prefix; <code>-&lt;pid&gt;</code> is appended</td>
+</tr>
+<tr>
+<td><code>LEASE_SEC</code></td>
+<td><code>30</code></td>
+<td>Subscription lease; renewed at half this</td>
+</tr>
+<tr>
+<td><code>LOG_DB_PATH</code></td>
+<td><em>resolved data dir</em> <code>/log.db</code></td>
+<td>The collector's database, read-only</td>
+</tr>
+<tr>
+<td><code>ACK_STORE_PATH</code></td>
+<td><em>resolved data dir</em> <code>/log-ui-acks.db</code></td>
+<td>This project's own store, read-write</td>
+</tr>
+<tr>
+<td><code>LOG_CLI_COMMAND</code></td>
+<td><code>pm-log-cli</code></td>
+<td>Command backing the Diagnostics view</td>
+</tr>
+</tbody>
+</table>
+<h3 id="issues">Issues<a class="headerlink" href="#issues" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ISSUES_RETENTION_DAYS</code></td>
+<td><code>7</code></td>
+<td>How long an inactive issue is kept, and how far back the startup scan reaches</td>
+</tr>
+<tr>
+<td><code>ISSUES_MIN_LEVEL</code></td>
+<td><code>WARNING</code></td>
+<td>Minimum level that becomes an issue — applied identically to the startup scan and to live rows</td>
+</tr>
+<tr>
+<td><code>ISSUES_ALERT_LEVEL</code></td>
+<td><code>ERROR</code></td>
+<td>Minimum issue level counted as "unacked" in the top bar and the Alerts badge</td>
+</tr>
+</tbody>
+</table>
+<p>Both level variables are validated against the real log-level enum, so a typo
+yields the default rather than a silently broken filter. Setting
+<code>ISSUES_ALERT_LEVEL=WARNING</code> makes the top-bar count include warnings; setting
+<code>ISSUES_MIN_LEVEL=ERROR</code> stops warnings being fingerprinted at all, which also
+empties them from Alerts.</p>
+<div class="admonition note">
+<p class="admonition-title">The two levels are independent, and order matters</p>
+<p><code>ISSUES_MIN_LEVEL</code> decides what is <em>tracked</em>; <code>ISSUES_ALERT_LEVEL</code> decides
+what is <em>counted as demanding attention</em>. Setting <code>ISSUES_ALERT_LEVEL</code>
+below <code>ISSUES_MIN_LEVEL</code> is legal but pointless — nothing below the
+tracking floor exists to be counted.</p>
+</div>
+<h3 id="thresholds">Thresholds<a class="headerlink" href="#thresholds" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROCESS_SILENCE_SEC</code></td>
+<td><code>30</code></td>
+<td>Seconds of silence after which a connected process is flagged <code>⚠</code> on the Processes board</td>
+</tr>
+<tr>
+<td><code>ERROR_RATE_NORMAL_PER_MIN</code></td>
+<td><code>5</code></td>
+<td>Error rate at which the Dashboard meter leaves <strong>normal</strong></td>
+</tr>
+<tr>
+<td><code>ERROR_RATE_ELEVATED_PER_MIN</code></td>
+<td><code>20</code></td>
+<td>…and enters <strong>high</strong></td>
+</tr>
+<tr>
+<td><code>ERROR_RATE_SEVERE_PER_MIN</code></td>
+<td><code>100</code></td>
+<td>…and enters <strong>severe</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Three thresholds, four bands. Each is the rate at which the <em>next</em> band
+begins, so they read as lower bounds:</p>
+<table>
+<thead>
+<tr>
+<th>Errors/min</th>
+<th>Band</th>
+<th>Meter colour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt; 5</code></td>
+<td><code>normal</code></td>
+<td>default</td>
+</tr>
+<tr>
+<td><code>5 – 19</code></td>
+<td><code>elevated</code></td>
+<td>warning</td>
+</tr>
+<tr>
+<td><code>20 – 99</code></td>
+<td><code>high</code></td>
+<td>error</td>
+</tr>
+<tr>
+<td><code>&gt;= 100</code></td>
+<td><code>severe</code></td>
+<td>critical</td>
+</tr>
+</tbody>
+</table>
+<p>The classification lives in <code>@edumatcher/log-types</code> (<code>classifyErrorRate</code>) so
+the bridge and the browser cannot drift apart on where a band starts.</p>
+<h3 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>QUERY_MAX_ROWS</code></td>
+<td><code>5000</code></td>
+<td>Hard cap on any single history query</td>
+</tr>
+<tr>
+<td><code>EXPORT_MAX_ROWS</code></td>
+<td><code>1000000</code></td>
+<td>Hard cap on an export</td>
+</tr>
+<tr>
+<td><code>LIVE_BATCH_THRESHOLD_PER_SEC</code></td>
+<td><code>50</code></td>
+<td>Rows/sec above which live delivery switches from per-row frames to coalesced batches</td>
+</tr>
+</tbody>
+</table>
+<p>Invalid numeric values fall back to the default rather than failing startup.</p>
+<h3 id="how-the-frontend-learns-these">How the frontend learns these<a class="headerlink" href="#how-the-frontend-learns-these" title="Permanent link">&para;</a></h3>
+<p><code>GET /api/ui-config</code> returns <code>alertLevel</code>, <code>issuesMinLevel</code>,
+<code>processSilenceSec</code> and the three error-rate thresholds. The browser fetches it
+once and holds it for the session — it has <strong>no local defaults</strong>, deliberately,
+because a fallback constant in the UI is exactly how these settings came to be
+ignored in the first place. Views render a neutral placeholder until the
+config arrives rather than guessing.</p>
+<p>One visible consequence: for the first moment after a page load the Processes
+board shows no <code>⚠</code> glyphs, because flagging every healthy process as silent
+would be worse than a fraction of a second's delay.</p>
+<h2 id="security-notes">Security notes<a class="headerlink" href="#security-notes" title="Permanent link">&para;</a></h2>
+<div class="admonition danger">
+<p class="admonition-title">There is no authentication</p>
+<p><code>pm-log-ui</code> has <strong>no login, no user accounts, and no authorisation</strong>.
+Anyone who can reach the port can read every log line the exchange has
+produced — which routinely includes internal hostnames, gateway
+identifiers, order ids and tracebacks. Treat the console as an internal
+operations tool:</p>
+<ul>
+<li>Bind to <code>127.0.0.1</code> (the default) or an internal interface only.</li>
+<li>Put it behind an authenticating reverse proxy if it must be reachable
+  beyond the host.</li>
+<li>Set <code>CORS_ORIGIN</code> to your specific site origin rather than leaving <code>*</code>.</li>
+<li>Never expose port <code>8091</code> to an untrusted network.</li>
+</ul>
+</div>
+<p>Acknowledgement attribution is a <strong>convention, not an identity claim</strong> — the
+operator name is free text typed by whoever is at the keyboard. It is there to
+help a post-mortem reconstruct who looked at what, not to prove it.</p>
+<p>Beyond that the posture is deliberately narrow: Helmet security headers are
+applied, the only writable resource is the ack store, and <code>log.db</code> is opened
+read-only — enforced by the <code>:ro</code> mount in the container deployment.</p>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Top bar shows "log server down"</strong>, history works</td>
+<td><code>pm-log-srv</code> is stopped, unreachable, or its heartbeats stopped</td>
+<td>Start the server; check <code>LOG_SRV_HOST</code> and that <code>5601</code>/<code>5602</code> are reachable <em>from the bridge</em> (inside the container, if containerised).</td>
+</tr>
+<tr>
+<td><strong>Top bar shows "log.db unavailable"</strong>, live tail works</td>
+<td>The bridge cannot open the database file</td>
+<td>Compare the path in <strong>Health → log.db</strong> with where <code>pm-log-srv</code> writes. Set <code>LOG_DB_PATH</code> explicitly.</td>
+</tr>
+<tr>
+<td><strong>Every view is empty, no error shown</strong></td>
+<td>Bridge is reading a <em>different, valid</em> <code>log.db</code></td>
+<td>Check the resolved-paths line the bridge logs at startup — a valid but empty database looks exactly like a working one.</td>
+</tr>
+<tr>
+<td><strong>Live tail stuck, history fine</strong></td>
+<td>Lease not being renewed; slow-joiner drop</td>
+<td>Check <strong>Health → LALF-PS</strong> state and <code>sub_id</code>. Restart the bridge; the subscribe path retries automatically but a wedged socket does not recover.</td>
+</tr>
+<tr>
+<td><strong>Live tail stopped after scrolling</strong></td>
+<td>Expected — scrolling pauses the tail</td>
+<td>Click the "<em>n</em> new rows — jump to top" banner.</td>
+</tr>
+<tr>
+<td><strong>"Diagnostics unavailable"</strong></td>
+<td><code>pm-log-cli</code> not on <code>PATH</code> where the bridge runs</td>
+<td>Expected in the default container. Set <code>LOG_CLI_COMMAND</code>, or run the bridge where the CLI is installed. Every other view is unaffected.</td>
+</tr>
+<tr>
+<td><strong>Acks vanish after a restart</strong></td>
+<td><code>ACK_STORE_PATH</code> points at ephemeral storage</td>
+<td>Mount a persistent volume for the ack store — it is the only state the console owns.</td>
+</tr>
+<tr>
+<td><strong>Acks are not shared between operators</strong></td>
+<td>Each is running their own bridge</td>
+<td>Run one bridge and have everyone open the same URL. Acks live in that bridge's store.</td>
+</tr>
+<tr>
+<td><strong><code>make up</code> fails: neither podman nor docker found</strong></td>
+<td>No container runtime</td>
+<td>Install one, or use <a href="#option-3-local-development">local development</a>.</td>
+</tr>
+<tr>
+<td><strong><code>make up</code> on macOS: podman machine not running</strong></td>
+<td>The Podman VM is not started</td>
+<td><code>make up</code> starts it automatically; otherwise <code>podman machine init &amp;&amp; podman machine start</code>.</td>
+</tr>
+<tr>
+<td><strong>Container cannot reach <code>pm-log-srv</code> on <code>localhost</code></strong></td>
+<td><code>localhost</code> inside a container is the container</td>
+<td>Use <code>host.docker.internal</code> (Docker Desktop) or <code>host.containers.internal</code> (Podman), or a real hostname.</td>
+</tr>
+<tr>
+<td><strong><code>npm install</code> crashes: <code>TypeError: Invalid Version:</code></strong></td>
+<td>npm dedup bug</td>
+<td>Use <code>make install</code>, or rerun with <code>--no-dedupe</code>.</td>
+</tr>
+<tr>
+<td><strong>Port <code>8091</code> or <code>5178</code> already in use</strong></td>
+<td>Another process holds it</td>
+<td>Change <code>PORT</code>, or the <code>server.port</code> in <code>log-gui/apps/web/vite.config.ts</code>.</td>
+</tr>
+<tr>
+<td><strong>Blank page in production</strong>, API responds</td>
+<td>Frontend not built or <code>STATIC_DIR</code> wrong</td>
+<td><code>make build</code>, then point <code>STATIC_DIR</code> at an <strong>absolute</strong> path to <code>apps/web/dist</code>.</td>
+</tr>
+<tr>
+<td><strong>A client route 404s in production</strong></td>
+<td>Static host with no SPA fallback</td>
+<td>Let the bridge serve the UI via <code>STATIC_DIR</code>; it falls back to <code>index.html</code>.</td>
+</tr>
+<tr>
+<td><strong>Explorer shows fewer rows than expected</strong></td>
+<td><code>QUERY_MAX_ROWS</code> cap (5 000)</td>
+<td>Narrow the filter, use a time range, or export instead.</td>
+</tr>
+<tr>
+<td><strong>An export looks complete but is short</strong></td>
+<td><code>EXPORT_MAX_ROWS</code> cap reached</td>
+<td>Check for <code>X-Export-Truncated: true</code> on the response. Narrow the filter, raise the cap, or use <code>pm-log-cli query</code>.</td>
+</tr>
+<tr>
+<td><strong>Top-bar unacked count differs from the Alerts list</strong></td>
+<td>Expected — the badge counts <code>ISSUES_ALERT_LEVEL</code> and above; Alerts lists <code>WARNING</code> and above</td>
+<td>Set <code>ISSUES_ALERT_LEVEL=WARNING</code> if you want them to agree.</td>
+</tr>
+<tr>
+<td><strong>Warnings never appear in Alerts</strong></td>
+<td><code>ISSUES_MIN_LEVEL</code> raised above <code>WARNING</code></td>
+<td>Lower it. Note it gates tracking, so raising it also empties existing warnings on restart.</td>
+</tr>
+<tr>
+<td><strong>Numbers on the Dashboard briefly disagree</strong></td>
+<td>Live counters update at 1 Hz; aggregates poll at 15–30 s</td>
+<td>Expected. Health and the Explorer are authoritative.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="keeping-the-console-in-sync-with-pm-log-srv">Keeping the console in sync with <code>pm-log-srv</code><a class="headerlink" href="#keeping-the-console-in-sync-with-pm-log-srv" title="Permanent link">&para;</a></h2>
+<p>Three files re-implement pieces of <code>pm-log-srv</code>'s Python surface in
+TypeScript. Each carries a maintenance comment naming its counterpart, and all
+three must be revisited when the server's schema, LALF-PS message set, or query
+shape changes:</p>
+<table>
+<thead>
+<tr>
+<th>TypeScript</th>
+<th>Mirrors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packages/log-query/src/filter-to-sql.ts</code></td>
+<td><code>edumatcher.log_srv.pubsub.LogFilter.sql_where()</code> / <code>edumatcher.log_cli.queries.query_events()</code></td>
+</tr>
+<tr>
+<td><code>apps/bridge/src/lalf-ps-uplink.ts</code></td>
+<td>The LALF-PS wire messages implemented in <code>edumatcher.log_srv.pubsub</code></td>
+</tr>
+<tr>
+<td><code>apps/bridge/src/config.ts</code></td>
+<td><code>edumatcher.config._resolve_data_dir()</code>'s priority order</td>
+</tr>
+</tbody>
+</table>
+<p><code>apps/bridge/src/fingerprint.ts</code> has no Python counterpart — issue
+fingerprinting is new surface this project introduces. Run <code>make test</code> after
+any of these changes.</p>
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../280-log-srv/">Centralized Log Server</a> — <code>pm-log-srv</code> and <code>pm-log-cli</code>, the data this console displays</li>
+<li><a href="../940-app-lalf-protocol/">Appendix: LALF Protocol Reference</a> — normative wire spec for the producer protocol</li>
+<li><a href="../270-message-reference/#lalf-ps-messages-log-subscriber-pm-log-srv">Message Reference — LALF-PS messages</a> — normative field tables for every message the bridge sends and receives</li>
+<li><a href="../010-configuration/#configuring-pm-log-srv">Configuration — Configuring pm-log-srv</a> — the <code>log_server:</code> block, including the LALF-PS ports</li>
+<li><a href="../170-processes/#pm-log-srv-centralized-log-server">Processes</a> — where <code>pm-log-srv</code> sits among the other processes</li>
+<li><a href="../030-config-GUI/">Configuration GUI (<code>config-gui</code>)</a> — the sibling browser application, same deployment pattern</li>
+<li><a href="../290-trader-info-terminal/">Trader Information Terminal (TapeDeck)</a> — the other operator-facing UI</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

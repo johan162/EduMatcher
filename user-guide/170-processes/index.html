@@ -961,14 +961,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway-reference/" class="md-nav__link">
+      <a href="../051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1810,6 +1838,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pm-config-deploy-compile-and-install-a-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-config-deploy — Compile and Install a Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pm-config-gen-engine-config-generator" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2462,6 +2501,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -4236,9 +4331,9 @@ PATH and need no prefix:</p>
 for the full setup guide and the <code>pm-setup</code> bootstrap command.</p>
 </div>
 <h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
-<p>Two variables control where EduMatcher finds and stores files at runtime.
-Set them once in your shell profile (<code>~/.zshrc</code> or <code>~/.bashrc</code>) and every
-<code>pm-*</code> command picks them up automatically.</p>
+<p>One variable controls where EduMatcher finds and stores everything at runtime.
+Set it once in your shell profile (<code>~/.zshrc</code> or <code>~/.bashrc</code>) and every <code>pm-*</code>
+command picks it up automatically.</p>
 <table>
 <thead>
 <tr>
@@ -4253,23 +4348,25 @@ Set them once in your shell profile (<code>~/.zshrc</code> or <code>~/.bashrc</c
 <td><code>EDUMATCHER_DATA_DIR</code></td>
 <td><code>~/.local/share/edumatcher</code></td>
 <td><code>&lt;repo&gt;/src/data/</code></td>
-<td>Directory for all persistent data files (<code>gtc_orders.json</code>, <code>stats.db</code>, <code>audit.log</code>, etc.)</td>
-</tr>
-<tr>
-<td><code>EDUMATCHER_CONFIG</code></td>
-<td><code>./engine_config.yaml</code> (CWD)</td>
-<td><code>&lt;repo&gt;/engine_config.yaml</code></td>
-<td>Path to the engine configuration YAML</td>
+<td>Directory for all persistent data files (<code>gtc_orders.json</code>, <code>stats.db</code>, <code>audit.log</code>, etc.) <strong>and</strong> the deployed engine configuration</td>
 </tr>
 </tbody>
 </table>
-<p>The <code>--config</code> flag on <code>pm-engine</code> and <code>pm-scheduler</code> overrides both the
-environment variable and the default.</p>
+<p>The engine configuration is <strong>not</strong> separately configurable. Every process
+reads <code>&lt;EDUMATCHER_DATA_DIR&gt;/ref_data/engine_config.json</code> — there is no
+<code>--config</code> flag and no <code>EDUMATCHER_CONFIG</code> variable. This is deliberate: while
+each process took its own path, starting one of them against the wrong file
+produced an exchange whose parts silently disagreed, and the symptom (a
+gateway reporting no instruments) pointed nowhere near the cause.</p>
+<p>One data directory is therefore one exchange instance. Getting it wrong now
+detaches a process from its statistics and logs as well, so the mistake
+announces itself immediately.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Example: per-session isolation</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/sessions/morning&quot;</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_CONFIG</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/sessions/morning/engine_config.yaml&quot;</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pm-config-deploy<span class="w"> </span>~/configs/morning.yaml
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>pm-engine<span class="w"> </span>--verbose
 </code></pre></div>
+<p>See <a href="#pm-config-deploy"><code>pm-config-deploy</code></a> for installing a configuration.</p>
 <p><strong>Core processes:</strong></p>
 <table>
 <thead>
@@ -4560,7 +4657,7 @@ immediately or silently lose its first messages.</p>
      <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># or, for external / remote bots:</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>pm-alf-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>pm-alf-gwy
 </code></pre></div></li>
 <li>Start remaining optional observers/tools as needed (<code>pm-board</code>,
      <code>pm-viewer</code>, <code>pm-clearing</code>, <code>pm-ticker</code>, <code>pm-scheduler</code>, <code>pm-index</code>).</li>
@@ -4568,7 +4665,7 @@ immediately or silently lose its first messages.</p>
 </div>
 <h2 id="pm-engine-matching-engine">pm-engine — Matching Engine<a class="headerlink" href="#pm-engine-matching-engine" title="Permanent link">&para;</a></h2>
 <p>The heart of the system — receives orders, matches them, publishes events.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-engine<span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-engine<span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -4580,11 +4677,6 @@ immediately or silently lose its first messages.</p>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>--config</code> / <code>-c</code></td>
-<td><code>engine_config.yaml</code></td>
-<td>Path to engine config YAML</td>
-</tr>
 <tr>
 <td><code>--log-level</code></td>
 <td><code>WARNING</code></td>
@@ -4793,7 +4885,7 @@ See <a href="../900-app-alf-protocol/">ALF Protocol Reference</a>.</p>
 <tr>
 <td><code>--drop-copy</code></td>
 <td>No</td>
-<td>Enable the drop-copy relay on startup (equivalent to sending <code>DC\|STATE=ON</code> immediately after connecting); default off — see <a href="../050-gateway-reference/#dc-toggle-drop-copy-relay">Gateway → DC</a></td>
+<td>Enable the drop-copy relay on startup (equivalent to sending <code>DC\|STATE=ON</code> immediately after connecting); default off — see <a href="../055-alf-console/#dc-toggle-drop-copy-relay">ALF Console → DC</a></td>
 </tr>
 <tr>
 <td><code>--log-level</code></td>
@@ -4941,13 +5033,13 @@ is refused and the gateway exits.</p>
 </tr>
 </tbody>
 </table>
-<p>See the <a href="../050-gateway-reference/">Gateway Reference</a> for the full command list.</p>
+<p>See the <a href="../055-alf-console/">ALF Console</a> for the full command list.</p>
 <h2 id="pm-alf-gwy-alf-tcp-gateway">pm-alf-gwy — ALF TCP Gateway<a class="headerlink" href="#pm-alf-gwy-alf-tcp-gateway" title="Permanent link">&para;</a></h2>
 <p>Accepts ALF order-entry commands from external bots and remote processes over a
 plain TCP connection.  Uses the same ALF command vocabulary as <code>pm-alf-console</code>
 but is designed for programmatic clients, not interactive terminals.  One
 connection per gateway ID; all configured <code>gateways.alf</code> IDs may connect.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-alf-gwy<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5565</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-alf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5565</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -4959,11 +5051,6 @@ connection per gateway ID; all configured <code>gateways.alf</code> IDs may conn
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>--config</code> / <code>-c</code></td>
-<td><code>engine_config.yaml</code></td>
-<td>Config file with optional <code>alf_gateway:</code> section</td>
-</tr>
 <tr>
 <td><code>--bind</code></td>
 <td>from config / <code>0.0.0.0</code></td>
@@ -6361,7 +6448,7 @@ why this data moved here.</p>
 <p>Drives session-phase transitions (PRE_OPEN → OPENING_AUCTION → CONTINUOUS →
 CLOSING_AUCTION → CLOSED) by sending <code>session.transition</code> messages to the
 engine at configured wall-clock times.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-scheduler<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--now<span class="o">]</span><span class="w"> </span><span class="o">[</span>--delay<span class="w"> </span><span class="m">3</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--daily<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-confirm<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-scheduler<span class="w"> </span><span class="o">[</span>--now<span class="o">]</span><span class="w"> </span><span class="o">[</span>--delay<span class="w"> </span><span class="m">3</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--daily<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-confirm<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -6373,11 +6460,6 @@ engine at configured wall-clock times.</p>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>--config</code> / <code>-c</code></td>
-<td><code>engine_config.yaml</code></td>
-<td>Config file containing the <code>schedule</code> section</td>
-</tr>
 <tr>
 <td><code>--now</code></td>
 <td>off</td>
@@ -6861,11 +6943,6 @@ state, which is correct for a fresh session.</p>
 <td>Comma-separated symbol list override</td>
 </tr>
 <tr>
-<td><code>--config</code></td>
-<td><code>engine_config.yaml</code></td>
-<td>Config used to discover symbols</td>
-</tr>
-<tr>
 <td><code>--seed-base</code></td>
 <td><code>1000</code></td>
 <td>Base seed; bot <code>i</code> gets <code>seed-base + i</code></td>
@@ -7222,7 +7299,7 @@ bootstrap details, and troubleshooting.</p>
 <h2 id="pm-ralf-gwy-post-trade-dissemination-gateway">pm-ralf-gwy — Post-Trade Dissemination Gateway<a class="headerlink" href="#pm-ralf-gwy-post-trade-dissemination-gateway" title="Permanent link">&para;</a></h2>
 <p>Runs the external machine-facing post-trade dissemination gateway that publishes
 RALF over TCP for clearing, drop-copy, and audit consumers.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-ralf-gwy<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5580</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-ralf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5580</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -7234,11 +7311,6 @@ RALF over TCP for clearing, drop-copy, and audit consumers.</p>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>--config</code> / <code>-c</code></td>
-<td><code>engine_config.yaml</code></td>
-<td>Config file; optional <code>post_trade_gateway</code> section</td>
-</tr>
 <tr>
 <td><code>--bind</code></td>
 <td>from config / <code>0.0.0.0</code></td>
@@ -7448,7 +7520,7 @@ of concurrently connected external clients instead of printing to a
 terminal. There is no authentication, entitlement model, or replay-by-sequence
 — any client may <code>HELLO</code> with any gateway <code>ID</code> and receive that gateway's
 live fills for as long as it stays connected.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>pm-dc-gwy<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5590</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-dc-pub<span class="w"> </span>tcp://127.0.0.1:5557<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>pm-dc-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5590</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-dc-pub<span class="w"> </span>tcp://127.0.0.1:5557<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -7460,11 +7532,6 @@ live fills for as long as it stays connected.</p>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>--config</code> / <code>-c</code></td>
-<td><code>engine_config.yaml</code></td>
-<td>Config file; optional <code>dc_gateway</code> section (hand-edited, no <code>pm-config-gen</code> integration)</td>
-</tr>
 <tr>
 <td><code>--bind</code></td>
 <td>from config / <code>0.0.0.0</code></td>
@@ -7624,7 +7691,7 @@ of instances can run at once (e.g. one per terminal, each with a different
 cap-weighted market indices in real time. Publishes live index values on a
 dedicated ZMQ PUB socket so <code>pm-md-gwy</code> can forward them to external subscribers
 over the CALF <code>INDEX</code> channel.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-index<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--reset<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-index<span class="w"> </span><span class="o">[</span>--reset<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -7636,11 +7703,6 @@ over the CALF <code>INDEX</code> channel.</p>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>--config</code> / <code>-c</code></td>
-<td><code>engine_config.yaml</code></td>
-<td>Path to engine config YAML containing the <code>indices:</code> section</td>
-</tr>
 <tr>
 <td><code>--reset</code></td>
 <td>off</td>
@@ -7780,7 +7842,7 @@ market data over REST/JSON and WebSocket. It is not a second matching engine —
 it translates HTTP and WebSocket requests into the same ZMQ messages used by the
 interactive <code>pm-alf-console</code> terminal. Reads configuration from the <code>api_gateways:</code>
 section of <code>engine_config.yaml</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>pm-api-gwy<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--instance<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>pm-api-gwy<span class="w"> </span><span class="o">[</span>--instance<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -7792,11 +7854,6 @@ section of <code>engine_config.yaml</code>.</p>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>--config PATH</code></td>
-<td><code>EDUMATCHER_CONFIG</code> resolution</td>
-<td>Path to <code>engine_config.yaml</code></td>
-</tr>
 <tr>
 <td><code>--instance NAME</code></td>
 <td>auto-selected when only one entry exists</td>
@@ -8392,34 +8449,88 @@ prints the result, and exits. Suitable for shell scripts and CI automation.</p>
 <td>Data directory for persistent files</td>
 </tr>
 <tr>
-<td><code>--config-dest &lt;PATH&gt;</code></td>
-<td><code>./engine_config.yaml</code></td>
-<td>Destination path for copied sample config</td>
-</tr>
-<tr>
 <td><code>--force</code></td>
 <td>off</td>
-<td>Overwrite existing config destination</td>
+<td>Replace an already-deployed config</td>
 </tr>
 <tr>
 <td><code>--no-config</code></td>
 <td>off</td>
-<td>Skip sample config copy; create data dir only</td>
+<td>Create the data dir only; deploy nothing</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
 <p>None.</p>
-<p>Typical actions include creating/confirming data directories and placing sample
-configuration files so first-time startup is repeatable.</p>
+<p>It creates the data directory and deploys the bundled sample configuration to
+<code>&lt;DATA_DIR&gt;/ref_data/engine_config.json</code>, so a fresh environment can start the
+exchange immediately.</p>
 <p>Use this once per new environment (VM, container volume, or fresh local
 workspace) before starting runtime processes.</p>
+<p>This tool is local bootstrap logic and does not participate in the ZeroMQ
+runtime message bus.</p>
+<h2 id="pm-config-deploy-compile-and-install-a-configuration">pm-config-deploy — Compile and Install a Configuration<a class="headerlink" href="#pm-config-deploy-compile-and-install-a-configuration" title="Permanent link">&para;</a></h2>
+<p>Validates an authored <code>engine_config.yaml</code>, compiles it, and installs the
+result as the one file every process reads.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>pm-config-deploy<span class="w"> </span>my_config.yaml
+<a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a>pm-config-deploy<span class="w"> </span>--check<span class="w"> </span>my_config.yaml
+<a id="__codelineno-44-3" name="__codelineno-44-3" href="#__codelineno-44-3"></a>pm-config-deploy<span class="w"> </span>--show
+</code></pre></div>
+<p><strong>Startup options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>—</td>
+<td>Authored <code>engine_config.yaml</code> to validate, compile and install</td>
+</tr>
+<tr>
+<td><code>--check</code></td>
+<td>off</td>
+<td>Validate and compile, but install nothing — for CI</td>
+</tr>
+<tr>
+<td><code>--show</code></td>
+<td>off</td>
+<td>Print the deployed paths and exit</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Expected runtime input arguments:</strong></p>
+<p>None. It reads <code>SOURCE</code>, writes
+<code>&lt;DATA_DIR&gt;/ref_data/engine_config.json</code> plus a copy of the source beside it,
+and exits.</p>
+<p>Validation runs all four <code>pm-cverifier</code> layers. That is stricter than starting
+used to be: a configuration with, say, a <code>MARKET_MAKER</code> gateway and no
+<code>market_maker_quotes</code> (<code>M001</code>), or an API credential naming a <code>gateway_id</code>
+absent from <code>gateways.alf</code> (<code>M022</code>), will now refuse to deploy where it
+previously ran. Warnings do not block — a command that refused on advice would
+push people back towards editing the deployed copy by hand.</p>
+<p>Compiling also resolves every default exactly once. That is what allows the
+runtime loaders to deserialise rather than each keep its own copy of the
+defaults for its section.</p>
+<p>A configuration that fails is not installed and the previous artifact is left
+untouched — the write is staged and renamed, so a process starting during a
+deploy sees either the old file or the new one, never half of either.</p>
+<p>The command prints the symbol and gateway counts it installed. Those numbers
+are worth reading: an unexpected zero is the difference between an exchange
+and a gateway that accepts connections but has no instruments to offer.</p>
+<p>Deploying does not disturb running processes. Restart them to pick up the new
+configuration; until you do, each will warn at startup that its source has
+moved on.</p>
 <p>This tool is local bootstrap logic and does not participate in the ZeroMQ
 runtime message bus.</p>
 <h2 id="pm-config-gen-engine-config-generator">pm-config-gen — Engine Config Generator<a class="headerlink" href="#pm-config-gen-engine-config-generator" title="Permanent link">&para;</a></h2>
 <p>Generates an <code>engine_config.yaml</code> from explicit CLI parameters so environments
 can be recreated without manual YAML editing.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>--sessions-enabled<span class="w"> </span>--output<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>--sessions-enabled<span class="w"> </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <h4 id="required">Required<a class="headerlink" href="#required" title="Permanent link">&para;</a></h4>
@@ -8808,7 +8919,7 @@ directly from disk and renders them as a table, JSON, or CSV. No running
 process is required. It does not expose level or EOD history — use
 <code>pm-stats-cli index-daily</code> / <code>index-snapshots</code> for that instead (see the
 pm-stats-cli section above).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>pm-index-cli<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>pm-index-cli<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -8880,7 +8991,7 @@ issuances and buy-backs) and constituent changes (add/delist) to a running
 <code>pm-index</code> process. Unlike <code>pm-index-cli</code> above, this tool is a <strong>write</strong>
 tool and talks directly to <code>pm-index</code>'s live PUSH/PULL socket pair — it does
 not read JSONL files and does not require <code>--config</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>&lt;GW_ID&gt;<span class="w"> </span><span class="o">[</span>--push<span class="w"> </span>ADDR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--sub<span class="w"> </span>ADDR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--timeout<span class="w"> </span>MS<span class="o">]</span><span class="w"> </span><span class="o">[</span>--dry-run<span class="o">]</span><span class="w"> </span><span class="o">[</span>-y<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>&lt;GW_ID&gt;<span class="w"> </span><span class="o">[</span>--push<span class="w"> </span>ADDR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--sub<span class="w"> </span>ADDR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--timeout<span class="w"> </span>MS<span class="o">]</span><span class="w"> </span><span class="o">[</span>--dry-run<span class="o">]</span><span class="w"> </span><span class="o">[</span>-y<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -9008,7 +9119,7 @@ It accepts BALF binary frames from low-latency programmatic clients and
 translates them into the same engine order flow as the ALF gateways.</p>
 <p>See <a href="../230-balf-gateway/">BALF TCP Gateway</a> for operational usage and
 <a href="../910-app-balf-protocol/">BALF Protocol Reference</a> for the wire-level contract.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-balf-gwy<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5566</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>pm-balf-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5566</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -9020,11 +9131,6 @@ translates them into the same engine order flow as the ALF gateways.</p>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>--config</code> / <code>-c</code></td>
-<td><code>engine_config.yaml</code></td>
-<td>Config file with optional <code>balf_gateway:</code> section</td>
-</tr>
 <tr>
 <td><code>--bind</code></td>
 <td>from config / <code>0.0.0.0</code></td>
@@ -9065,7 +9171,7 @@ CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:<
 <li><code>TRADE</code> (executed trades)</li>
 <li><code>STATE</code> (session and halt/resume state)</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>pm-md-gwy<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5570</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--index-pub<span class="w"> </span>tcp://127.0.0.1:5558<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>pm-md-gwy<span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5570</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span><span class="w"> </span><span class="o">[</span>--index-pub<span class="w"> </span>tcp://127.0.0.1:5558<span class="o">]</span><span class="w"> </span><span class="o">[</span>--log-level<span class="w"> </span>LEVEL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="p">|</span>-vv<span class="o">]</span><span class="w"> </span><span class="o">[</span>-q<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -9077,11 +9183,6 @@ CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:<
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>--config</code> / <code>-c</code></td>
-<td><code>engine_config.yaml</code></td>
-<td>Config file with optional <code>market_data_gateway:</code> section</td>
-</tr>
 <tr>
 <td><code>--bind</code></td>
 <td>from config / <code>0.0.0.0</code></td>
@@ -9225,9 +9326,9 @@ auto-detects a running <code>pm-log-srv</code> at startup is a follow-up phase a
 has not yet been rolled out — until then, <code>--log-level</code>/<code>-v</code>/<code>-q</code> still
 control each process's own stdout logging as before.</p>
 </div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>pm-log-srv [--host ADDR] [--port PORT] [--db PATH]
-<a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a>           [--retention-days N] [--max-message-bytes N]
-<a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a>           [--log-level LEVEL] [-v|-vv] [-q]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>pm-log-srv [--host ADDR] [--port PORT] [--db PATH]
+<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a>           [--retention-days N] [--max-message-bytes N]
+<a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a>           [--log-level LEVEL] [-v|-vv] [-q]
 </code></pre></div>
 <table>
 <thead>
@@ -9269,7 +9370,7 @@ control each process's own stdout logging as before.</p>
 <p><code>pm-log-cli</code> is a read-only offline tool: it queries <code>log.db</code> directly, never
 over the network, so a busy or even-stopped <code>pm-log-srv</code> never blocks
 troubleshooting with data already collected.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>pm-log-cli [--db PATH] [--format human|json] COMMAND [options]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a>pm-log-cli [--db PATH] [--format human|json] COMMAND [options]
 </code></pre></div>
 <p>Subcommands: <code>tail</code>, <code>query</code>, <code>processes</code>, <code>stats</code>, <code>diagnose</code> (rule-based
 troubleshooting heuristics with concrete recommendations), and <code>prune</code>

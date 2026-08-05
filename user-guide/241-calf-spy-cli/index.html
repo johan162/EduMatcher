@@ -961,14 +961,42 @@
   
   
     <li class="md-nav__item">
-      <a href="../050-gateway-reference/" class="md-nav__link">
+      <a href="../051-gateway-intro/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Gateway Reference
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
   
 
     
@@ -1899,6 +1927,62 @@
     
   
     Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
   
 
     
@@ -3542,7 +3626,7 @@ handshake to succeed, but you will not see any live data until it is.</p>
 <tr>
 <td><code>--resume</code></td>
 <td><em>(none)</em></td>
-<td>One-shot <code>CH:SYM:LASTSEQ</code>, e.g. <code>TOP:AAPL:1042</code> — requests single-stream replay on connect (mirrors <code>HELLO\|RESUME=1\|CH=..\|SYM=..\|LASTSEQ=..</code>)</td>
+<td>One-shot <code>CH:SYM:LASTSEQ</code>, e.g. <code>TOP:AAPL:1042</code> — requests single-stream replay just after the handshake (sends <code>RESUME\|CH=..\|SYM=..\|LASTSEQ=..</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -3594,20 +3678,23 @@ explicit symbols for <code>INDEX</code>/<code>DEPTH</code>/<code>CB</code> rathe
 <a href="../000-getting-started/#environment-variables">Getting Started — Environment variables</a>).</p>
 <h2 id="keeping-the-connection-alive">Keeping the connection alive<a class="headerlink" href="#keeping-the-connection-alive" title="Permanent link">&para;</a></h2>
 <p><code>pm-calf-spy</code> is purely a listener: after the initial <code>HELLO</code>/<code>SUB</code>
-handshake it has nothing more to say, so — unlike a real trading client that
-periodically sends orders or cancels — it would otherwise go completely
-silent for the rest of the session. <code>pm-md-gwy</code> disconnects any client that
-sends nothing at all for <code>market_data_gateway.idle_timeout_sec</code> (see
-<a href="../240-calf-gateway/">Market Data Feed — Configuration</a>), so a purely
-receive-only client needs to generate outbound traffic of its own to avoid
-being dropped.</p>
-<p><code>pm-calf-spy</code> does this automatically: a background thread sends <code>PING</code>
-every <code>--ping-interval</code> seconds (default <code>60</code>), and the gateway replies with
-a <code>PONG</code> (suppressed from the default view the same way <code>HB</code> is — pass
-<code>--show-heartbeats</code> to see both). Set <code>--ping-interval</code> lower than the
-gateway's <code>idle_timeout_sec</code> if you have shortened that value for
-diagnostics, or <code>0</code> to disable the heartbeat entirely (e.g. when
-deliberately testing idle-timeout behavior).</p>
+handshake it has nothing more to say. <strong>This is fine, and needs no help from
+you.</strong> <code>pm-md-gwy</code>'s idle timer counts traffic in either direction, and the
+gateway's own heartbeats keep the session alive, so a receive-only client
+stays connected indefinitely without sending a thing (see
+<a href="../240-calf-gateway/">Market Data Feed — Configuration</a>).</p>
+<blockquote>
+<p>Earlier gateway builds advanced the idle timer only on <em>inbound</em> bytes, so
+a silent listener really was dropped every <code>idle_timeout_sec</code>. The
+<code>--ping-interval</code> thread below exists because of that; it is now a
+diagnostic convenience rather than a requirement.</p>
+</blockquote>
+<p><code>pm-calf-spy</code> still sends <code>PING</code> from a background thread every
+<code>--ping-interval</code> seconds (default <code>60</code>), and the gateway replies with a
+<code>PONG</code> (suppressed from the default view the same way <code>HB</code> is — pass
+<code>--show-heartbeats</code> to see both). It is a useful explicit round-trip check
+that the session is genuinely alive rather than merely un-errored. Pass <code>0</code>
+to disable it.</p>
 <h2 id="human-readable-output">Human-readable output<a class="headerlink" href="#human-readable-output" title="Permanent link">&para;</a></h2>
 <p>One line per event: a local wall-clock timestamp, the message type, the
 channel (colour-coded so several interleaved channels stay visually
@@ -3618,7 +3705,8 @@ distinct), the symbol, the sequence number, and the remaining fields as
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>10:02:17.048  SNAP     TOP      AAPL       #1      ASK=150.12 ASKSZ=900 BID=150.10 BIDSZ=1200 LAST=150.11 LASTSZ=300
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>10:02:17.512  MD       TOP      AAPL       #2      BID=150.11 BIDSZ=1400
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>10:02:18.203  TRADE    TRADE    AAPL       #44     PX=150.12 QTY=200 SIDE=BUY
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>10:02:20.001  CB       CB       AAPL       #4      LEVEL=L2 MODE=AUCTION REFPX=150.10 RESUMEAT=2026-07-20T10:20:00.000Z STATUS=HALTED TRIGGERPX=148.20
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>10:02:20.001  CB       CB       AAPL       #4      CORRHI=165.11 CORRLO=135.09 EXP=0 LEVEL=L2 SRC=CB REFPX=150.10 RESUMEAT=2026-07-20T10:20:00.000Z STATUS=HALTED TRIGGERPX=148.20
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>10:20:00.010  CB       CB       AAPL       #5      CORRHI=180.12 CORRLO=120.08 EXP=1 IMB=BUY INDICPX=182.00 INDICQTY=500 LEVEL=L2 SRC=CB REFPX=150.10 RESUMEAT=2026-07-20T10:25:00.000Z STATUS=HALTED TRIGGERPX=148.20
 </code></pre></div>
 <p>Session-level messages that carry no channel/symbol of their own (<code>WELCOME</code>,
 <code>HB</code>, <code>PONG</code>) are rendered without the channel/symbol/sequence columns.
