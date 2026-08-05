@@ -3,1036 +3,973 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - What a minimum-viable configuration looks like and how to verify it
-    - Which processes must be started and in which order
-    - The purpose of every `pm-` process and its command-line flags
-    - How `tools/launch_all.sh` works and when to write your own launcher
-    - How to confirm the system is running correctly after startup
-    - How to diagnose common startup failures
-    - How to monitor a live session using the operator console and the display processes
+    - How to prepare a session before the first process starts
+    - Why the deployed configuration artifact is the operational source of truth
+    - Which processes to start for a minimum session, a recorded session, a
+      classroom session, and an externally connected session
+    - How to verify that the exchange is healthy after startup
+    - How to monitor, troubleshoot, restart and shut down a running exchange
+    - Which operator playbook to follow for common scenarios
 
-    **Prerequisites**: [Configuration](010-configuration.md) — you should have a
-    working `engine_config.yaml` before following the steps on this page.
-    [Commands](160-exchange-commands.md) — for the operator console used in the
-    monitoring section.
-
-
-## Developer mode vs installed mode
-
-EduMatcher supports two ways to run the `pm-*` commands. Everything on this
-page works in both modes. The only difference is how you invoke the commands.
-
-|                      | Developer mode                                | Installed mode                                        |
-|----------------------|-----------------------------------------------|-------------------------------------------------------|
-| **Who uses this**    | Contributors, engine developers               | Instructors, students                                 |
-| **Installation**     | `poetry install --with dev` (source checkout) | `pipx install edumatcher`                             |
-| **Command prefix**   | `poetry run pm-engine`                        | `pm-engine` (no prefix)                               |
-| **Data directory**   | `<repo>/src/data/` (auto-detected)            | `~/.local/share/edumatcher` or `$EDUMATCHER_DATA_DIR` |
-| **Config file**      | `<repo>/src/data/ref_data/engine_config.json` | `<$EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`  |
-| **First-time setup** | Nothing extra                                 | Run `pm-setup` once                                   |
-| **Launch all**       | `./tools/launch_all.sh`                       | `./tools/launch_all.sh` (script is mode-aware)        |
-
-!!! tip "First-time end-user setup"
-    If you installed with pipx, run this once before anything else:
-    ```bash
-    cd ~/my-session-dir
-    pm-setup
-    ```
-    This creates `~/.local/share/edumatcher` for data files, copies a sample
-    `engine_config.yaml` into your working directory, and prints the shell
-    snippet to add to your profile. See [Getting Started](000-getting-started.md)
-    for the full installation walkthrough.
-
-Throughout the rest of this page commands are shown without `poetry run` — add
-the prefix if you are in developer mode.
+    **Prerequisites**: read [Getting Started](000-getting-started.md) first. For
+    configuration syntax and validation rules, read
+    [Configuration](010-configuration.md). For the full process catalog, read
+    [Processes](170-processes.md).
 
 
-## Minimum-viable configuration
+## Operator model
 
-Before starting anything, verify your configuration covers the mandatory
-fields.  A completely minimal `engine_config.yaml` looks like this:
+EduMatcher is a multi-process exchange. `pm-engine` owns the order books and
+binds the core ZeroMQ sockets. Every other process connects to it, sends
+commands, subscribes to events, records data, or exposes an external interface.
 
-!!! tip "Generate this instead of writing it manually"
-  If you do not already have a config, generate one first:
-  ```bash
-  pm-config-gen --symbols AAPL --gateways TRADER01 MM01:MARKET_MAKER GW_ADMIN:ADMIN --output engine_config.yaml
-  ```
-  Or start from the sample `engine_config.yaml` copied by `pm-setup` and edit
-  it in place.
-  Then fill in `market_maker_quotes` bid/ask prices before starting
-  `pm-engine`. For the full flag reference, see
-  [Configuration](010-configuration.md#generate-configs-with-pm-config-gen).
+The operator's job is to make five things true before trading starts:
 
-```yaml
-gateways:
-  alf:
-    - id: TRADER01
-      description: First trader
-    - id: MM01
-      description: Market maker
-      role: MARKET_MAKER
-    - id: GW_ADMIN
-      description: Operator console
-      role: ADMIN
+1. Every process sees the same `EDUMATCHER_DATA_DIR`.
+2. The authored `engine_config.yaml` has been validated and deployed.
+3. Loss-sensitive recorders are running before the first meaningful event.
+4. Gateways and external feeds are started only after the engine is ready.
+5. There is a clear shutdown and recovery plan.
 
-symbols:
-  AAPL:
-    tick_decimals: 2
-    last_buy_price: 149.90
-    last_sell_price: 150.10
-    market_maker_quotes:
-      - gateway_id: MM01
-        bid_price: 149.90
-        ask_price: 150.10
-        bid_qty: 500
-        ask_qty: 500
-        tif: DAY
-        quote_id: MM-AAPL-SEED
-```
+For the deep architectural explanation, see [Processes](170-processes.md). This
+chapter is the practical runbook.
 
-!!! tip "Why a market-maker gateway with seeded quotes?"
-    An order book has no liquidity until orders rest in it.  The engine
-    solves this via the `market_maker_quotes` block: when `MM01` connects and
-    authenticates, the engine automatically injects the configured two-sided
-    quote on its behalf — no manual typing required.  This means the book
-    is liquid from the very first moment trading opens.
 
-    Without this, a new trader sees an empty book and a crossing order has
-    nothing to trade against.  `last_buy_price` / `last_sell_price` seed the
-    "last traded price" display before any real trades have occurred.
+## Runtime source of truth
 
-    After startup, `pm-viewer --symbol AAPL` will immediately show a
-    two-sided book: 500 bid at 149.90 and 500 ask at 150.10.
+Modern EduMatcher separates the file you edit from the file the exchange runs.
 
-The engine will refuse to start (exit 1) if:
+| File | Who uses it | Operator action |
+|---|---|---|
+| `engine_config.yaml` | Humans, source control, review tools, config generators | Edit and review this file |
+| `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json` | Every running `pm-*` process | Install it with `pm-config-deploy`; do not edit by hand |
 
-- The file exists but `gateways.alf` is not a list, **or**
-- The file exists but `symbols` is not a mapping.
+No runtime process accepts a config path. The engine, scheduler, gateways,
+recorders, market-data gateway, API gateway, log server and index process all
+read the deployed artifact from the data directory. That prevents one process
+from accidentally running against a different file from the rest of the exchange.
 
-Run this quick sanity check before starting the engine:
+The practical rule is simple:
 
 ```bash
-python - <<'EOF'
-import yaml, sys, pathlib
-cfg = yaml.safe_load(pathlib.Path("engine_config.yaml").read_text())
-gws = cfg.get("gateways", {}).get("alf", None)
-syms = cfg.get("symbols", None)
-ok = isinstance(gws, list) and len(gws) > 0 and isinstance(syms, dict) and len(syms) > 0
-print("Config OK" if ok else "Config INVALID")
-print(f"  Gateways : {[g['id'] for g in gws] if isinstance(gws, list) else gws}")
-print(f"  Symbols  : {list(syms.keys()) if isinstance(syms, dict) else syms}")
-EOF
+pm-config-deploy --check engine_config.yaml  # validate only
+pm-config-deploy engine_config.yaml          # validate, compile, install
+pm-config-deploy --show                      # print deployed paths
 ```
 
-Expected output:
-```
-Config OK
-  Gateways : ['TRADER01', 'MM01', 'GW_ADMIN']
-  Symbols  : ['AAPL']
-```
+After deployment, restart any running process that must pick up the change.
+Deploying a new artifact is atomic, but it does not hot-reload processes that
+already loaded the previous artifact.
 
-### Checklist before the first start
-
-| Check | Why it matters |
-|---|---|
-| At least one entry under `gateways.alf` | No gateways → nobody can connect |
-| At least one entry under `symbols` | No symbols → no books, no trading |
-| Every gateway that should submit orders has a matching `id` | IDs must match exactly (case-insensitive on connect; stored uppercase) |
-| `role: ADMIN` exists for at least one gateway if you want operator control | Required to use `pm-admin` / `pm-admin-cli` |
-| `sessions_enabled: true` and a `schedule` block if you want automatic session transitions | Omitting both is fine for manual / always-open operation |
-| `tick_decimals` set correctly for each symbol | Controls price precision; wrong value means prices display wrong |
-| Each symbol that needs liquidity has a `market_maker_quotes` block referencing a `MARKET_MAKER`-role gateway | Without seeded quotes the book is empty on startup and traders have nothing to trade against |
+!!! warning "Do not skip deployment"
+    Editing `engine_config.yaml` is not enough. A running exchange reads
+    `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`. If startup logs warn
+    that the authored source changed after deployment, deploy again and restart.
 
 
+## Running modes
 
-## Starting the exchange
+EduMatcher supports installed and source-checkout operation. The behavior is the
+same; only the command prefix and default data directory differ.
 
-### Startup order
+| | Installed mode | Developer mode |
+|---|---|---|
+| Typical user | Instructor, student, demo operator | Contributor, test runner, docs author |
+| Install | `pipx install edumatcher` | `poetry install --with dev,docs` |
+| Command style | `pm-engine --verbose` | `poetry run pm-engine --verbose` |
+| Default data directory | `~/.local/share/edumatcher` | `<repo>/src/data/` |
+| First setup | `pm-setup` | Usually none, but deployment is still recommended |
 
-**The engine must start first.**  It binds the ZeroMQ sockets that all other
-processes connect to.  If any process connects before the engine is ready,
-it either exits with a timeout error or silently drops its first messages.
+Throughout this chapter commands are shown in installed form. In developer mode,
+prefix each `pm-*` command with `poetry run`.
 
-```mermaid
-flowchart TD
-    ENG["1. pm-engine\n(binds :5555 :5556 :5557)"]
-    SCH["2. pm-scheduler\n(optional)"]
-    GW["3. pm-alf-console(s)\none per participant"]
-    OBS["4. Observer processes\npm-viewer, pm-orders,\npm-audit, pm-clearing,\npm-stats, pm-admin"]
-    STAT_DEP["5. pm-ticker, pm-board\n(need pm-stats running)"]
 
-    ENG --> SCH
-    ENG --> GW
-    ENG --> OBS
-    OBS --> STAT_DEP
-```
+## Data directory
 
-Steps 2 onward can be started in any order relative to each other, but all of
-them require the engine to be up first.  The conventional 0.3–1 second
-stagger between processes gives sockets time to fully connect.
+`EDUMATCHER_DATA_DIR` is the one location knob for a running exchange. Set it
+once per shell, service unit, tmux session, container, or launcher.
 
-### Starting each process
+| Path under `EDUMATCHER_DATA_DIR` | Written or read by | Purpose |
+|---|---|---|
+| `ref_data/engine_config.json` | all processes | compiled runtime configuration |
+| `ref_data/engine_config.yaml` | `pm-config-deploy` | copy of the source used to build the artifact |
+| `stats.db` | `pm-stats`, `pm-stats-cli`, API history reads | OHLCV, trades, midpoint and related statistics |
+| `clearing.db` | `pm-clearing`, `pm-clearing-cli` | positions, trades, P&L summaries |
+| `audit.log` or configured audit path | `pm-audit`, `pm-audit-cli` | event audit trail |
+| `log.db` | `pm-log-srv`, `pm-log-cli` | centralized operational logs |
+| `gtc_orders.json`, `gtc_combos.json` | `pm-engine` | clean-shutdown persistence for GTC state |
 
-Open a terminal per process, or use a multiplexer like `tmux`.
-
-**Step 1 — matching engine (mandatory)**
+Example per-session isolation:
 
 ```bash
-# -v (INFO) shows startup/lifecycle lines; -vv (DEBUG) adds every order and
-# trade — useful when learning
-pm-engine -v
-
-# Default (WARNING-only) for cleaner output in production-like runs
-pm-engine
-
-# Custom config file
-pm-engine
+export EDUMATCHER_DATA_DIR="$HOME/edumatcher-sessions/morning"
+mkdir -p "$EDUMATCHER_DATA_DIR"
+pm-config-deploy ./configs/morning.yaml
+pm-engine --verbose
 ```
 
-With `-v`, wait for the engine to print its startup lines before starting
-anything else:
+For the complete file map, see
+[Persistence -> Data files at a glance](180-persistence.md#data-files-at-a-glance).
 
-```
-2026-07-23 09:30:00,001 INFO edumatcher.engine.main - Loaded config from engine_config.yaml  (3 symbol(s): AAPL MSFT TSLA; 4 gateway id(s))
-2026-07-23 09:30:00,001 INFO edumatcher.engine.main - Session handling: enabled (startup state: CLOSED)
-2026-07-23 09:30:00,001 INFO edumatcher.engine.main - Risk enforcement: collars=on, circuit_breakers=on
-2026-07-23 09:30:00,004 INFO edumatcher.engine.main - Drop copy PUB bound on port 5557
-2026-07-23 09:30:00,004 INFO edumatcher.engine.main - Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
-```
 
-Without `-v` the engine still starts the same way — it just prints nothing at
-this stage, since these are INFO-level messages and the default level is
-WARNING. A short fixed delay (as `tools/launch_all.sh` uses) or a readiness
-check against port 5555 works equally well as a startup signal when running
-silently. See [Logging levels](#logging-levels) below for the full flag
-reference.
+## Preflight checklist
 
-!!! tip
-    When sessions are disabled the session line reads `Session handling: disabled` and the engine starts in `CONTINUOUS` state immediately, with no scheduler required.
+Run this before a classroom, demo, test session, or integration exercise.
 
-**Step 2 — session scheduler (optional but recommended)**
+| Check | Command or question | Why it matters |
+|---|---|---|
+| Correct shell mode | `which pm-engine` or `poetry run pm-engine --version` | Confirms whether commands are installed or source-prefixed |
+| One data directory | `echo "$EDUMATCHER_DATA_DIR"` | Prevents split stats, logs and config |
+| Authored config validates | `pm-config-deploy --check engine_config.yaml` | Catches YAML, schema and semantic errors before startup |
+| Config is deployed | `pm-config-deploy engine_config.yaml` | Installs the artifact every process reads |
+| Deployed paths are expected | `pm-config-deploy --show` | Confirms where the runtime artifact lives |
+| Ports are free | `lsof -i :5555 -i :5556 -i :5557` | Finds an old engine before bind failure |
+| Recorder policy is clear | Decide whether `pm-stats`, `pm-audit`, `pm-clearing` start before trading | Missed early events cannot always be reconstructed |
+| Timezone is consistent | Choose `--timezone` for `pm-stats` and `pm-clearing`, or leave both default UTC | Daily reports must reconcile |
+| Operator gateway exists | Confirm an `ADMIN` gateway ID if using halts/resumes | Admin-only commands require an admin role |
+| External clients are expected | Decide whether to start ALF/BALF/CALF/RALF/API/DC gateways | Avoid exposing unused ports |
+
+!!! tip "Prefer a clean rehearsal"
+    For a new class or public demo, run the full startup once with
+    `pm-scheduler --now --delay 5`, make one trade, query stats and clearing,
+    then shut down cleanly. It is much easier to fix a config in rehearsal than
+    while participants are waiting.
+
+
+## Minimum viable run
+
+The absolute minimum exchange is one engine and one or more order-entry
+gateways. This is enough to learn order flow, but it is not enough for an
+operator who needs records afterwards.
+
+Open one terminal per process, or use `tmux`/`screen`.
+
+### Step 1 - start the engine
 
 ```bash
-# Normal mode: reads schedule from engine_config.yaml and sends transitions at
-# the configured wall-clock times
-pm-scheduler
-
-# Test mode: fires all transitions immediately, with a short delay between each
-# Useful for verifying your config without waiting for real market hours
-pm-scheduler --now
-pm-scheduler --now --delay 5   # 5-second pause between phases
+pm-engine --verbose
 ```
 
-**Step 3 — gateways (one per participant)**
+Wait until the engine reports that it loaded the deployed configuration and is
+listening on the core sockets.
+
+Typical signals:
+
+```text
+Loaded deployed config .../ref_data/engine_config.json
+Session handling: disabled (startup state: CONTINUOUS)
+Drop copy PUB bound on port 5557
+Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
+```
+
+The exact wording may vary by release, but the important facts are: config
+loaded, session mode known, and sockets bound.
+
+### Step 2 - connect two traders
 
 ```bash
 pm-alf-console --id TRADER01
 pm-alf-console --id TRADER02
-pm-alf-console --id MM01
 ```
 
-The gateway ID must exactly match a configured entry in `engine_config.yaml`.
-Each gateway gets its own terminal — the prompt is where a trader types orders.
+The gateway IDs must exist under `gateways.alf` in the deployed configuration,
+unless the engine is intentionally running unrestricted with no deployed config.
 
-**Step 4+ — optional display and observer processes**
+### Step 3 - submit a test order
+
+From one gateway:
+
+```text
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+```
+
+An accepted order proves the path from gateway to engine and back is alive. A
+fill requires a crossing order or resting liquidity on the other side.
+
+!!! warning "Minimum is not operator-safe"
+    If only the engine and gateways are running, there is no durable audit log,
+    no statistics database and no P&L database. That may be fine for a five
+    minute demo, but it is usually not enough for a real exercise.
+
+
+## Recommended startup order
+
+For any session where records matter, use the **operational baseline** below.
+This is stricter than the technical minimum. The technical minimum is still just
+`pm-engine` plus one or more order-entry clients, but that is not enough for a
+properly operated class, demo, test venue, integration environment, or
+production-like rehearsal.
+
+The ordering has two principles:
+
+1. Start observability before the engine emits anything worth preserving.
+2. Start the engine before any process that drives state transitions or exposes
+     live services to users.
+
+```mermaid
+flowchart TD
+    PRE["1. Preflight\nset data dir, deploy config"]
+        LOG["2. pm-log-srv\noperational logs"]
+        REC["3. recorders\npm-audit, pm-clearing, pm-stats"]
+        ENG["4. pm-engine\nbinds :5555 :5556 :5557"]
+        SCHED["5. pm-scheduler\nif sessions enabled"]
+        IDX["6. pm-index\nif indices configured"]
+        FEEDS["7. external feeds\npm-md-gwy, pm-api-gwy"]
+        ENTRY["8. external order entry\npm-alf-gwy, optional pm-balf-gwy"]
+        UI["9. browser UIs\nTapeDeck, pm-log-ui"]
+
+        PRE --> LOG --> REC --> ENG --> SCHED --> IDX --> FEEDS --> ENTRY --> UI
+```
+
+| Order | Process | Typical command | Required options | Why here |
+|---:|---|---|---|---|
+| 0 | Preflight | `pm-config-deploy --check engine_config.yaml` then `pm-config-deploy engine_config.yaml` | `EDUMATCHER_DATA_DIR` set consistently | Every later process reads the deployed artifact; do this before anything long-running starts. |
+| 1 | `pm-log-srv` | `pm-log-srv` | Optional `--host`, `--port`, `--db`; usually none | Operational logs should have somewhere to go before other long-running services start. This is operationally mandatory when you rely on centralized logs. |
+| 2 | `pm-audit` | `pm-audit --terminal` | Optional `--audit-log-file`; use `--terminal` when watching live | Audit is the durable event trail. Start it before the engine so initial session, seed and trade events are not missed. |
+| 3 | `pm-clearing` | `pm-clearing --timezone Europe/Stockholm` | Use the same `--timezone` as `pm-stats`, or omit both for UTC | Clearing records trades, positions and P&L. Start it before trading; daily reconciliation depends on timezone consistency. |
+| 4 | `pm-stats` | `pm-stats --timezone Europe/Stockholm` | Use the same `--timezone` as `pm-clearing`; optional `--snapshot-interval` | Statistics powers reports, history and many displays. Start it before trades so OHLCV and history are complete. |
+| 5 | `pm-engine` | `pm-engine --verbose` | Usually none; all config comes from the deployed artifact | The engine owns the books and binds `:5555`, `:5556`, `:5557`. Start it after subscribers that must not miss early events. |
+| 6 | `pm-scheduler` | `pm-scheduler` or `pm-scheduler --now --delay 5` | Only needed when scheduled sessions are enabled | The scheduler drives phase transitions. Start it after the engine so transitions have a live target and before participants are invited to trade. |
+| 7 | `pm-index` | `pm-index` | Index definitions in deployed config | Start before market-data consumers so index publications are available when feeds and dashboards connect. |
+| 8 | `pm-md-gwy` | `pm-md-gwy` | Optional `--bind`, `--port`, `--engine-host` | CALF market data is the live feed used by external clients and TapeDeck. Start after engine/index are alive. |
+| 9 | `pm-api-gwy` | `pm-api-gwy` | Optional `--instance NAME`, `--host`, `--port`, `--engine-host`; API keys come from config | The API gateway has no `--id`. Use `--instance` only when multiple `api_gateways` entries are configured. Start after engine and stats history are available. |
+| 10 | `pm-alf-gwy` | `pm-alf-gwy` | Optional `--bind`, `--port`, `--engine-host`; gateway IDs come from client `HELLO` and config | The ALF TCP gateway has no process-level `--id`. Start after the engine is healthy, then external text clients can connect. |
+| 11 | `pm-balf-gwy` | `pm-balf-gwy` | Optional `--bind`, `--port`, `--engine-host`; identity is configured/client-provided | Optional binary order-entry gateway. Start only for BALF client exercises or integrations. |
+| 12 | TapeDeck | `cd terminal-gui && PM_TERMINAL_API_KEY=... make up` | `PM_TERMINAL_API_KEY` for history; `CALF_HOST`, `API_GATEWAY_URL` when remote | The browser terminal needs `pm-md-gwy` for live data and `pm-api-gwy` for history, so it starts after both. |
+| 13 | Log Operator Console (`pm-log-ui`) | `cd log-gui && make up` | Configure it to reach `pm-log-srv` / `log.db` as described in its chapter | The log UI is useful only after `pm-log-srv` is running and has data to display. |
+
+This order is approximate for independent consumers, but not arbitrary. The
+recorders can safely wait for the engine to appear, so starting them first is a
+good habit when completeness matters. The scheduler and external gateways should
+wait until the engine is actually up. Browser UIs should be last because they
+depend on the services underneath them.
+
+!!! note "Where are participant terminals?"
+        Local interactive participant terminals (`pm-alf-console --id TRADER01`) are
+        not part of the baseline service stack. Start them after step 6, once the
+        engine, scheduler policy and operator checks are ready. For supervised
+        sessions, start `pm-admin --id OPS01` before inviting traders in.
+
+
+## Starting each process
+
+This section gives operational startup commands. The full flag reference for
+each command lives in [Processes](170-processes.md).
+
+### Core engine
 
 ```bash
-# Order book for one symbol (one pm-viewer per symbol you want to watch)
-pm-viewer --symbol AAPL
-pm-viewer --symbol AAPL --depth 10   # show 10 price levels
-
-# Cross-gateway order status monitor
-pm-orders
-
-# Audit log (all events, every message written to data/audit.log)
-pm-audit                    # quiet — writes file only
-pm-audit --terminal         # also prints to stdout
-pm-audit --audit-log-file /tmp/my_audit.log
-
-# P&L and trade settlement
-pm-clearing
-
-# OHLCV statistics to SQLite (required by pm-ticker and pm-board)
-pm-stats
-
-# Scrolling market data ticker (needs pm-stats running)
-pm-ticker
-pm-ticker --interval 15    # print a new line every 15 seconds
-
-# Full-screen multi-symbol dashboard (needs pm-stats running)
-pm-board
-
-# ADMIN operator console
-pm-admin --id GW_ADMIN
-
-# AI trading bots (optional)
-pm-ai-trader               # single bot
-pm-ai-swarm                # coordinated multi-bot swarm
-pm-mm-bot --symbol AAPL    # autonomous market-maker bot
+pm-engine --verbose
 ```
 
+Use `--verbose` during learning, demos and incident work. For a quiet long run,
+use the default warning-level logging.
+
+### Loss-sensitive recorders
+
+Start these before the first trade if you want complete records:
+
+```bash
+pm-audit --terminal
+pm-stats --timezone Europe/Stockholm
+pm-clearing --timezone Europe/Stockholm
+```
+
+Use the same timezone for `pm-stats` and `pm-clearing`. If the exchange runs in
+UTC, omit both `--timezone` flags.
+
+### Session scheduler
+
+```bash
+# Normal schedule from deployed config, or built-in defaults if no config exists
+pm-scheduler
+
+# Rehearsal mode: run the whole trading day quickly
+pm-scheduler --now --delay 5
+```
+
+The scheduler sends session transitions to the engine. It does not match orders
+and it does not replace the engine's risk checks.
+
+### Interactive traders and operators
+
+```bash
+pm-alf-console --id TRADER01
+pm-alf-console --id TRADER02
+pm-admin --id OPS01
+```
+
+`pm-admin` can connect with any configured gateway ID for read-only and
+gateway-scoped commands. Exchange-wide halt/resume and symbol-wide mass cancel
+commands require a gateway with `role: ADMIN`.
+
+### Terminal observers
+
+```bash
+pm-viewer --symbol AAPL
+pm-orders
+pm-board
+pm-ticker --interval 15
+```
+
+`pm-board` and `pm-ticker` become much more useful when `pm-stats` is already
+running and has observed trades.
+
+### Automation
+
+```bash
+pm-mm-bot --symbol AAPL
+pm-ai-trader --id AI01 --profile aggressive --symbols AAPL,MSFT
+pm-ai-swarm --count 5 --duration 60
+```
+
+Automated participants still use gateway IDs and must be allowed by the
+configuration. For market making, see [Market Making](090-market-maker.md) and
+[Market-Maker Bot](100-mm-bot.md).
+
+### External order entry
+
+```bash
+pm-alf-gwy
+pm-balf-gwy
+```
+
+Use `pm-alf-gwy` for text ALF clients over TCP and `pm-balf-gwy` for binary
+order-entry clients. Both ultimately send orders into the same engine.
+
+### External market data, post-trade and API services
+
+```bash
+pm-md-gwy      # CALF market data, default TCP :5570
+pm-ralf-gwy    # RALF post-trade dissemination
+pm-dc-gwy      # DC1 TCP relay for engine drop copy
+pm-api-gwy     # REST/WebSocket API, default HTTP :8080
+pm-index       # optional real-time index calculator
+```
+
+Start only the services your session needs. Each exposed gateway is another
+port to document, monitor and protect.
+
+### Centralized operational logs
+
+```bash
+pm-log-srv
+pm-log-cli diagnose
+pm-log-cli query --limit 20
+```
+
+`pm-log-srv` records operational logging, not trading events. Use it alongside
+`pm-audit`, not instead of it. Automatic logging into `pm-log-srv` is being
+rolled out process by process; see [Centralized Log Server](280-log-srv.md) for
+current support and CLI workflows.
+
+### TapeDeck trader information terminal
+
+TapeDeck (`pm-terminal`) is the browser-based read-only market display in
+`terminal-gui/`. It is not a Python `pm-*` console script. It depends on:
+
+- `pm-md-gwy` for live CALF market data
+- `pm-api-gwy` with a read-only API key for history and charts
+- optionally `pm-log-srv` for bridge logs
+
+From `terminal-gui/`:
+
+```bash
+export PM_TERMINAL_API_KEY='...'
+make up
+```
+
+Then open `http://localhost:8090`. See
+[Trader Information Terminal (TapeDeck)](290-trader-info-terminal.md) for
+container, remote display server and troubleshooting details.
 
 
-## Process reference
+## Process groups by scenario
 
-| Process | Mandatory? | Ports | Purpose |
-|---------|-----------|-------|---------|
-| `pm-engine` | **Yes** | PULL :5555, PUB :5556, PUB :5557 | Matching engine — the single writer of the order book. All orders flow in through :5555; all events flow out through :5556. Also publishes per-participant drop-copy fills on :5557. |
-| `pm-alf-console` | At least one | PUSH :5555, SUB :5556 | Interactive ALF order entry terminal. One per trader, market maker, or operator. Handles authentication, order submission, amend, cancel, and displays acks/fills in real time. See [ALF Protocol Reference](900-app-alf-protocol.md). |
-| `pm-scheduler` | No (manual mode) | PUSH :5555 | Drives automatic session-phase transitions (`PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED`) at the wall-clock times defined in `engine_config.yaml`. Omit this process if you want to advance phases manually with `SESSION\|STATE=...` in `pm-admin`. |
-| `pm-viewer` | No | SUB :5556, PUSH :5555 | Live L1/L2 order-book display for one symbol. Uses a push request to fetch the initial snapshot on connect; then updates on every `book.<SYMBOL>` event. |
-| `pm-orders` | No | SUB :5556 | Cross-gateway resting-order monitor. Subscribes to all `order.*` events and displays a live table of every active order regardless of which gateway submitted it. |
-| `pm-audit` | No | SUB :5556 | Passive event logger. Writes every message topic and payload to `data/audit.log`. Each line has the format `[TIMESTAMP] [TOPIC] {JSON_PAYLOAD}`. Produces the authoritative record of everything that happened in the session. |
-| `pm-clearing` | No | SUB :5556 | Trade settlement and P&L engine. Calculates realized/unrealized P&L per gateway using VWAP average cost, and persists positions, daily summaries, and trade events to the SQLite database `data/clearing.db`. |
-| `pm-stats` | No | SUB :5556, PUSH :5555 | OHLCV statistics aggregator. Writes open/high/low/close/volume bars to `data/stats.db` (SQLite). Required by `pm-ticker` and `pm-board`. |
-| `pm-ticker` | No | Reads `data/stats.db` | Scrolling one-line-per-interval market data ticker. Queries `pm-stats`'s database at a configurable interval and prints a formatted price/volume line. |
-| `pm-board` | No | SUB :5556, reads `data/stats.db` | Full-screen multi-symbol dashboard. Combines live order-book data from the PUB socket with OHLCV data from the stats database. |
-| `pm-admin` | No (for operator use) | PUSH :5555, SUB :5556 | Interactive console with tab completion. Used for kill switch, gateway management, and read-only queries with any configured gateway ID; the exchange-wide/per-symbol halt-resume commands additionally require `role: ADMIN` on that gateway ID. |
-| `pm-admin-cli` | No | PUSH :5555, SUB :5556 | Single-shot CLI wrapper for the same commands as `pm-admin`. For scripting and automation. |
-| `pm-ai-trader` | No | PUSH :5555, SUB :5556 | Single AI trading bot that connects as a gateway and submits orders based on configurable personality profiles. |
-| `pm-ai-swarm` | No | PUSH :5555, SUB :5556 | Coordinated multi-agent AI trading swarm. Runs multiple bots simultaneously to generate realistic order flow. |
-
-### Logging levels
-
-`pm-engine` uses the same logging flags as every other `pm-` process:
-
-| Flag | Effect |
-|------|--------|
-| *(none)* | Default — `WARNING` and above only |
-| `-v` | `INFO` — adds startup/lifecycle messages (config loaded, sockets bound, gateway connects, session transitions) |
-| `-vv` | `DEBUG` — adds per-order/per-trade detail (`NEW`, `CANCEL`, `TRADE`, `REJECTED`, `COMBO`, `OCO`, `AMENDED`, …) |
-| `--log-level LEVEL` | Explicit level (`CRITICAL`/`ERROR`/`WARNING`/`INFO`/`DEBUG`), overrides `-v`/`-vv` |
-| `-q` / `--quiet` | Explicit `WARNING` (same as the default; mostly useful for clarity in scripts) |
-
-Every log line carries a timestamp, level, and logger name
-(`edumatcher.engine.main` or `edumatcher.engine.persistence`), so multiple
-processes' output can be told apart even when interleaved in the same
-terminal or log aggregator — the old hand-written `[ENGINE]`/`[PERSISTENCE]`
-prefixes have been replaced by this standard format.
-
-### ZeroMQ port summary
-
-| Port | Pattern | Direction | Used by |
-|------|---------|-----------|---------|
-| **5555** | PULL (engine) / PUSH (clients) | Clients → Engine | All order-submitting and command-sending processes |
-| **5556** | PUB (engine) / SUB (clients) | Engine → All | All event-receiving processes |
-| **5557** | PUB (engine) / SUB (drop-copy subscribers) | Engine → Drop-copy | Per-participant fill feed; not used by core observer processes |
-
+| Scenario | Start these processes |
+|---|---|
+| Quick trade demo | `pm-engine`, two `pm-alf-console` terminals |
+| Recorded classroom session | `pm-engine`, `pm-audit`, `pm-stats`, `pm-clearing`, `pm-scheduler`, participant gateways, `pm-admin` |
+| Market-making exercise | recorded classroom set plus `pm-viewer`, `pm-mm-bot` or `MM01` gateway, possibly `pm-orders` |
+| External client integration | core engine/recorders plus `pm-alf-gwy` or `pm-balf-gwy`, `pm-md-gwy`, `pm-ralf-gwy` as needed |
+| Browser market display | core engine/recorders plus `pm-md-gwy`, `pm-api-gwy`, TapeDeck |
+| Operational investigation | running system plus `pm-audit-cli`, `pm-stats-cli`, `pm-clearing-cli`, `pm-log-cli`, `pm-admin-cli` |
 
 
 ## The `tools/launch_all.sh` convenience launcher
 
-`tools/launch_all.sh` is a macOS-only shell script that opens **each process
-in its own Terminal window** using `osascript`.  It starts the standard
-two-trader configuration with all observer processes in one command:
+`tools/launch_all.sh` is a macOS convenience launcher. It opens each process in
+its own Terminal window and automatically falls back to `poetry run` when
+`pm-engine` is not on PATH.
 
 ```bash
-# Viewer watches MSFT by default
-./tools/launch_all.sh
-
-# Watch a different symbol
-./tools/launch_all.sh AAPL
-
-# Open one viewer window per symbol
-./tools/launch_all.sh AAPL MSFT TSLA
+./tools/launch_all.sh              # default viewer symbol
+./tools/launch_all.sh AAPL         # one viewer
+./tools/launch_all.sh AAPL MSFT    # one viewer window per symbol
 ```
 
-The script starts processes in the correct order and inserts the necessary
-sleep delays (1 second after the engine, 0.3 seconds between the rest):
+Use it for demos and local rehearsals. For repeated operations, prefer a
+checked-in script, `tmux` session, container compose file, or service supervisor
+that explicitly sets `EDUMATCHER_DATA_DIR` and starts only the processes needed
+for that scenario.
 
-```bash
-pm-engine --verbose          # window 1
-pm-scheduler                 # window 2  (after 1 s)
-pm-alf-console --id TRADER01     # window 3
-pm-alf-console --id TRADER02     # window 4
-pm-viewer  --symbol <SYM>    # one window per SYM argument
-pm-orders                    # next window
-pm-audit   --terminal        # next window
-pm-clearing                  # next window
-pm-stats                     # next window
-pm-ticker  --interval 30     # next window
-pm-board                     # last window
-```
-
-!!! warning "macOS only"
-    `launch_all.sh` uses `osascript` to open Terminal windows and will not
-    work on Linux or Windows. On other platforms use `tmux`, `screen`, or a
-    process supervisor (see the Troubleshooting section).
-
-### Customising the launcher for your own setup
-
-The bundled script covers the two-trader demo configuration. You will need
-to extend it when adding:
-
-- **More traders** — add `_term "poetry run pm-alf-console --id TRADER03"` lines
-- **Market makers** — add `_term "poetry run pm-alf-console --id MM01"` (the role is
-  in the config, not the command line)
-- **An ADMIN console** — add `_term "poetry run pm-admin --id GW_ADMIN"` after the
-  engine is up
-- **AI bots** — add `_term "poetry run pm-ai-trader"` or
-  `_term "poetry run pm-ai-swarm"` near the end
-- **Multiple viewer symbols** — already supported via command-line arguments
-  (`./launch_all.sh AAPL MSFT TSLA`)
-
-A starting template for a more complete four-gateway run:
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-DIR="$(cd "$(dirname "$0")" && pwd)"
-
-_term() {
-    local cmd="$1"
-    osascript \
-        -e "tell application \"Terminal\"" \
-        -e "  activate" \
-        -e "  do script \"cd '$DIR' && $cmd\"" \
-        -e "end tell"
-}
-
-_term "pm-engine --verbose"
-sleep 1
-
-_term "pm-scheduler"
-sleep 0.3
-
-# Traders
-_term "pm-alf-console --id TRADER01"
-_term "pm-alf-console --id TRADER02"
-sleep 0.3
-
-# Market maker
-_term "pm-alf-console --id MM01"
-sleep 0.3
-
-# ADMIN operator console
-_term "pm-admin --id GW_ADMIN"
-sleep 0.3
-
-# Viewers — one per symbol
-for SYM in AAPL MSFT TSLA; do
-    _term "pm-viewer --symbol $SYM"
-    sleep 0.2
-done
-
-# Observer processes
-_term "pm-orders"
-_term "pm-audit --terminal"
-_term "pm-clearing"
-_term "pm-stats"
-_term "pm-ticker --interval 15"
-_term "pm-board"
-
-echo "Launched."
-```
-
-On Linux, replace `osascript` with `gnome-terminal --`, `xterm -e`, or a `tmux`
-new-window command depending on your terminal emulator.
-
+!!! warning "Launcher scope"
+    The launcher starts a traditional local demo stack. It does not start newer
+    external services such as `pm-md-gwy`, `pm-api-gwy`, `pm-ralf-gwy`,
+    `pm-log-srv` or TapeDeck. Start those explicitly when your playbook needs
+    them.
 
 
 ## Verifying the system is running correctly
 
 ### Immediate checks after startup
 
-**a) The engine prints its `Listening on PULL=… PUB=…` line**
-
-The engine startup banner lists the loaded symbols, configured gateways, and
-bound socket addresses, ending with the `Listening on PULL=… PUB=…` line.  If it
-prints nothing or exits immediately, see the troubleshooting section.
-
-**b) Gateways authenticate successfully**
-
-Each `pm-alf-console` terminal shows:
-
-```
-Gateway TRADER01 connected and authenticated.
-[TRADER01]>
-```
-
-If the gateway times out instead, the engine is not reachable.
-
-**c) Use the ADMIN console to confirm live state**
-
-```bash
-pm-admin --id GW_ADMIN
-```
-
-Then type these commands to validate the running system:
-
-```
-[GW_ADMIN|ADMIN]> SYMBOLS
-# Should list every symbol from engine_config.yaml
-
-[GW_ADMIN|ADMIN]> GATEWAYS
-# Should list all configured gateways; check "Connected" column
-
-[GW_ADMIN|ADMIN]> SESSION_STATUS
-# Should print the current session state (PRE_OPEN, CONTINUOUS, etc.)
-
-[GW_ADMIN|ADMIN]> SCHEDULE
-# Should print the timing configuration if sessions_enabled is true
-```
-
-**d) Verify ZeroMQ ports are bound**
+**1. Confirm engine sockets are bound**
 
 ```bash
 lsof -i :5555 -i :5556 -i :5557
 ```
 
-Expected output shows three lines for the `pm-engine` process:
+Expected: one `pm-engine`/Python process listening on all three ports.
 
-```
-COMMAND   PID  USER   FD   TYPE  NODE NAME
-Python  12345   ljp   11u  IPv4       *:5555 (LISTEN)
-Python  12345   ljp   12u  IPv4       *:5556 (LISTEN)
-Python  12345   ljp   13u  IPv4       *:5557 (LISTEN)
-```
-
-**e) Submit a test order end-to-end**
-
-From a `pm-alf-console` terminal:
-
-```
-[TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
-```
-
-Expected response: `ACK  order_id=...  status=NEW`
-
-If the order is acknowledged, the full path (gateway → engine PULL → engine
-matching logic → engine PUB → gateway SUB) is working:
-
-```mermaid
-sequenceDiagram
-    participant GW as pm-alf-console (TRADER01)
-    participant ENG as pm-engine
-    participant VW as pm-viewer
-    participant AUD as pm-audit
-
-    GW->>ENG: NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
-    Note over ENG: Validates symbol, collar, session state
-    ENG-->>GW: order.ack.TRADER01 {accepted: true}
-    ENG-->>VW: book.AAPL {bids: [{price:150.00, qty:100}]}
-    ENG-->>AUD: order.ack.TRADER01 + book.AAPL (logged to audit.log)
-```
-
-**f) Check that pm-viewer shows the resting order**
-
-After submitting the test order above, `pm-viewer --symbol AAPL` should
-update to show a 100-share bid at 150.00.
-
-**g) Verify audit logging**
+**2. Confirm the engine sees the intended config**
 
 ```bash
-tail -5 data/audit.log
+pm-config-deploy --show
 ```
 
-Expected format — one entry per line:
+Then compare the printed compiled path with the path named in the engine startup
+logs. If they differ, your shell or launcher is using a different
+`EDUMATCHER_DATA_DIR`.
 
+**3. Confirm gateways authenticate**
+
+```bash
+pm-alf-console --id TRADER01
 ```
-[2026-06-14T09:31:02.114] [order.ack.TRADER01] {"order_id": "3f2a...", "accepted": true, ...}
-[2026-06-14T09:31:02.115] [book.AAPL] {"bids": [...], "asks": [...], ...}
+
+The gateway should connect and show a prompt. A timeout usually means the engine
+is not reachable or the gateway ID is not configured.
+
+**4. Query state through the operator console**
+
+```bash
+pm-admin --id OPS01
 ```
 
-If the file does not exist, `pm-audit` either was not started or failed to create
-the `data/` directory.
+Then run:
 
+```text
+SYMBOLS
+GATEWAYS
+SESSION_STATUS
+SCHEDULE
+```
+
+Check that the symbol list, gateway list and session state match the intended
+session.
+
+**5. Submit a harmless resting order**
+
+```text
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+```
+
+Then verify it appears in `pm-viewer --symbol AAPL` or `pm-admin` `BOOK|SYM=AAPL`.
+
+**6. Confirm durable recorders are writing**
+
+```bash
+pm-stats-cli daily
+pm-clearing-cli pnl
+pm-audit-cli events --limit 5
+```
+
+If a CLI reports no database or no events, check that the corresponding recorder
+was started in the same data directory and has observed relevant activity.
+
+**7. Confirm external feeds only if used**
+
+```bash
+pm-calf-spy --channels TOP,TRADE --symbols AAPL --format human
+pm-ralf-spy --role AUDIT --format human
+pm-dc-spy --format human
+curl -s http://127.0.0.1:8080/api/v1/healthz
+```
+
+Use the checks that match the services you actually started.
+
+
+## Monitoring a running exchange
+
+### Operator surfaces
+
+| Tool | Best for |
+|---|---|
+| `pm-admin` | Live session, symbol, gateway and risk-control commands |
+| `pm-admin-cli` | Scripts, health checks, one-shot operator queries |
+| `pm-viewer --symbol <SYM>` | One order book in detail |
+| `pm-orders` | Resting orders across gateways |
+| `pm-board` | Multi-symbol terminal board |
+| `pm-ticker` | Scrolling market tape based on stats |
+| TapeDeck | Browser display for live prices, trades, movers, index, auctions and halts |
+| `pm-audit --terminal` | Raw event flow while recording to disk |
+| `pm-log-cli diagnose` | Operational log diagnosis when log server data exists |
+
+### Common operator queries
+
+Interactive `pm-admin` examples:
+
+```text
+SESSION_STATUS
+SCHEDULE
+SYMBOLS
+GATEWAYS
+BOOK|SYM=AAPL
+ORDERS|GW=TRADER01
+VOLUME
+HALT_SYM|SYM=AAPL
+RESUME_SYM|SYM=AAPL
+```
+
+Equivalent one-shot CLI examples:
+
+```bash
+pm-admin-cli --id OPS01 session-status
+pm-admin-cli --id OPS01 symbols
+pm-admin-cli --id OPS01 gateways
+pm-admin-cli --id OPS01 book --sym AAPL
+pm-admin-cli --id OPS01 orders --gw TRADER01
+pm-admin-cli --id OPS01 halt-sym --sym AAPL
+pm-admin-cli --id OPS01 resume-sym --sym AAPL
+```
+
+### Lightweight health check
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+lsof -i :5555 >/dev/null
+lsof -i :5556 >/dev/null
+lsof -i :5557 >/dev/null
+
+pm-admin-cli --id OPS01 session-status >/dev/null
+pm-admin-cli --id OPS01 symbols >/dev/null
+
+echo "OK: engine sockets and admin queries are healthy"
+```
+
+Add scenario-specific checks for `pm-md-gwy`, `pm-api-gwy`, TapeDeck, clearing,
+stats or logs when those services are required.
+
+
+## Logging levels
+
+Most long-running `pm-*` processes share the same logging flags.
+
+| Flag | Effect |
+|---|---|
+| *(none)* | `WARNING` and above |
+| `-v`, `--verbose` | `INFO`: startup, config, lifecycle and connection messages |
+| `-vv` | `DEBUG`: detailed message flow, useful during local debugging |
+| `--log-level LEVEL` | Explicit level such as `ERROR`, `INFO` or `DEBUG` |
+| `-q`, `--quiet` | Explicit warning-level output |
+
+Use verbose logging for rehearsals and incident response. For long unattended
+runs, combine normal process output with `pm-audit`, `pm-stats`, `pm-clearing`
+and, where configured, `pm-log-srv`.
 
 
 ## Troubleshooting startup problems
 
 ### Engine exits immediately
 
-These `FATAL` messages are logged at `ERROR` level, so they print even
-without `-v` (the default `WARNING` level shows `WARNING` and above).
-
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `FATAL: Invalid config …: Engine config must have a 'gateways.alf' list` | `gateways.alf:` is missing or not a list | Correct `engine_config.yaml` |
-| `FATAL: Invalid config …: Config for symbol '<SYM>' must be a mapping` | A `symbols:` entry is not a mapping | Correct `engine_config.yaml` |
-| `FATAL: Cannot bind sockets …` (address already in use) | Another engine (or other process) is already bound to :5555/:5556/:5557 | `lsof -i :5555` to find and kill the conflicting process |
-| `FATAL: Invalid config …` (other message) | A structural error in the YAML — the message names the offending key | Read the named key in the message and correct `engine_config.yaml` |
+| Address already in use on `:5555`, `:5556` or `:5557` | Another engine is still running | `lsof -i :5555`, stop the old process, then restart |
+| Config digest or source warning | Authored YAML changed after deploy, or deployed artifact was modified | Run `pm-config-deploy engine_config.yaml`, then restart |
+| Unknown artifact schema | Artifact was compiled by an incompatible version | Re-run `pm-config-deploy` with the current package |
+| Invalid config | Validation or loader rejected the authored file before deployment, or the deployed artifact is stale | Run `pm-config-deploy --check engine_config.yaml` and fix reported errors |
 
 ### Gateway authentication timeout
 
-```
-Gateway authentication timed out.  Is the engine running at tcp://127.0.0.1:5555?
-```
+Most common causes:
 
-Causes (in order of likelihood):
+1. `pm-engine` is not running or has not finished binding sockets.
+2. The gateway is using a different `EDUMATCHER_DATA_DIR` from the engine.
+3. The gateway ID is not in `gateways.alf` in the deployed configuration.
+4. Local firewall, VPN or container networking prevents access to port `5555`.
 
-1. The engine is not running — start it first.
-2. The engine is still starting up — wait for the `Listening on PULL=… PUB=…` line before launching gateways.
-3. The gateway ID is not in `engine_config.yaml` — the engine silently ignores
-   the connect request.  Add the ID to the config and restart the engine.
-4. Port 5555 is blocked by a firewall rule or VPN.
+Checks:
 
-### Viewer shows an empty book
-
-An empty `pm-viewer` is expected if no orders have been submitted yet.  The
-viewer subscribes to `book.<SYMBOL>` events, which are only published when the
-book changes.  Submit a resting order or enable `market_maker_quotes` in your
-config.
-
-If the viewer was running before the engine started, it may have missed the
-initial snapshot.  Restart the viewer after the engine is up.
-
-### `pm-ticker` or `pm-board` show nothing
-
-Both processes read from `data/stats.db`.  This file is created by `pm-stats`.
-Ensure `pm-stats` is running and has received at least one trade event.
-The first update only appears after the first `trade.executed` message.
-
-### `pm-scheduler` exits immediately with `Fatal: config missing`
-
-The scheduler requires a `schedule:` block in `engine_config.yaml`.  If the
-block is missing, use `--now` mode for testing or add a schedule to your config.
-
-### `HALT`/`RESUME`/`HALT_SYM`/`RESUME_SYM`/`CANCEL_SYM` are rejected
-
-!!! note "Connecting does not require `role: ADMIN`"
-    The engine does not check role at connect time — any gateway ID listed in
-    `gateways.alf` can connect via `pm-admin`/`pm-admin-cli` and run read-only
-    or per-gateway commands (`SESSION_STATUS`, `SCHEDULE`, `GATEWAYS`, `BOOK`,
-    `ORDERS`, `SYMBOLS`, `KILL`, `KICK`, `QCANCEL`, `SESSION`). Role is
-    enforced per-command, only for the five exchange-wide/per-symbol
-    circuit-breaker commands below.
-
-If your gateway ID connects successfully but these specific commands are
-rejected, the ack's `reason` field names the requirement directly, e.g.:
-
-```
-Global circuit-breaker halt is only allowed for ADMIN participants
-Global circuit-breaker resume is only allowed for ADMIN participants
-Per-symbol halt is only allowed for ADMIN participants
-Per-symbol resume is only allowed for ADMIN participants
-Symbol-level mass cancel is only allowed for ADMIN participants
+```bash
+lsof -i :5555
+pm-config-deploy --show
+pm-admin-cli --id OPS01 gateways
 ```
 
-The gateway ID you passed to `--id` exists in the config but does not have
-`role: ADMIN`.  Update the config:
+### Viewer or board shows an empty book
+
+An empty book is normal until orders rest in it. Submit a resting order, connect
+a market maker, seed market-maker quotes in config, or start `pm-mm-bot`.
+
+If the book should already have liquidity, check:
+
+- The symbol exists in the deployed config.
+- The market-maker gateway connected and authenticated.
+- The market-maker quote seed references a `MARKET_MAKER` gateway.
+- The session phase allows the expected behavior.
+
+### Stats, ticker or board show no activity
+
+`pm-stats` must be running before trades occur if you want complete statistics.
+`pm-ticker` and much of `pm-board` depend on `stats.db`.
+
+Checks:
+
+```bash
+pm-stats-cli daily
+pm-stats-cli trades --limit 5
+```
+
+If there are no rows, verify that `pm-stats` is running in the same data
+directory and that at least one trade has occurred.
+
+### Clearing and stats do not reconcile
+
+The most common operator error is running `pm-stats` and `pm-clearing` with
+different timezones. Stop both, restart with the same `--timezone`, and document
+the choice in the session launcher.
+
+### Scheduler transitions do not happen
+
+Check these in order:
+
+1. Is `pm-scheduler` running?
+2. Is `sessions_enabled: true` in the deployed config?
+3. Does the schedule use the timezone and country you expect?
+4. Is today a trading day under that country calendar?
+5. Did the scheduler start before the transition time passed?
+
+For a rehearsal independent of wall-clock time:
+
+```bash
+pm-scheduler --now --delay 5
+```
+
+### Admin command rejected
+
+Read-only and gateway-scoped commands can be issued by configured gateways, but
+exchange-wide halt/resume and symbol-wide mass cancel commands require
+`role: ADMIN`.
+
+Fix the gateway role in `engine_config.yaml`, deploy it, and restart affected
+processes:
 
 ```yaml
 gateways:
   alf:
-    - id: GW_ADMIN
+    - id: OPS01
       role: ADMIN
       description: Operator console
 ```
 
-Restart the engine after editing the config.
+### External feed is reachable but silent
 
-### General diagnostics
+For CALF/RALF/DC/API issues, separate connectivity from data availability:
 
-```bash
-# Check all pm- processes are running
-ps aux | grep pm-
+- Connectivity: can the client reach the TCP or HTTP port?
+- Session: did the client complete `HELLO` or authentication?
+- Subscription: did the client subscribe to a channel and symbol that exists?
+- Source events: has the engine actually published the kind of event expected?
 
-# Check ZMQ ports
-lsof -i :5555 -i :5556 -i :5557
-
-# Check the most recent audit events (topic is embedded in the line, not a JSON field)
-tail -20 data/audit.log | awk '{print $2}' | tr -d '[]'
-
-# Check the engine config parsed cleanly
-python -c "
-from edumatcher.engine.config_loader import load_engine_config
-cfg = load_engine_config('engine_config.yaml')
-print('Symbols:', sorted(cfg.symbols.keys()) if cfg else 'None (unrestricted)')
-print('Gateways:', sorted(cfg.fix_gateways.keys()) if cfg else 'None (unrestricted)')
-"
-```
-
-
-
-## Monitoring a running exchange
-
-### Continuous visual monitoring
-
-| Tool                       | Best for                                                    |
-|----------------------------|-------------------------------------------------------------|
-| `pm-viewer --symbol <SYM>` | Watching one book in real time — see bids, asks, last trade |
-| `pm-board`                 | High-level overview of all symbols simultaneously           |
-| `pm-ticker`                | Scrolling tape of OHLCV data — good for a side monitor      |
-| `pm-orders`                | Watching resting orders across all gateways                 |
-| `pm-audit --terminal`      | Raw event stream — everything that touches the engine       |
-| `pm-clearing`              | Live P&L per gateway                                        |
-
-### Operator query commands
-
-There are two interfaces to the same set of commands:
-
-- **`pm-admin`** — interactive REPL with tab completion; stay connected and run
-  multiple commands in one session.
-- **`pm-admin-cli`** — single-shot CLI; runs one command, prints the result, and
-  exits with code 0 (success) or 1 (failure).  Use this in scripts and cron jobs.
-
-Both require an `ADMIN`-role gateway ID (`--id GW_ADMIN`) and the engine to be
-running.
-
-#### Interactive console (`pm-admin`)
+Useful probes:
 
 ```bash
-pm-admin --id GW_ADMIN
+pm-calf-spy --channels TOP,TRADE --symbols AAPL
+pm-ralf-spy --role AUDIT
+pm-dc-spy
+curl -s http://127.0.0.1:8080/api/v1/status
 ```
 
-```
-[GW_ADMIN|ADMIN]> SESSION_STATUS
-  Session state     : CONTINUOUS
-  Auto-scheduling   : ON
+### TapeDeck loads but shows offline or missing history
 
-[GW_ADMIN|ADMIN]> SCHEDULE
-                Session schedule
-┌───────────────────────────┬──────────────┐
-│ Phase                     │ Time (HH:MM) │
-├───────────────────────────┼──────────────┤
-│ Pre-Open                  │ 09:00        │
-│ Opening Auction Start     │ 09:25        │
-│ Continuous Trading Start  │ 09:30        │
-│ Closing Auction Start     │ 16:00        │
-│ Closing Auction End       │ 16:05        │
-└───────────────────────────┴──────────────┘
+If the browser loads, the TapeDeck bridge is running. Then check upstreams:
 
-[GW_ADMIN|ADMIN]> GATEWAYS
-                     Configured gateways
-ID          Role          Description       Connected
-----------  ------------  ----------------  ----------
-TRADER01    TRADER        First trader      YES
-MM01        MARKET_MAKER  Market maker      YES
-GW_ADMIN    ADMIN         Operator console  YES
-
-[GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
-                 Order Book — AAPL
-┌──────────┬────────────┬────────────┬─────────┐
-│  Bid Qty │  Bid Price │  Ask Price │ Ask Qty │
-├──────────┼────────────┼────────────┼─────────┤
-│      500 │     149.90 │     150.10 │     500 │
-└──────────┴────────────┴────────────┴─────────┘
-  Last trade: 149.95 × 100
-
-[GW_ADMIN|ADMIN]> ORDERS|GW=TRADER01
-                    Resting orders — TRADER01
-┌────────────────┬────────┬──────┬────────┬───────────┬────────┐
-│ ID             │ Symbol │ Side │ Type   │ Remaining │  Price │
-├────────────────┼────────┼──────┼────────┼───────────┼────────┤
-│ 3f2a91e2-xxxx… │ AAPL   │ BUY  │ LIMIT  │       100 │ 150.00 │
-└────────────────┴────────┴──────┴────────┴───────────┴────────┘
-
-[GW_ADMIN|ADMIN]> VOLUME
-             Daily traded volume
-┌─────────┬────────┬─────────────┬────────┐
-│ Symbol  │    Qty │       Value │ Trades │
-├─────────┼────────┼─────────────┼────────┤
-│ AAPL    │  1,200 │  179,940.00 │      8 │
-├─────────┼────────┼─────────────┼────────┤
-│ TOTAL   │  1,200 │  179,940.00 │      8 │
-└─────────┴────────┴─────────────┴────────┘
-
-[GW_ADMIN|ADMIN]> SYMBOLS
-   Configured instruments
-┌──────┬────────┐
-│ #    │ Symbol │
-├──────┼────────┤
-│ 1    │ AAPL   │
-│ 2    │ MSFT   │
-│ 3    │ TSLA   │
-└──────┴────────┘
-```
-
-!!! note
-    `BOOK` prints one row per price level present in the snapshot (L2), not
-    just top-of-book — the example above shows a single level for brevity.
-    `ID` in the `ORDERS` table is truncated to 14 characters; use the full ID
-    from `pm-alf-console`'s own `ORDERS` command when you need to `AMEND` or
-    `CANCEL` an order.
-
-#### Single-shot CLI (`pm-admin-cli`)
-
-Each interactive command maps to a subcommand.  Pipe or capture the output
-like any shell command.
-
-```bash
-# Read-only queries
-pm-admin-cli --id GW_ADMIN session-status
-pm-admin-cli --id GW_ADMIN schedule
-pm-admin-cli --id GW_ADMIN gateways
-pm-admin-cli --id GW_ADMIN volume
-pm-admin-cli --id GW_ADMIN symbols
-pm-admin-cli --id GW_ADMIN book   --sym AAPL
-pm-admin-cli --id GW_ADMIN orders --gw TRADER01
-
-# State-changing commands
-pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
-pm-admin-cli --id GW_ADMIN halt
-pm-admin-cli --id GW_ADMIN resume
-pm-admin-cli --id GW_ADMIN halt-sym   --sym AAPL
-pm-admin-cli --id GW_ADMIN resume-sym --sym AAPL
-pm-admin-cli --id GW_ADMIN cancel-sym --sym AAPL
-pm-admin-cli --id GW_ADMIN kill   --gw TRADER01
-pm-admin-cli --id GW_ADMIN kill   --gw TRADER01 --sym AAPL
-pm-admin-cli --id GW_ADMIN kick   --gw TRADER01 --reason "Compliance hold"
-pm-admin-cli --id GW_ADMIN qcancel --gw MM01 --sym AAPL
-```
-
-| Command | ADMIN role required? | Effect |
-|---|---|---|
-| `halt` / `resume` | Yes | Circuit-breaker halt/resume for every symbol |
-| `halt-sym --sym` / `resume-sym --sym` | Yes | Circuit-breaker halt/resume for one symbol |
-| `cancel-sym --sym` | Yes | Cancel every resting order on one symbol, across all gateways |
-| `session --state` | No | Request a session-phase transition (see note below) |
-| `kill --gw [--sym]` | No | Cancel resting orders/quotes for one gateway |
-| `kick --gw [--reason]` | No | Forcefully disconnect a gateway |
-| `qcancel --gw --sym` | No | Cancel one gateway's active two-sided quote on a symbol |
-
-The equivalent interactive `pm-admin` syntax for the ADMIN-only commands is
-`HALT`, `RESUME`, `HALT_SYM\|SYM=<sym>`, `RESUME_SYM\|SYM=<sym>`, and
-`CANCEL_SYM\|SYM=<sym>`.
-
-Use `--timeout MS` (default 3000 ms) and `--push` / `--sub` to override
-defaults when the engine is on a remote host:
-
-```bash
-pm-admin-cli --id GW_ADMIN \
-    --push tcp://192.168.1.10:5555 \
-    --sub  tcp://192.168.1.10:5556 \
-    --timeout 5000 \
-    session-status
-```
-
-The exit code makes it easy to compose with `&&` or `||` in shell scripts:
-
-```bash
-pm-admin-cli --id GW_ADMIN session-status \
-    | grep -q CONTINUOUS \
-    && echo "Market is open" \
-    || echo "Market is closed"
-```
-
-### Health check script
-
-A minimal shell health check suitable for a cron job or monitoring system:
-
-```bash
-#!/bin/bash
-# health_check.sh — exit 0 if exchange appears healthy, 1 otherwise
-
-# 1. Engine ports bound
-lsof -i :5555 >/dev/null 2>&1 || { echo "FAIL: engine port 5555 not bound"; exit 1; }
-lsof -i :5556 >/dev/null 2>&1 || { echo "FAIL: engine port 5556 not bound"; exit 1; }
-
-# 2. Engine process running
-pgrep -f "pm-engine" >/dev/null || { echo "FAIL: pm-engine not found"; exit 1; }
-
-# 3. ADMIN console can query session state
-SESSION=$(pm-admin-cli --id GW_ADMIN --timeout 2000 session-status 2>&1)
-echo "$SESSION" | grep -q "Session state" || { echo "FAIL: could not query session state"; exit 1; }
-
-echo "OK: $SESSION"
-exit 0
-```
-
-### Log-based monitoring
-
-`data/audit.log` uses a line format of `[TIMESTAMP] [TOPIC] {JSON_PAYLOAD}` — the topic is embedded in the line, not a JSON field. Use `grep` on the topic and `jq` on the trailing JSON:
-
-```bash
-# Stream every trade as it happens
-tail -f data/audit.log | grep '\[trade.executed\]' | awk '{$1=$2=""; print $0}' | jq '{sym: .symbol, price, qty: .quantity}'
-
-# Count fills per gateway in the last 1000 events
-tail -1000 data/audit.log | grep '\[order.fill\.' | awk '{$1=$2=""; print $0}' | jq -r '.gateway_id' | sort | uniq -c | sort -rn
-
-# Find the most recent session-state change
-grep '\[session.state\]' data/audit.log | tail -1 | awk '{$1=$2=""; print $0}' | jq '.'
-```
-
-### Watching statistics
-
-```bash
-# Query the SQLite database for live daily stats
-sqlite3 data/stats.db "SELECT symbol, open_price, high_price, low_price, close_price, volume FROM daily_stats ORDER BY symbol;"
-```
-
-See [pm-stats — Statistics Recorder](170-processes.md#pm-stats-statistics-recorder) for the full database schema (`daily_stats`, `price_snapshots`, `trade_log`) and details on how each statistic is computed.
-
-For a single map of **every data file the exchange writes** — which process
-creates each one, when, why, and which tool reads it — see
-[Persistence → Data files at a glance](180-persistence.md#data-files-at-a-glance).
-
-
-
-## Frequently asked questions
-
-### Do I have to start all processes every time?
-
-No. The only mandatory process is `pm-engine`.  Everything else is optional:
-
-- You can trade without any viewer — you just won't see the live book.
-- You can run without `pm-audit` — you just won't have an event log.
-- You can run without `pm-scheduler` — session phases stay where you set them
-  manually (with no config or `sessions_enabled: false`, the engine stays in
-  `CONTINUOUS` the whole time).
-
-For quick experiments, starting just the engine and one or two gateways is
-enough.
-
-### Does the exchange work without `engine_config.yaml`?
-
-Yes — the engine starts in **unrestricted mode** with no symbol allowlist and no
-gateway allowlist.  Any gateway ID can connect, and orders for any symbol are
-accepted.  This is useful for quick tests but not for structured sessions.
-
-In unrestricted mode a new order book is created automatically the first time
-an order for that symbol arrives.  The engine's internal `_book(symbol)` helper
-does this lazily:
-
-```python
-# engine/main.py — called on every incoming order
-def _book(self, symbol: str) -> OrderBook:
-    if symbol not in self.books:
-        self.books[symbol] = OrderBook(symbol)   # created on first use
-    return self.books[symbol]
-```
-
-When a `symbols:` block is present in `engine_config.yaml`, the engine builds
-an allowlist at startup.  Every incoming order is validated against that list
-*before* `_book()` is called, and any order for an unlisted symbol is rejected
-immediately with `"Symbol not configured: <SYM>"`.  The book is therefore only
-ever created for symbols that are explicitly configured.
-
-### Can I restart a single process without restarting everything?
-
-Yes.  Because every process connects to the engine's sockets (rather than the
-engine connecting to them), you can stop and restart any non-engine process at
-any time.  The engine continues running; the restarted process reconnects on
-startup.
-
-The exception is `pm-engine` itself.  Restarting the engine disconnects every
-connected gateway and causes all non-persistent (DAY TIF) resting orders to
-expire.  GTC orders are saved on clean shutdown and reloaded on the next start.
-
-### What happens to orders if a gateway crashes?
-
-The engine applies the gateway's configured `disconnect_behaviour`:
-
-| Value | Effect |
+| Symptom | Likely cause |
 |---|---|
-| `CANCEL_QUOTES_ONLY` (default) | Active quote legs are cancelled; resting limit orders remain |
-| `CANCEL_ALL` | All resting orders and quotes are cancelled |
-| `LEAVE_ALL` | Nothing is cancelled — orders rest until explicitly removed |
+| `RECONNECTING` or `OFFLINE` live state | bridge cannot reach `pm-md-gwy` on CALF port `5570` |
+| Live prices tick but charts are empty | bridge cannot reach `pm-api-gwy`, the API key is missing, or `pm-stats` has no history |
+| Index view is empty | no `pm-index` process or no index configured |
+| Logs absent | `pm-log-srv` disabled or unreachable; TapeDeck may be using local fallback logs |
 
-You can override this at runtime with `KICK|GW=<gw>` from the ADMIN console.
+See [Trader Information Terminal](290-trader-info-terminal.md) for the full
+TapeDeck runbook.
 
-Whenever a gateway disconnects, the engine also broadcasts a
-`system.gateway_bye.{gateway_id}` event on the PUB socket (:5556). This is the
-disconnect counterpart to the `system.gateway_auth.{gateway_id}` event the
-engine publishes when a gateway authenticates. Observer processes use the pair
-to track participant sessions — for example, `pm-clearing` records connect and
-disconnect times (and the disconnect reason) in its gateway-session history from
-these two broadcasts.
 
-!!! note "Lifecycle topics: PUB vs PULL"
-    `system.gateway_connect` / `system.gateway_disconnect` are **gateway → engine**
-    messages on the PULL socket (:5555) and are not visible to PUB subscribers.
-    The engine re-broadcasts the lifecycle on PUB as
-    `system.gateway_auth.{id}` (connect) and `system.gateway_bye.{id}`
-    (disconnect) so downstream observers can see them.
+## Restart and shutdown
 
-### What is the correct order if I want to use the scheduler?
+### Restarting non-engine processes
 
-```
-1. pm-engine    — binds sockets, loads config
-2. pm-scheduler — connects to engine; waits for the first scheduled time
-3. pm-alf-console   — one per participant
-4. (optional observers)
-```
+Most non-engine processes can be stopped and restarted independently. They
+reconnect to the engine on startup. The main caveat is data completeness:
 
-The scheduler must connect before the first scheduled transition time arrives,
-otherwise it misses that transition and waits for the next one.
+- A restarted viewer can recover its current view from snapshots.
+- A restarted external gateway can accept new clients.
+- A stopped `pm-audit`, `pm-stats` or `pm-clearing` misses events while offline.
+- A stopped `pm-md-gwy` may cause external clients to reconnect and replay only
+  within the configured replay window.
 
-### How do I run sessions without waiting for real clock times?
+### Restarting the engine
 
-Use `--now` mode on the scheduler:
+Restarting `pm-engine` disconnects every gateway and invalidates live subscriber
+state. Use it for planned maintenance, not casual operator cleanup.
 
-```bash
-pm-scheduler --now --delay 10
-```
+Before restarting:
 
-This fires all transitions (PRE_OPEN → OPENING_AUCTION → CONTINUOUS →
-CLOSING_AUCTION → CLOSED) with a 10-second pause between each, ignoring
-the wall-clock schedule entirely.  Ideal for classroom demos and testing.
+1. Halt or close the session if appropriate.
+2. Tell participants to stop sending orders.
+3. Stop external gateways if clients should not reconnect during the restart.
+4. Press `Ctrl-C` in the engine terminal or send `SIGINT`.
+5. Wait for clean shutdown messages.
+6. Start the engine, then restart or verify dependent processes.
 
-### How do I advance the session phase manually?
+On clean shutdown, the engine persists GTC state and publishes end-of-day style
+events. DAY orders expire.
 
-Use the console with any configured gateway ID — unlike the halt/resume
-commands, `SESSION|STATE=` does not require `role: ADMIN` (the underlying
-`session.transition` message carries no gateway identity for the engine to
-check), but running it from an `ADMIN` gateway keeps the convention that
-session control is an operator action:
+### Full clean shutdown
 
-```
-pm-admin --id GW_ADMIN
-[GW_ADMIN|ADMIN]> SESSION|STATE=CONTINUOUS
-```
+Recommended order:
 
-Or with the CLI tool (useful in scripts):
+1. Stop order entry: participant gateways, ALF/BALF gateways, bots.
+2. Stop external feeds and displays: CALF/RALF/DC/API, TapeDeck, viewers.
+3. Stop scheduler.
+4. Stop the engine with `Ctrl-C` or `pkill -INT -f pm-engine`.
+5. Stop recorders after the engine has emitted final events.
+6. Archive the data directory if this was a class, demo or test run.
+
+Example archive:
 
 ```bash
-pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
+tar -czf edumatcher-session-$(date +%Y%m%d-%H%M%S).tgz \
+    -C "$EDUMATCHER_DATA_DIR" .
 ```
 
-The target state must be a valid transition from the current session state
-(see [Auctions & Scheduling](080-session-scheduling.md) for the allowed
-state graph); an invalid transition is logged by the engine and silently
-ignored — the caller receives no rejection message.
 
-### How do I cleanly shut down the exchange?
+## Appendix: operator playbooks
 
-Press `Ctrl-C` on the `pm-engine` terminal.  The engine will:
+These playbooks are intentionally explicit. Copy them into a session-specific
+runbook and replace IDs, symbols, timezones and ports with your own.
 
-1. Serialize all resting GTC orders to `data/gtc_orders.json` (GTC quote legs
-   are excluded — they are re-seeded from `market_maker_quotes` on the next
-   startup, not persisted)
-2. Serialize all resting GTC combos to `data/gtc_combos.json`
-3. Publish `order.expired` for all DAY orders (cascading combo-child cancels
-   where applicable)
-4. Save per-symbol book statistics to `data/book_stats.json`
-5. Publish `system.eod` with final book snapshots
-6. Close sockets (drop-copy socket included, if it was bound)
+### Playbook 1 - five-minute local smoke test
 
-All other processes detect the socket closure and exit cleanly.  For scripted
-shutdown, send `SIGINT` to the engine PID:
+Goal: prove that a local install can start, accept orders and match one trade.
 
-```bash
-pkill -INT -f pm-engine
-```
+1. Prepare:
 
-### `launch_all.sh` opens too many terminal windows. Is there a tmux alternative?
+    ```bash
+    mkdir -p ~/edumatcher-smoke
+    cd ~/edumatcher-smoke
+    pm-setup
+    pm-config-deploy --show
+    ```
 
-Yes. Replace the `_term` function with a `tmux new-window` call:
+2. Start engine:
 
-```bash
-_term() {
-    tmux new-window -d -n "$(echo "$1" | awk '{print $3}')" "cd '$DIR' && $1"
-}
-```
+    ```bash
+    pm-engine --verbose
+    ```
 
-This opens each process in a new `tmux` window instead of a new Terminal
-application window.  Run `tmux new-session -d -s edumatcher` first to create
-the session.
+3. Start two gateways:
 
-### Can I run multiple exchanges on the same machine?
+    ```bash
+    pm-alf-console --id TRADER01
+    pm-alf-console --id TRADER02
+    ```
 
-Yes, but you must change the ports.  All port constants are defined in
-`src/edumatcher/config.py`.  You cannot override them on the command line for
-most processes (only `pm-admin` and `pm-admin-cli` expose `--push` / `--sub`
-flags).  For a second instance, edit `config.py` or make a copy of the package
-with different defaults.
+4. In `TRADER02`, place a sell:
+
+    ```text
+    NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+    ```
+
+5. In `TRADER01`, place a crossing buy:
+
+    ```text
+    NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+    ```
+
+6. Success criteria: both gateways show fills.
+
+### Playbook 2 - recorded classroom session
+
+Goal: run a session with complete audit, stats and clearing records.
+
+1. Set data directory and deploy config:
+
+    ```bash
+    export EDUMATCHER_DATA_DIR="$HOME/edumatcher-sessions/class-01"
+    mkdir -p "$EDUMATCHER_DATA_DIR"
+    pm-config-deploy --check engine_config.yaml
+    pm-config-deploy engine_config.yaml
+    ```
+
+2. Start core services:
+
+    ```bash
+    pm-engine --verbose
+    pm-audit --terminal
+    pm-stats --timezone Europe/Stockholm
+    pm-clearing --timezone Europe/Stockholm
+    ```
+
+3. Start session control and participants:
+
+    ```bash
+    pm-scheduler
+    pm-admin --id OPS01
+    pm-alf-console --id TRADER01
+    pm-alf-console --id TRADER02
+    pm-alf-console --id MM01
+    ```
+
+4. Start displays:
+
+    ```bash
+    pm-viewer --symbol AAPL
+    pm-orders
+    pm-board
+    pm-ticker --interval 15
+    ```
+
+5. During the session, check:
+
+    ```bash
+    pm-admin-cli --id OPS01 session-status
+    pm-admin-cli --id OPS01 gateways
+    pm-stats-cli daily
+    pm-clearing-cli pnl
+    ```
+
+6. After shutdown, archive `$EDUMATCHER_DATA_DIR`.
+
+### Playbook 3 - external client integration test
+
+Goal: expose order entry, market data and post-trade feeds to client developers.
+
+1. Start the core recorded stack: engine, audit, stats, clearing.
+2. Start only the required external gateways:
+
+    ```bash
+    pm-alf-gwy
+    pm-balf-gwy
+    pm-md-gwy
+    pm-ralf-gwy
+    pm-dc-gwy
+    ```
+
+3. Verify feeds locally before handing endpoints to clients:
+
+    ```bash
+    pm-calf-spy --channels TOP,TRADE --symbols AAPL
+    pm-ralf-spy --role AUDIT
+    pm-dc-spy
+    ```
+
+4. Document exposed ports, expected protocol, gateway IDs, credentials and
+   replay limits for each client team.
+
+### Playbook 4 - TapeDeck wallboard
+
+Goal: run the browser terminal for a classroom screen or observer desk.
+
+1. Start core engine and recorders.
+2. Start market data and API history services:
+
+    ```bash
+    pm-md-gwy
+    pm-api-gwy
+    ```
+
+3. Optionally start operational logs:
+
+    ```bash
+    pm-log-srv
+    ```
+
+4. Start TapeDeck:
+
+    ```bash
+    cd terminal-gui
+    export PM_TERMINAL_API_KEY='...'
+    make up
+    ```
+
+5. Open `http://localhost:8090` and check live state, Overview, Symbol Detail,
+   Tape and Session/Halt views.
+
+### Playbook 5 - incident response: bad or unexpected fills
+
+Goal: stop damage, preserve evidence, and determine scope.
+
+1. Stop new matching if needed:
+
+    ```bash
+    pm-admin-cli --id OPS01 halt
+    # or only one symbol
+    pm-admin-cli --id OPS01 halt-sym --sym AAPL
+    ```
+
+2. Preserve current state:
+
+    ```bash
+    pm-admin-cli --id OPS01 gateways
+    pm-admin-cli --id OPS01 orders --gw TRADER01
+    pm-audit-cli events --limit 50
+    pm-clearing-cli pnl
+    ```
+
+3. Identify affected gateway IDs and symbols from audit, fills and clearing.
+4. Cancel risky outstanding interest if appropriate:
+
+    ```bash
+    pm-admin-cli --id OPS01 cancel-sym --sym AAPL
+    pm-admin-cli --id OPS01 kill --gw TRADER01
+    ```
+
+5. Resume only after the cause is understood:
+
+    ```bash
+    pm-admin-cli --id OPS01 resume-sym --sym AAPL
+    pm-admin-cli --id OPS01 resume
+    ```
+
+### Playbook 6 - config change between sessions
+
+Goal: change symbols, gateways, risk controls or schedules without split-brain
+configuration.
+
+1. Stop trading and shut down affected processes.
+2. Edit `engine_config.yaml`.
+3. Validate and deploy:
+
+    ```bash
+    pm-config-deploy --check engine_config.yaml
+    pm-config-deploy engine_config.yaml
+    ```
+
+4. Restart the engine and dependent processes.
+5. Verify with `SYMBOLS`, `GATEWAYS`, `SCHEDULE` and one test order.
+
 
 ## See also
 
-- [Configuration](010-configuration.md) — full `engine_config.yaml` reference
-- [Processes](170-processes.md) — what every process does and which ports it uses
-- [Gateway](050-gateway-reference.md) — how to connect a participant terminal and place orders
-- [Persistence](180-persistence.md) — what data files survive a restart and how to manage them
-- [Auctions & Scheduling](080-session-scheduling.md) — how `pm-scheduler` drives session phases
+- [Getting Started](000-getting-started.md) - first concepts and first trade
+- [Configuration](010-configuration.md) - authored YAML and deployed artifact
+- [Processes](170-processes.md) - full process inventory and message flow
+- [Gateway Reference](050-gateway-reference.md) - participant command syntax
+- [Auctions & Scheduling](080-session-scheduling.md) - session phases and trading date
+- [Risk Controls](120-risk-controls.md) - collars, circuit breakers and halts
+- [Persistence](180-persistence.md) - all files written by the exchange
+- [Trader Information Terminal](290-trader-info-terminal.md) - TapeDeck browser display
