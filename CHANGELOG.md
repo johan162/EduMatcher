@@ -92,6 +92,8 @@ The engine configuration now has exactly one location, and it is compiled. Every
 - Rewrote the resumption section of the risk-controls chapter, and updated §920, §240, §241, §270, §990, the configuration chapter and the MM-quotes concept page
 - Tweak blue header color for better visibility in the dark-theme
 - Several introduction presentations has been added under `docs/presentation` 
+- Rewrote intro and run-playbook in the user-guide
+- Added several presentations for gettting started with EduMatcher
 
 
 ### 🛠 Internal
