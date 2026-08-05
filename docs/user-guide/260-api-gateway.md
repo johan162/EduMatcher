@@ -30,6 +30,7 @@ flowchart LR
     API -->|ZMQ PUSH :5555| ENG[pm-engine]
     ENG -->|ZMQ PUB :5556| API
     STATS[pm-stats\nstats.db] -->|read-only history| API
+    AUDIT[pm-audit\naudit_index.db] -->|read-only order lifecycle| API
     API -->|ZMQ PUSH :5559| IDX[pm-index]
     IDX -->|ZMQ PUB :5558| API
 ```
@@ -52,6 +53,13 @@ api_gateways:
     swagger_enabled: true
     log_level: info
     stats_db: data/stats.db
+    # pm-audit's index, read-only, for GET /admin/orders/{order_id}.
+    # Optional: without it that one endpoint returns 503 and nothing else
+    # is affected.
+    audit_db: data/audit_index.db
+    # Seconds a terminal order stays in the in-memory cache. 0 disables
+    # eviction (unbounded growth).
+    order_retention_sec: 3600
 
     credentials:
       - api_key: key-trader-demo
@@ -78,6 +86,9 @@ api_gateways:
 | `swagger_enabled` | Enables `/docs` and `/openapi.json` when true |
 | `credentials[].api_key` | Bearer token clients use for REST and WebSocket auth |
 | `credentials[].gateway_id` | Engine gateway identity; `null` means read-only market-data access; non-null values must be unique across `api_gateways` entries |
+| `stats_db` | `pm-stats`' SQLite file, read-only, for `/history/*` |
+| `audit_db` | `pm-audit`'s index, read-only, for `/admin/orders/{order_id}`. Optional |
+| `order_retention_sec` | Seconds a terminal order stays cached (default `3600`; `0` disables eviction) |
 | `rate_limit` | Per-key write limiting for POST/PATCH/DELETE endpoints |
 | `timeouts` | Engine auth, request/reply, and synchronous ACK wait timeouts |
 
@@ -179,6 +190,9 @@ cannot submit, cancel, or inspect private orders.
 | `DUPLICATE` | `409` | `client_order_id` already active for the session |
 | `VALIDATION` | `422`/`400` | Malformed request body or query parameters |
 | `STATS_DB` | `503` | `pm-stats`' SQLite file doesn't exist yet |
+| `AUDIT_INDEX_UNAVAILABLE` | `503` | No `pm-audit` index — only affects `GET /admin/orders/{order_id}` |
+| `UNKNOWN_ORDER` | `404` | No audited events for that order id |
+| `TRANSITION_REJECTED` | `409` | The engine will not perform the requested session transition |
 | `ENGINE_TIMEOUT` | `503` | No engine reply within the configured timeout |
 | `INDEX_TIMEOUT` | `503` | No `pm-index` reply within the configured timeout |
 | `INDEX_ERROR` | `502` | `pm-index` rejected the request |
@@ -562,15 +576,19 @@ Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
 | `POST` | `/admin/circuit-breaker/trigger`  | `{ "symbol":"AAPL", "level": null }`        | engine halt ack                                 | `risk.symbol_halt`          |
 | `POST` | `/admin/circuit-breaker/resume`   | `{ "symbol":"AAPL" }`                       | engine resume ack                               | `risk.symbol_resume`        |
 | `GET`  | `/admin/halts`                    | none                                        | `{ "halted":[{symbol,resume_at_ns?,level?,...}] }` | `system.halt_status_request` |
+| `GET`  | `/admin/orders`                   | `?symbol=&gateway_id=&status=`              | `{ "count":N, "orders":[...], "retention_sec":N }` | none — served from cache |
+| `GET`  | `/admin/orders/{order_id}`        | `?limit=`                                   | `{ "order_id":..., "count":N, "events":[...] }` | none — read from `audit_index.db` |
 | `POST` | `/admin/kill-switch/symbol`       | `{ "symbol":"AAPL" }`                       | engine cancel-symbol ack                        | `risk.cancel_symbol`        |
 
 Behaviour notes:
 
-- `POST /admin/session/transition` is fire-and-forget. The engine broadcasts
-  `session.state` after applying the transition; the REST call does not wait for
-  it and returns `202` with `status: PENDING`. `to_state` must be a valid
-  `SessionState` (`PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`,
-  `CLOSED`).
+- `POST /admin/session/transition` waits for the engine's verdict and returns
+  `status: APPLIED` with a `command_id`, or **409 `TRANSITION_REJECTED`** when
+  the engine will not perform it (sessions not enabled, unknown state). It was
+  previously fire-and-forget, which meant a rejected request was
+  indistinguishable from a slow one. `to_state` must be a valid `SessionState`
+  (`PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED`).
+  See [Command correlation](#command-correlation).
 - The circuit-breaker and kill-switch endpoints wait for the matching engine ACK.
   When the engine rejects the command (for example, an ADMIN-gate or validation
   failure) the ack carries `accepted: false` and the gateway returns `403` with
@@ -608,6 +626,88 @@ fields. When the caller holds the ADMIN role, the response also includes
 `gateway_count`, the number of currently connected gateways.
 
 
+## Cross-gateway admin views
+
+!!! warning "These endpoints read `pm-audit`'s database"
+    `GET /admin/orders/{order_id}` opens **`audit_index.db` read-only**. This
+    is the only place the API gateway reads a store it does not own, and it
+    exists so the REST API can be a single stop rather than sending an
+    operator to `pm-audit-cli` for order history.
+
+    The dependency is **optional and read-only**. The gateway never writes the
+    file. If `pm-audit` is not deployed, or its index has not been built, that
+    one endpoint returns `503 AUDIT_INDEX_UNAVAILABLE` naming what to do and
+    **every other route is unaffected**. Configure the path with
+    `api_gateways[].audit_db`; see [Audit Trail](190-audit.md) for building
+    the index.
+
+### `GET /api/v1/admin/orders`
+
+The cross-gateway active-order table. Served entirely from the gateway's own
+read model — no engine round-trip — because it already maintains a cache per
+gateway whose events pass through it.
+
+| Query | Effect |
+|---|---|
+| `symbol` | Restrict to one instrument (case-insensitive) |
+| `gateway_id` | Restrict to one participant (case-insensitive) |
+| `status` | Restrict to one order status |
+
+```json
+{
+  "count": 2,
+  "orders": [ { "order_id": "ORD-...", "gateway_id": "TRADER01", "symbol": "AAPL", "status": "NEW" } ],
+  "retention_sec": 3600
+}
+```
+
+!!! note "This is current state, not the day's history"
+    Terminal orders age out after `order_retention_sec` (see
+    [below](#order-cache-retention)), which is why the response repeats the
+    setting: a caller can tell what horizon it is being shown. For anything
+    older, use the lifecycle endpoint or the audit trail.
+
+`gateway_id` is added on the way out — order payloads do not carry it, it is
+the cache key.
+
+### `GET /api/v1/admin/orders/{order_id}`
+
+The complete cross-gateway lifecycle of one order, in timestamp order, read
+from the audit index.
+
+```json
+{
+  "order_id": "ORD-...",
+  "count": 3,
+  "events": [
+    { "timestamp": "...", "topic": "order.ack.TRADER01", "gateway_id": "TRADER01", "symbol": "AAPL", "payload": "..." },
+    { "timestamp": "...", "topic": "order.fill.TRADER01", "...": "..." }
+  ]
+}
+```
+
+| Status | Meaning |
+|---|---|
+| `200` | Events found |
+| `404 UNKNOWN_ORDER` | The index has no events for that id |
+| `503 AUDIT_INDEX_UNAVAILABLE` | No audit index — `pm-audit` not running, or index not built |
+
+**Why not from the gateway's cache.** The cache folds each event into current
+state and keeps no history, so a lifecycle served from it would be a weaker
+duplicate of an audit trail that already exists, is complete across every
+gateway, and survives restarts.
+
+### Order cache retention
+
+The in-memory order cache backs `GET /orders`, the private `orders.snapshot`
+frame, and `GET /admin/orders`. Terminal orders — `FILLED`, `CANCELLED`,
+`EXPIRED`, `REJECTED` — are evicted after **`order_retention_sec`** (default
+`3600`). Resting orders are never evicted regardless of age; positions are
+never affected, since forgetting the order that created one would not undo it.
+
+Set `order_retention_sec: 0` to disable eviction, accepting that the cache
+then grows for the lifetime of the process.
+
 ## WebSocket endpoints
 
 | Path                   | Purpose                                                        | First message                         |
@@ -617,9 +717,48 @@ fields. When the caller holds the ADMIN role, the response also includes
 | `/api/v1/admin/monitor`| ADMIN-only cross-gateway monitor feed (all events)             | `{ "api_key": "key-admin-demo" }`     |
 
 The `/api/v1/admin/monitor` stream requires an ADMIN-role gateway. After
-authentication it sends `{ "type": "authenticated" }` and then streams every
-engine event (order, fill, cancel, session, and circuit-breaker) across all
-gateways. Non-admin keys receive an error frame and are disconnected.
+authentication it sends `{ "type": "authenticated" }`, then a
+`monitor.snapshot`, and then streams every engine event (order, fill, cancel,
+session, and circuit-breaker) across all gateways. Non-admin keys receive an
+error frame and are disconnected.
+
+```json
+{
+  "type": "monitor.snapshot",
+  "ts": "2026-08-05T09:30:00.000Z",
+  "data": {
+    "orders":   [ { "order_id": "ORD-...", "gateway_id": "TRADER01", "status": "NEW" } ],
+    "halts":    { "halted": ["AAPL"] },
+    "gateways": { "gateways": [ { "id": "TRADER01", "role": "TRADER" } ] },
+    "last_seq": { "TRADER01": 9182 },
+    "incomplete": []
+  }
+}
+```
+
+As with the private stream, the event sink is registered **before** the
+snapshot is taken, so the worst case is a duplicate rather than an event lost
+in the window while the snapshot still looked complete.
+
+!!! note "`halts` and `gateways` come from the engine, not from local state"
+    The gateway's own view of connected participants covers only those that
+    authenticated through *this* API gateway instance. An admin monitor built
+    on it would silently omit every participant connected over ALF, BALF, or a
+    second API gateway — so the snapshot asks the engine for the venue-wide
+    answer instead.
+
+    Both queries are best-effort. If either times out the snapshot is still
+    delivered with that field `null` and its name listed in `incomplete`: a
+    monitor that opens with a partial view and says so is more useful than one
+    that refuses to open.
+
+!!! warning "There is no `monitor/events?from_seq=` replay endpoint"
+    Deliberately. It would need a bounded in-memory ring buffer, which would
+    be strictly weaker than what already exists — the audit trail is the
+    durable, complete, indexed cross-gateway event log, and it survives
+    restarts. Use `monitor.snapshot` for current state and
+    [`GET /admin/orders/{order_id}`](#get-apiv1adminordersorder_id) or
+    `pm-audit-cli` for history.
 
 ### The event envelope
 
@@ -1106,4 +1245,7 @@ curl -v --no-buffer \
 | `404` on all endpoints | Wrong base path or wrong `--instance` flag | Check `pm-api-gwy --instance NAME` matches the config block name |
 | Swagger UI not loading | `swagger_enabled: false` | Set `swagger_enabled: true` in the config block and restart |
 | History endpoints return empty results | `pm-stats` not running or wrong `stats_db` path | Start `pm-stats`; verify the `stats_db` path in config points to the correct file |
+| `GET /admin/orders/{order_id}` returns `503 AUDIT_INDEX_UNAVAILABLE` | `pm-audit` not deployed, or its index not built | Start `pm-audit` and run `pm-audit-cli index`; check `audit_db`. Every other endpoint is unaffected |
+| An order vanished from `GET /admin/orders` | It reached a terminal status more than `order_retention_sec` ago | Expected — that view is current state. Use `GET /admin/orders/{order_id}` for its history |
+| `GET /admin/orders` grows without bound | `order_retention_sec: 0` disables eviction | Set a positive value |
 | WebSocket disconnects immediately | Engine not running or client rate limit hit | Start engine; check gateway logs for disconnect reason |

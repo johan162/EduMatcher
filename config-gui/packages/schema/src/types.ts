@@ -372,6 +372,12 @@ export interface ApiGatewayConfig {
   engineAuthSec: number;
   engineReplySec: number;
   waitAckSec: number;
+  /**
+   * Seconds a terminal order stays in pm-api-gwy's in-memory cache before
+   * eviction. 0 disables eviction, letting the cache grow for the lifetime
+   * of the process.
+   */
+  orderRetentionSec: number;
 }
 
 export interface EngineConfigDraft {

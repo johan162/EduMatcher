@@ -590,6 +590,17 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="SECS",
         help="api_gateway.timeouts.wait_ack_sec override (> 0).",
     )
+    parser.add_argument(
+        "--api-gateway-order-retention-sec",
+        type=int,
+        default=None,
+        metavar="SECS",
+        help=(
+            "api_gateway.order_retention_sec override (>= 0). Seconds a "
+            "terminal order stays in the gateway's in-memory cache. 0 "
+            "disables eviction."
+        ),
+    )
 
     # ── BALF gateway ──────────────────────────────────────────────────────────
     parser.add_argument(

@@ -652,6 +652,15 @@ excludes the section from the exported file. **Ports are collision-checked
 across every enabled gateway** — the diagnostics drawer warns if two services
 would bind the same address and port.
 
+The **API** sub-tab includes **Order cache retention (s)**
+(`order_retention_sec`, default `3600`), which bounds how long a terminal
+order — `FILLED`, `CANCELLED`, `EXPIRED`, `REJECTED` — stays in the gateway's
+in-memory cache. That cache backs `GET /orders` and the cross-gateway admin
+order table, so the setting decides how far back those views reach. Resting
+orders are never evicted whatever their age. `0` disables eviction entirely,
+letting the cache grow for the lifetime of the process. See
+[API Gateway → Order cache retention](260-api-gateway.md#order-cache-retention).
+
 ### Engine tuning
 
 The **Engine Tuning** tab (Expert) exposes low-level performance knobs that

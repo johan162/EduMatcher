@@ -78,6 +78,10 @@ DEFAULT_API_GATEWAY_RATE_LIMIT_BURST = 20
 DEFAULT_API_GATEWAY_ENGINE_AUTH_SEC = 3.0
 DEFAULT_API_GATEWAY_ENGINE_REPLY_SEC = 3.0
 DEFAULT_API_GATEWAY_WAIT_ACK_SEC = 3.0
+#: Seconds a terminal order stays in the gateway's in-memory cache before
+#: eviction. 0 disables eviction, which lets the cache grow for the
+#: lifetime of the process.
+DEFAULT_API_GATEWAY_ORDER_RETENTION_SEC = 3600
 DEFAULT_API_GATEWAY_KEY_BYTES = 16
 
 DEFAULT_SCHEDULE = {

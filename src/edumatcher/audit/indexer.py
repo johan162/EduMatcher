@@ -246,6 +246,7 @@ def _where_clauses(
     from_dt: datetime | None,
     to_dt: datetime | None,
     date_str: str | None,
+    order_id: str | None = None,
 ) -> tuple[list[str], list[Any]]:
     clauses: list[str] = []
     params: list[Any] = []
@@ -263,6 +264,11 @@ def _where_clauses(
     if symbol:
         clauses.append("symbol = ?")
         params.append(symbol)
+    if order_id:
+        # idx_order has always existed on this column; only the filter was
+        # missing, so a single order's lifecycle could not be asked for.
+        clauses.append("order_id = ?")
+        params.append(order_id)
     if from_dt:
         clauses.append("timestamp >= ?")
         params.append(from_dt.isoformat(timespec="milliseconds"))
@@ -281,11 +287,12 @@ def query_index_events(
     from_dt: datetime | None = None,
     to_dt: datetime | None = None,
     date_str: str | None = None,
+    order_id: str | None = None,
     limit: int = 100,
     reverse: bool = False,
 ) -> list[dict[str, Any]]:
     clauses, params = _where_clauses(
-        topic_prefix, gateway, symbol, from_dt, to_dt, date_str
+        topic_prefix, gateway, symbol, from_dt, to_dt, date_str, order_id
     )
     order = "DESC" if reverse else "ASC"
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""

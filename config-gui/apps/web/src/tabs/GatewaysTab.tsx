@@ -390,6 +390,21 @@ function ApiPanel() {
             />
           </FieldRow>
           <TextField label="Stats DB path" value={gw.statsDb} onChange={(v) => update((d) => (d.apiGateways[i]!.statsDb = v))} help={{ text: "SQLite database this instance reads for /history/* endpoints (the same file pm-stats writes).", cliFlag: "--api-gateway-stats-db" }} />
+          <NumField
+            label="Order cache retention (s)"
+            value={gw.orderRetentionSec}
+            onChange={(v) =>
+              update((d) => (d.apiGateways[i]!.orderRetentionSec = v ?? gw.orderRetentionSec))
+            }
+            help={{
+              text:
+                "Seconds a terminal order (FILLED/CANCELLED/EXPIRED/REJECTED) stays in the " +
+                "gateway's in-memory cache, which backs GET /orders and the admin order table. " +
+                "Resting orders are never evicted. 0 disables eviction, letting the cache grow " +
+                "for the lifetime of the process.",
+              cliFlag: "--api-gateway-order-retention-sec",
+            }}
+          />
           <div className="flex flex-wrap gap-4">
             <NumField label="Rate limit writes/sec" value={gw.rateLimitWritesPerSecond} onChange={(v) => update((d) => (d.apiGateways[i]!.rateLimitWritesPerSecond = v ?? gw.rateLimitWritesPerSecond))} help={{ text: "Sustained per-key limit on order-entry write requests per second.", cliFlag: "--api-gateway-rate-limit-writes-per-second" }} />
             <NumField label="Rate limit burst" value={gw.rateLimitBurst} onChange={(v) => update((d) => (d.apiGateways[i]!.rateLimitBurst = v ?? gw.rateLimitBurst))} help={{ text: "Short-term burst allowance above the sustained write rate limit, per key.", cliFlag: "--api-gateway-rate-limit-burst" }} />

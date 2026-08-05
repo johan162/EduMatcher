@@ -1,4 +1,4 @@
-Version: 1.5.0
+Version: 1.6.0
 
 Date: 2026-08-05
 
@@ -9,6 +9,17 @@ Status: Design and Research Proposal
 
 > **Revision History**
 >
+> - **1.6.0 (2026-08-05)** — Backend implemented [§26.3.7 Uniform command acknowledgements](#2637-uniform-command-acknowledgements)
+>   narrowly rather than as originally proposed: `command_id` was added only to kill switch/mass
+>   cancel and session transition (the two commands with no completion signal), echoed on their acks;
+>   cascading `command_id` onto every triggered event and blanket adoption across all async endpoints
+>   were evaluated and declined. Fixed a real bug along the way — `POST /api/v1/admin/session/transition`
+>   used to answer `202`/`PENDING` even when the handler silently dropped the request (sessions
+>   disabled or unknown state); it now answers `200`/`ACCEPTED` or `409`/`TRANSITION_REJECTED` with a
+>   reason. Updated [§6.3](#63-session-control), [§6.11](#611-capability-summary-table),
+>   [§15.4](#154-session-control), [§26.2](#262-highest-impact-changes),
+>   [§26.3.7](#2637-uniform-command-acknowledgements), and [§26.5](#265-suggested-implementation-order)
+>   accordingly.
 > - **1.5.0 (2026-08-05)** — Backend shipped most of [§26.3.5 Private event recovery](#2635-private-event-recovery):
 >   `/api/v1/events` now sends `event_seq` on auth, an `orders.snapshot` frame, and stable group ids on
 >   `order.*`/`combo.*`/`oco.*`/`quote.*` events. Resume/replay (`{ "action": "resume", "from_seq": ... }`)
@@ -547,15 +558,28 @@ Purpose: drive the engine through its session phases (the same capability the sc
 { "to_state": "CONTINUOUS" }   // PRE_OPEN | OPENING_AUCTION | CONTINUOUS | CLOSING_AUCTION | CLOSED
 ```
 
-**Response `202 Accepted`:**
+**Response `200 OK` (transition accepted):**
 
 ```jsonc
-{ "requested_state": "CONTINUOUS", "status": "PENDING" }
+{ "command_id": "cmd-01J4...", "requested_state": "CONTINUOUS", "status": "ACCEPTED" }
 ```
 
-**Engine mapping:** emits `session.transition` `{ "to_state": "<STATE>" }` on the engine PUSH socket.
-The engine validates the transition; the UI should still confirm success by observing the subsequent
-`session.state` broadcast on `/market-data` rather than treating the HTTP `202` as completion.
+**Response `409 Conflict` (transition rejected):**
+
+```jsonc
+{ "command_id": "cmd-01J4...", "error": "TRANSITION_REJECTED", "reason": "sessions_disabled" }
+```
+
+**Engine mapping:** emits `session.transition` `{ "to_state": "<STATE>" }` on the engine PUSH socket,
+and `pm-api-gwy` now waits for an addressed engine acknowledgement before answering the REST call.
+This closed a real bug found during implementation: the handler previously **returned early and
+published nothing** when sessions were disabled or the requested state was unknown, yet the endpoint
+still answered `202 Accepted` / `PENDING` regardless — so a caller's only signal was a timeout
+indistinguishable from a slow engine. All three paths (success, sessions-disabled, unknown-state) now
+produce an acknowledgement, so the REST response is authoritative (`200`/`ACCEPTED` or
+`409`/`TRANSITION_REJECTED` with the engine's reason) instead of a blind `202`. The UI should still
+observe the subsequent `session.state` broadcast on `/market-data` to reflect the resulting phase
+across the app, but no longer needs it just to learn whether the request was accepted.
 
 ### 6.4 Circuit breaker control (partially available)
 
@@ -790,7 +814,7 @@ surface, not as a speculative enhancement.
 | Capability | Current status | Notes |
 |---|---|---|
 | `GET /api/v1/status` → `gateway_role`, admin `gateway_count` | Available now | Use for role-aware routing and ADMIN KPI bootstrap |
-| `POST /api/v1/admin/session/transition` | Available now | Confirm success from subsequent `session.state` event |
+| `POST /api/v1/admin/session/transition` | Available now | REST response is authoritative: `200`/`ACCEPTED` with `command_id`, or `409`/`TRANSITION_REJECTED` with reason; still observe `session.state` for the resulting phase |
 | `POST /api/v1/admin/circuit-breaker/trigger` / `/resume` | Available, but symbol-level | Treat as manual symbol halt / resume until `level` is semantically honoured |
 | `GET /api/v1/admin/gateways` | Available now | Supports Gateway Management screen |
 | `POST /api/v1/admin/gateways/{id}/disconnect` | Available now | “Kick” action already implementable |
@@ -1931,9 +1955,12 @@ const VALID_TRANSITIONS: Record<SessionState, SessionState[]> = {
 ```
 
 Each enabled button shows a confirmation dialog before calling
-`POST /api/v1/admin/session/transition` with `{ to_state }` ([§6.3](#63-session-control)). The engine
-validates the transition; the UI confirms success by observing the subsequent `session.state`
-broadcast, and warns if none arrives (invalid-from-current-phase).
+`POST /api/v1/admin/session/transition` with `{ to_state }` ([§6.3](#63-session-control)). The REST
+response is now authoritative: `200`/`ACCEPTED` confirms the transition immediately, and
+`409`/`TRANSITION_REJECTED` surfaces the engine's reason (e.g. sessions disabled,
+invalid-from-current-phase) directly in the error toast — no more inferring success from a
+`session.state` broadcast or timing out. The UI still watches `session.state` on `/market-data` to
+reflect the resulting phase across the app.
 
 ### 15.5 Risk Control Panel
 
@@ -3103,8 +3130,10 @@ use the same operational model, even if the wire encoding remains JSON rather th
 > per-symbol subscription model for `/api/v1/market-data` — have shipped and are documented in
 > [§17.3.1](#1731-authentication-and-subscription). `/api/v1/events` has also gained `event_seq` and
 > an `orders.snapshot` frame ([§17.2.1](#1721-authentication-frame)); resume/replay for private events
-> was evaluated and deliberately deferred (see [§26.3.5](#2635-private-event-recovery)), so the
-> "Private order events" row has been dropped from the table below. The other items remain proposed.
+> was evaluated and deliberately deferred (see [§26.3.5](#2635-private-event-recovery)). `command_id`
+> was also added, narrowly, to kill switch/mass cancel and session transition
+> ([§26.3.7](#2637-uniform-command-acknowledgements)), so the "Private order events" and "Command
+> lifecycle" rows have been dropped from the table below. The other items remain proposed.
 
 | Area | Recommended change | Why it helps the terminal |
 |---|---|---|
@@ -3112,7 +3141,6 @@ use the same operational model, even if the wire encoding remains JSON rather th
 | Book/depth data | Publish full depth snapshots plus incremental depth deltas with clear reset markers | Makes DOM ladders precise and efficient |
 | Auction data | Publish periodic authoritative indicative auction updates during auction phases | Removes client-side approximation and makes the teaching panel trustworthy |
 | Admin monitor | Add replay/backfill and cross-gateway order detail endpoints | Makes the ADMIN audit viewer useful immediately on load and after reconnect |
-| Command lifecycle | Standardise async command ids and terminal acknowledgements for admin/trading commands | Gives buttons deterministic pending/success/error states |
 | Reference/risk/admin APIs | Add runtime symbol, risk, circuit-breaker, kill-switch, and index admin endpoints | Converts disabled UI panels into real tools |
 
 ### 26.3 Recommended protocol shape
@@ -3244,26 +3272,32 @@ where a replay gap could not be repaired.
 
 #### 26.3.7 Uniform command acknowledgements
 
-Every asynchronous command should return a `command_id`, and every later WebSocket event caused by
-that command should echo it when possible:
+**Implemented narrowly, by design.** Rather than the blanket "every asynchronous command" scope
+originally proposed here, `command_id` was added to exactly the two commands that actually lacked a
+correlator, echoed on their acks:
 
-```jsonc
-// REST response
-{ "command_id": "cmd-01J4...", "status": "ACCEPTED" }
+- **Kill switch / mass cancel** (`POST /api/v1/kill-switch`, `POST /api/v1/admin/kill-switch/symbol`):
+  the response and the resulting `mass_cancel.ack` event ([§17.2.2](#1722-event-routing)) now share a
+  `command_id`. This also let the backend delete the ad hoc `_kill_switch_locks` workaround it had
+  been using to detect completion.
+- **Session transition** (`POST /api/v1/admin/session/transition`, [§6.3](#63-session-control)): this
+  turned out to be a real bug, not just a missing correlator — the handler returned early and
+  published nothing when sessions were disabled or the state was unknown, so the endpoint answered
+  `202`/`PENDING` regardless and a caller's only signal was an indistinguishable timeout. It now
+  answers `200`/`ACCEPTED` with a `command_id`, or `409`/`TRANSITION_REJECTED` with the engine's
+  reason, on all three paths.
 
-// later event
-{
-  "type": "order.ack",
-  "command_id": "cmd-01J4...",
-  "order_id": "ord-...",
-  "accepted": true,
-  "data": { ... }
-}
-```
+**Deliberately declined:**
 
-This one change makes pending buttons, optimistic rows, retry warnings, and audit trails much simpler.
-It is especially valuable for session transitions, symbol halts/resumes, gateway disconnects, cancel
-replace, mass cancel, and kill switch operations.
+- **Cascading correlation.** "Every later event caused by that command should echo it" (e.g. a mass
+  cancel producing N `order.cancelled` events, each carrying `command_id`) would be a large
+  engine-wide change for an audit-trail benefit the `oco_group_id`/`combo_parent_id`/quote group ids
+  already added in [§26.3.5](#2635-private-event-recovery) mostly provide. Ack-level correlation is
+  cheap; cascade-level correlation is not — only the ack is implemented.
+- **Blanket adoption.** "Every asynchronous command" read as roughly a dozen endpoints (cancel
+  replace, halts, symbol admin, gateway disconnect, circuit breaker, etc.). The real gap was two
+  endpoints with no completion signal at all; the rest already return a definitive REST result or a
+  `202`/`PENDING` that is acceptable for their lower-frequency, less latency-sensitive use.
 
 ### 26.4 Recommended backend components
 
@@ -3359,13 +3393,17 @@ This keeps the terminal honest during staged backend work and makes demos less b
    approximation into a reliable teaching tool.
 5. **Add admin monitor replay and cross-gateway order detail.** This makes the ADMIN persona feel
    complete rather than live-only.
-6. **Standardise command ids and command-result events.** This improves every destructive or async UI
-   action and gives the audit trail a clean spine.
+6. ~~Standardise command ids and command-result events.~~ **Implemented narrowly, by design** — see
+   [§26.3.7](#2637-uniform-command-acknowledgements). `command_id` was added only to kill
+   switch/mass cancel and session transition, the two commands with no completion signal at all;
+   cascading `command_id` onto every event a command triggers, and blanket adoption across every
+   async endpoint, were both evaluated and declined.
 7. **Fill out runtime admin/reference/index APIs.** These convert disabled panels into operational
    tools once the core stream/recovery model is solid.
 
-Items 1 and 3 are complete for market data, and item 1 is also done for private events. Private-event
-resume/replay (originally part of item 2) has been deliberately deferred — see
+Items 1, 3, and 6 are complete for their narrowed scope: market data and private events for item 1,
+per-symbol subscriptions for item 3, and kill switch/mass cancel plus session transition for item 6.
+Private-event resume/replay (originally part of item 2) has been deliberately deferred — see
 [§26.3.5](#2635-private-event-recovery). The next highest-leverage remaining step is item 2 for market
 data: sequence numbers alone only let the UI detect a gap — they do not yet let it repair one without
 a full re-subscribe.

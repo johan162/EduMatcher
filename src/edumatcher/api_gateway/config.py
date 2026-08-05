@@ -18,6 +18,7 @@ from typing import Any
 import yaml
 
 from edumatcher.config import (
+    AUDIT_INDEX_DB_FILE,
     ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
     INDEX_PULL_ADDR,
@@ -66,6 +67,24 @@ class ApiGatewayConfig:
     index_pull_addr: str = INDEX_PULL_ADDR
     index_pub_addr: str = INDEX_PUB_ADDR
     stats_db: Path = STATS_DB_FILE
+    #: `pm-audit`'s index, opened **read-only** for the admin order-lifecycle
+    #: endpoint. The gateway never writes it and never requires it: when the
+    #: file is absent — because `pm-audit` is not deployed, or has not indexed
+    #: yet — that one endpoint reports it and every other route is unaffected.
+    #: The audit trail is the venue's complete cross-gateway event record, so
+    #: reading it is preferable to the gateway keeping a second, weaker
+    #: lifecycle store of its own.
+    audit_db: Path = AUDIT_INDEX_DB_FILE
+    #: How long a *terminal* order (FILLED, CANCELLED, EXPIRED, REJECTED)
+    #: stays in the in-memory order cache before being evicted.
+    #:
+    #: The cache is the read model behind `GET /orders` and the admin order
+    #: table. Without eviction it grows for the lifetime of the process and an
+    #: admin table would still be showing orders that filled hours ago. One
+    #: hour keeps a session's recent activity visible while bounding the
+    #: memory; older orders live in the audit trail, which is durable.
+    #: Set to 0 to disable eviction (the previous, unbounded behaviour).
+    order_retention_sec: int = 3600
     #: Optional override for the session timezone that ``date`` filters on the
     #: history endpoints resolve their trading day in. ``None`` — the default —
     #: means "use the timezone ``stats_db`` was recorded with", which is what
@@ -182,6 +201,15 @@ def _load_api_gateway_section(
     stats_db_raw = section.get("stats_db", STATS_DB_FILE)
     stats_db = Path(str(stats_db_raw)).expanduser()
 
+    audit_db_raw = section.get("audit_db", AUDIT_INDEX_DB_FILE)
+    audit_db = Path(str(audit_db_raw)).expanduser()
+
+    order_retention_sec = _as_int(
+        section.get("order_retention_sec", 3600), section_name, "order_retention_sec"
+    )
+    if order_retention_sec < 0:
+        raise ValueError(f"{section_name}.order_retention_sec must be >= 0")
+
     session_timezone_raw = section.get("session_timezone")
     session_timezone = (
         None if session_timezone_raw is None else str(session_timezone_raw)
@@ -201,6 +229,8 @@ def _load_api_gateway_section(
         index_pull_addr=str(section.get("index_pull_addr", INDEX_PULL_ADDR)),
         index_pub_addr=str(section.get("index_pub_addr", INDEX_PUB_ADDR)),
         stats_db=stats_db,
+        audit_db=audit_db,
+        order_retention_sec=order_retention_sec,
         session_timezone=session_timezone,
         log_level=str(section.get("log_level", "info")),
         swagger_enabled=bool(section.get("swagger_enabled", True)),

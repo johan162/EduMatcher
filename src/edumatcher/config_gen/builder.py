@@ -23,6 +23,7 @@ from .defaults import (
     DEFAULT_API_GATEWAY_RATE_LIMIT_WRITES_PER_SECOND,
     DEFAULT_API_GATEWAY_STATS_DB,
     DEFAULT_API_GATEWAY_SWAGGER_ENABLED,
+    DEFAULT_API_GATEWAY_ORDER_RETENTION_SEC,
     DEFAULT_API_GATEWAY_WAIT_ACK_SEC,
     DEFAULT_BALF_GATEWAY_AUTH_TIMEOUT_SEC,
     DEFAULT_BALF_GATEWAY_BIND_ADDRESS,
@@ -298,6 +299,7 @@ class ApiGatewaySpec:
     engine_auth_sec: float = DEFAULT_API_GATEWAY_ENGINE_AUTH_SEC
     engine_reply_sec: float = DEFAULT_API_GATEWAY_ENGINE_REPLY_SEC
     wait_ack_sec: float = DEFAULT_API_GATEWAY_WAIT_ACK_SEC
+    order_retention_sec: int = DEFAULT_API_GATEWAY_ORDER_RETENTION_SEC
 
 
 class ConfigBuilder:
@@ -489,6 +491,7 @@ class ConfigBuilder:
             "swagger_enabled": spec.swagger_enabled,
             "log_level": spec.log_level,
             "stats_db": spec.stats_db,
+            "order_retention_sec": spec.order_retention_sec,
             "credentials": [
                 {
                     "api_key": item.api_key,

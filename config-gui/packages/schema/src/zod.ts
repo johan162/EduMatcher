@@ -268,6 +268,8 @@ export const apiGatewaySchema = z.object({
   engineAuthSec: z.number().positive(),
   engineReplySec: z.number().positive(),
   waitAckSec: z.number().positive(),
+  // nonnegative, not positive: 0 is a valid value meaning "never evict".
+  orderRetentionSec: z.number().int().nonnegative(),
 });
 
 export const engineConfigDraftSchema = z.object({

@@ -213,9 +213,17 @@ async def admin_monitor(websocket: WebSocket) -> None:
             )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-        await websocket.send_json({"type": "authenticated"})
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=512)
+        # Registered before the snapshot for the same reason as the private
+        # stream: an event landing in between would be lost while the
+        # snapshot still looked complete.
         engine.add_admin_sink(queue)
+        try:
+            await websocket.send_json({"type": "authenticated"})
+            await websocket.send_json(await _monitor_snapshot(websocket, gateway_id))
+        except Exception:
+            engine.remove_admin_sink(queue)
+            raise
         try:
             while True:
                 event = await queue.get()
@@ -224,6 +232,52 @@ async def admin_monitor(websocket: WebSocket) -> None:
             engine.remove_admin_sink(queue)
     except (WebSocketDisconnect, TimeoutError):
         return
+
+
+async def _monitor_snapshot(websocket: WebSocket, gateway_id: str) -> dict[str, Any]:
+    """Assemble the admin monitor's opening state.
+
+    Orders come from the gateway's own cross-gateway cache. Halts and the
+    gateway roster come from the **engine**, not from local state:
+    `engine.active_gateways()` lists only the gateways that authenticated
+    through *this* API gateway instance, so an admin monitor built on it
+    would silently omit every participant connected over ALF, BALF, or a
+    second API gateway. The venue-wide answer has to be asked for.
+
+    Both engine queries are best-effort. A monitor that opens with a partial
+    snapshot and says so is more useful than one that refuses to open.
+    """
+    engine = websocket.app.state.engine
+    timeout = websocket.app.state.config.timeouts.engine_reply_sec
+    incomplete: list[str] = []
+
+    async def _ask(request_fn: Any, topic: str, key: str) -> Any:
+        try:
+            request_fn(gateway_id)
+            return await engine.await_topic(topic, timeout)
+        except (TimeoutError, Exception):
+            incomplete.append(key)
+            return None
+
+    halts = await _ask(
+        engine.request_halt_status, f"system.halt_status.{gateway_id}", "halts"
+    )
+    gateways = await _ask(
+        engine.request_gateways, f"system.gateways.{gateway_id}", "gateways"
+    )
+    return {
+        "type": "monitor.snapshot",
+        "ts": now_iso(),
+        "data": {
+            "orders": engine.all_orders(),
+            "halts": halts,
+            "gateways": gateways,
+            "last_seq": {
+                gid: engine.stream_seq(gid) for gid in sorted(engine.active_gateways())
+            },
+            "incomplete": incomplete,
+        },
+    }
 
 
 @router.websocket("/market-data")

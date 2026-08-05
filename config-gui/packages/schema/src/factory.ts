@@ -183,6 +183,7 @@ export function createApiGateway(
     engineAuthSec: DEFAULT_API_GATEWAY.engineAuthSec,
     engineReplySec: DEFAULT_API_GATEWAY.engineReplySec,
     waitAckSec: DEFAULT_API_GATEWAY.waitAckSec,
+    orderRetentionSec: DEFAULT_API_GATEWAY.orderRetentionSec,
   };
 }
 

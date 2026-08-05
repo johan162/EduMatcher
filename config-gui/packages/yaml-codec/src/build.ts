@@ -370,6 +370,7 @@ function buildApiGateways(draft: EngineConfigDraft): PlainConfig {
       swagger_enabled: gw.swaggerEnabled,
       log_level: gw.logLevel,
       stats_db: gw.statsDb,
+      order_retention_sec: gw.orderRetentionSec,
       credentials: gw.credentials.map((c) => ({
         api_key: c.apiKey,
         gateway_id: c.gatewayId,

@@ -516,6 +516,28 @@ class EngineClient:
     def get_caches(self, gateway_id: str) -> SessionCaches:
         return self._caches[gateway_id]
 
+    def evict_terminal_orders(self, retention_sec: int) -> int:
+        """Sweep every gateway's cache. Returns the number of orders dropped."""
+        return sum(
+            cache.evict_terminal_orders(retention_sec)
+            for cache in list(self._caches.values())
+        )
+
+    def all_orders(self) -> list[dict[str, Any]]:
+        """Every cached order across every gateway, tagged with its owner.
+
+        `_caches` accumulates an entry for each gateway whose events pass
+        through, so the cross-gateway view an admin needs is already here —
+        it just was not reachable. `gateway_id` is added on the way out
+        because the order payloads themselves do not carry it; it is the
+        dictionary key.
+        """
+        out: list[dict[str, Any]] = []
+        for gateway_id, cache in self._caches.items():
+            for order in cache.orders.values():
+                out.append({**order, "gateway_id": gateway_id})
+        return out
+
     def send_new_order(self, order: Order) -> None:
         self._send(make_order_new_msg(order.to_dict()))
 

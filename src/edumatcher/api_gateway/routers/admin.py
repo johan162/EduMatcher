@@ -10,8 +10,13 @@ from __future__ import annotations
 
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+from edumatcher.audit.indexer import (
+    index_is_available,
+    open_readonly_index,
+    query_index_events,
+)
 from edumatcher.api_gateway.schemas import (
     CircuitBreakerResumeRequest,
     CircuitBreakerTriggerRequest,
@@ -218,3 +223,106 @@ async def kill_switch_symbol(  # pyright: ignore[reportUnusedFunction]
         match={"symbol": body.symbol},
     )
     return _require_accepted(ack)
+
+
+# ---------------------------------------------------------------------------
+# Cross-gateway order views
+# ---------------------------------------------------------------------------
+
+
+@router.get("/orders")
+async def admin_orders(  # pyright: ignore[reportUnusedFunction]
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    symbol: str | None = None,
+    gateway_id: str | None = None,
+    status_filter: Annotated[str | None, Query(alias="status")] = None,
+) -> dict[str, Any]:
+    """Every cached order across every gateway, filtered.
+
+    Served entirely from the gateway's own read model — no engine round-trip
+    — because `_caches` already accumulates an entry per gateway whose events
+    pass through. This is *current state*, bounded by
+    `order_retention_sec`: terminal orders age out, so it answers "what is
+    open now", not "what happened today". For the latter, see
+    `GET /admin/orders/{order_id}` and the audit trail.
+    """
+    await require_admin(request, session)
+    orders = request.app.state.engine.all_orders()
+
+    wanted_symbol = symbol.upper() if symbol else None
+    wanted_gateway = gateway_id.upper() if gateway_id else None
+    wanted_status = status_filter.upper() if status_filter else None
+
+    filtered = [
+        order
+        for order in orders
+        if (
+            wanted_symbol is None
+            or str(order.get("symbol", "")).upper() == wanted_symbol
+        )
+        and (
+            wanted_gateway is None
+            or str(order.get("gateway_id", "")).upper() == wanted_gateway
+        )
+        and (
+            wanted_status is None
+            or str(order.get("status", "")).upper() == wanted_status
+        )
+    ]
+    return {
+        "count": len(filtered),
+        "orders": filtered,
+        "retention_sec": request.app.state.config.order_retention_sec,
+    }
+
+
+@router.get("/orders/{order_id}")
+async def admin_order_lifecycle(  # pyright: ignore[reportUnusedFunction]
+    order_id: str,
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    limit: int = 500,
+) -> dict[str, Any]:
+    """The full cross-gateway lifecycle of one order, from the audit trail.
+
+    Read from `pm-audit`'s index (`audit_index.db`), **not** from the
+    gateway's cache: the cache folds each event into current state and keeps
+    no history, so a lifecycle served from it would be a weaker duplicate of
+    an audit trail that already exists, is complete, and is durable.
+
+    The dependency is read-only and optional. If `pm-audit` is not deployed
+    or has not built its index, this endpoint returns 503 with a specific
+    reason and every other route is unaffected.
+    """
+    await require_admin(request, session)
+    audit_db = request.app.state.config.audit_db
+    if not index_is_available(audit_db):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "AUDIT_INDEX_UNAVAILABLE",
+                    "message": (
+                        f"No audit index at {audit_db}. Order lifecycle needs "
+                        "pm-audit running and 'pm-audit-cli index' built."
+                    ),
+                }
+            },
+        )
+    conn = open_readonly_index(audit_db)
+    try:
+        events = query_index_events(conn, order_id=order_id, limit=limit)
+    finally:
+        conn.close()
+    if not events:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": {
+                    "code": "UNKNOWN_ORDER",
+                    "message": f"No audited events for order {order_id}",
+                }
+            },
+        )
+    return {"order_id": order_id, "count": len(events), "events": events}
