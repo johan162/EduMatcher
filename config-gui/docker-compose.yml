@@ -2,7 +2,7 @@
 #
 #   docker compose up --build
 #
-# Then open http://localhost:8080. See docs/user-guide/030-config-GUI.md.
+# Then open http://localhost:8092. See docs/user-guide/030-config-GUI.md.
 services:
   config-gui:
     build:
@@ -17,10 +17,10 @@ services:
         NO_PROXY: 
     image: edumatcher-config-gui:latest
     ports:
-      - "8080:8080"
+      - "8092:8092"
     environment:
       HOST: "0.0.0.0"
-      PORT: "8080"
+      PORT: "8092"
       # Restrict this to your site origin when exposed beyond localhost.
       CORS_ORIGIN: "*"
       # STATIC_DIR is baked into the image; override only if you relocate assets.

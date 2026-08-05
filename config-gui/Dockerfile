@@ -19,8 +19,8 @@
 # When not behind a proxy, build with:
 # podman build --no-cache -t config-gui:latest -f Dockerfile .
 
-# Typically run the backen (non-interactive) with:
-# podman run --rm -it -p 8080:8080 config-gui:latest
+# Typically run the backend (non-interactive) with:
+# podman run --rm -it -p 8092:8092 config-gui:latest
 #
 # (Press Ctrl-C to stop the container, or use `podman ps` and `podman stop <id>`.)
 # 
@@ -68,7 +68,7 @@ FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
-    PORT=8080 \
+    PORT=8092 \
     STATIC_DIR=/app/apps/web/dist
 
 COPY --from=build /app/node_modules ./node_modules
@@ -77,7 +77,7 @@ COPY --from=build /app/apps/server ./apps/server
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY --from=build /app/package.json /app/tsconfig.base.json ./
 
-EXPOSE 8080
+EXPOSE 8092
 # tsx (a server runtime dependency) runs the TypeScript server directly;
 # suitable for this internal tool.
 CMD ["npm", "run", "start", "--workspace", "@edumatcher/server"]

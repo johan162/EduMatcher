@@ -87,7 +87,7 @@ FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
-    PORT=8080 \
+    PORT=8092 \
     STATIC_DIR=/app/apps/web/dist
 
 COPY --from=build /app/node_modules ./node_modules
@@ -96,7 +96,7 @@ COPY --from=build /app/apps/server ./apps/server
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY --from=build /app/package.json /app/tsconfig.base.json ./
 
-EXPOSE 8080
+EXPOSE 8092
 # tsx (a server runtime dependency) runs the TypeScript server directly;
 # suitable for this internal tool.
 CMD ["npm", "run", "start", "--workspace", "@edumatcher/server"]
