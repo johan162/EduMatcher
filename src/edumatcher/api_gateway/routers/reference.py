@@ -37,10 +37,11 @@ async def _request_reply(
         ) from exc
 
 
-async def _reference_bundle(request: Request, session: Session) -> dict[str, Any]:
+async def fetch_reference_bundle(request: Request, session: Session) -> dict[str, Any]:
     """Fetch the compiled reference-data bundle, one engine round-trip.
 
-    Any endpoint below that needs a subset just slices this. There is no
+    Every /reference/* endpoint below, plus GET /admin/indexes, slices this
+    rather than round-tripping separately. There is no
     per-endpoint caching in the gateway: correctness (never serving stale
     data after a reload) is worth more here than shaving one ZMQ round-trip
     off an endpoint nobody is expected to poll at high frequency.
@@ -74,14 +75,14 @@ async def _reference_bundle(request: Request, session: Session) -> dict[str, Any
 async def reference_bundle(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
-    return await _reference_bundle(request, session)
+    return await fetch_reference_bundle(request, session)
 
 
 @router.get("/reference/config-version")
 async def reference_config_version(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
-    bundle = await _reference_bundle(request, session)
+    bundle = await fetch_reference_bundle(request, session)
     return {"config_version": bundle.get("config_version")}
 
 
@@ -89,7 +90,7 @@ async def reference_config_version(
 async def reference_symbols(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
-    bundle = await _reference_bundle(request, session)
+    bundle = await fetch_reference_bundle(request, session)
     return {
         "symbols": bundle.get("symbols", {}),
         "config_version": bundle.get("config_version"),
@@ -100,7 +101,7 @@ async def reference_symbols(
 async def reference_risk(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
-    bundle = await _reference_bundle(request, session)
+    bundle = await fetch_reference_bundle(request, session)
     risk = cast(dict[str, Any], bundle.get("risk", {}))
     return {**risk, "config_version": bundle.get("config_version")}
 
@@ -109,7 +110,7 @@ async def reference_risk(
 async def reference_indexes(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
-    bundle = await _reference_bundle(request, session)
+    bundle = await fetch_reference_bundle(request, session)
     return {
         "indexes": bundle.get("indexes", []),
         "config_version": bundle.get("config_version"),
@@ -120,7 +121,7 @@ async def reference_indexes(
 async def reference_schedule(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
-    bundle = await _reference_bundle(request, session)
+    bundle = await fetch_reference_bundle(request, session)
     schedule = cast(dict[str, Any], bundle.get("schedule", {}))
     return {**schedule, "config_version": bundle.get("config_version")}
 

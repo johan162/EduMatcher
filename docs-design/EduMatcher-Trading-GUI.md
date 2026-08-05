@@ -1,4 +1,4 @@
-Version: 1.6.0
+Version: 1.8.0
 
 Date: 2026-08-05
 
@@ -9,6 +9,28 @@ Status: Design and Research Proposal
 
 > **Revision History**
 >
+> - **1.8.0 (2026-08-05)** — Backend implemented [§26.4.2 Reference-data service boundary](#2642-reference-data-service-boundary)
+>   and added two key stable endpoints for UI bootstrap: `GET /api/v1/reference/schedule` and
+>   `GET /api/v1/reference` (full bundle in one round-trip). The design now treats reference data as
+>   a runtime API artifact rather than a planned/config-backed fallback: updated
+>   [§6.6](#66-halts-and-risk-configuration-runtime-read-only), [§6.11](#611-capability-summary-table),
+>   [§15.5](#155-risk-control-panel), [§18.2](#182-tanstack-query-for-server-state),
+>   [§23](#23-implementation-plan), [§26.2](#262-highest-impact-changes),
+>   [§26.4.2](#2642-reference-data-service-boundary), and [§26.5](#265-suggested-implementation-order)
+>   accordingly.
+> - **1.7.0 (2026-08-05)** — Backend shipped three of the four items in
+>   [§26.3.6 Admin monitor replay and order drill-down](#2636-admin-monitor-replay-and-order-drill-down):
+>   `WS /api/v1/admin/monitor` now opens with a `monitor.snapshot` (orders/halts/gateways/last_seq),
+>   and `GET /api/v1/admin/orders` / `GET /api/v1/admin/orders/{order_id}` give a cross-gateway
+>   current-state view and an audit-trail-backed lifecycle drill-down, respectively. Only
+>   cross-gateway *event* backfill remains proposed. Also added, as a related backend hardening item
+>   not originally in the addendum: an `order_retention_sec` cache-eviction policy for terminal
+>   orders. Updated [§6.9](#69-admin-monitor-websocket-apiv1adminmonitor),
+>   [§6.11](#611-capability-summary-table), [§13.4](#134-order-detail-drawer),
+>   [§15.1](#151-system-dashboard), [§15.9](#159-audit--monitor-log-viewer),
+>   [§17.4](#174-admin-monitor-websocket-apiv1adminmonitor), Appendix A's `Order` type,
+>   [§26.2](#262-highest-impact-changes), [§26.3.6](#2636-admin-monitor-replay-and-order-drill-down),
+>   and [§26.5](#265-suggested-implementation-order) accordingly.
 > - **1.6.0 (2026-08-05)** — Backend implemented [§26.3.7 Uniform command acknowledgements](#2637-uniform-command-acknowledgements)
 >   narrowly rather than as originally proposed: `command_id` was added only to kill switch/mass
 >   cancel and session transition (the two commands with no completion signal), echoed on their acks;
@@ -84,7 +106,7 @@ Status: Design and Research Proposal
     - [6.3 Session control (available now)](#63-session-control-available-now)
     - [6.4 Circuit breaker control (partially available)](#64-circuit-breaker-control-partially-available)
     - [6.5 Gateway administration (available now)](#65-gateway-administration-available-now)
-    - [6.6 Halts and risk configuration (mixed status)](#66-halts-and-risk-configuration-mixed-status)
+    - [6.6 Halts and risk configuration (runtime read-only)](#66-halts-and-risk-configuration-runtime-read-only)
     - [6.7 Symbol administration (still blocked on engine prerequisite)](#67-symbol-administration-still-blocked-on-engine-prerequisite)
     - [6.8 Index administration (still dependent on `pm-index` bridge)](#68-index-administration-still-dependent-on-pm-index-bridge)
     - [6.9 Admin monitor WebSocket (`/api/v1/admin/monitor`) (available now)](#69-admin-monitor-websocket-apiv1adminmonitor-available-now)
@@ -643,7 +665,7 @@ API Gateway spec §3.5 shutdown path). **Note:** disconnecting a gateway cancels
 resting orders and active quotes per the engine's disconnect policy (FR-MMQ-006 `CANCEL_ALL`
 semantics). The UI's confirmation dialog states this explicitly.
 
-### 6.6 Halts and risk configuration (mixed status)
+### 6.6 Halts and risk configuration (runtime read-only)
 
 **`GET /api/v1/admin/halts`**
 
@@ -692,10 +714,11 @@ the live delta stream.
 }
 ```
 
-**Status note:** unlike `/admin/halts`, these read-only risk-configuration endpoints do not appear to
-be available yet in the current API surface. The UI should therefore treat the Risk Control Panel as
-either a later API enhancement or a view hydrated from imported/static config rather than runtime
-REST.
+**Status note:** these specific `/admin/risk/*` routes are still not part of the exposed admin
+surface, but the same resolved risk configuration is now available through the stable reference-data
+API (`GET /api/v1/reference/risk`, plus `GET /api/v1/reference` for one-roundtrip bootstrap). The UI
+should source Risk Control from `/reference*` and treat `/admin/risk/*` as an optional future alias,
+not as a blocker.
 
 ### 6.7 Symbol administration (still blocked on engine prerequisite)
 
@@ -781,6 +804,46 @@ corresponding payloads. This one socket powers both the System Dashboard recent-
 **UX implication:** the ADMIN dashboard and monitor log can now be designed around a true live feed,
 not around polling or speculative backend work.
 
+**Opening snapshot:** immediately after `{ "type": "authenticated" }`, the server sends a
+`monitor.snapshot` frame so the viewer opens with real state instead of an empty screen:
+
+```jsonc
+{
+  "type": "monitor.snapshot",
+  "ts": "2026-07-09T14:15:03.221Z",
+  "data": {
+    "orders": [ /* every cached order, every gateway, tagged with gateway_id */ ],
+    "halts": { /* ... */ },        // null if the engine query timed out
+    "gateways": { /* ... */ },     // null if the engine query timed out
+    "last_seq": { "GW01": 100482, "GW02": 88213 },
+    "incomplete": []                // lists "halts" and/or "gateways" if either timed out
+  }
+}
+```
+
+`orders` comes from the gateway's own cross-gateway cache (no engine round-trip); `halts` and
+`gateways` are best-effort engine queries with their own timeout — a partial snapshot that flags what
+it is missing (`incomplete`) is more useful than refusing to open. `last_seq` is a per-gateway map so
+the UI knows which gateways it has current sequence context for.
+
+**Cross-gateway order REST views**, alongside the WebSocket:
+
+- `GET /api/v1/admin/orders?symbol=&gateway_id=&status=` — every cached order across every gateway,
+  filtered. This is **current state**, not history: it answers "what is open now," bounded by
+  `order_retention_sec` (terminal orders age out of the cache — see below). The response includes
+  `retention_sec` so the UI can label the view accurately.
+- `GET /api/v1/admin/orders/{order_id}?limit=` — the full cross-gateway lifecycle of one order, read
+  from the audit trail (`pm-audit`'s index), independent of cache retention. Returns
+  `503`/`AUDIT_INDEX_UNAVAILABLE` if `pm-audit` is not deployed or has not built its index, and
+  `404`/`UNKNOWN_ORDER` if the order has no audited events.
+
+**Order cache retention:** `pm-api-gwy` evicts *terminal* orders (`FILLED`/`CANCELLED`/`EXPIRED`/
+`REJECTED`) from its in-memory cache after `order_retention_sec` (default `3600`; `0` disables
+eviction). This bounds both `GET /orders` and `GET /api/v1/admin/orders` — without it, an admin table
+would keep showing this morning's fills as if they were current. Resting orders are never evicted
+regardless of age. For anything older than the retention window, use
+`GET /api/v1/admin/orders/{order_id}` (audit trail) or `GET /api/v1/history/orders/{order_id}`.
+
 ### 6.10 Auction market-data channel (available now)
 
 The engine publishes `auction.result.{SYMBOL}` on its bus when a symbol uncrosses, and the current
@@ -819,10 +882,14 @@ surface, not as a speculative enhancement.
 | `GET /api/v1/admin/gateways` | Available now | Supports Gateway Management screen |
 | `POST /api/v1/admin/gateways/{id}/disconnect` | Available now | “Kick” action already implementable |
 | `GET /api/v1/admin/halts` | Available now | Preferred bootstrap for active halts table |
-| `GET /api/v1/admin/risk/collars` / `/circuit-breakers` | Still missing | Keep risk-config panel read-only and deferred or config-backed |
+| `GET /api/v1/reference` | Available now | One-roundtrip reference bundle for UI bootstrap (`symbols`, `risk`, `indexes`, `schedule`, `config_version`) |
+| `GET /api/v1/reference/schedule` | Available now | Stable runtime source for schedule metadata (`sessions_enabled`, `country`, transitions) |
+| `GET /api/v1/reference/risk` | Available now | Stable runtime source for collar/CB level display in the ADMIN Risk Control panel |
 | `POST /api/v1/admin/symbols` / `PATCH /api/v1/admin/symbols/{sym}` | Blocked | Requires live symbol-add/update engine capability |
 | `GET /api/v1/admin/indexes` / `POST /api/v1/admin/indexes/{id}/rebalance` | Not exposed | Do not implement as live controls until a REST bridge to `pm-index` exists |
-| `WS /api/v1/admin/monitor` | Available now | Use as the primary ADMIN live feed |
+| `WS /api/v1/admin/monitor` | Available now | Opens with a `monitor.snapshot` (orders/halts/gateways/last_seq); use as the primary ADMIN live feed |
+| `GET /api/v1/admin/orders?symbol=&gateway_id=&status=` | Available now | Current-state, cross-gateway; bounded by `order_retention_sec` |
+| `GET /api/v1/admin/orders/{order_id}` | Available now, requires `pm-audit` | Audit-trail lifecycle, unaffected by cache retention; `503` if the audit index isn't built |
 | `auction` channel on `/api/v1/market-data` | Available now | Use for auction panel, badges, and workspace cues |
 | Per-symbol subscription items + per-topic `seq` on `/api/v1/market-data` | Available now | One socket handles broad + focused subscriptions ([§17.3.1](#1731-authentication-and-subscription)); `seq` enables client-side gap detection |
 | Admin global/by-gateway kill switch | Not exposed | Current admin API supports symbol-scoped cancel only; global/by-gateway controls stay disabled |
@@ -1648,10 +1715,12 @@ any blotter row (double-click / `Enter`) or from a fill toast's "View Order" act
   `combo_parent_id`).
 - **Live tail:** while open, new `/events` for that order append to the timeline in real time so the
   drawer stays current even if the history endpoint lags the live stream.
-- **Availability:** TRADER (own orders) and MARKET_MAKER own orders/quotes where applicable.
-  ADMIN cannot fetch arbitrary order lifecycles with the current gateway-scoped history endpoint;
-  an ADMIN drawer can show only the live monitor payloads retained in memory, or disable drill-down
-  until a cross-gateway admin history endpoint exists.
+- **Availability:** TRADER (own orders) and MARKET_MAKER own orders/quotes where applicable. ADMIN
+  now has a dedicated cross-gateway data source: `GET /api/v1/admin/orders/{order_id}`
+  ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor)) reads the full lifecycle for **any** order
+  from the audit trail, independent of `order_retention_sec` cache eviction. If `pm-audit` is not
+  deployed or has not built its index, the endpoint returns `503`/`AUDIT_INDEX_UNAVAILABLE` and the
+  ADMIN drawer falls back to whatever live monitor payloads are still retained in memory.
 
 ### 13.5 Trade History / Fills Panel
 
@@ -1861,15 +1930,19 @@ state.
 | Card | Data source |
 |------|------------|
 | Session State | WebSocket `session` event |
-| Active Orders (all gateways) | Admin monitor stream ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor)) — a running count folded from `ACK`/`FILL`/`CANCEL`/`EXPIRE` monitor events |
+| Active Orders (all gateways) | `GET /api/v1/admin/orders` for the initial count/table ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor)); the admin monitor stream keeps it live thereafter |
 | Connected Gateways | `GET /api/v1/status` → `gateway_count` ([§6.2](#62-extended-get-apiv1status)) or `GET /api/v1/admin/gateways` |
 | Active CB Halts | Count of entries in Zustand `haltStore` (bootstrapped by `GET /api/v1/admin/halts`) |
 
 > **Data-source fix:** the 1.0.0 design sourced "Active Orders across all symbols" from
 > `GET /orders`. That endpoint is **gateway-scoped** (it returns only the calling gateway's orders,
-> API Gateway spec §6.11) and cannot see other gateways' orders. The cross-gateway active-order count
-> is therefore derived from the **admin monitor stream** (which carries all gateways' order events via
-> the engine drop-copy feed). This is explicitly scoped as an admin-only, cross-gateway view.
+> API Gateway spec §6.11) and cannot see other gateways' orders. `GET /api/v1/admin/orders`
+> ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor)) now provides the cross-gateway view
+> directly — filterable by `symbol`/`gateway_id`/`status` — with the admin monitor stream (engine
+> drop-copy feed) keeping the count live between bootstraps. This is a **current-state** view bounded
+> by `order_retention_sec`: terminal orders (FILLED/CANCELLED/EXPIRED/REJECTED) age out of it, so it
+> answers "what is open now," not "what happened today" — use the Order Detail drawer
+> ([§13.4](#134-order-detail-drawer)) or the audit trail for history.
 
 #### 15.1.2 Per-symbol summary table
 
@@ -1978,11 +2051,9 @@ Per-symbol read-only view of:
 | Dynamic Band | Dynamic collar ± % vs last trade |
 | Profile | Level name from `risk_controls.levels` |
 
-This view depends on a read-only risk-configuration endpoint that is not present in the current
-gateway surface. Until it exists, the panel is explicitly labelled "configuration-backed / planned"
-and is hidden from the default ADMIN dashboard. A later version may hydrate it from an imported
-compiled config artifact, but the first implementation must not call non-existent `/admin/risk/*`
-endpoints.
+This view is now backed by runtime reference-data endpoints (`GET /api/v1/reference/risk` or the
+one-roundtrip `GET /api/v1/reference` bundle). It remains read-only by design, but no longer needs a
+config-file import fallback.
 
 #### 15.5.2 Circuit breaker ladder
 
@@ -1995,8 +2066,8 @@ For each circuit breaker level (L1/L2/L3):
 | Halt Duration | Minutes or "Rest of day" |
 | Resumption Mode | AUCTION / CONTINUOUS |
 
-This view has the same status as the collar table above: useful, but not backed by a current runtime
-API. It remains a planned/config-backed view until a read-only risk-config endpoint exists.
+This view has the same backing as the collar table above: runtime reference-data (`/reference/risk`)
+for level definitions and display metadata.
 
 ### 15.6 Circuit Breaker Management
 
@@ -2007,7 +2078,7 @@ The live operational view of circuit breakers — which are active, plus manual 
 Columns: Symbol, Level, Trigger Price, Reference Price, Halt Start, Estimated Resume, Resumption Mode.
 
 Populated from Zustand `haltStore` (fed by WebSocket `circuit_breaker` events) + initial bootstrap
-from `GET /api/v1/admin/halts` ([§6.6](#66-halts-and-risk-configuration-read-only)).
+from `GET /api/v1/admin/halts` ([§6.6](#66-halts-and-risk-configuration-runtime-read-only)).
 
 #### 15.6.2 Manual CB trigger
 
@@ -2078,9 +2149,13 @@ A scrolling tail view of recent cross-gateway activity — the ADMIN persona's l
 - **Live source:** the admin monitor WebSocket `/api/v1/admin/monitor`
   ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor)), which merges the engine drop-copy stream
   (all gateways' order/fill/cancel events) with `session`/`circuit_breaker` transitions.
-- **Backfill:** none in the first release. `GET /api/v1/history/orders` is gateway-scoped and cannot
-  seed a cross-gateway ADMIN audit feed, and the current admin monitor WebSocket does not expose a
-  replay API. The viewer starts as a live tail after connection.
+- **Opening state:** the socket now sends a `monitor.snapshot` frame right after authentication with
+  current active orders, active halts, connected gateways, and each gateway's last sequence, so the
+  viewer opens with real cross-gateway state instead of an empty screen.
+- **Event backfill:** still none. There is no `GET /api/v1/admin/monitor/events?from_seq=&limit=` (or
+  equivalent) to fetch *past* monitor events, so a dropped connection re-establishes current state via
+  a fresh `monitor.snapshot` but cannot replay what was missed in between — the viewer still shows a
+  visible gap boundary rather than a repaired one.
 - **Columns:** Timestamp, Seq, Event Type, Order/Gateway ID, Symbol, Details.
 - **Filter bar:** Event Type dropdown (ACK / FILL / CANCEL / AMEND / REJECT / SESSION / CB / ALL),
   Symbol, Gateway.
@@ -2434,12 +2509,18 @@ Used by: ADMIN only. This is a **required gateway extension**
 
 - **Auth:** `{ "api_key": "..." }`; the key must resolve to ADMIN or the server closes with code
   `4003`.
+- **Opening state:** a `monitor.snapshot` frame ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor))
+  with current active orders, active halts, connected gateways, and last sequence per gateway.
 - **Envelope:** `monitor.event` with `seq`, `gateway_id`, and a `data.event_type`
   (`ACK`/`FILL`/`CANCEL`/`AMEND`/`EXPIRE`/`REJECT`/`SESSION`/`CB`).
+- **Cross-gateway order REST views:** `GET /api/v1/admin/orders` (current-state, filtered, bounded by
+  `order_retention_sec`) and `GET /api/v1/admin/orders/{order_id}` (full lifecycle from the audit
+  trail) complement the WebSocket for tabular/drill-down views ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor)).
 - **Consumers:** the System Dashboard KPI/recent-events feed ([§15.1](#151-system-dashboard)) and the
   Monitor Log Viewer ([§15.9](#159-audit--monitor-log-viewer)).
-- **Reconnect:** `ManagedSocket` re-sends the auth frame. The current monitor API is live-only; if a
-  connection drops, the UI marks a visible gap boundary instead of pretending it has replayed events.
+- **Reconnect:** `ManagedSocket` re-sends the auth frame and receives a fresh `monitor.snapshot`. There
+  is still no event-level replay API, so the UI marks a visible gap boundary for events between
+  disconnect and the new snapshot instead of pretending it has replayed them.
 
 ### 17.5 Connection health monitoring
 
@@ -2625,8 +2706,9 @@ interface NotificationStore {
 | `["history/daily", symbol, date]` | `GET /history/daily` | 5m |
 | `["admin/gateways"]` | `GET /admin/gateways` | 15s (ADMIN) |
 | `["admin/halts"]` | `GET /admin/halts` | 15s (ADMIN) |
-| `["admin/risk/collars"]` | `GET /admin/risk/collars` | 5m (ADMIN) |
-| `["admin/risk/circuit-breakers"]` | `GET /admin/risk/circuit-breakers` | 5m (ADMIN) |
+| `["reference"]` | `GET /reference` | 5m (all roles; base bundle) |
+| `["reference/risk"]` | `GET /reference/risk` | 5m (ADMIN views; optional when `reference` bundle already cached) |
+| `["reference/schedule"]` | `GET /reference/schedule` | 5m (session/schedule displays; optional when `reference` bundle already cached) |
 | `["admin/indexes"]` | `GET /admin/indexes` | 30s (ADMIN) |
 
 WebSocket events invalidate relevant queries using `queryClient.invalidateQueries`:
@@ -2973,7 +3055,7 @@ demonstrated in isolation.
 | 10 | **Notification / Event Center** + bell; **power-user mode** (undo-toast + always-confirm exceptions); **Watchlist** | Fills/rejects persist in Event Center; toggle confirmations; curate watchlist |
 | 11 | **Admin API client for existing endpoints** (`GET /status` role, `/admin/session`, `/admin/gateways`, `/admin/halts`, `/admin/kill-switch/symbol`); System Dashboard; `/admin/monitor` WS; Monitor Log Viewer | Dashboard KPIs from monitor stream; monitor log tails cross-gateway events; unsupported admin controls render disabled |
 | 12 | ADMIN Session Control, Gateway Management (Kick), symbol-scoped Kill Switch, disabled global/by-gateway kill-switch placeholders | Transition session from UI; kick a gateway; symbol kill switch works; unsupported scopes stay disabled |
-| 13 | ADMIN Risk Control panel (planned/config-backed placeholder), Circuit Breaker Management (level selector disabled where unsupported), Symbol Management (read-only until backend), Index Admin read-only history plus disabled write controls | Disabled controls show prerequisite tooltips; no calls are made to non-existent endpoints |
+| 13 | ADMIN Risk Control panel (runtime read-only from `/reference`/`/reference/risk`), Circuit Breaker Management (level selector disabled where unsupported), Symbol Management (read-only until backend), Index Admin read-only history plus disabled write controls | Risk panel renders from stable reference API; unsupported write controls show prerequisite tooltips |
 | 14 | Help system: help drawer, field tooltips, shortcut reference, `F1`/`Ctrl+/` | All help content accessible; tooltips visible on ticket fields |
 | 15 | Command palette (`Ctrl+K`), full keyboard shortcut implementation (incl. `B`/`S`, flatten, `Ctrl+.`, `Ctrl+L`) | Navigate entire UI without mouse |
 | 16 | Polish: confirmation dialogs / undo-toasts; empty states; loading skeletons; error boundaries | No uncaught errors; graceful degradation when engine is stopped |
@@ -2981,7 +3063,7 @@ demonstrated in isolation.
 
 > **Backend dependency callout:** Phases 11–13 must implement only the ADMIN endpoints that exist
 > today and render the rest as disabled or placeholder controls. Unmet backend prerequisites (live
-> symbol add/update, runtime risk-config reads, `pm-index` write/admin bridge, level-aware CB trigger,
+> symbol add/update, `pm-index` write/admin bridge, level-aware CB trigger,
 > and global/by-gateway admin kill switch) must be tracked as backend work items. The TRADER/MM phases
 > (1–10) have no backend dependency beyond the existing API and current `auction` market-data channel.
 
@@ -3132,16 +3214,22 @@ use the same operational model, even if the wire encoding remains JSON rather th
 > an `orders.snapshot` frame ([§17.2.1](#1721-authentication-frame)); resume/replay for private events
 > was evaluated and deliberately deferred (see [§26.3.5](#2635-private-event-recovery)). `command_id`
 > was also added, narrowly, to kill switch/mass cancel and session transition
-> ([§26.3.7](#2637-uniform-command-acknowledgements)), so the "Private order events" and "Command
-> lifecycle" rows have been dropped from the table below. The other items remain proposed.
+> ([§26.3.7](#2637-uniform-command-acknowledgements)). Admin monitor `monitor.snapshot`,
+> `GET /api/v1/admin/orders`, and `GET /api/v1/admin/orders/{order_id}` have also shipped
+> ([§26.3.6](#2636-admin-monitor-replay-and-order-drill-down)), narrowing the "Admin monitor" row to
+> just event backfill. `GET /api/v1/reference` and `GET /api/v1/reference/schedule` have shipped as
+> stable runtime bootstrap APIs ([§26.4.2](#2642-reference-data-service-boundary)), so the
+> "Reference/risk/admin APIs" row now covers only remaining runtime admin write surfaces and index
+> admin bridging. The "Private order events" and "Command lifecycle" rows have been dropped entirely.
+> The other items remain proposed.
 
 | Area | Recommended change | Why it helps the terminal |
 |---|---|---|
 | CALF/browser bridge | Define a canonical JSON envelope that mirrors CALF `SEQ`/`SNAP`/`RESUME` semantics | Lets the UI, API gateway, and external protocol stay conceptually aligned |
 | Book/depth data | Publish full depth snapshots plus incremental depth deltas with clear reset markers | Makes DOM ladders precise and efficient |
 | Auction data | Publish periodic authoritative indicative auction updates during auction phases | Removes client-side approximation and makes the teaching panel trustworthy |
-| Admin monitor | Add replay/backfill and cross-gateway order detail endpoints | Makes the ADMIN audit viewer useful immediately on load and after reconnect |
-| Reference/risk/admin APIs | Add runtime symbol, risk, circuit-breaker, kill-switch, and index admin endpoints | Converts disabled UI panels into real tools |
+| Admin monitor | Add cross-gateway *event* backfill (`GET /api/v1/admin/monitor/events?from_seq=&limit=`) — snapshot and order drill-down already ship | Repairs the Monitor Log Viewer's gap after a dropped connection |
+| Reference/risk/admin APIs | Add remaining runtime admin write/index surfaces (symbol mutation, kill-switch scopes, index admin bridge); reference reads now ship via `/reference*` | Converts disabled admin controls into real tools while keeping reference reads stable |
 
 ### 26.3 Recommended protocol shape
 
@@ -3259,16 +3347,30 @@ practice that `/history/*` and drop copy don't already cover.
 
 #### 26.3.6 Admin monitor replay and order drill-down
 
-The ADMIN terminal benefits heavily from a real replay boundary:
+**Mostly implemented.** Three of the four capabilities proposed here have shipped:
 
-- `WS /api/v1/admin/monitor` sends `monitor.snapshot` with current active orders, active halts,
-  connected gateways, and last sequence.
-- `GET /api/v1/admin/monitor/events?from_seq=&limit=` returns recent cross-gateway events.
-- `GET /api/v1/admin/orders/{order_id}` returns the full cross-gateway lifecycle for any order.
-- `GET /api/v1/admin/orders?symbol=&gateway_id=&status=` supports the admin active-order table.
+- **Done:** `WS /api/v1/admin/monitor` sends a `monitor.snapshot` right after authentication with
+  current active orders, active halts, connected gateways, and last sequence per gateway
+  ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor)).
+- **Done:** `GET /api/v1/admin/orders/{order_id}` returns the full cross-gateway lifecycle for any
+  order, read from the audit trail.
+- **Done:** `GET /api/v1/admin/orders?symbol=&gateway_id=&status=` supports the admin active-order
+  table (current state, filtered).
+- **Still proposed:** `GET /api/v1/admin/monitor/events?from_seq=&limit=` for recent cross-gateway
+  *event* backfill. Without it, a dropped monitor connection re-establishes current state via a fresh
+  `monitor.snapshot` but cannot replay the events missed in between — the Monitor Log Viewer
+  ([§15.9](#159-audit--monitor-log-viewer)) still shows a visible gap boundary rather than a repaired
+  one.
 
-With those endpoints, the monitor viewer is useful immediately after login and can mark exactly
-where a replay gap could not be repaired.
+**Bonus, not originally proposed here:** `pm-api-gwy` also added an order-cache retention policy
+(`order_retention_sec`, default 1 hour) that evicts terminal orders
+(`FILLED`/`CANCELLED`/`EXPIRED`/`REJECTED`) so `GET /orders` and `GET /api/v1/admin/orders` stay
+bounded in memory instead of growing for the process's lifetime. This is why `GET /api/v1/admin/orders`
+now answers "what is open now" rather than "what happened today" — see
+[§6.9](#69-admin-monitor-websocket-apiv1adminmonitor).
+
+With `monitor.snapshot` and per-order drill-down in place, the monitor viewer is useful immediately
+after login and can mark exactly where an *event* replay gap could not be repaired.
 
 #### 26.3.7 Uniform command acknowledgements
 
@@ -3316,13 +3418,22 @@ Recommended defaults:
 
 #### 26.4.2 Reference-data service boundary
 
-Promote compiled reference data to a first-class API artifact:
+**Implemented.** Compiled reference data is now exposed as a first-class API artifact.
 
+Available endpoints:
+
+- `GET /api/v1/reference` (full bundle in one round-trip)
 - `GET /api/v1/reference/config-version`
 - `GET /api/v1/reference/symbols`
 - `GET /api/v1/reference/risk`
 - `GET /api/v1/reference/indexes`
+- `GET /api/v1/reference/schedule`
 - `POST /api/v1/admin/reference/reload` for controlled reloads in development/classroom mode
+
+`GET /api/v1/reference` is the preferred UI bootstrap path because it avoids fan-out calls and keeps
+`symbols`, `risk`, `indexes`, `schedule`, and `config_version` coherent to one compile boundary.
+Role-specific screens may still call individual `/reference/*` endpoints when they only need one
+slice or want independent cache TTLs.
 
 This gives the UI a stable source for tick sizes, risk bands, circuit-breaker levels, session
 schedules, and index definitions without scraping config files or depending on implementation-local
@@ -3391,19 +3502,25 @@ This keeps the terminal honest during staged backend work and makes demos less b
    [§26.3.3](#2633-per-symbol-channel-subscriptions).
 4. **Publish authoritative auction indicative events.** This turns the auction panel from a useful
    approximation into a reliable teaching tool.
-5. **Add admin monitor replay and cross-gateway order detail.** This makes the ADMIN persona feel
-   complete rather than live-only.
+5. ~~Add admin monitor replay and cross-gateway order detail.~~ **Mostly done** — see
+   [§26.3.6](#2636-admin-monitor-replay-and-order-drill-down). `monitor.snapshot`,
+   `GET /api/v1/admin/orders`, and `GET /api/v1/admin/orders/{order_id}` all ship; only
+   cross-gateway *event* backfill (`GET /api/v1/admin/monitor/events`) remains.
 6. ~~Standardise command ids and command-result events.~~ **Implemented narrowly, by design** — see
    [§26.3.7](#2637-uniform-command-acknowledgements). `command_id` was added only to kill
    switch/mass cancel and session transition, the two commands with no completion signal at all;
    cascading `command_id` onto every event a command triggers, and blanket adoption across every
    async endpoint, were both evaluated and declined.
-7. **Fill out runtime admin/reference/index APIs.** These convert disabled panels into operational
-   tools once the core stream/recovery model is solid.
+7. **Fill out remaining runtime admin/index write APIs.** Reference reads are now in place via
+  `/reference*`; remaining work is symbol mutation, expanded kill-switch scopes, and `pm-index`
+  admin bridge endpoints.
 
-Items 1, 3, and 6 are complete for their narrowed scope: market data and private events for item 1,
-per-symbol subscriptions for item 3, and kill switch/mass cancel plus session transition for item 6.
-Private-event resume/replay (originally part of item 2) has been deliberately deferred — see
+Items 1, 3, 5, and 6 are complete for their narrowed scope: market data and private events for item 1,
+per-symbol subscriptions for item 3, admin monitor snapshot/order drill-down for item 5 (event backfill
+still open), and kill switch/mass cancel plus session transition for item 6. Item 7 is now partially
+complete: reference reads are stable via `/reference*`, while admin/index write surfaces remain.
+Private-event
+resume/replay (originally part of item 2) has been deliberately deferred — see
 [§26.3.5](#2635-private-event-recovery). The next highest-leverage remaining step is item 2 for market
 data: sequence numbers alone only let the UI detect a gap — they do not yet let it repair one without
 a full re-subscribe.
@@ -3459,6 +3576,7 @@ export interface Order {
   status: OrderStatus;
   oco_group_id?: string | null;
   combo_parent_id?: string | null;
+  gateway_id?: string;              // present on admin cross-gateway views (§6.9); absent on own-gateway `/orders`
   updated_at: string;              // ISO-8601
 }
 

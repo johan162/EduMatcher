@@ -38,9 +38,14 @@ class TestTickerProcess:
         db_path = tmp_path / "stats.db"
         conn = sqlite3.connect(str(db_path))
         conn.executescript(SCHEMA)
-        from datetime import date
+        from datetime import datetime, timezone
 
-        today = date.today().isoformat()
+        # _refresh_db() resolves "today" from the session timezone recorded
+        # in the database (falling back to UTC when none is recorded, as
+        # here — no session_timezone meta row is written below). Using the
+        # host's local date instead of UTC's made this test flaky around
+        # local-midnight/UTC-midnight skew.
+        today = datetime.now(timezone.utc).date().isoformat()
         conn.execute(
             "INSERT INTO daily_stats (date, symbol, open_price, close_price, volume, trade_count) "
             "VALUES (?, ?, ?, ?, ?, ?)",

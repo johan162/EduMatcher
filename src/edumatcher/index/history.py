@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 # SQLite tables, which are built for efficient time-range queries.
 # See docs/user-guide/150-market-index.md and docs/user-guide/140-statistics-and-reporting.md.
 STRUCTURAL_RECORD_TYPES: frozenset[str] = frozenset(
-    {"INIT", "CORP_ACTION", "DELIST", "ADD_CONSTITUENT"}
+    {"INIT", "CORP_ACTION", "DELIST", "ADD_CONSTITUENT", "REBALANCE"}
 )
 
 

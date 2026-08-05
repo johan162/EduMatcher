@@ -146,8 +146,16 @@ def test_kill_switch_cancels_quote_and_orders(monkeypatch, tmp_path) -> None:
     pub_sock.sent.clear()
     engine._handle_kill_switch({"gateway_id": "GW01"})
 
-    topic, payload = decode(pub_sock.sent[-1])
-    assert topic == "risk.kill_switch_ack.GW01"
+    # The ack is no longer necessarily the last message published: an
+    # admin.action event (for /admin/monitor) is also emitted alongside it.
+    # Find the ack by topic rather than by position.
+    acks = [
+        decode(frames)
+        for frames in pub_sock.sent
+        if decode(frames)[0] == "risk.kill_switch_ack.GW01"
+    ]
+    assert len(acks) == 1
+    _, payload = acks[0]
     assert payload["accepted"] is True
     assert payload["cancelled_orders"] >= 1
     assert payload["cancelled_quotes"] >= 1

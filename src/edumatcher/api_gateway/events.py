@@ -13,6 +13,14 @@ ORDER_CANCELLED_PREFIX = "order.cancelled."
 ORDER_EXPIRED_PREFIX = "order.expired."
 SYSTEM_SYMBOLS_PREFIX = "system.symbols."
 
+#: Synthetic admin-monitor-only event (see models.message.make_admin_action_msg).
+#: Deliberately NOT in PRIVATE_PREFIXES: it isn't addressed to the trading
+#: gateway named in its topic suffix the way order/quote acks are, and must
+#: never reach that gateway's own private stream. EngineClient._handle_event
+#: checks this prefix before the private/market-data split so it only ever
+#: reaches admin monitor sinks.
+ADMIN_ACTION_PREFIX = "admin.action."
+
 PRIVATE_PREFIXES = (
     ORDER_ACK_PREFIX,
     ORDER_FILL_PREFIX,
@@ -65,6 +73,8 @@ def gateway_from_topic(topic: str) -> str | None:
 
 def websocket_type(topic: str) -> str:
     """Translate an engine topic to the stable public WebSocket type."""
+    if topic.startswith(ADMIN_ACTION_PREFIX):
+        return "admin.action"
     if topic.startswith("risk.kill_switch_ack."):
         return "mass_cancel.ack"
     if topic == "trade.executed":

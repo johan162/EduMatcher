@@ -211,6 +211,7 @@ class SessionTransitionRequest(StrictModel):
 class CircuitBreakerTriggerRequest(StrictModel):
     symbol: str = Field(min_length=1)
     level: str | None = None
+    reason: str | None = None
 
     @field_validator("symbol")
     @classmethod
@@ -220,6 +221,7 @@ class CircuitBreakerTriggerRequest(StrictModel):
 
 class CircuitBreakerResumeRequest(StrictModel):
     symbol: str = Field(min_length=1)
+    reason: str | None = None
 
     @field_validator("symbol")
     @classmethod
@@ -229,11 +231,41 @@ class CircuitBreakerResumeRequest(StrictModel):
 
 class SymbolCancelRequest(StrictModel):
     symbol: str = Field(min_length=1)
+    reason: str | None = None
 
     @field_validator("symbol")
     @classmethod
     def uppercase_symbol(cls, value: str) -> str:
         return value.upper()
+
+
+class KillSwitchGatewayRequest(StrictModel):
+    target_gateway_id: str = Field(min_length=1)
+    reason: str | None = None
+
+    @field_validator("target_gateway_id")
+    @classmethod
+    def uppercase_target(cls, value: str) -> str:
+        return value.upper()
+
+
+class KillSwitchGlobalRequest(StrictModel):
+    reason: str | None = None
+
+
+class IndexRebalanceUpdate(StrictModel):
+    symbol: str = Field(min_length=1)
+    new_shares_outstanding: int = Field(gt=0)
+
+    @field_validator("symbol")
+    @classmethod
+    def uppercase_symbol(cls, value: str) -> str:
+        return value.upper()
+
+
+class IndexRebalanceRequest(StrictModel):
+    updates: list[IndexRebalanceUpdate] = Field(min_length=1)
+    reason: str | None = None
 
 
 MarketDataChannel = Literal["book", "trades", "depth", "auction"]

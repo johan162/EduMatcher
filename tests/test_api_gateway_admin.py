@@ -94,14 +94,39 @@ class AdminFakeEngine:
     def send_session_transition(self, to_state: str) -> None:
         self.calls.append(("send_session_transition", to_state))
 
-    def send_symbol_halt(self, gateway_id: str, symbol: str) -> None:
+    def send_symbol_halt(
+        self,
+        gateway_id: str,
+        symbol: str,
+        level: str | None = None,
+        note: str = "",
+        command_id: str = "",
+    ) -> None:
         self.calls.append(("send_symbol_halt", (gateway_id, symbol)))
 
-    def send_symbol_resume(self, gateway_id: str, symbol: str) -> None:
+    def send_symbol_resume(
+        self, gateway_id: str, symbol: str, note: str = "", command_id: str = ""
+    ) -> None:
         self.calls.append(("send_symbol_resume", (gateway_id, symbol)))
 
-    def send_cancel_symbol(self, gateway_id: str, symbol: str) -> None:
+    def send_cancel_symbol(
+        self, gateway_id: str, symbol: str, note: str = "", command_id: str = ""
+    ) -> None:
         self.calls.append(("send_cancel_symbol", (gateway_id, symbol)))
+
+    def send_kill_switch_gateway(
+        self,
+        gateway_id: str,
+        target_gateway_id: str,
+        note: str = "",
+        command_id: str = "",
+    ) -> None:
+        self.calls.append(("send_kill_switch_gateway", (gateway_id, target_gateway_id)))
+
+    def send_kill_switch_global(
+        self, gateway_id: str, note: str = "", command_id: str = ""
+    ) -> None:
+        self.calls.append(("send_kill_switch_global", (gateway_id,)))
 
     def send_disconnect(self, gateway_id: str, reason: str) -> None:
         self.calls.append(("send_disconnect", (gateway_id, reason)))

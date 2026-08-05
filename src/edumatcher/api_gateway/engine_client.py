@@ -14,7 +14,12 @@ import zmq
 from fastapi import HTTPException, status
 
 from edumatcher.api_gateway.caches import SessionCaches
-from edumatcher.api_gateway.events import envelope, gateway_from_topic, new_command_id
+from edumatcher.api_gateway.events import (
+    ADMIN_ACTION_PREFIX,
+    envelope,
+    gateway_from_topic,
+    new_command_id,
+)
 from edumatcher.messaging.bus import make_pusher, make_subscriber
 from edumatcher.models.message import (
     decode,
@@ -25,6 +30,8 @@ from edumatcher.models.message import (
     make_gateway_disconnect_msg,
     make_gateways_request_msg,
     make_halt_status_request_msg,
+    make_kill_switch_gateway_msg,
+    make_kill_switch_global_msg,
     make_kill_switch_msg,
     make_oco_cancel_msg,
     make_oco_order_msg,
@@ -38,6 +45,7 @@ from edumatcher.models.message import (
     make_quote_new_msg,
     make_reference_reload_msg,
     make_reference_request_msg,
+    make_risk_state_request_msg,
     make_session_schedule_request_msg,
     make_session_state_request_msg,
     make_session_transition_msg,
@@ -434,6 +442,20 @@ class EngineClient:
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         self._dbg_count("events_handled")
         self._resolve_pending(topic, payload)
+        if topic.startswith(ADMIN_ACTION_PREFIX):
+            # Admin-monitor-only: must reach neither the initiating gateway's
+            # own private stream nor market data, so it bypasses both branches
+            # below rather than relying on gateway_from_topic() returning None
+            # (which would otherwise fall into the market-data branch and leak
+            # to every subscriber).
+            event = envelope(topic, payload, seq=self._next_seq(topic))
+            for queue in list(self._admin_sinks):
+                if self._try_put(queue, event):
+                    self._dbg_count("admin_sink_events")
+                else:
+                    self._dbg_count("admin_sink_drops")
+                    self._record_drop("admin", event)
+            return
         gateway_id = gateway_from_topic(topic)
         # Sequenced once per event, so every sink that receives it agrees on
         # the number. Assigned before fan-out and regardless of whether any
@@ -671,14 +693,53 @@ class EngineClient:
     def send_session_transition(self, to_state: str) -> None:
         self._send(make_session_transition_msg(to_state))
 
-    def send_symbol_halt(self, gateway_id: str, symbol: str) -> None:
-        self._send(make_symbol_halt_msg(gateway_id, symbol))
+    def send_symbol_halt(
+        self,
+        gateway_id: str,
+        symbol: str,
+        level: str | None = None,
+        note: str = "",
+        command_id: str = "",
+    ) -> None:
+        self._send(
+            make_symbol_halt_msg(
+                gateway_id, symbol, level=level, note=note, command_id=command_id
+            )
+        )
 
-    def send_symbol_resume(self, gateway_id: str, symbol: str) -> None:
-        self._send(make_symbol_resume_msg(gateway_id, symbol))
+    def send_symbol_resume(
+        self, gateway_id: str, symbol: str, note: str = "", command_id: str = ""
+    ) -> None:
+        self._send(
+            make_symbol_resume_msg(gateway_id, symbol, note=note, command_id=command_id)
+        )
 
-    def send_cancel_symbol(self, gateway_id: str, symbol: str) -> None:
-        self._send(make_cancel_symbol_msg(gateway_id, symbol))
+    def send_cancel_symbol(
+        self, gateway_id: str, symbol: str, note: str = "", command_id: str = ""
+    ) -> None:
+        self._send(
+            make_cancel_symbol_msg(gateway_id, symbol, note=note, command_id=command_id)
+        )
+
+    def send_kill_switch_gateway(
+        self,
+        gateway_id: str,
+        target_gateway_id: str,
+        note: str = "",
+        command_id: str = "",
+    ) -> None:
+        self._send(
+            make_kill_switch_gateway_msg(
+                gateway_id, target_gateway_id, note=note, command_id=command_id
+            )
+        )
+
+    def send_kill_switch_global(
+        self, gateway_id: str, note: str = "", command_id: str = ""
+    ) -> None:
+        self._send(
+            make_kill_switch_global_msg(gateway_id, note=note, command_id=command_id)
+        )
 
     def send_gateway_disconnect(self, gateway_id: str, reason: str = "") -> None:
         self.send_disconnect(gateway_id, reason)
@@ -691,6 +752,9 @@ class EngineClient:
 
     def request_halt_status(self, gateway_id: str) -> None:
         self._send(make_halt_status_request_msg(gateway_id))
+
+    def request_risk_state(self, gateway_id: str) -> None:
+        self._send(make_risk_state_request_msg(gateway_id))
 
     async def resolve_role(self, gateway_id: str, timeout: float) -> str:
         """Resolve a gateway's ParticipantRole from the engine gateways reply.

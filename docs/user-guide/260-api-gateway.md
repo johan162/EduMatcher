@@ -194,6 +194,7 @@ cannot submit, cancel, or inspect private orders.
 | `UNKNOWN_ORDER` | `404` | No audited events for that order id |
 | `TRANSITION_REJECTED` | `409` | The engine will not perform the requested session transition |
 | `RELOAD_REJECTED` | `409` | `POST /admin/reference/reload` was rejected — usually because the file's symbol/index set changed |
+| `REBALANCE_REJECTED` | `409` | `POST /admin/indexes/{id}/rebalance` was rejected by `pm-index` — see the ack `reason` |
 | `ENGINE_TIMEOUT` | `503` | No engine reply within the configured timeout |
 | `INDEX_TIMEOUT` | `503` | No `pm-index` reply within the configured timeout |
 | `INDEX_ERROR` | `502` | `pm-index` rejected the request |
@@ -678,12 +679,17 @@ Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
 | `GET`  | `/admin/session/schedule`         | none                                        | `{ "sessions_enabled":..., "schedule":{...} }`  | `system.session_schedule_request` |
 | `GET`  | `/admin/gateways`                 | none                                        | `{ "gateways":[{id,role,description,connected}] }` | `system.gateways_request` |
 | `POST` | `/admin/gateways/{gid}/disconnect`| none                                        | `{ "gateway_id":..., "status":"DISCONNECTED" }` | `system.gateway_disconnect` |
-| `POST` | `/admin/circuit-breaker/trigger`  | `{ "symbol":"AAPL", "level": null }`        | engine halt ack                                 | `risk.symbol_halt`          |
-| `POST` | `/admin/circuit-breaker/resume`   | `{ "symbol":"AAPL" }`                       | engine resume ack                               | `risk.symbol_resume`        |
+| `POST` | `/admin/circuit-breaker/trigger`  | `{ "symbol":"AAPL", "level": "L1", "reason":null }` | engine halt ack                         | `risk.symbol_halt`          |
+| `POST` | `/admin/circuit-breaker/resume`   | `{ "symbol":"AAPL", "reason":null }`        | engine resume ack                               | `risk.symbol_resume`        |
 | `GET`  | `/admin/halts`                    | none                                        | `{ "halted":[{symbol,resume_at_ns?,level?,...}] }` | `system.halt_status_request` |
+| `GET`  | `/admin/risk/state`               | none                                        | `{ "symbols": {SYM: {collar_reference_price, circuit_breaker:{...}}} }` | `system.risk_state_request` |
 | `GET`  | `/admin/orders`                   | `?symbol=&gateway_id=&status=`              | `{ "count":N, "orders":[...], "retention_sec":N }` | none — served from cache |
 | `GET`  | `/admin/orders/{order_id}`        | `?limit=`                                   | `{ "order_id":..., "count":N, "events":[...] }` | none — read from `audit_index.db` |
-| `POST` | `/admin/kill-switch/symbol`       | `{ "symbol":"AAPL" }`                       | engine cancel-symbol ack                        | `risk.cancel_symbol`        |
+| `POST` | `/admin/kill-switch/symbol`       | `{ "symbol":"AAPL", "reason":null }`        | engine cancel-symbol ack                        | `risk.cancel_symbol`        |
+| `POST` | `/admin/kill-switch/gateway`      | `{ "target_gateway_id":"TRADER02", "reason":null }` | engine gateway-targeted kill-switch ack | `risk.kill_switch_gateway`  |
+| `POST` | `/admin/kill-switch/global`       | `{ "reason":null }`                         | engine market-wide kill-switch ack              | `risk.kill_switch_global`   |
+| `GET`  | `/admin/indexes`                  | none                                        | `{ "indexes":[{id,description,base_value,constituents}], "config_version":... }` | none — reuses the reference-data bundle |
+| `POST` | `/admin/indexes/{id}/rebalance`   | `{ "updates":[{"symbol":"AAPL","new_shares_outstanding":123}], "reason":null }` | pm-index rebalance ack | `index.rebalance` (pm-index, not the engine) |
 | `POST` | `/admin/reference/reload`         | none                                         | `{ "status":"RELOADED", "config_version":... }` | `system.reference_reload`   |
 
 Behaviour notes:
@@ -699,30 +705,185 @@ Behaviour notes:
   When the engine rejects the command (for example, an ADMIN-gate or validation
   failure) the ack carries `accepted: false` and the gateway returns `403` with
   the engine's `reason`.
-- `POST /admin/circuit-breaker/trigger`'s `level` field is currently accepted by
-  the request schema but **not forwarded to the engine** — the halt is always
-  triggered without an explicit level. Omit it or leave it `null`; a non-null
-  value has no effect today.
+- `POST /admin/circuit-breaker/trigger`'s `level`, when it names one of the
+  symbol's configured `circuit_breaker.levels`, runs the halt through the same
+  activation a price-triggered breaker uses — a real `resume_at_ns` and ACE
+  reopening corridor, picked up automatically on the next resume tick. Omit
+  it (or leave it `null`) for the previous behaviour: an indefinite halt
+  cleared only by an explicit `POST /admin/circuit-breaker/resume`. An
+  unrecognized level name, or a level on a symbol with no circuit breaker
+  configured, is rejected.
+- The circuit-breaker, kill-switch, and rebalance endpoints accept an
+  optional `reason` field — a free-text note. For the engine-backed
+  endpoints (everything except rebalance) it is carried through to the
+  corresponding [`admin.action` monitor event](#admin-action-monitor-events)
+  under the key `note`; it is not otherwise interpreted by the engine or
+  `pm-index`.
 - Write endpoints (`POST`) are subject to the same per-key write rate limit as
   order entry and return `429` when the limit is exceeded.
 - Requests that receive no engine reply within the configured timeout return
-  `503` with error code `ENGINE_TIMEOUT`.
+  `503` with error code `ENGINE_TIMEOUT` (or `INDEX_TIMEOUT` for the two
+  `pm-index`-backed endpoints, `/admin/indexes` and
+  `/admin/indexes/{id}/rebalance`).
+
+### `POST /admin/kill-switch/gateway` and `/admin/kill-switch/global`
+
+Two admin-only kill-switch scopes beyond the existing self-service
+`POST /kill-switch` (caller's own gateway) and `POST /admin/kill-switch/symbol`
+(one symbol, every gateway):
+
+- **`/admin/kill-switch/gateway`** cancels every resting order and quote
+  belonging to `target_gateway_id`, across every symbol. Unlike
+  `POST /kill-switch`, the caller (must hold the ADMIN role) and the affected
+  gateway are different participants.
+- **`/admin/kill-switch/global`** is the full-market emergency stop: every
+  resting order and quote, for every gateway, across every symbol, cancelled
+  outright. This is distinct from `POST /admin/circuit-breaker/trigger`
+  applied symbol-by-symbol, or from a global circuit-breaker halt — those
+  stop *trading*, while resting orders remain; this cancels the resting
+  exposure itself. The response includes `affected_gateways`, the count of
+  distinct gateways that had something cancelled.
+
+Both return `409` with the engine's `reason` if rejected (for example,
+`target_gateway_id` missing, or the caller lacks the ADMIN role).
+
+### `GET /admin/risk/state`
+
+Live per-symbol risk state — the current collar reference price and circuit
+breaker reference/trigger/expansion/corridor state, for every symbol that has
+either configured, halted or not:
+
+```json
+{
+  "symbols": {
+    "AAPL": {
+      "collar_reference_price": 150.25,
+      "circuit_breaker": {
+        "halted": false,
+        "reference_price": 150.10,
+        "trigger_price": null,
+        "triggered_level": null,
+        "expansion_index": 0,
+        "corridor": { "corridor_low": null, "corridor_high": null, "expansion": null },
+        "resume_at_ns": null
+      }
+    }
+  }
+}
+```
+
+This is distinct from [`GET /reference/risk`](#reference-data) (static,
+named risk-level definitions shared across symbols) and from
+`GET /admin/halts` (only the symbols currently halted, without the
+non-halted reference/reopening detail). Use `/admin/risk/state` when you need
+to see where a symbol's breaker actually stands right now, not just whether
+it has fired.
+
+### Index administration (`pm-index` bridge)
+
+`GET /admin/indexes` and `POST /admin/indexes/{id}/rebalance` are the one
+place in this router that talks to `pm-index` instead of the engine — over
+its own ZMQ PULL/PUB pair, the same one
+[`pm-index-admin-cli`](152-index-admin-cli.md) uses for corporate actions and
+constituent changes. Live symbol add/update on the engine and full corporate
+actions/constituent changes on `pm-index` remain **not** exposed here — see
+the note below.
+
+`GET /admin/indexes` returns the same static configuration as
+[`GET /reference/indexes`](#reference-data) (id, description, base_value,
+constituents) — not live level/divisor. For the current level, use
+[`GET /history/index-daily`](#history-endpoints).
+
+`POST /admin/indexes/{id}/rebalance` applies a batch shares-outstanding
+update to existing constituents — each entry in `updates` mirrors the
+`SHARES_ISSUANCE` corporate action applied to one symbol, but the whole batch
+is validated (unknown symbols, non-positive share counts, duplicates) before
+any of it is applied, and the index level is recomputed and published once
+for the batch rather than once per symbol:
+
+```http
+POST /api/v1/admin/indexes/EDU100/rebalance
+Authorization: Bearer key-admin-demo
+```
+
+```json
+{ "updates": [ { "symbol": "AAPL", "new_shares_outstanding": 16500000000 } ] }
+```
+
+```json
+{
+  "accepted": true,
+  "reason": "",
+  "timestamp": 1750000000.0,
+  "updated_symbols": 1,
+  "index_id": "EDU100",
+  "level": 1048.90,
+  "divisor": 7123456.78
+}
+```
+
+A rejected batch returns `409 REBALANCE_REJECTED` with the reason (which
+entry was invalid, or why); it can only fail once mutation has begun in the
+rare case where an *already-validated* update still fails inside the
+calculator (a non-positive aggregate cap) — whatever updates in the batch
+had already applied at that point stay applied, matching the same limitation
+the single-action corporate-action endpoint accepts. `rebalance` cannot add
+or remove constituents or an index's symbol set — that remains
+`pm-index-admin-cli`-only, same as splits, dividends, and delistings.
 
 !!! note "Not currently exposed"
-    Live symbol add/update and index administration (corporate actions,
-    constituent changes) are not exposed as REST endpoints. These require
-    backend prerequisites: the engine loads its symbol universe at startup,
-    and the index lives in the separate `pm-index` process, reachable today
-    only via its ZMQ PULL socket (port `5559`) — used by `pm-alf-console`'s
-    `INDEX|HISTORY` command (read) and
-    [`pm-index-admin-cli`](152-index-admin-cli.md) (corporate
-    actions/constituent changes, write) — not through this gateway.
+    Live symbol add/update on the engine is not exposed as a REST endpoint —
+    the engine loads its symbol universe once at startup, and adding one
+    mid-session would require creating an order book and seeding
+    market-maker quotes outside the startup path that currently owns both.
+    Corporate actions (splits, dividends, shares issuance as a single-symbol
+    action) and constituent add/delist on `pm-index` are also not exposed
+    here — only the batch shares-outstanding `rebalance` above is. Use
+    [`pm-index-admin-cli`](152-index-admin-cli.md) for those.
     [`pm-index-cli`](160-exchange-commands.md#pm-index-cli-index-structuralaudit-history-query-tool)
-    is unrelated to that socket: it is a read-only tool that parses
-    `pm-index`'s structural/audit JSONL files directly from disk. Read access
-    to index *statistics* (level history, daily OHLC) is available via
-    [`/history/index-daily`, `/history/index-snapshots`, and
-    `/history/index-ids`](#history-endpoints) above.
+    is unrelated to `pm-index`'s ZMQ sockets: it is a read-only tool that
+    parses `pm-index`'s structural/audit JSONL files directly from disk.
+
+### `admin.action` monitor events
+
+Every admin-gated **engine** command above — circuit-breaker trigger/resume
+and all three kill-switch scopes — publishes one `admin.action` event on the
+[`/api/v1/admin/monitor`](#websocket-endpoints) WebSocket in addition to
+(never instead of) its own REST response. This gives a monitor client one
+uniform shape to watch regardless of which command ran, rather than needing
+to know each command's own ack shape:
+
+```json
+{
+  "type": "admin.action",
+  "topic": "admin.action.ADMIN01",
+  "ts": "2026-08-05T09:30:00.000Z",
+  "data": {
+    "command_id": "cmd-...",
+    "initiator_gateway_id": "ADMIN01",
+    "action": "circuit_breaker.trigger",
+    "scope": { "symbol": "AAPL", "level": "L1", "note": "drill" },
+    "accepted": true,
+    "reason": ""
+  }
+}
+```
+
+`action` is one of `circuit_breaker.trigger`, `circuit_breaker.resume`,
+`kill_switch.self`, `kill_switch.symbol`, `kill_switch.gateway`,
+`kill_switch.global`. `scope` varies by `action` — it carries whatever
+identifies what the command acted on (symbol, target gateway, cancelled
+counts) plus the request's `reason` field under the key `note`. This event
+is admin-monitor-only: it never reaches a trading gateway's private stream or
+the public market-data stream, regardless of which gateway initiated it.
+
+!!! note "Index rebalance does not emit `admin.action`"
+    `POST /admin/indexes/{id}/rebalance` talks to `pm-index`, a separate
+    process from the engine that the admin-monitor fan-out is not wired to.
+    Its own REST response (and `pm-index`'s append-only structural history,
+    a `REBALANCE` record readable via `GET /history/index-events`) is
+    currently the only record of it — it does not appear on
+    `/api/v1/admin/monitor`.
 
 ### Extended `GET /status`
 

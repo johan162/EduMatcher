@@ -17,9 +17,14 @@ from edumatcher.audit.indexer import (
     open_readonly_index,
     query_index_events,
 )
+from edumatcher.api_gateway.events import new_command_id
+from edumatcher.api_gateway.routers.reference import fetch_reference_bundle
 from edumatcher.api_gateway.schemas import (
     CircuitBreakerResumeRequest,
     CircuitBreakerTriggerRequest,
+    IndexRebalanceRequest,
+    KillSwitchGatewayRequest,
+    KillSwitchGlobalRequest,
     SessionTransitionRequest,
     SymbolCancelRequest,
 )
@@ -210,9 +215,20 @@ async def circuit_breaker_trigger(  # pyright: ignore[reportUnusedFunction]
     request: Request,
     session: Annotated[Session, Depends(auth)],
 ) -> dict[str, Any]:
+    """Halt one symbol. With ``level``, the halt runs through the same
+    activation the price-triggered breaker uses (real ``resume_at_ns``, ACE
+    corridor); without it, the halt is indefinite until an explicit resume.
+    """
     gateway_id = await require_admin(request, session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_symbol_halt(gateway_id, body.symbol)
+    command_id = new_command_id()
+    request.app.state.engine.send_symbol_halt(
+        gateway_id,
+        body.symbol,
+        level=body.level,
+        note=body.reason or "",
+        command_id=command_id,
+    )
     ack = await _await_ack(
         request,
         f"risk.symbol_halt_ack.{gateway_id}",
@@ -229,7 +245,10 @@ async def circuit_breaker_resume(  # pyright: ignore[reportUnusedFunction]
 ) -> dict[str, Any]:
     gateway_id = await require_admin(request, session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_symbol_resume(gateway_id, body.symbol)
+    command_id = new_command_id()
+    request.app.state.engine.send_symbol_resume(
+        gateway_id, body.symbol, note=body.reason or "", command_id=command_id
+    )
     ack = await _await_ack(
         request,
         f"risk.symbol_resume_ack.{gateway_id}",
@@ -248,19 +267,165 @@ async def halt_status(  # pyright: ignore[reportUnusedFunction]
     return await _await_reply(request, f"system.halt_status.{gateway_id}")
 
 
+@router.get("/risk/state")
+async def risk_state(  # pyright: ignore[reportUnusedFunction]
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+) -> dict[str, Any]:
+    """Live per-symbol risk state: collar reference price and circuit-breaker
+    reference/trigger/expansion/corridor state, for every symbol with either
+    configured — halted or not.
+
+    Distinct from ``GET /reference/risk`` (static, named risk-level
+    definitions) and ``GET /admin/halts`` (currently-halted symbols only).
+    """
+    gateway_id = await require_admin(request, session)
+    request.app.state.engine.request_risk_state(gateway_id)
+    return await _await_reply(request, f"system.risk_state.{gateway_id}")
+
+
+# ---------------------------------------------------------------------------
+# Index administration (pm-index bridge)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/indexes")
+async def admin_indexes(  # pyright: ignore[reportUnusedFunction]
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+) -> dict[str, Any]:
+    """Configured exchange indexes: id, description, base_value, constituents.
+
+    Served from the same compiled reference-data bundle as
+    ``GET /reference/indexes`` — static configuration, not live level/divisor.
+    For the current level, use ``GET /history/index-daily``.
+    """
+    await require_admin(request, session)
+    bundle = await fetch_reference_bundle(request, session)
+    return {
+        "indexes": bundle.get("indexes", []),
+        "config_version": bundle.get("config_version"),
+    }
+
+
+@router.post("/indexes/{index_id}/rebalance", status_code=status.HTTP_202_ACCEPTED)
+async def index_rebalance(  # pyright: ignore[reportUnusedFunction]
+    index_id: str,
+    body: IndexRebalanceRequest,
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+) -> dict[str, Any]:
+    """Batch shares-outstanding update for an index's existing constituents.
+
+    Each entry in ``updates`` mirrors the SHARES_ISSUANCE corporate action,
+    applied to one constituent; the whole batch is validated before any of
+    it is applied, and recomputes/publishes the index level once. Bridges to
+    ``pm-index`` over its own PULL/PUB pair — distinct from every other
+    endpoint in this router, which talks to the engine.
+    """
+    gateway_id = await require_admin(request, session)
+    _check_rate_limit(request, session)
+    command_id = new_command_id()
+    index_client = request.app.state.index_client
+    try:
+        ack = cast(
+            dict[str, Any],
+            await index_client.send_and_await_rebalance(
+                gateway_id=gateway_id,
+                index_id=index_id.upper(),
+                updates=[u.model_dump() for u in body.updates],
+                command_id=command_id,
+                timeout=request.app.state.config.timeouts.wait_ack_sec,
+            ),
+        )
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "INDEX_TIMEOUT", "message": str(exc)}},
+        ) from exc
+    if not bool(ack.get("accepted")):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": {
+                    "code": "REBALANCE_REJECTED",
+                    "message": str(ack.get("reason", "Rejected by pm-index")),
+                }
+            },
+        )
+    return ack
+
+
 @router.post("/kill-switch/symbol", status_code=status.HTTP_202_ACCEPTED)
 async def kill_switch_symbol(  # pyright: ignore[reportUnusedFunction]
     body: SymbolCancelRequest,
     request: Request,
     session: Annotated[Session, Depends(auth)],
 ) -> dict[str, Any]:
+    """Cancel every resting order/quote for *symbol*, across every gateway."""
     gateway_id = await require_admin(request, session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_cancel_symbol(gateway_id, body.symbol)
+    command_id = new_command_id()
+    request.app.state.engine.send_cancel_symbol(
+        gateway_id, body.symbol, note=body.reason or "", command_id=command_id
+    )
     ack = await _await_ack(
         request,
         f"risk.cancel_symbol_ack.{gateway_id}",
         match={"symbol": body.symbol},
+    )
+    return _require_accepted(ack)
+
+
+@router.post("/kill-switch/gateway", status_code=status.HTTP_202_ACCEPTED)
+async def kill_switch_gateway(  # pyright: ignore[reportUnusedFunction]
+    body: KillSwitchGatewayRequest,
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+) -> dict[str, Any]:
+    """Cancel every resting order/quote belonging to another gateway.
+
+    Unlike ``POST /mass-cancel``/``POST /kill-switch`` (self-service, caller's
+    own gateway only), this lets an ADMIN act on a *named* other gateway.
+    """
+    gateway_id = await require_admin(request, session)
+    _check_rate_limit(request, session)
+    command_id = new_command_id()
+    request.app.state.engine.send_kill_switch_gateway(
+        gateway_id,
+        body.target_gateway_id,
+        note=body.reason or "",
+        command_id=command_id,
+    )
+    ack = await _await_ack(
+        request,
+        f"risk.kill_switch_gateway_ack.{gateway_id}",
+        match={"command_id": command_id},
+    )
+    return _require_accepted(ack)
+
+
+@router.post("/kill-switch/global", status_code=status.HTTP_202_ACCEPTED)
+async def kill_switch_global(  # pyright: ignore[reportUnusedFunction]
+    body: KillSwitchGlobalRequest,
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+) -> dict[str, Any]:
+    """Full-market emergency stop: cancel every resting order/quote for every
+    gateway. Distinct from ``POST /circuit-breaker/trigger`` applied
+    symbol-by-symbol — this cancels resting exposure outright rather than
+    halting trading.
+    """
+    gateway_id = await require_admin(request, session)
+    _check_rate_limit(request, session)
+    command_id = new_command_id()
+    request.app.state.engine.send_kill_switch_global(
+        gateway_id, note=body.reason or "", command_id=command_id
+    )
+    ack = await _await_ack(
+        request,
+        f"risk.kill_switch_global_ack.{gateway_id}",
+        match={"command_id": command_id},
     )
     return _require_accepted(ack)
 

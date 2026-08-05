@@ -15,12 +15,17 @@ import asyncio
 import errno
 import logging
 import threading
+from collections import defaultdict
 from typing import Any
 
 import zmq
 
 from edumatcher.messaging.bus import make_pusher, make_subscriber
-from edumatcher.models.message import decode, make_index_history_request_msg
+from edumatcher.models.message import (
+    decode,
+    make_index_history_request_msg,
+    make_index_rebalance_msg,
+)
 
 log = logging.getLogger(__name__)
 
@@ -46,7 +51,15 @@ class IndexClient:
         self._sub = make_subscriber(pub_addr, "")
         self._running = False
         self._thread: threading.Thread | None = None
-        self._pending: dict[str, asyncio.Future[dict[str, Any]]] = {}
+        # A list per topic, not a single future: every caller here already
+        # addresses its own reply topic with a unique id (request_id /
+        # command_id), so two calls should never collide in practice — but a
+        # single-future-per-key map would silently drop an earlier waiter's
+        # registration if one ever did (e.g. a retried request reusing an
+        # id), rather than resolving both. Mirrors EngineClient._pending.
+        self._pending: dict[str, list[asyncio.Future[dict[str, Any]]]] = defaultdict(
+            list
+        )
 
     def start_listener(self) -> None:
         """Start the daemon thread that receives pm-index PUB events."""
@@ -112,8 +125,8 @@ class IndexClient:
             # Always drop both waiters once one resolves (or on timeout) so
             # a slow/duplicate reply never resolves a future we've already
             # abandoned or lands in _pending indefinitely.
-            self._pending.pop(f"index.history.{request_id}", None)
-            self._pending.pop(f"index.error.{request_id}", None)
+            self._drop_pending(f"index.history.{request_id}", history_future)
+            self._drop_pending(f"index.error.{request_id}", error_future)
         for future in pending:
             future.cancel()
         if not done:
@@ -127,10 +140,48 @@ class IndexClient:
                 raise IndexHistoryError(reason)
         return result
 
+    async def send_and_await_rebalance(
+        self,
+        *,
+        gateway_id: str,
+        index_id: str,
+        updates: list[dict[str, Any]],
+        command_id: str,
+        timeout: float,
+    ) -> dict[str, Any]:
+        """Round-trip a batch rebalance request to pm-index.
+
+        Unlike ``request_history``, rebalance has one reply topic
+        (``index.rebalance_ack.<gateway_id>``) carrying both the accept and
+        reject cases in its own ``accepted`` field — mirroring the existing
+        corp-action/constituent-change acks — so there is no separate error
+        future to race against.
+        """
+        topic = f"index.rebalance_ack.{gateway_id}"
+        future = self._register_future(topic)
+        self._push.send_multipart(
+            make_index_rebalance_msg(index_id, gateway_id, updates, command_id)
+        )
+        try:
+            return await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError as exc:
+            raise TimeoutError(f"Timed out waiting for {topic}") from exc
+        finally:
+            self._drop_pending(topic, future)
+
     def _register_future(self, key: str) -> asyncio.Future[dict[str, Any]]:
         future: asyncio.Future[dict[str, Any]] = self._loop.create_future()
-        self._pending[key] = future
+        self._pending[key].append(future)
         return future
+
+    def _drop_pending(self, key: str, future: asyncio.Future[dict[str, Any]]) -> None:
+        """Remove one waiter that will never be resolved (timeout/cleanup)."""
+        pending = self._pending.get(key)
+        if pending is None:
+            return
+        self._pending[key] = [w for w in pending if w is not future]
+        if not self._pending[key]:
+            del self._pending[key]
 
     def _receive_loop(self) -> None:
         poller = zmq.Poller()
@@ -155,6 +206,13 @@ class IndexClient:
             self._running = False
 
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
-        future = self._pending.get(topic)
-        if future is not None and not future.done():
-            future.set_result(payload)
+        pending = self._pending.get(topic)
+        if not pending:
+            return
+        # Resolve the oldest waiter first (FIFO) — reply order should match
+        # request order for one topic, and this keeps a topic with more than
+        # one waiter from resolving them out of order.
+        for future in pending:
+            if not future.done():
+                future.set_result(payload)
+                break
