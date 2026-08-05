@@ -276,7 +276,7 @@ typecheck-pyright: $(PYRIGHT_STAMP) ## Run pyright type checking [stamp-cached]
 
 pre-commit: $(INSTALL_STAMP) ## Run all quality checks + short test (pre-commit gate)
 	@echo -e "$(DARKYELLOW)Running pre-commit checks...$(NC)"
-	@$(MAKE) -j 3 _check
+	@$(MAKE) -j 4 _check
 	@$(MAKE) test-short
 	@echo -e "$(GREEN)✓ All pre-commit checks passed$(NC)"
 
