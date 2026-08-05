@@ -167,6 +167,28 @@ def make_amended_msg(
     )
 
 
+#: Identifiers that tie an order to the structure it belongs to. Carried on
+#: every ack/fill/cancel/expiry so a consumer can attribute an event without
+#: joining it against its own record of the parent order — which it may not
+#: have after a reconnect, and which is exactly the state-stitching that made
+#: these events awkward to consume.
+GROUP_ID_FIELDS = ("oco_group_id", "combo_parent_id", "quote_id", "leg_index")
+
+
+def group_ids(order: dict[str, Any] | None) -> dict[str, Any]:
+    """Extract the group identifiers present on *order*.
+
+    Absent keys are omitted rather than emitted as ``null``: an ordinary
+    single order carries none of these, and its events should not grow four
+    empty fields to say so.
+    """
+    if not order:
+        return {}
+    return {
+        field: order[field] for field in GROUP_ID_FIELDS if order.get(field) is not None
+    }
+
+
 def make_ack_msg(
     gateway_id: str,
     order_id: str,
@@ -193,6 +215,7 @@ def make_ack_msg(
         )
         if order.get("client_tag") is not None:
             payload["client_tag"] = order["client_tag"]
+        payload.update(group_ids(order))
     return encode(topic, payload)
 
 
@@ -226,6 +249,7 @@ def make_fill_msg(
         )
         if order.get("client_tag") is not None:
             payload["client_tag"] = order["client_tag"]
+        payload.update(group_ids(order))
     return encode(topic, payload)
 
 
@@ -233,11 +257,13 @@ def make_cancelled_msg(
     gateway_id: str,
     order_id: str,
     client_tag: str | None = None,
+    order: dict[str, Any] | None = None,
 ) -> list[bytes]:
     topic = f"order.cancelled.{gateway_id}"
     payload: dict[str, Any] = {"order_id": order_id}
     if client_tag is not None:
         payload["client_tag"] = client_tag
+    payload.update(group_ids(order))
     return encode(topic, payload)
 
 
@@ -245,11 +271,13 @@ def make_expired_msg(
     gateway_id: str,
     order_id: str,
     client_tag: str | None = None,
+    order: dict[str, Any] | None = None,
 ) -> list[bytes]:
     topic = f"order.expired.{gateway_id}"
     payload: dict[str, Any] = {"order_id": order_id}
     if client_tag is not None:
         payload["client_tag"] = client_tag
+    payload.update(group_ids(order))
     return encode(topic, payload)
 
 

@@ -1,4 +1,4 @@
-Version: 1.3.0
+Version: 1.4.0
 
 Date: 2026-08-05
 
@@ -9,6 +9,13 @@ Status: Design and Research Proposal
 
 > **Revision History**
 >
+> - **1.4.0 (2026-08-05)** — Backend shipped two items from the [§26 addendum](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal):
+>   `/api/v1/market-data` now carries a per-topic `seq` on every event, and the subscription model now
+>   supports per-symbol channel groups (an `items` list) on a single connection. Replaced the earlier
+>   two-socket (overview/focus) workaround with one `marketDataWs` carrying both a broad and a narrow
+>   subscription item ([§17.3.1](#1731-authentication-and-subscription)), updated the `WebSocketManager`
+>   API, `ActiveSymbolStore`/watchlist wording, environment variable descriptions, and Appendix A, and
+>   removed the corresponding rows from [§26.2](#262-highest-impact-changes).
 > - **1.3.0 (2026-08-05)** — Added [§26 Addendum: Protocol and Backend Changes That Would Improve
 >   the Trading Terminal](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal),
 >   covering protocol/API changes that are worth making before release because backwards compatibility
@@ -427,9 +434,11 @@ flowchart LR
 The UI **does not connect directly to CALF** from the browser. Recent CALF capabilities (`DEPTH`,
 `AUCTION`, `CB`, `SNAP`, `SEQ`, `RESUME`) inform the screen design, but browser delivery goes through
 `pm-api-gwy`'s JSON WebSocket. The current API WebSocket exposes the useful channels (`book`,
-`trades`, `depth`, `auction`, plus always-on `session`/`circuit_breaker`) but does **not** expose
-CALF's sequence/replay contract. Reconnect therefore uses re-authentication, subscription replay,
-and a fresh REST/bootstrap refresh rather than CALF-style gap recovery.
+`trades`, `depth`, `auction`, plus always-on `session`/`circuit_breaker`) and now carries a per-topic
+`seq` on every market-data event ([§17.3.1](#1731-authentication-and-subscription)), so the UI can
+detect a gap the same way a CALF client detects a sequence break. It does **not** yet expose a
+CALF-style `SNAP`/`RESUME` replay handshake, so a detected gap is repaired with a fresh subscribe plus
+a REST/bootstrap refresh rather than a targeted replay.
 
 ### 5.3 Client-side state layers
 
@@ -783,6 +792,7 @@ surface, not as a speculative enhancement.
 | `GET /api/v1/admin/indexes` / `POST /api/v1/admin/indexes/{id}/rebalance` | Not exposed | Do not implement as live controls until a REST bridge to `pm-index` exists |
 | `WS /api/v1/admin/monitor` | Available now | Use as the primary ADMIN live feed |
 | `auction` channel on `/api/v1/market-data` | Available now | Use for auction panel, badges, and workspace cues |
+| Per-symbol subscription items + per-topic `seq` on `/api/v1/market-data` | Available now | One socket handles broad + focused subscriptions ([§17.3.1](#1731-authentication-and-subscription)); `seq` enables client-side gap detection |
 | Admin global/by-gateway kill switch | Not exposed | Current admin API supports symbol-scoped cancel only; global/by-gateway controls stay disabled |
 
 ### 6.12 Open questions and backend prerequisites
@@ -1233,9 +1243,10 @@ A four-quadrant grid, all panels bound to the one active symbol:
 
 All four panels subscribe to the `useActiveSymbolStore` slice ([§18.1](#181-zustand-stores)).
 Changing the active symbol — from the Workspace symbol picker, a Market Overview row, the command
-palette, or the watchlist — re-binds all four panels atomically. The focus market-data socket is
-adjusted so the active symbol and bounded watchlist symbols are subscribed on `book`, `trades`,
-`depth`, and `auction`; the overview socket continues to carry broad `book`/`trades` coverage.
+palette, or the watchlist — re-binds all four panels atomically. The focus subscription item on the
+single market-data socket ([§17.3.1](#1731-authentication-and-subscription)) is adjusted so the
+active symbol and bounded watchlist symbols are subscribed on `book`, `trades`, `depth`, and
+`auction`; the broad overview item continues to carry `book`/`trades` coverage for the rest.
 
 ### 11.4 Click-to-trade
 
@@ -2233,14 +2244,12 @@ class ManagedSocket {
 
 class WebSocketManager {
   private eventsWs: ManagedSocket;
-  private overviewMarketDataWs: ManagedSocket;
-  private focusMarketDataWs: ManagedSocket;
+  private marketDataWs: ManagedSocket;
   private adminMonitorWs?: ManagedSocket;   // ADMIN only
 
   connect(apiKey: string, role: GatewayRole): void;
-  subscribeOverview(symbols: string[]): void;     // book/trades for many symbols
-  subscribeFocus(symbols: string[]): void;        // book/trades/depth/auction for active + watchlist
-  unsubscribeFocus(symbols: string[]): void;
+  subscribeMarketData(items: MarketDataSubscriptionItem[]): void;    // merges into the active item set
+  unsubscribeMarketData(items: MarketDataSubscriptionItem[]): void;
   disconnect(): void;
 
   // Event bus (internal)
@@ -2308,25 +2317,31 @@ Used by: all roles.
 // Auth frame
 { "api_key": "key-gw01-abc123def456" }
 
-// Subscribe (sent after authentication confirmation)
-{ "action": "subscribe", "symbols": ["AAPL", "MSFT", "TSLA"],
-  "channels": ["book", "trades"] }
+// Subscribe (sent after authentication confirmation) — one socket, multiple per-symbol/channel items
+{
+  "action": "subscribe",
+  "items": [
+    { "symbols": ["*"], "channels": ["book", "trades"] },
+    { "symbols": ["AAPL", "MSFT", "TSLA"], "channels": ["depth", "auction"] }
+  ]
+}
 ```
 
-The current `/market-data` control model has one `symbols` set and one `channels` set per WebSocket
-connection. It does not support per-symbol channel groups inside a single connection. To handle more
-than 100 configured symbols efficiently, the UI therefore uses **two market-data sockets**:
+`/api/v1/market-data` now supports **per-symbol channel groups within a single connection**: the
+`subscribe` action takes an `items` list, each entry with its own `symbols` set (including a `*`
+wildcard for broad coverage) and `channels` set. This replaced the earlier two-socket workaround — the
+UI runs one `marketDataWs` and sends a broad item (`*` on `book`/`trades`, for Market Overview) plus a
+narrow item (active symbol + watchlist on `book`/`trades`/`depth`/`auction`) as two entries in the same
+`items` list, bounded by `VITE_MAX_OVERVIEW_SYMBOLS` / `VITE_MAX_FOCUS_SYMBOLS` respectively.
 
-- **Overview socket:** subscribes many symbols to `book`/`trades` only. This powers Market Overview,
-  search results, and broad watch boards without requesting heavy depth payloads.
-- **Focus socket:** subscribes only the active symbol plus a bounded watchlist to
-  `book`/`trades`/`depth`/`auction`. This powers the Trading Workspace, DOM ladder, Symbol Detail,
-  and auction panel.
-
-`session` and `circuit_breaker` are always-on server events and arrive regardless of requested
-channels. `ManagedSocket` replays both socket subscription sets on every reconnect, then the UI
-refreshes REST/bootstrap queries (`/orders`, `/positions`, `/quotes/bootstrap`, `/quotes/legs`) to
-repair any private-event gap because `/market-data` does not expose CALF `SEQ`/`RESUME` semantics.
+Every event on this socket now also carries a per-symbol/per-channel `seq` (monotonic per topic). The
+UI tracks the last `seq` seen per topic and treats a skip as a gap: it logs a warning, clears cached
+state for that topic, and re-subscribes the affected item to force a fresh series. There is no
+`SNAP`/`RESUME` replay yet (see [§26.3.2](#2632-snapshot-resume-and-reset-handshake) for a targeted
+replay proposal). `session` and `circuit_breaker` remain always-on regardless of the subscribed
+items. `ManagedSocket` replays the full `items` list on every reconnect, and the UI still refreshes
+REST/bootstrap queries (`/orders`, `/positions`, `/quotes/bootstrap`, `/quotes/legs`) after reconnect
+to repair any private-event gap, since `/api/v1/events` does not yet carry sequence numbers.
 
 #### 17.3.2 Event routing
 
@@ -2508,7 +2523,7 @@ active-symbol-bound panel re-binds atomically.
 ```typescript
 interface ActiveSymbolStore {
   activeSymbol: string | null;
-  setActiveSymbol: (symbol: string) => void;   // also adjusts the focus market-data subscription set
+  setActiveSymbol: (symbol: string) => void;   // also adjusts the focus subscription item on marketDataWs
 }
 ```
 
@@ -2721,10 +2736,10 @@ A lightweight, user-defined watchlist — promoted from a passing mention into a
 
 - **What it is:** a user-curated set of symbols shown as a compact panel (sidebar entry and an
   optional docked panel), each row showing symbol, last price (flash), change %, and bid/ask.
-- **How it drives data:** the watchlist set is included in the focus market-data socket, so watched
-  symbols receive `book`/`trades`/`depth`/`auction` updates even when they are not the active symbol.
-  The list is bounded by `VITE_MAX_FOCUS_SYMBOLS` to keep heavy depth subscriptions small when there
-  are many configured symbols.
+- **How it drives data:** the watchlist set is included in the focus subscription item on the single
+  market-data socket, so watched symbols receive `book`/`trades`/`depth`/`auction` updates even when
+  they are not the active symbol. The list is bounded by `VITE_MAX_FOCUS_SYMBOLS` to keep heavy depth
+  subscriptions small when there are many configured symbols.
 - **Interactions:** clicking a watchlist row sets the active symbol (drives the Workspace/ticket) and
   can open Symbol Detail. A star toggle on Market Overview rows and in the command palette
   adds/removes symbols.
@@ -2803,8 +2818,8 @@ The UI is configured via Vite environment variables (`.env` file or deployment e
 | `VITE_API_BASE` | `http://localhost:8080` | Base URL for `pm-api-gwy` REST API |
 | `VITE_WS_BASE` | `ws://localhost:8080` | Base URL for WebSocket connections |
 | `VITE_APP_TITLE` | `EduMatcher Trading` | Browser tab title and top-bar wordmark |
-| `VITE_MAX_OVERVIEW_SYMBOLS` | `250` | Max symbols to subscribe on the overview market-data socket (`book`/`trades`) |
-| `VITE_MAX_FOCUS_SYMBOLS` | `25` | Max active/watchlist symbols to subscribe on the focus market-data socket (`book`/`trades`/`depth`/`auction`) |
+| `VITE_MAX_OVERVIEW_SYMBOLS` | `250` | Max symbols in the broad `book`/`trades` subscription item on the market-data socket |
+| `VITE_MAX_FOCUS_SYMBOLS` | `25` | Max active/watchlist symbols in the narrow `book`/`trades`/`depth`/`auction` subscription item |
 | `VITE_CHART_HISTORY_TICKS` | `1000` | Number of historical ticks to fetch for intraday charts |
 | `VITE_FLASH_DURATION_MS` | `500` | Duration of price flash animation in milliseconds |
 | `VITE_WS_RECONNECT_MAX_DELAY` | `30000` | Maximum WebSocket reconnect delay (ms) |
@@ -2895,7 +2910,7 @@ demonstrated in isolation.
 | Phase | Deliverable | Verification |
 |-------|-------------|-------------|
 | 1 | Project scaffold: Vite + React + TS + Tailwind + shadcn/ui + React Router v7; login page; `apiFetch`; `useAuthStore`; role detection via `GET /status` | Enter API key, see "Connected as GW01 (TRADER)"; routed to role landing |
-| 2 | `ManagedSocket` + `WebSocketManager` with separate overview/focus market-data sockets; `useBookStore`; `useSessionStore`; `useHaltStore`; top bar with health dot, session badge + clock/countdown | Book events update Zustand; session badge changes colour; countdown ticks; depth is received only for focus symbols |
+| 2 | `ManagedSocket` + `WebSocketManager` with a single market-data socket (overview + focus subscription items); `useBookStore`; `useSessionStore`; `useHaltStore`; top bar with health dot, session badge + clock/countdown | Book events update Zustand; session badge changes colour; countdown ticks; depth is received only for focus symbols |
 | 3 | Market Overview table with FlashCell; `GET /symbols`; `GET /history/daily` for change % (vs today's open); auction + halt badges | Real-time price table with green/red flashes and correct change % |
 | 4 | Symbol Detail right panel: Chart, Depth (with click-to-trade), Trades tape, Stats, Auction tab; `useActiveSymbolStore` | Click a row → active symbol set; panel opens; candles load; auction panel populates during auction |
 | 5 | **Trading Workspace**: 4-quadrant layout bound to the active symbol; embed chart + DOM + ticket + compact blotter; click-to-trade wiring | Click a DOM level → ticket price prefilled; all quadrants follow active symbol |
@@ -3018,7 +3033,8 @@ to the EduMatcher exchange simulator. It:
   circuit breakers) with flash animations, toast notifications, and a durable Notification / Event
   Center so nothing is lost when a toast fades.
 - Provides a global **active-symbol** context that keeps the chart, DOM, order ticket, and MM quote
-  form in sync, plus a promoted **watchlist** that drives the focus market-data subscription set.
+  form in sync, plus a promoted **watchlist** that drives the focus subscription item on the single
+  market-data socket.
 - Adds the feature surfaces that map to real endpoints: cancel-replace (`/orders/{id}/replace`),
   OCO/combo group cancel (`/oco/{id}`, `/combos/{id}`), an Order Detail lifecycle drawer
   (`/history/orders/{id}`), per-leg MM quote fills (`/quotes/legs`), and one-click position flatten.
@@ -3058,10 +3074,12 @@ use the same operational model, even if the wire encoding remains JSON rather th
 
 ### 26.2 Highest-impact changes
 
+> **Update (2026-08-05):** the former top two rows of this table — per-topic sequence numbers and the
+> per-symbol subscription model for `/api/v1/market-data` — have shipped and are documented in
+> [§17.3.1](#1731-authentication-and-subscription). The items below remain proposed.
+
 | Area | Recommended change | Why it helps the terminal |
 |---|---|---|
-| Market-data stream | Add per-topic sequence numbers, `snapshot_id`, and resumable replay to `/api/v1/market-data` | Eliminates blind reconnects and stale book/depth edge cases |
-| Subscription model | Support per-symbol channel groups in one WebSocket connection | Avoids multiple sockets for overview vs. focused depth/auction subscriptions |
 | CALF/browser bridge | Define a canonical JSON envelope that mirrors CALF `SEQ`/`SNAP`/`RESUME` semantics | Lets the UI, API gateway, and external protocol stay conceptually aligned |
 | Book/depth data | Publish full depth snapshots plus incremental depth deltas with clear reset markers | Makes DOM ladders precise and efficient |
 | Auction data | Publish periodic authoritative indicative auction updates during auction phases | Removes client-side approximation and makes the teaching panel trustworthy |
@@ -3073,6 +3091,11 @@ use the same operational model, even if the wire encoding remains JSON rather th
 ### 26.3 Recommended protocol shape
 
 #### 26.3.1 Uniform WebSocket envelope
+
+**Partially implemented.** `/api/v1/market-data` now emits a per-symbol/per-channel `seq`
+([§17.3.1](#1731-authentication-and-subscription)), covering the sequence-number half of this proposal
+for market data. The rest — one envelope shared across market data, private events, and admin
+monitor, plus `snapshot_id` and `*.reset`/`*.status` framing — remains proposed.
 
 Use one envelope for market data, private events, and admin monitor streams:
 
@@ -3100,20 +3123,23 @@ Rules:
 
 #### 26.3.2 Snapshot, resume, and reset handshake
 
-Add explicit client commands to the JSON WebSocket API:
+Per-symbol channel items and per-topic `seq` are now implemented
+([§17.3.1](#1731-authentication-and-subscription)); this section proposes the remaining piece — an
+explicit snapshot/resume/reset handshake so a detected gap can be repaired with a targeted replay
+instead of a full re-subscribe. It extends the implemented `items` subscribe shape:
 
 ```jsonc
 // subscribe with optional resume point
 {
   "action": "subscribe",
   "items": [
-    { "symbol": "AAPL", "channels": ["book", "trades", "depth", "auction"], "resume_from": { "depth": 128400 } },
-    { "symbol": "MSFT", "channels": ["book", "trades"] }
+    { "symbols": ["AAPL"], "channels": ["book", "trades", "depth", "auction"], "resume_from": { "depth": 128400 } },
+    { "symbols": ["MSFT"], "channels": ["book", "trades"] }
   ]
 }
 
 // request an authoritative snapshot for one topic
-{ "action": "snapshot", "symbol": "AAPL", "channels": ["book", "depth", "auction"] }
+{ "action": "snapshot", "symbols": ["AAPL"], "channels": ["book", "depth", "auction"] }
 
 // resume a dropped stream explicitly
 { "action": "resume", "topic": "depth.AAPL", "from_seq": 128400 }
@@ -3131,23 +3157,15 @@ state management.
 
 #### 26.3.3 Per-symbol channel subscriptions
 
-Replace the current one-symbol-set/one-channel-set model with a list of subscription items. This
-lets the UI run one market-data socket cleanly:
+**Implemented.** The one-symbol-set/one-channel-set limitation has been replaced with a list of
+subscription items, each with its own `symbols` and `channels`, on a single `/api/v1/market-data`
+connection — see [§17.3.1](#1731-authentication-and-subscription) for the current wire format.
+`pm-trading-ui` now runs one `marketDataWs` instead of the earlier two-socket workaround.
 
-```jsonc
-{
-  "action": "subscribe",
-  "items": [
-    { "symbols": ["*"], "channels": ["book", "trades"] },
-    { "symbols": ["AAPL", "MSFT"], "channels": ["depth", "auction"] }
-  ]
-}
-```
-
-Wildcard rules should match CALF where possible: broad `book`/`trades`/`state` style channels may
-allow `*`; heavy channels such as full depth may require explicit symbols or server-side limits.
-The server should acknowledge the effective subscription so the UI can display when a requested
-symbol/channel was rejected, capped, or downgraded.
+Remaining follow-up: the server should acknowledge the effective subscription so the UI can display
+when a requested symbol/channel was rejected, capped, or downgraded, and wildcard rules for heavy
+channels (e.g. requiring explicit symbols for full depth) should be documented alongside the CALF
+wildcard constraints.
 
 #### 26.3.4 Authoritative depth and auction topics
 
@@ -3289,12 +3307,15 @@ This keeps the terminal honest during staged backend work and makes demos less b
 
 ### 26.5 Suggested implementation order
 
-1. **Unify WebSocket envelopes and sequence numbers.** This is the highest-leverage protocol cleanup;
-   it affects every live screen and is easiest to do before release.
+1. ~~Unify WebSocket envelopes and sequence numbers.~~ **Done for market data** — every `book` /
+   `trades` / `depth` / `auction` event now carries a per-topic `seq`
+   ([§17.3.1](#1731-authentication-and-subscription)). Remaining: extend the same convention to
+   `/api/v1/events` and `/api/v1/admin/monitor` so all three streams share one envelope.
 2. **Add snapshot/resume for market data and private events.** This makes reconnect behaviour
    deterministic and removes the biggest class of UI state bugs.
-3. **Replace the market-data subscription shape with per-symbol channel items.** This simplifies the
-   client and makes 100+ symbol operation natural.
+3. ~~Replace the market-data subscription shape with per-symbol channel items.~~ **Done** — see
+   [§17.3.1](#1731-authentication-and-subscription) and
+   [§26.3.3](#2633-per-symbol-channel-subscriptions).
 4. **Publish authoritative auction indicative events.** This turns the auction panel from a useful
    approximation into a reliable teaching tool.
 5. **Add admin monitor replay and cross-gateway order detail.** This makes the ADMIN persona feel
@@ -3304,9 +3325,9 @@ This keeps the terminal honest during staged backend work and makes demos less b
 7. **Fill out runtime admin/reference/index APIs.** These convert disabled panels into operational
    tools once the core stream/recovery model is solid.
 
-The first three items should be treated as protocol foundation. The later items can be implemented
-incrementally, but they should follow the same envelope, command-id, capability-discovery, and replay
-rules so the terminal does not accumulate special cases.
+Items 1 and 3 are complete for the market-data stream. The next highest-leverage step is item 2
+(snapshot/resume): sequence numbers alone only let the UI detect a gap — they do not yet let it
+repair one without a full re-subscribe.
 
 ---
 
@@ -3465,12 +3486,19 @@ export interface Symbol {
   level?: string | null;           // collar profile name
 }
 
+// ── Market-data subscription (§17.3.1) ───────────────────────────────────────
+export interface MarketDataSubscriptionItem {
+  symbols: string[];               // may include "*" for broad coverage
+  channels: Array<"book" | "trades" | "depth" | "auction">;
+}
+
 // ── WebSocket envelopes ──────────────────────────────────────────────────────
 export interface WsEnvelope<T> {
   type: string;
   ts: string;
   gateway_id?: string;
-  seq?: number;                    // admin monitor stream (§6.9)
+  symbol?: string;                 // present on market-data events; combines with `type` as the seq topic key
+  seq?: number;                    // per-topic on market-data (§17.3.1); also used by admin monitor (§6.9)
   data: T;
 }
 

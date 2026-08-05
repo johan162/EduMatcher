@@ -647,9 +647,25 @@ Every event on every one of the three sockets uses the same envelope:
 | `type` | Stable public event type (`trade`, `book`, `depth`, `auction`, `session`, `circuit_breaker`, `order.fill`, …) |
 | `topic` | The engine topic the event came from, and what `seq` counts within |
 | `seq` | Monotonic sequence number **within `topic`**, starting at 1 |
+| `stream_seq` | Monotonic across **all** of one gateway's private events. Private events only — see [Private event recovery](#private-event-recovery) |
 | `ts` | Exchange time, not browser receipt time |
 | `gateway_id` | Present on private events only |
 | `data` | The event payload |
+
+Order lifecycle events — `order.ack`, `order.fill`, `order.cancelled`,
+`order.expired` — additionally carry the identifiers that tie the order to the
+structure it belongs to, when it belongs to one:
+
+| Field | Present when |
+|---|---|
+| `oco_group_id` | The order is one side of an OCO pair |
+| `combo_parent_id` | The order is a combo leg |
+| `leg_index` | The order is a combo leg (0-based) |
+| `quote_id` | The order came from a market-maker quote |
+
+They are **omitted rather than null** for an ordinary single order. This lets a
+consumer attribute a fill to its combo or OCO group without joining against its
+own record of the parent order — which after a reconnect it may not have.
 
 ### Detecting dropped events
 
@@ -691,6 +707,63 @@ reacting to: a dropped `trade` is not repeated, and the
 The server side of the same signal is on `GET /healthz`, which reports
 `dropped_events` per sink (`market_data`, `private`, `admin`). The gateway also
 logs a warning on the first drop per sink and every hundredth thereafter.
+
+### Private event recovery
+
+`/api/v1/events` is designed so a reconnecting client needs one socket and no
+REST calls to get back to a correct view.
+
+After authentication the gateway sends two frames, in this order:
+
+```json
+{ "type": "authenticated", "gateway_id": "TRADER01", "stream_seq": 9182 }
+```
+
+```json
+{
+  "type": "orders.snapshot",
+  "gateway_id": "TRADER01",
+  "stream_seq": 9182,
+  "ts": "2026-08-05T09:30:00.000Z",
+  "data": {
+    "orders": [ { "order_id": "ORD-...", "status": "NEW", "symbol": "AAPL" } ],
+    "positions": { "AAPL": 100 },
+    "quote_legs": []
+  }
+}
+```
+
+The snapshot is the gateway's own view of your order state, maintained from
+every engine event and **retained across disconnects** — so it is available
+immediately, without a round-trip to the engine. `stream_seq` names the point
+it is accurate as of: every subsequent event carries a higher `stream_seq`.
+
+The reconnect procedure is therefore:
+
+1. Connect and authenticate.
+2. Replace your local order state with `orders.snapshot`.
+3. Apply live events from there.
+
+!!! note "Duplicates are possible; gaps are not"
+    The event sink is registered *before* the snapshot is taken, so an event
+    landing in that window appears both in the snapshot and as a live event.
+    The reverse ordering would lose it silently while the snapshot still
+    looked complete. Order state is idempotent — applying an event twice
+    leaves the same result — so a duplicate is harmless and a gap is not.
+
+**`stream_seq` versus `seq`.** Both are on every private event. `seq` is
+per-topic, matching market data. `stream_seq` counts every event for your
+gateway across all topics, which is possible here only because this socket
+applies no filtering — you receive everything for your gateway. Tracking one
+`stream_seq` is simpler than tracking a `seq` per topic; use whichever suits.
+
+!!! warning "There is no `resume` for private events"
+    The gateway keeps no replay buffer, so a missed event cannot be re-sent.
+    It does not need to be: order *state* is recoverable in full from the
+    snapshot. What a snapshot cannot tell you is the transitions you missed —
+    an order that filled and was then cancelled appears simply as cancelled.
+    For the fills themselves use the [history endpoints](#history-endpoints);
+    the drop-copy feed is the authoritative fill record.
 
 ### Market-data subscriptions
 

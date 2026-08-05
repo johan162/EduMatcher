@@ -884,6 +884,19 @@ Subscribed to by the originating gateway and the order monitor.
 | `qty` | integer | Original quantity *(present when accepted)* |
 | `price` | float \| null | Limit price *(present when accepted)* |
 | `client_tag` | string \| absent | Echoed from `order.new` when the field was set |
+| `oco_group_id` | string \| absent | Present when the order is one side of an OCO pair |
+| `combo_parent_id` | string \| absent | Present when the order is a combo leg |
+| `leg_index` | integer \| absent | 0-based leg position, present when the order is a combo leg |
+| `quote_id` | string \| absent | Present when the order originated from a market-maker quote |
+
+!!! note "Group identifiers on order lifecycle events"
+    `oco_group_id`, `combo_parent_id`, `leg_index` and `quote_id` appear on
+    `order.ack`, `order.fill`, `order.cancelled` and `order.expired` whenever
+    the order belongs to such a structure, and are **omitted entirely**
+    otherwise — an ordinary single order does not carry four null fields to
+    say it belongs to nothing. Carrying them on the event lets a subscriber
+    attribute a fill to its combo or OCO group without keeping its own map of
+    order id → parent, which it may not have after reconnecting.
 
 !!! note "Rejection reasons"
     Common rejection reasons: `"Symbol not configured: XYZ"`, `"Insufficient liquidity"` (FOK), `"Order not found"` (cancel), `"Gateway not configured: TRADER99"`, `"Gateway not connected: TRADER01"`.
@@ -931,6 +944,10 @@ on this page is mirrored to `:5557`.
 | `qty` | integer | Original quantity |
 | `price` | float \| null | Limit price |
 | `client_tag` | string \| absent | Echoed from `order.new` when the field was set |
+| `oco_group_id` | string \| absent | Present when the order is one side of an OCO pair |
+| `combo_parent_id` | string \| absent | Present when the order is a combo leg |
+| `leg_index` | integer \| absent | 0-based leg position, present when the order is a combo leg |
+| `quote_id` | string \| absent | Present when the order originated from a market-maker quote |
 
 
 
@@ -945,6 +962,10 @@ Confirms a cancel request or a Self-Match Prevention (SMP) forced cancellation.
 |---|---|---|
 | `order_id` | string (UUID) | Cancelled order |
 | `client_tag` | string \| absent | Echoed from the original `order.new` when the field was set |
+| `oco_group_id` | string \| absent | Present when the order is one side of an OCO pair |
+| `combo_parent_id` | string \| absent | Present when the order is a combo leg |
+| `leg_index` | integer \| absent | 0-based leg position, present when the order is a combo leg |
+| `quote_id` | string \| absent | Present when the order originated from a market-maker quote |
 
 
 
@@ -976,6 +997,10 @@ Published during engine shutdown for every resting `DAY` order that did not fill
 |---|---|---|
 | `order_id` | string (UUID) | Expired order |
 | `client_tag` | string \| absent | Echoed from the original `order.new` when the field was set |
+| `oco_group_id` | string \| absent | Present when the order is one side of an OCO pair |
+| `combo_parent_id` | string \| absent | Present when the order is a combo leg |
+| `leg_index` | integer \| absent | 0-based leg position, present when the order is a combo leg |
+| `quote_id` | string \| absent | Present when the order originated from a market-maker quote |
 
 
 

@@ -713,7 +713,9 @@ class Engine:
                             if evt.id not in _seed_cancel_ids:
                                 _seed_cancel_ids.add(evt.id)
                                 self.pub_sock.send_multipart(
-                                    make_cancelled_msg(evt.gateway_id, evt.id)
+                                    make_cancelled_msg(
+                                        evt.gateway_id, evt.id, order=evt.to_dict()
+                                    )
                                 )
                     for trade in trades:
                         self._publish_trade(trade)
@@ -1226,6 +1228,33 @@ class Engine:
                                     )
                                 ),
                                 "client_tag": evt.client_tag,
+                                # Group ids travel with the fill so a consumer
+                                # can attribute a combo leg or an OCO side
+                                # without joining against its own record of the
+                                # parent — which it may not have after a
+                                # reconnect. Built inline rather than via
+                                # group_ids() because this is the hot path and
+                                # the fields are already in scope.
+                                **(
+                                    {"oco_group_id": evt.oco_group_id}
+                                    if evt.oco_group_id is not None
+                                    else {}
+                                ),
+                                **(
+                                    {"combo_parent_id": evt.combo_parent_id}
+                                    if evt.combo_parent_id is not None
+                                    else {}
+                                ),
+                                **(
+                                    {"quote_id": evt.quote_id}
+                                    if evt.quote_id is not None
+                                    else {}
+                                ),
+                                **(
+                                    {"leg_index": evt.leg_index}
+                                    if evt.leg_index is not None
+                                    else {}
+                                ),
                             }
                         ),
                     ]
@@ -1827,7 +1856,10 @@ class Engine:
         # correlate on it don't miss quote/combo-driven cancels.
         self.pub_sock.send_multipart(
             make_cancelled_msg(
-                cancelled.gateway_id, order_id, client_tag=cancelled.client_tag
+                cancelled.gateway_id,
+                order_id,
+                client_tag=cancelled.client_tag,
+                order=cancelled.to_dict(),
             )
         )
         return cancelled
@@ -2486,7 +2518,9 @@ class Engine:
                     if evt.id not in _pub_cancel_ids:
                         _pub_cancel_ids.add(evt.id)
                         self.pub_sock.send_multipart(
-                            make_cancelled_msg(evt.gateway_id, evt.id)
+                            make_cancelled_msg(
+                                evt.gateway_id, evt.id, order=evt.to_dict()
+                            )
                         )
             for trade in trades:
                 self._publish_trade(trade)
@@ -3089,7 +3123,9 @@ class Engine:
                     if evt.id not in _pub_terminal_ids:
                         _pub_terminal_ids.add(evt.id)
                         self.pub_sock.send_multipart(
-                            make_cancelled_msg(evt.gateway_id, evt.id)
+                            make_cancelled_msg(
+                                evt.gateway_id, evt.id, order=evt.to_dict()
+                            )
                         )
                     if evt.combo_parent_id and evt.id != child.id:
                         self._check_combo_after_child_event(evt)
@@ -3252,7 +3288,9 @@ class Engine:
                 cancelled = book.cancel_order(child_id)
                 if cancelled:
                     self.pub_sock.send_multipart(
-                        make_cancelled_msg(combo.gateway_id, child_id)
+                        make_cancelled_msg(
+                            combo.gateway_id, child_id, order=cancelled.to_dict()
+                        )
                     )
                     self._mark_dirty(symbol)  # type: ignore[arg-type]
             self._order_symbol.pop(child_id, None)
@@ -3372,7 +3410,11 @@ class Engine:
                     if cancelled:
                         cancelled.status = OrderStatus.EXPIRED
                         self.pub_sock.send_multipart(
-                            make_expired_msg(cancelled.gateway_id, cancelled.id)
+                            make_expired_msg(
+                                cancelled.gateway_id,
+                                cancelled.id,
+                                order=cancelled.to_dict(),
+                            )
                         )
                         self._order_symbol.pop(cancelled.id, None)
                         if cancelled.combo_parent_id:
@@ -3759,7 +3801,9 @@ class Engine:
                     if evt.id not in _pub_terminal_ids:
                         _pub_terminal_ids.add(evt.id)
                         self.pub_sock.send_multipart(
-                            make_cancelled_msg(evt.gateway_id, evt.id)
+                            make_cancelled_msg(
+                                evt.gateway_id, evt.id, order=evt.to_dict()
+                            )
                         )
                         if evt.oco_group_id:
                             _oco_pending_checks.append(evt)
@@ -3813,7 +3857,9 @@ class Engine:
                 cancelled = book.cancel_order(order_id)
                 if cancelled:
                     self.pub_sock.send_multipart(
-                        make_cancelled_msg(gateway_id, order_id)
+                        make_cancelled_msg(
+                            gateway_id, order_id, order=cancelled.to_dict()
+                        )
                     )
                     self._mark_dirty(symbol)  # type: ignore[arg-type]
             self._order_symbol.pop(order_id, None)
@@ -3900,7 +3946,10 @@ class Engine:
             self._order_symbol.pop(order_id, None)
             self.pub_sock.send_multipart(
                 make_cancelled_msg(
-                    gateway_id, order_id, client_tag=cancelled.client_tag
+                    gateway_id,
+                    order_id,
+                    client_tag=cancelled.client_tag,
+                    order=cancelled.to_dict(),
                 )
             )
             self._mark_dirty(cancelled.symbol)
@@ -4138,7 +4187,9 @@ class Engine:
                 and evt.id not in published_terminal_ids
             ):
                 published_terminal_ids.add(evt.id)
-                self.pub_sock.send_multipart(make_cancelled_msg(evt.gateway_id, evt.id))
+                self.pub_sock.send_multipart(
+                    make_cancelled_msg(evt.gateway_id, evt.id, order=evt.to_dict())
+                )
             elif (
                 evt.status == OrderStatus.REJECTED
                 and evt.id not in published_terminal_ids
@@ -4220,7 +4271,10 @@ class Engine:
                     order.status = OrderStatus.EXPIRED
                     self.pub_sock.send_multipart(
                         make_expired_msg(
-                            order.gateway_id, order.id, client_tag=order.client_tag
+                            order.gateway_id,
+                            order.id,
+                            client_tag=order.client_tag,
+                            order=order.to_dict(),
                         )
                     )
                     # If this was a combo child, cascade-cancel sibling legs

@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from pydantic import ValidationError
 
-from edumatcher.api_gateway.events import market_data_symbol
+from edumatcher.api_gateway.events import market_data_symbol, now_iso
 from edumatcher.api_gateway.schemas import ALWAYS_ON_CHANNELS, MarketDataControl
 from edumatcher.api_gateway.sessions import SessionRegistry
 
@@ -136,9 +136,44 @@ async def private_events(websocket: WebSocket) -> None:
             await websocket.send_json({"type": "error", "data": {"message": reason}})
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-        await websocket.send_json({"type": "authenticated", "gateway_id": gateway_id})
+        engine = websocket.app.state.engine
+        # Register the sink *before* the snapshot is taken and sent. Doing it
+        # after would drop every event that landed in between — the gap a
+        # reconnecting client is least able to notice, because the snapshot
+        # would look complete. Registering first means the worst case is a
+        # duplicate: an event both included in the snapshot and delivered
+        # live. Order state is idempotent, so applying it twice is harmless,
+        # whereas missing it is not.
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=256)
-        websocket.app.state.engine.add_sink(gateway_id, queue)
+        engine.add_sink(gateway_id, queue)
+        try:
+            await websocket.send_json(
+                {
+                    "type": "authenticated",
+                    "gateway_id": gateway_id,
+                    "stream_seq": engine.stream_seq(gateway_id),
+                }
+            )
+            # The snapshot removes the reconnect round-trip to GET /orders and
+            # the race it opens. `stream_seq` is the point the snapshot is
+            # accurate as of: anything numbered above it arrives live.
+            cache = engine.get_caches(gateway_id)
+            await websocket.send_json(
+                {
+                    "type": "orders.snapshot",
+                    "gateway_id": gateway_id,
+                    "stream_seq": engine.stream_seq(gateway_id),
+                    "ts": now_iso(),
+                    "data": {
+                        "orders": list(cache.orders.values()),
+                        "positions": dict(cache.positions),
+                        "quote_legs": list(cache.quote_legs.values()),
+                    },
+                }
+            )
+        except Exception:
+            engine.remove_sink(gateway_id, queue)
+            raise
         try:
             while True:
                 event = await queue.get()

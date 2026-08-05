@@ -74,7 +74,11 @@ def websocket_type(topic: str) -> str:
 
 
 def envelope(
-    topic: str, payload: dict[str, Any], *, seq: int | None = None
+    topic: str,
+    payload: dict[str, Any],
+    *,
+    seq: int | None = None,
+    stream_seq: int | None = None,
 ) -> dict[str, Any]:
     """Build the uniform JSON event envelope used by both WebSockets.
 
@@ -86,6 +90,11 @@ def envelope(
     counts within — a client tracking gaps must key on ``topic``, not on
     ``type``, because one type (``depth``) spans many topics (``depth.AAPL``,
     ``depth.MSFT``) each with its own independent sequence.
+
+    ``stream_seq`` is present on private events only. Those reach a client
+    unfiltered, so one counter across the whole gateway stream is contiguous
+    and is simpler to check than one counter per topic. Market data has no
+    equivalent because subscribers filter.
     """
     body: dict[str, Any] = {
         "type": websocket_type(topic),
@@ -95,6 +104,8 @@ def envelope(
     }
     if seq is not None:
         body["seq"] = seq
+    if stream_seq is not None:
+        body["stream_seq"] = stream_seq
     gateway_id = gateway_from_topic(topic)
     if gateway_id is not None:
         body["gateway_id"] = gateway_id

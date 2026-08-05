@@ -94,6 +94,8 @@ class EngineClient:
         self._pending: dict[str, list[_PendingWait]] = defaultdict(list)
         # Per-topic outbound sequence numbers — see _next_seq for why per topic.
         self._topic_seq: defaultdict[str, int] = defaultdict(int)
+        # Per-gateway private-stream sequence — see _next_stream_seq.
+        self._gateway_stream_seq: defaultdict[str, int] = defaultdict(int)
         # Plain counters, not _dbg_count: these must be readable in a normal
         # run, because they are the only server-side evidence of dropped events.
         self._dropped_events: defaultdict[str, int] = defaultdict(int)
@@ -382,6 +384,27 @@ class EngineClient:
         self._topic_seq[topic] = seq
         return seq
 
+    def _next_stream_seq(self, gateway_id: str) -> int:
+        """Monotonic sequence across *all* of one gateway's private events.
+
+        Market data cannot have this: subscribers filter, so a stream-wide
+        counter would show phantom gaps. ``/api/v1/events`` applies no
+        filtering at all — a client receives every topic for its gateway — so
+        a single counter is contiguous there, and one counter is markedly
+        easier to check than one per topic.
+
+        Both numbers are emitted. ``seq`` stays per-topic so the two sockets
+        share one meaning for that field; ``stream_seq`` is the private
+        stream's own.
+        """
+        seq = self._gateway_stream_seq[gateway_id] + 1
+        self._gateway_stream_seq[gateway_id] = seq
+        return seq
+
+    def stream_seq(self, gateway_id: str) -> int:
+        """The last private-stream sequence issued for *gateway_id*."""
+        return self._gateway_stream_seq[gateway_id]
+
     def _record_drop(self, sink: str, event: dict[str, Any]) -> None:
         """Account for an event that could not be queued.
 
@@ -421,7 +444,9 @@ class EngineClient:
             cache = self._caches[gateway_id]
             cache.apply(topic, payload)
             self._register_tick_metadata(payload)
-            event = envelope(topic, payload, seq=seq)
+            event = envelope(
+                topic, payload, seq=seq, stream_seq=self._next_stream_seq(gateway_id)
+            )
             for queue in list(self._sinks.get(gateway_id, set())):
                 if self._try_put(queue, event):
                     self._dbg_count("gateway_sink_events")
