@@ -1,4 +1,4 @@
-Version: 1.4.0
+Version: 1.5.0
 
 Date: 2026-08-05
 
@@ -9,6 +9,14 @@ Status: Design and Research Proposal
 
 > **Revision History**
 >
+> - **1.5.0 (2026-08-05)** — Backend shipped most of [§26.3.5 Private event recovery](#2635-private-event-recovery):
+>   `/api/v1/events` now sends `event_seq` on auth, an `orders.snapshot` frame, and stable group ids on
+>   `order.*`/`combo.*`/`oco.*`/`quote.*` events. Resume/replay (`{ "action": "resume", "from_seq": ... }`)
+>   was evaluated and deliberately deferred: the only gap it would close — fill/cancel transitions
+>   missed during a drop — is already covered by `/history/*` and drop copy. Updated
+>   [§17.2.1](#1721-authentication-frame), [§17.3.1](#1731-authentication-and-subscription),
+>   [§26.2](#262-highest-impact-changes), [§26.3.5](#2635-private-event-recovery), and
+>   [§26.5](#265-suggested-implementation-order) accordingly.
 > - **1.4.0 (2026-08-05)** — Backend shipped two items from the [§26 addendum](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal):
 >   `/api/v1/market-data` now carries a per-topic `seq` on every event, and the subscription model now
 >   supports per-symbol channel groups (an `items` list) on a single connection. Replaced the earlier
@@ -2276,8 +2284,20 @@ for its cross-gateway feed, since `/events` only carries the calling gateway's o
 
 Must be sent within 5 seconds of connection. Server responds with:
 ```jsonc
-{ "type": "authenticated", "gateway_id": "GW01" }
+{ "type": "authenticated", "gateway_id": "GW01", "event_seq": 9182 }
 ```
+
+An `orders.snapshot` frame with the gateway's current active orders follows immediately after
+authentication, so the blotter can rebuild its state without a separate `/orders` round-trip.
+
+`/api/v1/events` now carries a private per-gateway `event_seq`, so the UI can detect a gap in private
+events the same way it does for market data ([§17.3.1](#1731-authentication-and-subscription)). There
+is **no resume/replay handshake, and none is planned**: replay's only advantage over `event_seq` +
+`orders.snapshot` is visibility into transitions missed during a gap (e.g. a fill immediately followed
+by a cancel, which the snapshot alone would only show as `CANCELLED`). Those transitions are already
+recoverable from `/history/*`, with drop copy as the authoritative fill record (see
+[§26.3.5](#2635-private-event-recovery)). A detected gap is repaired by reconnecting and refreshing
+`/orders`, `/positions`, `/quotes/bootstrap`, `/quotes/legs`.
 
 #### 17.2.2 Event routing
 
@@ -2297,6 +2317,10 @@ Incoming events are dispatched by `type` to registered handlers:
 | `quote.ack` | Update quote card for symbol |
 | `quote.status` | Update quote card; trigger fill alert if inactivated |
 | `mass_cancel.ack` | Kill-switch result toast |
+
+Every `order.*`/`combo.*`/`oco.*`/`quote.*` event carries the relevant `oco_group_id` /
+`combo_parent_id` / quote group id, so the UI can correlate related events without re-deriving
+grouping client-side.
 
 #### 17.2.3 Fill toast content
 
@@ -2341,7 +2365,8 @@ state for that topic, and re-subscribes the affected item to force a fresh serie
 replay proposal). `session` and `circuit_breaker` remain always-on regardless of the subscribed
 items. `ManagedSocket` replays the full `items` list on every reconnect, and the UI still refreshes
 REST/bootstrap queries (`/orders`, `/positions`, `/quotes/bootstrap`, `/quotes/legs`) after reconnect
-to repair any private-event gap, since `/api/v1/events` does not yet carry sequence numbers.
+to repair any private-event gap; `/api/v1/events` now carries `event_seq` for gap *detection*
+([§17.2.1](#1721-authentication-frame)) but has no resume/replay handshake yet.
 
 #### 17.3.2 Event routing
 
@@ -3076,14 +3101,16 @@ use the same operational model, even if the wire encoding remains JSON rather th
 
 > **Update (2026-08-05):** the former top two rows of this table — per-topic sequence numbers and the
 > per-symbol subscription model for `/api/v1/market-data` — have shipped and are documented in
-> [§17.3.1](#1731-authentication-and-subscription). The items below remain proposed.
+> [§17.3.1](#1731-authentication-and-subscription). `/api/v1/events` has also gained `event_seq` and
+> an `orders.snapshot` frame ([§17.2.1](#1721-authentication-frame)); resume/replay for private events
+> was evaluated and deliberately deferred (see [§26.3.5](#2635-private-event-recovery)), so the
+> "Private order events" row has been dropped from the table below. The other items remain proposed.
 
 | Area | Recommended change | Why it helps the terminal |
 |---|---|---|
 | CALF/browser bridge | Define a canonical JSON envelope that mirrors CALF `SEQ`/`SNAP`/`RESUME` semantics | Lets the UI, API gateway, and external protocol stay conceptually aligned |
 | Book/depth data | Publish full depth snapshots plus incremental depth deltas with clear reset markers | Makes DOM ladders precise and efficient |
 | Auction data | Publish periodic authoritative indicative auction updates during auction phases | Removes client-side approximation and makes the teaching panel trustworthy |
-| Private order events | Add sequence/resume to `/api/v1/events` and expose an explicit order-state snapshot | Lets the blotter recover after disconnect without guessing from REST polling |
 | Admin monitor | Add replay/backfill and cross-gateway order detail endpoints | Makes the ADMIN audit viewer useful immediately on load and after reconnect |
 | Command lifecycle | Standardise async command ids and terminal acknowledgements for admin/trading commands | Gives buttons deterministic pending/success/error states |
 | Reference/risk/admin APIs | Add runtime symbol, risk, circuit-breaker, kill-switch, and index admin endpoints | Converts disabled UI panels into real tools |
@@ -3182,15 +3209,25 @@ should not reimplement the matching algorithm to manufacture authoritative price
 
 #### 26.3.5 Private event recovery
 
-`/api/v1/events` should expose the same recovery contract as market data:
+`/api/v1/events` now exposes most of this recovery contract:
 
-- On authentication, send `{ "type": "authenticated", "gateway_id": "GW01", "event_seq": 9182 }`.
-- Support `{ "action": "resume", "from_seq": 9000 }` for private events.
-- Provide `GET /api/v1/orders/snapshot` or include an `orders.snapshot` frame after auth.
-- Include stable group ids for OCO/combo/quote workflows in every relevant ack/fill/cancel event.
+- **Done:** on authentication, the server sends
+  `{ "type": "authenticated", "gateway_id": "GW01", "event_seq": 9182 }`.
+- **Done:** an `orders.snapshot` frame follows authentication with the gateway's current active
+  orders.
+- **Done:** `order.*`/`combo.*`/`oco.*`/`quote.*` events carry stable group ids (`oco_group_id`,
+  `combo_parent_id`, quote group id) for OCO/combo/quote workflows.
+- **Deliberately deferred:** `{ "action": "resume", "from_seq": 9000 }` support. This would need a
+  server-side event replay buffer that does not exist. What resume buys over `event_seq` +
+  `orders.snapshot` is visibility into *transitions* missed during a gap — e.g. an order that filled
+  and was then cancelled shows only as `CANCELLED` in the snapshot, and the UI never sees the fill.
+  That matters for a blotter, but fills are already recoverable from `/history/*`, and drop copy
+  remains the authoritative fill record, so the gap is an acceptable tradeoff rather than a blocking
+  defect.
 
-This removes the need for the UI to stitch together order state from `/orders`, `/history/orders`,
-and best-effort live events after reconnect.
+The snapshot + group-id combination is enough for the blotter to rebuild live order/position state
+after a reconnect. Resume/replay only goes back on the backlog if a missed-fill scenario shows up in
+practice that `/history/*` and drop copy don't already cover.
 
 #### 26.3.6 Admin monitor replay and order drill-down
 
@@ -3307,12 +3344,14 @@ This keeps the terminal honest during staged backend work and makes demos less b
 
 ### 26.5 Suggested implementation order
 
-1. ~~Unify WebSocket envelopes and sequence numbers.~~ **Done for market data** — every `book` /
-   `trades` / `depth` / `auction` event now carries a per-topic `seq`
-   ([§17.3.1](#1731-authentication-and-subscription)). Remaining: extend the same convention to
-   `/api/v1/events` and `/api/v1/admin/monitor` so all three streams share one envelope.
-2. **Add snapshot/resume for market data and private events.** This makes reconnect behaviour
-   deterministic and removes the biggest class of UI state bugs.
+1. ~~Unify WebSocket envelopes and sequence numbers.~~ **Done for market data and private events** —
+   market data carries a per-topic `seq` ([§17.3.1](#1731-authentication-and-subscription)) and
+   `/api/v1/events` carries a private `event_seq` ([§17.2.1](#1721-authentication-frame)). Remaining:
+   extend the same convention to `/api/v1/admin/monitor`, and unify all three into one shared envelope.
+2. **Add snapshot/resume for market data.** Private-event resume/replay was evaluated and
+   deliberately deferred ([§26.3.5](#2635-private-event-recovery)) — `event_seq` + `orders.snapshot`
+   plus `/history/*` and drop copy already cover the practical recovery cases. Market data still
+   lacks a replay handshake, so this item stays scoped to `book`/`trades`/`depth`/`auction`.
 3. ~~Replace the market-data subscription shape with per-symbol channel items.~~ **Done** — see
    [§17.3.1](#1731-authentication-and-subscription) and
    [§26.3.3](#2633-per-symbol-channel-subscriptions).
@@ -3325,9 +3364,11 @@ This keeps the terminal honest during staged backend work and makes demos less b
 7. **Fill out runtime admin/reference/index APIs.** These convert disabled panels into operational
    tools once the core stream/recovery model is solid.
 
-Items 1 and 3 are complete for the market-data stream. The next highest-leverage step is item 2
-(snapshot/resume): sequence numbers alone only let the UI detect a gap — they do not yet let it
-repair one without a full re-subscribe.
+Items 1 and 3 are complete for market data, and item 1 is also done for private events. Private-event
+resume/replay (originally part of item 2) has been deliberately deferred — see
+[§26.3.5](#2635-private-event-recovery). The next highest-leverage remaining step is item 2 for market
+data: sequence numbers alone only let the UI detect a gap — they do not yet let it repair one without
+a full re-subscribe.
 
 ---
 
