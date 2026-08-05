@@ -2836,7 +2836,7 @@ parsed:
 ## See Also
 
 - [Running the Engine](040-running-the-exchange.md) - startup order and common runtime workflows
-- [Gateway Commands](050-gateway-reference.md) - ALF commands and gateway behavior
+- [ALF Console](055-alf-console.md) - ALF commands and gateway behavior
 - [Risk Controls](120-risk-controls.md) - collar and circuit-breaker behavior in depth
 - [Persistence](180-persistence.md) - how GTC orders, book stats, and combos are saved and restored
 - [Processes](170-processes.md) - which process reads which config section

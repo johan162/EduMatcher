@@ -968,7 +968,7 @@ configuration.
 - [Getting Started](000-getting-started.md) - first concepts and first trade
 - [Configuration](010-configuration.md) - authored YAML and deployed artifact
 - [Processes](170-processes.md) - full process inventory and message flow
-- [Gateway Reference](050-gateway-reference.md) - participant command syntax
+- [ALF Console](055-alf-console.md) - participant command syntax
 - [Auctions & Scheduling](080-session-scheduling.md) - session phases and trading date
 - [Risk Controls](120-risk-controls.md) - collars, circuit breakers and halts
 - [Persistence](180-persistence.md) - all files written by the exchange

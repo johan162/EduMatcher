@@ -73,7 +73,7 @@ accumulating stores each have their own chapter (linked in the table).
     gateway of recently-inactivated MM quotes (filled or cancelled), used to
     answer the ALF `QLEGS|SHOW=RECENT` / `SHOW=ALL` subcommands and the
     equivalent `system.quote_legs_request` wire message — see
-    [Gateway → QLEGS](050-gateway-reference.md#qlegs-inspect-mm-quote-legs-and-fill-flags)
+    [ALF Console → QLEGS](055-alf-console.md#qlegs-inspect-mm-quote-legs-and-fill-flags)
     and [Messages → `system.quote_legs_request`](270-message-reference.md#systemquote_legs_request-systemquote_legsgw_id).
     Unlike `gtc_orders.json`/`gtc_combos.json`, this history is **not** written
     to disk and does not survive an engine restart — a fresh engine process

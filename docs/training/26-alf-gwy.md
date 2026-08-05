@@ -561,6 +561,6 @@ chapter.
 
 - [ALF TCP Gateway](../user-guide/220-alf-gateway.md) — configuration, session lifecycle, command reference, and troubleshooting
 - [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md) — formal wire syntax and full field/enum definitions
-- [Gateway Commands](../user-guide/050-gateway-reference.md) — interactive command reference for `pm-alf-console`
+- [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md) — interactive command reference for `pm-alf-console`
 - [Protocol Support Library Examples](../user-guide/800-examples.md)
 - [Processes](../user-guide/170-processes.md)

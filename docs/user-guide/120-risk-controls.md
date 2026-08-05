@@ -1516,8 +1516,8 @@ for the full `gateways.alf[].smp_action` field definition and
 for the normative schema entry, including how the same default extends to
 `market_maker_combos[].legs[]` config-seeded combos. Per-request field
 definitions live alongside each protocol's `NEW`/`COMBO`/`QUOTE` command
-reference: [Gateway Reference — `NEW`](050-gateway-reference.md#new-submit-an-order),
-[Gateway Reference — `NEW (Combo)`](050-gateway-reference.md#new-combo-submit-a-multi-leg-order),
+reference: [ALF Console — `NEW`](055-alf-console.md#new-submit-an-order),
+[ALF Console — `NEW (Combo)`](055-alf-console.md#new-combo-submit-a-multi-leg-order),
 [Combos — `SMP=`](070-combo-orders.md), and
 [API Gateway](260-api-gateway.md) for the REST field.
 
@@ -1541,7 +1541,7 @@ When a symbol resumes, market makers are expected to submit fresh quotes at upda
 - [Order Types](060-order-types.md) — how different order types behave under halt, and how SMP interacts with each type's sweep
 - [Drop Copy](200-drop-copy.md) — how fill events are forwarded to risk systems
 - [Auctions & Session Scheduling](080-session-scheduling.md) — the equilibrium-price uncross algorithm that circuit-breaker resumption always runs
-- [Gateway Reference](050-gateway-reference.md) — `KILL` command for triggering the kill switch via the ALF terminal, and the `NEW`/`COMBO` `SMP=` field
+- [ALF Console](055-alf-console.md) — `KILL` command for triggering the kill switch via the ALF terminal, and the `NEW`/`COMBO` `SMP=` field
 - [Combos](070-combo-orders.md) — per-leg `SMP=` on multi-leg orders
 - [Market-Maker Bot](100-mm-bot.md) — why quoting gateways rely entirely on the `smp_action` gateway default
 - [Configuration Spec](990-app-config-spec.md) — normative schema for `gateways.alf[].smp_action` and `ComboLegSpec.smp_action`

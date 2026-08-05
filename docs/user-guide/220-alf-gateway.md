@@ -475,7 +475,7 @@ leg's final order state available at removal time, which is the common
 case for every normal inactivation path (see
 [`system.quote_legs_request`](270-message-reference.md#systemquote_legs_request-systemquote_legsgw_id)
 for when a leg's snapshot can be absent). See
-[Gateway → QLEGS](050-gateway-reference.md#qlegs-inspect-mm-quote-legs-and-fill-flags)
+[ALF Console → QLEGS](055-alf-console.md#qlegs-inspect-mm-quote-legs-and-fill-flags)
 for the full column semantics (shared with `pm-alf-console`'s `QLEGS`).
 
 **Multi-line response:**
@@ -886,7 +886,7 @@ Expected output ends with `BYE` or a clean connection close immediately after `W
 ## See also
 
 - [ALF Protocol Reference](900-app-alf-protocol.md) — formal wire syntax and full field/enum definitions
-- [Gateway Commands](050-gateway-reference.md) — interactive command reference for `pm-alf-console`
+- [ALF Console](055-alf-console.md) — interactive command reference for `pm-alf-console`
 - [Drop Copy](200-drop-copy.md) — the engine's drop-copy feed (`:5557`) that `DC|STATE=ON` relays
 - [Configuration](010-configuration.md) — `alf_gateway:` section and `gateways.alf` allowlist
 - [Processes](170-processes.md#pm-alf-gwy-alf-tcp-gateway) — process topology and ZMQ message tables

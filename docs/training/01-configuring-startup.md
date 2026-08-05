@@ -316,7 +316,8 @@ the engine kept running?
 - [Configuration](../user-guide/010-configuration.md)
 - [Config Verifier (`pm-cverifier`)](../user-guide/020-config-verifier.md)
 - [Running the Engine](../user-guide/040-running-the-exchange.md)
-- [Gateway Commands](../user-guide/050-gateway-reference.md)
+- [Gateway Concepts](../user-guide/051-gateway-intro.md)
+- [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md)
 - [Message Types (system.symbols)](../user-guide/270-message-reference.md)
 
 **Next:** [02 — Setting Up Market-Maker Liquidity](02-setting-up-MM-bots.md)

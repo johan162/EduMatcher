@@ -173,7 +173,7 @@ that a LIMIT order would protect you from?
 
 - [Your First Trade](../concepts/04-concepts-first-trade.md)
 - [The Order Book](../concepts/01-concepts-order-book.md)
-- [Gateway Commands](../user-guide/050-gateway-reference.md)
+- [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md)
 
  
 

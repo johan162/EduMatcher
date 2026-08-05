@@ -43,7 +43,7 @@ Status: Implemented
 
 ## 1. Background and Motivation
 
-The ALF protocol's `QLEGS` command (documented in `docs/user-guide/050-gateway-reference.md`)
+The ALF protocol's `QLEGS` command (documented in `docs/user-guide/055-alf-console.md`)
 accepts a `SHOW` parameter with three values: `ACTIVE`, `RECENT`, and `ALL`.
 `ACTIVE` works correctly today — it reflects the engine's live `QuoteIndex`,
 which holds exactly the quote legs currently resting in the book. `RECENT`
@@ -163,7 +163,7 @@ promise.
 | `pm-mm-bot` | `src/edumatcher/mm_bot/bot.py` (`_reconcile_qlegs`) | No functional change required — reconciliation reads only `legs`, which keeps its current active-only meaning — but the docstring/assumptions should be updated and a regression test added (see [§6.2](#62-pm-mm-bot-reconciliation-empty-legs-forced-reissue)) |
 | REST API | `src/edumatcher/api_gateway/routers/reference.py`, `caches.py` | No code change; `recent` flows through automatically on the engine-reply fallback path only — see [§4](#4-pm-alf-gwy-vs-pm-alf-console-vs-rest-api) for the caveat |
 | `pm-alf-console` | *(none)* | Out of scope — uses its own local cache, not this wire message |
-| Documentation | `docs/user-guide/050-gateway-reference.md`, `220-alf-gateway.md`, `270-message-reference.md`, `180-persistence.md` | Update QLEGS reference, message contract, and non-persistence rationale |
+| Documentation | `docs/user-guide/055-alf-console.md`, `220-alf-gateway.md`, `270-message-reference.md`, `180-persistence.md` | Update QLEGS reference, message contract, and non-persistence rationale |
 | Tests | `tests/test_mm_quote_models.py`, `tests/test_engine_quote_legs.py` | New unit tests for the ring buffer; new/rewritten integration tests for `RECENT`/`ALL` wire behavior |
 
 

@@ -103,5 +103,5 @@ If you want direct entry points, start with:
 - [Configuration](user-guide/010-configuration.md)
 - [Commands](user-guide/160-exchange-commands.md)
 - [Running the Engine](user-guide/040-running-the-exchange.md)
-- [Gateway Commands](user-guide/050-gateway-reference.md)
+- [ALF Console (pm-alf-console)](user-guide/055-alf-console.md)
 - [Protocol Overview](user-guide/210-protocols-overview.md)

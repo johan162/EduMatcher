@@ -189,7 +189,7 @@ Answer these without looking at earlier chapters:
 Review map:
 
 - Q1: [Architecture Overview](../architecture/01-architecture.md)
-- Q2: [Gateway Commands](../user-guide/050-gateway-reference.md)
+- Q2: [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md)
 - Q3: [MM Quotes Concept](../concepts/03-concepts-mm-quotes.md)
 - Q4: [Drop Copy](../user-guide/200-drop-copy.md)
 - Q5: [Order Types](../user-guide/060-order-types.md)

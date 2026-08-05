@@ -415,7 +415,7 @@ If you change:
 
 - **configuration semantics** → update `docs/user-guide/010-configuration.md`
 - **runtime commands or startup behavior** → update `docs/user-guide/040-running-the-exchange.md`
-- **gateway commands** → update `docs/user-guide/050-gateway-reference.md`
+- **gateway commands** → update `docs/user-guide/055-alf-console.md` (and `docs/user-guide/051-gateway-intro.md` for general gateway concepts)
 - **message payloads or topics** → update `docs/user-guide/270-message-reference.md`
 - **risk, MM quotes, persistence, or drop copy** → update the corresponding user-guide page
 - **developer workflow** → update this page and related developer docs

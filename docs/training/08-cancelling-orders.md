@@ -188,7 +188,7 @@ matter most?
 
 ## Further Reading
 
-- [Gateway Commands](../user-guide/050-gateway-reference.md)
+- [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md)
 - [Message Types (system.symbols)](../user-guide/270-message-reference.md)
 - [ALF Protocol — Cancellation Semantics](../user-guide/900-app-alf-protocol.md)
 

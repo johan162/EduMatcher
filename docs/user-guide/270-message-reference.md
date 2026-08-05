@@ -45,7 +45,7 @@ Quick index of all defined message topics with publisher and purpose.
 | `order.combo` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to submit a combo (multi-leg) order. |
 | `order.combo_cancel` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to cancel a combo and all its child legs. |
 | `order.ack.{GW_ID}` | pm-engine via PUB :5556 | Acknowledgement of an `order.new` submission. |
-| `order.fill.{GW_ID}` | pm-engine via PUB :5556 | Notifies a gateway (and the order monitor) of a partial or full fill. A derived copy of each fill is separately relayed as `drop_copy.event.{gateway_id}` on :5557 — see below and [Drop Copy](200-drop-copy.md). Can also be relayed to a participant's own ALF session as `DC_FILL` via `DC\|STATE=ON` — see [Gateway → DC](050-gateway-reference.md#dc-toggle-drop-copy-relay). |
+| `order.fill.{GW_ID}` | pm-engine via PUB :5556 | Notifies a gateway (and the order monitor) of a partial or full fill. A derived copy of each fill is separately relayed as `drop_copy.event.{gateway_id}` on :5557 — see below and [Drop Copy](200-drop-copy.md). Can also be relayed to a participant's own ALF session as `DC_FILL` via `DC\|STATE=ON` — see [ALF Console → DC](055-alf-console.md#dc-toggle-drop-copy-relay). |
 | `order.cancelled.{GW_ID}` | pm-engine via PUB :5556 | Confirms a cancel request or a Self-Match Prevention (SMP) forced cancellation. |
 | `order.amended.{GW_ID}` | pm-engine via PUB :5556 | Confirms a successful order amendment. |
 | `order.expired.{GW_ID}` | pm-engine via PUB :5556 | Published during engine shutdown for every resting `DAY` order that did not fill. |
@@ -914,7 +914,7 @@ on this page is mirrored to `:5557`.
     participant's own ALF session via `pm-alf-console --drop-copy` /
     `DC|STATE=ON` or `pm-alf-gwy`'s `DC|STATE=ON` command, which re-emits it
     as an ALF `DC_FILL` line scoped to that session's own `gateway_id`. See
-    [Gateway → DC](050-gateway-reference.md#dc-toggle-drop-copy-relay) and
+    [ALF Console → DC](055-alf-console.md#dc-toggle-drop-copy-relay) and
     [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay).
 
 | Field | Type | Description |
@@ -1319,7 +1319,7 @@ forwards `QLEGS` requests from its own ALF sessions to this message and
 renders `legs` (as `LEG` lines), `recent` (as `RECENT_LEG` lines), and
 `bid_leg`/`ask_leg` (as `RECENT_BID_LEG`/`RECENT_ASK_LEG` lines, emitted only
 when present) — see
-[Gateway → QLEGS](050-gateway-reference.md#qlegs-inspect-mm-quote-legs-and-fill-flags).
+[ALF Console → QLEGS](055-alf-console.md#qlegs-inspect-mm-quote-legs-and-fill-flags).
 `pm-alf-console`'s own `QLEGS` command does **not** use this message at all —
 it continues to render entirely from its own local, session-scoped cache
 (unrelated code path, unaffected by any of the above).
@@ -2241,7 +2241,7 @@ wire-format specification in the
 ## See also
 
 - [Processes](170-processes.md) — which process subscribes to which topic prefix
-- [Gateway](050-gateway-reference.md) — how participants receive fill, book, and risk events
+- [ALF Console](055-alf-console.md) — how participants receive fill, book, and risk events
 - [Commands](160-exchange-commands.md) — `ExchangeCommandClient` methods and their underlying message topics
 - [Drop Copy](200-drop-copy.md) — the separate :5557 socket for fill-only event feeds
 - [Risk Controls](120-risk-controls.md) — `risk.*` message payloads in detail

@@ -511,4 +511,4 @@ problems real exchanges spend years solving.
 - [Order Types](060-order-types.md) — the individual order types used as combo legs
 - [Persistence](180-persistence.md) — how GTC combos are saved and restored across sessions
 - [Messages](270-message-reference.md) — `combo.ack`, `combo.status`, `order.fill`, and cascade-cancel events
-- [Gateway](050-gateway-reference.md) — the full COMBO and CANCEL|COMBO_ID= command syntax
+- [ALF Console](055-alf-console.md) — the full COMBO and CANCEL|COMBO_ID= command syntax

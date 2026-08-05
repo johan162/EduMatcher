@@ -1207,5 +1207,5 @@ CANCEL|OCO_ID=TPS
 - [Auctions & Scheduling](080-session-scheduling.md) — which order types are accepted in each session phase
 - [Persistence](180-persistence.md) — how GTC orders survive engine restarts
 - [Risk Controls](120-risk-controls.md) — how collars and halts affect order admission
-- [Gateway](050-gateway-reference.md) — the full command syntax for submitting these order types
+- [ALF Console](055-alf-console.md) — the full command syntax for submitting these order types
 - [ALF Protocol Reference](900-app-alf-protocol.md) — formal grammar for all order fields

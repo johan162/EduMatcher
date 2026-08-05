@@ -108,7 +108,7 @@ the guide readable.
 |---|---|---|
 | **Engine** | `pm-engine`, the authoritative process that owns all order books and matches orders | [Running the Exchange](040-running-the-exchange.md), [Processes](170-processes.md) |
 | **Symbol** | A tradeable instrument such as `AAPL`, with tick size, reference prices, optional market-maker seeds and risk settings | [Configuration](010-configuration.md), [Risk Controls](120-risk-controls.md) |
-| **Gateway ID** | The identity a trader, bot or operator uses when connecting; roles such as `TRADER`, `MARKET_MAKER` and `ADMIN` are attached to gateway IDs | [Configuration](010-configuration.md#alf-gateway-allowlist), [Gateway Reference](050-gateway-reference.md) |
+| **Gateway ID** | The identity a trader, bot or operator uses when connecting; roles such as `TRADER`, `MARKET_MAKER` and `ADMIN` are attached to gateway IDs | [Configuration](010-configuration.md#alf-gateway-allowlist), [Gateway Concepts](051-gateway-intro.md) |
 | **Session phase** | Where the trading day is: `PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED`, or a halt-related phase | [Auctions & Scheduling](080-session-scheduling.md) |
 | **Deployed configuration** | The running system reads one compiled artifact at `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`; you edit YAML, then deploy it | [Configuration](010-configuration.md#file-location) |
 
@@ -399,8 +399,9 @@ when you want exact command-line flags and startup dependencies.
 
 Start here if you are a trader, market maker or instructor building exercises.
 
-- [Gateway Reference](050-gateway-reference.md) explains command syntax and
+- [ALF Console (pm-alf-console)](055-alf-console.md) explains command syntax and
   responses such as `NEW`, `CANCEL`, `STATUS`, `ORDERS`, `QUOTE` and `QLEGS`
+  (see [Gateway Concepts](051-gateway-intro.md) for what a gateway is)
 - [Order Types](060-order-types.md) explains LIMIT, MARKET, STOP, ICEBERG,
   trailing stop, OCO and time-in-force behavior
 - [Combo Orders](070-combo-orders.md) explains multi-leg strategies and
@@ -463,10 +464,10 @@ that way. Pick the path that matches what you are trying to do.
 
 | Role or goal | Suggested path |
 |---|---|
-| **Beginner learning the market** | [How an Exchange Works](../how-exchange-works.md) -> this page -> [Training](../training/index.md) chapters 00-08 -> [Gateway Reference](050-gateway-reference.md) |
-| **Student trader** | Installation -> first session -> [Gateway Reference](050-gateway-reference.md) -> [Order Types](060-order-types.md) -> [Auctions & Scheduling](080-session-scheduling.md) |
+| **Beginner learning the market** | [How an Exchange Works](../how-exchange-works.md) -> this page -> [Training](../training/index.md) chapters 00-08 -> [ALF Console](055-alf-console.md) |
+| **Student trader** | Installation -> first session -> [ALF Console](055-alf-console.md) -> [Order Types](060-order-types.md) -> [Auctions & Scheduling](080-session-scheduling.md) |
 | **Instructor running a class** | Installation -> [Configuration](010-configuration.md) -> [Running the Exchange](040-running-the-exchange.md) -> [Processes](170-processes.md) -> [Training](../training/index.md) |
-| **Market maker** | [Market Making](090-market-maker.md) -> [Market-Maker Bot](100-mm-bot.md) -> [Gateway Reference](050-gateway-reference.md#qlegs-inspect-mm-quote-legs-and-fill-flags) |
+| **Market maker** | [Market Making](090-market-maker.md) -> [Market-Maker Bot](100-mm-bot.md) -> [ALF Console](055-alf-console.md#qlegs-inspect-mm-quote-legs-and-fill-flags) |
 | **Operator / supervisor** | [Running the Exchange](040-running-the-exchange.md) -> [Risk Controls](120-risk-controls.md) -> [Exchange Commands](160-exchange-commands.md) -> [Centralized Log Server](280-log-srv.md) |
 | **Analyst / auditor** | [P&L & Clearing](130-pnl-clearing.md) -> [Statistics and Reporting](140-statistics-and-reporting.md) -> [Audit Trail](190-audit.md) -> [Persistence](180-persistence.md) |
 | **Dashboard or feed developer** | [External Protocols Overview](210-protocols-overview.md) -> [CALF](240-calf-gateway.md) or [API Gateway](260-api-gateway.md) -> protocol appendices |
