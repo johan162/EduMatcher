@@ -1516,3 +1516,99 @@ curl -v --no-buffer \
 | An order vanished from `GET /admin/orders` | It reached a terminal status more than `order_retention_sec` ago | Expected — that view is current state. Use `GET /admin/orders/{order_id}` for its history |
 | `GET /admin/orders` grows without bound | `order_retention_sec: 0` disables eviction | Set a positive value |
 | WebSocket disconnects immediately | Engine not running or client rate limit hit | Start engine; check gateway logs for disconnect reason |
+
+
+## Reference
+
+Quick index of the endpoints on this page, grouped by how the UI uses them.
+
+For the full normative request/response contract for each endpoint, see the
+[Appendix: REST API Reference](950-app-REST-API-reference.md).
+
+### Trading REST
+
+`trading` auth.
+
+| Endpoint | Use |
+|---|---|
+| `POST /api/v1/orders` | Submit one order |
+| `DELETE /api/v1/orders/{order_id}` | Cancel one order |
+| `PATCH /api/v1/orders/{order_id}` | Amend price and/or qty |
+| `POST /api/v1/orders/{order_id}/replace` | Cancel then resubmit |
+| `GET /api/v1/orders` | Live orders for the gateway |
+| `GET /api/v1/orders/{order_id}` | Cached order state |
+| `POST /api/v1/oco` | Submit OCO pair |
+| `DELETE /api/v1/oco/{oco_id}` | Cancel OCO pair |
+| `POST /api/v1/combos` | Submit combo order |
+| `DELETE /api/v1/combos/{combo_id}` | Cancel combo |
+| `POST /api/v1/quotes` | Submit two-sided quote |
+| `DELETE /api/v1/quotes/{symbol}` | Cancel quote |
+| `POST /api/v1/mass-cancel` | Cancel symbol or all exposure |
+| `POST /api/v1/kill-switch` | Alias of mass-cancel |
+| `GET /api/v1/symbols` | Instrument metadata |
+| `GET /api/v1/session` | Current session state |
+| `GET /api/v1/status` | Gateway cache summary |
+| `GET /api/v1/healthz` | Liveness probe |
+
+### Reference Data
+
+`any valid key` auth.
+
+| Endpoint | Use |
+|---|---|
+| `GET /api/v1/reference` | Full reference bundle |
+| `GET /api/v1/reference/config-version` | Bundle version hash |
+| `GET /api/v1/reference/symbols` | Tick sizes and per-symbol config |
+| `GET /api/v1/reference/risk` | Risk bands and CB levels |
+| `GET /api/v1/reference/indexes` | Index definitions |
+| `GET /api/v1/reference/schedule` | Session schedule metadata |
+
+### History
+
+`trading` auth for private history; `any valid key` for public market data.
+
+| Endpoint | Use |
+|---|---|
+| `GET /api/v1/history/orders` | Order lifecycle list |
+| `GET /api/v1/history/orders/{order_id}` | One order's full lifecycle |
+| `GET /api/v1/history/fills` | Fill history |
+| `GET /api/v1/history/trades` | Public trade tape |
+| `GET /api/v1/history/daily` | Daily OHLCV rows |
+| `GET /api/v1/history/price-snapshots` | Intraday price snapshots |
+| `GET /api/v1/history/index-daily` | Daily index rows |
+| `GET /api/v1/history/index-snapshots` | Intraday index snapshots |
+| `GET /api/v1/history/index-ids` | Index ids with data |
+| `GET /api/v1/history/index-events` | Index structural/audit log |
+
+### Admin REST
+
+`ADMIN` role required.
+
+| Endpoint | Use |
+|---|---|
+| `POST /api/v1/admin/session/transition` | Change session phase |
+| `GET /api/v1/admin/session/schedule` | Read schedule settings |
+| `GET /api/v1/admin/gateways` | List gateways |
+| `POST /api/v1/admin/gateways/{gid}/disconnect` | Kick a gateway |
+| `POST /api/v1/admin/circuit-breaker/trigger` | Halt a symbol |
+| `POST /api/v1/admin/circuit-breaker/resume` | Resume a symbol |
+| `GET /api/v1/admin/halts` | Active halts table |
+| `GET /api/v1/admin/risk/state` | Live risk state |
+| `GET /api/v1/admin/orders` | Cross-gateway active orders |
+| `GET /api/v1/admin/orders/{order_id}` | Cross-gateway order lifecycle |
+| `POST /api/v1/admin/kill-switch/symbol` | Kill one symbol |
+| `POST /api/v1/admin/kill-switch/gateway` | Kill one gateway |
+| `POST /api/v1/admin/kill-switch/global` | Kill the market |
+| `GET /api/v1/admin/indexes` | Index configuration |
+| `POST /api/v1/admin/indexes/{id}/rebalance` | Rebalance an index |
+| `POST /api/v1/admin/reference/reload` | Reload compiled reference data |
+
+### WebSocket Streams
+
+`/api/v1/events` is private, `/api/v1/market-data` is public, and `/api/v1/admin/monitor` is ADMIN-only.
+
+| Endpoint | Use |
+|---|---|
+| `WS /api/v1/events` | Private order, quote, and risk lifecycle |
+| `WS /api/v1/market-data` | Public book, trade, depth, session, CB events |
+| `WS /api/v1/admin/monitor` | Cross-gateway admin monitor feed |
