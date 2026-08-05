@@ -36,6 +36,8 @@ from edumatcher.models.message import (
     make_quote_cancel_msg,
     make_quote_legs_request_msg,
     make_quote_new_msg,
+    make_reference_reload_msg,
+    make_reference_request_msg,
     make_session_schedule_request_msg,
     make_session_state_request_msg,
     make_session_transition_msg,
@@ -619,11 +621,37 @@ class EngineClient:
             self._drop_pending(topic, future)
             raise TimeoutError(f"Timed out waiting for {topic}") from exc
 
+    async def send_and_await_reference_reload(
+        self, gateway_id: str, timeout: float
+    ) -> dict[str, Any]:
+        """Request a reference-data reload and await the engine's verdict.
+
+        Mirrors send_and_await_session_transition: fire-and-forget would
+        leave a rejected reload (e.g. the symbol set changed) indistinguishable
+        from a slow one.
+        """
+        command_id = new_command_id()
+        topic = f"system.reference_reload_ack.{gateway_id}"
+        future = self._register_future(topic, match={"command_id": command_id})
+        try:
+            self._send(make_reference_reload_msg(gateway_id, command_id))
+        except HTTPException:
+            self._drop_pending(topic, future)
+            raise
+        try:
+            return await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError as exc:
+            self._drop_pending(topic, future)
+            raise TimeoutError(f"Timed out waiting for {topic}") from exc
+
     def request_orders(self, gateway_id: str) -> None:
         self._send(make_orders_request_msg(gateway_id))
 
     def request_symbols(self, gateway_id: str) -> None:
         self._send(make_symbols_request_msg(gateway_id))
+
+    def request_reference(self, gateway_id: str) -> None:
+        self._send(make_reference_request_msg(gateway_id))
 
     def request_session(self, gateway_id: str) -> None:
         self._send(make_session_state_request_msg(gateway_id))

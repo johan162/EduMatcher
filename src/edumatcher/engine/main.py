@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+import hashlib
+import json
 import logging
 import random
 import signal
@@ -106,6 +108,8 @@ from edumatcher.models.message import (
     make_volume_msg,
     make_halt_status_msg,
     make_position_snapshot_msg,
+    make_reference_msg,
+    make_reference_reload_ack_msg,
 )
 from edumatcher.models.participant import (
     DisconnectBehaviour,
@@ -251,6 +255,15 @@ class Engine:
         self._allowed_symbols: frozenset[str] | None = None
         self._allowed_fix_gateways: frozenset[str] | None = None
         self._engine_config: EngineConfig | None = None
+        # Path _load_config() re-reads on POST /admin/reference/reload.
+        # None when the engine was constructed from an in-memory EngineConfig
+        # (tests, or the compiled-artifact fast path) rather than a file.
+        self._config_path: Path | None = None
+        # Compiled reference-data bundle + its content-hash version, cached
+        # so GET /reference/* doesn't recompute it on every request. Rebuilt
+        # on load and on a successful reload.
+        self._reference_cache: dict[str, Any] | None = None
+        self._reference_config_version: str | None = None
         self._gateway_descriptions: dict[str, str] = {}
         self._connected_fix_gateways: set[str] = set()
         self._sessions: dict[str, ParticipantSession] = {}
@@ -333,6 +346,12 @@ class Engine:
         if engine_config is not None or path.exists():
             try:
                 self._engine_config = engine_config or load_engine_config(path)
+                # Reload (POST /admin/reference/reload) re-parses this same
+                # YAML file with load_engine_config(). Not offered when the
+                # engine started from a compiled artifact (engine_config is
+                # not None here) — that path has no single YAML file to
+                # re-read; the artifact is a separate build step.
+                self._config_path = path if engine_config is None else None
                 self._allowed_symbols = self._engine_config.allowed_symbols
                 self._allowed_fix_gateways = self._engine_config.allowed_fix_gateways
                 self._sessions_enabled = self._engine_config.sessions_enabled
@@ -379,6 +398,7 @@ class Engine:
                     f"collars={'on' if self._enforce_collars else 'off'}, "
                     f"circuit_breakers={'on' if self._enforce_circuit_breakers else 'off'}"
                 )
+                self._rebuild_reference_cache()
             except (FileNotFoundError, PermissionError) as exc:
                 log.warning(
                     "Config file %s could not be read — "
@@ -1337,6 +1357,167 @@ class Engine:
 
         # Mark book dirty; snapshot will be published on next throttle tick
         self._dirty_symbols.add(order.symbol)
+
+    def _rebuild_reference_cache(self) -> None:
+        """(Re)build the compiled reference-data bundle and its version hash.
+
+        Static data only — tick sizes, resolved risk levels, circuit-breaker
+        ladders, schedule, index definitions. Deliberately excludes anything
+        that changes during a session (prices, halts, positions): those are
+        served live by the existing /symbols, /session, /halts endpoints.
+        """
+        engine_cfg = self._engine_config
+        if engine_cfg is None:
+            self._reference_cache = None
+            self._reference_config_version = None
+            return
+
+        symbols: dict[str, dict[str, Any]] = {}
+        for sym, sym_cfg in sorted(engine_cfg.symbols.items()):
+            entry: dict[str, Any] = {
+                "tick_size": 10 ** (-int(sym_cfg.tick_decimals)),
+                "level": sym_cfg.level,
+            }
+            if sym_cfg.collar is not None:
+                entry["collar"] = {
+                    "static_band_pct": sym_cfg.collar.static_band_pct,
+                    "dynamic_band_pct": sym_cfg.collar.dynamic_band_pct,
+                }
+            if sym_cfg.circuit_breaker is not None:
+                entry["circuit_breaker"] = {
+                    "reference_window_ns": sym_cfg.circuit_breaker.reference_window_ns,
+                    "levels": [
+                        {
+                            "name": lvl.name,
+                            "price_shift_pct": lvl.price_shift_pct,
+                            "halt_duration_ns": lvl.halt_duration_ns,
+                        }
+                        for lvl in sym_cfg.circuit_breaker.levels
+                    ],
+                }
+            symbols[sym] = entry
+
+        risk_levels: dict[str, dict[str, Any]] = {
+            name: {"collar": dict(level_cfg.get("collar", {}))}
+            for name, level_cfg in sorted(engine_cfg.risk_control_levels.items())
+        }
+
+        schedule = engine_cfg.schedule
+        reference: dict[str, Any] = {
+            "symbols": symbols,
+            "risk": {
+                "default_level": engine_cfg.default_risk_level,
+                "levels": risk_levels,
+            },
+            "indexes": [
+                {
+                    "id": idx.id,
+                    "description": idx.description,
+                    "base_value": idx.base_value,
+                    "constituents": list(idx.constituents),
+                }
+                for idx in engine_cfg.indices
+            ],
+            "schedule": {
+                "sessions_enabled": engine_cfg.sessions_enabled,
+                "country": engine_cfg.country,
+                "pre_open": schedule.pre_open if schedule else None,
+                "opening_auction_start": (
+                    schedule.opening_auction_start if schedule else None
+                ),
+                "continuous_start": schedule.continuous_start if schedule else None,
+                "closing_auction_start": (
+                    schedule.closing_auction_start if schedule else None
+                ),
+                "closing_auction_end": (
+                    schedule.closing_auction_end if schedule else None
+                ),
+            },
+        }
+        digest = hashlib.sha256(
+            json.dumps(reference, sort_keys=True, default=str).encode()
+        ).hexdigest()[:16]
+        reference["config_version"] = digest
+        self._reference_cache = reference
+        self._reference_config_version = digest
+
+    def _handle_reference_request(self, payload: dict[str, Any]) -> None:
+        gateway_id = str(payload.get("gateway_id", ""))
+        reference = self._reference_cache or {"config_version": None}
+        self.pub_sock.send_multipart(make_reference_msg(gateway_id, reference))
+
+    def _handle_reference_reload(self, payload: dict[str, Any]) -> None:
+        """Re-read static reference data from disk without touching live state.
+
+        Deliberately narrower than the startup config load: it never
+        re-seeds market-maker quotes, never creates or removes order books,
+        and never touches session/halt state. A reload that changed the
+        symbol or index set would require doing exactly those unsafe things
+        mid-session, so it is rejected rather than partially applied.
+        """
+        gateway_id = str(payload.get("gateway_id", ""))
+        command_id = str(payload.get("command_id", ""))
+
+        if self._config_path is None:
+            self.pub_sock.send_multipart(
+                make_reference_reload_ack_msg(
+                    gateway_id,
+                    command_id,
+                    accepted=False,
+                    reason=(
+                        "No reloadable config file "
+                        "(engine started from a compiled artifact)"
+                    ),
+                )
+            )
+            return
+
+        try:
+            new_config = load_engine_config(self._config_path)
+        except Exception as exc:
+            self.pub_sock.send_multipart(
+                make_reference_reload_ack_msg(
+                    gateway_id, command_id, accepted=False, reason=str(exc)
+                )
+            )
+            return
+
+        old_symbols = (
+            frozenset(self._engine_config.symbols)
+            if self._engine_config
+            else frozenset()
+        )
+        new_symbols = frozenset(new_config.symbols)
+        old_index_ids = (
+            frozenset(idx.id for idx in self._engine_config.indices)
+            if self._engine_config
+            else frozenset()
+        )
+        new_index_ids = frozenset(idx.id for idx in new_config.indices)
+        if new_symbols != old_symbols or new_index_ids != old_index_ids:
+            self.pub_sock.send_multipart(
+                make_reference_reload_ack_msg(
+                    gateway_id,
+                    command_id,
+                    accepted=False,
+                    reason=(
+                        "Reload cannot add or remove symbols/indexes mid-session "
+                        "(requires a restart); the symbol/index set changed"
+                    ),
+                )
+            )
+            return
+
+        self._engine_config = new_config
+        self._rebuild_reference_cache()
+        self.pub_sock.send_multipart(
+            make_reference_reload_ack_msg(
+                gateway_id,
+                command_id,
+                accepted=True,
+                config_version=self._reference_config_version,
+            )
+        )
 
     def _handle_symbols_request(self, payload: dict[str, Any]) -> None:
         gateway_id = payload.get("gateway_id", "")
@@ -4397,6 +4578,10 @@ class Engine:
                 self._handle_gateway_disconnect(payload)
             elif topic == "system.symbols_request":
                 self._handle_symbols_request(payload)
+            elif topic == "system.reference_request":
+                self._handle_reference_request(payload)
+            elif topic == "system.reference_reload":
+                self._handle_reference_reload(payload)
             elif topic == "book.snapshot_request":
                 self._handle_book_snapshot_request(payload)
             elif topic == "order.orders_request":

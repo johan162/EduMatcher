@@ -193,6 +193,7 @@ cannot submit, cancel, or inspect private orders.
 | `AUDIT_INDEX_UNAVAILABLE` | `503` | No `pm-audit` index — only affects `GET /admin/orders/{order_id}` |
 | `UNKNOWN_ORDER` | `404` | No audited events for that order id |
 | `TRANSITION_REJECTED` | `409` | The engine will not perform the requested session transition |
+| `RELOAD_REJECTED` | `409` | `POST /admin/reference/reload` was rejected — usually because the file's symbol/index set changed |
 | `ENGINE_TIMEOUT` | `503` | No engine reply within the configured timeout |
 | `INDEX_TIMEOUT` | `503` | No `pm-index` reply within the configured timeout |
 | `INDEX_ERROR` | `502` | `pm-index` rejected the request |
@@ -220,6 +221,12 @@ Base path: `/api/v1`.
 | `POST`   | `/kill-switch`               | trading       | Alias of `/mass-cancel`              |
 | `GET`    | `/symbols`                   | trading       | Instrument metadata                  |
 | `GET`    | `/session`                   | trading       | Current engine session state         |
+| `GET`    | `/reference`                 | any valid key | Full compiled reference-data bundle  |
+| `GET`    | `/reference/config-version`  | any valid key | Content-hash version of reference data |
+| `GET`    | `/reference/symbols`         | any valid key | Tick sizes, risk level, collar/circuit-breaker config per symbol |
+| `GET`    | `/reference/risk`            | any valid key | Risk level definitions and the default level |
+| `GET`    | `/reference/indexes`         | any valid key | Configured exchange index definitions |
+| `GET`    | `/reference/schedule`        | any valid key | Session schedule, `sessions_enabled`, `country` |
 | `GET`    | `/quotes/bootstrap`          | trading       | Active quote bootstrap state         |
 | `GET`    | `/quotes/legs`               | trading       | Quote leg state                      |
 | `GET`    | `/positions`                 | trading       | Net positions by symbol              |
@@ -322,6 +329,104 @@ replacement (see [Implementation notes](#implementation-notes-and-design-deviati
 
 All of the round-tripped endpoints above return `503` with error code
 `ENGINE_TIMEOUT` if the engine doesn't reply within `timeouts.engine_reply_sec`.
+
+
+### Reference data
+
+Base path: `/api/v1/reference`. These endpoints serve the engine's
+**compiled, static** reference data — the resolved settings a client needs to
+interpret prices and risk state correctly (tick sizes, resolved risk-band
+collars, circuit-breaker ladders, session schedule, index definitions)
+without parsing `engine_config.yaml` or depending on internal engine
+structures. They are distinct from `GET /symbols` and `GET /session`, which
+report *live* state (current halts, `prev_close`, current `SessionState`):
+reference data changes only when an admin reloads it.
+
+| Endpoint | Returns | Notes |
+|---|---|---|
+| `GET /reference` | The full bundle: `symbols`, `risk`, `indexes`, `schedule`, `config_version` | One call for a client that wants everything |
+| `GET /reference/config-version` | `{ "config_version": "..." }` | A content hash — see below |
+| `GET /reference/symbols` | `{ "symbols": {SYM: {tick_size, level, collar?, circuit_breaker?}}, "config_version":... }` | `collar`/`circuit_breaker` are omitted for a symbol with neither configured |
+| `GET /reference/risk` | `{ "default_level":..., "levels": {LEVEL: {collar: {...}}}, "config_version":... }` | Risk-band definitions referenced by `symbols.*.level` |
+| `GET /reference/indexes` | `{ "indexes": [{id, description, base_value, constituents}], "config_version":... }` | Configured exchange indexes; empty list if none configured |
+| `GET /reference/schedule` | `{ "sessions_enabled":..., "country":..., "pre_open":..., "opening_auction_start":..., "continuous_start":..., "closing_auction_start":..., "closing_auction_end":..., "config_version":... }` | `null` schedule fields mean no `schedule:` block is configured |
+
+All six accept any valid API key, including read-only (`gateway_id: null`)
+credentials — this is metadata, not account or order data. Every response
+round-trips to the engine (no gateway-side cache, so a reload is reflected
+immediately) and returns `503 ENGINE_TIMEOUT` under the same conditions as
+`GET /symbols`.
+
+```http
+GET /api/v1/reference/symbols
+Authorization: Bearer key-readonly-demo
+```
+
+```json
+{
+  "symbols": {
+    "AAPL": {
+      "tick_size": 0.01,
+      "level": "STANDARD",
+      "collar": { "static_band_pct": 0.20, "dynamic_band_pct": 0.02 },
+      "circuit_breaker": {
+        "reference_window_ns": 300000000000,
+        "levels": [
+          { "name": "L1", "price_shift_pct": 0.07, "halt_duration_ns": 300000000000 },
+          { "name": "L2", "price_shift_pct": 0.13, "halt_duration_ns": 900000000000 },
+          { "name": "L3", "price_shift_pct": 0.20, "halt_duration_ns": null }
+        ]
+      }
+    }
+  },
+  "config_version": "3f2a9c1e7b0d4a5f"
+}
+```
+
+#### `config_version`
+
+A 16-character hex prefix of a SHA-256 hash over the compiled reference
+bundle, computed once when the engine loads or reloads its config — not
+recomputed per request. It changes if and only if the compiled reference
+data changes, so a client can cache reference data and cheaply poll
+`GET /reference/config-version` to know when to refetch, rather than diffing
+the full bundle. There is no other versioning scheme (no counter, no
+timestamp) — treat the string as opaque.
+
+#### Reloading reference data
+
+`POST /api/v1/admin/reference/reload` (ADMIN-only) re-reads the same
+`engine_config.yaml` the engine started from and applies any change to tick
+sizes, risk-band collars, circuit-breaker ladders, the schedule, or index
+descriptions/constituents-within-an-unchanged-index-set.
+
+It is intentionally **narrower** than a full engine restart:
+
+- It never creates or removes an order book, never re-seeds market-maker
+  quotes, and never touches session or halt state — those only happen once,
+  at engine startup, and re-running them mid-session would double-seed
+  quotes and republish trades.
+- If the reloaded file's **symbol set or index-id set differs** from what is
+  currently live, the reload is rejected with `409 RELOAD_REJECTED` and
+  nothing is applied — adding or removing an instrument still requires a
+  restart.
+- If the engine was started from a compiled config artifact rather than a
+  plain YAML file, reload is rejected — there is no single file to re-read.
+- Like other admin writes, it is subject to the per-key rate limit and
+  returns `503 ENGINE_TIMEOUT` if the engine doesn't reply in time.
+
+```http
+POST /api/v1/admin/reference/reload
+Authorization: Bearer key-admin-demo
+```
+
+```json
+{ "status": "RELOADED", "config_version": "9b7e21fa804c6d13" }
+```
+
+This is meant for controlled reloads in development/classroom mode — tuning
+a risk band or circuit-breaker threshold between drills without restarting
+the whole exchange — not for live production config changes.
 
 
 ### History endpoints
@@ -579,6 +684,7 @@ Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
 | `GET`  | `/admin/orders`                   | `?symbol=&gateway_id=&status=`              | `{ "count":N, "orders":[...], "retention_sec":N }` | none — served from cache |
 | `GET`  | `/admin/orders/{order_id}`        | `?limit=`                                   | `{ "order_id":..., "count":N, "events":[...] }` | none — read from `audit_index.db` |
 | `POST` | `/admin/kill-switch/symbol`       | `{ "symbol":"AAPL" }`                       | engine cancel-symbol ack                        | `risk.cancel_symbol`        |
+| `POST` | `/admin/reference/reload`         | none                                         | `{ "status":"RELOADED", "config_version":... }` | `system.reference_reload`   |
 
 Behaviour notes:
 

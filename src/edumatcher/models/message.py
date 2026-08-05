@@ -439,6 +439,48 @@ def make_session_schedule_msg(
 
 
 # ------------------------------------------------------------------
+# Compiled reference data (tick sizes, risk levels, circuit breaker
+# ladders, schedule, indexes) — static, changes only on reload.
+# ------------------------------------------------------------------
+
+
+def make_reference_request_msg(gateway_id: str) -> list[bytes]:
+    """Any caller → engine: request the compiled reference-data bundle."""
+    return encode("system.reference_request", {"gateway_id": gateway_id})
+
+
+def make_reference_msg(gateway_id: str, reference: dict[str, Any]) -> list[bytes]:
+    """Engine → caller: reply with the compiled reference-data bundle."""
+    topic = f"system.reference.{gateway_id}"
+    return encode(topic, reference)
+
+
+def make_reference_reload_msg(gateway_id: str, command_id: str) -> list[bytes]:
+    """ADMIN → engine: request a reload of static reference data from disk."""
+    return encode(
+        "system.reference_reload",
+        {"gateway_id": gateway_id, "command_id": command_id},
+    )
+
+
+def make_reference_reload_ack_msg(
+    gateway_id: str,
+    command_id: str,
+    accepted: bool,
+    config_version: str | None = None,
+    reason: str | None = None,
+) -> list[bytes]:
+    """Engine → ADMIN: reload verdict."""
+    topic = f"system.reference_reload_ack.{gateway_id}"
+    payload: dict[str, Any] = {"command_id": command_id, "accepted": accepted}
+    if config_version is not None:
+        payload["config_version"] = config_version
+    if reason is not None:
+        payload["reason"] = reason
+    return encode(topic, payload)
+
+
+# ------------------------------------------------------------------
 # Gateway-list query
 # ------------------------------------------------------------------
 

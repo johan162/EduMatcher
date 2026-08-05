@@ -132,6 +132,46 @@ async def session_transition(  # pyright: ignore[reportUnusedFunction]
     }
 
 
+@router.post("/reference/reload", status_code=status.HTTP_200_OK)
+async def reference_reload(  # pyright: ignore[reportUnusedFunction]
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+) -> dict[str, Any]:
+    """Reload static reference data (tick sizes, risk bands, circuit-breaker
+    ladders, schedule, index definitions) from the engine's config file.
+
+    For controlled reloads in development/classroom mode. Deliberately
+    narrower than a full engine config reload: it never touches order
+    books, market-maker seeding, or session state, and is rejected outright
+    (409) if the file's symbol or index set no longer matches the running
+    engine's — adding or removing an instrument mid-session isn't safe and
+    still requires a restart.
+    """
+    gateway_id = await require_admin(request, session)
+    _check_rate_limit(request, session)
+    try:
+        ack = await request.app.state.engine.send_and_await_reference_reload(
+            gateway_id,
+            request.app.state.config.timeouts.wait_ack_sec,
+        )
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "ENGINE_TIMEOUT", "message": str(exc)}},
+        ) from exc
+    if not bool(ack.get("accepted")):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": {
+                    "code": "RELOAD_REJECTED",
+                    "message": str(ack.get("reason", "Rejected by engine")),
+                }
+            },
+        )
+    return {"status": "RELOADED", "config_version": ack.get("config_version")}
+
+
 @router.get("/session/schedule")
 async def session_schedule(  # pyright: ignore[reportUnusedFunction]
     request: Request,
