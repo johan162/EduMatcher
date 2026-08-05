@@ -238,8 +238,52 @@ class SymbolCancelRequest(StrictModel):
 
 MarketDataChannel = Literal["book", "trades", "depth", "auction"]
 
+#: Venue-wide status channels. These are delivered to every market-data
+#: subscriber regardless of what it asked for, because a halt or a session
+#: transition changes the meaning of every other channel — a client showing a
+#: stale book during a halt is showing something false. They are therefore not
+#: subscribable, and the subscription ack reports them under ``always`` so the
+#: behaviour is discoverable rather than surprising.
+ALWAYS_ON_CHANNELS: tuple[str, ...] = ("session", "circuit_breaker")
+
+
+class MarketDataSubscriptionItem(StrictModel):
+    """One (symbols x channels) subscription rule.
+
+    An empty or ``["*"]`` ``symbols`` list means every symbol. An empty
+    ``channels`` list subscribes to nothing and is reported back as rejected
+    rather than silently ignored.
+    """
+
+    symbols: list[str] = Field(default_factory=list)
+    channels: list[MarketDataChannel] = Field(default_factory=list)
+
 
 class MarketDataControl(StrictModel):
+    """Market-data subscribe/unsubscribe control frame.
+
+    Two forms, both accepted:
+
+    * **Flat** (original) — ``symbols`` and ``channels`` at the top level,
+      meaning the cross product of the two.
+    * **Items** — a list of independent rules, which is the only way to
+      express "book for everything, depth for one symbol". The flat form
+      cannot: it has a single symbol set shared by every channel.
+
+    The flat form is exactly equivalent to a single item, so a client using it
+    needs no changes.
+    """
+
     action: Literal["subscribe", "unsubscribe"]
     symbols: list[str] = Field(default_factory=list)
     channels: list[MarketDataChannel] = Field(default_factory=list)
+    items: list[MarketDataSubscriptionItem] = Field(default_factory=list)
+
+    def as_items(self) -> list[MarketDataSubscriptionItem]:
+        """Normalise both forms to a list of items."""
+        items = list(self.items)
+        if self.symbols or self.channels:
+            items.append(
+                MarketDataSubscriptionItem(symbols=self.symbols, channels=self.channels)
+            )
+        return items

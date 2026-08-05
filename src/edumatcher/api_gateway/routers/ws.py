@@ -9,10 +9,96 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from pydantic import ValidationError
 
 from edumatcher.api_gateway.events import market_data_symbol
-from edumatcher.api_gateway.schemas import MarketDataControl
+from edumatcher.api_gateway.schemas import ALWAYS_ON_CHANNELS, MarketDataControl
 from edumatcher.api_gateway.sessions import SessionRegistry
 
 router = APIRouter(prefix="/api/v1", tags=["websockets"])
+
+#: Stands in for "every symbol" inside a subscription pair.
+_ANY_SYMBOL = "*"
+
+
+class Subscription:
+    """What one market-data socket has asked for.
+
+    Held as a set of ``(symbol, channel)`` pairs rather than as a symbol set
+    and a channel set. The two-set form could only ever express their cross
+    product, so "book for every symbol, depth for AAPL only" — the ordinary
+    shape of a terminal with an overview grid and one focused symbol — was not
+    expressible: asking for depth on AAPL also asked for it on everything else
+    already subscribed. Pairs make each rule independent.
+
+    A consequence worth stating: accumulating two flat-form subscribes no
+    longer produces the cross product of the union. ``{AAPL, [book]}`` then
+    ``{MSFT, [depth]}`` now yields exactly those two rules, not four. That is
+    the defect being fixed, but it is a behaviour change for any client that
+    relied on the old widening.
+    """
+
+    def __init__(self) -> None:
+        self._pairs: set[tuple[str, str]] = set()
+
+    def apply(self, control: MarketDataControl) -> list[dict[str, Any]]:
+        """Add or remove rules. Returns items that contributed nothing."""
+        rejected: list[dict[str, Any]] = []
+        for item in control.as_items():
+            if not item.channels:
+                rejected.append(
+                    {
+                        "symbols": item.symbols,
+                        "channels": [],
+                        "reason": "no_channels",
+                    }
+                )
+                continue
+            symbols = {s.upper() for s in item.symbols if s} or {_ANY_SYMBOL}
+            if _ANY_SYMBOL in symbols:
+                symbols = {_ANY_SYMBOL}
+            pairs = {(sym, ch) for sym in symbols for ch in item.channels}
+            if control.action == "subscribe":
+                self._pairs |= pairs
+            else:
+                self._pairs -= pairs
+                # Unsubscribing a named symbol cannot cancel a wildcard rule;
+                # say so rather than leaving the client wondering why events
+                # keep arriving.
+                for _, ch in pairs:
+                    if (_ANY_SYMBOL, ch) in self._pairs and _ANY_SYMBOL not in symbols:
+                        rejected.append(
+                            {
+                                "symbols": sorted(symbols),
+                                "channels": [ch],
+                                "reason": "wildcard_still_subscribed",
+                            }
+                        )
+                        break
+        return rejected
+
+    def matches(self, symbol: str | None, channel: str | None) -> bool:
+        if channel is None:
+            return False
+        if (_ANY_SYMBOL, channel) in self._pairs:
+            return True
+        return symbol is not None and (symbol, channel) in self._pairs
+
+    def describe(self, rejected: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+        """The effective subscription, in both the new and the legacy shape."""
+        by_symbol: dict[str, list[str]] = {}
+        for sym, ch in sorted(self._pairs):
+            by_symbol.setdefault(sym, []).append(ch)
+        return {
+            "items": [
+                {"symbols": [sym], "channels": sorted(chans)}
+                for sym, chans in sorted(by_symbol.items())
+            ],
+            # Retained so a client parsing the previous ack still finds what it
+            # expects. Lossy by construction: it cannot represent per-symbol
+            # channels, which is the whole reason `items` exists.
+            "symbols": sorted(s for s, _ in self._pairs if s != _ANY_SYMBOL),
+            "channels": sorted({c for _, c in self._pairs}),
+            "always": list(ALWAYS_ON_CHANNELS),
+            "rejected": rejected or [],
+        }
 
 
 async def _authenticate_ws(websocket: WebSocket) -> tuple[str, str | None]:
@@ -113,14 +199,13 @@ async def market_data(websocket: WebSocket) -> None:
         await websocket.send_json({"type": "authenticated"})
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=512)
         websocket.app.state.engine.add_market_data_sink(queue)
-        symbols: set[str] = set()
-        channels: set[str] = set()
+        subscription = Subscription()
         try:
             sender = asyncio.create_task(
-                _send_market_data(websocket, queue, symbols, channels)
+                _send_market_data(websocket, queue, subscription)
             )
             receiver = asyncio.create_task(
-                _receive_market_controls(websocket, symbols, channels)
+                _receive_market_controls(websocket, subscription)
             )
             done, pending = await asyncio.wait(
                 {sender, receiver}, return_when=asyncio.FIRST_COMPLETED
@@ -137,8 +222,7 @@ async def market_data(websocket: WebSocket) -> None:
 
 async def _receive_market_controls(
     websocket: WebSocket,
-    symbols: set[str],
-    channels: set[str],
+    subscription: Subscription,
 ) -> None:
     while True:
         try:
@@ -151,27 +235,16 @@ async def _receive_market_controls(
         except ValidationError as exc:
             await websocket.send_json({"type": "error", "data": {"message": str(exc)}})
             continue
-        requested_symbols = {symbol.upper() for symbol in control.symbols}
-        requested_channels = set(control.channels)
-        if control.action == "subscribe":
-            symbols.update(requested_symbols)
-            channels.update(requested_channels)
-        else:
-            symbols.difference_update(requested_symbols)
-            channels.difference_update(requested_channels)
+        rejected = subscription.apply(control)
         await websocket.send_json(
-            {
-                "type": "subscription",
-                "data": {"symbols": sorted(symbols), "channels": sorted(channels)},
-            }
+            {"type": "subscription", "data": subscription.describe(rejected)}
         )
 
 
 async def _send_market_data(
     websocket: WebSocket,
     queue: asyncio.Queue[dict[str, Any]],
-    symbols: set[str],
-    channels: set[str],
+    subscription: Subscription,
 ) -> None:
     while True:
         event = await queue.get()
@@ -181,9 +254,12 @@ async def _send_market_data(
         symbol = market_data_symbol(
             _topic_from_event(event), data if isinstance(data, dict) else {}
         )
-        if topic_channel in {"session", "circuit_breaker"}:
+        # Venue-wide status bypasses the subscription entirely — see
+        # ALWAYS_ON_CHANNELS for why, and `describe()["always"]` for how a
+        # client learns that it will receive these without asking.
+        if topic_channel in ALWAYS_ON_CHANNELS:
             await websocket.send_json(event)
-        elif topic_channel in channels and (not symbols or symbol in symbols):
+        elif subscription.matches(symbol, topic_channel):
             await websocket.send_json(event)
 
 

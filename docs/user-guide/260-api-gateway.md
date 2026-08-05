@@ -621,11 +621,15 @@ authentication it sends `{ "type": "authenticated" }` and then streams every
 engine event (order, fill, cancel, session, and circuit-breaker) across all
 gateways. Non-admin keys receive an error frame and are disconnected.
 
-Private event envelope:
+### The event envelope
+
+Every event on every one of the three sockets uses the same envelope:
 
 ```json
 {
   "type": "order.fill",
+  "topic": "order.fill.TRADER01",
+  "seq": 4127,
   "ts": "2026-06-24T10:15:03.221Z",
   "gateway_id": "TRADER01",
   "data": {
@@ -638,21 +642,129 @@ Private event envelope:
 }
 ```
 
-Market-data subscription control:
+| Field | Meaning |
+|---|---|
+| `type` | Stable public event type (`trade`, `book`, `depth`, `auction`, `session`, `circuit_breaker`, `order.fill`, …) |
+| `topic` | The engine topic the event came from, and what `seq` counts within |
+| `seq` | Monotonic sequence number **within `topic`**, starting at 1 |
+| `ts` | Exchange time, not browser receipt time |
+| `gateway_id` | Present on private events only |
+| `data` | The event payload |
 
-```json
-{ "action": "subscribe", "symbols": ["AAPL", "MSFT"], "channels": ["book", "trades", "depth", "auction"] }
+### Detecting dropped events
+
+Each WebSocket client has a bounded outbound queue. A client that reads more
+slowly than the market moves will have events **discarded** — that is
+deliberate, because one slow consumer must not stall the gateway for everyone
+else. `seq` is how you find out it happened.
+
+Track the last `seq` per `topic`. A jump means events were dropped:
+
+```python
+last: dict[str, int] = {}
+
+async for raw in websocket:
+    event = json.loads(raw)
+    topic, seq = event.get("topic"), event.get("seq")
+    if topic is not None and seq is not None:
+        previous = last.get(topic)
+        if previous is not None and seq != previous + 1:
+            print(f"gap on {topic}: {seq - previous - 1} event(s) lost")
+            # book/depth carry full state, so the next message re-syncs you.
+            # A missed trade is gone — refetch from the history endpoints.
+        last[topic] = seq
 ```
 
-Available market-data channels are `book`, `trades`, `depth`, and `auction`.
-The `auction` channel delivers auction uncross results
-(`auction.result.{SYMBOL}`) for the subscribed symbols.
+!!! note "Why `seq` is per topic, not per connection"
+    A connection-wide counter would arrive with holes wherever an event was
+    filtered out by your subscription, so every client would see permanent
+    phantom gaps and none could tell those from real loss. Per-topic numbering
+    is contiguous for anyone receiving that topic at all. Key your gap
+    detection on `topic`, **not** on `type` — one type (`depth`) spans many
+    topics (`depth.AAPL`, `depth.MSFT`), each independently numbered.
 
-Symbol filtering is opt-in: if `symbols` is omitted (or empty), every symbol
-is delivered on each subscribed channel. Send a non-empty `symbols` list to
-narrow the feed to specific instruments.
+`book` and `depth` events carry **complete state**, not deltas, so a client
+that missed some simply takes the next one. Trades are the events worth
+reacting to: a dropped `trade` is not repeated, and the
+[history endpoints](#history-endpoints) are the way to recover it.
 
-Session and circuit-breaker events are always delivered after authentication.
+The server side of the same signal is on `GET /healthz`, which reports
+`dropped_events` per sink (`market_data`, `private`, `admin`). The gateway also
+logs a warning on the first drop per sink and every hundredth thereafter.
+
+### Market-data subscriptions
+
+Two accepted forms. The flat form applies one channel set to one symbol set:
+
+```json
+{ "action": "subscribe", "symbols": ["AAPL", "MSFT"], "channels": ["book", "trades"] }
+```
+
+The `items` form lets each rule have its own symbols, which is the only way to
+express different channels for different instruments:
+
+```json
+{
+  "action": "subscribe",
+  "items": [
+    { "symbols": ["*"],    "channels": ["book", "trades"] },
+    { "symbols": ["AAPL"], "channels": ["depth", "auction"] }
+  ]
+}
+```
+
+That subscribes to top-of-book and trades for every symbol, and the full depth
+ladder for `AAPL` only — the usual shape for an overview grid plus one focused
+instrument. The flat form cannot express it: it has a single symbol set shared
+by every channel, so asking for depth on `AAPL` asks for it on everything.
+
+Available channels are `book`, `trades`, `depth`, and `auction`. An empty or
+`["*"]` symbol list means every symbol. `unsubscribe` removes exactly the
+symbol/channel pairs named.
+
+The server acknowledges every control frame with the **effective**
+subscription:
+
+```json
+{
+  "type": "subscription",
+  "data": {
+    "items": [
+      { "symbols": ["*"],    "channels": ["book", "trades"] },
+      { "symbols": ["AAPL"], "channels": ["auction", "depth"] }
+    ],
+    "symbols": ["AAPL"],
+    "channels": ["auction", "book", "depth", "trades"],
+    "always": ["session", "circuit_breaker"],
+    "rejected": []
+  }
+}
+```
+
+`symbols` and `channels` are retained for clients written against the earlier
+ack. They are lossy by construction — they cannot represent per-symbol
+channels — so read `items` if you need the real answer.
+
+`rejected` reports rules that did nothing, rather than discarding them
+silently:
+
+| `reason` | Meaning |
+|---|---|
+| `no_channels` | The item named symbols but no channels, so it subscribed to nothing |
+| `wildcard_still_subscribed` | You unsubscribed a named symbol on a channel that also has a `"*"` rule, so events for it keep arriving |
+
+!!! warning "`session` and `circuit_breaker` are not subscribable"
+    They are delivered to every market-data client regardless of subscription,
+    and are reported under `always` in the ack. This is deliberate: a halt or a
+    session transition changes the meaning of every other channel, and a client
+    displaying a stale book during a halt is displaying something false.
+
+!!! note "Behaviour change: accumulated subscriptions no longer widen"
+    Subscriptions are held as symbol/channel *pairs*. Previously they were two
+    separate accumulating sets whose cross product was delivered, so
+    subscribing `{AAPL, [book]}` and then `{MSFT, [depth]}` also delivered
+    depth for `AAPL` and book for `MSFT`. Each rule is now independent. A
+    single control frame behaves exactly as before.
 
 
 ## Python REST example
@@ -827,7 +939,13 @@ The health endpoint requires no authentication and is the fastest connectivity c
 
 ```bash
 curl -s http://127.0.0.1:8080/api/v1/healthz
-# Expected: {"ok": true, "enabled": true, "active_gateways": ["TRADER01"]}
+# Expected: {"ok": true, "enabled": true, "active_gateways": ["TRADER01"],
+#            "dropped_events": {}}
+#
+# A non-zero "dropped_events" entry means a WebSocket client read too slowly
+# and lost events. The gateway is still healthy — shedding for a slow consumer
+# is intended — but that client's data has holes. See "Detecting dropped
+# events" above.
 ```
 
 `ok` reflects whether the gateway is `enabled` in config **and** whether its

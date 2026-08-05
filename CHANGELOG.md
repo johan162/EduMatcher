@@ -1,3 +1,21 @@
+## [Unreleased]
+
+### ✨ Added
+
+- Added per-topic sequence numbers to every API-gateway WebSocket event. Each envelope now carries `topic` (the engine topic it came from) and `seq` (monotonic within that topic, from 1), so a client can distinguish a dropped event from a quiet market. Sequencing is per topic rather than per connection because a connection-wide counter would show permanent phantom gaps wherever a subscription filtered an event out
+- Added per-symbol market-data subscription rules via a new `items` form on the subscribe/unsubscribe control frame. One socket can now carry, for example, top-of-book for every symbol and the full depth ladder for one — which the flat `symbols` × `channels` form could not express, since a single symbol set was shared by every channel
+- Added `rejected` to the subscription acknowledgement, reporting rules that did nothing (`no_channels`) and unsubscribes that cannot take effect because a wildcard rule still covers the symbol (`wildcard_still_subscribed`)
+- Added `always` to the subscription acknowledgement, making explicit that `session` and `circuit_breaker` are delivered to every market-data client regardless of subscription — previously true but undocumented
+- Added `dropped_events` to `GET /healthz`, reporting per-sink counts of events discarded because a WebSocket consumer could not keep up
+
+### 🐛 Fixed
+
+- Fixed silent, undetectable loss of WebSocket events. Each client's outbound queue is bounded and written with `put_nowait`, so a slow consumer loses events by design — but the drop was counted only through a DEBUG-gated counter, leaving it invisible to the client (no sequence to check) and to the operator (no counter to read) in a normal run. Drops are now counted in plain integers, exposed on `/healthz`, and logged at WARNING on the first occurrence per sink and every hundredth thereafter
+
+### ⚠️ Breaking Changes
+
+- Changed accumulated market-data subscriptions to stop widening into a cross product. Subscriptions are now held as symbol/channel pairs, so subscribing `{AAPL, [book]}` and then `{MSFT, [depth]}` yields exactly those two rules rather than also delivering depth for `AAPL` and book for `MSFT`. A single control frame behaves exactly as before, and the acknowledgement retains its `symbols` and `channels` keys for existing clients
+
 ## [v0.18.0] - 2026-08-04
 
 Release Type: major

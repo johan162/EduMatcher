@@ -126,8 +126,13 @@ async def status_summary(
 async def healthz(request: Request) -> dict[str, Any]:
     engine = request.app.state.engine
     healthy = request.app.state.config.enabled and engine.is_running()
+    # dropped_events is the only server-side evidence that a slow WebSocket
+    # consumer lost data. A non-zero count does not make the gateway
+    # unhealthy — shedding for a slow client is the intended behaviour — but
+    # it must be visible, because previously it was not.
     return {
         "ok": healthy,
         "enabled": request.app.state.config.enabled,
         "active_gateways": sorted(engine.active_gateways()),
+        "dropped_events": engine.dropped_events,
     }

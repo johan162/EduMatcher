@@ -1,6 +1,6 @@
-Version: 1.2.0
+Version: 1.3.0
 
-Date: 2026-07-09
+Date: 2026-08-05
 
 Status: Design and Research Proposal
 
@@ -9,8 +9,14 @@ Status: Design and Research Proposal
 
 > **Revision History**
 >
+> - **1.3.0 (2026-08-05)** — Added [§26 Addendum: Protocol and Backend Changes That Would Improve
+>   the Trading Terminal](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal),
+>   covering protocol/API changes that are worth making before release because backwards compatibility
+>   is not yet a constraint: sequenced snapshot/delta streams, richer subscription semantics,
+>   browser-friendly CALF evolution, admin history/replay, uniform command acknowledgements, and
+>   runtime reference/risk/index management.
 > - **1.2.0 (2026-07-09)** — Major revision. Formalised the ADMIN persona's backend
->   dependency into a dedicated section, [§6 API Gateway Extensions Required](#6-api-gateway-extensions-required-pm-api-gwy),
+>   dependency into a dedicated section, [§6 Backend Capability Matrix](#6-backend-capability-matrix-pm-api-gwy),
 >   replacing the earlier "future endpoint" hand-waving. Resolved the ADMIN data-source
 >   contradictions (events WebSocket vs. admin monitor). Added the previously missing feature
 >   surfaces (cancel-replace, OCO/combo group cancel, order-lifecycle drill-down, MM quote-leg
@@ -203,6 +209,12 @@ Status: Design and Research Proposal
     - [24.4 Visual regression tests (Playwright snapshots)](#244-visual-regression-tests-playwright-snapshots)
     - [24.5 Accessibility audit](#245-accessibility-audit)
   - [25. Summary](#25-summary)
+  - [26. Addendum: Protocol and Backend Changes That Would Improve the Trading Terminal](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal)
+    - [26.1 Design principle](#261-design-principle)
+    - [26.2 Highest-impact changes](#262-highest-impact-changes)
+    - [26.3 Recommended protocol shape](#263-recommended-protocol-shape)
+    - [26.4 Recommended backend components](#264-recommended-backend-components)
+    - [26.5 Suggested implementation order](#265-suggested-implementation-order)
   - [Appendix A: Core TypeScript Types](#appendix-a-core-typescript-types)
 
 ---
@@ -248,9 +260,10 @@ speculative future-endpoint list.
   the ADMIN surface: role-aware `GET /api/v1/status`, admin session control, gateway management,
   halt snapshots, an admin monitor WebSocket, quote bootstrap / legs snapshots, and the `auction`
   market-data channel.
-- A few items flagged as **engine prerequisites** (manual circuit-breaker trigger/resume, live
-  symbol addition) that may not exist in the backend yet — see
-  [§6.12](#612-open-questions-and-backend-prerequisites).
+- A few items flagged as **backend prerequisites** are deliberately not treated as buildable UI in
+  this revision: live symbol addition, index administration through REST, read-only runtime risk
+  configuration, level-aware circuit-breaker triggering, and admin global/by-gateway kill switch —
+  see [§6.12](#612-open-questions-and-backend-prerequisites).
 
 ---
 
@@ -276,16 +289,16 @@ are best expressed as purpose-built screens rather than a single generic order e
 ### 3.1 Goals
 
 - Provide a complete graphical trading terminal for the TRADER role, centred on a fast, single-symbol
-  Trading Workspace.
+  Trading Workspace with progressive disclosure for beginner users.
 - Provide a quote management dashboard for the MARKET_MAKER role.
 - Provide a system administration center for the ADMIN role.
-- Deliver real-time market data (book, trades, depth, auction) and private events (fills, acks) to all roles.
+- Deliver real-time market data (book, trades, depth, auction) and private events (fills, acks) to all roles while keeping the default subscription footprint small enough for 100+ configured symbols.
 - Make all order types and TIF values accessible through validated form UI.
 - Support a professional dark terminal aesthetic consistent with real trading platforms.
 - Operate the TRADER and MARKET_MAKER surfaces against the existing `pm-api-gwy` REST and WebSocket
   interface with no backend changes.
 - Clearly specify — rather than assume — the gateway (and possibly engine) extensions the ADMIN
-  persona depends on (see [§6](#6-api-gateway-extensions-required-pm-api-gwy)).
+  persona depends on (see [§6](#6-backend-capability-matrix-pm-api-gwy)).
 
 ### 3.2 Non-Goals
 
@@ -369,7 +382,7 @@ mounted by the router and compose the feature components under `components/`.
 
 The UI is a browser SPA. It makes no server calls other than to `pm-api-gwy`. Note that for the
 ADMIN persona, some of the endpoints and the `/api/v1/admin/monitor` WebSocket shown below are
-**required extensions** to `pm-api-gwy` defined in [§6](#6-api-gateway-extensions-required-pm-api-gwy).
+**required extensions** to `pm-api-gwy` defined in [§6](#6-backend-capability-matrix-pm-api-gwy).
 
 ```mermaid
 flowchart LR
@@ -408,8 +421,15 @@ flowchart LR
 | Symbols list | UI → Gateway → UI | REST GET `/symbols` |
 | Session state | Gateway → UI | WebSocket `session` event (always-on) |
 | Circuit breaker events | Gateway → UI | WebSocket `circuit_breaker` event (always-on) |
-| Admin control (session/CB/gateway/symbol) | UI → Gateway | REST admin endpoints (extension, §6) |
+| Admin control (session/CB/gateway/symbol) | UI → Gateway | Existing REST admin endpoints, with unsupported controls disabled (§6) |
 | Admin live monitor feed | Gateway → UI | WebSocket `/admin/monitor` (extension, §6) |
+
+The UI **does not connect directly to CALF** from the browser. Recent CALF capabilities (`DEPTH`,
+`AUCTION`, `CB`, `SNAP`, `SEQ`, `RESUME`) inform the screen design, but browser delivery goes through
+`pm-api-gwy`'s JSON WebSocket. The current API WebSocket exposes the useful channels (`book`,
+`trades`, `depth`, `auction`, plus always-on `session`/`circuit_breaker`) but does **not** expose
+CALF's sequence/replay contract. Reconnect therefore uses re-authentication, subscription replay,
+and a fresh REST/bootstrap refresh rather than CALF-style gap recovery.
 
 ### 5.3 Client-side state layers
 
@@ -469,27 +489,34 @@ All admin endpoints require an API key whose resolved role is `ADMIN` (see
 
 ### 6.2 `GET /api/v1/status` (available now)
 
-`GET /api/v1/status` already supports role detection and, for admin keys, the number of connected
-gateways.
+`GET /api/v1/status` supports role detection and, for admin keys, the number of connected gateways.
+It returns the gateway's current API-session cache summary plus the resolved role. It does **not**
+return the authenticated `gateway_id`, session state, or a generic `connected` flag; the UI obtains
+the gateway id from the authenticated `/events` WebSocket response and obtains session state from
+`GET /api/v1/session` or the always-on market-data `session` event.
 
 **Response `200 OK`:**
 
 ```jsonc
 {
-  "gateway_id": "GW01",
+  "orders": 0,
+  "quote_legs": 0,
+  "positions": {},
+  "known_symbols": ["AAPL", "MSFT"],
   "gateway_role": "TRADER",       // "TRADER" | "MARKET_MAKER" | "ADMIN"
-  "session_state": "CONTINUOUS",
-  "gateway_count": 4,             // present only for ADMIN keys: number of connected gateways
-  "connected": true
+  "gateway_count": 4              // present only for ADMIN keys: number of connected gateways
 }
 ```
 
 - `gateway_role` derives from the gateway's configured role.
 - `gateway_count` is populated from the gateway's own connection registry (the set of authenticated
   `gateway_id`s, see API Gateway spec §3.3) and is omitted for non-admin keys.
+- `orders`, `quote_legs`, `positions`, and `known_symbols` are cache diagnostics; they are useful for
+  health/status display but are not the source of truth for the trading screens.
 
-**UX implication:** the login flow, role-based routing, and ADMIN dashboard gateway-count KPI can be
-implemented against the current API with no extension work.
+**UX implication:** role-based routing and the ADMIN dashboard gateway-count KPI can be implemented
+against the current API with no extension work. The login flow still opens `/events` after `/status`
+so the UI can learn and store the authenticated `gateway_id`.
 
 ### 6.3 Session control (available now)
 
@@ -664,30 +691,19 @@ REST.
 **Engine mapping (proposed):** a new `system.symbol_add` / `system.symbol_update` engine command.
 Read side continues to use `system.symbols_request` (FR-ENG-019).
 
-### 6.8 Index administration (still dependent on `pm-index` bridge)
+### 6.8 Index administration (read-only today, write/admin bridge missing)
 
-**`GET /api/v1/admin/indexes`**
+Current `pm-api-gwy` exposes read-only index history/statistics through `/history/index-*` endpoints:
 
-**Response `200 OK`:**
+- `GET /api/v1/history/index-ids`
+- `GET /api/v1/history/index-daily`
+- `GET /api/v1/history/index-snapshots`
+- `GET /api/v1/history/index-events`
 
-```jsonc
-{
-  "indexes": [
-    { "index_id": "TECH50", "name": "Tech 50", "constituents": ["AAPL","MSFT","NVDA"],
-      "value": 1024.55, "last_rebalance": "2026-07-08T16:05:00Z" }
-  ]
-}
-```
-
-**`POST /api/v1/admin/indexes/{id}/rebalance`**
-
-**Response `202 Accepted`:** `{ "index_id": "TECH50", "status": "PENDING" }`
-
-> **Dependency note:** Indexes are produced by the separate `pm-index` process, which is not part of
-> the engine core covered by the Requirements document. These endpoints depend on `pm-index` being
-> present and on `pm-api-gwy` gaining a bridge to it. If `pm-index` is absent, both endpoints return
-> `503 Service Unavailable` and the Index Admin screen ([§15.3](#153-index-administration)) shows a
-> placeholder.
+It does **not** expose `/api/v1/admin/indexes` or an admin rebalance endpoint. Index write/admin
+operations remain a backend prerequisite: a future bridge from `pm-api-gwy` to the separate
+`pm-index` process. Until that bridge exists, the Index Admin screen ([§15.3](#153-index-administration))
+shows read-only history and disabled write controls only.
 
 ### 6.9 Admin monitor WebSocket (`/api/v1/admin/monitor`) (available now)
 
@@ -764,9 +780,10 @@ surface, not as a speculative enhancement.
 | `GET /api/v1/admin/halts` | Available now | Preferred bootstrap for active halts table |
 | `GET /api/v1/admin/risk/collars` / `/circuit-breakers` | Still missing | Keep risk-config panel read-only and deferred or config-backed |
 | `POST /api/v1/admin/symbols` / `PATCH /api/v1/admin/symbols/{sym}` | Blocked | Requires live symbol-add/update engine capability |
-| `GET /api/v1/admin/indexes` / `POST /api/v1/admin/indexes/{id}/rebalance` | Blocked | Requires `pm-index` bridge |
+| `GET /api/v1/admin/indexes` / `POST /api/v1/admin/indexes/{id}/rebalance` | Not exposed | Do not implement as live controls until a REST bridge to `pm-index` exists |
 | `WS /api/v1/admin/monitor` | Available now | Use as the primary ADMIN live feed |
 | `auction` channel on `/api/v1/market-data` | Available now | Use for auction panel, badges, and workspace cues |
+| Admin global/by-gateway kill switch | Not exposed | Current admin API supports symbol-scoped cancel only; global/by-gateway controls stay disabled |
 
 ### 6.12 Open questions and backend prerequisites
 
@@ -783,11 +800,16 @@ surface, not as a speculative enhancement.
    computes an indicative client-side from the resting book (see
    [§16.6](#166-auction--indicative-price-panel)). Confirmation needed.
 4. **`pm-index` availability.** Index admin ([§6.8](#68-index-administration)) depends on the
-   separate `pm-index` process and a `pm-api-gwy` bridge to it.
+  separate `pm-index` process and a future `pm-api-gwy` bridge to it. Current API support is limited
+  to read-only index history/statistics under `/history/index-*`, not `/admin/indexes`.
 5. **Session schedule exposure for non-admin roles.** The gateway now exposes
   `GET /api/v1/admin/session/schedule` for ADMIN. ADMIN can therefore show a real next-transition
   countdown today. TRADER / MARKET_MAKER still need either a public schedule endpoint or a degraded
   phase-only clock.
+6. **Admin kill switch scope.** The current trading `/kill-switch` endpoint is scoped to the caller's
+  own gateway, and the current admin API exposes only `POST /api/v1/admin/kill-switch/symbol`. A
+  true global or by-gateway admin kill switch requires additional backend endpoints and engine
+  semantics before those controls can be enabled.
 
 ---
 
@@ -811,10 +833,11 @@ sequenceDiagram
     U->>UI: Enter API key, click Connect
     UI->>GW: GET /api/v1/status (Authorization: Bearer <key>)
     alt key valid
-        GW-->>UI: 200 OK { gateway_id, gateway_role, gateway_count? }
-        UI->>UI: Store key, role, gateway_id in Zustand
+        GW-->>UI: 200 OK { gateway_role, gateway_count?, cache summary }
+        UI->>UI: Store key and role in Zustand
         UI->>GW: WS /api/v1/events  { api_key: "..." }
         GW-->>UI: { type: "authenticated", gateway_id: "GW01" }
+        UI->>UI: Store gateway_id from events auth response
         UI->>GW: WS /api/v1/market-data  { api_key: "..." }
         GW-->>UI: { type: "authenticated" }
         opt role == ADMIN
@@ -830,7 +853,8 @@ sequenceDiagram
 
 The role is read from the `gateway_role` field of `GET /api/v1/status` (see
 [§6.2](#62-extended-get-apiv1status)); it maps to TRADER / MARKET_MAKER / ADMIN. Using `/status`
-(rather than `/symbols`) as the login probe gives the UI the role and gateway id in a single call.
+(rather than `/symbols`) as the login probe gives the UI the role in a single call. The authenticated
+`gateway_id` is learned from the `/events` WebSocket authentication reply for trading credentials.
 
 ### 7.3 HTTP client wrapper
 
@@ -890,12 +914,16 @@ The gateway role is returned by `GET /api/v1/status` (extended per [§6.2](#62-e
 
 ```jsonc
 {
-  "gateway_id": "GW01",
   "gateway_role": "TRADER",   // "TRADER" | "MARKET_MAKER" | "ADMIN"
-  "session_state": "CONTINUOUS",
-  "gateway_count": 4          // ADMIN keys only
+  "gateway_count": 4,         // ADMIN keys only
+  "orders": 0,
+  "quote_legs": 0,
+  "positions": {},
+  "known_symbols": ["AAPL"]
 }
 ```
+
+The authenticated `gateway_id` is learned from the `/events` WebSocket auth response, not `/status`.
 
 The UI stores `gateway_role` in `useAuthStore` and uses it to gate routes and components.
 
@@ -1114,7 +1142,7 @@ MarketOverviewPage
 | Best bid / Best ask | WebSocket `book` channel (Zustand `bookStore`) |
 | Last price | WebSocket `book.last_price` |
 | Change % | `(last_price − open_price) / open_price × 100`; `open_price` from `GET /history/daily` |
-| Volume | WebSocket `book` channel or `GET /history/daily` |
+| Volume | `GET /history/daily` for daily volume; optionally accumulated live from WebSocket `trade` events after page load |
 | Auction badge | WebSocket `auction` channel + `session` phase (Zustand) |
 | CB Halt | Zustand `haltStore` (fed by WebSocket `circuit_breaker` events) |
 
@@ -1130,6 +1158,8 @@ MarketOverviewPage
 - **Sortable**: click any column header to sort ascending/descending; default sort is symbol
   alphabetically.
 - **Sticky header**: table header stays fixed as rows scroll.
+- **Virtualized body**: rows render through TanStack Virtual (or the equivalent virtual-row support)
+  so 100+ symbols remain smooth while flash animations and filters update.
 - **Row click**: opens the Symbol Detail right panel for that symbol **and** sets the active symbol,
   so the Trading Workspace and order ticket follow the selection.
 - **Add to watchlist**: a star toggle per row adds/removes the symbol from the watchlist
@@ -1203,9 +1233,9 @@ A four-quadrant grid, all panels bound to the one active symbol:
 
 All four panels subscribe to the `useActiveSymbolStore` slice ([§18.1](#181-zustand-stores)).
 Changing the active symbol — from the Workspace symbol picker, a Market Overview row, the command
-palette, or the watchlist — re-binds all four panels atomically. The market-data subscription set is
-adjusted so the active symbol (and watchlist symbols) are always subscribed on `book`, `trades`,
-`depth`, and `auction`.
+palette, or the watchlist — re-binds all four panels atomically. The focus market-data socket is
+adjusted so the active symbol and bounded watchlist symbols are subscribed on `book`, `trades`,
+`depth`, and `auction`; the overview socket continues to carry broad `book`/`trades` coverage.
 
 ### 11.4 Click-to-trade
 
@@ -1253,7 +1283,7 @@ In Workspace mode its symbol is locked to the active symbol.
 │  │  [Stop Price ___] (shown/hidden per type)             │  │
 │  │  [Visible Qty ___](ICEBERG only)                      │  │
 │  │  [Trail Offset ___](TRAILING_STOP only)               │  │
-│  │  [TIF ▼ DAY]  [SMP ▼ NONE]                            │  │
+│  │  [TIF ▼ DAY]  [SMP ▼ Gateway default]                 │  │
 │  │  [Client Order ID ___]  (optional)                    │  │
 │  │      ┌──────────────┐        ┌──────────────┐         │  │
 │  │      │   BUY  (B)   │        │   SELL  (S)  │         │  │
@@ -1268,6 +1298,12 @@ The single "Submit" button and BUY/SELL toggle of the 1.0.0 design are **replace
 action buttons**: **BUY** (green, `bg-bid`) and **SELL** (red, `bg-ask`). Each submits immediately
 using the ticket's current parameters with the corresponding side. There is no separate side toggle;
 the side is chosen at the moment of submission by which button is pressed.
+
+**Beginner mode / progressive disclosure:** the default TRADER experience starts with Market and
+Limit tabs, quantity, price, TIF, and the BUY/SELL actions. Stop, Stop-Limit, FOK, Iceberg, IOC,
+Trailing Stop, OCO, Combo, SMP, click-to-trade side inference, and power-user confirmation changes
+remain available but sit behind an "Advanced" disclosure. This keeps a first classroom session
+small enough to teach while preserving the full surface for experienced users.
 
 ### 12.3 Order type tabs and field visibility
 
@@ -1302,7 +1338,7 @@ const orderSchema = z.object({
   stop_price: z.coerce.number().positive().optional(),
   visible_qty: z.coerce.number().int().positive().optional(),
   trail_offset: z.coerce.number().positive().optional(),
-  smp_action: z.enum(["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]).default("NONE"),
+  smp_action: z.enum(["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]).optional(),
   client_order_id: z.string().max(64).optional(),
 }).superRefine((data, ctx) => {
   if (["LIMIT", "FOK", "IOC", "STOP_LIMIT"].includes(data.order_type) && !data.price) {
@@ -1322,6 +1358,13 @@ const orderSchema = z.object({
   }
 });
 ```
+
+The frontend should mirror the API gateway's strict request models: unknown fields are forbidden,
+symbols are uppercased before submission, and omitted `smp_action` is distinct from an explicit
+`"NONE"` because the engine can apply the gateway's configured SMP default when the field is absent.
+Implementation should therefore omit `smp_action` unless the trader actively selects a value.
+The selector label for the omitted state is **Gateway default**; explicit `NONE` means "disable SMP
+for this order".
 
 ### 12.5 TIF restrictions by session phase
 
@@ -1432,6 +1475,8 @@ Price panel ([§16.6](#166-auction--indicative-price-panel)) for the current ind
 - `F1` moves focus to the Symbol field of the order ticket from anywhere.
 - `Tab` order: Symbol → Qty → Price → Stop → Visible → TIF → SMP → BUY → SELL.
 - With the ticket focused, `B` submits a **BUY** and `S` submits a **SELL** (both after validation).
+- Global `B`/`S` handlers must ignore events whose target is an `input`, `textarea`, `select`, or
+  `contenteditable` element; the explicit BUY/SELL buttons remain the unambiguous submit controls.
 - `Escape` clears any validation errors and blurs the form.
 
 ---
@@ -1560,7 +1605,10 @@ any blotter row (double-click / `Enter`) or from a fill toast's "View Order" act
   `combo_parent_id`).
 - **Live tail:** while open, new `/events` for that order append to the timeline in real time so the
   drawer stays current even if the history endpoint lags the live stream.
-- **Availability:** TRADER (own orders); also reused by ADMIN for any order via the monitor feed.
+- **Availability:** TRADER (own orders) and MARKET_MAKER own orders/quotes where applicable.
+  ADMIN cannot fetch arbitrary order lifecycles with the current gateway-scoped history endpoint;
+  an ADMIN drawer can show only the live monitor payloads retained in memory, or disable drill-down
+  until a cross-gateway admin history endpoint exists.
 
 ### 13.5 Trade History / Fills Panel
 
@@ -1756,7 +1804,7 @@ The Admin screens share a secondary tab bar inside the main content area. The si
 top-level admin entries; the tab bar navigates between sub-sections.
 
 > **Dependency:** every control in this section relies on the gateway extensions defined in
-> [§6](#6-api-gateway-extensions-required-pm-api-gwy). Where an extension has an unmet backend
+> [§6](#6-backend-capability-matrix-pm-api-gwy). Where an extension has an unmet backend
 > prerequisite ([§6.12](#612-open-questions-and-backend-prerequisites)) the corresponding control is
 > shown disabled with an explanatory tooltip rather than invented as working.
 
@@ -1783,8 +1831,10 @@ state.
 #### 15.1.2 Per-symbol summary table
 
 Columns: Symbol, Best Bid, Best Ask, Last Price, Volume, Orders, CB Status (active / ok).
-Best bid/ask/last/volume come from Zustand `bookStore`; CB status from `haltStore`; the per-symbol
-order count is derived from the admin monitor stream. Auto-updates via WebSocket.
+Best bid/ask/last come from Zustand `bookStore`; daily volume comes from `/history/daily` plus any
+client-accumulated live trade ticks after page load. CB status comes from `haltStore`; the per-symbol
+order count is derived from the admin monitor stream. Auto-updates via WebSocket where live channels
+exist.
 
 #### 15.1.3 Recent events feed
 
@@ -1818,13 +1868,20 @@ restart `pm-engine`."
 
 ### 15.3 Index Administration
 
-`GET /api/v1/admin/indexes` ([§6.8](#68-index-administration)) shows configured indexes:
+Current `pm-api-gwy` does **not** expose `/api/v1/admin/indexes` or a rebalance endpoint. This screen
+is therefore a placeholder in the first UI release, not a live admin surface.
 
-- Index name, constituents (symbols), current index value, last rebalance timestamp.
-- Trigger Rebalance button: calls `POST /api/v1/admin/indexes/{id}/rebalance`.
+The implementable part today is read-only index history/statistics using the existing public history
+endpoints:
 
-Index admin depends on the separate `pm-index` process. If the endpoints return `503`, the panel
-shows a placeholder: "Index administration requires the pm-index process."
+- `GET /api/v1/history/index-ids`
+- `GET /api/v1/history/index-daily`
+- `GET /api/v1/history/index-snapshots`
+- `GET /api/v1/history/index-events`
+
+The panel shows current/recorded index data when those endpoints are available and displays this
+placeholder for write controls: "Index administration requires a future pm-api-gwy bridge to
+pm-index. Use `pm-index-admin-cli` for index write operations until then."
 
 ### 15.4 Session Control
 
@@ -1875,9 +1932,11 @@ Per-symbol read-only view of:
 | Dynamic Band | Dynamic collar ± % vs last trade |
 | Profile | Level name from `risk_controls.levels` |
 
-This view depends on a read-only risk-configuration endpoint that is not yet present in the current
-gateway surface. Until it exists, the panel should either remain hidden or be explicitly labelled as
-"configuration-backed" rather than runtime API-backed.
+This view depends on a read-only risk-configuration endpoint that is not present in the current
+gateway surface. Until it exists, the panel is explicitly labelled "configuration-backed / planned"
+and is hidden from the default ADMIN dashboard. A later version may hydrate it from an imported
+compiled config artifact, but the first implementation must not call non-existent `/admin/risk/*`
+endpoints.
 
 #### 15.5.2 Circuit breaker ladder
 
@@ -1890,8 +1949,8 @@ For each circuit breaker level (L1/L2/L3):
 | Halt Duration | Minutes or "Rest of day" |
 | Resumption Mode | AUCTION / CONTINUOUS |
 
-This view has the same status as the collar table above: useful, but still dependent on a read-only
-risk-config API that does not yet appear to exist in the current gateway surface.
+This view has the same status as the collar table above: useful, but not backed by a current runtime
+API. It remains a planned/config-backed view until a read-only risk-config endpoint exists.
 
 ### 15.6 Circuit Breaker Management
 
@@ -1949,17 +2008,22 @@ mode (truly destructive, affects another participant).
 
 ### 15.8 Kill Switch (Admin)
 
-A more powerful kill switch than the TRADER version. Scoped options:
+The current implementable ADMIN kill switch is **symbol-scoped only**:
 
-- **By Gateway**: select a gateway ID → cancels that gateway's orders and quotes.
-- **By Symbol**: select a symbol → cancels all orders for that symbol across all gateways.
-- **Global**: no scope → cancels everything.
+- **By Symbol**: select a symbol → calls `POST /api/v1/admin/kill-switch/symbol` with
+  `{ "symbol": "AAPL" }`, cancelling orders for that symbol through the engine's admin cancel-symbol
+  path.
 
-Three confirmation steps for Global: first dialog → second dialog ("Are you absolutely sure?")
-→ type "CONFIRM" in a text field → Execute. The global kill switch **always confirms** regardless of
-power-user mode.
+The following controls are shown disabled with explicit prerequisite text, not wired to the trading
+`/kill-switch` endpoint:
 
-Calls `POST /api/v1/kill-switch` with the appropriate `{ gateway_id }` or `{ symbol }` body.
+- **By Gateway**: requires a future admin endpoint; `POST /api/v1/kill-switch` is caller-gateway
+  scoped and cannot cancel another gateway's orders.
+- **Global**: requires a future admin endpoint and engine acknowledgement semantics.
+
+The enabled symbol-scoped action always confirms, even in power-user mode. If global kill switch is
+added later, it should use the three-step confirmation pattern: first dialog → second dialog → type
+"CONFIRM" → Execute.
 
 ### 15.9 Audit / Monitor Log Viewer
 
@@ -1968,8 +2032,9 @@ A scrolling tail view of recent cross-gateway activity — the ADMIN persona's l
 - **Live source:** the admin monitor WebSocket `/api/v1/admin/monitor`
   ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor)), which merges the engine drop-copy stream
   (all gateways' order/fill/cancel events) with `session`/`circuit_breaker` transitions.
-- **Backfill:** on open, optionally seed with `GET /api/v1/history/orders?limit=500` and/or the
-  drop-copy replay buffer, so the viewer is not empty on load.
+- **Backfill:** none in the first release. `GET /api/v1/history/orders` is gateway-scoped and cannot
+  seed a cross-gateway ADMIN audit feed, and the current admin monitor WebSocket does not expose a
+  replay API. The viewer starts as a live tail after connection.
 - **Columns:** Timestamp, Seq, Event Type, Order/Gateway ID, Symbol, Details.
 - **Filter bar:** Event Type dropdown (ACK / FILL / CANCEL / AMEND / REJECT / SESSION / CB / ALL),
   Symbol, Gateway.
@@ -2068,7 +2133,9 @@ Bid rows left-aligned, ask rows right-aligned. A horizontal bar chart behind the
 shows relative depth (bar width proportional to qty / max_qty in view). Bids are green bars,
 asks are red bars.
 
-Data from Zustand `bookStore` (WebSocket `book` channel). Updates on every book snapshot.
+Data from Zustand `bookStore.depth` fed by the WebSocket `depth` channel. The `book` channel remains
+the source for top-of-book bid/ask/last cells; the depth ladder must not infer full depth from
+top-of-book snapshots.
 
 Configurable depth: 5 / 10 / 20 levels (select in tab header).
 
@@ -2130,9 +2197,9 @@ carrying `auction.result.{SYMBOL}` payloads (`eq_price`, `eq_qty`, `imbalance_si
 `trades_count`, `indicative`). If the engine only publishes the **final** uncross result on phase
 exit (rather than periodic indicative values — see
 [§6.12](#612-open-questions-and-backend-prerequisites)), the panel shows the last indicative received
-and otherwise **computes an indicative equilibrium client-side** from the resting auction book
-(replicating the FR-ENG-031 algorithm over the `book` channel's bids/asks). A badge marks whether the
-figure is engine-provided or client-computed.
+and may compute an **educational approximation** client-side from available depth/book data. That
+approximation is labelled as non-authoritative; only engine-provided `auction` payloads are treated
+as the authoritative indicative or final auction result.
 
 **Educational value:** the panel makes the equilibrium-price mechanism visible — students can watch
 the indicative price and imbalance move as auction orders arrive, then see it "lock in" at the
@@ -2166,12 +2233,14 @@ class ManagedSocket {
 
 class WebSocketManager {
   private eventsWs: ManagedSocket;
-  private marketDataWs: ManagedSocket;
+  private overviewMarketDataWs: ManagedSocket;
+  private focusMarketDataWs: ManagedSocket;
   private adminMonitorWs?: ManagedSocket;   // ADMIN only
 
   connect(apiKey: string, role: GatewayRole): void;
-  subscribeMarketData(symbols: string[], channels: WsChannel[]): void;
-  unsubscribeMarketData(symbols: string[], channels: WsChannel[]): void;
+  subscribeOverview(symbols: string[]): void;     // book/trades for many symbols
+  subscribeFocus(symbols: string[]): void;        // book/trades/depth/auction for active + watchlist
+  unsubscribeFocus(symbols: string[]): void;
   disconnect(): void;
 
   // Event bus (internal)
@@ -2241,13 +2310,23 @@ Used by: all roles.
 
 // Subscribe (sent after authentication confirmation)
 { "action": "subscribe", "symbols": ["AAPL", "MSFT", "TSLA"],
-  "channels": ["book", "trades", "depth", "auction"] }
+  "channels": ["book", "trades"] }
 ```
 
-By default the UI subscribes to the active symbol plus the watchlist ([§20.4](#204-watchlist)) on all
-channels, and to `book`/`trades` for the rest so Market Overview stays populated. `session` and
-`circuit_breaker` are always-on (no opt-in). The `auction` channel ([§6.10](#610-auction-market-data-channel))
-is new in this revision. `ManagedSocket` replays this subscription set on every reconnect.
+The current `/market-data` control model has one `symbols` set and one `channels` set per WebSocket
+connection. It does not support per-symbol channel groups inside a single connection. To handle more
+than 100 configured symbols efficiently, the UI therefore uses **two market-data sockets**:
+
+- **Overview socket:** subscribes many symbols to `book`/`trades` only. This powers Market Overview,
+  search results, and broad watch boards without requesting heavy depth payloads.
+- **Focus socket:** subscribes only the active symbol plus a bounded watchlist to
+  `book`/`trades`/`depth`/`auction`. This powers the Trading Workspace, DOM ladder, Symbol Detail,
+  and auction panel.
+
+`session` and `circuit_breaker` are always-on server events and arrive regardless of requested
+channels. `ManagedSocket` replays both socket subscription sets on every reconnect, then the UI
+refreshes REST/bootstrap queries (`/orders`, `/positions`, `/quotes/bootstrap`, `/quotes/legs`) to
+repair any private-event gap because `/market-data` does not expose CALF `SEQ`/`RESUME` semantics.
 
 #### 17.3.2 Event routing
 
@@ -2292,8 +2371,8 @@ Used by: ADMIN only. This is a **required gateway extension**
   (`ACK`/`FILL`/`CANCEL`/`AMEND`/`EXPIRE`/`REJECT`/`SESSION`/`CB`).
 - **Consumers:** the System Dashboard KPI/recent-events feed ([§15.1](#151-system-dashboard)) and the
   Monitor Log Viewer ([§15.9](#159-audit--monitor-log-viewer)).
-- **Reconnect:** `ManagedSocket` re-sends the auth frame; on reconnect the viewer may request a
-  drop-copy replay from the last seen `seq` to fill any gap.
+- **Reconnect:** `ManagedSocket` re-sends the auth frame. The current monitor API is live-only; if a
+  connection drops, the UI marks a visible gap boundary instead of pretending it has replayed events.
 
 ### 17.5 Connection health monitoring
 
@@ -2429,7 +2508,7 @@ active-symbol-bound panel re-binds atomically.
 ```typescript
 interface ActiveSymbolStore {
   activeSymbol: string | null;
-  setActiveSymbol: (symbol: string) => void;   // also adjusts the market-data subscription set
+  setActiveSymbol: (symbol: string) => void;   // also adjusts the focus market-data subscription set
 }
 ```
 
@@ -2628,7 +2707,7 @@ A settings toggle **"Confirm order/quote cancellations"** (default **on**).
   priority is not preserved and this is stated in the toast). Where an action cannot be meaningfully
   undone, it simply proceeds without a dialog.
 - **Always-confirm exceptions:** truly destructive admin actions **always** confirm regardless of the
-  setting — the global/scoped Admin Kill Switch ([§15.8](#158-kill-switch-admin)), Gateway Kick
+  setting — the enabled symbol-scoped Admin Kill Switch ([§15.8](#158-kill-switch-admin)), Gateway Kick
   ([§15.7.2](#1572-kick-disconnect-gateway)), the TRADER Kill Switch ([§13.7](#137-kill-switch-trader)),
   and Flatten All ([§13.6](#136-position-summary-panel-with-flatten)). These use multi-step
   confirmation and are never reduced to an undo-toast.
@@ -2642,10 +2721,10 @@ A lightweight, user-defined watchlist — promoted from a passing mention into a
 
 - **What it is:** a user-curated set of symbols shown as a compact panel (sidebar entry and an
   optional docked panel), each row showing symbol, last price (flash), change %, and bid/ask.
-- **How it drives data:** the watchlist set is always included in the market-data subscription set
-  (all channels), so watched symbols update live even when not the active symbol. This also lets a
-  user keep the subscription footprint small when there are many symbols
-  (`VITE_MAX_SYMBOLS`, [§22.1](#221-environment-variables)).
+- **How it drives data:** the watchlist set is included in the focus market-data socket, so watched
+  symbols receive `book`/`trades`/`depth`/`auction` updates even when they are not the active symbol.
+  The list is bounded by `VITE_MAX_FOCUS_SYMBOLS` to keep heavy depth subscriptions small when there
+  are many configured symbols.
 - **Interactions:** clicking a watchlist row sets the active symbol (drives the Workspace/ticket) and
   can open Symbol Detail. A star toggle on Market Overview rows and in the command palette
   adds/removes symbols.
@@ -2724,7 +2803,8 @@ The UI is configured via Vite environment variables (`.env` file or deployment e
 | `VITE_API_BASE` | `http://localhost:8080` | Base URL for `pm-api-gwy` REST API |
 | `VITE_WS_BASE` | `ws://localhost:8080` | Base URL for WebSocket connections |
 | `VITE_APP_TITLE` | `EduMatcher Trading` | Browser tab title and top-bar wordmark |
-| `VITE_MAX_SYMBOLS` | `50` | Max symbols to auto-subscribe to on all channels in market-data WS |
+| `VITE_MAX_OVERVIEW_SYMBOLS` | `250` | Max symbols to subscribe on the overview market-data socket (`book`/`trades`) |
+| `VITE_MAX_FOCUS_SYMBOLS` | `25` | Max active/watchlist symbols to subscribe on the focus market-data socket (`book`/`trades`/`depth`/`auction`) |
 | `VITE_CHART_HISTORY_TICKS` | `1000` | Number of historical ticks to fetch for intraday charts |
 | `VITE_FLASH_DURATION_MS` | `500` | Duration of price flash animation in milliseconds |
 | `VITE_WS_RECONNECT_MAX_DELAY` | `30000` | Maximum WebSocket reconnect delay (ms) |
@@ -2815,7 +2895,7 @@ demonstrated in isolation.
 | Phase | Deliverable | Verification |
 |-------|-------------|-------------|
 | 1 | Project scaffold: Vite + React + TS + Tailwind + shadcn/ui + React Router v7; login page; `apiFetch`; `useAuthStore`; role detection via `GET /status` | Enter API key, see "Connected as GW01 (TRADER)"; routed to role landing |
-| 2 | `ManagedSocket` + `WebSocketManager`; `useBookStore`; `useSessionStore`; `useHaltStore`; top bar with health dot, session badge + clock/countdown | Book events update Zustand; session badge changes colour; countdown ticks |
+| 2 | `ManagedSocket` + `WebSocketManager` with separate overview/focus market-data sockets; `useBookStore`; `useSessionStore`; `useHaltStore`; top bar with health dot, session badge + clock/countdown | Book events update Zustand; session badge changes colour; countdown ticks; depth is received only for focus symbols |
 | 3 | Market Overview table with FlashCell; `GET /symbols`; `GET /history/daily` for change % (vs today's open); auction + halt badges | Real-time price table with green/red flashes and correct change % |
 | 4 | Symbol Detail right panel: Chart, Depth (with click-to-trade), Trades tape, Stats, Auction tab; `useActiveSymbolStore` | Click a row → active symbol set; panel opens; candles load; auction panel populates during auction |
 | 5 | **Trading Workspace**: 4-quadrant layout bound to the active symbol; embed chart + DOM + ticket + compact blotter; click-to-trade wiring | Click a DOM level → ticket price prefilled; all quadrants follow active symbol |
@@ -2824,20 +2904,19 @@ demonstrated in isolation.
 | 8 | TRADER OCO/Combo entry + **group rows/badges + group cancel**; Trade History; Position Panel + **Flatten / Flatten All** | Submit OCO; watch one leg fill and sibling cancel; flatten a position |
 | 9 | MARKET_MAKER: Quote card grid, New Quote form, fill alerts, bootstrap + **quotes/legs** fill indicators | Submit two-sided quote; simulate fill; per-leg fill bar updates from `/quotes/legs` |
 | 10 | **Notification / Event Center** + bell; **power-user mode** (undo-toast + always-confirm exceptions); **Watchlist** | Fills/rejects persist in Event Center; toggle confirmations; curate watchlist |
-| 11 | **Admin API extensions client** (`GET /status` role, `/admin/*` endpoints) — *calls out backend dependency, see §6*; System Dashboard; `/admin/monitor` WS; Monitor Log Viewer | Dashboard KPIs from monitor stream; monitor log tails cross-gateway events |
-| 12 | ADMIN Session Control, Gateway Management (Kick), Kill Switch (scoped/global) | Transition session from UI; kick a gateway; scoped kill switch |
-| 13 | ADMIN Risk Control panel (read-only collars/CB ladder), Circuit Breaker Management (disabled where prerequisite unmet), Symbol Management (read-only until backend), Index Admin (503 placeholder if no pm-index) | Config views render; disabled controls show prerequisite tooltips |
+| 11 | **Admin API client for existing endpoints** (`GET /status` role, `/admin/session`, `/admin/gateways`, `/admin/halts`, `/admin/kill-switch/symbol`); System Dashboard; `/admin/monitor` WS; Monitor Log Viewer | Dashboard KPIs from monitor stream; monitor log tails cross-gateway events; unsupported admin controls render disabled |
+| 12 | ADMIN Session Control, Gateway Management (Kick), symbol-scoped Kill Switch, disabled global/by-gateway kill-switch placeholders | Transition session from UI; kick a gateway; symbol kill switch works; unsupported scopes stay disabled |
+| 13 | ADMIN Risk Control panel (planned/config-backed placeholder), Circuit Breaker Management (level selector disabled where unsupported), Symbol Management (read-only until backend), Index Admin read-only history plus disabled write controls | Disabled controls show prerequisite tooltips; no calls are made to non-existent endpoints |
 | 14 | Help system: help drawer, field tooltips, shortcut reference, `F1`/`Ctrl+/` | All help content accessible; tooltips visible on ticket fields |
 | 15 | Command palette (`Ctrl+K`), full keyboard shortcut implementation (incl. `B`/`S`, flatten, `Ctrl+.`, `Ctrl+L`) | Navigate entire UI without mouse |
 | 16 | Polish: confirmation dialogs / undo-toasts; empty states; loading skeletons; error boundaries | No uncaught errors; graceful degradation when engine is stopped |
 | 17 | Build pipeline: `vite build`, output to `dist/`, serve via `pm-trading-ui-serve` script | `npm run build` produces deployable `dist/` |
 
-> **Backend dependency callout:** Phases 11–13 (the ADMIN persona) depend on the gateway extensions
-> in [§6](#6-api-gateway-extensions-required-pm-api-gwy). The extensions with unmet backend
-> prerequisites (manual CB trigger/resume, live symbol add, `pm-index`, indicative auction) must be
-> tracked as backend work items; the UI ships those controls in a disabled/placeholder state until
-> the backend catches up. The TRADER/MM phases (1–10) have no backend dependency beyond the existing
-> API plus the small `auction` market-data channel addition (Phase 4).
+> **Backend dependency callout:** Phases 11–13 must implement only the ADMIN endpoints that exist
+> today and render the rest as disabled or placeholder controls. Unmet backend prerequisites (live
+> symbol add/update, runtime risk-config reads, `pm-index` write/admin bridge, level-aware CB trigger,
+> and global/by-gateway admin kill switch) must be tracked as backend work items. The TRADER/MM phases
+> (1–10) have no backend dependency beyond the existing API and current `auction` market-data channel.
 
 ---
 
@@ -2928,17 +3007,18 @@ to the EduMatcher exchange simulator. It:
   cockpit combining chart, DOM, order ticket, and blotter, with click-to-trade and dual BUY/SELL
   actions); MARKET_MAKER quote management; and an ADMIN system control center.
 - Connects the TRADER and MARKET_MAKER surfaces to the **existing** `pm-api-gwy` REST/WebSocket API
-  with no backend changes, and adds one small market-data channel (`auction`).
+  with no backend changes, including the current `auction` market-data channel.
 - **Honestly scopes the ADMIN persona's backend dependency.** Rather than inventing endpoints and
   labelling them "future," it defines the required gateway (and, where applicable, engine) extensions
-  precisely in [§6](#6-api-gateway-extensions-required-pm-api-gwy), including which items have unmet
-  backend prerequisites (manual circuit-breaker control, live symbol addition, `pm-index`, indicative
-  auction). ADMIN controls that depend on unbuilt backend commands ship disabled with clear tooltips.
+  precisely in [§6](#6-backend-capability-matrix-pm-api-gwy), including which items have unmet
+  backend prerequisites (live symbol addition, runtime risk-config reads, `pm-index` write/admin
+  bridge, level-aware circuit-breaker control, and global/by-gateway admin kill switch). ADMIN
+  controls that depend on unbuilt backend commands ship disabled with clear tooltips.
 - Uses WebSocket push for all real-time data (book, trades, depth, auction, fills, session state,
   circuit breakers) with flash animations, toast notifications, and a durable Notification / Event
   Center so nothing is lost when a toast fades.
 - Provides a global **active-symbol** context that keeps the chart, DOM, order ticket, and MM quote
-  form in sync, plus a promoted **watchlist** that drives the market-data subscription set.
+  form in sync, plus a promoted **watchlist** that drives the focus market-data subscription set.
 - Adds the feature surfaces that map to real endpoints: cancel-replace (`/orders/{id}/replace`),
   OCO/combo group cancel (`/oco/{id}`, `/combos/{id}`), an Order Detail lifecycle drawer
   (`/history/orders/{id}`), per-leg MM quote fills (`/quotes/legs`), and one-click position flatten.
@@ -2950,10 +3030,283 @@ to the EduMatcher exchange simulator. It:
 
 The key design principle throughout is: **give a serious user the same data and controls an ALF
 console operator has — but faster, in a browser, organised around the symbol they are trading.**
-Every endpoint referenced is either part of the existing `pm-api-gwy` design
-(`EduMatcher-ALF-API-Gwy2.md`) or explicitly listed as a required extension in
-[§6](#6-api-gateway-extensions-required-pm-api-gwy); every WebSocket event traces to an engine topic
+Every enabled endpoint referenced is part of the existing `pm-api-gwy` implementation or is explicitly
+listed as disabled/planned in [§6](#6-backend-capability-matrix-pm-api-gwy); every WebSocket event traces to an engine topic
 in the Requirements document (`EduMatcher-Requirements.md`).
+
+---
+
+## 26. Addendum: Protocol and Backend Changes That Would Improve the Trading Terminal
+
+This addendum intentionally looks beyond the current API surface. Because EduMatcher has not yet
+released the system, these changes should be considered **pre-release protocol cleanup** rather than
+compatibility-breaking migrations. The goal is to make `pm-trading-ui` easier to implement well:
+fewer client-side guesses, better reconnect behaviour, cleaner admin screens, and richer teaching
+views with authoritative data.
+
+### 26.1 Design principle
+
+The terminal should be able to treat every live view as:
+
+1. **Bootstrap:** fetch or receive an authoritative snapshot.
+2. **Stream:** apply ordered deltas with sequence numbers.
+3. **Recover:** detect a gap and request a replay or fresh snapshot without rebuilding hidden state
+   from unrelated endpoints.
+
+CALF already points in this direction with `SNAP`, `SEQ`, and `RESUME`. The browser-facing API should
+use the same operational model, even if the wire encoding remains JSON rather than raw CALF frames.
+
+### 26.2 Highest-impact changes
+
+| Area | Recommended change | Why it helps the terminal |
+|---|---|---|
+| Market-data stream | Add per-topic sequence numbers, `snapshot_id`, and resumable replay to `/api/v1/market-data` | Eliminates blind reconnects and stale book/depth edge cases |
+| Subscription model | Support per-symbol channel groups in one WebSocket connection | Avoids multiple sockets for overview vs. focused depth/auction subscriptions |
+| CALF/browser bridge | Define a canonical JSON envelope that mirrors CALF `SEQ`/`SNAP`/`RESUME` semantics | Lets the UI, API gateway, and external protocol stay conceptually aligned |
+| Book/depth data | Publish full depth snapshots plus incremental depth deltas with clear reset markers | Makes DOM ladders precise and efficient |
+| Auction data | Publish periodic authoritative indicative auction updates during auction phases | Removes client-side approximation and makes the teaching panel trustworthy |
+| Private order events | Add sequence/resume to `/api/v1/events` and expose an explicit order-state snapshot | Lets the blotter recover after disconnect without guessing from REST polling |
+| Admin monitor | Add replay/backfill and cross-gateway order detail endpoints | Makes the ADMIN audit viewer useful immediately on load and after reconnect |
+| Command lifecycle | Standardise async command ids and terminal acknowledgements for admin/trading commands | Gives buttons deterministic pending/success/error states |
+| Reference/risk/admin APIs | Add runtime symbol, risk, circuit-breaker, kill-switch, and index admin endpoints | Converts disabled UI panels into real tools |
+
+### 26.3 Recommended protocol shape
+
+#### 26.3.1 Uniform WebSocket envelope
+
+Use one envelope for market data, private events, and admin monitor streams:
+
+```jsonc
+{
+  "type": "depth.delta",
+  "stream": "market-data",
+  "topic": "depth.AAPL",
+  "symbol": "AAPL",
+  "seq": 128441,
+  "snapshot_id": "md-AAPL-20260805-000042",
+  "ts": "2026-08-05T09:30:01.123456Z",
+  "data": { "bids": [[150.10, 200, 1]], "asks": [] }
+}
+```
+
+Rules:
+
+- `seq` is monotonic within a topic or stream partition. The partitioning rule must be explicit; for
+  market data, per-symbol/per-channel sequence numbers are usually easiest to reason about.
+- `snapshot_id` changes whenever the sender resets the base state.
+- `type` distinguishes `*.snapshot`, `*.delta`, `*.reset`, and `*.status` events.
+- `ts` is exchange time, not browser receipt time.
+- Every event that mutates UI state has enough identity to route without inspecting nested payloads.
+
+#### 26.3.2 Snapshot, resume, and reset handshake
+
+Add explicit client commands to the JSON WebSocket API:
+
+```jsonc
+// subscribe with optional resume point
+{
+  "action": "subscribe",
+  "items": [
+    { "symbol": "AAPL", "channels": ["book", "trades", "depth", "auction"], "resume_from": { "depth": 128400 } },
+    { "symbol": "MSFT", "channels": ["book", "trades"] }
+  ]
+}
+
+// request an authoritative snapshot for one topic
+{ "action": "snapshot", "symbol": "AAPL", "channels": ["book", "depth", "auction"] }
+
+// resume a dropped stream explicitly
+{ "action": "resume", "topic": "depth.AAPL", "from_seq": 128400 }
+```
+
+Server responses:
+
+- `*.snapshot` provides a complete base state and the current `seq`.
+- `*.delta` applies only after a matching snapshot.
+- `*.reset` tells the client to discard cached state and request a new snapshot.
+- `resume.rejected` includes a reason such as `too_old`, `unknown_topic`, or `snapshot_required`.
+
+This is the browser equivalent of CALF `SNAP`/`RESUME`, expressed in JSON and aligned with React
+state management.
+
+#### 26.3.3 Per-symbol channel subscriptions
+
+Replace the current one-symbol-set/one-channel-set model with a list of subscription items. This
+lets the UI run one market-data socket cleanly:
+
+```jsonc
+{
+  "action": "subscribe",
+  "items": [
+    { "symbols": ["*"], "channels": ["book", "trades"] },
+    { "symbols": ["AAPL", "MSFT"], "channels": ["depth", "auction"] }
+  ]
+}
+```
+
+Wildcard rules should match CALF where possible: broad `book`/`trades`/`state` style channels may
+allow `*`; heavy channels such as full depth may require explicit symbols or server-side limits.
+The server should acknowledge the effective subscription so the UI can display when a requested
+symbol/channel was rejected, capped, or downgraded.
+
+#### 26.3.4 Authoritative depth and auction topics
+
+For a high-quality trading terminal, `book` and `depth` should have distinct semantics:
+
+- `book.snapshot` / `book.delta`: top-of-book plus last trade fields for overview tables.
+- `depth.snapshot` / `depth.delta`: full price-level ladder with count and aggregate quantity.
+- `trade`: individual executions with aggressor side and trade id.
+- `auction.indicative`: periodic current uncross projection while in auction phase.
+- `auction.result`: final uncross result when the auction completes.
+
+Auction indicative data should be engine-generated. The client can visualise the equilibrium, but it
+should not reimplement the matching algorithm to manufacture authoritative prices.
+
+#### 26.3.5 Private event recovery
+
+`/api/v1/events` should expose the same recovery contract as market data:
+
+- On authentication, send `{ "type": "authenticated", "gateway_id": "GW01", "event_seq": 9182 }`.
+- Support `{ "action": "resume", "from_seq": 9000 }` for private events.
+- Provide `GET /api/v1/orders/snapshot` or include an `orders.snapshot` frame after auth.
+- Include stable group ids for OCO/combo/quote workflows in every relevant ack/fill/cancel event.
+
+This removes the need for the UI to stitch together order state from `/orders`, `/history/orders`,
+and best-effort live events after reconnect.
+
+#### 26.3.6 Admin monitor replay and order drill-down
+
+The ADMIN terminal benefits heavily from a real replay boundary:
+
+- `WS /api/v1/admin/monitor` sends `monitor.snapshot` with current active orders, active halts,
+  connected gateways, and last sequence.
+- `GET /api/v1/admin/monitor/events?from_seq=&limit=` returns recent cross-gateway events.
+- `GET /api/v1/admin/orders/{order_id}` returns the full cross-gateway lifecycle for any order.
+- `GET /api/v1/admin/orders?symbol=&gateway_id=&status=` supports the admin active-order table.
+
+With those endpoints, the monitor viewer is useful immediately after login and can mark exactly
+where a replay gap could not be repaired.
+
+#### 26.3.7 Uniform command acknowledgements
+
+Every asynchronous command should return a `command_id`, and every later WebSocket event caused by
+that command should echo it when possible:
+
+```jsonc
+// REST response
+{ "command_id": "cmd-01J4...", "status": "ACCEPTED" }
+
+// later event
+{
+  "type": "order.ack",
+  "command_id": "cmd-01J4...",
+  "order_id": "ord-...",
+  "accepted": true,
+  "data": { ... }
+}
+```
+
+This one change makes pending buttons, optimistic rows, retry warnings, and audit trails much simpler.
+It is especially valuable for session transitions, symbol halts/resumes, gateway disconnects, cancel
+replace, mass cancel, and kill switch operations.
+
+### 26.4 Recommended backend components
+
+#### 26.4.1 API gateway stream cache
+
+Add a bounded in-memory stream cache inside `pm-api-gwy` for market data, private events, and admin
+monitor events. It should retain recent deltas by stream/topic and expose whether a requested resume
+point is still available. This is enough for classroom and local terminal use; it does not need a
+durable event store in the first release.
+
+Recommended defaults:
+
+- Market data: retain the last 30-60 seconds per symbol/channel, plus current snapshots.
+- Private events: retain the last 5-15 minutes per gateway, plus current active order snapshot.
+- Admin monitor: retain the last 5-15 minutes globally, plus active order/halt/gateway snapshots.
+
+#### 26.4.2 Reference-data service boundary
+
+Promote compiled reference data to a first-class API artifact:
+
+- `GET /api/v1/reference/config-version`
+- `GET /api/v1/reference/symbols`
+- `GET /api/v1/reference/risk`
+- `GET /api/v1/reference/indexes`
+- `POST /api/v1/admin/reference/reload` for controlled reloads in development/classroom mode
+
+This gives the UI a stable source for tick sizes, risk bands, circuit-breaker levels, session
+schedules, and index definitions without scraping config files or depending on implementation-local
+structures.
+
+#### 26.4.3 Runtime admin commands
+
+Because backwards compatibility is not a constraint yet, it is worth making the admin command surface
+complete before release:
+
+- `POST /api/v1/admin/symbols` and `PATCH /api/v1/admin/symbols/{symbol}` with engine support for
+  runtime symbol add/update.
+- `POST /api/v1/admin/circuit-breaker/trigger` with true level-aware semantics.
+- `POST /api/v1/admin/circuit-breaker/resume` with explicit reason and command id.
+- `POST /api/v1/admin/kill-switch/gateway` for another gateway's orders/quotes.
+- `POST /api/v1/admin/kill-switch/symbol` for all gateways on one symbol.
+- `POST /api/v1/admin/kill-switch/global` for full-market emergency cancel.
+- `GET /api/v1/admin/risk/*` for read-only risk/collar/circuit-breaker configuration.
+- `GET /api/v1/admin/indexes` and `POST /api/v1/admin/indexes/{id}/rebalance` through a `pm-index`
+  bridge.
+
+Each command should accept an optional `reason` field and emit an admin monitor event with the same
+`command_id`, initiator gateway id, scope, result, and error if rejected.
+
+#### 26.4.4 Terminal-oriented aggregate endpoints
+
+Small aggregate endpoints reduce UI boot time and avoid waterfalls:
+
+- `GET /api/v1/bootstrap/trader` returns status, gateway id, symbols, session, positions, active
+  orders, recent fills, and watchable capabilities.
+- `GET /api/v1/bootstrap/mm` adds quote bootstrap and quote legs.
+- `GET /api/v1/bootstrap/admin` adds gateways, halts, current active order counts, reference-data
+  version, and monitor last sequence.
+
+These endpoints should be thin composition layers over existing services. They are not a replacement
+for normalized REST resources; they make browser startup predictable.
+
+#### 26.4.5 Capability discovery
+
+Add `GET /api/v1/capabilities` so the UI can enable or disable screens without hard-coded release
+assumptions:
+
+```jsonc
+{
+  "protocol_version": "2026.08",
+  "market_data": { "resume": true, "per_symbol_channels": true, "auction_indicative": true },
+  "admin": { "global_kill_switch": true, "symbol_mutation": true, "index_admin": true },
+  "history": { "admin_order_detail": true, "monitor_replay": true }
+}
+```
+
+This keeps the terminal honest during staged backend work and makes demos less brittle.
+
+### 26.5 Suggested implementation order
+
+1. **Unify WebSocket envelopes and sequence numbers.** This is the highest-leverage protocol cleanup;
+   it affects every live screen and is easiest to do before release.
+2. **Add snapshot/resume for market data and private events.** This makes reconnect behaviour
+   deterministic and removes the biggest class of UI state bugs.
+3. **Replace the market-data subscription shape with per-symbol channel items.** This simplifies the
+   client and makes 100+ symbol operation natural.
+4. **Publish authoritative auction indicative events.** This turns the auction panel from a useful
+   approximation into a reliable teaching tool.
+5. **Add admin monitor replay and cross-gateway order detail.** This makes the ADMIN persona feel
+   complete rather than live-only.
+6. **Standardise command ids and command-result events.** This improves every destructive or async UI
+   action and gives the audit trail a clean spine.
+7. **Fill out runtime admin/reference/index APIs.** These convert disabled panels into operational
+   tools once the core stream/recovery model is solid.
+
+The first three items should be treated as protocol foundation. The later items can be implemented
+incrementally, but they should follow the same envelope, command-id, capability-discovery, and replay
+rules so the terminal does not accumulate special cases.
 
 ---
 
@@ -2980,11 +3333,12 @@ export type ResumptionMode = "AUCTION" | "CONTINUOUS";
 
 // ── REST: status (extended per §6.2) ─────────────────────────────────────────
 export interface StatusResponse {
-  gateway_id: string;
-  gateway_role: GatewayRole;       // REQUIRED extension
-  session_state: SessionState;
+  orders: number;
+  quote_legs: number;
+  positions: Record<string, unknown>;
+  known_symbols: string[];
+  gateway_role: GatewayRole;
   gateway_count?: number;          // ADMIN keys only
-  connected: boolean;
 }
 
 // ── Order / Fill / Trade ─────────────────────────────────────────────────────
@@ -3080,9 +3434,13 @@ export interface CircuitBreakerEvent {
 // ── Positions ────────────────────────────────────────────────────────────────
 export interface Position {
   symbol: string;
-  position: number;                // net: + long, − short
-  avg_cost: number;
+  net_qty: number;                 // net: + long, − short
   last_price: number | null;
+}
+
+// Future P&L extension only; not returned by GET /positions today.
+export interface PositionPnlExtension {
+  avg_cost: number;
   realized_pnl: number;
   unrealized_pnl: number;
 }
@@ -3118,20 +3476,22 @@ export interface WsEnvelope<T> {
 
 // ── Admin (§6) ───────────────────────────────────────────────────────────────
 export interface AdminGateway {
-  gateway_id: string;
+  gateway_id?: string;
+  id?: string;                     // current gateway-list payloads may use id
   role: GatewayRole;
-  description: string;
+  description?: string;
   connected: boolean;
 }
 
 export interface HaltEntry {
   symbol: string;
-  level: number;
-  trigger_price: number;
-  reference_price: number;
-  halted_at: string;
-  resume_at: string | null;
-  resumption_mode: ResumptionMode;
+  level?: number | string | null;
+  trigger_price?: number | null;
+  reference_price?: number | null;
+  halted_at?: string;
+  resume_at?: string | null;
+  resume_at_ns?: number | null;
+  resumption_mode?: ResumptionMode;
 }
 
 export interface MonitorEvent {

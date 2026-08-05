@@ -17,6 +17,7 @@ from edumatcher.api_gateway import engine_client, main
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
 from edumatcher.api_gateway.engine_client import EngineClient
 from edumatcher.api_gateway.routers import history, ws
+from edumatcher.api_gateway.schemas import MarketDataControl
 from edumatcher.api_gateway.sessions import Session, SessionRegistry, auth
 from edumatcher.models.message import make_gateway_auth_msg
 
@@ -544,18 +545,27 @@ async def test_websocket_auth_controls_and_filtering() -> None:
             {"action": "bad", "symbols": [], "channels": []},
         ]
     )
-    symbols: set[str] = set()
-    channels: set[str] = set()
+    subscription = ws.Subscription()
     with pytest.raises(WebSocketDisconnect):
-        await ws._receive_market_controls(controls, symbols, channels)  # type: ignore[arg-type]  # test double
-    assert controls.sent[0]["data"] == {"symbols": ["AAPL"], "channels": ["trades"]}
-    assert controls.sent[1]["data"] == {"symbols": [], "channels": []}
+        await ws._receive_market_controls(controls, subscription)  # type: ignore[arg-type]  # test double
+    # The legacy ack keys keep their meaning; `items`, `always` and `rejected`
+    # are additive.
+    assert controls.sent[0]["data"]["symbols"] == ["AAPL"]
+    assert controls.sent[0]["data"]["channels"] == ["trades"]
+    assert controls.sent[1]["data"]["symbols"] == []
+    assert controls.sent[1]["data"]["channels"] == []
     assert controls.sent[2]["type"] == "error"
 
     sender = FakeWebSocket([])
     queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    focused = ws.Subscription()
+    focused.apply(
+        MarketDataControl.model_validate(
+            {"action": "subscribe", "symbols": ["AAPL"], "channels": ["trades"]}
+        )
+    )
     task = asyncio.create_task(
-        ws._send_market_data(sender, queue, {"AAPL"}, {"trades"})  # type: ignore[arg-type]  # test double
+        ws._send_market_data(sender, queue, focused)  # type: ignore[arg-type]  # test double
     )
     await queue.put({"type": "session", "data": {}})
     await queue.put({"type": "trade", "data": {"symbol": "AAPL"}})

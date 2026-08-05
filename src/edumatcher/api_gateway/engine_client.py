@@ -92,6 +92,11 @@ class EngineClient:
         # Cache of resolved gateway roles (keyed by upper-cased gateway id).
         self._role_cache: dict[str, str] = {}
         self._pending: dict[str, list[_PendingWait]] = defaultdict(list)
+        # Per-topic outbound sequence numbers — see _next_seq for why per topic.
+        self._topic_seq: defaultdict[str, int] = defaultdict(int)
+        # Plain counters, not _dbg_count: these must be readable in a normal
+        # run, because they are the only server-side evidence of dropped events.
+        self._dropped_events: defaultdict[str, int] = defaultdict(int)
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = 0.0
 
@@ -360,37 +365,87 @@ class EngineClient:
             # exits on EINTR or an unrecoverable ZMQError instead of a clean stop.
             self._running = False
 
+    def _next_seq(self, topic: str) -> int:
+        """Monotonic sequence number for *topic*, starting at 1.
+
+        Per **topic**, not per connection or per stream, and that choice is
+        forced by how clients subscribe. A market-data client filters down to
+        the symbols and channels it cares about, so a connection-wide counter
+        would arrive with holes wherever an event was filtered out — every
+        subscriber would see permanent phantom gaps and no subscriber could
+        distinguish those from real loss. Per-topic numbering is contiguous
+        for anyone receiving that topic at all, which is the only property
+        that makes gap detection usable. (Same reasoning as the per-topic
+        sequence on the engine's own PUB socket.)
+        """
+        seq = self._topic_seq[topic] + 1
+        self._topic_seq[topic] = seq
+        return seq
+
+    def _record_drop(self, sink: str, event: dict[str, Any]) -> None:
+        """Account for an event that could not be queued.
+
+        The sink queues are bounded and written with ``put_nowait``, so a
+        consumer slower than the feed loses events. That is the correct
+        trade-off — one slow browser must not stall the gateway — but it was
+        previously counted only through ``_dbg_count``, which is gated on
+        DEBUG being enabled. In a normal run the loss was therefore invisible
+        from both ends: the client had no sequence to check and the operator
+        had no counter to read. Both halves of that are now fixed.
+        """
+        self._dropped_events[sink] += 1
+        total = self._dropped_events[sink]
+        # Log the first drop per sink immediately, then back off geometrically:
+        # a saturated consumer would otherwise produce one line per event.
+        if total == 1 or total % 100 == 0:
+            log.warning(
+                "%s sink full — dropped event (topic=%s, %d dropped on this sink). "
+                "A client is slower than the feed; it can detect this from the "
+                "per-topic seq gap.",
+                sink,
+                event.get("topic", "?"),
+                total,
+            )
+
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         self._dbg_count("events_handled")
         self._resolve_pending(topic, payload)
         gateway_id = gateway_from_topic(topic)
+        # Sequenced once per event, so every sink that receives it agrees on
+        # the number. Assigned before fan-out and regardless of whether any
+        # sink accepts it — a dropped event still consumes its sequence
+        # number, which is precisely what makes the gap detectable.
+        seq = self._next_seq(topic)
         if gateway_id is not None:
             self._dbg_count("gateway_scoped_events")
             cache = self._caches[gateway_id]
             cache.apply(topic, payload)
             self._register_tick_metadata(payload)
-            event = envelope(topic, payload)
+            event = envelope(topic, payload, seq=seq)
             for queue in list(self._sinks.get(gateway_id, set())):
                 if self._try_put(queue, event):
                     self._dbg_count("gateway_sink_events")
                 else:
                     self._dbg_count("gateway_sink_drops")
+                    self._record_drop("private", event)
         else:
             self._dbg_count("market_data_events")
             for cache in self._caches.values():
                 cache.apply(topic, payload)
-            event = envelope(topic, payload)
+            event = envelope(topic, payload, seq=seq)
             for queue in list(self._market_data_sinks):
                 if self._try_put(queue, event):
                     self._dbg_count("market_data_sink_events")
                 else:
                     self._dbg_count("market_data_sink_drops")
+                    self._record_drop("market_data", event)
         # The ADMIN monitor feed sees every event regardless of routing branch.
         for queue in list(self._admin_sinks):
             if self._try_put(queue, event):
                 self._dbg_count("admin_sink_events")
             else:
                 self._dbg_count("admin_sink_drops")
+                self._record_drop("admin", event)
 
     @staticmethod
     def _try_put(queue: asyncio.Queue[dict[str, Any]], event: dict[str, Any]) -> bool:
@@ -428,6 +483,11 @@ class EngineClient:
 
     def remove_admin_sink(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
         self._admin_sinks.discard(queue)
+
+    @property
+    def dropped_events(self) -> dict[str, int]:
+        """Events discarded per sink because a consumer could not keep up."""
+        return dict(self._dropped_events)
 
     def get_caches(self, gateway_id: str) -> SessionCaches:
         return self._caches[gateway_id]

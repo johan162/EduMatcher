@@ -73,13 +73,28 @@ def websocket_type(topic: str) -> str:
     return topic
 
 
-def envelope(topic: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Build the uniform JSON event envelope used by both WebSockets."""
+def envelope(
+    topic: str, payload: dict[str, Any], *, seq: int | None = None
+) -> dict[str, Any]:
+    """Build the uniform JSON event envelope used by both WebSockets.
+
+    ``topic`` and ``seq`` are additive: ``type``, ``ts``, ``data`` and
+    ``gateway_id`` keep their existing meanings, so a client written against
+    the previous envelope keeps working and simply ignores the new fields.
+
+    ``topic`` is the engine topic the event came from and is what ``seq``
+    counts within — a client tracking gaps must key on ``topic``, not on
+    ``type``, because one type (``depth``) spans many topics (``depth.AAPL``,
+    ``depth.MSFT``) each with its own independent sequence.
+    """
     body: dict[str, Any] = {
         "type": websocket_type(topic),
+        "topic": topic,
         "ts": now_iso(),
         "data": payload,
     }
+    if seq is not None:
+        body["seq"] = seq
     gateway_id = gateway_from_topic(topic)
     if gateway_id is not None:
         body["gateway_id"] = gateway_id

@@ -255,6 +255,17 @@ After authentication, send a subscription control message:
 > {"api_key": "key-readonly-demo"}
 < {"type": "authenticated"}
 > {"action": "subscribe", "symbols": ["AAPL"], "channels": ["book", "trades"]}
+< {"type": "subscription", "data": {"items": [...], "always": ["session", "circuit_breaker"], "rejected": []}}
+```
+
+Each rule can have its own symbols, so one socket can carry an overview plus a
+focused instrument:
+
+```text
+> {"action": "subscribe", "items": [
+    {"symbols": ["*"],    "channels": ["book", "trades"]},
+    {"symbols": ["AAPL"], "channels": ["depth"]}
+  ]}
 ```
 
 Expected behavior:
@@ -262,6 +273,10 @@ Expected behavior:
 - private events correspond to the authenticated trading gateway
 - public market-data access does not require a non-null `gateway_id`
 - stale or unknown bearer keys are rejected
+- every event carries `topic` and a per-topic `seq`; a jump in `seq` for a
+  topic means your client read too slowly and events were dropped
+- `session` and `circuit_breaker` arrive whether or not you subscribed — the
+  ack lists them under `always`
 
 :material-checkbox-blank-outline: Checkpoint: you can explain when to use REST responses versus WebSocket events for order outcomes.
 
