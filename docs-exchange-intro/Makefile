@@ -466,7 +466,7 @@ $(eval $(call BUILD_PART_PDF,PART_4,a4,4,IV))
 $(NODE_MODULES_PATH):
 	@echo -e "$(DARKYELLOW)- Installing shared Node dependencies for Mermaid rendering in $(NODE_TOOLS_DIR)...$(NC)"
 	@mkdir -p $(NODE_TOOLS_DIR)
-	@npm install --prefix $(NODE_TOOLS_DIR) --save-dev mermaid-filter @mermaid-js/mermaid-cli
+	@PUPPETEER_SKIP_DOWNLOAD=1 npm install --prefix $(NODE_TOOLS_DIR) --save-dev mermaid-filter @mermaid-js/mermaid-cli
 	@echo -e "$(GREEN)✓ Shared Node dependencies installed$(NC)"
 
 # EOF

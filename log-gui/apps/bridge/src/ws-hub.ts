@@ -55,6 +55,25 @@ export class WsHub {
     }
   }
 
+  /**
+   * Send a coalesced batch to every tab whose live filter matches any of it.
+   *
+   * Encoded per tab rather than once, because each tab's filter selects a
+   * different subset — the cost of that is exactly what batching is buying
+   * back, since it is now one encode per tab per flush instead of one per tab
+   * per row.
+   */
+  broadcastRows(rows: LogRow[]): void {
+    if (rows.length === 0) return;
+    for (const tab of this.tabs) {
+      if (!tab.live) continue;
+      const matched = rows.filter((row) => rowMatchesFilter(row, tab.filter));
+      if (matched.length === 0) continue;
+      const frame: ServerFrame = { t: "events", rows: matched };
+      this.sendRaw(tab.socket, JSON.stringify(frame));
+    }
+  }
+
   /** Broadcast a frame that every tab receives unconditionally (counters, issues, acks, server/bridge state). */
   broadcastAll(frame: ServerFrame): void {
     const encoded = JSON.stringify(frame);

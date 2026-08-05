@@ -26,9 +26,9 @@ You will practice:
 Recommended startup order:
 
 1. Generate `engine_config.yaml`.
-2. Start `pm-engine --verbose --config engine_config.yaml`.
-3. Start `pm-stats --config engine_config.yaml`.
-4. Start `pm-api-gwy --config engine_config.yaml --instance desk`.
+2. Start `pm-engine --verbose`.
+3. Start `pm-stats`.
+4. Start `pm-api-gwy --instance desk`.
 
  
 
@@ -102,9 +102,9 @@ Expected behavior:
 Start the core processes with the generated config:
 
 ```bash
-pm-engine --verbose --config engine_config.yaml
-pm-stats --config engine_config.yaml
-pm-api-gwy --config engine_config.yaml --instance desk
+pm-engine --verbose
+pm-stats
+pm-api-gwy --instance desk
 ```
 
 If the config contains only one `api_gateways` entry, `--instance` can be omitted.
@@ -285,8 +285,8 @@ pm-config-gen \
 Start each named process in a separate terminal:
 
 ```bash
-pm-api-gwy --config engine_config.yaml --instance desk
-pm-api-gwy --config engine_config.yaml --instance algos
+pm-api-gwy --instance desk
+pm-api-gwy --instance algos
 ```
 
 Try an invalid duplicate assignment:

@@ -116,12 +116,24 @@ function buildCbDefaults(draft: EngineConfigDraft): PlainConfig {
     levels[name] = {
       price_shift_pct: level.priceShiftPct,
       halt_duration_ns: level.haltDurationNs,
-      resumption_mode: level.resumptionMode,
     };
   }
+  const r = draft.circuitBreakerDefaults.reopening;
+  const reopening: PlainConfig = {
+    enabled: r.enabled,
+    initial_band_pct: r.initialBandPct,
+    random_end_max_ns: r.randomEndMaxNs,
+    expansions: r.expansions.map((rung) => ({
+      widen_pct: rung.widenPct,
+      min_duration_ns: rung.minDurationNs,
+    })),
+  };
+  // Engine-wide by construction — pm-cverifier rejects it per symbol (S110).
+  if (r.randomSeed !== undefined) reopening.random_seed = r.randomSeed;
   return {
     reference_window_ns: draft.circuitBreakerDefaults.windowNs,
     levels,
+    reopening,
   };
 }
 
@@ -225,7 +237,9 @@ function buildSymbol(
   if (config.circuitBreaker) {
     const hasLevels = Object.keys(config.circuitBreaker.levels).length > 0;
     const hasWindow = config.circuitBreaker.referenceWindowNs !== undefined;
-    if (hasLevels || hasWindow) {
+    const ro = config.circuitBreaker.reopening;
+    const hasReopening = ro !== undefined && Object.keys(ro).length > 0;
+    if (hasLevels || hasWindow || hasReopening) {
       const cb: PlainConfig = {};
       if (hasWindow)
         cb.reference_window_ns = config.circuitBreaker.referenceWindowNs;
@@ -239,11 +253,20 @@ function buildSymbol(
             lvlPayload.price_shift_pct = lvl.priceShiftPct;
           if (lvl.haltDurationNs !== undefined)
             lvlPayload.halt_duration_ns = lvl.haltDurationNs;
-          if (lvl.resumptionMode !== undefined)
-            lvlPayload.resumption_mode = lvl.resumptionMode;
           cbLevels[name] = lvlPayload;
         }
         cb.levels = cbLevels;
+      }
+      if (hasReopening && ro) {
+        // Only the keys actually overridden — the engine merges the rest
+        // field-by-field from circuit_breaker_defaults.
+        const reopening: PlainConfig = {};
+        if (ro.enabled !== undefined) reopening.enabled = ro.enabled;
+        if (ro.initialBandPct !== undefined)
+          reopening.initial_band_pct = ro.initialBandPct;
+        if (ro.randomEndMaxNs !== undefined)
+          reopening.random_end_max_ns = ro.randomEndMaxNs;
+        cb.reopening = reopening;
       }
       payload.circuit_breaker = cb;
     }

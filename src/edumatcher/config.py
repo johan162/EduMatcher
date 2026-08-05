@@ -14,24 +14,21 @@ EDUMATCHER_DATA_DIR
       2. Source-tree default: ``<repo>/src/data/``  (when running from a clone)
       3. Installed default:   ``~/.local/share/edumatcher``
 
-EDUMATCHER_CONFIG
-    Path to the engine configuration YAML file.
-    Priority order:
-      1. ``EDUMATCHER_CONFIG`` environment variable
-      2. Source-tree default: ``<repo>/engine_config.yaml``
-      3. Installed default:   ``./engine_config.yaml`` (current working directory)
+The engine configuration file is deliberately *not* separately configurable —
+it always lives at ``<DATA_DIR>/ref_data/engine_config.yaml``. See
+``ENGINE_CONFIG_FILE`` below for why.
 
 Developer mode (poetry)
     When running from a source checkout nothing needs to change — the source-tree
-    detection keeps the original ``src/data/`` and repo-root YAML paths.
+    detection keeps the original ``src/data/`` root.
 
 End-user mode (pipx / pip)
     After ``pipx install edumatcher``:
-      1. Run ``pm-setup`` once to create the data directory and copy a sample
-         config to your working directory.
-      2. Edit ``engine_config.yaml`` in that directory.
-      3. Start processes from that directory, or export ``EDUMATCHER_DATA_DIR``
-         and ``EDUMATCHER_CONFIG`` to point at your chosen locations.
+      1. Run ``pm-setup`` once to create the data directory and write a sample
+         config into ``<DATA_DIR>/ref_data/``.
+      2. Edit that ``engine_config.yaml``.
+      3. Export ``EDUMATCHER_DATA_DIR`` if you want a location other than the
+         default; every process follows it together.
 """
 
 import os
@@ -121,18 +118,24 @@ LOG_SRV_PULL_ADDR = f"tcp://{LOG_SRV_HOST}:{LOG_SRV_PULL_PORT}"
 # ---------------------------------------------------------------------------
 # Engine configuration file resolution
 # ---------------------------------------------------------------------------
-def _resolve_engine_config() -> Path:
-    _env = os.environ.get("EDUMATCHER_CONFIG")
-    if _env:
-        return Path(_env).expanduser().resolve()
-    if _IN_SOURCE_TREE:
-        # Repo root is three levels up from config.py (src/edumatcher/config.py)
-        return _src_dir.parent / "engine_config.yaml"
-    # Installed: look in the current working directory
-    return Path.cwd() / "engine_config.yaml"
-
-
-ENGINE_CONFIG_FILE = _resolve_engine_config()
+# Derived from DATA_DIR with no per-process override, and deliberately so.
+# While a --config flag and an EDUMATCHER_CONFIG variable existed, any single
+# process could be pointed at a different file from the rest of the exchange.
+# That failed quietly: pm-md-gwy started with an empty symbol universe and
+# looked healthy, while the engine ran the ten symbols the operator expected.
+# One data directory is one exchange instance, exactly as it already is for
+# stats.db, log.db and audit.log — so a mistake now detaches a process from
+# its logs and statistics too, and is noticed immediately.
+#
+# ref_data/ holds *deployed* configuration, not authored configuration. The
+# YAML kept under version control is the source; a deploy step validates and
+# copies it here. Nothing at runtime accepts a path.
+REF_DATA_DIR = DATA_DIR / "ref_data"
+ENGINE_CONFIG_FILE = REF_DATA_DIR / "engine_config.yaml"
+# What every process actually reads: the compiled artifact, with all defaults
+# resolved and all validation already done. The YAML beside it is the source it
+# was built from, kept for provenance and for recompiling.
+COMPILED_CONFIG_FILE = REF_DATA_DIR / "engine_config.json"
 
 # ---------------------------------------------------------------------------
 # Misc

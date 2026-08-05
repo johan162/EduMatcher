@@ -1,4 +1,4 @@
-"""Parser for circuit-breaker level specs: NAME:SHIFT_PCT[:HALT_MINS[:RESUMPTION_MODE]]."""
+"""Parser for circuit-breaker level specs: NAME:SHIFT_PCT[:HALT_MINS]."""
 
 from __future__ import annotations
 
@@ -10,14 +10,13 @@ class CbSpec:
     name: str
     shift_pct: float
     halt_mins: int | None
-    resumption_mode: str = "AUCTION"  # AUCTION | CONTINUOUS
 
 
 def parse_cb_spec(raw: str) -> CbSpec:
     parts = [part.strip() for part in raw.split(":")]
-    if len(parts) not in (2, 3, 4):
+    if len(parts) not in (2, 3):
         raise ValueError(
-            f"Invalid circuit-breaker spec '{raw}': expected NAME:SHIFT_PCT[:HALT_MINS[:RESUMPTION_MODE]]"
+            f"Invalid circuit-breaker spec '{raw}': expected NAME:SHIFT_PCT[:HALT_MINS]"
         )
 
     name = parts[0].upper()
@@ -43,18 +42,4 @@ def parse_cb_spec(raw: str) -> CbSpec:
             raise ValueError(f"halt_mins must be >= 0 in circuit-breaker spec '{raw}'")
         halt_mins = parsed_halt
 
-    resumption_mode = "AUCTION"
-    if len(parts) == 4 and parts[3]:
-        resumption_mode = parts[3].upper()
-        if resumption_mode not in ("AUCTION", "CONTINUOUS"):
-            raise ValueError(
-                f"Invalid resumption_mode in circuit-breaker spec '{raw}': "
-                "must be AUCTION or CONTINUOUS"
-            )
-
-    return CbSpec(
-        name=name,
-        shift_pct=shift_pct,
-        halt_mins=halt_mins,
-        resumption_mode=resumption_mode,
-    )
+    return CbSpec(name=name, shift_pct=shift_pct, halt_mins=halt_mins)

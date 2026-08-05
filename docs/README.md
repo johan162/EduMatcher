@@ -44,7 +44,8 @@ docs/
     ├── 070-combo-orders.md
     ├── 080-session-scheduling.md
     ├── 130-pnl-clearing.md
-    ├── 050-gateway-reference.md
+    ├── 051-gateway-intro.md
+    ├── 055-alf-console.md
     ├── 270-message-reference.md
     ├── 170-processes.md
     ├── 180-persistence.md

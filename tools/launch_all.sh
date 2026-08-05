@@ -13,8 +13,10 @@
 #
 # Environment:
 #   EDUMATCHER_DATA_DIR   Override the data directory (default: ~/.local/share/edumatcher
-#                         or src/data/ when running from a source checkout)
-#   EDUMATCHER_CONFIG     Override the engine config path (default: ./engine_config.yaml)
+#                         or src/data/ when running from a source checkout).
+#                         This is the only location knob: the engine config is
+#                         read from <DATA_DIR>/ref_data/engine_config.yaml by
+#                         every process, so they cannot disagree.
 
 set -euo pipefail
 
@@ -41,15 +43,11 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Export data/config locations so every spawned window inherits them
+# Export the data directory so every spawned window inherits it
 # ---------------------------------------------------------------------------
 if [ -n "${EDUMATCHER_DATA_DIR:-}" ]; then
     export EDUMATCHER_DATA_DIR
     echo "ℹ  EDUMATCHER_DATA_DIR=${EDUMATCHER_DATA_DIR}"
-fi
-if [ -n "${EDUMATCHER_CONFIG:-}" ]; then
-    export EDUMATCHER_CONFIG
-    echo "ℹ  EDUMATCHER_CONFIG=${EDUMATCHER_CONFIG}"
 fi
 
 # Open a new macOS Terminal window that runs CMD inside the project directory.
@@ -57,7 +55,6 @@ _term() {
     local cmd="$1"
     local env_prefix=""
     [ -n "${EDUMATCHER_DATA_DIR:-}" ] && env_prefix+="EDUMATCHER_DATA_DIR='${EDUMATCHER_DATA_DIR}' "
-    [ -n "${EDUMATCHER_CONFIG:-}" ]   && env_prefix+="EDUMATCHER_CONFIG='${EDUMATCHER_CONFIG}' "
     osascript \
         -e "tell application \"Terminal\"" \
         -e "  activate" \

@@ -77,6 +77,10 @@ from .defaults import (
     DEFAULT_MARKET_DATA_GATEWAY_NAME,
     DEFAULT_MARKET_DATA_GATEWAY_PORT,
     DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC,
+    DEFAULT_ACE_ENABLED,
+    DEFAULT_ACE_EXPANSIONS,
+    DEFAULT_ACE_INITIAL_BAND_PCT,
+    DEFAULT_ACE_RANDOM_END_MAX_NS,
     DEFAULT_CB_WINDOW_NS,
     DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
     DEFAULT_DROP_COPY_BUFFER_SIZE,
@@ -120,6 +124,14 @@ class ConfigSpec:
     risk_levels: dict[str, tuple[float, float | None]] = field(default_factory=dict)
     cb_levels: list[CbSpec] = field(default_factory=list)
     cb_window_ns: int = DEFAULT_CB_WINDOW_NS
+    ace_enabled: bool = DEFAULT_ACE_ENABLED
+    ace_initial_band_pct: float = DEFAULT_ACE_INITIAL_BAND_PCT
+    ace_random_end_max_ns: int = DEFAULT_ACE_RANDOM_END_MAX_NS
+    ace_random_seed: int | None = None
+    #: (widen_pct, min_duration_ns) per rung; the last rung repeats.
+    ace_expansions: list[tuple[float, int]] = field(
+        default_factory=lambda: list(DEFAULT_ACE_EXPANSIONS)
+    )
     mm_spread_ticks: int = DEFAULT_MM_SPREAD_TICKS
     mm_min_qty: int = DEFAULT_MM_MIN_QTY
     enforce_mm_obligations: bool = False
@@ -646,12 +658,24 @@ class ConfigBuilder:
             levels[level.name] = {
                 "price_shift_pct": level.shift_pct,
                 "halt_duration_ns": halt_ns,
-                "resumption_mode": level.resumption_mode,
             }
+
+        reopening: dict[str, Any] = {
+            "enabled": self.spec.ace_enabled,
+            "initial_band_pct": self.spec.ace_initial_band_pct,
+            "random_end_max_ns": self.spec.ace_random_end_max_ns,
+            "expansions": [
+                {"widen_pct": pct, "min_duration_ns": dur}
+                for pct, dur in self.spec.ace_expansions
+            ],
+        }
+        if self.spec.ace_random_seed is not None:
+            reopening["random_seed"] = self.spec.ace_random_seed
 
         return {
             "reference_window_ns": self.spec.cb_window_ns,
             "levels": levels,
+            "reopening": reopening,
         }
 
     def _build_gateways(self) -> list[dict[str, Any]]:
@@ -715,9 +739,7 @@ class ConfigBuilder:
 
             cb_levels: dict[str, dict[str, Any]] = {}
             for level_name in sorted(
-                set(override.cb_shift)
-                | set(override.cb_halt_mins)
-                | set(override.cb_resumption_mode)
+                set(override.cb_shift) | set(override.cb_halt_mins)
             ):
                 level_payload: dict[str, Any] = {}
                 if level_name in override.cb_shift:
@@ -730,13 +752,23 @@ class ConfigBuilder:
                         level_payload["halt_duration_ns"] = (
                             halt_mins * 60 * 1_000_000_000
                         )
-                if level_name in override.cb_resumption_mode:
-                    level_payload["resumption_mode"] = override.cb_resumption_mode[
-                        level_name
-                    ]
                 cb_levels[level_name] = level_payload
-            if cb_levels:
-                payload["circuit_breaker"] = {"levels": cb_levels}
+
+            sym_reopening: dict[str, Any] = {}
+            if override.ace_enabled is not None:
+                sym_reopening["enabled"] = override.ace_enabled
+            if override.ace_initial_band_pct is not None:
+                sym_reopening["initial_band_pct"] = override.ace_initial_band_pct
+            if override.ace_random_end_max_ns is not None:
+                sym_reopening["random_end_max_ns"] = override.ace_random_end_max_ns
+
+            if cb_levels or sym_reopening:
+                cb_payload: dict[str, Any] = {}
+                if cb_levels:
+                    cb_payload["levels"] = cb_levels
+                if sym_reopening:
+                    cb_payload["reopening"] = sym_reopening
+                payload["circuit_breaker"] = cb_payload
 
             if mm_gateways:
                 payload["market_maker_quotes"] = [

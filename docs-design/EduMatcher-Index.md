@@ -1045,7 +1045,7 @@ The client does not need to know that ZMQ, JSON, or a divisor exist.
 
 ```
 poetry run pm-index
-poetry run pm-index --config engine_config.yaml
+poetry run pm-index
 poetry run pm-index --reset   # delete state file and reinitialise from config
 ```
 

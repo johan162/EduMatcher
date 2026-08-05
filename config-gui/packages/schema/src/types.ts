@@ -27,9 +27,6 @@ export const QUOTE_REFRESH_POLICIES = [
 ] as const;
 export type QuoteRefreshPolicy = (typeof QUOTE_REFRESH_POLICIES)[number];
 
-export const RESUMPTION_MODES = ["AUCTION", "CONTINUOUS"] as const;
-export type ResumptionMode = (typeof RESUMPTION_MODES)[number];
-
 export const SIDES = ["BUY", "SELL"] as const;
 export type Side = (typeof SIDES)[number];
 
@@ -101,9 +98,38 @@ export interface Schedule {
 
 export interface CbLevel {
   priceShiftPct: number;
-  /** null = rest of day. */
+  /**
+   * Minimum length of the reopening call phase. null = rest of day, which
+   * never enters the ACE cycle and waits for the closing backstop.
+   */
   haltDurationNs: number | null;
-  resumptionMode: ResumptionMode;
+}
+
+/** One rung of the ACE ladder. widen_pct is additive on the reference price. */
+export interface ExpansionRung {
+  widenPct: number;
+  minDurationNs: number;
+}
+
+/**
+ * Automated Corridor Expansion. Exchange-wide under circuitBreakerDefaults;
+ * symbols may override the three scalars but not the ladder, matching what
+ * pm-config-gen's --symbol-opts exposes.
+ */
+export interface ReopeningConfig {
+  enabled: boolean;
+  initialBandPct: number;
+  expansions: ExpansionRung[];
+  randomEndMaxNs: number;
+  /** Engine-wide; only valid under circuitBreakerDefaults. */
+  randomSeed?: number;
+}
+
+/** Per-symbol ACE override. Absent fields inherit the exchange default. */
+export interface ReopeningOverride {
+  enabled?: boolean;
+  initialBandPct?: number;
+  randomEndMaxNs?: number;
 }
 
 export interface MmQuoteStub {
@@ -146,6 +172,7 @@ export interface SymbolConfig {
     /** Per-symbol override of the rolling reference window (ns). */
     referenceWindowNs?: number;
     levels: Record<string, Partial<CbLevel>>;
+    reopening?: ReopeningOverride;
   };
   marketMaker?: {
     enforceMmObligation?: boolean;
@@ -385,6 +412,7 @@ export interface EngineConfigDraft {
     windowNs: number;
     levels: Record<string, CbLevel>;
     levelOrder: string[];
+    reopening: ReopeningConfig;
   };
 
   mmObligationDefaults: {

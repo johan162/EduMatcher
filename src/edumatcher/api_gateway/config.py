@@ -18,13 +18,13 @@ from typing import Any
 import yaml
 
 from edumatcher.config import (
-    ENGINE_CONFIG_FILE,
     ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
     INDEX_PULL_ADDR,
     INDEX_PUB_ADDR,
     STATS_DB_FILE,
 )
+from edumatcher.stats.trading_day import resolve_timezone
 
 
 @dataclass(frozen=True)
@@ -59,13 +59,19 @@ class ApiGatewayConfig:
 
     name: str = "default"
     enabled: bool = True
-    host: str = "127.0.0.1"
+    host: str = "0.0.0.0"
     port: int = 8080
     engine_pull_addr: str = ENGINE_PULL_ADDR
     engine_pub_addr: str = ENGINE_PUB_ADDR
     index_pull_addr: str = INDEX_PULL_ADDR
     index_pub_addr: str = INDEX_PUB_ADDR
     stats_db: Path = STATS_DB_FILE
+    #: Optional override for the session timezone that ``date`` filters on the
+    #: history endpoints resolve their trading day in. ``None`` — the default —
+    #: means "use the timezone ``stats_db`` was recorded with", which is what
+    #: keeps the gateway and the recorder from disagreeing. Set this only when
+    #: it must deliberately differ.
+    session_timezone: str | None = None
     log_level: str = "info"
     swagger_enabled: bool = True
     credentials: tuple[ApiCredential, ...] = ()
@@ -176,16 +182,26 @@ def _load_api_gateway_section(
     stats_db_raw = section.get("stats_db", STATS_DB_FILE)
     stats_db = Path(str(stats_db_raw)).expanduser()
 
+    session_timezone_raw = section.get("session_timezone")
+    session_timezone = (
+        None if session_timezone_raw is None else str(session_timezone_raw)
+    )
+    if session_timezone is not None and resolve_timezone(session_timezone) is None:
+        raise ValueError(
+            f"{section_name}.session_timezone: unknown timezone {session_timezone!r}"
+        )
+
     return ApiGatewayConfig(
         name=gateway_name,
         enabled=bool(section.get("enabled", True)),
-        host=str(section.get("host", "127.0.0.1")),
+        host=str(section.get("host", "0.0.0.0")),
         port=port,
         engine_pull_addr=str(section.get("engine_pull_addr", ENGINE_PULL_ADDR)),
         engine_pub_addr=str(section.get("engine_pub_addr", ENGINE_PUB_ADDR)),
         index_pull_addr=str(section.get("index_pull_addr", INDEX_PULL_ADDR)),
         index_pub_addr=str(section.get("index_pub_addr", INDEX_PUB_ADDR)),
         stats_db=stats_db,
+        session_timezone=session_timezone,
         log_level=str(section.get("log_level", "info")),
         swagger_enabled=bool(section.get("swagger_enabled", True)),
         credentials=_load_credentials(section.get("credentials"), section_name),
@@ -240,6 +256,56 @@ def validate_api_gateway_sections(raw: dict[str, Any]) -> None:
     _load_named_api_gateways(raw)
 
 
+def select_api_gateway(
+    named: dict[str, ApiGatewayConfig], instance: str | None = None
+) -> ApiGatewayConfig:
+    """Choose one API gateway instance from those configured.
+
+    Shared by the YAML loader and the compiled-artifact reader so the two
+    cannot disagree about which instance a bare ``pm-api-gwy`` gets.
+    """
+    if named:
+        if instance is not None:
+            try:
+                return named[instance]
+            except KeyError as exc:
+                available = ", ".join(sorted(named))
+                raise ValueError(
+                    f"api_gateways instance {instance!r} not found; available: {available}"
+                ) from exc
+        if len(named) == 1:
+            return next(iter(named.values()))
+        raise ValueError(
+            "multiple api_gateways entries are configured; pass --instance to select one"
+        )
+
+    if instance is not None:
+        raise ValueError(
+            f"api_gateways instance {instance!r} requested, but no api_gateways block is configured"
+        )
+    return ApiGatewayConfig()
+
+
+def load_named_api_gateway_configs(path: Path) -> dict[str, ApiGatewayConfig]:
+    """Load every configured API gateway instance, keyed by name.
+
+    ``load_api_gateway_config`` returns one instance and needs ``--instance``
+    to disambiguate. The compiled artifact carries them all, since it is built
+    once for the whole exchange rather than per process.
+    """
+    if not path.exists():
+        return {}
+
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        return {}
+
+    if "api_gateway" in raw:
+        raise ValueError("api_gateway is not supported; use api_gateways")
+
+    return _load_named_api_gateways(raw)
+
+
 def load_api_gateway_config(
     path: Path, instance: str | None = None
 ) -> ApiGatewayConfig:
@@ -254,29 +320,19 @@ def load_api_gateway_config(
     if "api_gateway" in raw:
         raise ValueError("api_gateway is not supported; use api_gateways")
 
-    named_configs = _load_named_api_gateways(raw)
-    if named_configs:
-        if instance is not None:
-            try:
-                return named_configs[instance]
-            except KeyError as exc:
-                available = ", ".join(sorted(named_configs))
-                raise ValueError(
-                    f"api_gateways instance {instance!r} not found; available: {available}"
-                ) from exc
-        if len(named_configs) == 1:
-            return next(iter(named_configs.values()))
-        raise ValueError(
-            "multiple api_gateways entries are configured; pass --instance to select one"
-        )
-
-    if instance is not None:
-        raise ValueError(
-            f"api_gateways instance {instance!r} requested, but no api_gateways block is configured"
-        )
-    return ApiGatewayConfig()
+    return select_api_gateway(_load_named_api_gateways(raw), instance)
 
 
-def load_default_api_gateway_config() -> ApiGatewayConfig:
-    """Load API gateway config from the resolved central engine config path."""
-    return load_api_gateway_config(ENGINE_CONFIG_FILE)
+def load_default_api_gateway_config(instance: str | None = None) -> ApiGatewayConfig:
+    """Return one API gateway instance from the deployed compiled configuration.
+
+    Falls back to defaults when nothing has been deployed, matching what the
+    YAML loader did for a missing file.
+
+    The import is deferred because ``config_artifact`` imports this module.
+    """
+    from edumatcher.config_artifact import load_compiled_config
+
+    compiled = load_compiled_config()
+    named = {} if compiled is None else compiled.api_gateways
+    return select_api_gateway(named, instance)

@@ -3,9 +3,11 @@ from __future__ import annotations
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 import sys
-from typing import Any
+from typing import Any, cast
 
 import pytest
+
+from edumatcher.commands import ExchangeCommandClient
 from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
 
@@ -219,7 +221,7 @@ def test_execute_command_success_paths(
     monkeypatch: pytest.MonkeyPatch, cmd: str
 ) -> None:
     _capture_print(monkeypatch)
-    client = _FakeClient()
+    client = cast(ExchangeCommandClient, _FakeClient())
 
     fields = {
         "BOOK": {"SYM": "AAPL"},
@@ -231,7 +233,7 @@ def test_execute_command_success_paths(
 
 def test_execute_command_symbols_updates_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     _capture_print(monkeypatch)
-    client = _FakeClient()
+    client = cast(ExchangeCommandClient, _FakeClient())
     cache = ["OLD"]
     ok = console_mod.execute_command(client, "SYMBOLS", {}, symbols_cache=cache)
     assert ok is True
@@ -240,7 +242,7 @@ def test_execute_command_symbols_updates_cache(monkeypatch: pytest.MonkeyPatch) 
 
 def test_execute_command_usage_and_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
     _capture_print(monkeypatch)
-    client = _FakeClient()
+    client = cast(ExchangeCommandClient, _FakeClient())
 
     assert console_mod.execute_command(client, "KILL", {}) is False
     assert console_mod.execute_command(client, "KICK", {}) is False
@@ -267,7 +269,7 @@ def test_execute_command_rejections(monkeypatch: pytest.MonkeyPatch) -> None:
         def quote_cancel(self, gw: str, sym: str) -> dict[str, Any]:
             return {"accepted": False, "reason": "x"}
 
-    client = _Rejecting()
+    client = cast(ExchangeCommandClient, _Rejecting())
     assert console_mod.execute_command(client, "HALT", {}) is False
     assert console_mod.execute_command(client, "RESUME", {}) is False
     assert console_mod.execute_command(client, "KILL", {"GW": "TRADER01"}) is False

@@ -20,12 +20,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from edumatcher.scheduler.main import (
-    DEFAULT_COUNTRY,
     WALLCLOCK_RECHECK_SEC,
     _fixed_wait,
     _is_supported_country,
     _is_working_day,
-    _load_country,
     _next_working_day,
     _run_forever,
     _run_scheduled,
@@ -38,49 +36,52 @@ from edumatcher.scheduler.main import (
 # ---------------------------------------------------------------------------
 
 
-class TestLoadCountry:
-    def test_defaults_to_sweden_when_no_config(self) -> None:
-        assert _load_country(None) == "Sweden"
+class TestCountryFromCompiledConfig:
+    """`_load_country` is gone.
 
-    def test_defaults_to_sweden_when_config_missing(self, tmp_path: Path) -> None:
-        assert _load_country(tmp_path / "nonexistent.yaml") == "Sweden"
+    It did two jobs: parse `country:` out of YAML, and check that
+    python-holidays recognises the result. The parse now belongs to
+    ``load_engine_config`` (covered in test_config_extensions.py) and the
+    recognition check is ``_is_supported_country``, tested below. What ties
+    them together is pm-scheduler's ``main``, which reads the compiled value
+    and falls back when it is not a usable calendar.
+    """
 
-    def test_defaults_to_sweden_when_field_absent(self, tmp_path: Path) -> None:
-        config = tmp_path / "cfg.yaml"
-        config.write_text("sessions_enabled: true\n")
-        assert _load_country(config) == "Sweden"
+    def test_a_recognised_country_survives_compiling(self, tmp_path: Path) -> None:
+        from edumatcher.config_deploy import compile_config
+        from edumatcher.scheduler.main import _is_supported_country
 
-    def test_reads_country_name_from_yaml(self, tmp_path: Path) -> None:
-        config = tmp_path / "cfg.yaml"
-        config.write_text("country: Germany\n")
-        assert _load_country(config) == "Germany"
+        source = tmp_path / "authored.yaml"
+        source.write_text(
+            "country: Germany\n"
+            "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
+            "gateways:\n  alf: [{id: TRADER01, role: TRADER}]\n"
+        )
 
-    def test_reads_iso_country_code_from_yaml(self, tmp_path: Path) -> None:
-        config = tmp_path / "cfg.yaml"
-        config.write_text("country: US\n")
-        assert _load_country(config) == "US"
+        country = compile_config(source).engine.country
 
-    def test_falls_back_to_default_on_unrecognised_country(
+        assert country == "Germany"
+        assert _is_supported_country(country)
+
+    def test_an_unrecognised_country_compiles_but_is_not_a_calendar(
         self, tmp_path: Path
     ) -> None:
-        config = tmp_path / "cfg.yaml"
-        config.write_text("country: Narnia\n")
-        assert _load_country(config) == DEFAULT_COUNTRY
+        # The loader only checks it is a non-empty string; whether holidays
+        # knows it is pm-scheduler's business, and pm-scheduler falls back.
+        from edumatcher.config_deploy import compile_config
+        from edumatcher.scheduler.main import _is_supported_country
 
-    def test_falls_back_to_default_on_non_string_country(self, tmp_path: Path) -> None:
-        config = tmp_path / "cfg.yaml"
-        config.write_text("country: 42\n")
-        assert _load_country(config) == DEFAULT_COUNTRY
+        source = tmp_path / "authored.yaml"
+        source.write_text(
+            "country: Narnia\n"
+            "symbols:\n  AAPL: {tick_decimals: 2, last_buy_price: 150.0}\n"
+            "gateways:\n  alf: [{id: TRADER01, role: TRADER}]\n"
+        )
 
-    def test_falls_back_to_default_on_blank_country(self, tmp_path: Path) -> None:
-        config = tmp_path / "cfg.yaml"
-        config.write_text("country: ''\n")
-        assert _load_country(config) == DEFAULT_COUNTRY
+        country = compile_config(source).engine.country
 
-    def test_falls_back_to_default_on_invalid_yaml(self, tmp_path: Path) -> None:
-        config = tmp_path / "bad.yaml"
-        config.write_text("country: [[[invalid")
-        assert _load_country(config) == DEFAULT_COUNTRY
+        assert country == "Narnia"
+        assert not _is_supported_country(country)
 
 
 class TestIsSupportedCountry:

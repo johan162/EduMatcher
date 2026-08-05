@@ -130,7 +130,7 @@ indices:
 In a dedicated terminal, start the index calculation process:
 
 ```bash
-pm-index --config engine_config.yaml
+pm-index
 ```
 
 Expected startup output:
@@ -523,7 +523,7 @@ pm-config-gen \
 Restart `pm-index` with `--reset` to clear state and re-initialise:
 
 ```bash
-pm-index --config engine_config.yaml --reset
+pm-index --reset
 ```
 
 !!! warning "`--reset` discards divisors"
@@ -606,7 +606,7 @@ last.
 
 | Concept | Command / file |
 |---|---|
-| Start index process | `pm-index --config engine_config.yaml` |
+| Start index process | `pm-index` |
 | Re-initialise from scratch | `pm-index --reset` |
 | Live level query | `INDEX` (any gateway) |
 | Structural/audit history query (gateway) | `INDEX\|HISTORY`, `INDEX\|HISTORY\|FROM=…\|TO=…` — INIT/CORP_ACTION/ADD_CONSTITUENT/DELIST only |

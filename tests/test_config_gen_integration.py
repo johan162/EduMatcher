@@ -1082,32 +1082,3 @@ def test_schedule_bad_time_format_fails(
         )
     assert exc_info.value.code == 2
     assert "HH:MM format" in capsys.readouterr().err
-
-
-def test_cb_levels_with_resumption_mode_round_trips(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    out_file = tmp_path / "engine_config.yaml"
-    _run_main(
-        monkeypatch,
-        [
-            "--symbols",
-            "AAPL",
-            "--gateways",
-            "TRADER01",
-            "--cb-levels",
-            "L1:0.07:5:AUCTION",
-            "L2:0.13:15:CONTINUOUS",
-            "L3:0.20",
-            "--output",
-            str(out_file),
-        ],
-    )
-    import yaml
-
-    raw = yaml.safe_load(out_file.read_text())
-    levels = raw["circuit_breaker_defaults"]["levels"]
-    assert levels["L1"]["resumption_mode"] == "AUCTION"
-    assert levels["L2"]["resumption_mode"] == "CONTINUOUS"
-    assert levels["L3"]["resumption_mode"] == "AUCTION"

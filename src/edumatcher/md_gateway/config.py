@@ -9,7 +9,6 @@ from typing import Any
 import yaml
 
 from edumatcher.config import (
-    ENGINE_CONFIG_FILE,
     ENGINE_PUB_ADDR,
     INDEX_PUB_CONNECT_ADDR,
 )
@@ -26,7 +25,13 @@ class MarketDataGatewayConfig:
     engine_pub_addr: str = ENGINE_PUB_ADDR
     index_pub_addr: str = INDEX_PUB_CONNECT_ADDR
     heartbeat_interval_sec: int = 1
-    idle_timeout_sec: int = 300
+    # 5s matches config_gen's DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC, the
+    # sample config, the config spec, and both protocol docs. The runtime alone
+    # used to carry 300, which only made sense while the idle timer ignored
+    # outbound traffic and so dropped every passive consumer; with that fixed
+    # in gateway.py, a client is aged out only when writes to it have actually
+    # been failing, which is what this timeout is for.
+    idle_timeout_sec: int = 5
     replay_window_sec: int = 30
     max_connections: int = 64
     max_messages_per_second: int = 200
@@ -63,7 +68,7 @@ def _load_market_data_gateway_config_from_raw(
         md_raw.get("heartbeat_interval_sec", 1),
         "heartbeat_interval_sec",
     )
-    idle_timeout_sec = _as_int(md_raw.get("idle_timeout_sec", 300), "idle_timeout_sec")
+    idle_timeout_sec = _as_int(md_raw.get("idle_timeout_sec", 5), "idle_timeout_sec")
     replay_window_sec = _as_int(
         md_raw.get("replay_window_sec", 30),
         "replay_window_sec",
@@ -145,5 +150,19 @@ def validate_market_data_gateway_section(raw: dict[str, Any]) -> None:
 
 
 def load_default_market_data_gateway_config() -> MarketDataGatewayConfig:
-    """Load config from the resolved default engine config file path."""
-    return load_market_data_gateway_config(ENGINE_CONFIG_FILE)
+    """Return this subsystem's section of the deployed compiled configuration.
+
+    Falls back to dataclass defaults when nothing has been deployed yet, which
+    is exactly what the YAML loader above did for a missing file — many tools
+    that read this section, such as the spies and viewers, must still run
+    against an exchange whose configuration was never installed.
+
+    The import is deferred because ``config_artifact`` imports this module to
+    describe the artifact's shape.
+    """
+    from edumatcher.config_artifact import load_compiled_config
+
+    compiled = load_compiled_config()
+    return (
+        MarketDataGatewayConfig() if compiled is None else compiled.market_data_gateway
+    )

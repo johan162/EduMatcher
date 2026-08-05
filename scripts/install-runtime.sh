@@ -54,8 +54,9 @@ OPTIONS
   --help      Show this help
 
 ENVIRONMENT
-  EDUMATCHER_DATA_DIR   Override the data directory (default: ~/.local/share/edumatcher)
-  EDUMATCHER_CONFIG     Override where engine_config.yaml is expected
+  EDUMATCHER_DATA_DIR   Override the data directory (default: ~/.local/share/edumatcher).
+                        Also holds the deployed engine configuration, under
+                        ref_data/engine_config.yaml
 
 EXAMPLES
   $0                            # fresh install

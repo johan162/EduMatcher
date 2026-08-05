@@ -92,7 +92,8 @@ nav:
     - Config Verifier: user-guide/020-config-verifier.md
     - Configuration GUI: user-guide/030-config-GUI.md
     - Running the Exchange: user-guide/040-running-the-exchange.md
-    - Gateway Reference: user-guide/050-gateway-reference.md
+    - Gateway Concepts: user-guide/051-gateway-intro.md
+    - ALF Console (pm-alf-console): user-guide/055-alf-console.md
     - Order Types: user-guide/060-order-types.md
     - Combo Orders: user-guide/070-combo-orders.md
     - Auctions & Scheduling: user-guide/080-session-scheduling.md
@@ -121,6 +122,8 @@ nav:
     - API Gateway: user-guide/260-api-gateway.md
     - Message Reference: user-guide/270-message-reference.md
     - Centralized Log Server: user-guide/280-log-srv.md
+    - Log Operator Console (pm-log-ui): user-guide/285-log-srv-gui.md
+    - Trader Information Terminal (TapeDeck): user-guide/290-trader-info-terminal.md
     - Examples: user-guide/800-examples.md
     - Example Engine Configs: user-guide/810-example-configs.md
     - Known Limitations & Bugs: user-guide/890-known-limitations-bugs.md

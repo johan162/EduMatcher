@@ -61,7 +61,7 @@ Use ALF when you need:
 Where to read more:
 
 - ALF TCP gateway operational guide: [ALF TCP Gateway](220-alf-gateway.md)
-- Gateway behavior and operator workflow: [Gateway Commands](050-gateway-reference.md)
+- Gateway behavior and operator workflow: [ALF Console](055-alf-console.md)
 - Process-level role of both ALF processes: [Processes](170-processes.md#pm-alf-gwy-alf-tcp-gateway)
 - Engine configuration of allowed ALF IDs/roles: [Configuration](010-configuration.md#alf-gateway-allowlist)
 - Formal wire syntax and semantics: [Appendix - ALF Protocol](900-app-alf-protocol.md)

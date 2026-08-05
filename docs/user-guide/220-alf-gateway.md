@@ -132,14 +132,14 @@ Installed mode:
 
 ```bash
 pm-engine --verbose
-pm-alf-gwy --config engine_config.yaml
+pm-alf-gwy
 ```
 
 Developer mode:
 
 ```bash
 poetry run pm-engine --verbose
-poetry run pm-alf-gwy --config engine_config.yaml
+poetry run pm-alf-gwy
 ```
 
 CLI override options:
@@ -149,21 +149,17 @@ CLI override options:
 | `--bind ADDR` | from config / `0.0.0.0` | Override TCP bind address |
 | `--port PORT` | from config / `5565` | Override TCP listen port |
 | `--engine-host HOST` | from config | Override engine host (sets `tcp://HOST:5555`, `tcp://HOST:5556`, and `tcp://HOST:5557` for drop copy) |
-| `--config` / `-c` | see resolution order below | Path to engine config YAML |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | Reduce output to warnings/errors |
 
-**Config file resolution order** (first match wins):
+**Config file location**
 
-1. `--config PATH` CLI flag
-2. `EDUMATCHER_CONFIG` environment variable
-3. `<repo>/engine_config.yaml` — when running from a source checkout (detected automatically)
-4. `./engine_config.yaml` — current working directory (installed mode via pipx/pip)
-
-In practice: run from the directory that contains your `engine_config.yaml` and
-you never need to pass `--config`.  Set `EDUMATCHER_CONFIG` in your shell
-profile for a fixed path regardless of working directory.
+The engine configuration is read from
+`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`. There is no `--config`
+flag: every process reads that one file, so none of them can be started
+against a configuration the others have not seen. Install one with
+`pm-config-deploy`.
 
 
 ## Quick connect test
@@ -479,7 +475,7 @@ leg's final order state available at removal time, which is the common
 case for every normal inactivation path (see
 [`system.quote_legs_request`](270-message-reference.md#systemquote_legs_request-systemquote_legsgw_id)
 for when a leg's snapshot can be absent). See
-[Gateway → QLEGS](050-gateway-reference.md#qlegs-inspect-mm-quote-legs-and-fill-flags)
+[ALF Console → QLEGS](055-alf-console.md#qlegs-inspect-mm-quote-legs-and-fill-flags)
 for the full column semantics (shared with `pm-alf-console`'s `QLEGS`).
 
 **Multi-line response:**
@@ -890,7 +886,7 @@ Expected output ends with `BYE` or a clean connection close immediately after `W
 ## See also
 
 - [ALF Protocol Reference](900-app-alf-protocol.md) — formal wire syntax and full field/enum definitions
-- [Gateway Commands](050-gateway-reference.md) — interactive command reference for `pm-alf-console`
+- [ALF Console](055-alf-console.md) — interactive command reference for `pm-alf-console`
 - [Drop Copy](200-drop-copy.md) — the engine's drop-copy feed (`:5557`) that `DC|STATE=ON` relays
 - [Configuration](010-configuration.md) — `alf_gateway:` section and `gateways.alf` allowlist
 - [Processes](170-processes.md#pm-alf-gwy-alf-tcp-gateway) — process topology and ZMQ message tables

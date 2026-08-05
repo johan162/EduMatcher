@@ -3,14 +3,13 @@ Tests for process helper functions and classes that don't require live ZMQ:
   - stats.main._DayAccum
   - ticker.main._build_line
   - viewer.main._build_display
-  - scheduler.main._load_schedule / _time_today
+  - scheduler.main._schedule_from_config / _time_today
 """
 
 from __future__ import annotations
 
 import argparse
 import errno
-import textwrap
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, cast
@@ -23,7 +22,7 @@ from edumatcher.ticker.main import _build_line
 from edumatcher.viewer.main import _build_display
 from edumatcher.scheduler.main import (
     DEFAULT_SCHEDULE,
-    _load_schedule,
+    _schedule_from_config,
     _time_today,
 )
 
@@ -33,53 +32,68 @@ from edumatcher.scheduler.main import (
 
 
 class TestDayAccum:
+    """Prices here are integer ticks, not display money.
+
+    At the default two tick decimals, 150.00 is 15000. The accumulator only
+    ever sees ticks — pm-stats converts at ingest — so these tests use the
+    same units the engine matches in.
+    """
+
     def _make(self) -> _DayAccum:
         return _DayAccum(date="2026-05-06", symbol="AAPL")
 
     def test_first_trade_sets_open(self) -> None:
         acc = self._make()
-        acc.on_trade(150.0, 100)
-        assert acc.open_price == 150.0
-        assert acc.close_price == 150.0
-        assert acc.high_price == 150.0
-        assert acc.low_price == 150.0
+        acc.on_trade(15000, 100)  # 150.00
+        assert acc.open_price == 15000
+        assert acc.close_price == 15000
+        assert acc.high_price == 15000
+        assert acc.low_price == 15000
         assert acc.volume == 100
         assert acc.trade_count == 1
 
     def test_high_low_tracking(self) -> None:
         acc = self._make()
-        acc.on_trade(100.0, 50)
-        acc.on_trade(120.0, 50)
-        acc.on_trade(90.0, 50)
-        assert acc.high_price == 120.0
-        assert acc.low_price == 90.0
-        assert acc.close_price == 90.0
-        assert acc.open_price == 100.0
+        acc.on_trade(10000, 50)  # 100.00
+        acc.on_trade(12000, 50)  # 120.00
+        acc.on_trade(9000, 50)  # 90.00
+        assert acc.high_price == 12000
+        assert acc.low_price == 9000
+        assert acc.close_price == 9000
+        assert acc.open_price == 10000
 
     def test_vwap_calculation(self) -> None:
         acc = self._make()
-        acc.on_trade(100.0, 100)
-        acc.on_trade(200.0, 100)
-        # VWAP = (100*100 + 200*100) / 200 = 150
-        assert acc.vwap == pytest.approx(150.0)
+        acc.on_trade(10000, 100)
+        acc.on_trade(20000, 100)
+        # VWAP = (10000*100 + 20000*100) / 200 = 15000 ticks = 150.00
+        assert acc.vwap == pytest.approx(15000.0)
 
     def test_vwap_none_when_no_trades(self) -> None:
         acc = self._make()
         assert acc.vwap is None
 
+    def test_turnover_is_an_exact_integer(self) -> None:
+        """The whole point of ticks: the day's notional cannot drift."""
+        acc = self._make()
+        acc.on_trade(10000, 100)
+        acc.on_trade(20000, 100)
+        assert acc.turnover == 10000 * 100 + 20000 * 100
+        assert isinstance(acc.turnover, int)
+
     def test_largest_trade_tracking(self) -> None:
         acc = self._make()
-        acc.on_trade(100.0, 50)
-        acc.on_trade(105.0, 200)
-        acc.on_trade(110.0, 100)
+        acc.on_trade(10000, 50)
+        acc.on_trade(10500, 200)
+        acc.on_trade(11000, 100)
         assert acc.largest_trade_qty == 200
-        assert acc.largest_trade_price == 105.0
+        assert acc.largest_trade_price == 10500
 
     def test_on_eod_book(self) -> None:
         acc = self._make()
-        acc.on_eod_book(149.5, 150.5)
-        assert acc.close_bid == 149.5
-        assert acc.close_ask == 150.5
+        acc.on_eod_book(14950, 15050)  # 149.50 / 150.50
+        assert acc.close_bid == 14950
+        assert acc.close_ask == 15050
 
     def test_on_eod_book_none_values(self) -> None:
         acc = self._make()
@@ -90,7 +104,7 @@ class TestDayAccum:
     def test_volume_accumulates(self) -> None:
         acc = self._make()
         for _ in range(5):
-            acc.on_trade(100.0, 20)
+            acc.on_trade(10000, 20)
         assert acc.volume == 100
         assert acc.trade_count == 5
 
@@ -242,44 +256,19 @@ class TestSchedulerHelpers:
         assert dt.minute == 30
         assert dt.year == now.year
 
-    def test_load_schedule_falls_back_to_defaults_if_no_file(self) -> None:
-        schedule = _load_schedule(None)
-        assert schedule == DEFAULT_SCHEDULE
+    def test_schedule_from_config_maps_the_documented_defaults(self) -> None:
+        # `_load_schedule` is gone: YAML parsing moved to load_engine_config,
+        # and its tolerance for a missing or malformed file is now the compile
+        # step's job.
+        from edumatcher.engine.config_loader import ScheduleConfig
 
-    def test_load_schedule_falls_back_to_defaults_if_missing_file(
-        self, tmp_path: Path
-    ) -> None:
-        schedule = _load_schedule(tmp_path / "nonexistent.yaml")
-        assert schedule == DEFAULT_SCHEDULE
+        assert _schedule_from_config(ScheduleConfig()) == DEFAULT_SCHEDULE
 
-    def test_load_schedule_from_yaml(self, tmp_path: Path) -> None:
-        p = tmp_path / "cfg.yaml"
-        p.write_text(textwrap.dedent("""
-            schedule:
-              pre_open: "08:00"
-              opening_auction_start: "09:00"
-              continuous_start: "09:30"
-              closing_auction_start: "15:50"
-              closing_auction_end: "16:00"
-            """))
-        schedule = _load_schedule(p)
-        times = [t for t, _state in schedule]
-        assert "09:30" in times
+    def test_schedule_from_config_carries_configured_times(self) -> None:
+        from edumatcher.engine.config_loader import ScheduleConfig
 
-    def test_load_schedule_no_schedule_section_uses_defaults(
-        self, tmp_path: Path
-    ) -> None:
-        p = tmp_path / "cfg.yaml"
-        p.write_text("symbols:\n  AAPL: {}\n")
-        schedule = _load_schedule(p)
-        assert schedule == DEFAULT_SCHEDULE
-
-    def test_load_schedule_bad_yaml_falls_back(self, tmp_path: Path) -> None:
-        p = tmp_path / "bad.yaml"
-        p.write_text(": : : invalid yaml :::\n")
-        # Should not raise — falls back to defaults
-        schedule = _load_schedule(p)
-        assert schedule == DEFAULT_SCHEDULE
+        result = _schedule_from_config(ScheduleConfig(closing_auction_end="16:10"))
+        assert result[-1] == ("16:10", "CLOSED")
 
 
 # ===========================================================================
@@ -607,16 +596,21 @@ class TestTickerMain:
         captured: dict[str, object] = {}
 
         class _FakeProcess:
-            def __init__(self, db_path: Path, db_interval: float) -> None:
+            def __init__(
+                self, db_path: Path, db_interval: float, session_tz: object
+            ) -> None:
                 captured["db_path"] = db_path
                 captured["db_interval"] = db_interval
+                captured["session_tz"] = session_tz
 
             def run(self) -> None:
                 captured["ran"] = True
 
         monkeypatch.setattr(
             "edumatcher.ticker.main.argparse.ArgumentParser.parse_args",
-            lambda _self: argparse.Namespace(db="/tmp/stats.db", db_interval=44.0),
+            lambda _self: argparse.Namespace(
+                db="/tmp/stats.db", db_interval=44.0, timezone="UTC"
+            ),
         )
         monkeypatch.setattr(ticker_main, "TickerProcess", _FakeProcess)
 

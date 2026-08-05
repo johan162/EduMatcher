@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import timezone
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,7 @@ from edumatcher.api_gateway.main import create_app
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.schemas import OrderRequest, QuoteRequest
 from edumatcher.api_gateway.translate import build_order, build_quote_payload
-from edumatcher.models.order import OrderType
+from edumatcher.models.order import OrderType, Side
 from edumatcher.stats.query import query_order_events, query_order_lifecycle
 
 
@@ -22,14 +23,16 @@ def test_swagger_can_be_disabled() -> None:
 
 def test_order_request_validation_requires_limit_price() -> None:
     with pytest.raises(ValueError, match="requires price"):
-        OrderRequest(symbol="aapl", side="BUY", order_type="LIMIT", quantity=10)
+        OrderRequest(
+            symbol="aapl", side=Side.BUY, order_type=OrderType.LIMIT, quantity=10
+        )
 
 
 def test_build_order_converts_display_price_to_ticks() -> None:
     request = OrderRequest(
         symbol="AAPL",
-        side="BUY",
-        order_type="LIMIT",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
         quantity=10,
         price=150.25,
     )
@@ -104,6 +107,7 @@ VALUES
         from_ts=None,
         to_ts=None,
         limit=10,
+        tz=timezone.utc,
     )
     lifecycle = query_order_lifecycle(conn, gateway_id="GW01", order_id="ORD1")
     assert [event["event_type"] for event in events] == ["ACK", "FILL"]

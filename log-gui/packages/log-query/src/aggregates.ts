@@ -8,7 +8,7 @@
  * SQL rather than JS (design §17: "Bucketed in SQL, not in JS").
  */
 
-import { compileWhere } from "./filter-to-sql.js";
+import { compileWhere, type SqlParam } from "./filter-to-sql.js";
 import type { LogFilter } from "@edumatcher/log-types";
 
 export type BucketSize = "1m" | "5m" | "1h";
@@ -35,7 +35,7 @@ export function buildTimeseriesQuery(
   filter: LogFilter,
   bucket: BucketSize,
   groupBy: "level" | "process" | null,
-): { sql: string; params: unknown[] } {
+): { sql: string; params: SqlParam[] } {
   const { whereSql, params } = compileWhere(filter);
   const bucketSeconds = BUCKET_SECONDS[bucket];
   const groupCol = groupBy === "level" ? "level" : groupBy === "process" ? "process" : null;
@@ -54,7 +54,7 @@ export function buildTimeseriesQuery(
   return { sql, params };
 }
 
-export function buildByLevelQuery(filter: LogFilter): { sql: string; params: unknown[] } {
+export function buildByLevelQuery(filter: LogFilter): { sql: string; params: SqlParam[] } {
   const { whereSql, params } = compileWhere(filter);
   const sql = `
     SELECT level, COUNT(*) AS n
@@ -66,7 +66,7 @@ export function buildByLevelQuery(filter: LogFilter): { sql: string; params: unk
   return { sql, params };
 }
 
-export function buildByProcessQuery(filter: LogFilter): { sql: string; params: unknown[] } {
+export function buildByProcessQuery(filter: LogFilter): { sql: string; params: SqlParam[] } {
   const { whereSql, params } = compileWhere(filter);
   const sql = `
     SELECT process, COUNT(*) AS n

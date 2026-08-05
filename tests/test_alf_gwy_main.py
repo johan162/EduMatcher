@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy import main as alf_main
 from edumatcher.alf_gwy.main import _build_parser, _configure_logging, _resolve_config
 
@@ -34,16 +35,17 @@ def test_configure_logging_prefers_explicit_level() -> None:
     assert _configure_logging(args) == 20
 
 
-def test_resolve_config_with_overrides(tmp_path: Path) -> None:
-    cfg_path = tmp_path / "engine_config.yaml"
-    cfg_path.write_text("""
-alf_gateway:
-  bind_address: 0.0.0.0
-  port: 5565
-""")
-
+def test_resolve_config_with_overrides(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The gateway reads its section from the compiled artifact now, so
+    # the deployed configuration is stubbed rather than written as YAML.
+    monkeypatch.setattr(
+        alf_main,
+        "load_default_alf_gateway_config",
+        lambda: AlfGatewayConfig(bind_address="0.0.0.0", port=5565),
+    )
     args = Namespace(
-        config=str(cfg_path),
         bind="127.0.0.1",
         port=6010,
         engine_host="10.0.0.5",
@@ -57,20 +59,22 @@ alf_gateway:
     assert cfg.drop_copy_pub_addr == "tcp://10.0.0.5:5557"
 
 
-def test_main_invalid_config_exits(
+def test_main_exits_when_the_configuration_cannot_be_read(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    cfg = tmp_path / "engine_config.yaml"
-    cfg.write_text("alf_gateway: 123\n")
+    # An unreadable or tampered artifact must stop the gateway rather
+    # than let it start on defaults nobody chose. A malformed section
+    # is no longer reachable: pm-config-deploy will not compile one.
+    def _unreadable() -> AlfGatewayConfig:
+        raise ValueError("compiled config is unreadable")
 
-    monkeypatch.setattr(sys, "argv", ["pm-alf-gwy", "--config", str(cfg)])
+    monkeypatch.setattr(sys, "argv", ["pm-alf-gwy"])
+    monkeypatch.setattr(alf_main, "load_default_alf_gateway_config", _unreadable)
     with pytest.raises(SystemExit):
         alf_main.main()
 
 
 def test_main_runs_gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg = tmp_path / "engine_config.yaml"
-    cfg.write_text("alf_gateway: {}\n")
 
     called = {"run": False}
 
@@ -84,7 +88,10 @@ def test_main_runs_gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         def close(self) -> None:
             pass
 
-    monkeypatch.setattr(sys, "argv", ["pm-alf-gwy", "--config", str(cfg)])
+    monkeypatch.setattr(sys, "argv", ["pm-alf-gwy"])
+    monkeypatch.setattr(
+        alf_main, "load_default_alf_gateway_config", lambda: AlfGatewayConfig()
+    )
     monkeypatch.setattr(alf_main, "AlfGateway", _DummyGateway)
 
     alf_main.main()

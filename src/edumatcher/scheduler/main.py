@@ -1,7 +1,7 @@
 """
 Session Scheduler — drives the engine through daily trading phases.
 
-Reads a schedule (either from --config YAML or default times) and sends
+Reads a schedule (from the deployed engine config, or default times) and sends
 ``session.transition`` messages to the engine at the configured wall-clock
 times via a PUSH socket. It runs as a closed-loop driver:
 
@@ -14,7 +14,6 @@ Usage:
   poetry run pm-scheduler                  # run today's schedule once, then exit
   poetry run pm-scheduler --daily          # run continuously, once per day
   poetry run pm-scheduler --now            # rapid-fire all transitions (for testing)
-  poetry run pm-scheduler --config my.yaml # custom config file
   poetry run pm-scheduler --no-confirm     # do not query/confirm via the engine
   poetry run pm-scheduler --verbose        # DEBUG-level diagnostics
 
@@ -59,14 +58,17 @@ import signal
 import sys
 import time
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
-from pathlib import Path
+from datetime import UTC, date, datetime, timedelta
 from typing import Callable
 
 import holidays
 import zmq
 
-from edumatcher.config import ENGINE_CONFIG_FILE, ENGINE_PUB_ADDR, ENGINE_PULL_ADDR
+from edumatcher.config import (
+    COMPILED_CONFIG_FILE,
+    ENGINE_PUB_ADDR,
+    ENGINE_PULL_ADDR,
+)
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -79,6 +81,7 @@ from edumatcher.models.message import (
     make_session_state_request_msg,
     make_session_transition_msg,
 )
+from edumatcher.engine.config_loader import DEFAULT_COUNTRY, ScheduleConfig
 from edumatcher.models.session import VALID_TRANSITIONS, SessionState
 
 _CLIENT_NAME = "pm-scheduler"
@@ -130,50 +133,11 @@ SCHEDULER_GATEWAY_ID = "SCHEDULER"
 # starting from CLOSED.
 _ENGINE_START_STATE = SessionState.CLOSED
 
-# Country used for bank-holiday and local wall-clock calculations when the
-# config YAML has no top-level ``country:`` field.
-DEFAULT_COUNTRY = "Sweden"
-
 # Long waits (until a scheduled time, or overnight between trading days) are
 # re-derived from the wall clock at least this often, so the scheduler picks
 # up server time adjustments (NTP sync, manual change, DST) promptly instead
 # of trusting a single duration computed once at the start of a long sleep.
 WALLCLOCK_RECHECK_SEC = 30.0
-
-
-def _normalize_hhmm(raw: object) -> str | None:
-    """Normalize a schedule time to canonical ``"HH:MM"``, or ``None`` if invalid.
-
-    Accepts:
-      - ``"HH:MM"`` strings (quoted in YAML), validated as a real 24-hour time.
-      - integers, which PyYAML produces for *unquoted* sexagesimal values such
-        as ``9:30`` (parsed as ``9 * 60 + 30 == 570`` minutes past midnight).
-        These are interpreted as minutes-since-midnight and recovered so the
-        documented — but unquoted — config form does not crash the scheduler
-        (review finding H3).
-
-    Out-of-range or malformed values return ``None`` so the caller can skip
-    them with a warning instead of crashing later in ``_time_today``.
-    """
-    # bool is a subclass of int — reject it explicitly.
-    if isinstance(raw, bool):
-        return None
-    if isinstance(raw, int):
-        if 0 <= raw < 24 * 60:
-            return f"{raw // 60:02d}:{raw % 60:02d}"
-        return None
-    if isinstance(raw, str):
-        parts = raw.strip().split(":")
-        if len(parts) != 2:
-            return None
-        hh, mm = parts
-        if not (hh.isdigit() and mm.isdigit()):
-            return None
-        hours, minutes = int(hh), int(mm)
-        if 0 <= hours < 24 and 0 <= minutes < 60:
-            return f"{hours:02d}:{minutes:02d}"
-        return None
-    return None
 
 
 def _hhmm_to_minutes(hhmm: str) -> int:
@@ -182,86 +146,20 @@ def _hhmm_to_minutes(hhmm: str) -> int:
     return int(h) * 60 + int(m)
 
 
-def _load_schedule(config_path: Path | None) -> list[tuple[str, str]]:
-    """Load schedule from YAML config or fall back to defaults."""
-    if config_path and config_path.exists():
-        try:
-            import yaml
+def _schedule_from_config(cfg: ScheduleConfig) -> list[tuple[str, str]]:
+    """Map a compiled ScheduleConfig onto the engine's transition sequence.
 
-            with open(config_path) as f:
-                data = yaml.safe_load(f) or {}
-            sched = data.get("schedule")
-            if sched:
-                mapping = [
-                    ("pre_open", SessionState.PRE_OPEN.value),
-                    ("opening_auction_start", SessionState.OPENING_AUCTION.value),
-                    ("continuous_start", SessionState.CONTINUOUS.value),
-                    ("closing_auction_start", SessionState.CLOSING_AUCTION.value),
-                    ("closing_auction_end", SessionState.CLOSED.value),
-                ]
-                result: list[tuple[str, str]] = []
-                for key, state in mapping:
-                    raw_time = sched.get(key)
-                    if raw_time is None:
-                        continue
-                    # Validate/normalize so malformed or unquoted (sexagesimal)
-                    # times never crash scheduling downstream (finding H3).
-                    normalized = _normalize_hhmm(raw_time)
-                    if normalized is None:
-                        log.warning(
-                            "ignoring invalid schedule time for %r: %r "
-                            "(times must be quoted, e.g. '09:30')",
-                            key,
-                            raw_time,
-                        )
-                        continue
-                    result.append((normalized, state))
-                if result:
-                    log.info("Loaded schedule from %s", config_path)
-                    return result
-        except Exception as exc:
-            log.warning("could not load schedule from %s: %s", config_path, exc)
-    return DEFAULT_SCHEDULE
-
-
-def _load_country(config_path: Path | None) -> str:
-    """Load the top-level ``country:`` field from YAML, or ``DEFAULT_COUNTRY``.
-
-    Used to pick the bank-holiday calendar the scheduler runs against (review
-    finding: schedule must not run on weekends/bank holidays). Falls back to
-    ``DEFAULT_COUNTRY`` when the config is missing, unreadable, or has no
-    ``country`` field, or when the field is not a validly-recognised country
-    for ``python-holidays`` — the same conservative "never crash on bad config"
-    behavior as ``_load_schedule``.
+    The times are already canonical ``HH:MM`` — ``load_engine_config`` runs
+    them through ``normalize_hhmm`` — so there is nothing left to validate or
+    recover here.
     """
-    country = DEFAULT_COUNTRY
-    if config_path and config_path.exists():
-        try:
-            import yaml
-
-            with open(config_path) as f:
-                data = yaml.safe_load(f) or {}
-            raw_country = data.get("country")
-            if raw_country is not None:
-                if isinstance(raw_country, str) and raw_country.strip():
-                    country = raw_country.strip()
-                else:
-                    log.warning(
-                        "ignoring invalid 'country' value %r; using default %r",
-                        raw_country,
-                        DEFAULT_COUNTRY,
-                    )
-        except Exception as exc:
-            log.warning("could not load country from %s: %s", config_path, exc)
-
-    if not _is_supported_country(country):
-        log.warning(
-            "unrecognised country %r for holiday calendar; using default %r",
-            country,
-            DEFAULT_COUNTRY,
-        )
-        return DEFAULT_COUNTRY
-    return country
+    return [
+        (cfg.pre_open, SessionState.PRE_OPEN.value),
+        (cfg.opening_auction_start, SessionState.OPENING_AUCTION.value),
+        (cfg.continuous_start, SessionState.CONTINUOUS.value),
+        (cfg.closing_auction_start, SessionState.CLOSING_AUCTION.value),
+        (cfg.closing_auction_end, SessionState.CLOSED.value),
+    ]
 
 
 def _is_supported_country(country: str) -> bool:
@@ -355,7 +253,7 @@ def _holiday_calendar(country: str) -> holidays.HolidayBase:
     """Return the ``python-holidays`` calendar for ``country``.
 
     Callers should pass a country already validated by
-    :func:`_is_supported_country` (``_load_country`` guarantees this) —
+    :func:`_is_supported_country` (``main`` guarantees this) —
     unrecognised countries raise ``NotImplementedError`` here.
     """
     return holidays.country_holidays(country)
@@ -436,12 +334,31 @@ def _fixed_wait(seconds: float) -> Callable[[], float]:
     return _remaining
 
 
+def _to_utc_iso(target: datetime) -> str:
+    """A local naive schedule time as UTC ISO-8601 with milliseconds.
+
+    The schedule is written and reasoned about in local wall-clock time; CALF
+    timestamps are UTC throughout, and a countdown rendered by a browser in
+    another timezone has to be anchored to an absolute instant rather than to
+    a wall-clock reading the client would interpret as its own.
+    """
+    aware = target.astimezone() if target.tzinfo is None else target
+    return (
+        aware.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    )
+
+
 def _wait_until(target: datetime) -> Callable[[], float]:
     """Return a pre-send wait that counts down to an absolute local time."""
     return lambda: _seconds_until_local(target)
 
 
-def _send_transition(push_sock: zmq.Socket[bytes], state: str) -> bool:
+def _send_transition(
+    push_sock: zmq.Socket[bytes],
+    state: str,
+    next_state: str = "",
+    next_at: str = "",
+) -> bool:
     """Send one ``session.transition``; return ``False`` if not delivered.
 
     The PUSH socket carries a bounded send timeout (finding H2), so a send
@@ -451,7 +368,9 @@ def _send_transition(push_sock: zmq.Socket[bytes], state: str) -> bool:
     (review finding L7).
     """
     try:
-        push_sock.send_multipart(make_session_transition_msg(state))
+        push_sock.send_multipart(
+            make_session_transition_msg(state, next_state=next_state, next_at=next_at)
+        )
         return True
     except zmq.Again:
         log.warning(
@@ -552,11 +471,18 @@ def _catch_up_transitions(
 
 @dataclass(frozen=True)
 class _Step:
-    """One transition to drive: its target state, a live wait, and a log label."""
+    """One transition to drive: its target state, a live wait, and a log label.
+
+    ``at`` is the absolute local time this step is due, where one is known.
+    It exists so the *previous* step can tell the engine when the next
+    transition lands, which is what lets a terminal show a countdown to it
+    (T-M6). A catch-up step has no meaningful due time and leaves it None.
+    """
 
     state: str
     wait: Callable[[], float]  # seconds to wait before sending (evaluated live)
     label: str = ""
+    at: datetime | None = None
 
 
 def _run_transitions(
@@ -571,7 +497,7 @@ def _run_transitions(
     (review finding A1). Returns ``True`` if all steps completed, or ``False``
     if the run was interrupted.
     """
-    for step in steps:
+    for index, step in enumerate(steps):
         if not is_running():
             log.info("Interrupted")
             return False
@@ -590,8 +516,17 @@ def _run_transitions(
                 log.info("Interrupted")
                 return False
 
+        # The step after this one is what the engine will publish as the
+        # countdown target. The last step of the day has no successor, and
+        # sends nothing rather than inventing one.
+        following = steps[index + 1] if index + 1 < len(steps) else None
+        next_state = following.state if following and following.at else ""
+        next_at = _to_utc_iso(following.at) if following and following.at else ""
+
         log.info("-> %s", label)
-        _dispatch_transition(push_sock, confirm_sock, step.state)
+        _dispatch_transition(
+            push_sock, confirm_sock, step.state, next_state=next_state, next_at=next_at
+        )
 
     return True
 
@@ -600,9 +535,11 @@ def _dispatch_transition(
     push_sock: zmq.Socket[bytes],
     confirm_sock: zmq.Socket[bytes] | None,
     state: str,
+    next_state: str = "",
+    next_at: str = "",
 ) -> None:
     """Send a transition and, when possible, confirm the engine applied it."""
-    if not _send_transition(push_sock, state):
+    if not _send_transition(push_sock, state, next_state=next_state, next_at=next_at):
         return
     if confirm_sock is None:
         return
@@ -689,7 +626,9 @@ def _run_scheduled(
             _Step(state, _no_wait, label=f"{state} (catch-up, was due {hhmm})")
         )
     for hhmm, state, target in upcoming:
-        steps.append(_Step(state, _wait_until(target), label=f"{state} (at {hhmm})"))
+        steps.append(
+            _Step(state, _wait_until(target), label=f"{state} (at {hhmm})", at=target)
+        )
 
     if _run_transitions(push_sock, confirm_sock, running, steps):
         log.info("All transitions sent for today.")
@@ -780,12 +719,6 @@ def _build_parser() -> argparse.ArgumentParser:
             "(weekends and bank holidays for the configured country are "
             "skipped)"
         ),
-    )
-    parser.add_argument(
-        "--config",
-        "-c",
-        metavar="FILE",
-        help="Config YAML with schedule section (default: engine_config.yaml)",
     )
     parser.add_argument(
         "--delay",
@@ -929,13 +862,40 @@ def main() -> None:
         if args.now:
             _run_now(push_sock, now_mode_delay, is_running=_is_running)
         else:
-            config_path = Path(args.config) if args.config else ENGINE_CONFIG_FILE
-            if args.config and not config_path.exists():
-                log.error("FATAL: config file not found: %s", config_path)
+            # Schedule and country both come from the compiled artifact, so
+            # pm-scheduler and pm-engine can no longer disagree about the
+            # trading day. `country` in particular was invisible to the engine
+            # loader until now, which meant nothing but this process had ever
+            # read a documented, generated field.
+            from edumatcher.config_artifact import load_compiled_config
+
+            compiled = load_compiled_config()
+            if compiled is None:
+                # Nothing deployed. Running a timetable the engine has never
+                # seen is worse than not starting, so this is fatal here even
+                # though absence is tolerable for processes that only need
+                # their logging settings.
+                log.error(
+                    "FATAL: no compiled configuration at %s — "
+                    "run pm-config-deploy to install one",
+                    COMPILED_CONFIG_FILE,
+                )
                 sys.exit(1)
 
-            schedule = _load_schedule(config_path)
-            country = _load_country(config_path)
+            engine_cfg = compiled.engine
+            schedule = (
+                DEFAULT_SCHEDULE
+                if engine_cfg.schedule is None
+                else _schedule_from_config(engine_cfg.schedule)
+            )
+            country = engine_cfg.country
+            if not _is_supported_country(country):
+                log.warning(
+                    "unrecognised country %r for holiday calendar; using default %r",
+                    country,
+                    DEFAULT_COUNTRY,
+                )
+                country = DEFAULT_COUNTRY
             log.info("Using country %r for working-day/holiday calendar", country)
 
             # Refuse to start on a schedule the engine could never follow (M1).

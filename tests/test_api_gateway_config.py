@@ -11,7 +11,7 @@ def test_defaults_when_api_gateway_block_missing(tmp_path: Path) -> None:
     path = tmp_path / "engine_config.yaml"
     path.write_text("symbols: {}\ngateways: {alf: []}\n")
     cfg = load_api_gateway_config(path)
-    assert cfg.host == "127.0.0.1"
+    assert cfg.host == "0.0.0.0"
     assert cfg.port == 8080
     assert cfg.swagger_enabled is True
     assert cfg.credentials == ()

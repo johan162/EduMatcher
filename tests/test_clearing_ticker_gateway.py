@@ -267,7 +267,7 @@ class TestTradeFromDict:
             sell_order_id="S1",
             buy_gateway_id="GW01",
             sell_gateway_id="GW02",
-            price=150.0,
+            price=150,
             quantity=100,
             aggressor_side="BUY",
         )
@@ -299,14 +299,14 @@ class TestComboIsFullyFilled:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=150.0,
+                    price=150,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=200.0,
+                    price=200,
                 ),
             ],
         )

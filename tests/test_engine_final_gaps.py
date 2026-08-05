@@ -323,14 +323,14 @@ class TestVerboseCombo:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100.0,
+                    price=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=200.0,
+                    price=200,
                 ),
             ],
         )
@@ -354,14 +354,14 @@ class TestVerboseCombo:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100.0,
+                    price=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=200.0,
+                    price=200,
                 ),
             ],
         )
@@ -436,14 +436,14 @@ class TestExpireTIFWithCombo:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100.0,
+                    price=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=5,
-                    price=200.0,
+                    price=200,
                 ),
             ],
         )
@@ -501,7 +501,7 @@ class TestTrailingStopBuy:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            trail_offset=5.0,
+            trail_offset=5,
         )
         engine._handle_new_order(o.to_dict())
         _, msg = decode(pub_sock.sent[-1])

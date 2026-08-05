@@ -4,17 +4,12 @@ from __future__ import annotations
 
 import argparse
 import logging
-from pathlib import Path
 
 from edumatcher.config import (
-    ENGINE_CONFIG_FILE,
+    COMPILED_CONFIG_FILE,
     INDEX_PUB_CONNECT_ADDR,
 )
-from edumatcher.engine.config_loader import load_engine_config
-from edumatcher.md_gateway.config import (
-    MarketDataGatewayConfig,
-    load_market_data_gateway_config,
-)
+from edumatcher.md_gateway.config import MarketDataGatewayConfig
 from edumatcher.md_gateway.gateway import MarketDataGateway
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -36,12 +31,6 @@ def _build_parser() -> argparse.ArgumentParser:
     from edumatcher.cli_version import add_version_argument
 
     add_version_argument(parser, "pm-md-gwy")
-    parser.add_argument(
-        "--config",
-        "-c",
-        default=str(ENGINE_CONFIG_FILE),
-        help="Engine config YAML path (default: engine_config.yaml)",
-    )
     parser.add_argument("--bind", help="TCP bind address override")
     parser.add_argument("--port", type=int, help="TCP bind port override")
     parser.add_argument(
@@ -141,24 +130,51 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 def _resolve_config(
     args: argparse.Namespace,
-) -> tuple[MarketDataGatewayConfig, set[str]]:
-    cfg_path = Path(str(args.config))
-    cfg = load_market_data_gateway_config(cfg_path)
+) -> tuple[MarketDataGatewayConfig, set[str], dict[str, int]]:
+    from edumatcher.config_artifact import load_compiled_config
+
+    compiled = load_compiled_config()
+    cfg = (
+        MarketDataGatewayConfig() if compiled is None else compiled.market_data_gateway
+    )
 
     bind_address = str(args.bind) if args.bind else cfg.bind_address
     port = int(args.port) if args.port else cfg.port
     engine_pub_addr = str(args.engine_pub) if args.engine_pub else cfg.engine_pub_addr
     index_pub_addr = str(args.index_pub) if args.index_pub else cfg.index_pub_addr
 
+    # An empty symbol set is not a harmless default: it disables per-symbol
+    # SUB validation *and* omits SYMBOLS= from every WELCOME, so a client is
+    # left with no instrument universe and no clue why. Both ways of ending up
+    # there used to be silent; they are now loud.
+    #
+    # The symbols come from the same compiled artifact as the gateway's own
+    # settings, so the two can no longer describe different exchanges.
+    #
+    # Display precision comes from the same place for the same reason: it is
+    # per-symbol static reference data that CALF clients cannot obtain anywhere
+    # else, and a gateway advertising a symbol without its precision leaves
+    # every consumer to assume the default and be quietly wrong about the rest.
     known_symbols: set[str] = set()
-    if cfg_path.exists():
-        try:
-            engine_cfg = load_engine_config(cfg_path)
-            known_symbols = set(engine_cfg.symbols.keys())
-        except Exception:
-            # Gateway remains usable in permissive mode when config validation
-            # fails for unrelated reasons; symbol checks are simply disabled.
-            known_symbols = set()
+    tick_decimals: dict[str, int] = {}
+    if compiled is None:
+        log.warning(
+            "no compiled configuration at %s — starting with no known symbols, "
+            "so SUB symbol validation is disabled and WELCOME will carry no "
+            "SYMBOLS= list. Run pm-config-deploy to install one.",
+            COMPILED_CONFIG_FILE,
+        )
+    else:
+        known_symbols = set(compiled.engine.symbols)
+        tick_decimals = {
+            sym: sym_cfg.tick_decimals
+            for sym, sym_cfg in compiled.engine.symbols.items()
+        }
+        if not known_symbols:
+            log.warning(
+                "the compiled configuration defines no symbols — WELCOME will "
+                "carry no SYMBOLS= list"
+            )
 
     return (
         MarketDataGatewayConfig(
@@ -178,17 +194,21 @@ def _resolve_config(
             depth_levels=cfg.depth_levels,
         ),
         known_symbols,
+        tick_decimals,
     )
 
 
 def main() -> None:
+    from edumatcher.config_artifact import report_deployment
+
     parser = _build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-md-gwy with log level %s", logging.getLevelName(log_level))
+    report_deployment(log)
 
     try:
-        config, known_symbols = _resolve_config(args)
+        config, known_symbols, tick_decimals = _resolve_config(args)
     except Exception as exc:
         log.error("failed to resolve configuration: %s", exc)
         parser.error(str(exc))
@@ -206,7 +226,9 @@ def main() -> None:
         config.index_pub_addr,
         len(known_symbols),
     )
-    gateway = MarketDataGateway(config=config, known_symbols=known_symbols)
+    gateway = MarketDataGateway(
+        config=config, known_symbols=known_symbols, tick_decimals=tick_decimals
+    )
     try:
         gateway.run()
     except Exception as exc:

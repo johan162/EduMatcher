@@ -1534,7 +1534,7 @@ started.
 | Engine startup | Authentication behaviour |
 |---|---|
 | `pm-engine` (no `--config`) | **Backward-compat mode.** `_allowed_fix_gateways` is `None`; every gateway ID is accepted. No YAML config needed for bots. |
-| `pm-engine --config engine_config.yaml` | **Strict mode.** Every gateway ID must appear in `gateways.alf`. Any ID not listed is rejected: `order.new` receives `accepted=False` with reason `"Gateway not configured: <ID>"`. |
+| `pm-engine` (with a deployed config) | **Strict mode.** Every gateway ID must appear in `gateways.alf`. Any ID not listed is rejected: `order.new` receives `accepted=False` with reason `"Gateway not configured: <ID>"`. |
 
 #### Required YAML entry per bot (strict mode)
 

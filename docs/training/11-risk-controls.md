@@ -98,7 +98,6 @@ circuit_breaker_defaults:
     L1:
       price_shift_pct: 0.05           # halt if price moves ±5% within the window
       halt_duration_ns: 30000000000   # 30 second halt
-      resumption_mode: AUCTION
 ```
 
 `enforce_circuit_breakers` (top-level, defaults to `true`) must also not be

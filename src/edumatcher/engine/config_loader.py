@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 import yaml
 
@@ -28,13 +28,26 @@ from edumatcher.models.quote import QuoteRefreshPolicy
 from edumatcher.models.order import TIF, SmpAction
 from edumatcher.models.mm_obligation import MarketMakerObligation
 
-if TYPE_CHECKING:
-    from edumatcher.engine.collar import CollarConfig
-    from edumatcher.engine.circuit_breaker import CircuitBreakerConfig
+# Imported at runtime, not under TYPE_CHECKING: the compiled-config codec
+# resolves these annotations with typing.get_type_hints(), which needs the
+# names present in this module's namespace. Neither module imports this one,
+# so there is no cycle to avoid.
+from edumatcher.engine.collar import CollarConfig
+from edumatcher.engine.circuit_breaker import (
+    CircuitBreakerConfig,
+    ExpansionLevel,
+    ReopeningConfig,
+)
 
 _DEFAULT_MM_MAX_SPREAD_TICKS = 10
 _DEFAULT_MM_MIN_QTY = 100
 _DEFAULT_SNAPSHOT_INTERVAL_SEC = 0.5
+# How often to republish the indicative uncross during a call phase. One
+# second because price formation under an imbalance is something a reader
+# watches change, and a slower cadence would show it as a series of jumps
+# rather than as a process. Bounded work either way: one pass over the books
+# per interval, regardless of how heavy order entry is.
+_DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC = 1.0
 _DEFAULT_QUOTE_HISTORY_MAXLEN = 30
 _DEFAULT_DROP_COPY_BUFFER_SIZE = 10_000
 _DEFAULT_RECENT_TRADES_MAXLEN = 20
@@ -44,6 +57,132 @@ _DEFAULT_CB_LEVELS: dict[str, dict[str, Any]] = {
     "L2": {"price_shift_pct": 0.13, "halt_duration_ns": 900_000_000_000},
     "L3": {"price_shift_pct": 0.20, "halt_duration_ns": None},
 }
+
+
+DEFAULT_COUNTRY = "Sweden"
+
+
+def _parse_reopening(raw: Any, where: str) -> ReopeningConfig:
+    """Build a ReopeningConfig from an already-merged ``reopening`` mapping.
+
+    ``where`` names the owning block for error messages — either
+    ``circuit_breaker_defaults`` or ``symbols.<SYM>.circuit_breaker``.
+    """
+    if raw is None:
+        return ReopeningConfig()
+    if not isinstance(raw, dict):
+        raise ValueError(f"'{where}.reopening' must be a mapping")
+
+    defaults = ReopeningConfig()
+
+    enabled = raw.get("enabled", defaults.enabled)
+    if not isinstance(enabled, bool):
+        raise ValueError(f"'{where}.reopening.enabled' must be a boolean")
+
+    try:
+        initial_band_pct = float(raw.get("initial_band_pct", defaults.initial_band_pct))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"'{where}.reopening.initial_band_pct' must be numeric"
+        ) from exc
+    if not (0 < initial_band_pct < 1):
+        raise ValueError(f"'{where}.reopening.initial_band_pct' must be in (0, 1)")
+
+    try:
+        random_end_max_ns = int(
+            raw.get("random_end_max_ns", defaults.random_end_max_ns)
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"'{where}.reopening.random_end_max_ns' must be an integer"
+        ) from exc
+    if random_end_max_ns < 0:
+        raise ValueError(f"'{where}.reopening.random_end_max_ns' must be >= 0")
+
+    seed_raw = raw.get("random_seed")
+    if seed_raw is None:
+        random_seed: int | None = None
+    else:
+        try:
+            random_seed = int(seed_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"'{where}.reopening.random_seed' must be an integer or null"
+            ) from exc
+
+    expansions_raw = raw.get("expansions")
+    if expansions_raw is None:
+        expansions = list(defaults.expansions)
+    else:
+        if not isinstance(expansions_raw, list) or not expansions_raw:
+            raise ValueError(f"'{where}.reopening.expansions' must be a non-empty list")
+        expansions = []
+        for idx, rung_raw in enumerate(expansions_raw):
+            path = f"{where}.reopening.expansions[{idx}]"
+            if not isinstance(rung_raw, dict):
+                raise ValueError(f"'{path}' must be a mapping")
+            try:
+                widen_pct = float(rung_raw["widen_pct"])
+            except KeyError as exc:
+                raise ValueError(f"'{path}.widen_pct' is required") from exc
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"'{path}.widen_pct' must be numeric") from exc
+            if not (0 < widen_pct < 1):
+                raise ValueError(f"'{path}.widen_pct' must be in (0, 1)")
+            try:
+                min_duration_ns = int(rung_raw["min_duration_ns"])
+            except KeyError as exc:
+                raise ValueError(f"'{path}.min_duration_ns' is required") from exc
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"'{path}.min_duration_ns' must be an integer"
+                ) from exc
+            if min_duration_ns <= 0:
+                raise ValueError(f"'{path}.min_duration_ns' must be > 0")
+            expansions.append(
+                ExpansionLevel(widen_pct=widen_pct, min_duration_ns=min_duration_ns)
+            )
+
+    return ReopeningConfig(
+        enabled=enabled,
+        initial_band_pct=initial_band_pct,
+        expansions=expansions,
+        random_end_max_ns=random_end_max_ns,
+        random_seed=random_seed,
+    )
+
+
+def normalize_hhmm(raw: object) -> str | None:
+    """Normalize a schedule time to canonical ``"HH:MM"``, or ``None``.
+
+    Accepts ``"HH:MM"`` strings and the integers PyYAML produces for
+    *unquoted* sexagesimal values such as ``9:30`` (parsed as
+    ``9 * 60 + 30 == 570`` minutes past midnight), recovering the documented
+    but unquoted form rather than storing ``"570"``.
+
+    This lives here rather than in pm-scheduler because the compiled artifact
+    is where a schedule time is decided; a loader that stored the raw value
+    and a consumer that normalised it would disagree about the same file.
+    """
+    # bool is a subclass of int — reject it explicitly.
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        if 0 <= raw < 24 * 60:
+            return f"{raw // 60:02d}:{raw % 60:02d}"
+        return None
+    if isinstance(raw, str):
+        parts = raw.strip().split(":")
+        if len(parts) != 2:
+            return None
+        hh, mm = parts
+        if not (hh.isdigit() and mm.isdigit()):
+            return None
+        hours, minutes = int(hh), int(mm)
+        if 0 <= hours < 24 and 0 <= minutes < 60:
+            return f"{hours:02d}:{minutes:02d}"
+        return None
+    return None
 
 
 @dataclass
@@ -61,9 +200,9 @@ class SymbolConfig:
     outstanding_shares: int | None = None
     last_buy_price: Optional[float] = None
     last_sell_price: Optional[float] = None
-    market_maker_quotes: list["MMQuoteSeed"] = field(default_factory=list)
-    collar: Optional["CollarConfig"] = None  # populated by load_engine_config()
-    circuit_breaker: Optional["CircuitBreakerConfig"] = (
+    market_maker_quotes: list[MMQuoteSeed] = field(default_factory=list)
+    collar: Optional[CollarConfig] = None  # populated by load_engine_config()
+    circuit_breaker: Optional[CircuitBreakerConfig] = (
         None  # populated by load_engine_config()
     )
 
@@ -151,14 +290,23 @@ class EngineConfig:
         default_factory=dict
     )
     snapshot_interval_sec: float = _DEFAULT_SNAPSHOT_INTERVAL_SEC
+    auction_indicative_interval_sec: float = _DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC
     quote_history_maxlen: int = _DEFAULT_QUOTE_HISTORY_MAXLEN
     drop_copy_buffer_size: int = _DEFAULT_DROP_COPY_BUFFER_SIZE
     recent_trades_maxlen: int = _DEFAULT_RECENT_TRADES_MAXLEN
     depth_snapshot_tolerance_ticks: int = _DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS
     sessions_enabled: bool = False
     schedule: ScheduleConfig | None = None
+    #: Country whose bank-holiday calendar and local wall clock pm-scheduler
+    #: runs against. Validated against python-holidays by the scheduler, which
+    #: is the only consumer; the loader only checks it is a non-empty string.
+    country: str = DEFAULT_COUNTRY
     enforce_collars: bool = True
     enforce_circuit_breakers: bool = True
+    #: Seeds the generator that picks each reopening call phase's random end.
+    #: Engine-wide, so it lives here rather than on any one symbol. ``None``
+    #: seeds from OS entropy; set an integer for reproducible demos and tests.
+    reopening_random_seed: int | None = None
 
     @property
     def allowed_symbols(self) -> frozenset[str]:
@@ -463,7 +611,7 @@ def load_engine_config(path: Path) -> EngineConfig:
             )
 
         # --- Optional collar section -------------------------------------------
-        collar_cfg: Optional["CollarConfig"] = None
+        collar_cfg: Optional[CollarConfig] = None
         collar_raw = cfg.get("collar")
         if collar_raw is not None and not isinstance(collar_raw, dict):
             raise ValueError(f"Symbol '{sym}': collar must be a mapping")
@@ -504,7 +652,7 @@ def load_engine_config(path: Path) -> EngineConfig:
                 )
 
         # --- Optional circuit_breaker section ---------------------------------
-        cb_cfg: Optional["CircuitBreakerConfig"] = None
+        cb_cfg: Optional[CircuitBreakerConfig] = None
         cb_raw = cfg.get("circuit_breaker")
         if cb_raw is not None and not isinstance(cb_raw, dict):
             raise ValueError(f"Symbol '{sym}': circuit_breaker must be a mapping")
@@ -516,8 +664,42 @@ def load_engine_config(path: Path) -> EngineConfig:
                 effective_cb_raw.update(cb_defaults_raw)
             if isinstance(cb_raw, dict):
                 for key, value in cb_raw.items():
-                    if key != "levels":
-                        effective_cb_raw[key] = value
+                    if key == "levels":
+                        continue
+                    if key == "reopening":
+                        # Merge field-by-field so a symbol can override one
+                        # ACE setting without restating the whole block.
+                        base_reopening = effective_cb_raw.get("reopening")
+                        merged_reopening = (
+                            dict(base_reopening)
+                            if isinstance(base_reopening, dict)
+                            else {}
+                        )
+                        if not isinstance(value, dict):
+                            raise ValueError(
+                                f"Symbol '{sym}': circuit_breaker.reopening "
+                                "must be a mapping"
+                            )
+                        if "random_seed" in value:
+                            raise ValueError(
+                                f"Symbol '{sym}': circuit_breaker.reopening."
+                                "random_seed is engine-wide; set it in "
+                                "circuit_breaker_defaults"
+                            )
+                        if "expansions" in value:
+                            # The corridor's starting width describes the
+                            # instrument; the escalation schedule describes how
+                            # long the exchange tolerates a suspended symbol,
+                            # which is a venue policy and uniform by design.
+                            raise ValueError(
+                                f"Symbol '{sym}': circuit_breaker.reopening."
+                                "expansions is exchange-wide; set the ladder in "
+                                "circuit_breaker_defaults"
+                            )
+                        merged_reopening.update(value)
+                        effective_cb_raw["reopening"] = merged_reopening
+                        continue
+                    effective_cb_raw[key] = value
 
             merged_levels: dict[str, dict[str, Any]] = {}
             defaults_levels = (
@@ -606,22 +788,18 @@ def load_engine_config(path: Path) -> EngineConfig:
                             f"Symbol '{sym}': circuit_breaker.levels.{level_name}.halt_duration_ns must be > 0 when provided"
                         )
 
-                resumption_mode = str(
-                    level_cfg_raw.get("resumption_mode", "AUCTION")
-                ).upper()
-                if resumption_mode not in ("AUCTION", "CONTINUOUS"):
-                    raise ValueError(
-                        f"Symbol '{sym}': circuit_breaker.levels.{level_name}.resumption_mode must be AUCTION or CONTINUOUS"
-                    )
-
                 levels.append(
                     CircuitBreakerLevel(
                         name=level_name,
                         price_shift_pct=price_shift_pct,
                         halt_duration_ns=halt_duration_ns,
-                        resumption_mode=resumption_mode,
                     )
                 )
+
+            reopening_cfg = _parse_reopening(
+                effective_cb_raw.get("reopening"),
+                f"symbols.{sym}.circuit_breaker",
+            )
 
             try:
                 cb_cfg = CircuitBreakerConfig(
@@ -630,6 +808,7 @@ def load_engine_config(path: Path) -> EngineConfig:
                         effective_cb_raw.get("reference_window_ns", 300_000_000_000)
                     ),
                     levels=sorted(levels, key=lambda lvl: lvl.price_shift_pct),
+                    reopening=reopening_cfg,
                 )
             except (TypeError, ValueError) as exc:
                 raise ValueError(
@@ -1003,6 +1182,18 @@ def load_engine_config(path: Path) -> EngineConfig:
     if snapshot_interval_sec <= 0:
         raise ValueError("Engine config 'snapshot_interval_sec' must be > 0")
 
+    auction_indicative_raw = raw.get(
+        "auction_indicative_interval_sec", _DEFAULT_AUCTION_INDICATIVE_INTERVAL_SEC
+    )
+    try:
+        auction_indicative_interval_sec = float(auction_indicative_raw)
+    except (TypeError, ValueError):
+        raise ValueError(
+            "Engine config 'auction_indicative_interval_sec' must be numeric"
+        )
+    if auction_indicative_interval_sec <= 0:
+        raise ValueError("Engine config 'auction_indicative_interval_sec' must be > 0")
+
     quote_history_raw = engine_tuning_raw.get(
         "quote_history_maxlen", _DEFAULT_QUOTE_HISTORY_MAXLEN
     )
@@ -1071,17 +1262,27 @@ def load_engine_config(path: Path) -> EngineConfig:
     schedule_cfg: ScheduleConfig | None = None
     schedule_raw = raw.get("schedule")
     if isinstance(schedule_raw, dict):
+        defaults = ScheduleConfig()
+
+        def _time(key: str) -> str:
+            """Canonical HH:MM for one schedule key, or its documented default."""
+            fallback: str = getattr(defaults, key)
+            if key not in schedule_raw:
+                return fallback
+            return normalize_hhmm(schedule_raw[key]) or fallback
+
         schedule_cfg = ScheduleConfig(
-            pre_open=str(schedule_raw.get("pre_open", "09:00")),
-            opening_auction_start=str(
-                schedule_raw.get("opening_auction_start", "09:25")
-            ),
-            continuous_start=str(schedule_raw.get("continuous_start", "09:30")),
-            closing_auction_start=str(
-                schedule_raw.get("closing_auction_start", "16:00")
-            ),
-            closing_auction_end=str(schedule_raw.get("closing_auction_end", "16:05")),
+            pre_open=_time("pre_open"),
+            opening_auction_start=_time("opening_auction_start"),
+            continuous_start=_time("continuous_start"),
+            closing_auction_start=_time("closing_auction_start"),
+            closing_auction_end=_time("closing_auction_end"),
         )
+
+    country_raw = raw.get("country")
+    country = DEFAULT_COUNTRY
+    if isinstance(country_raw, str) and country_raw.strip():
+        country = country_raw.strip()
 
     return EngineConfig(
         symbols=symbols,
@@ -1093,12 +1294,22 @@ def load_engine_config(path: Path) -> EngineConfig:
         global_mm_obligation_policy=mm_global_policy,
         global_symbol_mm_obligation_policies=mm_global_symbol_policies,
         snapshot_interval_sec=snapshot_interval_sec,
+        auction_indicative_interval_sec=auction_indicative_interval_sec,
         quote_history_maxlen=quote_history_maxlen,
         drop_copy_buffer_size=drop_copy_buffer_size,
         recent_trades_maxlen=recent_trades_maxlen,
         depth_snapshot_tolerance_ticks=depth_snapshot_tolerance_ticks,
         sessions_enabled=sessions_enabled_raw,
         schedule=schedule_cfg,
+        country=country,
         enforce_collars=enforce_collars_raw,
         enforce_circuit_breakers=enforce_cb_raw,
+        reopening_random_seed=_parse_reopening(
+            (
+                cb_defaults_raw.get("reopening")
+                if isinstance(cb_defaults_raw, dict)
+                else None
+            ),
+            "circuit_breaker_defaults",
+        ).random_seed,
     )

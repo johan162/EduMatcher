@@ -112,9 +112,9 @@ def _payload(
     order_type: OrderType,
     qty: int,
     gateway_id: str,
-    price: float | None = None,
+    price: int | None = None,
     tif: TIF = TIF.DAY,
-    stop_price: float | None = None,
+    stop_price: int | None = None,
 ) -> dict[str, Any]:
     o = Order.create(
         symbol=SYMBOL,
@@ -176,10 +176,10 @@ class TestC1BookStatsRoundTrip:
         engine1, _ = _make_engine(monkeypatch, tmp_path)
         _connect(engine1)
         engine1._handle_new_order(
-            _payload(Side.SELL, OrderType.LIMIT, 100, "GW01", price=150.0)
+            _payload(Side.SELL, OrderType.LIMIT, 100, "GW01", price=15000)
         )
         engine1._handle_new_order(
-            _payload(Side.BUY, OrderType.LIMIT, 100, "GW02", price=150.0)
+            _payload(Side.BUY, OrderType.LIMIT, 100, "GW02", price=15000)
         )
         book1 = engine1.books[SYMBOL]
         assert book1.last_buy_price == 15000, "precondition: trade must have printed"
@@ -314,10 +314,10 @@ class TestC4FillNotifications:
         engine, pub = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         engine._handle_new_order(
-            _payload(Side.SELL, OrderType.LIMIT, 50, "GW02", price=100.0)
+            _payload(Side.SELL, OrderType.LIMIT, 50, "GW02", price=10000)
         )
 
-        ioc = _payload(Side.BUY, OrderType.IOC, 100, "GW01", price=100.0)
+        ioc = _payload(Side.BUY, OrderType.IOC, 100, "GW01", price=10000)
         engine._handle_new_order(ioc)
 
         # The trade printed publicly …
@@ -376,7 +376,7 @@ class TestC5OcoImmediateFillRace:
         _connect(engine)
         # Liquidity so that leg 1 fills instantly and completely.
         engine._handle_new_order(
-            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=100.0)
+            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=10000)
         )
 
         engine._handle_oco_order(
@@ -415,7 +415,7 @@ class TestC5OcoImmediateFillRace:
         engine, pub = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         engine._handle_new_order(
-            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=100.0)
+            _payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=10000)
         )
         engine._handle_oco_order(
             {

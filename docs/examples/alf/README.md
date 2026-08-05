@@ -24,7 +24,7 @@ alf/
 
 ```bash
 pm-engine --verbose
-pm-alf-gwy --config engine_config.yaml
+pm-alf-gwy
 ```
 
 `TRADER01` must be listed in `engine_config.yaml` under `gateways.alf`.

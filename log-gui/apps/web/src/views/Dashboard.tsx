@@ -5,10 +5,27 @@ import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Link } from "react-router-dom";
 import clsx from "clsx";
+import { classifyErrorRate, type ErrorRateBand } from "@edumatcher/log-types";
 import { api } from "../lib/api.js";
+import { useUiConfig } from "../lib/useUiConfig.js";
 import { useLiveStore } from "../store/useLiveStore.js";
 import { Panel } from "../components/Panel.js";
 import { SeverityBadge } from "../components/SeverityBadge.js";
+
+/** Colour per band — the whole point of ERROR_RATE_*: a number you can glance at. */
+const BAND_CLASS: Record<ErrorRateBand, string> = {
+  normal: "text-fg",
+  elevated: "text-level-warning",
+  high: "text-level-error",
+  severe: "text-level-critical",
+};
+
+const BAND_LABEL: Record<ErrorRateBand, string> = {
+  normal: "normal",
+  elevated: "elevated",
+  high: "high",
+  severe: "SEVERE",
+};
 
 const LEVEL_COLORS: Record<string, string> = {
   DEBUG: "var(--level-debug)",
@@ -18,11 +35,21 @@ const LEVEL_COLORS: Record<string, string> = {
   CRITICAL: "var(--level-critical)",
 };
 
-function MeterTile({ label, big, sub }: { label: string; big: React.ReactNode; sub?: React.ReactNode }) {
+function MeterTile({
+  label,
+  big,
+  sub,
+  bigClass,
+}: {
+  label: string;
+  big: React.ReactNode;
+  sub?: React.ReactNode;
+  bigClass?: string;
+}) {
   return (
     <div className="rounded border border-border bg-bg-subtle p-3">
       <div className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{big}</div>
+      <div className={clsx("mt-1 text-2xl font-semibold tabular-nums", bigClass)}>{big}</div>
       {sub && <div className="mt-1 text-xs text-fg-subtle">{sub}</div>}
     </div>
   );
@@ -32,6 +59,9 @@ export function DashboardView() {
   const [window_] = useState("1h");
   const counters = useLiveStore((s) => s.counters);
   const serverState = useLiveStore((s) => s.serverState);
+  const uiConfig = useUiConfig();
+  const errorBand: ErrorRateBand | undefined =
+    counters && uiConfig ? classifyErrorRate(counters.errorsPerMin, uiConfig.errorRate) : undefined;
 
   const { data: summary } = useQuery({
     queryKey: ["stats", "summary"],
@@ -44,8 +74,9 @@ export function DashboardView() {
     refetchInterval: 30_000,
   });
   const { data: unacked } = useQuery({
-    queryKey: ["issues", { acked: false, minLevel: "ERROR" }],
-    queryFn: () => api.issues({ acked: false, minLevel: "ERROR" }),
+    queryKey: ["issues", { acked: false, minLevel: uiConfig?.alertLevel }],
+    queryFn: () => api.issues({ acked: false, minLevel: uiConfig?.alertLevel }),
+    enabled: uiConfig !== undefined,
     refetchInterval: 15_000,
   });
   const { data: byProcess } = useQuery({
@@ -92,6 +123,8 @@ export function DashboardView() {
         <MeterTile
           label="Error rate"
           big={counters ? `${counters.errorsPerMin.toFixed(1)}/min` : "—"}
+          bigClass={errorBand ? BAND_CLASS[errorBand] : undefined}
+          sub={errorBand ? BAND_LABEL[errorBand] : undefined}
         />
         <MeterTile label="Warnings" big={counters?.perLevel.WARNING ?? 0} sub="last 60s" />
         <MeterTile label="Processes" big={summary?.perProcess.length ?? "—"} />

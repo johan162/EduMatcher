@@ -1,3 +1,115 @@
+## [v0.18.0] - 2026-08-04
+
+Release Type: major
+
+### 📋 Summary
+This is again a substantial release which has improvement in almost all areas and several new features.
+
+This release introduces TapeDeck, the new read-only `pm-terminal` trader information terminal, and follows it with hardening in CALF recovery, statistics correctness and developer setup automation.
+
+The engine configuration now has exactly one location, and it is compiled. Every `pm-*` process reads `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`, an artifact with every default already resolved and every value already validated. None of them accepts a path to it: the `--config`/`-c` flags and the `EDUMATCHER_CONFIG` variable are gone. 
+
+ A new `pm-config-deploy` validates, compiles and installs an authored configuration, separating the file you edit and version from the artifact the exchange runs.
+
+### ⚠️ Breaking Changes
+
+- Removed `--config`/`-c` from `pm-engine`, `pm-scheduler`, `pm-api-gwy`, `pm-index`, `pm-md-gwy`, `pm-ralf-gwy`, `pm-balf-gwy`, `pm-alf-gwy`, `pm-dc-gwy`, `pm-log-srv` and `pm-ai-swarm`. `pm-cverifier`, `pm-config-gen` and `pm-index-cli` keep their explicit paths: they operate on arbitrary files by design and cannot desynchronise a running exchange
+- Removed the `EDUMATCHER_CONFIG` environment variable. `EDUMATCHER_DATA_DIR` is now the only location knob, and it relocates the configuration together with `stats.db`, `log.db` and `audit.log` — so a wrong value fails loudly instead of degrading quietly
+- Removed `pm-setup --config-dest`. The bundled sample is always compiled into `<DATA_DIR>/ref_data/`, so a fresh install can start the exchange immediately
+- Changed `pm-scheduler` to exit with a fatal error when no configuration is deployed, rather than falling back to its built-in timetable. Against a fixed path a missing file means nothing was deployed, and running a schedule the engine has never seen is worse than not starting
+- `pm-config-deploy` now **compiles** rather than copies. It validates the authored YAML with all four `pm-cverifier` layers, resolves every default once, and writes `<DATA_DIR>/ref_data/engine_config.json`. Every `pm-*` process reads that artifact; the YAML is installed beside it for provenance only
+- Deploying is stricter than starting used to be. A configuration with a `MARKET_MAKER` gateway and no `market_maker_quotes` (`M001`), or an API credential naming a `gateway_id` absent from `gateways.alf` (`M022`), now refuses to deploy where it previously ran. Warnings do not block — a command that refused on advice would push people back towards editing the deployed copy by hand
+- `pm-setup` compiles the bundled sample rather than copying it, so a fresh install starts on a real configuration instead of built-in defaults
+- The Config GUI's download is the *authored* file; run `pm-config-deploy` on it before starting the exchange
+- Existing stats databases can not be used
+
+### ✨ Additions
+
+- Compiled configuration
+    - The seven subsystem loaders no longer parse YAML at runtime; each returns its section of the artifact. Defaults are decided once at compile time rather than in eight places that nothing kept in step
+    - Absence and corruption are now distinguished. No artifact yields dataclass defaults, exactly as a missing YAML did, so read-only tools like `pm-calf-spy` and `pm-viewer` still run on a machine that has never had a configuration installed. An artifact that cannot be parsed, or whose schema version is unknown, raises instead
+    - Added `edumatcher.config_artifact`: the artifact schema, a generic dataclass↔JSON codec, and the single reader every subsystem now uses. Around twenty config dataclasses across eight sections are (de)serialised by one codec rather than by hand-written per-class methods that would be one more thing to drift
+    - Added a `meta` block recording schema version, compiler version, compile time, source path and two digests. `source_sha256` answers "has the authored file changed since this was built?" — checked at startup and warned about per process. `content_sha256` answers "has this file changed since it was built?" — recomputed on every load, and a hand-edited artifact is refused. It detects modification rather than malice: the digest travels inside the file it protects, so anyone who edits the payload can recompute it
+    - Added a startup line to every process that reads the configuration, naming the artifact, when it was compiled and from which source
+    - Added `pm-config-deploy`, which validates an authored `engine_config.yaml` with the same loader every process runs at startup and installs it as the deployed copy — so a successful deploy cannot be followed by a process failing to parse the file. The write is staged and renamed, so a process starting mid-deploy sees either the old configuration or the new one, never half of either. `--show` prints the deployed path
+    - Added a startup `using engine config <path>` line to the eight processes that read it
+- Reopening auctions (ACE)
+    - Removed the per-level `resumption_mode` config field. It was settable, validated by the loader, checked twice by `pm-cverifier` (`S034`, `S069`), generated by `pm-config-gen` via three `--cb-resumption-l*` flags and documented in the config spec — and branched on nowhere. `AUCTION` and `CONTINUOUS` behaved identically. It could not have been implemented as specified either: LIMIT orders rest freely during a halt, so `CONTINUOUS` would restart matching on a crossed book, which is exactly what the unconditional uncross exists to prevent
+    - Replaced the engine's `resumption_mode`/`mode` payload fields with `halt_source` (`CB` or `ADMIN`), which says what caused the halt. Whether a halt ends by itself is already expressed by the presence of `resume_at_ns`
+    - Renamed CALF's `CB|MODE=` to `CB|SRC=` to match, and ALF's `RESUME|MODE=` to `RESUME|SRC=` — the ALF field read `resumption_mode` from a payload that only ever carried `mode`, so it had always been empty
+    - Removed `pm-cverifier` codes `S034` and `S069`
+    - Added **Automated Corridor Expansion** to circuit-breaker reopenings, modelled on Deutsche Börse's ACE and Nasdaq Rule 4120(c)(7). A halt now reopens only if the indicative uncross price falls inside a price corridor centred on the breaker's reference price. If it does not, the corridor widens one rung and another call phase begins instead of printing an outlying price. Configured under `circuit_breaker.reopening`, exchange-wide via `circuit_breaker_defaults` with per-symbol overrides that merge field-by-field
+    - Added a **random end** to every reopening call phase, initial and extended. `halt_duration_ns` and each rung's `min_duration_ns` are now minimums, with a delay drawn uniformly from `[0, random_end_max_ns]` on top. A reopen instant that everyone can predict is one the last order in can target with full sight of the book and no time for anyone to respond. Set `random_seed` under `circuit_breaker_defaults` for reproducible demos; leave it unset for OS entropy
+    - Added the **closing auction as ACE's backstop**, following Nasdaq's Hybrid Closing Cross. Because the ladder's last rung repeats indefinitely the corridor never stops widening, so ACE has no terminating condition of its own — the end of the trading day supplies one. A symbol still halted at `CLOSED` prints at the corridor boundary for a buy/sell imbalance, or at the equilibrium if that now sits inside. This is the only place the engine imposes a price rather than discovering one, and it can deliberately leave the book crossed: interest beyond the boundary survives to the next session rather than executing at a price the corridor exists to reject
+    - Added `circuit_breaker.extend.{SYMBOL}`, published on every corridor adjustment with the indicative price and quantity, the imbalance side, the widened corridor, the expansion index and the new `resume_at_ns`. `circuit_breaker.halt.{SYMBOL}` gained `corridor_low`, `corridor_high` and `expansion`; a backstop resume carries `reason: "CLOSING_BACKSTOP"`, `clamped` and `print_price`
+    - Added `pm-config-gen` flags `--no-ace`, `--ace-initial-band`, `--ace-expansions`, `--ace-random-end-ns` and `--ace-random-seed`, plus `--symbol-opts` keys `ace_enabled`, `ace_initial_band` and `ace_random_end_ns`
+    - Made the ACE expansion ladder exchange-wide and *enforced* it: the loader rejects `circuit_breaker.reopening.expansions` on a symbol and `pm-cverifier` reports `S112`. It had been accepted by the loader but modelled by neither the Config GUI nor `pm-config-gen`, so a hand-authored per-symbol ladder was silently discarded the first time the file passed through the GUI. A capability one tool honours and another drops is worse than either consistent answer. A symbol may still override `initial_band_pct`, `enabled` and `random_end_max_ns` — the corridor's starting width describes the instrument, the escalation schedule describes the venue. See the README for what lifting the restriction would cost
+    - Added `pm-cverifier` codes `S104`–`S111` for the `reopening` block. `S110` rejects a per-symbol `random_seed` as an error rather than a warning: the generator is engine-wide, so such a seed would be stored and then silently ignored, leaving the symbol looking configured while behaving as though it were not
+- CALF carries display precision
+    - Added `REF=` to `WELCOME` and the `SYMBOLS` reply: per-symbol `SYM:DEC` tuples carrying each instrument's `tick_decimals`. CALF clients previously had no way to learn an instrument's display precision at all — the only source was `GET /api/symbols`, which requires a *trading* credential that a market data consumer has no business holding — so every client assumed the default of `2` and was quietly wrong about any symbol configured otherwise, on every price it rendered
+    - Kept it off the market data channels deliberately. `tick_decimals` never changes for a symbol, so repeating it on `TOP` or `TRADE` would put a constant on the hottest path in a protocol whose `MD` messages are explicitly deltas. It is reference data and rides the handshake
+    - Made its *presence* the capability signal, as `CH_SUPPORTED` already does, so `PROTO` stays `CALF1` and no client breaks. A client seeing no `REF` falls back to `2` knowingly rather than by accident. `REF` covers exactly the symbols in `SYMBOLS=` and is omitted alongside it, so there is no partially-populated state to reason about
+    - Chose the `SYM:DEC` tuple over parallel positional lists so it can grow to `SYM:DEC:MULT:CCY` when contract multiplier and currency are defined, with no further protocol change. Clients ignore trailing components they do not recognise
+- CALF carries ACE
+    - Extended CALF's `CB` channel with the reopening corridor: `CORRLO`, `CORRHI` and `EXP` on a halt, and a further `CB` event with `STATUS=HALTED` and updated values on every corridor expansion. `pm-md-gwy` now subscribes to `circuit_breaker.extend.` — without it ACE was invisible to every external client, which is worse than not having the feature: a terminal would show a `RESUMEAT` that had already passed and report the symbol as overdue to reopen, indefinitely. No `STATE` event accompanies an extension, since the symbol was halted before and after
+    - Added `INDICPX`, `INDICQTY` and `IMB` to expansion events — the indicative uncross price, the quantity that would have executed, and which side the imbalance ran. Deliberately event-only and absent from the `SNAP` baseline, because they are computed once at the end of a call phase and replaying them later would assert a stale price for a book that has kept moving. `CORRLO`/`CORRHI`/`EXP` *are* in `SNAP`: they describe the halt still in force
+    - Added `REASON=CLOSING_BACKSTOP`, `CLAMPED` and `PRINTPX` to a resume forced by the end of the trading day, so a client can tell a price the exchange imposed at the corridor boundary from one the book discovered
+- Circuit Breakers
+    - Added `reason` to `auction.result.{SYMBOL}`, surfaced as CALF `AUCTION|REASON=`: `SCHEDULED` (leaving a non-matching session phase), `REOPEN` (a halted symbol reopening) or `RECOVERY` (restored GTC orders at startup). The three were previously indistinguishable, so no client could tell a circuit-breaker reopening from the closing auction
+    - Added per-symbol fan-out of exchange session transitions on CALF `STATE`. A subscription matches `SYM=*` or an exact symbol, and transitions were published only as `SYM=*`, so a client watching one instrument saw its halts and resumes but never learned the exchange had opened or closed. Halted symbols are deliberately skipped — a halt outlives the phase it began in
+    - The terminal now labels the auction banner by reason rather than always saying "Auction uncrossed", and shows the halt source and reopening time as the independent facts they are
+- TapeDeck trader information terminal
+    - Added TapeDeck, the new read-only `pm-terminal` trader information terminal, with Overview, Symbol Detail, Trade Tape, Movers, Index and Session/Halt views behind a shared Fastify bridge that fans one CALF uplink and one history proxy out to multiple browser tabs
+    - Added the remaining trader-facing screens around the original market overview: an Index board, a cross-symbol time-and-sales tape, movers rankings, per-symbol depth and halt detail, previous-close-aware symbol detail, and wallboard-style paging and density controls
+    - Added a reusable Python `edumatcher.calf_client` together with C and Python CALF recovery examples, so external consumers can follow the standalone `RESUME` flow, decode handshake reference data and build gap-aware subscribers against the same protocol TapeDeck uses
+
+### 🐛 Fixes
+- Fixed `country` never reaching `EngineConfig`. It is emitted by `pm-config-gen` and validated by `pm-cverifier`, but no loader field captured it, so the compiled artifact dropped it and `pm-scheduler` was the only process that had ever read it — through its own private YAML parse
+- Fixed schedule times being stored raw. `str(schedule_raw.get("pre_open"))` turned an unquoted `9:30`, which PyYAML reads as the sexagesimal integer `570`, into the string `"570"`, while `pm-scheduler` normalised the same file to `"09:30"`. `normalize_hhmm` now lives with the loader, so the artifact only ever holds canonical `HH:MM`
+- Fixed `pm-index` re-parsing the YAML for constituent reference data. `outstanding_shares` and `reference_prices` are gathered from the constituent symbols rather than being fields of their own, so the artifact always carried enough; `index_runtime_configs()` now takes an `EngineConfig`
+- Fixed `pm-md-gwy` reading its settings and its symbol universe through separate calls, so the two could describe different exchanges — the original failure this work began from
+- Fixed the ALF gateway's `RESUME|MODE=` field, which read `resumption_mode` from a payload that only ever carried `mode`, and had therefore always been empty
+- Fixed the scheduled `CLOSING_AUCTION → CLOSED` uncross sweeping symbols that were still halted. `_run_uncross()` iterated every book unconditionally, so a halted symbol was uncrossed by the session transition at the true equilibrium — which with ACE in place would have bypassed the corridor and the extension ladder entirely. Halted symbols are now skipped by the sweep and resolved by the backstop instead
+- Fixed `pm-config-gen --cb-levels` advertising a `RESUMPTION_MODE` fourth field in its help text, and `010-configuration.md` documenting `cb_resumption_l1`/`l2`/`l3` `--symbol-opts` keys. Both described the knob removed earlier in this release
+- Fixed CALF reporting a resumed symbol as `SESSION=CONTINUOUS` regardless of what the exchange was actually doing. `CircuitBreakerState.should_resume` consults no session state, so a timed halt can outlive its phase: an L2 halt (15 minutes by default) triggered shortly before the close resumes into `CLOSING_AUCTION` or `CLOSED`, and CALF was telling every client the symbol was trading on a closed exchange. A resume now rejoins the current session
+- Fixed a symbol's cached session state being pinned by its first halt. `state_snapshot_fields` falls back to the exchange state only for symbols absent from `symbol_state`, and nothing updated that map afterwards — so any symbol that had ever halted reported a stale session in every later `SNAP`, for the rest of the day
+- Multiple calculations and conceptual fixes in stats module including better discovery of lost information
+
+
+### 🚀 Improvements — statistics correctness
+- Improved `pm-stats` after review hardening: trading-day classification, API/history semantics, gap visibility, query results and derived calculations now follow the corrected post-review rules rather than quietly mixing incompatible assumptions
+- Improved stats ingestion safety with explicit feed-gap detection, a single-writer lock and tick-size-aware schema/calculation updates, and now refuse older stats databases rather than interpreting them under the wrong schema semantics
+
+
+### 📚 Documentation 
+- Added a full TapeDeck user-guide chapter covering container, Compose, separate-server and local-development operation, plus a user-facing screen tour and configuration reference
+- Expanded the CALF gateway, protocol and training chapters to cover standalone `RESUME` recovery, gap-aware subscribers, handshake reference data and the market-data semantics TapeDeck depends on
+- Added and refreshed design and presentation material for stats follow-up work, reference-data configuration, ALF/CALF/RALF/API gateway intros, drop-copy and the message-generator proposal
+- Rewrote the configuration, getting-started, processes, FAQ and training-installation chapters around the authored-versus-deployed split, and added a `pm-config-deploy` section to the process reference
+- Removed the config-path resolution order from the ALF, BALF, DC1 and CALF gateway chapters — there is nothing left to resolve
+- Noted in the CALF gateway chapter why the single location matters most there: `pm-md-gwy`'s symbol universe is what `WELCOME|SYMBOLS=` and the `SYMBOLS` reply are built from
+- Documented that a halt *is* a reopening auction's call phase: LIMIT orders rest, MARKET/FOK/IOC are rejected, no matching runs, and the halt always ends in an uncross. This was already the behaviour; nothing in the docs said so plainly, and the removed `resumption_mode` implied a choice that did not exist
+- Rewrote the resumption section of the risk-controls chapter, and updated §920, §240, §241, §270, §990, the configuration chapter and the MM-quotes concept page
+- Tweak blue header color for better visibility in the dark-theme
+- Several introduction presentations has been added under `docs/presentation` 
+- Rewrote intro and run-playbook in the user-guide
+- Added several presentations for gettting started with EduMatcher
+
+
+### 🛠 Internal
+- Added `tests/test_config_single_source.py`, parametrised over every runtime entry point, asserting each rejects a config path and runs with no arguments at all
+- Added `tests/test_config_deploy.py` covering validation, atomic replacement, and leaving a previous deployment intact when the new file is bad
+- Fixed `test_api_gateway_history.py` and `test_api_gateway_pagination.py` helpers to forward `from_date`/`to_date`; calling the handlers directly leaves FastAPI's `Query` sentinels bound to those parameters
+- Added extensive TapeDeck bridge, browser and engine test coverage for reconnect replay, data age, sorting, auction indication, previous-close handling, session countdowns and CALF replay repair
+- Added stats follow-up tests around trading-day handling and feed-gap detection, and aligned build/setup tooling around local Poetry virtualenvs, initial-venv bootstrap and Multipass development snapshots
+- Added stronger `scripts/verify_setup.sh` environment checks for Node/npm, Chrome, XeLaTeX, `readline-devel`, Pandoc >= 3.10, `DejaVu Sans`, required TeX style packages, `make` and `gcc`, with Fedora-aware package handling and guidance for unsupported Linux distributions
+- Added `vm/mkdevnode.sh` plus root Makefile support to create, provision, restart and snapshot a Multipass Ubuntu development node from the repository workflow instead of a manual host-side checklist
+- Improved `tools/verify_matching.sh` to deploy its verification configuration rather than passing it as a flag
+- Added `tests/test_config_generated_fields_reach_artifact.py`, asserting that every top-level key `pm-config-gen` can emit has a declared landing in the artifact and is reachable from it. This is the invariant the three dropped-field bugs above violated; both guards are verified to fail when broken
+- Added a declared-type conformance check over every config dataclass, catching values whose runtime type contradicts their annotation — `arg-type` is disabled for `tests.*`, so a fixture can otherwise build a config the codec will silently reshape
+- Removed the redundant inner quotes in `list["MMQuoteSeed"]`-style annotations: `get_type_hints` resolves the outer string but leaves the argument a plain `str`, which made the codec hand back raw dicts. It now raises on an unresolved annotation rather than degrading quietly
+
+
 ## [v0.17.0] - 2026-07-29
 
 Release Type: major

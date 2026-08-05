@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import edumatcher.stats.main as stats_main_mod
+from edumatcher.stats.event_types import EVENT_TYPES, UNKNOWN_EVENT_TYPE
 from edumatcher.stats.main import (
     SNAPSHOT_INTERVAL_SEC,
     SCHEMA,
@@ -37,7 +38,7 @@ from edumatcher.ticker.main import _query_daily_stats
 
 @pytest.fixture
 def sp(tmp_path: Path):
-    """StatsProcess with fake ZMQ sockets; _conn closed after each test."""
+    """StatsProcess with fake ZMQ sockets; fully closed after each test."""
     fake_sock = MagicMock()
     with (
         patch("edumatcher.stats.main.make_subscriber", return_value=fake_sock),
@@ -45,7 +46,9 @@ def sp(tmp_path: Path):
     ):
         proc = StatsProcess(tmp_path / "test.db")
     yield proc
-    proc._conn.close()
+    # close(), not _conn.close(): StatsProcess also holds a writer-lock
+    # connection, and closing only the DB handle leaks it.
+    proc.close()
 
 
 def _in_memory_conn() -> sqlite3.Connection:
@@ -197,7 +200,7 @@ class TestOnTrade:
         sp._on_trade(payload)
         acc = sp._accum.get("MSFT")
         assert acc is not None
-        assert acc.close_price == 200.0
+        assert acc.close_price == 20000  # 200.00 in ticks
         assert acc.volume == 50
 
     def test_trade_missing_price_ignored(self, sp: StatsProcess) -> None:
@@ -247,15 +250,15 @@ class TestOnBook:
     def test_records_opening_bid_ask(self, sp: StatsProcess) -> None:
         sp._on_book("AAPL", self._book_payload())
         acc = sp._accum["AAPL"]
-        assert acc.open_bid == 149.5
-        assert acc.open_ask == 150.5
+        assert acc.open_bid == 14950  # 149.50 in ticks
+        assert acc.open_ask == 15050  # 150.50 in ticks
 
     def test_does_not_overwrite_opening_bid(self, sp: StatsProcess) -> None:
         sp._on_book("AAPL", self._book_payload(bid=149.5, ask=150.5))
         sp._on_book("AAPL", self._book_payload(bid=148.0, ask=151.0))
         acc = sp._accum["AAPL"]
-        assert acc.open_bid == 149.5  # first value preserved
-        assert acc.open_ask == 150.5
+        assert acc.open_bid == 14950  # 149.50 in ticks, first value preserved
+        assert acc.open_ask == 15050  # 150.50 in ticks
 
     def test_writes_snapshot_when_interval_elapsed(self, sp: StatsProcess) -> None:
         # Force interval to have elapsed (last snap was long ago)
@@ -276,7 +279,7 @@ class TestOnBook:
         snap = self._book_payload(bid=None, ask=None, last=155.0)
         sp._on_book("AAPL", snap)
         rows = sp._conn.execute("SELECT mid_price FROM price_snapshots").fetchall()
-        assert rows[0][0] == 155.0
+        assert rows[0][0] == 15500.0  # 155.00 in ticks; mid is a float
 
     def test_pct_change_computed_when_prev_mid_exists(self, sp: StatsProcess) -> None:
         sp._last_snap_ts["AAPL"] = time.monotonic() - SNAPSHOT_INTERVAL_SEC - 1
@@ -318,7 +321,7 @@ class TestOnEod:
         rows = sp._conn.execute(
             "SELECT close_bid, close_ask FROM daily_stats"
         ).fetchall()
-        assert rows[0] == (149.5, 150.5)
+        assert rows[0] == (14950, 15050)  # 149.50 / 150.50 in ticks
 
     def test_eod_ignores_empty_books(self, sp: StatsProcess) -> None:
         # Should not raise
@@ -632,14 +635,14 @@ class TestReceiveOneIndexMessage:
 
 class TestIndexAccumFor:
     def test_creates_new_accum_first_time(self, sp: StatsProcess) -> None:
-        acc = sp._index_accum_for("EDU100")
+        acc = sp._index_accum_for("EDU100", "2026-06-14")
         assert acc.index_id == "EDU100"
-        assert acc.date == sp._today()
+        assert acc.date == "2026-06-14"
 
     def test_reuses_existing_accum_same_day(self, sp: StatsProcess) -> None:
-        acc1 = sp._index_accum_for("EDU100")
+        acc1 = sp._index_accum_for("EDU100", "2026-06-14")
         acc1.on_update(1000.0, aggregate_cap=None)
-        acc2 = sp._index_accum_for("EDU100")
+        acc2 = sp._index_accum_for("EDU100", "2026-06-14")
         assert acc2 is acc1
         assert acc2.close_level == 1000.0
 
@@ -647,18 +650,17 @@ class TestIndexAccumFor:
         self, sp: StatsProcess
     ) -> None:
         """Mirrors the equivalent _accum_for rollover behavior for symbols:
-        when the calendar date changes, the prior day's accumulator must be
+        when the trading date changes, the prior day's accumulator must be
         flushed to index_daily_stats before a fresh one starts, so no data
-        is silently lost across midnight.
+        is silently lost across the rollover.
         """
-        acc = sp._index_accum_for("EDU100")
-        acc.date = "2020-01-01"  # simulate a stale accumulator from "yesterday"
+        acc = sp._index_accum_for("EDU100", "2020-01-01")
         acc.on_update(999.0, aggregate_cap=None)
 
         # Next call detects the date mismatch and rolls over
-        new_acc = sp._index_accum_for("EDU100")
+        new_acc = sp._index_accum_for("EDU100", "2020-01-02")
         assert new_acc is not acc
-        assert new_acc.date == sp._today()
+        assert new_acc.date == "2020-01-02"
 
         # The stale day's data must have been flushed to the DB before rollover
         flushed = sp._conn.execute(
@@ -674,21 +676,22 @@ class TestIndexAccumFor:
 
 class TestAccumFor:
     def test_creates_new_accum_first_time(self, sp: StatsProcess) -> None:
-        acc = sp._accum_for("AAPL")
+        acc = sp._accum_for("AAPL", "2026-06-14")
         assert acc.symbol == "AAPL"
+        assert acc.date == "2026-06-14"
         assert acc is sp._accum["AAPL"]
 
     def test_returns_existing_accum_same_day(self, sp: StatsProcess) -> None:
-        acc1 = sp._accum_for("AAPL")
-        acc2 = sp._accum_for("AAPL")
+        acc1 = sp._accum_for("AAPL", "2026-06-14")
+        acc2 = sp._accum_for("AAPL", "2026-06-14")
         assert acc1 is acc2
 
     def test_rolls_over_on_new_date(self, sp: StatsProcess) -> None:
         # Seed yesterday's accumulator
         sp._accum["AAPL"] = _DayAccum(date="2000-01-01", symbol="AAPL")
         sp._accum["AAPL"].open_price = 100.0
-        new_acc = sp._accum_for("AAPL")
-        assert new_acc.date != "2000-01-01"
+        new_acc = sp._accum_for("AAPL", "2000-01-02")
+        assert new_acc.date == "2000-01-02"
         # Old data should have been flushed
         rows = sp._conn.execute("SELECT date, symbol FROM daily_stats").fetchall()
         assert ("2000-01-01", "AAPL") in rows
@@ -923,14 +926,82 @@ class TestEventTypeFromTopic:
     def test_expire(self) -> None:
         assert _event_type_from_topic("order.expired.GW01", {}) == "EXPIRE"
 
-    def test_combo(self) -> None:
-        assert _event_type_from_topic("combo.ack.GW01", {}) == "COMBO"
+    def test_combo_accepted_and_rejected_are_distinct(self) -> None:
+        """A rejected combo must not look like an accepted one."""
+        assert (
+            _event_type_from_topic("combo.ack.GW01", {"accepted": True}) == "COMBO_ACK"
+        )
+        assert (
+            _event_type_from_topic("combo.ack.GW01", {"accepted": False})
+            == "COMBO_REJECT"
+        )
 
-    def test_oco(self) -> None:
-        assert _event_type_from_topic("oco.ack.GW01", {}) == "OCO"
+    def test_combo_status_is_not_an_ack(self) -> None:
+        assert _event_type_from_topic("combo.status.GW01", {}) == "COMBO_STATUS"
 
-    def test_quote(self) -> None:
-        assert _event_type_from_topic("quote.ack.GW01", {}) == "QUOTE"
+    def test_oco_accepted_and_rejected_are_distinct(self) -> None:
+        assert _event_type_from_topic("oco.ack.GW01", {"accepted": True}) == "OCO_ACK"
+        assert (
+            _event_type_from_topic("oco.ack.GW01", {"accepted": False}) == "OCO_REJECT"
+        )
+
+    def test_oco_cancelled_is_a_cancel_not_a_bare_family_name(self) -> None:
+        """Previously recorded as ``OCO``, where no cancel filter could find it."""
+        assert _event_type_from_topic("oco.cancelled.GW01", {}) == "OCO_CANCEL"
+
+    def test_quote_accepted_and_rejected_are_distinct(self) -> None:
+        assert (
+            _event_type_from_topic("quote.ack.GW01", {"accepted": True}) == "QUOTE_ACK"
+        )
+        assert (
+            _event_type_from_topic("quote.ack.GW01", {"accepted": False})
+            == "QUOTE_REJECT"
+        )
+
+    def test_quote_status_is_not_an_ack(self) -> None:
+        assert _event_type_from_topic("quote.status.GW01", {}) == "QUOTE_STATUS"
+
+    @pytest.mark.parametrize(
+        "topic",
+        ["order.ack.GW01", "combo.ack.GW01", "oco.ack.GW01", "quote.ack.GW01"],
+    )
+    def test_missing_accepted_flag_records_unknown_not_reject(
+        self, topic: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Never fabricate a rejection from an absent flag.
+
+        Recording a confident REJECT because a field was missing writes a fact
+        into the audit trail that was never asserted by the engine.
+        """
+        with caplog.at_level(logging.ERROR):
+            assert _event_type_from_topic(topic, {}) == UNKNOWN_EVENT_TYPE
+        assert "no 'accepted' flag" in caplog.text
+
+    def test_every_produced_value_is_declared(self) -> None:
+        """EVENT_TYPES is what the CLI and API validate against."""
+        produced = {
+            _event_type_from_topic(topic, payload)
+            for topic, payload in [
+                ("order.ack.GW01", {"accepted": True}),
+                ("order.ack.GW01", {"accepted": False}),
+                ("order.fill.GW01", {}),
+                ("order.amended.GW01", {}),
+                ("order.cancelled.GW01", {}),
+                ("order.expired.GW01", {}),
+                ("combo.ack.GW01", {"accepted": True}),
+                ("combo.ack.GW01", {"accepted": False}),
+                ("combo.status.GW01", {}),
+                ("oco.ack.GW01", {"accepted": True}),
+                ("oco.ack.GW01", {"accepted": False}),
+                ("oco.cancelled.GW01", {}),
+                ("quote.ack.GW01", {"accepted": True}),
+                ("quote.ack.GW01", {"accepted": False}),
+                ("quote.status.GW01", {}),
+                ("order.ack.GW01", {}),
+                ("system.eod", {}),
+            ]
+        }
+        assert produced == set(EVENT_TYPES)
 
     def test_unknown(self) -> None:
         assert _event_type_from_topic("system.eod", {}) == "EVENT"
@@ -1006,7 +1077,7 @@ class TestStatsRun:
 
         calls: list[tuple[str, tuple[str, ...]]] = []
 
-        def _record_call(addr: str, *topics: str) -> MagicMock:
+        def _record_call(addr: str, *topics: str, **kwargs: object) -> MagicMock:
             calls.append((addr, topics))
             return MagicMock()
 
@@ -1015,7 +1086,7 @@ class TestStatsRun:
             patch("edumatcher.stats.main.make_pusher", return_value=MagicMock()),
         ):
             proc = StatsProcess(tmp_path / "addr_test.db")
-        proc._conn.close()
+        proc.close()
 
         addrs = [addr for addr, _topics in calls]
         assert ENGINE_PUB_ADDR in addrs
@@ -1049,16 +1120,29 @@ class TestStatsMain:
         args = Namespace(log_level="INFO", verbose=2, quiet=True)
         assert _configure_logging(args) == 20
 
-    @patch("edumatcher.stats.main.StatsProcess.run", return_value=None)
     @patch("edumatcher.stats.main.make_pusher", return_value=MagicMock())
     @patch("edumatcher.stats.main.make_subscriber", return_value=MagicMock())
     def test_main_creates_process_and_runs(
         self,
         mock_sub: MagicMock,
         mock_push: MagicMock,
-        mock_run: MagicMock,
         tmp_path: Path,
     ) -> None:
-        with patch("sys.argv", ["pm-stats", "--db", str(tmp_path / "test.db")]):
-            stats_main()
-        mock_run.assert_called_once()
+        # run() is stubbed rather than patched away entirely so the process it
+        # built still gets closed. Patching it out left both the database and
+        # the writer-lock connection open for the rest of the session, which
+        # surfaces later as an "unclosed database" warning against whichever
+        # unrelated test happens to trigger garbage collection.
+        closed: list[bool] = []
+
+        def _run_and_close(self: StatsProcess) -> int:
+            self.close()
+            closed.append(True)
+            return 0
+
+        with patch.object(StatsProcess, "run", _run_and_close):
+            with patch("sys.argv", ["pm-stats", "--db", str(tmp_path / "test.db")]):
+                with pytest.raises(SystemExit) as excinfo:
+                    stats_main()
+        assert excinfo.value.code == 0
+        assert closed == [True]

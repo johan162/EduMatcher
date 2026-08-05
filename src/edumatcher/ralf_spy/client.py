@@ -100,7 +100,7 @@ class RalfSpyClient:
     def handshake(self) -> RalfFrame:
         """Send HELLO (with role and optional LASTSEQ) and return WELCOME.
 
-        Unlike CALF, RALF has no separate ``RESUME=1`` flag -- a non-zero
+        Unlike CALF, RALF has no separate ``RESUME`` command -- a non-zero
         ``LASTSEQ`` directly on ``HELLO`` triggers replay for every channel
         the chosen ``ROLE`` is entitled to (see
         :meth:`RalfSpyOptions.last_seq`).

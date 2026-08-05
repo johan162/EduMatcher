@@ -53,12 +53,12 @@ _SYMBOL = "AAPL"
 _GW = "PERF01"
 
 # Passive resting prices — the book will always have deep liquidity here.
-_ASK = 150.00  # passive SELL; aggressive BUYs and MARKET buys match here
-_BID = 149.00  # passive BUY;  aggressive SELLs and MARKET sells match here
+_ASK = 150  # passive SELL; aggressive BUYs and MARKET buys match here
+_BID = 149  # passive BUY;  aggressive SELLs and MARKET sells match here
 
 # Prices for passive test orders that should NOT match immediately
-_PASSIVE_BUY_PRICE = 140.00  # well below ASK  → rests on bid side
-_PASSIVE_SELL_PRICE = 160.00  # well above BID  → rests on ask side
+_PASSIVE_BUY_PRICE = 140  # well below ASK  → rests on bid side
+_PASSIVE_SELL_PRICE = 160  # well above BID  → rests on ask side
 
 N_LATENCY = 1_000  # measured samples per order type (after warm-up)
 N_WARMUP = 100  # discarded warm-up samples
@@ -201,7 +201,7 @@ class TestOrderLatency:
         engine: Engine,
         pub_sock: _DummySocket,
         order_type: OrderType,
-        price: float | None,
+        price: int | None,
         n_warmup: int,
         n_samples: int,
     ) -> list[int]:

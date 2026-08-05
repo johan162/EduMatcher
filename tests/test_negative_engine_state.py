@@ -114,7 +114,7 @@ def _make_order_payload(
     side=Side.BUY,
     order_type=OrderType.LIMIT,
     qty=100,
-    price=100.0,
+    price=100,
     gateway_id="GW01",
     tif=TIF.DAY,
 ) -> dict:
@@ -165,7 +165,7 @@ class TestShutdownDuringActiveMatching:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=99.0,
+            price=99,
         )
         engine._handle_new_order(o.to_dict())
         with pytest.raises(OSError, match="disk full"):
@@ -195,7 +195,7 @@ class TestShutdownDuringActiveMatching:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=99.0,
+            price=99,
         )
         engine._handle_new_order(o.to_dict())
         pub_sock.sent.clear()
@@ -238,7 +238,7 @@ class TestCorruptedGTCOrdersFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=100.0,
+            price=100,
         )
         bad = o.to_dict()
         bad["side"] = "SIDEWAYS"
@@ -259,7 +259,7 @@ class TestCorruptedGTCOrdersFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=100.0,
+            price=100,
         )
         bad = o.to_dict()
         bad["side"] = "SIDEWAYS"
@@ -285,7 +285,7 @@ class TestCorruptedGTCOrdersFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=100.0,
+            price=100,
         )
         bad = good1.to_dict()
         bad["id"] = "corrupt-order"
@@ -297,7 +297,7 @@ class TestCorruptedGTCOrdersFile:
             quantity=5,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=110.0,
+            price=110,
         )
         path = tmp_path / "gtc.json"
         path.write_text(json.dumps([good1.to_dict(), bad, good2.to_dict()]))
@@ -328,7 +328,7 @@ class TestCorruptedGTCOrdersFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=100.0,
+            price=100,
         )
         bad = o.to_dict()
         del bad["id"]
@@ -349,7 +349,7 @@ class TestCorruptedGTCOrdersFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=100.0,
+            price=100,
         )
         o.status = OrderStatus.NEW
         path = tmp_path / "gtc.json"
@@ -446,7 +446,7 @@ class TestEngineStartupWithCorruptGTCFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=100.0,
+            price=100,
         )
         bad = good.to_dict()
         bad["id"] = "corrupt-order"
@@ -481,7 +481,7 @@ class TestEngineStartupWithCorruptGTCFile:
             quantity=50,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=99.0,
+            price=99,
         )
         o.status = OrderStatus.NEW
         gtc = tmp_path / "gtc.json"
@@ -501,7 +501,7 @@ class TestEngineStartupWithCorruptGTCFile:
             quantity=10,
             gateway_id="GW01",
             tif=TIF.GTC,
-            price=50.0,
+            price=50,
         )
         o.status = OrderStatus.NEW
         gtc = tmp_path / "gtc.json"
@@ -606,12 +606,12 @@ class TestOrderIdCollisions:
         """After a duplicate submission the engine must still accept fresh orders."""
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
-        payload = _make_order_payload(price=100.0, qty=50)
+        payload = _make_order_payload(price=100, qty=50)
         engine._handle_new_order(payload)
         engine._handle_new_order(payload)  # duplicate
 
         pub_sock.sent.clear()
-        engine._handle_new_order(_make_order_payload(price=101.0, qty=10))
+        engine._handle_new_order(_make_order_payload(price=101, qty=10))
         ack = _last_ack(pub_sock)
         assert ack.get("accepted") is True
 
@@ -669,7 +669,7 @@ class TestEngineStartupWithoutConfig:
             quantity=10,
             gateway_id="ANY_GW",
             tif=TIF.DAY,
-            price=50.0,
+            price=50,
         )
         engine._handle_new_order(o.to_dict())
         ack = _last_ack(pub_sock)

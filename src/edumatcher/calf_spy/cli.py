@@ -48,6 +48,11 @@ _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 # fallback only when the gateway's own WELCOME omits CH_SUPPORTED.
 _BASELINE_CHANNELS = ("TOP", "TRADE", "STATE")
 
+# Channels the gateway accepts under SYM=* (md_gateway.gateway's
+# _WILDCARD_ELIGIBLE_CHANNELS). INDEX, DEPTH and CB always need a concrete
+# symbol or index id.
+_WILDCARD_ELIGIBLE = frozenset({"STATE", "TOP", "TRADE", "AUCTION"})
+
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -113,8 +118,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "--resume",
         metavar="CH:SYM:LASTSEQ",
         help="Request single-stream replay on connect, e.g. TOP:AAPL:1042 "
-        "(mirrors HELLO|RESUME=1|CH=..|SYM=..|LASTSEQ=..). Only one stream "
-        "may be resumed per connection; live subscriptions from --channels/"
+        "(sends RESUME|CH=..|SYM=..|LASTSEQ=.. after the handshake). This "
+        "flag resumes one stream; live subscriptions from --channels/"
         "--symbols are still applied afterwards.",
     )
     sub.add_argument(
@@ -273,6 +278,31 @@ def _parse_resume(raw: str | None) -> ResumeRequest | None:
     )
 
 
+def plan_subscriptions(
+    channels: list[str], symbols: list[str]
+) -> tuple[list[tuple[list[str], list[str]]], list[str]]:
+    """Split a requested subscription into ``SUB`` lines the gateway will accept.
+
+    Returns ``(subscriptions, skipped_channels)``.
+
+    The gateway validates a ``SUB`` all-or-nothing: one line mixing
+    wildcard-eligible and ineligible channels under ``SYM=*`` is rejected
+    *whole*, with a single ``ERR|CODE=INVALID_SYMBOL``, leaving the client
+    subscribed to nothing at all. Asking for every advertised channel with
+    ``--symbols *`` therefore used to produce an error and silence, rather than
+    the per-channel partial result this tool's own ``--symbols`` help promises.
+
+    With explicit symbols there is nothing to split — every channel accepts a
+    concrete symbol, so one line carries them all.
+    """
+    if symbols != ["*"]:
+        return ([(channels, symbols)], [])
+
+    eligible = [ch for ch in channels if ch in _WILDCARD_ELIGIBLE]
+    skipped = [ch for ch in channels if ch not in _WILDCARD_ELIGIBLE]
+    return ([(eligible, symbols)] if eligible else [], skipped)
+
+
 def _resolve_channels(welcome: CalfFrame, requested: str) -> list[str]:
     """Turn --channels ('*' or an explicit CSV list) into a concrete list.
 
@@ -364,8 +394,16 @@ def main() -> None:
         client.close()
         raise SystemExit(1)
 
-    log.info("subscribing channels=%s symbols=%s", channels, requested_symbols)
-    client.subscribe(channels, requested_symbols)
+    subscriptions, skipped = plan_subscriptions(channels, requested_symbols)
+    if skipped:
+        session.console.print(
+            f"[yellow]◆ skipping {', '.join(skipped)} — these channels reject "
+            f"SYM=*; pass --symbols with explicit symbols to watch them"
+            f"[/yellow]"
+        )
+    for sub_channels, sub_symbols in subscriptions:
+        log.info("subscribing channels=%s symbols=%s", sub_channels, sub_symbols)
+        client.subscribe(sub_channels, sub_symbols)
 
     try:
         client.run(session.on_frame, max_frames=args.count)

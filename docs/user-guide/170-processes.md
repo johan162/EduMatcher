@@ -168,24 +168,33 @@ A complete EduMatcher session uses **ten core runtime processes** across three c
 
 ## Environment variables
 
-Two variables control where EduMatcher finds and stores files at runtime.
-Set them once in your shell profile (`~/.zshrc` or `~/.bashrc`) and every
-`pm-*` command picks them up automatically.
+One variable controls where EduMatcher finds and stores everything at runtime.
+Set it once in your shell profile (`~/.zshrc` or `~/.bashrc`) and every `pm-*`
+command picks it up automatically.
 
 | Variable | Default (installed) | Default (source checkout) | Purpose |
 |---|---|---|---|
-| `EDUMATCHER_DATA_DIR` | `~/.local/share/edumatcher` | `<repo>/src/data/` | Directory for all persistent data files (`gtc_orders.json`, `stats.db`, `audit.log`, etc.) |
-| `EDUMATCHER_CONFIG` | `./engine_config.yaml` (CWD) | `<repo>/engine_config.yaml` | Path to the engine configuration YAML |
+| `EDUMATCHER_DATA_DIR` | `~/.local/share/edumatcher` | `<repo>/src/data/` | Directory for all persistent data files (`gtc_orders.json`, `stats.db`, `audit.log`, etc.) **and** the deployed engine configuration |
 
-The `--config` flag on `pm-engine` and `pm-scheduler` overrides both the
-environment variable and the default.
+The engine configuration is **not** separately configurable. Every process
+reads `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json` — there is no
+`--config` flag and no `EDUMATCHER_CONFIG` variable. This is deliberate: while
+each process took its own path, starting one of them against the wrong file
+produced an exchange whose parts silently disagreed, and the symptom (a
+gateway reporting no instruments) pointed nowhere near the cause.
+
+One data directory is therefore one exchange instance. Getting it wrong now
+detaches a process from its statistics and logs as well, so the mistake
+announces itself immediately.
 
 ```bash
 # Example: per-session isolation
 export EDUMATCHER_DATA_DIR="$HOME/sessions/morning"
-export EDUMATCHER_CONFIG="$HOME/sessions/morning/engine_config.yaml"
+pm-config-deploy ~/configs/morning.yaml
 pm-engine --verbose
 ```
+
+See [`pm-config-deploy`](#pm-config-deploy) for installing a configuration.
 
 **Core processes:**
 
@@ -279,7 +288,7 @@ pm-engine --verbose
          pm-alf-console --id TRADER01
          pm-alf-console --id TRADER02
          # or, for external / remote bots:
-         pm-alf-gwy --config engine_config.yaml
+         pm-alf-gwy
          ```
      6. Start remaining optional observers/tools as needed (`pm-board`,
          `pm-viewer`, `pm-clearing`, `pm-ticker`, `pm-scheduler`, `pm-index`).
@@ -291,14 +300,13 @@ pm-engine --verbose
 The heart of the system — receives orders, matches them, publishes events.
 
 ```bash
-pm-engine [-v|-vv] [--config engine_config.yaml] [--log-level LEVEL] [-q]
+pm-engine [-v|-vv] [--log-level LEVEL] [-q]
 ```
 
 **Startup options:**
 
 | Flag                | Default    | Description                                                              |
 |---------------------|------------|---------------------------------------------------------------------------|
-| `--config` / `-c`   | `engine_config.yaml` | Path to engine config YAML                                     |
 | `--log-level`       | `WARNING`  | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`       |
 | `-v` / `--verbose`  | off        | Increase log verbosity (`-v` → `INFO`: startup/lifecycle messages; `-vv` → `DEBUG`: per-order/per-trade detail) |
 | `-q` / `--quiet`    | off        | Explicit `WARNING` (same as the default)                                |
@@ -391,7 +399,7 @@ pm-alf-console --id <GW_ID>
 | Flag              | Required | Description                                           |
 |-------------------|----------|-------------------------------------------------------|
 | `--id`            | Yes      | Unique gateway identifier (e.g. `GW01`, `ALICE`)     |
-| `--drop-copy`     | No       | Enable the drop-copy relay on startup (equivalent to sending `DC\|STATE=ON` immediately after connecting); default off — see [Gateway → DC](050-gateway-reference.md#dc-toggle-drop-copy-relay) |
+| `--drop-copy`     | No       | Enable the drop-copy relay on startup (equivalent to sending `DC\|STATE=ON` immediately after connecting); default off — see [ALF Console → DC](055-alf-console.md#dc-toggle-drop-copy-relay) |
 | `--log-level`     | No       | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`| No       | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
 | `-q` / `--quiet`  | No       | Reduce output to warnings/errors                      |
@@ -446,7 +454,7 @@ is refused and the gateway exits.
 | `system.symbols.{own GW_ID}`       | Symbol list reply                              |
 | `trade.executed`                   | Global trade feed for last-price / P&L display |
 
-See the [Gateway Reference](050-gateway-reference.md) for the full command list.
+See the [ALF Console](055-alf-console.md) for the full command list.
 
 
 
@@ -458,14 +466,13 @@ but is designed for programmatic clients, not interactive terminals.  One
 connection per gateway ID; all configured `gateways.alf` IDs may connect.
 
 ```bash
-pm-alf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5565] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
+pm-alf-gwy [--bind 0.0.0.0] [--port 5565] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
 
 | Flag              | Default                 | Description                                           |
 |-------------------|-------------------------|-------------------------------------------------------|
-| `--config` / `-c` | `engine_config.yaml`    | Config file with optional `alf_gateway:` section      |
 | `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients                 |
 | `--port`          | from config / `5565`    | TCP listen port for ALF clients                       |
 | `--engine-host`   | from config             | Override engine host for ZMQ ports `5555` / `5556`   |
@@ -1147,14 +1154,13 @@ CLOSING_AUCTION → CLOSED) by sending `session.transition` messages to the
 engine at configured wall-clock times.
 
 ```bash
-pm-scheduler [--config engine_config.yaml] [--now] [--delay 3] [--daily] [--no-confirm] [--log-level LEVEL] [-v|-vv] [-q]
+pm-scheduler [--now] [--delay 3] [--daily] [--no-confirm] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
 
 | Flag               | Default              | Description                                                                         |
 |--------------------|----------------------|-------------------------------------------------------------------------------------|
-| `--config` / `-c`  | `engine_config.yaml` | Config file containing the `schedule` section                                       |
 | `--now`               | off                  | Skip wall-clock waiting; send all transitions immediately with a delay between each |
 | `--delay`             | `None` (effective default 3.0, only used with `--now`) | Seconds between transitions in `--now` mode (ignored, with a warning, outside `--now`) |
 | `--daily`             | off                  | Run continuously, repeating the schedule every calendar day                         |
@@ -1397,7 +1403,6 @@ pm-ai-swarm [options]
 | `--start-index`     | `1`                  | First numeric suffix for generated IDs     |
 | `--profiles`        | all profiles         | Comma-separated profile cycle              |
 | `--symbols`         | from config          | Comma-separated symbol list override       |
-| `--config`          | `engine_config.yaml` | Config used to discover symbols            |
 | `--seed-base`       | `1000`               | Base seed; bot `i` gets `seed-base + i`    |
 | `--duration`        | `60.0`               | Per-bot runtime in seconds                 |
 | `--python`          | current interpreter  | Python executable used for child processes |
@@ -1544,14 +1549,13 @@ Runs the external machine-facing post-trade dissemination gateway that publishes
 RALF over TCP for clearing, drop-copy, and audit consumers.
 
 ```bash
-pm-ralf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5580] [--engine-pub tcp://127.0.0.1:5556] [--log-level LEVEL] [-v|-vv] [-q]
+pm-ralf-gwy [--bind 0.0.0.0] [--port 5580] [--engine-pub tcp://127.0.0.1:5556] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
 
 | Flag              | Default                 | Description                                        |
 |-------------------|-------------------------|----------------------------------------------------|
-| `--config` / `-c` | `engine_config.yaml`    | Config file; optional `post_trade_gateway` section |
 | `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients              |
 | `--port`          | from config / `5580`    | TCP listen port for RALF clients                   |
 | `--engine-pub`    | `tcp://127.0.0.1:5556`  | Engine PUB address consumed by the gateway         |
@@ -1641,14 +1645,13 @@ terminal. There is no authentication, entitlement model, or replay-by-sequence
 live fills for as long as it stays connected.
 
 ```bash
-pm-dc-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5590] [--engine-dc-pub tcp://127.0.0.1:5557] [--log-level LEVEL] [-v|-vv] [-q]
+pm-dc-gwy [--bind 0.0.0.0] [--port 5590] [--engine-dc-pub tcp://127.0.0.1:5557] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
 
 | Flag              | Default                 | Description                                        |
 |-------------------|-------------------------|----------------------------------------------------|
-| `--config` / `-c` | `engine_config.yaml`    | Config file; optional `dc_gateway` section (hand-edited, no `pm-config-gen` integration) |
 | `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients              |
 | `--port`          | from config / `5590`    | TCP listen port for DC1 clients                    |
 | `--engine-dc-pub` | `tcp://127.0.0.1:5557`  | Engine drop-copy PUB address consumed by the gateway |
@@ -1720,14 +1723,13 @@ dedicated ZMQ PUB socket so `pm-md-gwy` can forward them to external subscribers
 over the CALF `INDEX` channel.
 
 ```bash
-pm-index [--config engine_config.yaml] [--reset] [--log-level LEVEL] [-v|-vv] [-q]
+pm-index [--reset] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
 
 | Flag              | Default              | Description                                                           |
 |-------------------|----------------------|-----------------------------------------------------------------------|
-| `--config` / `-c` | `engine_config.yaml` | Path to engine config YAML containing the `indices:` section          |
 | `--reset`         | off                  | Delete persisted state files and reinitialise all indices from config |
 | `--log-level`     | `WARNING`            | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`   |
 | `-v` / `--verbose`| off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                   |
@@ -1797,14 +1799,13 @@ interactive `pm-alf-console` terminal. Reads configuration from the `api_gateway
 section of `engine_config.yaml`.
 
 ```bash
-pm-api-gwy [--config engine_config.yaml] [--instance NAME] [options]
+pm-api-gwy [--instance NAME] [options]
 ```
 
 **Startup options:**
 
 | Flag                 | Default                                  | Description                                                                        |
 |----------------------|------------------------------------------|------------------------------------------------------------------------------------|
-| `--config PATH`      | `EDUMATCHER_CONFIG` resolution           | Path to `engine_config.yaml`                                                       |
 | `--instance NAME`    | auto-selected when only one entry exists | Named `api_gateways` entry to run; required when more than one entry is configured |
 | `--host ADDR`        | config value                             | Override HTTP bind address                                                         |
 | `--port PORT`        | config value                             | Override HTTP listen port                                                          |
@@ -2034,19 +2035,72 @@ pm-setup
 | Flag                   | Default                                               | Description                                   |
 |------------------------|-------------------------------------------------------|-----------------------------------------------|
 | `--data-dir <PATH>`    | `$EDUMATCHER_DATA_DIR` or `~/.local/share/edumatcher` | Data directory for persistent files           |
-| `--config-dest <PATH>` | `./engine_config.yaml`                                | Destination path for copied sample config     |
-| `--force`              | off                                                   | Overwrite existing config destination         |
-| `--no-config`          | off                                                   | Skip sample config copy; create data dir only |
+| `--force`              | off                                                   | Replace an already-deployed config            |
+| `--no-config`          | off                                                   | Create the data dir only; deploy nothing      |
 
 **Expected runtime input arguments:**
 
 None.
 
-Typical actions include creating/confirming data directories and placing sample
-configuration files so first-time startup is repeatable.
+It creates the data directory and deploys the bundled sample configuration to
+`<DATA_DIR>/ref_data/engine_config.json`, so a fresh environment can start the
+exchange immediately.
 
 Use this once per new environment (VM, container volume, or fresh local
 workspace) before starting runtime processes.
+
+This tool is local bootstrap logic and does not participate in the ZeroMQ
+runtime message bus.
+
+
+
+## pm-config-deploy — Compile and Install a Configuration
+
+Validates an authored `engine_config.yaml`, compiles it, and installs the
+result as the one file every process reads.
+
+```bash
+pm-config-deploy my_config.yaml
+pm-config-deploy --check my_config.yaml
+pm-config-deploy --show
+```
+
+**Startup options:**
+
+| Flag       | Default | Description                                                  |
+|------------|---------|--------------------------------------------------------------|
+| `SOURCE`   | —       | Authored `engine_config.yaml` to validate, compile and install |
+| `--check`  | off     | Validate and compile, but install nothing — for CI            |
+| `--show`   | off     | Print the deployed paths and exit                             |
+
+**Expected runtime input arguments:**
+
+None. It reads `SOURCE`, writes
+`<DATA_DIR>/ref_data/engine_config.json` plus a copy of the source beside it,
+and exits.
+
+Validation runs all four `pm-cverifier` layers. That is stricter than starting
+used to be: a configuration with, say, a `MARKET_MAKER` gateway and no
+`market_maker_quotes` (`M001`), or an API credential naming a `gateway_id`
+absent from `gateways.alf` (`M022`), will now refuse to deploy where it
+previously ran. Warnings do not block — a command that refused on advice would
+push people back towards editing the deployed copy by hand.
+
+Compiling also resolves every default exactly once. That is what allows the
+runtime loaders to deserialise rather than each keep its own copy of the
+defaults for its section.
+
+A configuration that fails is not installed and the previous artifact is left
+untouched — the write is staged and renamed, so a process starting during a
+deploy sees either the old file or the new one, never half of either.
+
+The command prints the symbol and gateway counts it installed. Those numbers
+are worth reading: an unexpected zero is the difference between an exchange
+and a gateway that accepts connections but has no instruments to offer.
+
+Deploying does not disturb running processes. Restart them to pick up the new
+configuration; until you do, each will warn at startup that its source has
+moved on.
 
 This tool is local bootstrap logic and does not participate in the ZeroMQ
 runtime message bus.
@@ -2328,14 +2382,13 @@ See [BALF TCP Gateway](230-balf-gateway.md) for operational usage and
 [BALF Protocol Reference](910-app-balf-protocol.md) for the wire-level contract.
 
 ```bash
-pm-balf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5566] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
+pm-balf-gwy [--bind 0.0.0.0] [--port 5566] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
 
 | Flag               | Default                 | Description                                                          |
 |--------------------|-------------------------|----------------------------------------------------------------------|
-| `--config` / `-c`  | `engine_config.yaml`    | Config file with optional `balf_gateway:` section                    |
 | `--bind`           | from config / `0.0.0.0` | TCP bind address for BALF clients                                    |
 | `--port`           | from config / `5566`    | TCP listen port for BALF clients                                     |
 | `--engine-host`    | from config             | Override engine host for ZMQ ports `5555` / `5556`                  |
@@ -2353,14 +2406,13 @@ CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:
 - `STATE` (session and halt/resume state)
 
 ```bash
-pm-md-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5570] [--engine-pub tcp://127.0.0.1:5556] [--index-pub tcp://127.0.0.1:5558] [--log-level LEVEL] [-v|-vv] [-q]
+pm-md-gwy [--bind 0.0.0.0] [--port 5570] [--engine-pub tcp://127.0.0.1:5556] [--index-pub tcp://127.0.0.1:5558] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
 
 | Flag               | Default                 | Description                                                          |
 |--------------------|-------------------------|----------------------------------------------------------------------|
-| `--config` / `-c`  | `engine_config.yaml`    | Config file with optional `market_data_gateway:` section             |
 | `--bind`           | from config / `0.0.0.0` | TCP bind address for external clients                                |
 | `--port`           | from config / `5570`    | TCP listen port for CALF clients                                     |
 | `--engine-pub`     | `tcp://127.0.0.1:5556`  | Engine PUB address consumed by the gateway                           |

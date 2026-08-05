@@ -13,6 +13,8 @@ import logging
 from typing import Any
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 from edumatcher.models.combo import ComboOrder, ComboStatus
@@ -22,6 +24,37 @@ from edumatcher.models.price import from_ticks
 log = logging.getLogger(__name__)
 
 
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write *text* to *path* so a crash can never leave it truncated.
+
+    ``Path.write_text`` truncates the target before writing, so an interrupted
+    write leaves a partial file — and ``load_gtc_orders`` treats an unparseable
+    file as an empty book, which silently discards every resting order. Writing
+    to a temporary file in the same directory and renaming makes the
+    replacement atomic: a reader sees either the whole previous file or the
+    whole new one.
+
+    This matters more now that the engine checkpoints periodically rather than
+    only at shutdown: more writes means more windows in which to be killed.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
+    )
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w") as handle:
+            handle.write(text)
+            handle.flush()
+            # fsync before the rename, or the rename can land while the data
+            # is still only in the page cache.
+            os.fsync(handle.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def save_gtc_orders(orders: list[Order], path: Path) -> None:
     """Serialize resting GTC orders to *path*."""
     gtc = [
@@ -29,8 +62,7 @@ def save_gtc_orders(orders: list[Order], path: Path) -> None:
         for o in orders
         if o.tif == TIF.GTC and o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
     ]
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(gtc, indent=2))
+    _atomic_write_text(path, json.dumps(gtc, indent=2))
 
 
 def load_gtc_orders(path: Path) -> list[Order]:
@@ -111,7 +143,7 @@ def save_book_stats(
             "prev_close": prev_close,
         }
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(stats, indent=2))
+    _atomic_write_text(path, json.dumps(stats, indent=2))
 
 
 def load_book_stats(path: Path) -> dict[str, dict[str, Any]]:
@@ -146,7 +178,7 @@ def save_gtc_combos(combos: list[ComboOrder], path: Path) -> None:
         )
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(active, indent=2))
+    _atomic_write_text(path, json.dumps(active, indent=2))
 
 
 def load_gtc_combos(path: Path) -> list[ComboOrder]:

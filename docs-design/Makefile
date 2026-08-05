@@ -332,6 +332,6 @@ reqs: check-latex-engine $(REQUIREMENTS_PDF) ## Build the MCPProjSim requirement
 $(NODE_MODULES_PATH):
 	@echo -e "$(DARKYELLOW)- Installing shared Node dependencies for Mermaid rendering in $(NODE_TOOLS_DIR)...$(NC)"
 	@mkdir -p $(NODE_TOOLS_DIR)
-	@npm install --prefix $(NODE_TOOLS_DIR) --save-dev mermaid-filter @mermaid-js/mermaid-cli
+	@PUPPETEER_SKIP_DOWNLOAD=1 npm install --prefix $(NODE_TOOLS_DIR) --save-dev mermaid-filter @mermaid-js/mermaid-cli
 	@echo -e "$(GREEN)✓ Shared Node dependencies installed in $(NODE_TOOLS_DIR)$(NC)"
 

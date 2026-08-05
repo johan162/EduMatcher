@@ -23,7 +23,7 @@
 \urlstyle{same}
 \hypersetup{
   colorlinks=true,
-  linkcolor=RoyalBlue,   % internal links (TOC, refs)
+  linkcolor=brandblue,   % internal links (TOC, refs)
   urlcolor=BrickRed,     % external URLs
   citecolor=ForestGreen, % citations
   hypertexnames=false,
@@ -78,7 +78,7 @@
 % Pandoc 3.x may wrap images with \pandocbounded{...}.
 \providecommand{\pandocbounded}[1]{#1}
 
-\definecolor{brandblue}{HTML}{129ADD}
+\definecolor{brandblue}{HTML}{9BD4F1}
 \definecolor{brandgray}{HTML}{6B7583}
 \definecolor{lightorange}{HTML}{FFA500}
 \definecolor{darkorange}{HTML}{FF8C00}

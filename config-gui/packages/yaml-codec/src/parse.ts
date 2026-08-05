@@ -18,10 +18,11 @@ import {
   type GatewayConfig,
   type GatewayMmObligationOverride,
   type IndexConfig,
+  type ExpansionRung,
   type MmQuoteSeed,
   type ParticipantRole,
   type QuoteRefreshPolicy,
-  type ResumptionMode,
+  type ReopeningOverride,
   type RiskLevel,
   type SymbolConfig,
   type Tif,
@@ -212,16 +213,20 @@ function parseSymbols(node: unknown, draft: EngineConfigDraft): void {
           if (shift !== undefined) partial.priceShiftPct = shift;
           if ("halt_duration_ns" in lvl)
             partial.haltDurationNs = asNumber(lvl.halt_duration_ns) ?? null;
-          const mode = asString(lvl.resumption_mode);
-          if (mode) partial.resumptionMode = mode as ResumptionMode;
           levels[name] = partial;
         }
       }
       const windowNs = asNumber(cbRaw.reference_window_ns);
-      if (windowNs !== undefined || Object.keys(levels).length > 0) {
+      const reopening = parseReopeningOverride(cbRaw.reopening);
+      if (
+        windowNs !== undefined ||
+        reopening !== undefined ||
+        Object.keys(levels).length > 0
+      ) {
         config.circuitBreaker = { levels };
         if (windowNs !== undefined)
           config.circuitBreaker.referenceWindowNs = windowNs;
+        if (reopening !== undefined) config.circuitBreaker.reopening = reopening;
       }
     }
     if (Array.isArray(value.market_maker_quotes)) {
@@ -320,13 +325,51 @@ function parseCircuitBreakerDefaults(
         "halt_duration_ns" in value
           ? (asNumber(value.halt_duration_ns) ?? null)
           : null,
-      resumptionMode:
-        (asString(value.resumption_mode) as ResumptionMode) ?? "AUCTION",
     };
     order.push(name);
   }
   draft.circuitBreakerDefaults.levels = levels;
   draft.circuitBreakerDefaults.levelOrder = order;
+  parseReopeningDefaults(node.reopening, draft);
+}
+
+/**
+ * Exchange-wide ACE block. Absent keys keep the factory defaults, so an
+ * authored file that omits `reopening:` round-trips to the same defaults the
+ * engine loader would have applied.
+ */
+function parseReopeningDefaults(node: unknown, draft: EngineConfigDraft): void {
+  if (!isDict(node)) return;
+  const r = draft.circuitBreakerDefaults.reopening;
+  if (typeof node.enabled === "boolean") r.enabled = node.enabled;
+  r.initialBandPct = asNumber(node.initial_band_pct) ?? r.initialBandPct;
+  r.randomEndMaxNs = asNumber(node.random_end_max_ns) ?? r.randomEndMaxNs;
+  const seed = asNumber(node.random_seed);
+  if (seed !== undefined) r.randomSeed = seed;
+  if (Array.isArray(node.expansions)) {
+    const rungs: ExpansionRung[] = [];
+    for (const entry of node.expansions) {
+      if (!isDict(entry)) continue;
+      const widenPct = asNumber(entry.widen_pct);
+      const minDurationNs = asNumber(entry.min_duration_ns);
+      if (widenPct === undefined || minDurationNs === undefined) continue;
+      rungs.push({ widenPct, minDurationNs });
+    }
+    // An empty ladder is not expressible: the engine loader refuses it.
+    if (rungs.length > 0) r.expansions = rungs;
+  }
+}
+
+/** Per-symbol ACE override — the three scalars only; the ladder is exchange-wide. */
+function parseReopeningOverride(node: unknown): ReopeningOverride | undefined {
+  if (!isDict(node)) return undefined;
+  const override: ReopeningOverride = {};
+  if (typeof node.enabled === "boolean") override.enabled = node.enabled;
+  const band = asNumber(node.initial_band_pct);
+  if (band !== undefined) override.initialBandPct = band;
+  const tail = asNumber(node.random_end_max_ns);
+  if (tail !== undefined) override.randomEndMaxNs = tail;
+  return Object.keys(override).length > 0 ? override : undefined;
 }
 
 function parseNetworkGateways(raw: Dict, draft: EngineConfigDraft): void {
@@ -467,7 +510,7 @@ function parseApiGateways(node: unknown, draft: EngineConfigDraft): void {
     gateways.push({
       name,
       enabled: asBool(value.enabled, true),
-      host: asString(value.host) ?? "127.0.0.1",
+      host: asString(value.host) ?? "0.0.0.0",
       port: asNumber(value.port) ?? 8080,
       swaggerEnabled: asBool(value.swagger_enabled, true),
       logLevel:

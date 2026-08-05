@@ -27,6 +27,53 @@ function row(overrides: Partial<LogRow> = {}): LogRow {
   };
 }
 
+describe("IssueIndex minLevel", () => {
+  let dir: string;
+  let ackStore: AckStore;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "log-ui-acks-"));
+    ackStore = new AckStore(join(dir, "acks.db"));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("gates live ingest and the startup seed identically", () => {
+    // ISSUES_MIN_LEVEL used to apply only to the seed while live rows were
+    // tested against a hard-coded WARNING/ERROR/CRITICAL set, so the index
+    // disagreed with itself across a restart. Both paths must now agree.
+    const warning = row({ level: "WARNING", seq: 1, message: "disk nearly full" });
+
+    const atWarning = new IssueIndex(ackStore, "WARNING");
+    const atError = new IssueIndex(ackStore, "ERROR");
+
+    expect(atWarning.ingest(warning)).not.toBeNull();
+    expect(atError.ingest(warning)).toBeNull();
+
+    const seededAtWarning = new IssueIndex(ackStore, "WARNING");
+    const seededAtError = new IssueIndex(ackStore, "ERROR");
+    seededAtWarning.seed([warning]);
+    seededAtError.seed([warning]);
+
+    expect(seededAtWarning.list()).toHaveLength(atWarning.list().length);
+    expect(seededAtError.list()).toHaveLength(atError.list().length);
+  });
+
+  it("still admits levels above the configured floor", () => {
+    const index = new IssueIndex(ackStore, "ERROR");
+    expect(index.ingest(row({ level: "CRITICAL", seq: 2 }))).not.toBeNull();
+    expect(index.ingest(row({ level: "INFO", seq: 3, message: "started" }))).toBeNull();
+  });
+
+  it("defaults to WARNING when no level is configured", () => {
+    const index = new IssueIndex(ackStore);
+    expect(index.ingest(row({ level: "WARNING", seq: 4, message: "slow" }))).not.toBeNull();
+    expect(index.ingest(row({ level: "INFO", seq: 5, message: "ok" }))).toBeNull();
+  });
+});
+
 describe("IssueIndex", () => {
   let dir: string;
   let ackStore: AckStore;

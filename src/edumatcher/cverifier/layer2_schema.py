@@ -17,7 +17,6 @@ from edumatcher.cverifier.models import CheckResult, Severity
 
 _VALID_ROLES = {"TRADER", "MARKET_MAKER", "ADMIN"}
 _VALID_DISCONNECT = {"CANCEL_ALL", "CANCEL_QUOTES_ONLY", "LEAVE_ALL"}
-_VALID_RESUMPTION = {"AUCTION", "CONTINUOUS"}
 _VALID_TIF = {"DAY", "GTC"}
 _VALID_QUOTE_REFRESH = {
     "INACTIVATE_ON_ANY_FILL",
@@ -518,6 +517,13 @@ def _check_symbol_circuit_breaker(
         )
         return
 
+    _check_reopening(
+        cb.get("reopening"),
+        f"symbols.{sym}.circuit_breaker",
+        results,
+        is_defaults=False,
+    )
+
     levels = cb.get("levels")
     if levels is None:
         return
@@ -590,21 +596,6 @@ def _check_symbol_circuit_breaker(
                         path=f"symbols.{sym}.circuit_breaker.levels.{name}.halt_duration_ns",
                     )
                 )
-
-        rm = level_cfg.get("resumption_mode")
-        if rm is not None and str(rm).upper() not in _VALID_RESUMPTION:
-            results.append(
-                CheckResult(
-                    code="S069",
-                    severity=Severity.ERROR,
-                    message=(
-                        f"Symbol '{sym}': circuit_breaker.levels.{name}: "
-                        f"resumption_mode '{rm}' is not valid."
-                    ),
-                    suggestion="Use AUCTION or CONTINUOUS.",
-                    path=f"symbols.{sym}.circuit_breaker.levels.{name}.resumption_mode",
-                )
-            )
 
 
 # ---------------------------------------------------------------------------
@@ -1180,6 +1171,188 @@ def _check_indices(raw: dict[str, Any], results: list[CheckResult]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Reopening / Automated Corridor Expansion (ACE)
+# ---------------------------------------------------------------------------
+
+
+def _check_reopening(
+    reopening: Any,
+    base_path: str,
+    results: list[CheckResult],
+    *,
+    is_defaults: bool,
+) -> None:
+    """S104–S112 — the ``circuit_breaker.reopening`` block.
+
+    Shared by ``circuit_breaker_defaults`` and each symbol's inline override.
+    ``is_defaults`` is False for symbols, which gates the two engine-wide keys:
+    ``random_seed`` (one generator serves the whole engine) and ``expansions``
+    (the escalation schedule is venue policy, not an instrument property).
+    """
+    if reopening is None:
+        return
+    path = f"{base_path}.reopening"
+    if not isinstance(reopening, dict):
+        results.append(
+            CheckResult(
+                code="S104",
+                severity=Severity.ERROR,
+                message=f"'{path}' must be a mapping.",
+                suggestion=(
+                    "Use a mapping with keys such as enabled, initial_band_pct, "
+                    "expansions, random_end_max_ns."
+                ),
+                path=path,
+            )
+        )
+        return
+
+    if "enabled" in reopening and not isinstance(reopening["enabled"], bool):
+        results.append(
+            CheckResult(
+                code="S105",
+                severity=Severity.ERROR,
+                message=f"'{path}.enabled' must be a boolean.",
+                suggestion="Set true or false.",
+                path=f"{path}.enabled",
+            )
+        )
+
+    if "initial_band_pct" in reopening:
+        try:
+            band = float(reopening["initial_band_pct"])
+            if not (0 < band < 1):
+                raise ValueError("out of range")
+        except (TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code="S106",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"'{path}.initial_band_pct' "
+                        f"({reopening['initial_band_pct']}) is outside (0, 1)."
+                    ),
+                    suggestion="Set a fraction such as 0.10 for a +/-10% corridor.",
+                    path=f"{path}.initial_band_pct",
+                )
+            )
+
+    if "random_end_max_ns" in reopening:
+        try:
+            tail = int(reopening["random_end_max_ns"])
+            if tail < 0:
+                raise ValueError("negative")
+        except (TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code="S111",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"'{path}.random_end_max_ns' "
+                        f"({reopening['random_end_max_ns']}) must be an integer >= 0."
+                    ),
+                    suggestion="Use nanoseconds, e.g. 30000000000 for 30s. 0 disables the random end.",
+                    path=f"{path}.random_end_max_ns",
+                )
+            )
+
+    if "random_seed" in reopening and not is_defaults:
+        results.append(
+            CheckResult(
+                code="S110",
+                severity=Severity.ERROR,
+                message=(
+                    f"'{path}.random_seed' is engine-wide and cannot be set per symbol."
+                ),
+                suggestion="Move random_seed to circuit_breaker_defaults.reopening.",
+                path=f"{path}.random_seed",
+            )
+        )
+
+    if "expansions" in reopening and not is_defaults:
+        results.append(
+            CheckResult(
+                code="S112",
+                severity=Severity.ERROR,
+                message=(
+                    f"'{path}.expansions' is exchange-wide and cannot be set "
+                    "per symbol."
+                ),
+                suggestion=(
+                    "Move the ladder to circuit_breaker_defaults.reopening. A "
+                    "symbol may still override initial_band_pct."
+                ),
+                path=f"{path}.expansions",
+            )
+        )
+        return
+
+    expansions = reopening.get("expansions")
+    if expansions is None:
+        return
+    if not isinstance(expansions, list) or not expansions:
+        results.append(
+            CheckResult(
+                code="S107",
+                severity=Severity.ERROR,
+                message=f"'{path}.expansions' must be a non-empty list.",
+                suggestion=(
+                    "Each entry needs widen_pct and min_duration_ns. The last entry "
+                    "repeats indefinitely, which is what terminates the ladder."
+                ),
+                path=f"{path}.expansions",
+            )
+        )
+        return
+
+    for idx, rung in enumerate(expansions):
+        rung_path = f"{path}.expansions[{idx}]"
+        if not isinstance(rung, dict):
+            results.append(
+                CheckResult(
+                    code="S107",
+                    severity=Severity.ERROR,
+                    message=f"'{rung_path}' must be a mapping.",
+                    suggestion="Use {widen_pct: 0.10, min_duration_ns: 120000000000}.",
+                    path=rung_path,
+                )
+            )
+            continue
+        try:
+            widen = float(rung["widen_pct"])
+            if not (0 < widen < 1):
+                raise ValueError("out of range")
+        except (KeyError, TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code="S108",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"'{rung_path}.widen_pct' is required and must be in (0, 1)."
+                    ),
+                    suggestion="Set a fraction such as 0.10 to widen the corridor by 10%.",
+                    path=f"{rung_path}.widen_pct",
+                )
+            )
+        try:
+            dur = int(rung["min_duration_ns"])
+            if dur <= 0:
+                raise ValueError("not positive")
+        except (KeyError, TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code="S109",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"'{rung_path}.min_duration_ns' is required and must be > 0."
+                    ),
+                    suggestion="Use nanoseconds, e.g. 120000000000 for a 2-minute call phase.",
+                    path=f"{rung_path}.min_duration_ns",
+                )
+            )
+
+
+# ---------------------------------------------------------------------------
 # Circuit breaker defaults
 # ---------------------------------------------------------------------------
 
@@ -1199,6 +1372,10 @@ def _check_cb_defaults(raw: dict[str, Any], results: list[CheckResult]) -> None:
             )
         )
         return
+
+    _check_reopening(
+        cb.get("reopening"), "circuit_breaker_defaults", results, is_defaults=True
+    )
 
     levels = cb.get("levels")
     if levels is None:
@@ -1274,21 +1451,6 @@ def _check_cb_defaults(raw: dict[str, Any], results: list[CheckResult]) -> None:
                         path=f"circuit_breaker_defaults.levels.{name}.halt_duration_ns",
                     )
                 )
-
-        rm = level_cfg.get("resumption_mode")
-        if rm is not None and str(rm).upper() not in _VALID_RESUMPTION:
-            results.append(
-                CheckResult(
-                    code="S034",
-                    severity=Severity.ERROR,
-                    message=(
-                        f"circuit_breaker_defaults.levels.{name}: "
-                        f"resumption_mode '{rm}' is not valid."
-                    ),
-                    suggestion="Use AUCTION or CONTINUOUS.",
-                    path=f"circuit_breaker_defaults.levels.{name}.resumption_mode",
-                )
-            )
 
     # Warn if thresholds are not strictly increasing
     if len(thresholds) >= 2:

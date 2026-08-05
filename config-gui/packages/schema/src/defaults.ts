@@ -27,26 +27,37 @@ export const DEFAULT_CB_LADDER: ReadonlyArray<{
   name: string;
   priceShiftPct: number;
   haltMinutes: number | null;
-  resumptionMode: "AUCTION" | "CONTINUOUS";
 }> = [
   {
     name: "L1",
     priceShiftPct: 0.07,
     haltMinutes: 5,
-    resumptionMode: "AUCTION",
   },
   {
     name: "L2",
     priceShiftPct: 0.13,
     haltMinutes: 15,
-    resumptionMode: "AUCTION",
   },
   {
     name: "L3",
     priceShiftPct: 0.2,
     haltMinutes: null,
-    resumptionMode: "AUCTION",
   },
+];
+
+/**
+ * Built-in ACE ladder. Nasdaq's published shape (Rule 4120(c)(7)): an initial
+ * +/-10% corridor, one 10% widening, then 20% every period. The final rung
+ * repeats indefinitely, which is why no maximum-extensions setting exists.
+ */
+export const DEFAULT_ACE_INITIAL_BAND_PCT = 0.1;
+export const DEFAULT_ACE_RANDOM_END_MAX_NS = 30_000_000_000;
+export const DEFAULT_ACE_EXPANSIONS: ReadonlyArray<{
+  widenPct: number;
+  minDurationNs: number;
+}> = [
+  { widenPct: 0.1, minDurationNs: 120_000_000_000 },
+  { widenPct: 0.2, minDurationNs: 300_000_000_000 },
 ];
 
 export const DEFAULT_MM_SPREAD_TICKS = 20;
@@ -137,7 +148,7 @@ export const DEFAULT_LOG_SERVER = {
 
 export const DEFAULT_API_GATEWAY = {
   name: "default",
-  host: "127.0.0.1",
+  host: "0.0.0.0",
   port: 8080,
   swaggerEnabled: true,
   logLevel: "info" as "debug" | "info" | "warning" | "error",

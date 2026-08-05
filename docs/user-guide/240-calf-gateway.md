@@ -11,8 +11,8 @@
     - how to start the gateway and verify connectivity from a terminal
     - how to subscribe to a filtered subset of symbols and channels
     - how snapshot delivery works and when to expect a `SNAP`
-    - how to detect sequence gaps and recover with `RESUME=1`
-    - how to write a working Python subscriber using the library in `examples/calf/`
+    - how to detect sequence gaps and recover with `RESUME`
+    - how to write a working Python subscriber using the library in `docs/examples/calf/`, or the production `edumatcher.calf_client` package
     - the exact fields carried by every message on every channel
     - what kinds of tools you can build on the feed, and how a browser client
       reaches it through a server-side WebSocket bridge
@@ -30,7 +30,7 @@ socket and line-split logic.
 
 ```mermaid
 flowchart TB
-    E[pm-engine\nZMQ PUB :5556] -->|"book.*, trade.executed\nsession.state\ncircuit_breaker.*\nauction.result.*\nindex.*"| G
+    E[pm-engine\nZMQ PUB :5556] -->|"book.*, trade.executed\nsession.state\ncircuit_breaker.halt/resume/extend\nauction.result.*\nindex.*"| G
 
     subgraph G["pm-md-gwy  (TCP :5570)"]
         direction TB
@@ -76,7 +76,7 @@ of the chapter is detail.
 | Max line length | 4096 bytes (longer → `ERR\|CODE=BAD_MESSAGE`) |
 | Channels | `TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH`, `AUCTION`, `CB` |
 | Heartbeat | every `heartbeat_interval_sec` (default 1 s) when a stream is quiet |
-| Idle timeout | disconnect after `idle_timeout_sec` (default 5 s) with no inbound data |
+| Idle timeout | disconnect after `idle_timeout_sec` (default 5 s) with no traffic in either direction |
 | Replay window | `replay_window_sec` (default 30 s), tracked per `(channel, symbol)` stream |
 | Values | prices as decimal text, sizes as integers, timestamps ISO-8601 UTC |
 
@@ -91,8 +91,10 @@ code.**
 
 | Message | Purpose |
 |---------|---------|
-| `HELLO\|CLIENT=..\|PROTO=CALF1` | Open a session. Optional `RESUME=1\|CH=..\|SYM=..\|LASTSEQ=..` requests single-stream replay on reconnect |
+| `HELLO\|CLIENT=..\|PROTO=CALF1` | Open a session |
+| `RESUME\|CH=..\|SYM=..\|LASTSEQ=..` | Replay one stream from a known sequence; send one per stream on reconnect |
 | `SUB\|CH=..\|SYM=..` | Subscribe. Channels × symbols, comma-separated; `SYM=*` where allowed. Cumulative across lines |
+| `SYMBOLS` | Ask which instruments the gateway knows; replies `SYMBOLS\|COUNT=n\|SYMBOLS=..\|REF=..`. Repeatable — use this rather than relying on `WELCOME\|SYMBOLS=`, which is optional and sent once |
 | `UNSUB\|CH=..\|SYM=..` | Cancel subscriptions (idempotent) |
 | `PING` | Liveness probe — gateway replies `PONG` |
 | `EXIT` | Close the session |
@@ -101,7 +103,7 @@ code.**
 
 | Message | Channel(s) | Meaning |
 |---------|-----------|---------|
-| `WELCOME` | — | Session accepted; carries `GW`, `HBINT`, `REPLAY`, `SYMBOLS`, `CH_SUPPORTED` |
+| `WELCOME` | — | Session accepted; carries `GW`, `HBINT`, `REPLAY`, `SYMBOLS`, `REF`, `CH_SUPPORTED` |
 | `SNAP` | TOP, STATE, INDEX, DEPTH, CB | Baseline snapshot for a stream — the `SEQ` you anchor on |
 | `MD` | TOP | Incremental top-of-book change (only the fields that changed) |
 | `TRADE` | TRADE | One executed trade |
@@ -136,8 +138,8 @@ fields:
 | `STATE` | `STATE` | Yes | Yes | `SESSION PREV` | halt gating, session-phase display |
 | `INDEX` | `IDX` | Yes (1.0.0+) | No | `LEVEL SESSION OPEN CHG PCTCHG HIGH LOW AGGCAP` | index trackers, benchmarks |
 | `DEPTH` | `DEPTH` | Yes | No | `LEVELS BIDS ASKS` | order-book (DOM) widgets, Level-2 teaching |
-| `AUCTION` | `AUCTION` | No | Yes | `EQPX EQQTY TRADES IMBSIDE IMBQTY` | auction uncross results, Terminal-style auction views |
-| `CB` | `CB` | Yes | No | `STATUS LEVEL TRIGGERPX REFPX RESUMEAT MODE` | circuit-breaker detail beyond `STATE`'s halt/resume flag |
+| `AUCTION` | `AUCTION` | No | Yes | `EQPX EQQTY TRADES IMBSIDE IMBQTY REASON` | auction uncross results, Terminal-style auction views |
+| `CB` | `CB` | Yes | No | `STATUS LEVEL TRIGGERPX REFPX RESUMEAT SRC CORRLO CORRHI EXP INDICPX INDICQTY IMB REASON CLAMPED PRINTPX` | circuit-breaker detail beyond `STATE`'s halt/resume flag, including the ACE reopening corridor |
 
 Each channel is detailed under [What information is available](#what-information-is-available); the exact field meanings are in the per-channel field tables there.
 
@@ -177,7 +179,7 @@ omitted. `pm-md-gwy` reads only this `market_data_gateway` block — see
 | `bind_address` | `0.0.0.0` | TCP listen address |
 | `port` | `5570` | TCP listen port |
 | `heartbeat_interval_sec` | `1` | `HB` cadence when idle; advertised as `WELCOME\|HBINT=` |
-| `idle_timeout_sec` | `5` | Disconnect a client after this many seconds with no **inbound** data (outbound market data does not reset this timer) |
+| `idle_timeout_sec` | `5` | Disconnect a client after this many seconds with no traffic in **either** direction. Outbound market data and heartbeats reset the timer, so a purely passive consumer stays connected without sending anything; a client is aged out only once writes to it stop succeeding |
 | `replay_window_sec` | `30` | Per-stream replay retention; advertised as `WELCOME\|REPLAY=` |
 | `max_symbols_per_client` | `200` | Cap on the number of *unique symbol strings* a client has subscribed to, counted once across all channels — `SYM=*` counts as a single entry; exceeding it returns `ERR\|CODE=SUB_LIMIT` |
 | `max_client_queue` | `10000` | Outbound backlog limit; exceeding it silently disconnects the client (no `ERR` is guaranteed to arrive first) |
@@ -202,21 +204,20 @@ Installed mode:
 
 ```bash
 pm-engine --verbose
-pm-md-gwy --config engine_config.yaml
+pm-md-gwy
 ```
 
 Developer mode:
 
 ```bash
 poetry run pm-engine --verbose
-poetry run pm-md-gwy --config engine_config.yaml
+poetry run pm-md-gwy
 ```
 
 CLI override options:
 
 | Option | Default | Description |
 |---|---|---|
-| `--config` / `-c` | `engine_config.yaml` | Engine config YAML path |
 | `--bind ADDR` | from config / `0.0.0.0` | Override TCP bind address |
 | `--port PORT` | from config / `5570` | Override TCP listen port |
 | `--engine-pub ADDR` | `tcp://127.0.0.1:5556` | Override engine PUB socket address — always the fixed engine-side default; not configurable via the `market_data_gateway` YAML block |
@@ -229,9 +230,21 @@ CLI override options:
 The `--engine-pub`/`--index-pub` defaults themselves can be shifted for the
 whole installation via two environment variables (useful when the engine runs
 on another host): `EDUMATCHER_ENGINE_HOST` (default `127.0.0.1`) and
-`EDUMATCHER_INDEX_PUB_PORT` (default `5558`). `EDUMATCHER_CONFIG` overrides the
-default `--config` path the same way it does for every other `pm-*` process —
-see [Getting Started → Environment variables](000-getting-started.md#environment-variables).
+`EDUMATCHER_INDEX_PUB_PORT` (default `5558`). The engine configuration itself
+is not overridable: like every other `pm-*` process, `pm-md-gwy` reads
+`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json` — see
+[Getting Started → Environment variables](000-getting-started.md#environment-variables).
+
+This matters more for `pm-md-gwy` than for most processes. Its symbol
+universe comes from that file, and it is what `WELCOME|SYMBOLS=` and the
+`SYMBOLS` reply are built from; a gateway reading a different configuration
+from the engine would advertise an instrument list no client could trade.
+
+Each symbol's `tick_decimals` comes from the same file and is advertised in
+`REF=` (see [CALF protocol → `SYMBOLS`](920-app-calf-protocol.md)). It is the
+only route a market data client has to an instrument's display precision, so a
+gateway started without a readable engine config leaves every client rendering
+prices at the default of two decimals.
 
 
 ## Quick connect test
@@ -582,9 +595,37 @@ resume-time countdowns, distinguishing an automatic trigger from an operator
 
 ```text
 SNAP|CH=CB|SYM=AAPL|SEQ=1|TS=2026-07-20T10:02:17.000Z|STATUS=ACTIVE
-CB|CH=CB|SYM=AAPL|SEQ=2|TS=2026-07-20T10:02:17.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T10:20:00.000Z|MODE=AUCTION
-CB|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T10:20:00.000Z|STATUS=ACTIVE|MODE=AUCTION
+CB|CH=CB|SYM=AAPL|SEQ=2|TS=2026-07-20T10:02:17.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T10:20:00.000Z|SRC=CB
+CB|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T10:20:00.000Z|STATUS=ACTIVE|SRC=CB
 ```
+
+**Wire example — a halt extended by ACE before it reopens:**
+
+A halt does not necessarily end when `RESUMEAT` arrives. If the indicative
+uncross price falls outside `[CORRLO, CORRHI]` the symbol stays halted, the
+corridor widens one rung, and a fresh call phase begins — see
+[Risk Controls - Automated Corridor Expansion](120-risk-controls.md#automated-corridor-expansion-ace).
+
+```text
+CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T13:30:00.010Z|STATUS=HALTED|LEVEL=L1|TRIGGERPX=122.00|REFPX=100.00|RESUMEAT=2026-07-20T13:35:00.000Z|CORRLO=90.00|CORRHI=110.00|EXP=0|SRC=CB
+CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T13:35:00.010Z|STATUS=HALTED|LEVEL=L1|TRIGGERPX=122.00|REFPX=100.00|RESUMEAT=2026-07-20T13:37:00.000Z|CORRLO=80.00|CORRHI=120.00|EXP=1|SRC=CB|INDICPX=122.00|INDICQTY=500|IMB=BUY
+CB|CH=CB|SYM=AAPL|SEQ=6|TS=2026-07-20T13:37:00.010Z|STATUS=ACTIVE|SRC=CB
+```
+
+**A client that ignores `EXP`/`CORRLO`/`CORRHI` will show a `RESUMEAT` that has
+already passed and report the symbol as overdue to reopen.** Note also that no
+`STATE` line accompanies an extension: the symbol was halted before it and is
+halted after it, so the coarse session state has not changed.
+
+If the trading day ends before ACE resolves, the resume says so and reports the
+price it was forced to print at:
+
+```text
+CB|CH=CB|SYM=AAPL|SEQ=9|TS=2026-07-20T16:05:00.010Z|STATUS=ACTIVE|SRC=CB|REASON=CLOSING_BACKSTOP|CLAMPED=1|PRINTPX=120.00
+```
+
+`CLAMPED=1` means the price was imposed at the corridor boundary rather than
+discovered by the book.
 
 Note that `STATE` also emits its own, simpler pair of lines for the same
 halt/resume — `CB` and `STATE` fire independently for the same event, so a
@@ -600,14 +641,17 @@ sequenced against each other.
 | `TRIGGERPX` | decimal | on automatic halt | Price that triggered the breaker |
 | `REFPX` | decimal | on automatic halt | Reference price the trigger was measured against |
 | `RESUMEAT` | string | on halt, when scheduled | Scheduled resume time, ISO-8601 UTC with ms (same format as `TS`) |
-| `MODE` | enum | on halt and resume | Re-opening mode, e.g. `AUCTION` |
+| `SRC` | enum | on halt and resume | What halted the symbol: `CB` or `ADMIN` |
 
 An operator-initiated halt (`ADMIN_ALL`/`ADMIN_SYMBOL`) omits `TRIGGERPX`,
 `REFPX`, and `RESUMEAT` since there was no automatic trigger and often no
-scheduled time. `MODE` is carried on both the halt and the resume line —
-internally the engine calls this field `resumption_mode` on the halt event
-and `mode` on the resume event; CALF normalises both to the single wire key
-`MODE` so clients don't need to know about that inconsistency.
+scheduled time. `SRC` is carried on both the halt and the resume line, since
+what caused the halt is as relevant on the way out as on the way in.
+
+There is no "re-opening mode" field, because there is no choice to make: a
+halt is the call phase of a reopening auction — LIMIT orders rest, matching
+is off — and it always ends in an uncross, published on the `AUCTION`
+channel with `REASON=REOPEN` just before the resume.
 
 ---
 
@@ -651,7 +695,7 @@ sequenceDiagram
 
     C->>G: TCP connect :5570
     C->>G: HELLO|CLIENT=mybot|PROTO=CALF1
-    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE
+    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|REF=AAPL:2,MSFT:4|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE
     C->>G: SUB|CH=TOP,TRADE|SYM=AAPL,MSFT
     G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|...
     G-->>C: SNAP|CH=TOP|SYM=MSFT|SEQ=55|...
@@ -723,9 +767,12 @@ UNSUB|CH=TRADE|SYM=MSFT
 
 ### Step 5 — Handle heartbeats
 
-When the stream is quiet the gateway sends periodic heartbeats (`HB|TS=...`).
-You can probe with `PING`; the gateway replies `PONG`.  If the gateway receives
-no inbound traffic for `idle_timeout_sec` seconds it closes the connection.
+When the stream is quiet the gateway sends periodic heartbeats (`HB|TS=...`),
+which keep the session alive on their own — a listener never has to send
+anything to stay connected. You can still probe with `PING`; the gateway
+replies `PONG`. The connection is closed only when nothing has flowed in
+*either* direction for `idle_timeout_sec` seconds, which in practice means
+writes to your client have stopped succeeding.
 
 ### Step 6 — Disconnect
 
@@ -778,54 +825,138 @@ gap detected when:  received_seq != last_seq + 1
 
 **Recovery option 1 — replay within window**
 
-Reconnect with `RESUME=1` for a single stream:
+Reconnect, then send one `RESUME` per stream you were following:
 
 ```text
-HELLO|CLIENT=mybot|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=99
+HELLO|CLIENT=mybot|PROTO=CALF1
+RESUME|CH=TOP|SYM=AAPL|LASTSEQ=99
+RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=41
 ```
 
-The gateway replays all events with `SEQ > 99` that are still inside the replay
-window (`replay_window_sec`, default 30 s), then continues live.
+The gateway replays all events with `SEQ` greater than each `LASTSEQ` that are
+still inside the replay window (`replay_window_sec`, default 30 s), then
+continues live.
 
 **Recovery option 2 — replay miss**
 
 If the requested `LASTSEQ` is older than the window the gateway sends
-`ERR|CODE=REPLAY_MISS|...` followed by a fresh `SNAP`.  Accept the `SNAP` and
-reset your local state.
+`ERR|CODE=REPLAY_MISS|...`. On `TOP`, `STATE`, `INDEX`, `DEPTH` and `CB` a
+fresh `SNAP` follows: accept it and reset your local state for that stream.
+
+On `TRADE` and `AUCTION` **no `SNAP` follows** — a past print has no current
+state to snapshot, so the missed events are gone for good. If you present
+`TRADE` as a time-and-sales record, mark the hole rather than closing the two
+sides over it; a record with an unmarked gap is worse than one that admits it.
+
+The session stays open either way, so your other `RESUME` requests are
+unaffected.
 
 **Recovery option 3 — nothing was ever recorded for the stream**
 
 If the gateway has never emitted anything for that exact `(CH, SYM)` pair (or
-the buffer has aged everything out), `RESUME=1` returns **zero replay
+the buffer has aged everything out), `RESUME` returns **zero replay
 lines** — no `ERR|CODE=REPLAY_MISS` and no fresh `SNAP` either. The session
 just resumes live from that point. Don't treat an empty replay as a failure;
 if you need a guaranteed baseline after reconnecting, re-`SUB` to the stream
-to force a `SNAP` rather than relying on `RESUME=1` alone.
+to force a `SNAP` rather than relying on `RESUME` alone.
 
-!!! note
-    `RESUME=1` applies to **one stream per `HELLO`**.  For multi-stream
-    recovery, reconnect normally and re-`SUB`; the gateway sends fresh `SNAP`s.
+!!! note "`RESUME` is per stream, and repeatable"
+    Each `RESUME` recovers one `(CH, SYM)` stream, because `LASTSEQ` describes
+    one stream's position. Send as many as you have streams. Earlier gateway
+    builds carried this as a `RESUME=1` flag on `HELLO`, which — since `HELLO`
+    is processed once per connection — could only ever recover a single
+    stream; multi-stream clients had to fall back on re-`SUB` and lose the gap.
 
-!!! warning "`SYM=*` is never valid on `RESUME=1`"
-    Unlike `SUB`, where `SYM=*` is accepted for `TOP`/`TRADE`/`STATE`, a
-    `HELLO|RESUME=1|...|SYM=*` request is always rejected with
-    `ERR|CODE=INVALID_SYMBOL` and the connection is closed — even for those
-    same three channels. `RESUME=1` only ever replays one concrete symbol.
+!!! warning "`SYM=*` is never valid on `RESUME`"
+    Unlike `SUB`, where `SYM=*` is accepted for `TOP`/`TRADE`/`STATE`/`AUCTION`,
+    a `RESUME|...|SYM=*` request is always rejected with
+    `ERR|CODE=INVALID_SYMBOL` — even for those same channels. `RESUME` only
+    ever replays one concrete symbol. The session stays open, so you can
+    correct the request and try again.
 
 
-## Python subscriber example
+## Examples and libraries
 
-The `examples/calf/` directory contains ready-to-run Python and C libraries.
+`docs/examples/calf/` contains ready-to-run Python and C clients, plus a
+standalone gap-recovery library, and the package ships a production-grade
+Python client as `edumatcher.calf_client`. Pick based on what you're doing:
 
 ```
-examples/calf/
-├── calf_parser.py        # parser + serializer library
-├── calf_subscriber.py    # full working subscriber example
-├── calf_parser.h         # C parser library
+docs/examples/calf/
+├── README.md              # what's here, and when to reach for edumatcher.calf_client instead
+├── calf_parser.py         # minimal parser + serializer library (Python)
+├── calf_subscriber.py     # full working subscriber example (Python)
+├── calf_parser.h          # minimal parser + serializer library (C)
 ├── calf_parser.c
-├── calf_subscriber.c     # C subscriber example
-└── Makefile
+├── calf_recovery.h        # sequence tracking / gap detection / replay
+├── calf_recovery.c        #   reconciliation — pure functions, no sockets
+├── calf_recovery_test.c   # self-test for calf_recovery, no gateway needed
+├── calf_subscriber.c      # full working subscriber example (C)
+└── Makefile               # builds calf_subscriber and calf_recovery_test
 ```
+
+!!! tip "Writing a real Python client? Don't start from the example."
+    [`edumatcher.calf_client`](#the-production-python-client-edumatchercalf_client)
+    ships with the package and already handles reconnect, gap repair, `REF`
+    precision, and optional cached state. `calf_subscriber.py` is deliberately
+    standalone — it exists to show the protocol itself, in a form that ports
+    cleanly to a language with no library yet, not to be imported.
+
+Each piece, in order of "how much does it do for you":
+
+| Piece | Language | What it is | When to reach for it |
+|---|---|---|---|
+| `edumatcher.calf_client` | Python | Production client library: reconnect/backoff, gap repair, `REF` precision, cached `MarketState` | Building a real Python bot, recorder, or dashboard backend |
+| `calf_subscriber.py` | Python | Full example: `TOP`/`TRADE`/`STATE`/`DEPTH`/`INDEX`, gap detection **and** `RESUME` repair, `REF`-aware price formatting | Learning the protocol in Python; porting the pattern to a language with no library |
+| `calf_subscriber.c` | C | Same coverage as the Python example, prices printed verbatim (no `REF` formatting) | Learning the protocol in C; a latency-sensitive or dependency-free environment |
+| `calf_recovery.h`/`.c` | C | Just the sequence-tracking/gap/replay state machine, socket-free | Understanding or reusing the recovery logic in isolation, independent of I/O |
+| `calf_parser.py` / `calf_parser.h`+`.c` | Python / C | Just the line parser/serializer (`MSGTYPE\|KEY=VALUE`) | Bootstrapping a client in a new language; no channel semantics, no `REF`, no recovery |
+
+### The production Python client: `edumatcher.calf_client`
+
+For real Python usage — not learning the wire format — use this instead of
+`calf_subscriber.py`. It is the same package the engine's own tooling is
+built on, so it stays correct as the protocol grows.
+
+```python
+from edumatcher.calf_client import CalfClient, CalfClientOptions
+
+client = CalfClient(CalfClientOptions(symbols=["AAPL"]))
+client.run(on_frame=lambda f: print(f.msg_type, f.fields))
+```
+
+It gives you two layers, and you pick per use case:
+
+- **Raw frames** — every message, already de-duplicated and gap-checked,
+  via the `on_frame` callback above.
+- **Cached state** — `client.state` (a `MarketState`, present when
+  `track_state=True`, the default) folds those frames into current
+  top-of-book, depth ladder, session phase, and halt status, so you read
+  "what is true now" instead of replaying deltas yourself:
+
+```python
+def on_frame(frame):
+    book = client.state.top("AAPL")
+    if book:
+        print(client.reference.format_price("AAPL", book.bid))
+
+client.run(on_frame=on_frame, on_gap=lambda g: print("lost", g.count))
+```
+
+`CalfClientOptions` covers the same ground you would otherwise hand-roll:
+`host`/`port`/`client_name`, `channels`/`symbols`/`index_ids` to subscribe
+on connect and again after every reconnect, `extra_subscriptions` for
+additional `(channel, symbol)` pairs held across reconnects the same way —
+the route to per-symbol `DEPTH`/`CB` alongside a wildcard `TOP`/`TRADE`/
+`STATE` subscription, since those can't ride one wildcard `SUB` together,
+`reconnect`/`reconnect_min_sec`/`reconnect_max_sec`/`connect_timeout_sec`
+for backoff, `ping_interval_sec` for keepalive, `track_state` to
+enable/disable the `MarketState` cache, `request_symbols` to send `SYMBOLS`
+after the handshake (on by default, since `WELCOME|SYMBOLS=` is optional),
+and `auto_recover` to control whether gaps are repaired automatically or
+only reported via `on_gap` — set it `False` for a passive observer (a spy,
+a tap, a recorder) that must show the wire exactly as it is, with nothing
+sent upstream and nothing withheld.
 
 ### Zero-dependency minimal client
 
@@ -858,7 +989,7 @@ while True:
 
 ### Using the `calf_parser.py` library
 
-`calf_parser.py` in `examples/calf/` provides `parse_calf_line` and
+`calf_parser.py` in `docs/examples/calf/` provides `parse_calf_line` and
 `build_calf_line`:
 
 ```python
@@ -934,11 +1065,17 @@ with socket.create_connection(("127.0.0.1", 5570), timeout=5) as sock:
             sym = msg.fields.get("SYM", "")
             seq = int(msg.fields.get("SEQ", "0"))
 
-            # Gap check
+            # Gap check. A SNAP re-baselines and is never a gap; a SEQ at or
+            # below the baseline is a replayed duplicate unless it falls in a
+            # range you actually asked RESUME to backfill.
             prev = last_seq.get((ch, sym))
-            if prev is not None and seq != prev + 1:
+            if msg.msg_type == "SNAP":
+                pass                                   # baseline: just record it
+            elif prev is not None and seq <= prev:
+                continue                               # already seen; drop it
+            elif prev is not None and seq != prev + 1:
                 print(f"GAP on ({ch},{sym}): expected {prev + 1}, got {seq}")
-                # → trigger recovery: reconnect with RESUME=1
+                # → recover in place: RESUME|CH=..|SYM=..|LASTSEQ=<prev>
             last_seq[(ch, sym)] = seq
 
             # This example only subscribes to TOP/TRADE/STATE, so it only
@@ -991,26 +1128,102 @@ with socket.create_connection(("127.0.0.1", 5570), timeout=5) as sock:
 
 ### Run the bundled examples
 
+`calf_subscriber.py` has no `--channels` flag — the channel set is fixed by
+design (it demonstrates the Cartesian-subscribe pattern, not a configurable
+client): it always subscribes to `TOP,TRADE,STATE,DEPTH` for the symbols you
+pass, filtered down to whatever `WELCOME|CH_SUPPORTED=` actually advertises,
+plus a separate session-wide `STATE|SYM=*` unless you pass
+`--no-state-wildcard`. `INDEX` is opt-in via `--index`, since it needs an
+index id rather than a symbol.
+
 ```bash
 cd docs/examples/calf
 
-# Subscribe to TOP and TRADE for one symbol
-python3 calf_subscriber.py --host 127.0.0.1 --port 5570 \
-    --channels TOP,TRADE --symbols AAPL
+# Default run: TOP/TRADE/STATE/DEPTH for one symbol, plus session-wide STATE
+python3 calf_subscriber.py --host 127.0.0.1 --port 5570 --symbols AAPL
 
-# Multiple channels and symbols
-python3 calf_subscriber.py --channels TOP,TRADE,STATE --symbols AAPL,MSFT
+# Several symbols
+python3 calf_subscriber.py --symbols AAPL,MSFT
 
-# Reconnect with single-stream replay
+# Also subscribe an index feed (skipped with a warning if INDEX isn't advertised)
+python3 calf_subscriber.py --symbols AAPL --index EDU100
+
+# Skip the extra session-wide STATE|SYM=* subscription
+python3 calf_subscriber.py --symbols AAPL --no-state-wildcard
+
+# Send one explicit RESUME after the handshake, to see replay in isolation
+# (gaps noticed while running are always resumed automatically, regardless
+# of this flag)
 python3 calf_subscriber.py --resume --resume-ch TOP --resume-sym AAPL --lastseq 1042
 ```
 
-For a C client (useful for latency-sensitive or non-Python environments):
+Run `python3 calf_subscriber.py --help` for the full flag list.
+
+For a C client (useful for latency-sensitive or dependency-free
+environments — it prints wire values verbatim and needs no `REF` handling):
 
 ```bash
 cd docs/examples/calf && make
-./calf_subscriber 127.0.0.1 5570
+./calf_subscriber 127.0.0.1 5570 AAPL,MSFT EDU100
 ```
+
+Arguments are positional: `host [port [symbols [index_id]]]`. `symbols` is
+a comma-separated list (default `AAPL`); `index_id` is optional and, if
+omitted, the `INDEX` subscription is skipped entirely. Press Ctrl-C for a
+clean shutdown — the client traps `SIGINT` and closes the socket instead of
+being killed mid-syscall.
+
+### The recovery library in isolation: `calf_recovery`
+
+Both the Python and C examples detect a `SEQ` gap and repair it with
+`RESUME` — not just notice it. In the C example that logic is factored out
+into `calf_recovery.h`/`.c`: a small state machine with no sockets, threads,
+or timers, built around the same three rules documented under
+[Gap detection and replay recovery](#gap-detection-and-replay-recovery)
+above (replay overlaps live traffic; a `SNAP` re-baselines and is never a
+gap; sequence never moves backward within one connection). Feed it
+`(msg_type, CH, SYM, SEQ)` for each inbound line and it tells you whether to
+process the message and whether to send a `RESUME`:
+
+```c
+calf_recovery_t rec;
+calf_recovery_init(&rec);
+calf_recovery_new_connection(&rec);          // after each connect
+
+calf_gap_t gap;
+calf_action_t act = calf_recovery_observe(&rec, msg.msg_type,
+                                          ch, sym, seq, &gap);
+if (act == CALF_DROP) continue;              // replayed duplicate
+if (act == CALF_RESUME) {
+    char line[CALF_RESUME_LINE_LEN];
+    calf_recovery_build_resume(line, sizeof(line), &gap);
+    send_line(fd, line);
+}
+if (act == CALF_GAP_UNREPAIRABLE) {
+    // no RESUME will fill this: TRADE/AUCTION have no SNAP, or the hole is
+    // outside the replay window. Surface it -- an unmarked hole is worse
+    // than one that admits it -- then use the message.
+}
+// CALF_PROCESS, or after any of the above: use the message
+```
+
+A fourth outcome, `CALF_GAP_UNREPAIRABLE`, means the hole cannot be closed
+at all — either the channel has no replay path (`TRADE`/`AUCTION`) or the
+gap is already outside the replay window. Don't fold it silently into the
+same handling as `CALF_PROCESS`.
+
+Because it takes no socket, it has its own self-test that runs without a
+gateway:
+
+```bash
+cd docs/examples/calf
+make test
+```
+
+Worth reading even if you're not writing C: the header comments in
+`calf_recovery.h` are a second, denser statement of the same recovery rules
+`calf_subscriber.py`'s `SequenceTracker` class implements in Python — seeing
+the same logic in two languages is often what makes it click.
 
 
 ## Common errors and fixes
@@ -1020,10 +1233,10 @@ cd docs/examples/calf && make
 | `AUTH_REQUIRED`   | `SUB` sent before `HELLO`                        | Send `HELLO` first                                |
 | `PROTO_MISMATCH`  | Wrong or missing `PROTO`                         | Use `PROTO=CALF1`                                 |
 | `INVALID_CHANNEL` | Unknown `CH` value                               | Use `TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH`, `AUCTION`, or `CB` |
-| `INVALID_SYMBOL`  | Unknown symbol; or `SYM=*` used with `INDEX`/`DEPTH`/`CB`; or `SYM=*` used at all on `HELLO\|RESUME=1` | Use configured symbols; `SYM=*` only for `STATE`/`TOP`/`TRADE`/`AUCTION` on `SUB` — never on `RESUME=1` |
+| `INVALID_SYMBOL`  | Unknown symbol; or `SYM=*` used with `INDEX`/`DEPTH`/`CB`; or `SYM=*` used at all on `RESUME` | Use configured symbols; `SYM=*` only for `STATE`/`TOP`/`TRADE`/`AUCTION` on `SUB` — never on `RESUME` |
 | `SUB_LIMIT`       | Too many subscribed symbols                      | Reduce requested symbol set                       |
 | `RATE_LIMITED`    | Client exceeded `max_messages_per_second`        | Slow down the send rate; connection stays open    |
-| `REPLAY_MISS`     | Requested replay is outside buffer window        | Accept fresh `SNAP` and reset local baseline      |
+| `REPLAY_MISS`     | Requested replay is outside buffer window        | On `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, accept the fresh `SNAP` and reset the baseline. On `TRADE`/`AUCTION` none follows — the events are gone; mark the gap |
 | `SLOW_CLIENT`     | Client cannot drain the outbound stream fast enough | Gateway closes the connection without necessarily sending this `ERR` first (queue is dropped, not flushed) — reconnect and process faster |
 | `BAD_MESSAGE`     | Malformed or oversized line (> 4096 bytes)       | Fix line syntax/framing                           |
 
@@ -1042,8 +1255,9 @@ cd docs/examples/calf && make
 3. Confirm TCP port is reachable (`nc 127.0.0.1 5570`)
 4. Confirm `HELLO` receives `WELCOME`
 5. Confirm `SUB` receives expected `SNAP` and live flow
-6. Track `SEQ` per stream; on reconnect use `RESUME=1` with `LASTSEQ`
-7. On `REPLAY_MISS`: accept the recovery `SNAP` and reset local state
+6. Track `SEQ` per stream; on reconnect send one `RESUME` per stream with `LASTSEQ`
+7. On `REPLAY_MISS`: accept the recovery `SNAP` and reset local state — except on `TRADE`/`AUCTION`, where none is sent and the gap is permanent
+8. Drop any replayed message at or below the `SEQ` you already recorded: `RESUME` returns everything past `LASTSEQ`, duplicates included
 
 
 ## Building tools on top of the feed
@@ -1074,7 +1288,7 @@ Whatever you build, the same six habits keep it correct:
    `CH_SUPPORTED` before subscribing.
 3. **Seed then update** — initialise state from the `SNAP`, then merge each `MD`
    (TOP) or replace the ladder on each `DEPTH`.
-4. **Watch `SEQ`** — track it per `(CH, SYM)`; on a gap, reconnect with `RESUME=1`
+4. **Watch `SEQ`** — track it per `(CH, SYM)`; on a gap, reconnect and `RESUME`
    or re-`SUB` for a fresh `SNAP`.
 5. **Stay alive** — treat `HB` as a liveness signal, answer nothing; treat
    any unexpected disconnect on a busy stream as a possible slow-client
@@ -1164,6 +1378,7 @@ ws.onmessage = (e) => {
 - [External Protocols Overview](210-protocols-overview.md) — ALF, BALF, CALF, RALF at a glance
 - [Appendix — CALF Protocol](920-app-calf-protocol.md) — normative wire format, full field tables, sequencing rules, including the `AUCTION` and `CB` message definitions
 - [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) — read-only CLI for watching the raw feed, human-readable or JSON
+- `docs/examples/calf/README.md` — the examples directory's own guide to what's there and which client to start from
 - [Risk Controls](120-risk-controls.md) — circuit-breaker mechanics behind the `CB` channel and `STATE` halt/resume events
 - [API Gateway](260-api-gateway.md) — REST and WebSocket market data alternative
 - [Post-Trade Dissemination (RALF)](250-ralf-gateway.md) — fills and post-trade events

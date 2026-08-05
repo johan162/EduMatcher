@@ -96,13 +96,15 @@ symbol, or verify that you are watching a configured symbol.
 
 ---
 
-### Why did `pm-scheduler --config ...` exit immediately?
+### Why did `pm-scheduler` exit immediately?
 
-An explicit `--config` path is treated strictly. If the file does not exist,
-the scheduler exits with a fatal error instead of silently falling back.
+Because no configuration is deployed. The scheduler exits with a fatal error
+rather than falling back to its built-in default times — running a timetable
+the engine has never seen is worse than not starting at all.
 
-If you omit `--config`, the scheduler uses `engine_config.yaml` when present and
-otherwise falls back to its built-in default times.
+```bash
+pm-config-deploy engine_config.yaml
+```
 
 ---
 
@@ -430,24 +432,31 @@ Developer mode (Poetry + source checkout) does not need `pm-setup` at all.
 
 ### The engine says it cannot find `engine_config.yaml`. Where should the file be?
 
-The search path depends on how you are running EduMatcher:
+In exactly one place, always:
 
-| Mode | Default config location |
+```
+<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json
+```
+
+| Mode | Data directory |
 |---|---|
-| **pipx installed** | `engine_config.yaml` in the **current working directory** |
-| **Source checkout** | `engine_config.yaml` in the **repository root** |
-| **Either** | `EDUMATCHER_CONFIG` environment variable (highest priority) |
+| **pipx installed** | `~/.local/share/edumatcher` |
+| **Source checkout** | `<repo>/src/data/` |
+| **Either** | `EDUMATCHER_DATA_DIR`, if set |
 
-The most common mistake is running `pm-engine` from a directory that does not
-contain `engine_config.yaml`. Either `cd` to the directory that has the file,
-or point to it explicitly:
+The message means nothing has been deployed there yet. Install a configuration
+and the error goes away:
 
 ```bash
-pm-engine --config ~/my-session/engine_config.yaml
-# or:
-export EDUMATCHER_CONFIG=~/my-session/engine_config.yaml
-pm-engine
+pm-config-deploy ~/my-session/engine_config.yaml
+pm-config-deploy --show        # print the path it deployed to
 ```
+
+There is no `--config` flag and no `EDUMATCHER_CONFIG` variable. Both used to
+exist, and the reason they no longer do is that they let one process be
+started against a configuration the rest of the exchange had never seen — the
+resulting symptom (a gateway reporting no instruments while the engine happily
+traded ten) gave no hint of the cause.
 
 ---
 
@@ -466,7 +475,7 @@ To isolate two sessions from each other, run each in its own directory and set
 
 ```bash
 export EDUMATCHER_DATA_DIR=~/sessions/morning
-pm-engine --config ~/sessions/morning/engine_config.yaml
+pm-engine
 ```
 
 ---

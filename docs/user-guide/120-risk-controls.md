@@ -315,23 +315,22 @@ own rolling trade reference and can halt independently.
    `_flush_circuit_breakers()`, which checks `should_resume(now)` for every
    active circuit breaker.  When the pause expires:
      - The symbol is un-halted.
-     - The engine always runs an uncross (`_run_uncross()`, the same
+     - The engine runs an uncross (`_run_uncross()`, the same
        equilibrium-price algorithm used for scheduled auctions) for that
-       symbol before continuous matching resumes, regardless of
-       `resumption_mode`, guaranteeing that any interest which crossed while
-       resting during the halt is matched at a fair equilibrium price rather
-       than starting continuous trading in a crossed state. If nothing
-       crossed, the uncross is a no-op. `resumption_mode` is carried through
-       to the broadcast `circuit_breaker.resume.{symbol}` message as a label
-       only; it does not currently change engine behaviour.
-     - A `circuit_breaker.resume.{symbol}` message is broadcast.
+       symbol before continuous matching resumes, so interest that crossed
+       while resting during the halt is matched at a fair equilibrium price
+       rather than starting continuous trading in a crossed state. If
+       nothing crossed, the uncross is a no-op.
+     - An `auction.result.{symbol}` with `reason: "REOPEN"` is broadcast.
+     - A `circuit_breaker.resume.{symbol}` message is broadcast, carrying
+       `halt_source`.
 
 ```mermaid
 stateDiagram-v2
     [*] --> ACTIVE
     ACTIVE --> HALTED : trade price shift \u2265 L1/L2/L3 threshold\nMM quotes cancelled
     HALTED --> UNCROSS : resume timer expires
-    UNCROSS --> ACTIVE : uncross run unconditionally\n(no-op if nothing crossed)\nresumption_mode carried as a label only
+    UNCROSS --> ACTIVE : uncross run unconditionally\n(no-op if nothing crossed)\nauction.result reason=REOPEN
     ACTIVE --> HALTED : operator halt\n(per-symbol or ADMIN all)\nMM quotes cancelled
     HALTED --> ACTIVE : operator resume\n(risk.symbol_resume or\nrisk.circuit_breaker_resume_all)
 ```
@@ -394,22 +393,178 @@ Notes and edge cases:
   symbol — see
   [Configuration - Symbol Universe](010-configuration.md#symbol-universe).
 
-### Resumption modes
+### Why a halt always reopens with an uncross
 
-`resumption_mode` (`AUCTION`, the default, or `CONTINUOUS`) is a per-level
-config field that is echoed back verbatim in the `circuit_breaker.halt.*` and
-`circuit_breaker.resume.*` payloads (as `resumption_mode` / `mode`) so
-downstream consumers can log or display which policy a level was configured
-with.
+A halt is not a pause with the book frozen — it is the **call phase of a
+reopening auction**. While a symbol is halted the engine accepts LIMIT orders
+and rests them, rejects MARKET/FOK/IOC, and runs no matching. When the halt
+ends, `_flush_circuit_breakers()` calls `_run_uncross()` for that symbol — the
+same equilibrium-price algorithm used for scheduled auctions — and publishes
+an `auction.result.{symbol}` carrying `reason: "REOPEN"` before the resume
+event.
 
-In the current implementation it is **informational only**: `_flush_circuit_breakers()`
-always calls `_run_uncross()` for the resuming symbol — the same
-equilibrium-price algorithm used for scheduled auctions — regardless of the
-configured mode, so that any interest which crossed while resting during the
-halt is matched fairly before continuous trading resumes. If no orders are
-crossed, `compute_equilibrium()` finds no equilibrium price and the uncross is
-a no-op, which is indistinguishable from an immediate continuous resume. There
-is currently no config value that skips the uncross step.
+This is unconditional and there is no setting that skips it. Crossed interest
+accumulates for the whole halt, so resuming straight into continuous matching
+would begin on a crossed book. If nothing crossed, `compute_equilibrium()`
+finds no equilibrium price and the uncross is a no-op, indistinguishable from
+an immediate continuous resume.
+
+Earlier versions exposed a per-level `resumption_mode` (`AUCTION` or
+`CONTINUOUS`). It never changed engine behaviour — both values uncrossed —
+and has been removed. The halt and resume payloads now carry `halt_source`
+(`CB` or `ADMIN`) instead, which says what caused the halt; whether it ends
+by itself is already expressed by the presence of `resume_at_ns`.
+
+### Automated Corridor Expansion (ACE)
+
+Reopening at *whatever* price the accumulated interest implies has two
+problems, and ACE addresses both.
+
+**Problem one: the reopen price can be absurd.** A halt fires precisely when
+prices are moving violently. The orders that pile up during the call phase are
+entered under uncertainty, often thinly, and the equilibrium they imply can sit
+far from any price the market would sustain. Printing it turns a protective
+halt into the cause of an erroneous execution.
+
+**Problem two: the reopen instant is a target.** If everyone knows the exact
+nanosecond the uncross runs, the last order in — placed with full sight of the
+book, too late for anyone to react — is strictly advantaged. This is why real
+venues randomise the end of a call phase.
+
+ACE is modelled on Deutsche Börse's mechanism of the same name and on Nasdaq
+Rule 4120(c)(7). It has two independent halves.
+
+#### The corridor and the expansion ladder
+
+When a halt begins, the engine latches a **corridor reference**: the circuit
+breaker's rolling mean at the moment of the halt (`CircuitBreakerState.
+corridor_reference`). It is latched, not recomputed, so an uncross elsewhere
+cannot move the target mid-halt. The corridor is that reference plus and minus
+`initial_band_pct` of it.
+
+At the end of every call phase the engine runs `compute_equilibrium()` as a
+**dry run** — it computes the price the symbol *would* reopen at without
+executing anything:
+
+- **Inside the corridor** → the symbol reopens. `_run_uncross()` executes at
+  the equilibrium and `circuit_breaker.resume.{symbol}` is published.
+- **Outside the corridor** → the symbol does **not** reopen. The corridor
+  widens by the next rung's `widen_pct`, a fresh call phase of that rung's
+  `min_duration_ns` begins, and `circuit_breaker.extend.{symbol}` is published.
+  Orders keep resting throughout; nothing is cancelled.
+
+Widening is **additive on the reference price**, not compounding on the
+previous width. Each rung adds its `widen_pct` of the *original* reference.
+This matters: it is what makes the corridor grow linearly and predictably
+rather than exploding.
+
+**The last rung repeats indefinitely.** This is the design's terminating
+argument, and it is why there is no maximum-extensions setting. Because the
+corridor grows without bound, it eventually contains any finite price, so the
+symbol always reopens on its own — the only question is when. A cap would
+force a choice between printing outside the corridor (defeating the purpose)
+and never reopening at all.
+
+#### The random end
+
+`halt_duration_ns` on the triggered level is the **minimum** length of the
+first call phase, not its exact length. `min_duration_ns` plays the same role
+for each extension. On top of the minimum the engine adds a delay drawn
+uniformly from `[0, random_end_max_ns]`, so no call phase — initial or
+extended — ends at a time anyone can predict.
+
+The generator is engine-wide (`EngineProcess._reopening_rng`). Leave
+`random_seed` unset for OS entropy, which is what an operating venue wants.
+Set it to an integer for reproducible teaching demos and tests. Setting
+`random_end_max_ns: 0` disables the random end entirely, making reopen times
+exactly predictable — useful in a classroom, wrong in production.
+
+#### Worked example
+
+Configuration: `initial_band_pct: 0.10`, expansions `[{0.10, 2min},
+{0.20, 5min}]`, `random_end_max_ns: 0` (so the timings below are exact).
+Symbol ABC, reference price **$100.00**, an L1 halt with
+`halt_duration_ns` of 5 minutes fires at **13:30:00**.
+
+Heavy one-sided buying accumulates during the call; the indicative price
+settles at **$122.00** and stays there.
+
+| Time | Event | Indicative | Corridor | Half-width | Outcome |
+|---|---|---|---|---|---|
+| 13:30:00 | L1 halt fires | – | 90.00 – 110.00 | ±10% | Call phase 1 opens (min 5 min) |
+| 13:35:00 | Call 1 ends | $122.00 | 90.00 – 110.00 | ±10% | **Outside** → extend, widen +10% |
+| 13:37:00 | Call 2 ends | $122.00 | 80.00 – 120.00 | ±20% | **Outside** → extend, widen +20% |
+| 13:42:00 | Call 3 ends | $122.00 | 60.00 – 140.00 | ±40% | **Inside** → reopen, uncross at $122.00 |
+
+Total halt: 12 minutes rather than the configured 5. The extra 7 minutes are
+the market being given time to supply offsetting interest against a 22% move
+before it prints. Had sellers arrived during call 2 and pulled the indicative
+back to $118, the symbol would have reopened at 13:37 inside the ±20%
+corridor.
+
+These are exactly the numbers in the SEC order approving Nasdaq's rule
+($100 reference, collars 90/110 → 80/120 → 60/140), which is a useful
+cross-check that the arithmetic is right.
+
+With the random end at its default 30s, the three call ends above would
+instead fall somewhere in 13:35:00–13:35:30, 13:37:00–13:37:30 and
+13:42:00–13:42:30.
+
+#### End of day: the closing auction as backstop
+
+ACE widens indefinitely, so on its own it never terminates — a symbol whose
+indicative price runs away could in principle extend past the close. The end
+of the trading day supplies the terminating condition.
+
+On the transition to `CLOSED`, `_run_closing_backstop()` forces every symbol
+still halted to resolve:
+
+1. The indicative price is computed one final time.
+2. **Inside the corridor** → it prints there, as a normal reopen would.
+3. **Outside the corridor** → it prints **at the corridor boundary**: the
+   upper bound for a buy imbalance, the lower bound for a sell imbalance.
+4. **No crossing interest at all** → nothing prints; the halt is simply
+   cleared.
+
+Step 3 is the only place in the engine where a price is **imposed rather than
+discovered**, and it is deliberate. A clamped print can leave the book
+crossed — bids and asks beyond the boundary do not trade. That is the intended
+outcome: that interest survives to the next session rather than executing at a
+price the corridor was built to reject.
+
+The ordering matters and is load-bearing. The backstop runs *after* the
+scheduled `CLOSING_AUCTION → CLOSED` uncross, and `_run_uncross()` skips
+symbols that are still halted. Were it otherwise, the session sweep would
+uncross halted symbols at the true equilibrium and silently undo the entire
+mechanism.
+
+A level configured with `halt_duration_ns: null` (rest-of-day) never enters
+the ACE cycle at all: it has no timed resume, so no call phase ever ends. It
+waits for this backstop or for an ADMIN resume.
+
+#### Observability
+
+Every corridor adjustment is logged and published, so an extension sequence
+can be watched as it happens:
+
+```
+CIRCUIT BREAKER HALT ABC: level=L1 trigger=12200, ref=10000 ticks, corridor=[9000, 11000] ticks (+/-10.0%)
+ACE EXTEND ABC: indicative=12200 ticks outside [9000, 11000] -> expansion=1 corridor=[8000, 12000] (+/-20.0%) qty=500 next_call_ends=...
+ACE EXTEND ABC: indicative=12200 ticks outside [8000, 12000] -> expansion=2 corridor=[6000, 14000] (+/-40.0%) qty=500 next_call_ends=...
+CIRCUIT BREAKER RESUME ABC: after 2 ACE extension(s)
+```
+
+and at the close:
+
+```
+CLOSING BACKSTOP ABC: indicative=12200 ticks outside [9000, 11000] -> clamped to 11000 (BUY imbalance), after 1 ACE extension(s)
+```
+
+On the wire, `circuit_breaker.halt.{symbol}` and the new
+`circuit_breaker.extend.{symbol}` both carry `corridor_low`, `corridor_high`
+and `expansion`; `extend` adds `indicative_price`, `indicative_qty`,
+`imbalance_side` and the next `resume_at_ns`. A backstop resume carries
+`reason: "CLOSING_BACKSTOP"`, `clamped` and `print_price`.
 
 ### Configuration
 
@@ -423,15 +578,22 @@ circuit_breaker_defaults:
     L1:
       price_shift_pct: 0.07
       halt_duration_ns: 300000000000   # 5 minutes
-      resumption_mode: AUCTION
     L2:
       price_shift_pct: 0.13
       halt_duration_ns: 900000000000   # 15 minutes
-      resumption_mode: AUCTION
     L3:
       price_shift_pct: 0.20
       halt_duration_ns:                 # null => rest of trading day
-      resumption_mode: AUCTION
+  reopening:                            # Automated Corridor Expansion
+    enabled: true
+    initial_band_pct: 0.10              # +/-10% corridor to start
+    random_end_max_ns: 30000000000      # up to 30s random tail per call
+    random_seed:                        # null => OS entropy
+    expansions:                         # last rung repeats indefinitely
+      - widen_pct: 0.10
+        min_duration_ns: 120000000000   # 2 minutes
+      - widen_pct: 0.20
+        min_duration_ns: 300000000000   # 5 minutes
 
 symbols:
   TSLA:
@@ -440,6 +602,8 @@ symbols:
       levels:
         L1:
           halt_duration_ns: 600000000000  # symbol-specific override
+      reopening:
+        initial_band_pct: 0.05            # tighter corridor for TSLA only
 ```
 
 For each trade, the engine computes:
@@ -454,11 +618,36 @@ The highest level where `price_shift >= price_shift_pct` fires.
 |---|---|---|---|
 | `reference_window_ns` | int | `300_000_000_000` | Lookback window for rolling reference price |
 | `levels.<L>.price_shift_pct` | float | required | Trigger threshold fraction in `(0, 1)` |
-| `levels.<L>.halt_duration_ns` | int or null | required | Halt time in ns, or `null` for rest-of-day halt |
-| `levels.<L>.resumption_mode` | string | `"AUCTION"` | `AUCTION` or `CONTINUOUS` when timed halt resumes |
+| `levels.<L>.halt_duration_ns` | int or null | required | *Minimum* length of the reopening call phase in ns, or `null` for rest-of-day |
+| `reopening.enabled` | bool | `true` | Apply ACE. When false, a halt reopens at the equilibrium price uncollared |
+| `reopening.initial_band_pct` | float | `0.10` | Corridor half-width in `(0, 1)`, as a fraction of the reference price |
+| `reopening.expansions` | list | Nasdaq ladder | Rungs of `{widen_pct, min_duration_ns}`. **The last rung repeats indefinitely** |
+| `reopening.expansions[].widen_pct` | float | required | Added to the corridor half-width, in `(0, 1)`. Additive on the reference, not compounding |
+| `reopening.expansions[].min_duration_ns` | int | required | Minimum length of that extension's call phase, `> 0` |
+| `reopening.random_end_max_ns` | int | `30_000_000_000` | Upper bound of the uniform random tail on every call phase. `0` disables it |
+| `reopening.random_seed` | int or null | `null` | Engine-wide. **Only valid in `circuit_breaker_defaults`** — setting it per symbol is an error (`S110`) |
+
+Two of these are exchange-wide and rejected on a symbol: `random_seed` (`S110`)
+and `expansions` (`S112`). The split is deliberate. `initial_band_pct` answers
+*how volatile is this instrument normally* — a thin small-cap legitimately
+needs a wider reopening corridor than a liquid blue chip, so it varies per
+symbol. The ladder answers *how quickly does the exchange stop protecting the
+price and let it through*, which is venue policy rather than an instrument
+property; keeping it uniform is what makes halt durations comparable across the
+book.
+
+The line is not perfect — `min_duration_ns` lives in the ladder and is
+arguably instrument-shaped, since a thin name may need longer call phases for
+liquidity to arrive. Real venues disagree on where to draw it: Nasdaq varies
+nothing per security (the collar rule is universal; only the reference price
+differs), while Deutsche Börse publishes corridor widths *and* durations per
+instrument in reference data. EduMatcher sits between them, and enforces the
+choice rather than leaving it to whichever tool touched the file last.
 
 When `circuit_breaker_defaults` and symbol-level `circuit_breaker` are both
-present, per-symbol values override global defaults by level key.
+present, per-symbol values override global defaults by level key. The
+`reopening` block merges field-by-field the same way, so a symbol can override
+`initial_band_pct` alone without restating the ladder.
 
 ### Why there is no selected "default breaker level"
 
@@ -547,7 +736,7 @@ A limit buy at 11000 ticks trades.
   → CB reference = 30800 // 3 = 10266 (floor division)
   → deviation = |11000 - 10266| / 10266 ≈ 7.1% ≥ L1 (7%)
   → L1 circuit breaker fires, symbol halted for L1 duration (5 min default);
-    resume always runs an uncross for the symbol regardless of resumption_mode
+    resume always runs a reopening uncross for the symbol
 
 Separately, suppose a later session's rolling reference has settled at 10100
 and a limit buy at 12200 ticks trades:
@@ -585,8 +774,27 @@ payload: {
     "trigger_price":    10800,
     "reference_price":  10100,
     "resume_at_ns":     <timestamp>,
-    "resumption_mode":  "AUCTION",
+    "halt_source":      "CB",
     "level":            "L1"
+}
+```
+
+### Circuit breaker extend (ACE)
+
+Published when a call phase ends with the indicative price outside the
+corridor. The symbol stays halted and a fresh call phase begins.
+
+```
+topic:   b"circuit_breaker.extend.MSFT"
+payload: {
+    "symbol":           "MSFT",
+    "indicative_price": 122.00,   # what it would have reopened at
+    "indicative_qty":   500,
+    "imbalance_side":   "BUY",
+    "corridor_low":     80.00,    # corridor AFTER widening
+    "corridor_high":    120.00,
+    "expansion":        1,        # rungs consumed so far
+    "resume_at_ns":     ...       # end of the new call phase
 }
 ```
 
@@ -595,22 +803,34 @@ payload: {
 ```
 topic:   b"circuit_breaker.resume.MSFT"
 payload: {
-    "symbol": "MSFT",
-    "mode":   "AUCTION"
+    "symbol":      "MSFT",
+    "halt_source": "CB"
+}
+```
+
+A resume forced by the end-of-day backstop carries three extra fields:
+
+```
+payload: {
+    "symbol":      "MSFT",
+    "halt_source": "CB",
+    "reason":      "CLOSING_BACKSTOP",
+    "clamped":     true,          # printed at the corridor boundary
+    "print_price": 110.00
 }
 ```
 
 !!! note "This detail is also on the CALF market-data wire"
     `pm-md-gwy` (the CALF gateway) exposes this same payload to external
     clients on a dedicated `CB` channel — `trigger_price`, `reference_price`,
-    `level`, `resume_at_ns`, and `resumption_mode`/`mode` all reach the wire,
-    alongside the coarse `SESSION=HALTED`/`SESSION=CONTINUOUS` transition
-    CALF's `STATE` channel already carried. See
+    `level`, `resume_at_ns`, and `halt_source` all reach the wire,
+    alongside the coarse `SESSION=HALTED` transition CALF's `STATE` channel
+    already carried. See
     [CALF Protocol Reference — `CB`](920-app-calf-protocol.md#cb) for the
-    field mapping (note CALF normalizes the `resumption_mode`/`mode`
-    inconsistency above onto a single wire key, `MODE`). Auction uncross
-    results (`auction.result.{SYMBOL}`, used by the resumption-auction flow
-    described below) are similarly exposed via CALF's `AUCTION` channel.
+    field mapping (`halt_source` is carried as `SRC`). The reopening uncross
+    (`auction.result.{SYMBOL}`) reaches CALF's `AUCTION` channel with
+    `REASON=REOPEN`, which is what distinguishes it from the scheduled
+    opening and closing auctions.
 
 
 
@@ -679,7 +899,7 @@ What the engine does:
 1. Verifies `GW_ADMIN` is connected and carries role `ADMIN`.
 2. Collects every known symbol (order books, circuit-breaker state, engine
    configuration).
-3. Marks each symbol `HALTED` with `resumption_mode = "MANUAL"` (no auto-resume
+3. Marks each symbol `HALTED` with `halt_source = "ADMIN"` (no auto-resume
    timer).
 4. Cancels all outstanding market-maker quote legs for every symbol.
 5. Publishes one `circuit_breaker.halt.<SYMBOL>` event per symbol on the PUB
@@ -696,7 +916,7 @@ payload: {
     "trigger_price":   null,
     "reference_price": null,
     "resume_at_ns":    null,
-    "resumption_mode": "MANUAL",
+    "halt_source": "ADMIN",
     "level":           "ADMIN_ALL"
 }
 
@@ -807,7 +1027,7 @@ sequenceDiagram
 | Scope                    | Single symbol                        | All symbols                                |
 | Resume                   | Scheduled timer, always via uncross  | Explicit `risk.circuit_breaker_resume_all` (or `risk.symbol_resume` for a single symbol) |
 | Quotes cancelled on halt | Yes                                  | Yes                                        |
-| `resumption_mode`        | `AUCTION` or `CONTINUOUS`            | Always `MANUAL`                            |
+| `halt_source`            | `CB`                                 | `ADMIN`                                    |
 | Who can send             | Any connected gateway                | `ADMIN` role only                          |
 
 
@@ -833,11 +1053,11 @@ What the engine does:
    reason `"Per-symbol halt is only allowed for ADMIN participants"` otherwise.
 2. Marks the symbol `HALTED` (`_halted_symbols[symbol] = True`) and, if a
    circuit breaker is configured for the symbol, sets its state to `halted`
-   with `triggered_level = "ADMIN_SYMBOL"` and `active_resumption_mode = "MANUAL"`.
+   with `triggered_level = "ADMIN_SYMBOL"` and `halt_source = "ADMIN"`.
 3. Cancels all outstanding market-maker quote legs for that symbol only, with
    cancellation reason `"Per-symbol halt"`.
 4. Publishes `circuit_breaker.halt.<SYMBOL>` with `"level": "ADMIN_SYMBOL"`
-   and `"resumption_mode": "MANUAL"`.
+   and `"halt_source": "ADMIN"`.
 5. Sends `risk.symbol_halt_ack.<GW_ADMIN>` with
    `{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_quotes": <count>}`.
 
@@ -1296,8 +1516,8 @@ for the full `gateways.alf[].smp_action` field definition and
 for the normative schema entry, including how the same default extends to
 `market_maker_combos[].legs[]` config-seeded combos. Per-request field
 definitions live alongside each protocol's `NEW`/`COMBO`/`QUOTE` command
-reference: [Gateway Reference — `NEW`](050-gateway-reference.md#new-submit-an-order),
-[Gateway Reference — `NEW (Combo)`](050-gateway-reference.md#new-combo-submit-a-multi-leg-order),
+reference: [ALF Console — `NEW`](055-alf-console.md#new-submit-an-order),
+[ALF Console — `NEW (Combo)`](055-alf-console.md#new-combo-submit-a-multi-leg-order),
 [Combos — `SMP=`](070-combo-orders.md), and
 [API Gateway](260-api-gateway.md) for the REST field.
 
@@ -1321,7 +1541,7 @@ When a symbol resumes, market makers are expected to submit fresh quotes at upda
 - [Order Types](060-order-types.md) — how different order types behave under halt, and how SMP interacts with each type's sweep
 - [Drop Copy](200-drop-copy.md) — how fill events are forwarded to risk systems
 - [Auctions & Session Scheduling](080-session-scheduling.md) — the equilibrium-price uncross algorithm that circuit-breaker resumption always runs
-- [Gateway Reference](050-gateway-reference.md) — `KILL` command for triggering the kill switch via the ALF terminal, and the `NEW`/`COMBO` `SMP=` field
+- [ALF Console](055-alf-console.md) — `KILL` command for triggering the kill switch via the ALF terminal, and the `NEW`/`COMBO` `SMP=` field
 - [Combos](070-combo-orders.md) — per-leg `SMP=` on multi-leg orders
 - [Market-Maker Bot](100-mm-bot.md) — why quoting gateways rely entirely on the `smp_action` gateway default
 - [Configuration Spec](990-app-config-spec.md) — normative schema for `gateways.alf[].smp_action` and `ComboLegSpec.smp_action`

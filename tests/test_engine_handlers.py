@@ -294,9 +294,9 @@ class TestSessionTransition:
         _connect(engine)
         # Place crossing orders during OPENING_AUCTION so there's something to uncross
         engine._session_state = SessionState.OPENING_AUCTION
-        engine._handle_new_order(_make_order_payload(side=Side.BUY, price=100.0))
+        engine._handle_new_order(_make_order_payload(side=Side.BUY, price=100))
         engine._handle_new_order(
-            _make_order_payload(side=Side.SELL, price=100.0, gateway_id="GW01")
+            _make_order_payload(side=Side.SELL, price=100, gateway_id="GW01")
         )
         pub_sock.sent.clear()
         engine._handle_session_transition({"to_state": "CONTINUOUS"})
@@ -314,7 +314,7 @@ class TestSessionTransition:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.ATC,
-            price=100.0,
+            price=100,
         )
         engine._handle_new_order(o.to_dict())
         pub_sock.sent.clear()
@@ -417,7 +417,7 @@ class TestTrailingStopNewOrder:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            trail_offset=5.0,
+            trail_offset=5,
         )
         engine._handle_new_order(o.to_dict())
         _, msg = decode(pub_sock.sent[-1])
@@ -438,7 +438,7 @@ class TestTrailingStopNewOrder:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            trail_offset=5.0,
+            trail_offset=5,
         )
         engine._handle_new_order(o.to_dict())
         _, msg = decode(pub_sock.sent[-1])
@@ -465,14 +465,14 @@ class TestComboHandlers:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=100.0,
+                    price=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=200.0,
+                    price=200,
                 ),
             ],
         )
@@ -524,7 +524,7 @@ class TestComboHandlers:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100.0,
+                    price=100,
                 ),
             ],
         )
@@ -546,14 +546,14 @@ class TestComboHandlers:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=100.0,
+                    price=100,
                 ),
                 ComboLeg(
                     symbol="AAPL",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=10,
-                    price=101.0,
+                    price=101,
                 ),
             ],
         )
@@ -685,11 +685,15 @@ class TestFlushSnapshots:
         assert engine.depth_snapshot_tolerance_ticks == 250
 
     def test_flush_publishes_dirty_symbols(self, monkeypatch, tmp_path) -> None:
+        import time as _time
+
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
         engine._handle_new_order(_make_order_payload())
-        # Force the throttle window to zero so flush always publishes
-        engine._last_snapshot["AAPL"] = 0.0
+        # Force the throttle window elapsed so flush always publishes.
+        engine._last_snapshot["AAPL"] = (
+            _time.monotonic() - engine.snapshot_interval_sec - 0.001
+        )
         engine._dirty_symbols.add("AAPL")
         count_before = len(pub_sock.sent)
         engine._flush_snapshots()

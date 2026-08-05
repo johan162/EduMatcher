@@ -8,8 +8,9 @@ data/verify/engine_result.json.
 
 Requirements
 ------------
-  * The engine must already be running with verify_engine_config.yaml:
-        poetry run pm-engine --config data/verify/verify_engine_config.yaml
+  * The engine must already be running on verify_engine_config.yaml:
+        poetry run pm-config-deploy data/verify/verify_engine_config.yaml
+        poetry run pm-engine
   * data/verify/mm_orders.fix and test_orders.fix must exist (run
     gen_verification_set.py first).
 

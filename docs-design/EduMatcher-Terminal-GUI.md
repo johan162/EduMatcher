@@ -1,9 +1,60 @@
-Version: 1.4.0
+Version: 1.5.0
 
-Date: 2026-07-28
+Date: 2026-07-29
 
 Status: Design Proposal — final review pass before implementation
 
+> **Changelog v1.5.0 — operational logging via `pm-log-srv`**
+>
+> This document predates `pm-log-srv`/LALF
+> ([EduMatcher-log-srv.md](EduMatcher-log-srv.md), operational guide
+> `docs/user-guide/280-log-srv.md`, normative wire reference
+> `docs/user-guide/940-app-lalf-protocol.md`), which did not exist when
+> v1.0.0–v1.4.0 were written. `pm-terminal-bridge` is a long-running
+> first-party process exactly like `pm-md-gwy`/`pm-api-gwy`, so it should
+> ship its own operational logging into the centralized collector the same
+> way every other `pm-*` process already does. This revision is additive
+> only — no other section's data flow, protocol choice, or screen design
+> changes.
+>
+> - **Added §17.5:** `pm-terminal-bridge` is a LALF client of `pm-log-srv`,
+>   implemented as a direct TypeScript port of the existing Python reference
+>   client — `edumatcher.logclient.handler.TcpLogHandler` and
+>   `.discovery.resolve_handler` ([EduMatcher-log-srv.md](EduMatcher-log-srv.md)
+>   §8.2/§8.3/§8.6), already wired into every other `pm-*` process including
+>   `pm-audit`/`pm-stats` — not a new design invented for this document.
+>   Because LALF is a plain line-oriented TCP protocol with no existing
+>   TypeScript implementation anywhere in the codebase (`pm-log-ui`, the
+>   sibling log-viewer app, only ever *consumes* LALF-PS over ZeroMQ — see
+>   its own design doc's "No `packages/*-protocol` equivalent" note — it
+>   never speaks producer-side LALF), this revision adds a new
+>   dependency-free `packages/lalf-client` package. Behavior is the same
+>   three-phase model as the Python client: a one-shot startup probe
+>   (attach if `pm-log-srv` answers `WELCOME` within a short timeout, else
+>   plain stdout, no retry at startup); reconnect-with-capped-backoff for
+>   `failover_timeout_sec` (default 30s) if a connection drops after
+>   attaching; and, only once that grace window is exhausted, a one-way
+>   switch to a local file, `$EDUMATCHER_DATA_DIR/logs/pm-terminal-bridge.log`,
+>   named and located exactly the way §8.6 there specifies for every other
+>   process's fallback file.
+> - **Added a logging-level guidance table (§17.5)** enumerating the key
+>   execution points, warnings, and errors this application should emit at
+>   each level (`DEBUG`/`INFO`/`WARNING`/`ERROR`/`CRITICAL`), covering bridge
+>   startup/shutdown, the CALF uplink lifecycle, per-symbol
+>   `DEPTH`/`CB` reference-counting, the REST history proxy, WS fan-out to
+>   browser tabs, and the LALF client's own probe/reconnect/failover
+>   transitions.
+> - **Extended §19** with a `log_server:` config block (host/port/client
+>   name/timeouts/queue size), field-for-field matching
+>   `TcpLogHandler`'s constructor and the `--log-target`/`--log-failover-timeout`
+>   CLI flags every other `pm-*` process already exposes
+>   ([EduMatcher-log-srv.md](EduMatcher-log-srv.md) §8.2/§8.5).
+> - **Extended §17.4, §18, §20, §21** with the new package's files, an
+>   explicit no-PII-in-logs / degrade-honestly note, a test-coverage row
+>   covering all three client states (connected/reconnecting/failed-over),
+>   and a Phase 1 note that bridge startup logging is LALF-backed (with
+>   local-file fallback) from the first implementation phase.
+>
 > **Changelog v1.4.0 — pre-implementation review pass**
 >
 > This revision closes out a final review round before build starts.
@@ -230,6 +281,7 @@ Status: Design Proposal — final review pass before implementation
     - [17.2 REST history proxy](#172-rest-history-proxy)
     - [17.3 Bridge → browser WS message schema](#173-bridge--browser-ws-message-schema)
     - [17.4 New files](#174-new-files)
+    - [17.5 Operational logging via `pm-log-srv`](#175-operational-logging-via-pm-log-srv)
   - [18. Security and Operational Notes](#18-security-and-operational-notes)
   - [19. Config Reference](#19-config-reference)
   - [20. Testing Strategy](#20-testing-strategy)
@@ -803,13 +855,15 @@ last interested tab navigates away or closes.
 
 ### 6.6 Reconnect and gap handling
 
-If the bridge's CALF TCP connection drops, it reconnects and resumes exactly
-as the worked client in the protocol doc does: `HELLO` with
-`RESUME=1`/`LASTSEQ=` per stream, falling back to a fresh `SNAP` on
-`ERR|CODE=REPLAY_MISS`. Because `RESUME=1` never accepts `SYM=*` (§17.1),
-the bridge resumes its wildcard `TOP`/`TRADE`/`STATE`/`AUCTION`
-subscriptions one concrete known symbol at a time — see §17.1 for the exact
-sequencing. `CB` (per-symbol, `SNAP`-eligible) and `DEPTH` (per-symbol, also
+If the bridge's CALF TCP connection drops, it reconnects with a plain `HELLO`
+and re-subscribes; the automatic `SNAP` each `SUB` triggers restores correct
+state for every snapshot-backed channel. Recovery beyond that is driven by
+`SEQ` rather than by the reconnect: the bridge keeps `last_seq` per
+`(CH, SYM)` across the drop, and repairs only the streams that actually lost
+something — a standalone `RESUME|CH=..|SYM=..|LASTSEQ=..` on `TRADE`, and a
+visible marker on the tape for what replay can no longer reach. Because
+`RESUME` never accepts `SYM=*` (§17.1), this is always per concrete symbol —
+see §17.1 for the exact sequencing. `CB` (per-symbol, `SNAP`-eligible) and `DEPTH` (per-symbol, also
 `SNAP`-eligible) follow the same per-symbol resume pattern already used for
 `DEPTH` in earlier revisions, scoped to whichever symbols currently have an
 open Symbol Detail view. `AUCTION`, like `TRADE`, has no baseline `SNAP` —
@@ -956,7 +1010,7 @@ and the `[ All ▾ ] [☆ Watchlist]` toggle are new in this revision — see
 |---|---|---|
 | ☆/★ | Watchlist pin toggle (§8.6) | client-only, `localStorage` |
 | SYMBOL | Ticker | CALF `WELCOME|SYMBOLS=` / config |
-| LAST | Last trade price | CALF `TOP.LAST` (falls back to `TRADE.PX`) |
+| LAST | Last trade price | CALF `TRADE.PX` as it arrives, with `TOP.LAST` as the baseline before the first observed print. Not the other way round: `TOP.LAST` only refreshes on the next book republish, throttled by the engine's `snapshot_interval_sec`, so `TRADE` is the lower-latency source. (Gateway builds before the `top_sent` fix never refreshed `TOP.LAST` after a trade at all — see the CALF Protocol Reference, "`LAST` after a trade".) |
 | CHG | `LAST − OPEN` | computed, `OPEN` from REST `/history/daily` |
 | %CHG | `CHG / OPEN × 100` | computed |
 | BID / ASK | Best bid/ask | CALF `TOP.BID`/`TOP.ASK` |
@@ -1662,40 +1716,42 @@ class CalfUplink:
   (§13) is open. Either trigger increments the same per-symbol reference
   count; `SUB|CH=CB|SYM=<symbol>` is issued when the count goes from zero
   to one, `UNSUB` when it returns to zero.
-- **Reconnect is where the wildcard subscriptions get more work, not less.**
-  `HELLO|RESUME=1` only ever resumes one `(CH, SYM)` stream per `HELLO`, and
+- **Recovery is driven by the sequence numbers, not by the reconnect.**
   `SYM=*` is invalid for `RESUME` on every channel — the gateway rejects it
   outright, even for `TOP`/`TRADE`/`STATE`/`AUCTION`, because there is no
-  wildcard snapshot baseline to fall back on for a replay miss (§920 of the
-  CALF reference, "Reconnect behavior"). So the bridge cannot simply resend
-  `HELLO|RESUME=1|CH=TOP|SYM=*|LASTSEQ=...` after a drop. Instead, on
-  reconnect the bridge:
-  1. Sends a plain `HELLO` (no `RESUME`) to re-establish the session and
-     get a fresh `WELCOME`.
-  2. Re-issues `SUB|CH=STATE,TOP,TRADE,AUCTION|SYM=*` and
-     `SUB|CH=INDEX|SYM=<index ids>` immediately — this restores live
-     delivery going forward for every symbol right away, same as first
-     connect. (`AUCTION` has no baseline `SNAP`, same as `TRADE` — see step
-     3's caveat.)
-  3. For any symbol the bridge was actively serving to a browser tab
-     (i.e. had non-empty `last_seq` for), issues a **separate**
-     `HELLO...RESUME=1|CH=<ch>|SYM=<that concrete symbol>|LASTSEQ=...`
-     per stream to backfill the gap between disconnect and step 2's fresh
-     `SUB`, exactly as the CALF reference's worked client example does —
-     just looped over concrete symbols instead of assumed to work with a
-     single wildcard call. `TRADE` and `AUCTION` have no baseline `SNAP`
-     (§4.3 gap 3), so this resume is best-effort against CALF's bounded
-     replay window, not a guarantee. This step overall is a best-effort
-     gap-fill, not a correctness requirement: `pm-terminal` is a
-     display-only viewer, so a brief tick gap during reconnect (visible to
-     the user only as a short `RECONNECTING` state, §6.6) is an acceptable
-     trade-off against the complexity of resuming every known symbol on
-     every reconnect.
-  4. `DEPTH` and `CB` subscriptions follow the same per-symbol resume
-     pattern in step 3, scoped to whichever symbols currently have a
-     reference count above zero (§6.5, §13.2) — there is no wildcard
-     `DEPTH`/`CB` to re-establish in step 2. Both get a baseline `SNAP` on
-     resume, unlike `TRADE`/`AUCTION`.
+  wildcard snapshot baseline to fall back on for a replay miss. So the bridge
+  cannot resume a wildcard subscription as such. Rather than loop `RESUME`
+  over every known symbol on every drop, it lets `SEQ` say which streams
+  actually lost anything:
+  1. On reconnect, send a plain `HELLO` and re-issue
+     `SUB|CH=STATE,TOP,TRADE,AUCTION|SYM=*`, `SUB|CH=INDEX|SYM=<index ids>`,
+     and the per-symbol `DEPTH`/`CB` subscriptions still referenced by an
+     open tab. This restores live delivery immediately, same as first
+     connect, and triggers a fresh `SNAP` on every snapshot-backed channel.
+  2. Keep `last_seq` per `(CH, SYM)` **across** the drop. The gateway's
+     counters live in its process, not the connection, so the value from
+     before the drop is exactly what reveals whether the drop cost anything.
+     Clearing it would make every reconnect look gap-free by definition.
+  3. `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB` need nothing further: step 1's `SNAP`
+     supersedes whatever was missed before anyone could act on knowing about
+     it, so a gap on those is not worth reporting.
+  4. `TRADE` has no such baseline, and is the one channel read as a *record*
+     rather than as current state (§11). A gap there gets a standalone
+     `RESUME|CH=TRADE|SYM=<symbol>|LASTSEQ=<last_seq>` when the next print on
+     that symbol exposes it. `AUCTION` shares the no-baseline shape but is
+     not resumed today; its gaps are reported instead.
+  5. What a `RESUME` cannot repair is **shown**, not swallowed: an
+     `ERR|CODE=REPLAY_MISS` (the gap outlasted the gateway's replay window)
+     becomes a marker row in the Trade Tape, in place among the prints it
+     falls between. A record with an unmarked hole in it is worse than one
+     that admits the hole, because people quote from it.
+
+  Three CALF behaviours this depends on, all in the Market Data Protocol doc:
+  a `RESUME` reply carries everything past `LASTSEQ`, so it re-sends messages
+  already delivered and the client must drop those (§7.3); a `SNAP`
+  re-baselines and is never a gap (§7.5); and a `REPLAY_MISS` on
+  `TRADE`/`AUCTION` is answered with the `ERR` alone, since there is no
+  snapshot of a print (§7.5).
 - Buffer partial TCP reads and split on `\n` — the same non-negotiable rule
   the CALF reference calls out ("TCP stream requirement"); do not assume one
   `recv`/`data` event is one message.
@@ -1805,6 +1861,155 @@ server-side, in `packages/calf-protocol`.
 | `apps/bridge/src/ws-fanout.ts` | Per-tab WS session registry, frame broadcast |
 | `packages/calf-protocol/src/index.ts` | `parseLine`/`buildLine`, TS port of `md_gateway/protocol.py`'s grammar |
 | `packages/shared-types/src/index.ts` | `TopFrame`, `TradeFrame`, `StateFrame`, `IndexFrame`, `DepthFrame`, `AuctionResultFrame`, `HaltContextFrame`, `DailyBar`, etc. |
+| `packages/lalf-client/src/index.ts` | `LalfClient` (§17.5) — the bridge's operational-logging TCP connection to `pm-log-srv` |
+| `apps/bridge/src/logging/logger.ts` | Thin wrapper giving the rest of the bridge a `logger.info(...)`/`.warn(...)`/`.error(...)` call surface backed by `LalfClient`, falling back to a local `logs/` file when `pm-log-srv` is unreachable (§17.5) |
+
+### 17.5 Operational logging via `pm-log-srv`
+
+`pm-terminal-bridge` is a long-running first-party process, exactly like
+`pm-md-gwy` or `pm-api-gwy` — it should ship its own operational logging into
+the centralized collector (`pm-log-srv`, `docs/user-guide/280-log-srv.md`)
+the same way every other `pm-*` process does, rather than only writing to its
+own local log file. This section covers that wiring; it changes nothing about the
+data flows described in §6/§17.1–§17.3 — it is a new, independent TCP
+connection from the bridge outward, alongside (not instead of) its CALF
+uplink and REST history client.
+
+**Why a new package, not reuse of an existing client.** The reference
+implementation of everything this section describes is Python:
+`edumatcher.logclient.handler.TcpLogHandler` and
+`edumatcher.logclient.discovery.resolve_handler`
+([EduMatcher-log-srv.md](EduMatcher-log-srv.md) §8.2/§8.3 — the normative
+design for this behavior, one level more detailed than the operational guide
+at `docs/user-guide/280-log-srv.md`), already wired into every existing
+`pm-*` process including `pm-audit`/`pm-stats`
+(`src/edumatcher/audit/main.py`, `src/edumatcher/stats/main.py`). On the
+TypeScript side, the only existing LALF-adjacent code is a *consumer* of
+LALF-PS over ZeroMQ (`pm-log-ui`'s bridge — see
+[EduMatcher-log-GUI.md](EduMatcher-log-GUI.md) §5.2's explicit "No
+`packages/*-protocol` equivalent" note: that app only ever subscribes to
+already-collected logs, it never produces its own over LALF). Nothing in the
+codebase today speaks LALF as a *producer* from Node/TypeScript. This
+revision adds `packages/lalf-client`, a straight port of
+`TcpLogHandler`/`resolve_handler`'s behavior — not merely inspired by it —
+following the same precedent §5.2 already set for `packages/calf-protocol`:
+a small, dependency-free package that knows the wire grammar
+(`HELLO`/`WELCOME`/`LOG`/`HB`/`ERR`/`EXIT`, per the normative
+[LALF Protocol Reference](../docs/user-guide/940-app-lalf-protocol.md)) and
+this specific failover behavior, so it could in principle be reused by any
+other first-party Node process later.
+
+**Client behavior — a one-shot startup probe, then reconnect-with-backoff,
+then a one-way failover to a local file**, exactly
+[EduMatcher-log-srv.md](EduMatcher-log-srv.md) §8.3/§8.6's three-phase model,
+ported to TypeScript rather than re-derived:
+
+1. **Startup probe (§8.3).** Before attaching any logging handler, the
+   bridge opens a short-lived TCP connection to
+   `log_server.host:log_server.port` (§19) with a short connect timeout
+   (`connect_timeout_sec`, default 0.5s — matching the Python default) and
+   sends `HELLO|CLIENT=pm-terminal-bridge|PID=<pid>|HOST=<hostname>|PROTO=LALF1`.
+   `INSTANCE` is set when the bridge's own config disambiguates multiple
+   concurrently-running instances. If `WELCOME` arrives within the timeout,
+   the bridge attaches `LalfClient` as its logger and every subsequent log
+   call ships over LALF. If the probe fails or times out, the bridge falls
+   back to `logging`-equivalent stdout output, silently — "no log server
+   running" is a normal condition, not an error, exactly as §8.3 step 4
+   specifies, and startup must never be slowed or blocked waiting on it.
+2. **Steady state.** Once attached, `LalfClient` sends `HB|TS=...` at least
+   every `WELCOME.HBINT` seconds (default 5), independent of whether a `LOG`
+   was just sent, and ships every application log call as one
+   `LOG|SEQ=...|TS=...|LEVEL=...|LOGGER=...|LEN=...` message plus payload.
+   `SEQ` is a simple per-connection counter, `TS` is the log call's own
+   timestamp, `LOGGER` follows the same dotted-module convention used
+   elsewhere in this codebase, adapted to this bridge's own module layout
+   (e.g. `terminal-bridge.calf.uplink`, `terminal-bridge.ws-fanout`,
+   `terminal-bridge.history-proxy` — see the table below for which module
+   logs what). Log calls are queued and sent from a background task so
+   `logger.info(...)`/etc. never blocks the caller (§8.2's `emit()`-never-
+   blocks requirement, mirrored here as an async queue rather than a
+   Python `QueueHandler` thread).
+3. **Connection lost after a successful attach (§8.6).** The bridge
+   reconnects with capped exponential backoff for up to
+   `log_server.failover_timeout_sec` (default 30s, matching the Python
+   default) from the moment the drop is first noticed. Log calls continue
+   to queue normally during this window (bounded by `queue_maxsize`,
+   default 2000, oldest-preserved/newest-dropped past that) and drain to
+   `pm-log-srv` once reconnected — a brief blip never touches disk. If no
+   reconnect succeeds within the grace window, the bridge makes a **one-way
+   switch** to a local fallback file,
+   `$EDUMATCHER_DATA_DIR/logs/pm-terminal-bridge.log` (or
+   `pm-terminal-bridge-<instance>.log` when `INSTANCE` is set), and never
+   re-probes for the server again for the rest of that run — the same
+   "don't silently split one session's records across two destinations"
+   reasoning §8.6 gives for why switching back is deliberately not
+   attempted. One clearly-marked line is written to both the bridge's
+   stderr and the start of the fallback file at the moment of failover
+   (`pm-log-srv unreachable for 30s, falling back to logs/pm-terminal-bridge.log`),
+   matching §8.6's exact wording convention so an operator scanning either
+   stream recognizes it as the same event other `pm-*` processes already
+   emit.
+4. **`--log-target`-equivalent override.** Matching §8.5's CLI flags,
+   `pm-terminal-bridge` exposes the same three-way override via config
+   rather than argv (§19): `log_server.enabled: false` skips the startup
+   probe entirely (today's plain-stdout behavior, unconditionally); a
+   future `log_target: "file"` config value (not needed for v1, flagged
+   only for parity) would write straight to a configured path with no
+   `pm-log-srv` involvement at all, the same escape hatch §8.5 calls out.
+
+Two properties hold throughout all four steps above, matching §8.6's own
+closing argument for why the design is shaped this way:
+
+- **A `pm-log-srv` outage or absence MUST NOT block, slow, or crash request
+  handling, the CALF uplink, or WS fan-out in any way.**
+  `apps/bridge/src/logging/logger.ts` is the single call surface the rest of
+  the bridge logs through; it always has *somewhere* durable to write — LALF
+  while connected, the bounded in-memory queue while reconnecting, the local
+  `logs/` file after failover — so no log call is ever silently dropped
+  (short of the queue's own bounded capacity being exceeded, §8.2) and no
+  caller needs to know which of the three is currently active. This is the
+  same "never leave an operator with nowhere to look" posture the rest of
+  this application already takes toward `pm-log-srv`-adjacent tooling
+  elsewhere in the design family (see `pm-log-ui`'s own "degrade honestly"
+  goal, [EduMatcher-log-GUI.md](EduMatcher-log-GUI.md) §3.1).
+- `pm-terminal-bridge` needs no LALF credential of any kind — LALF has no
+  authentication in this revision (§18), the same trusted-network posture
+  CALF already assumes.
+
+**Key execution points, warnings, and errors to log.** The table below is
+the concrete answer to "what should this application actually log, and at
+what level" — organized by the module boundaries §17.4 already establishes,
+so each row maps directly onto a file a developer will actually be looking
+at.
+
+| Level | Module | Event |
+|---|---|---|
+| `INFO` | `main.ts` | Bridge startup complete: bind address/port, CALF host/port, `log_server` host/port, config file path used |
+| `INFO` | `main.ts` | Graceful shutdown initiated (signal received) and completed |
+| `INFO` | `calf/uplink.ts` | CALF `HELLO`→`WELCOME` handshake succeeded; log `WELCOME.CH_SUPPORTED`, symbol/index counts |
+| `INFO` | `calf/uplink.ts` | Initial wildcard `SUB` set issued (§17.1 step 1–2) |
+| `WARNING` | `calf/uplink.ts` | CALF connection dropped; entering `RECONNECTING` (§6.6) |
+| `INFO` | `calf/uplink.ts` | CALF reconnect succeeded; per-symbol `RESUME` sequence (§17.1 step 3) starting, with count of symbols being resumed |
+| `WARNING` | `calf/uplink.ts` | A per-symbol `RESUME` came back `ERR\|CODE=REPLAY_MISS` — falling back to fresh `SNAP` for that symbol; some ticks during the gap are unrecoverable (§17.1 step 3 caveat) |
+| `WARNING` | `calf/uplink.ts` | `ERR\|CODE=SLOW_CLIENT` received from `pm-md-gwy` — the bridge itself is the CALF client being flagged; reconnecting (§17.1) |
+| `ERROR` | `calf/uplink.ts` | `WELCOME|CH_SUPPORTED` is missing a channel this design assumes is present (`TOP`/`TRADE`/`STATE`/`INDEX`/`AUCTION` at minimum) — no fallback path exists (§22 open question 3), so this is a hard configuration mismatch, not a transient condition |
+| `CRITICAL` | `calf/uplink.ts` | CALF `HELLO` rejected or handshake timed out repeatedly across every reconnect attempt in a sustained window — the bridge has no live data source at all |
+| `DEBUG` | `calf/uplink.ts` | Every parsed CALF line (mirrors `pm-md-gwy`'s own `DEBUG`-level line logging) — verbose, off by default |
+| `INFO` | `calf/symbol-refcount.ts` | `SUB\|CH=DEPTH\|SYM=<x>` / `SUB\|CH=CB\|SYM=<x>` issued (reference count 0→1) or `UNSUB` issued (reference count →0), with the triggering reason (Depth toggle, Symbol Detail open, Session board halt) |
+| `WARNING` | `history-proxy.ts` | A proxied `pm-api-gwy` request failed or returned non-2xx; log endpoint, status, and whether the response was a 503 (a known "stats DB unavailable" condition) vs. an unexpected failure |
+| `ERROR` | `history-proxy.ts` | The bridge's own `pm-api-gwy` API key is missing, empty, or rejected as invalid at startup — the REST history proxy cannot function at all |
+| `INFO` | `ws-fanout.ts` | Browser WS client connected / disconnected, with a running connection count |
+| `WARNING` | `ws-fanout.ts` | `max_ws_clients` (§18, §19) reached — a new connection was refused |
+| `WARNING` | `ws-fanout.ts` | A browser WS send failed or the client's outbound buffer is growing unboundedly (a slow/wedged browser tab) — same shape as CALF's own `SLOW_CLIENT` concern, one layer up the stack |
+| `INFO` | `logging/lalf-client.ts` | Startup probe found `pm-log-srv` reachable; attached as the logging destination for this run (§17.5 step 1) |
+| `WARNING` | `logging/lalf-client.ts` | Connection to `pm-log-srv` lost after a successful attach; reconnect-with-backoff started (§17.5 step 3) |
+| `INFO` | `logging/lalf-client.ts` | Reconnect to `pm-log-srv` succeeded within the failover grace window; queued backlog draining, drop counter (if nonzero) reported once |
+| `WARNING` | `logging/lalf-client.ts` | `failover_timeout_sec` elapsed with no successful reconnect — one-way switch to `$EDUMATCHER_DATA_DIR/logs/pm-terminal-bridge.log` for the remainder of this run (this line is, necessarily, the one log statement guaranteed to reach the operator only via that local file and stderr, not LALF, §17.5 step 3) |
+
+This table is deliberately not exhaustive of every `console.log` the bridge
+will ever contain — it is the set of events worth someone else being able to
+find later via `pm-log-cli query`/`diagnose` (`docs/user-guide/280-log-srv.md`)
+across a whole deployment, not just in this one process's own terminal.
 
 ## 18. Security and Operational Notes
 
@@ -1843,7 +2048,18 @@ server-side, in `packages/calf-protocol`.
   the Session board is open, which is naturally small. The bridge does not
   need its own separate cap on concurrent `DEPTH`/`CB` subscriptions beyond
   what `pm-md-gwy`'s `max_symbols_per_client` already enforces.
-- No PII anywhere in this application; it displays market data only.
+- No PII anywhere in this application; it displays market data only — this
+  holds equally for what the bridge itself logs (§17.5): log messages are
+  operational (connection state, subscription counts, proxy errors), never
+  end-user or account data, since this application has no accounts.
+- **`pm-log-srv` needs no credential either** (§17.5) — LALF has no
+  authentication in this revision, the same trusted-network posture as CALF,
+  above. A `pm-log-srv` outage never blocks the application (§17.5's
+  degrade-honestly requirement); it only means that run's operational
+  logging eventually fell back to
+  `$EDUMATCHER_DATA_DIR/logs/pm-terminal-bridge.log` instead of being
+  shipped over LALF, after the same reconnect-with-backoff grace window
+  every other `pm-*` process gets (§17.5 step 3).
 
 ## 19. Config Reference
 
@@ -1864,7 +2080,37 @@ terminal_bridge:
   overview:
     default_page_delay_sec: 8
     symbols_per_page: "auto"            # derived from viewport at runtime
+  log_server:
+    host: "127.0.0.1"
+    port: 5600                          # pm-log-srv's LALF/TCP port, docs/user-guide/280-log-srv.md
+    client_id: "pm-terminal-bridge"     # LALF HELLO.CLIENT, §17.5
+    enabled: true                       # false skips even the startup probe (today's plain-stdout behavior)
+    connect_timeout_sec: 0.5            # startup probe + each reconnect attempt, matches logclient's default
+    failover_timeout_sec: 30            # grace window before the one-way switch to a local log file, §17.5 step 3
+    queue_maxsize: 2000                 # bounded in-memory backlog while reconnecting, oldest-preserved
 ```
+
+Field names and defaults deliberately mirror
+`edumatcher.logclient.handler.TcpLogHandler`'s constructor
+([EduMatcher-log-srv.md](EduMatcher-log-srv.md) §8.2) and the `--log-target`/
+`--log-failover-timeout` CLI flags every other `pm-*` process already
+exposes (§8.5 there) — this is a port of that behavior, not a new design, so
+the config should read the same way to anyone already familiar with
+`pm-audit`/`pm-stats`'s own logging flags.
+
+`log_server` is optional in spirit — if `pm-log-srv` is not reachable at the
+startup probe, the bridge falls back to plain stdout output immediately, no
+different from today's behavior (§17.5 step 1); if it *was* reachable and
+later goes away, the bridge reconnects with backoff for
+`failover_timeout_sec` before falling back to
+`$EDUMATCHER_DATA_DIR/logs/pm-terminal-bridge.log` (§17.5 step 3) — the two
+cases differ only in whether a connection was ever established, matching
+[EduMatcher-log-srv.md](EduMatcher-log-srv.md) §8.3/§8.6 exactly.
+`enabled: false` is provided only for a scratch/dev run where connecting is
+undesirable even if a `pm-log-srv` happens to be reachable (e.g. a
+developer's local machine running an unrelated `pm-log-srv` instance for
+another project) — the bridge logs to stdout only in that case, the same as
+an unreachable server at startup.
 
 ## 20. Testing Strategy
 
@@ -1874,13 +2120,15 @@ terminal_bridge:
 | `apps/bridge` CALF uplink | Vitest + a fake CALF TCP server | HELLO/WELCOME handshake incl. `CH_SUPPORTED` parsing, wildcard `SUB` fan-out incl. `AUCTION` (§6.4), per-symbol `RESUME`-after-wildcard reconnect sequencing (§17.1 — this is the trickiest path and deserves its own dedicated test group), `DEPTH`/`CB` reference-count subscribe/unsubscribe incl. the Session-board-triggered `CB` path (§6.5, §13.2), SLOW_CLIENT reconnect |
 | `apps/bridge` history proxy | Vitest + mocked `pm-api-gwy` responses | Passthrough shape for all endpoints incl. `index-daily`/`index-snapshots`/`index-events`, error propagation (503 when stats DB unavailable, 503/502 for `index-events`' `INDEX_TIMEOUT`/`INDEX_ERROR`, §10.4); `/api/symbols` only once §22's credential question is resolved |
 | `apps/web` components | Vitest + React Testing Library | FlashCell flash behaviour, Overview paging timer, Watchlist pin/filter persistence (§8.6), density preset switching (§7.5), chart series toggles incl. Depth toggle mount/unmount triggering `depth_subscribe`/`depth_unsubscribe`, auction banner auto-dismiss, halt badge expand-on-hover (§9.3a) |
-| End-to-end | Playwright, against a running `pm-engine` + `pm-md-gwy` + `pm-api-gwy` + bridge stack | Overview loads and pages; Symbol Detail chart renders and zooms; Depth ladder renders and updates on a resting-order change; a manual trade in the engine appears in the Tape within one polling interval; triggering a circuit-breaker halt in the engine shows halt context (via CALF `CB`) on both Symbol Detail and the Session board within one CALF message; a scripted opening-auction uncross shows up in the Recent Auction Results panel (via CALF `AUCTION`); Index View's historical chart renders from `index-daily`/`index-snapshots` |
+| `packages/lalf-client` | Vitest + a fake LALF TCP server | HELLO/WELCOME handshake, HB timer cadence against `WELCOME.HBINT`, `LOG` header+payload framing incl. `LEN`-prefixed byte-exact payloads (mirrors the normative reference's own emphasis on this being the most common implementation mistake, `docs/user-guide/940-app-lalf-protocol.md`), startup probe timeout/failure (§17.5 step 1), reconnect-with-backoff after a mid-session drop incl. queued-backlog draining on success (§17.5 step 3), one-way failover once `failover_timeout_sec` elapses with no reconnect, incl. the never-re-probes-afterward guarantee |
+| `apps/bridge` logging | Vitest | Every log call reaches a durable destination regardless of `LalfClient` connection state (§17.5's degrade-honestly requirement) — assert this by unit-testing `logger.ts` with `LalfClient` mocked through all three states: connected (records go over LALF), reconnecting (records queue up to `queue_maxsize`, oldest dropped past that), and failed-over (records land in `$EDUMATCHER_DATA_DIR/logs/pm-terminal-bridge.log`, file created/appended correctly, marker line written once) |
+| End-to-end | Playwright, against a running `pm-engine` + `pm-md-gwy` + `pm-api-gwy` + bridge stack | Overview loads and pages; Symbol Detail chart renders and zooms; Depth ladder renders and updates on a resting-order change; a manual trade in the engine appears in the Tape within one polling interval; triggering a circuit-breaker halt in the engine shows halt context (via CALF `CB`) on both Symbol Detail and the Session board within one CALF message; a scripted opening-auction uncross shows up in the Recent Auction Results panel (via CALF `AUCTION`); Index View's historical chart renders from `index-daily`/`index-snapshots`; with a running `pm-log-srv`, bridge startup/shutdown and a forced CALF reconnect are all visible via `pm-log-cli query --process pm-terminal-bridge` |
 
 ## 21. Implementation Plan
 
 | Phase | Scope |
 |---|---|
-| 1 | Monorepo scaffold; `packages/calf-protocol`; bridge CALF uplink connecting and logging parsed frames (no WS/browser yet) |
+| 1 | Monorepo scaffold; `packages/calf-protocol`; `packages/lalf-client` (§17.5); bridge CALF uplink connecting and logging parsed frames — logging is LALF-backed, with fallback to `$EDUMATCHER_DATA_DIR/logs/pm-terminal-bridge.log`, from this phase on (no WS/browser yet) |
 | 2 | Bridge WS fan-out + browser shell/nav (§7) incl. density preset (§7.5); Session & Halt board (§13, simplest view, validates the whole pipe end-to-end) — ship with just the `state`-sourced columns first, add `CB`/`AUCTION` in Phase 6 |
 | 3 | Market Overview (§8) incl. paging and periodic REST-repoll for OPEN/VOLUME (§8.5); Watchlist (§8.6) |
 | 4 | Symbol Detail (§9): chart, zoom, values table incl. VWAP/live High-Low (§9.5), live+historical splice |

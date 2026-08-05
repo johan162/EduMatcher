@@ -45,7 +45,7 @@ Quick index of all defined message topics with publisher and purpose.
 | `order.combo` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to submit a combo (multi-leg) order. |
 | `order.combo_cancel` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to cancel a combo and all its child legs. |
 | `order.ack.{GW_ID}` | pm-engine via PUB :5556 | Acknowledgement of an `order.new` submission. |
-| `order.fill.{GW_ID}` | pm-engine via PUB :5556 | Notifies a gateway (and the order monitor) of a partial or full fill. A derived copy of each fill is separately relayed as `drop_copy.event.{gateway_id}` on :5557 — see below and [Drop Copy](200-drop-copy.md). Can also be relayed to a participant's own ALF session as `DC_FILL` via `DC\|STATE=ON` — see [Gateway → DC](050-gateway-reference.md#dc-toggle-drop-copy-relay). |
+| `order.fill.{GW_ID}` | pm-engine via PUB :5556 | Notifies a gateway (and the order monitor) of a partial or full fill. A derived copy of each fill is separately relayed as `drop_copy.event.{gateway_id}` on :5557 — see below and [Drop Copy](200-drop-copy.md). Can also be relayed to a participant's own ALF session as `DC_FILL` via `DC\|STATE=ON` — see [ALF Console → DC](055-alf-console.md#dc-toggle-drop-copy-relay). |
 | `order.cancelled.{GW_ID}` | pm-engine via PUB :5556 | Confirms a cancel request or a Self-Match Prevention (SMP) forced cancellation. |
 | `order.amended.{GW_ID}` | pm-engine via PUB :5556 | Confirms a successful order amendment. |
 | `order.expired.{GW_ID}` | pm-engine via PUB :5556 | Published during engine shutdown for every resting `DAY` order that did not fill. |
@@ -71,6 +71,7 @@ Quick index of all defined message topics with publisher and purpose.
 | `system.eod` | pm-engine via PUB :5556 | Broadcast by the engine at shutdown before sockets are closed. |
 | `circuit_breaker.halt.{SYMBOL}` | pm-engine via PUB :5556 | Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions. |
 | `circuit_breaker.resume.{SYMBOL}` | pm-engine via PUB :5556 | Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions. |
+| `circuit_breaker.extend.{SYMBOL}` | pm-engine via PUB :5556 | An ACE corridor expansion: the call phase ended with the indicative price outside the corridor, so the symbol stays halted, the corridor widens and a fresh call phase begins. A consumer that ignores this keeps a `resume_at_ns` that has already passed. |
 | `session.transition` | pm-scheduler (PUSH -> engine on :5555) | Sent by the `pm-scheduler` process to request a session-phase transition. |
 | `index.history_request` | Requesting client process via PUSH → pm-index PULL | Retrieves pm-index's structural/audit trail (creation, corporate actions, constituent changes, delistings). |
 | `index.corp_action` | Operator tool via PUSH → pm-index PULL | Applies a corporate action (split, dividend, share issuance) affecting index divisor continuity. |
@@ -563,7 +564,7 @@ Operator command to halt a single symbol. Any authenticated connected gateway ma
 | `reason` | string | Rejection reason when `accepted=false` |
 | `cancelled_quotes` | integer | Number of MM quote legs cancelled on halt |
 
-The engine also publishes `circuit_breaker.halt.{SYMBOL}` with `resumption_mode = "MANUAL"` when a symbol is halted this way.
+The engine also publishes `circuit_breaker.halt.{SYMBOL}` with `halt_source = "ADMIN"` when a symbol is halted this way.
 
 ### `risk.symbol_resume`
 
@@ -584,7 +585,7 @@ Resume trading on a single previously halted symbol.
 | `accepted` | boolean | `true` if the symbol was resumed |
 | `reason` | string | Rejection reason when `accepted=false` |
 
-The engine publishes `circuit_breaker.resume.{SYMBOL}` with `mode = "MANUAL"` when the symbol is resumed.
+The engine publishes `circuit_breaker.resume.{SYMBOL}` with `halt_source = "ADMIN"` when the symbol is resumed.
 
 ### `risk.cancel_symbol`
 
@@ -619,7 +620,7 @@ Operational semantics:
 
 - This is an exchange-wide manual halt. It is not timer-based.
 - The engine marks affected symbols as halted and publishes
-  `circuit_breaker.halt.<SYMBOL>` with `resumption_mode = "MANUAL"` and
+  `circuit_breaker.halt.<SYMBOL>` with `halt_source = "ADMIN"` and
   `resume_at_ns = null`.
 - While halted, quote entry is rejected and immediate-execution order types are
   rejected under the normal halt rules.
@@ -656,7 +657,7 @@ Operational semantics:
 
 - The engine iterates all symbols currently marked as halted, sets each to
   non-halted, and deactivates any in-memory circuit-breaker state.
-- A `circuit_breaker.resume.<SYMBOL>` event (with `mode = "MANUAL"`) is
+- A `circuit_breaker.resume.<SYMBOL>` event (with `halt_source = "ADMIN"`) is
   published for each resumed symbol.
 - Only symbols that are currently halted are touched; symbols that are already
   trading are left unchanged.
@@ -718,7 +719,7 @@ The engine will:
 1. Verify the gateway is connected and carries role `ADMIN`.
 2. Collect every known symbol (from order books, circuit-breaker state, and
    engine configuration).
-3. Mark each symbol as halted with `resumption_mode = "MANUAL"`.
+3. Mark each symbol as halted with `halt_source = "ADMIN"`.
 4. Cancel all outstanding MM quote legs (both sides).
 5. Publish one `circuit_breaker.halt.<SYMBOL>` event per symbol.
 6. Acknowledge with `risk.circuit_breaker_halt_all_ack.GW_ADMIN`.
@@ -726,8 +727,8 @@ The engine will:
 Expected inbound events (subscribe to `circuit_breaker.*`):
 
 ```
-circuit_breaker.halt.AAPL  → { symbol: "AAPL", resumption_mode: "MANUAL", level: "ADMIN_ALL", ... }
-circuit_breaker.halt.MSFT  → { symbol: "MSFT", resumption_mode: "MANUAL", level: "ADMIN_ALL", ... }
+circuit_breaker.halt.AAPL  → { symbol: "AAPL", halt_source: "ADMIN", level: "ADMIN_ALL", ... }
+circuit_breaker.halt.MSFT  → { symbol: "MSFT", halt_source: "ADMIN", level: "ADMIN_ALL", ... }
 ...
 risk.circuit_breaker_halt_all_ack.GW_ADMIN → { accepted: true, halted_symbols: N, cancelled_quotes: M }
 ```
@@ -913,7 +914,7 @@ on this page is mirrored to `:5557`.
     participant's own ALF session via `pm-alf-console --drop-copy` /
     `DC|STATE=ON` or `pm-alf-gwy`'s `DC|STATE=ON` command, which re-emits it
     as an ALF `DC_FILL` line scoped to that session's own `gateway_id`. See
-    [Gateway → DC](050-gateway-reference.md#dc-toggle-drop-copy-relay) and
+    [ALF Console → DC](055-alf-console.md#dc-toggle-drop-copy-relay) and
     [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay).
 
 | Field | Type | Description |
@@ -1085,6 +1086,7 @@ Consumed by order-book viewers and the statistics process.
 | Field | Type | Description |
 |---|---|---|
 | `symbol` | string | Instrument ticker |
+| `tick_decimals` | integer | Symbol price precision (`d` where 1 tick = `10^-d`), matching `trade.executed`. Lets a subscriber that stores integerized prices convert the display floats below back to exact ticks instead of assuming a scale — assuming `2` for a 4-decimal symbol rounds the price away |
 | `bids` | array of level dicts | Sorted best-to-worst; each level: `{"price", "qty", "count"}` |
 | `asks` | array of level dicts | Sorted best-to-worst; each level: `{"price", "qty", "count"}` |
 | `last_price` | float \| null | Price of the most recent trade |
@@ -1103,6 +1105,14 @@ Consumed by order-book viewers and the statistics process.
 Published alongside `book.{SYMBOL}` after every state change (same throttle).  
 Contains depth and imbalance metrics computed within ±100 ticks of the last trade.  
 Absent (not published) until at least one trade has occurred for the symbol.
+
+!!! note "Constructed with `make_depth_msg`"
+    The topic is `depth.{SYMBOL}`, deliberately **not** `book.depth.{SYMBOL}`.
+    A `book.` prefix subscription matches any sub-topic, so publishing depth
+    under `book.depth.…` would deliver it to every book subscriber — and
+    pm-stats, which derives the symbol as everything after the first dot,
+    would record a phantom instrument named `depth.AAPL`. Use
+    `models.message.make_depth_msg`; do not construct the topic by hand.
 
 | Field | Type | Description |
 |---|---|---|
@@ -1309,7 +1319,7 @@ forwards `QLEGS` requests from its own ALF sessions to this message and
 renders `legs` (as `LEG` lines), `recent` (as `RECENT_LEG` lines), and
 `bid_leg`/`ask_leg` (as `RECENT_BID_LEG`/`RECENT_ASK_LEG` lines, emitted only
 when present) — see
-[Gateway → QLEGS](050-gateway-reference.md#qlegs-inspect-mm-quote-legs-and-fill-flags).
+[ALF Console → QLEGS](055-alf-console.md#qlegs-inspect-mm-quote-legs-and-fill-flags).
 `pm-alf-console`'s own `QLEGS` command does **not** use this message at all —
 it continues to render entirely from its own local, session-scoped cache
 (unrelated code path, unaffected by any of the above).
@@ -1435,7 +1445,7 @@ from edge events alone.
 
 Each entry in `halted` always has `symbol`; the other three fields are present
 **only when the symbol has a configured circuit breaker** (`resume_at_ns`,
-`level`, and `resumption_mode` are omitted entirely, not sent as `null`, for a
+`level`, and `halt_source` are omitted entirely, not sent as `null`, for a
 halted symbol with no circuit-breaker configuration):
 
 | Field | Type | Description |
@@ -1443,7 +1453,7 @@ halted symbol with no circuit-breaker configuration):
 | `symbol` | string | Halted instrument ticker |
 | `resume_at_ns` | integer \| absent | Engine nanosecond timestamp when the halt auto-expires; absent for manual (`ADMIN_ALL`/`ADMIN_SYMBOL`) halts |
 | `level` | string \| absent | CB ladder level that triggered the halt: `"L1"`, `"L2"`, `"L3"`, `"ADMIN_ALL"` (operator-initiated global halt), or `"ADMIN_SYMBOL"` (operator-initiated single-symbol halt) |
-| `resumption_mode` | string \| absent | `"AUCTION"`, `"CONTINUOUS"`, or `"MANUAL"` |
+| `halt_source` | string \| absent | What halted the symbol: `"CB"` for an automatic breaker trigger, `"ADMIN"` for an operator halt |
 
 
 
@@ -1505,14 +1515,37 @@ and the statistics process to know what trading mode is currently active.
 
 
 
+### `auction.indicative.{SYMBOL}`
+
+**Motivation:** Shows where a symbol *would* uncross while a call phase is still collecting orders, so a participant can supply the offsetting interest that resolves an imbalance while there is still time to act.
+**Published by:** pm-engine via PUB :5556
+
+Published repeatedly during an opening or closing auction, throttled by
+`engine_tuning.auction_indicative_interval_sec`. This is the counterpart to
+`auction.result.{SYMBOL}`: that reports what *happened*, this reports what
+*would* happen if the phase ended now.
+
+| Field            | Type          | Description                                                     |
+|------------------|---------------|-----------------------------------------------------------------|
+| `symbol`         | string        | Instrument ticker                                               |
+| `phase`          | string        | The call phase in progress, e.g. `OPENING_AUCTION`              |
+| `eq_price`       | float \| null | Indicative equilibrium price; `null` when the book would not cross at all — a real state during a call phase, and **not** the same as a price of zero |
+| `eq_qty`         | integer       | Quantity that would match at `eq_price`                         |
+| `imbalance_side` | string        | `"BUY"`, `"SELL"`, or `""` (balanced)                           |
+| `imbalance_qty`  | integer       | Surplus quantity that would not match                           |
+
 ### `auction.result.{SYMBOL}`
 
 **Motivation:** Publishes venue/session lifecycle transitions that gate trading behavior and downstream workflows.
 **Published by:** pm-engine via PUB :5556
 
-Broadcast once per symbol after an auction uncross completes (i.e. when
-transitioning out of OPENING_AUCTION or CLOSING_AUCTION).  Reports the
+Broadcast once per symbol after an auction uncross completes.  Reports the
 equilibrium price, quantity matched, and any imbalance.
+
+Three different events produce it, and `reason` is the only field that
+distinguishes them: leaving an auction or other non-matching session phase,
+a halted symbol reopening at the end of its halt, and the pass over restored
+GTC orders at engine startup.
 
 | Field            | Type          | Description                                                  |
 |------------------|---------------|--------------------------------------------------------------|
@@ -1522,6 +1555,7 @@ equilibrium price, quantity matched, and any imbalance.
 | `trades_count`   | integer       | Number of individual trade pairs generated                   |
 | `imbalance_side` | string        | `"BUY"`, `"SELL"`, or `""` (balanced)                        |
 | `imbalance_qty`  | integer       | Surplus quantity that could not be matched                   |
+| `reason`         | string        | `"SCHEDULED"`, `"REOPEN"`, or `"RECOVERY"`                   |
 
 
 
@@ -1554,7 +1588,7 @@ These events are published on PUB :5556 whenever a symbol halts or resumes, rega
 | `trigger_price` | float \| null | Trade price that crossed the CB threshold; `null` for operator-initiated halts |
 | `reference_price` | float \| null | Rolling reference price at halt time; `null` for operator-initiated halts |
 | `resume_at_ns` | integer \| null | Engine nanosecond timestamp when the halt will auto-expire; `null` for manual (`ADMIN_ALL`/`ADMIN_SYMBOL`) halts |
-| `resumption_mode` | `"AUCTION"` \| `"CONTINUOUS"` \| `"MANUAL"` | How the symbol will reopen: auction uncross, immediate continuous matching, or explicit operator resume |
+| `halt_source` | `"CB"` \| `"ADMIN"` | What halted the symbol. Not how it reopens: every halt is a reopening auction's call phase and always ends in an uncross, because LIMIT orders rest freely while halted and resuming without one would start continuous matching on a crossed book |
 | `level` | string | CB ladder level that fired (`"L1"`, `"L2"`, `"L3"`), `"ADMIN_ALL"` for an operator-initiated global halt, or `"ADMIN_SYMBOL"` for an operator-initiated single-symbol halt |
 
 ### `circuit_breaker.resume.{SYMBOL}`
@@ -1562,10 +1596,13 @@ These events are published on PUB :5556 whenever a symbol halts or resumes, rega
 **Motivation:** Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions.
 **Published by:** pm-engine via PUB :5556
 
-| Field    | Type                                        | Description               |
-|----------|---------------------------------------------|---------------------------|
-| `symbol` | string                                      | Resumed instrument ticker |
-| `mode`   | `"AUCTION"` \| `"CONTINUOUS"` \| `"MANUAL"` | How the symbol reopened   |
+| Field         | Type                | Description                                    |
+|---------------|---------------------|------------------------------------------------|
+| `symbol`      | string              | Resumed instrument ticker                      |
+| `halt_source` | `"CB"` \| `"ADMIN"` | What had halted the symbol                     |
+
+The reopening uncross is published first, as an `auction.result.{SYMBOL}`
+with `reason: "REOPEN"`, and this event follows it.
 
 
 
@@ -2144,7 +2181,7 @@ one-to-one mapping of the `log_events` table (see
 | Audit | *(empty filter — receives everything)* |
 | Statistics | `trade.`, `book.`, `system.eod`, `system.symbols.STATS`, `session.state`, `auction.result.` |
 | AI trader / bot | `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `book.`, `depth.`, `trade.executed`, `order.ack.{GW}`, `order.fill.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `system.symbols.{GW}`, `system.gateway_auth.{GW}`, `system.halt_status.{GW}`, `system.position_snapshot.{GW}`, `system.eod` |
-| Market-data gateway (`pm-md-gwy`) | `book.`, `trade.executed`, `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `index.` |
+| Market-data gateway (`pm-md-gwy`) | `book.`, `trade.executed`, `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `auction.result.`, `index.` |
 | Log subscriber (viewer/UI, on `pm-log-srv`'s own PUB `:5601`) | `log.event.{SUB_ID}`, `log.notify.{SUB_ID}`, `log.backfill.{SUB_ID}`, `log.subscribe_ack.{SUB_ID}`, `log.renew_ack.{SUB_ID}`, `log.unsubscribe_ack.{SUB_ID}`, `log.status.{SUB_ID}`, `log.lease_expired.{SUB_ID}`, `log.error.{SUB_ID}`, `log.server_state` — in practice the two prefixes `log.` + `{SUB_ID}` and `log.server_state` |
 
 
@@ -2157,18 +2194,41 @@ external-facing protocol: a newline-delimited UTF-8 text feed on TCP port
 payload shapes. It is not just a passthrough of the messages above — it
 normalises, re-sequences, and reshapes them into CALF's own message types.
 
-| Channel | Message type | Wildcard (`SYM=*`) | Carries |
-|---|---|---|---|
-| `TOP` | `MD` | Yes | Best bid/ask/last |
-| `TRADE` | `TRADE` | Yes | Individual trade prints |
-| `STATE` | `STATE` | Yes | Session/symbol state transitions |
-| `INDEX` | `IDX` | No | Index level updates |
-| `DEPTH` | `DEPTH` | No | Aggregated multi-level order book |
+| Channel | Message type | Wildcard (`SYM=*`) | Baseline `SNAP`? | Carries |
+|---|---|---|---|---|
+| `TOP` | `MD` | Yes | Yes | Best bid/ask/last |
+| `TRADE` | `TRADE` | Yes | No | Individual trade prints |
+| `STATE` | `STATE` | Yes | Yes | Session/symbol state transitions |
+| `INDEX` | `IDX` | No | Yes | Index level updates |
+| `DEPTH` | `DEPTH` | No | Yes | Aggregated multi-level order book (Level 2) |
+| `AUCTION` | `AUCTION` | Yes | No | Auction uncross result (equilibrium price/qty, imbalance) |
+| `CB` | `CB` | No | Yes | Circuit-breaker halt/resume detail beyond `STATE`'s coarse transition |
 
-Client requests are `HELLO` (authenticate, optionally `RESUME=1` for replay),
-`SUB`/`UNSUB` (subscribe/cancel), `PING`, and `EXIT`. Gateway replies include
-`WELCOME`, a baseline `SNAP` per new stream, the five message types above,
-periodic `HB` heartbeats, and `ERR` on protocol/subscription violations.
+Client requests are `HELLO` (authenticate), `SUB`/`UNSUB` (subscribe/cancel),
+`RESUME` (replay one stream from a known sequence — repeatable, one per
+stream), `SYMBOLS` (ask which instruments exist), `PING`, and `EXIT`. Gateway replies include `WELCOME`, a baseline
+`SNAP` per new stream on the five channels that have one, the seven message
+types above, periodic `HB` heartbeats, and `ERR` on protocol/subscription
+violations.
+
+Two behaviours are easy to get wrong from the table alone:
+
+- **`MD` is a delta, and an empty value is meaningful.** Only changed fields
+  are sent; an omitted field means *unchanged*. An explicitly empty `BID=` or
+  `ASK=` means that book side is now **empty** and the client must discard the
+  price rather than keep the last one it saw.
+- **`RESUME` is per stream.** `LASTSEQ` describes one `(CH, SYM)` position, so
+  a reconnecting client sends one `RESUME` per stream it was following. It is
+  not a flag on `HELLO`.
+- **Ask for the symbol universe; do not wait for it.** `WELCOME|SYMBOLS=` is
+  optional and omitted entirely by a gateway started without a readable engine
+  config. Send `SYMBOLS` after the handshake, and read its `COUNT` — an empty
+  universe omits the list rather than sending it empty.
+- **Read `REF=` before you format a price.** It carries each symbol's display
+  precision as `SYM:DEC` tuples, on both `WELCOME` and the `SYMBOLS` reply, and
+  is the only route a market data client has to that value. A gateway that
+  predates the field omits it entirely, in which case assume `2` decimals —
+  knowingly, because getting this wrong rounds every price the client shows.
 
 The full protocol — every field table, the `WELCOME`/`SNAP` handshake,
 sequence-gap detection and `RESUME` recovery, subscription limits, and the
@@ -2181,7 +2241,7 @@ wire-format specification in the
 ## See also
 
 - [Processes](170-processes.md) — which process subscribes to which topic prefix
-- [Gateway](050-gateway-reference.md) — how participants receive fill, book, and risk events
+- [ALF Console](055-alf-console.md) — how participants receive fill, book, and risk events
 - [Commands](160-exchange-commands.md) — `ExchangeCommandClient` methods and their underlying message topics
 - [Drop Copy](200-drop-copy.md) — the separate :5557 socket for fill-only event feeds
 - [Risk Controls](120-risk-controls.md) — `risk.*` message payloads in detail

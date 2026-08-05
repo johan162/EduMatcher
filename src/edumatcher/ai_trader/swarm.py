@@ -169,11 +169,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default="",
         help="Comma-separated symbols; default loads all symbols from engine config",
     )
-    parser.add_argument(
-        "--config",
-        default=str(ENGINE_CONFIG_FILE),
-        help="Engine config path used to discover symbols",
-    )
     parser.add_argument("--seed-base", type=int, default=1000)
     parser.add_argument("--duration", type=float, default=60.0)
     parser.add_argument("--python", default=sys.executable)
@@ -240,8 +235,7 @@ def main() -> None:
         log.error("invalid startup value: --count must be > 0 (got %s)", args.count)
         raise SystemExit("--count must be > 0")
 
-    config_path = Path(str(args.config))
-    symbols = _load_symbols(str(args.symbols), config_path)
+    symbols = _load_symbols(str(args.symbols), ENGINE_CONFIG_FILE)
     if not symbols:
         log.error("no symbols available for swarm")
         raise SystemExit("No symbols available for swarm")

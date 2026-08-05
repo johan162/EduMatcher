@@ -66,7 +66,7 @@ multipass version
 Run the curl bootstrap script (pinned to this release):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.17.0 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.18.0 --snapshot
 ```
 
 This command will:
@@ -81,7 +81,7 @@ This command will:
     ```bash
     curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
     less curl_setup_vm.sh
-    bash curl_setup_vm.sh --version 0.17.0 --snapshot
+    bash curl_setup_vm.sh --version 0.18.0 --snapshot
     ```
 
 ### Step 3: Enter the VM and verify commands
@@ -158,23 +158,22 @@ Expected output (abbreviated — the real output also prints the exact
 pm-setup — EduMatcher session initialisation
 ==================================================
   ✓ Created data directory:          /Users/you/.local/share/edumatcher
-  ✓ Sample config written to:        /Users/you/session/engine_config.yaml
-    → Edit this file before starting the engine.
+  ✓ Sample config compiled to:       /Users/you/.local/share/edumatcher/ref_data/engine_config.json
+    3 symbol(s) ready to trade.
 
   Shell environment snippet — add to your shell profile:
   (~/.zshrc)
 
   ----------------------------------------------
   export EDUMATCHER_DATA_DIR="/Users/you/.local/share/edumatcher"
-  export EDUMATCHER_CONFIG="/Users/you/session/engine_config.yaml"
   ----------------------------------------------
 ```
 
 !!! note "Re-running pm-setup"
-    Use `pm-setup --force` to overwrite an existing sample config with the
-    latest version from the package.
+    Use `pm-setup --force` to replace an already-deployed config with the
+    latest sample from the package.
 
-:material-checkbox-blank-outline: **Checkpoint:** data directory exists; sample config in place.
+:material-checkbox-blank-outline: **Checkpoint:** data directory exists; sample config deployed.
 
  
 
@@ -187,7 +186,6 @@ Add the exports to your shell profile:
 ```bash
 # Add to ~/.zshrc (macOS) or ~/.bashrc (Linux)
 export EDUMATCHER_DATA_DIR="$HOME/.local/share/edumatcher"
-export EDUMATCHER_CONFIG="./engine_config.yaml"
 ```
 
 Then reload:
@@ -198,16 +196,23 @@ source ~/.zshrc   # or source ~/.bashrc
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `EDUMATCHER_DATA_DIR` | Where persistent data (stats DB, logs, state) is stored | `~/.local/share/edumatcher` |
-| `EDUMATCHER_CONFIG` | Path to the engine configuration YAML | `./engine_config.yaml` |
+| `EDUMATCHER_DATA_DIR` | Where persistent data (stats DB, logs, state) **and the deployed engine configuration** live | `~/.local/share/edumatcher` |
 
-!!! tip "Override per-session"
-    You can point to a different config for different scenarios:
+This is the only variable there is. The engine configuration is always read
+from `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`, and no process takes
+a path to it, so two processes cannot be started on different configurations.
+
+!!! tip "Switching scenarios"
+    Install a different configuration and restart:
     ```bash
-    EDUMATCHER_CONFIG=~/configs/classroom.yaml pm-engine
+    pm-config-deploy ~/configs/classroom.yaml
     ```
-    The `--config` flag on `pm-engine` and `pm-scheduler` takes precedence
-    over the environment variable.
+    Or give the scenario its own data directory, which isolates its
+    statistics and logs as well:
+    ```bash
+    export EDUMATCHER_DATA_DIR=~/sessions/classroom
+    pm-config-deploy ~/configs/classroom.yaml
+    ```
 
 :material-checkbox-blank-outline: **Checkpoint:** `echo $EDUMATCHER_DATA_DIR` prints the correct path.
 
@@ -284,10 +289,10 @@ You now have:
 Confirm every item before starting Chapter 01 — each one is a prerequisite
 that chapter assumes without re-explaining:
 
-- [ ] `engine_config.yaml` exists in your working directory (`ls engine_config.yaml`).
-- [ ] `EDUMATCHER_DATA_DIR` and `EDUMATCHER_CONFIG` are set **in the shell you
-      will use for the next chapter** (`echo $EDUMATCHER_DATA_DIR`) — these do
-      not persist across new terminal windows unless added to your shell profile.
+- [ ] A configuration is deployed (`pm-config-deploy --show`, then `ls` that path).
+- [ ] `EDUMATCHER_DATA_DIR` is set **in the shell you will use for the next
+      chapter** (`echo $EDUMATCHER_DATA_DIR`) — it does not persist across new
+      terminal windows unless added to your shell profile.
 - [ ] `pm-engine --version` and `pm-engine --help` both resolve without a
       `command not found` error in that same shell.
 

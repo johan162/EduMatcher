@@ -445,14 +445,18 @@ class TestSessionMessages:
 
     def test_make_auction_result_msg(self) -> None:
         topic, payload = _rt(
-            make_auction_result_msg("AAPL", 150.0, 1000, 5, "BUY", 200)
+            make_auction_result_msg("AAPL", 150.0, 1000, 5, "BUY", 200, "SCHEDULED")
         )
         assert topic == "auction.result.AAPL"
         assert payload["eq_price"] == 150.0
         assert payload["eq_qty"] == 1000
+        # The three uncross origins are otherwise indistinguishable.
+        assert payload["reason"] == "SCHEDULED"
 
     def test_make_auction_result_msg_no_price(self) -> None:
-        topic, payload = _rt(make_auction_result_msg("AAPL", None, 0, 0, "", 0))
+        topic, payload = _rt(
+            make_auction_result_msg("AAPL", None, 0, 0, "", 0, "REOPEN")
+        )
         assert payload["eq_price"] is None
 
 
@@ -605,6 +609,16 @@ class TestMMQuoteAndRiskMessages:
         assert payload["resumed_symbols"] == 5
 
     def test_make_depth_msg(self) -> None:
+        """Topic must be depth.{symbol}, matching the engine and subscribers.
+
+        It was book.depth.AAPL, which no subscriber listened for — and which
+        a `book.` prefix subscription swallows, making pm-stats invent a
+        phantom symbol called "depth.AAPL".
+        """
         topic, payload = _rt(make_depth_msg("AAPL", {"bids": [[10000, 10]]}))
-        assert topic == "book.depth.AAPL"
+        assert topic == "depth.AAPL"
         assert payload["bids"][0][0] == 10000
+
+    def test_depth_topic_is_not_swallowed_by_a_book_subscription(self) -> None:
+        topic, _ = _rt(make_depth_msg("AAPL", {}))
+        assert not topic.startswith("book.")

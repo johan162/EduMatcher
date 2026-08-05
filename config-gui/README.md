@@ -1,10 +1,16 @@
 # EduMatcher Config Builder (`config-gui`)
 
-A browser-based builder for EduMatcher's `engine_config.yaml` — a human-friendly
+A browser-based builder for EduMatcher's authored `engine_config.yaml` — a
+human-friendly
 companion to the `pm-config-gen` CLI. It offers live cross-field validation,
 progressive disclosure by experience level (*Beginner* / *Intermediate* /
 *Expert*), import of existing configs, light and dark themes, and export that is
 guaranteed parseable by the engine.
+
+> **Deploying what you export** — the GUI produces the *authored* YAML. Run
+> `pm-config-deploy <file>` to validate and compile it into the artifact every
+> `pm-*` process reads. See the
+> [Configuration chapter](../docs/user-guide/010-configuration.md#file-location).
 
 > **User & operator documentation** — installation, running in development,
 > production and container deployment, environment variables, and a full

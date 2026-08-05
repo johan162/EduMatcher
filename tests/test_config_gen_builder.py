@@ -165,10 +165,11 @@ def test_builder_with_cb_defaults_and_symbol_override() -> None:
     )
     payload = ConfigBuilder(spec).build()
 
-    assert (
-        payload["circuit_breaker_defaults"]["levels"]["L1"]["resumption_mode"]
-        == "AUCTION"
-    )
+    default_l1 = payload["circuit_breaker_defaults"]["levels"]["L1"]
+    assert default_l1 == {
+        "price_shift_pct": 0.07,
+        "halt_duration_ns": 300000000000,
+    }
     sym_l1 = payload["symbols"]["TSLA"]["circuit_breaker"]["levels"]["L1"]
     assert sym_l1["price_shift_pct"] == 0.10
     assert sym_l1["halt_duration_ns"] == 600000000000
@@ -228,7 +229,7 @@ def test_builder_with_api_gateway_generates_credentials() -> None:
     payload = ConfigBuilder(spec).build()
 
     api_gateway = payload["api_gateways"]["desk"]
-    assert api_gateway["host"] == "127.0.0.1"
+    assert api_gateway["host"] == "0.0.0.0"
     assert api_gateway["port"] == 8080
     assert api_gateway["rate_limit"] == {"writes_per_second": 10, "burst": 20}
     assert api_gateway["timeouts"]["wait_ack_sec"] == 3.0
@@ -464,24 +465,6 @@ def test_builder_no_combos_omits_section() -> None:
     assert "market_maker_combos" not in payload
 
 
-def test_builder_cb_defaults_resumption_mode() -> None:
-    spec = ConfigSpec(
-        symbols=["AAPL"],
-        gateways=[parse_gateway_spec("TRADER01")],
-        cb_levels=[
-            parse_cb_spec("L1:0.07:5:AUCTION"),
-            parse_cb_spec("L2:0.13:15:CONTINUOUS"),
-            parse_cb_spec("L3:0.20"),
-        ],
-    )
-    payload = ConfigBuilder(spec).build()
-
-    levels = payload["circuit_breaker_defaults"]["levels"]
-    assert levels["L1"]["resumption_mode"] == "AUCTION"
-    assert levels["L2"]["resumption_mode"] == "CONTINUOUS"
-    assert levels["L3"]["resumption_mode"] == "AUCTION"
-
-
 def test_builder_gateway_description_emitted() -> None:
     spec = ConfigSpec(
         symbols=["AAPL"],
@@ -518,18 +501,3 @@ def test_builder_per_symbol_enforce_mm_obligation() -> None:
     assert "mm_obligation_defaults" in payload
     sym_overrides = payload["mm_obligation_defaults"]["symbols"]
     assert sym_overrides["AAPL"]["enforce_mm_obligation"] is True
-
-
-def test_builder_per_symbol_cb_resumption_mode() -> None:
-    override = SymbolOverride(
-        cb_shift={"L2": 0.10}, cb_resumption_mode={"L2": "CONTINUOUS"}
-    )
-    spec = ConfigSpec(
-        symbols=["AAPL"],
-        gateways=[parse_gateway_spec("TRADER01")],
-        symbol_overrides={"AAPL": override},
-    )
-    payload = ConfigBuilder(spec).build()
-
-    cb = payload["symbols"]["AAPL"]["circuit_breaker"]["levels"]
-    assert cb["L2"]["resumption_mode"] == "CONTINUOUS"

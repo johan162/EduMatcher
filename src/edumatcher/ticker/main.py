@@ -34,7 +34,7 @@ import signal
 import sqlite3
 import threading
 import time
-from datetime import date, datetime
+from datetime import datetime, tzinfo
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +56,8 @@ from edumatcher.log_srv.config import (
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
+from edumatcher.stats.query import resolve_session_timezone
+from edumatcher.stats.trading_day import resolve_timezone, trading_date
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -294,9 +296,14 @@ class TickerProcess:
         self,
         db_path: Path,
         db_interval: float,
+        session_tz: tzinfo | None = None,
     ) -> None:
         self._db_path = db_path
         self._db_interval = db_interval
+        #: ``None`` means "use whatever the database was recorded with",
+        #: resolved per refresh so a ticker started before pm-stats created
+        #: the file still picks it up.
+        self._tz_override = session_tz
         self._running = True
         self._lock = threading.Lock()
 
@@ -349,7 +356,15 @@ class TickerProcess:
         try:
             conn = sqlite3.connect(str(self._db_path))
             try:
-                today = date.today().isoformat()
+                # daily_stats.date holds the trading date in the exchange's
+                # session timezone, so resolve "today" the same way pm-stats
+                # wrote it — the host's local date is a different clock. The
+                # timezone is read from the database rather than configured
+                # here, so the ticker cannot disagree with the recorder.
+                tz = self._tz_override
+                if tz is None:
+                    tz, _warning = resolve_session_timezone(conn)
+                today = trading_date(time.time(), tz)
                 daily = _query_daily_stats(conn, today)
             finally:
                 conn.close()
@@ -511,9 +526,15 @@ def main() -> None:
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-ticker with log level %s", logging.getLevelName(log_level))
+    session_tz = None
+    if args.timezone is not None:
+        session_tz = resolve_timezone(args.timezone)
+        if session_tz is None:
+            parser.error(f"--timezone: unknown timezone {args.timezone!r}")
     TickerProcess(
         db_path=Path(args.db),
         db_interval=args.db_interval,
+        session_tz=session_tz,
     ).run()
 
 
@@ -534,6 +555,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default=_DB_REFRESH_DEFAULT,
         metavar="SEC",
         help=f"Seconds between daily_stats DB re-queries (default: {_DB_REFRESH_DEFAULT})",
+    )
+    parser.add_argument(
+        "--timezone",
+        metavar="TZ",
+        default=None,
+        help=(
+            "Override the session timezone used to resolve today's trading "
+            "date. By default the timezone the statistics database was "
+            "recorded with is used, which is almost always what you want"
+        ),
     )
     parser.add_argument(
         "--log-level",

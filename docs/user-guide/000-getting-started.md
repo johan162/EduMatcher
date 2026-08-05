@@ -3,695 +3,543 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - What EduMatcher is and what you can do with it
-    - The minimum steps to start an exchange and execute your first trade
-    - What each process does and when to start it
-    - How to quickly bootstrap a new `engine_config.yaml` with `pm-config-gen`
-    - Which sections to read next based on your role
+    - What EduMatcher is, and why it is split into many `pm-*` processes
+    - The smallest useful path from installation to a first trade
+    - The handful of concepts that make the rest of the guide easier to read
+    - How configuration, data files, market data, logs and reports fit together
+    - Which chapters to read next for your role
 
 
+## What EduMatcher is
 
-## What is EduMatcher?
+EduMatcher is a working educational exchange. It has a real matching engine,
+real order books, session phases, auctions, market-maker quoting, risk controls,
+statistics, clearing-style P&L, audit logs, external gateways, market-data feeds,
+post-trade feeds, monitoring tools and autonomous bot traders.
 
-EduMatcher is a **fully functional financial exchange matching engine** built for
-education, research, and demo purposes. It implements the same core mechanics that
-underpin real stock exchanges:
+That makes it useful for three different kinds of learning:
 
-- A **continuous order book** that matches buyers and sellers
-- **Auction phases** (opening and closing) with equilibrium price calculation
-- **Market-maker quoting** with obligations and protection
-- **Risk controls**: price collars, circuit breakers, kill switches
-- **Combo and OCO orders**: multi-leg strategies with cascade cancellation
-- **Statistics recording** (OHLCV, VWAP, mid prices) in SQLite
-- **Drop-copy feed** for compliance monitoring
-- **Autonomous AI traders** to simulate real order flow
+- **Market microstructure** — what happens inside an order book, why auctions
+  exist, how spreads, time priority, market makers and risk controls change the
+  market
+- **Exchange operations** — how to configure a venue, start the processes, run a
+  session, monitor it, stop it and inspect what happened afterwards
+- **Protocol and system design** — how order entry, market data, post-trade
+  dissemination, drop copy, logging and recovery semantics are separated in a
+  multi-process system
 
-Participants connect via a terminal (the *gateway*) and type commands to place
-orders. The engine matches them and publishes fill events over a ZeroMQ message bus
-that all other processes subscribe to.
+The project is intentionally bigger than a toy. The User Guide is long because
+the system covers the whole exchange surface, not because you must learn every
+chapter before typing your first order. This page is the map.
+
+!!! tip "If you are new to exchanges"
+    Read [How an Exchange Works](../how-exchange-works.md) before the rest of
+    the User Guide. It explains the domain without assuming you already know
+    what a book, fill, auction, market maker or drop-copy feed is.
+
+
+## The system in one picture
+
+EduMatcher is a set of independent processes connected by message streams. The
+engine is the only process that owns the order books. Everything else either
+sends commands to the engine, listens to events from it, or exposes those events
+to another audience.
 
 ```mermaid
 flowchart LR
-    GW1["pm-alf-console\nParticipant A"]
-    GW2["pm-alf-console\nParticipant B"]
-    AI["pm-ai-trader\nAutonomous bot"]
-    ENG["pm-engine\nMatching engine\nPULL :5555 / PUB :5556"]
-    ADM["pm-admin\nOperator console"]
-    CLR["pm-clearing\nP&L tracker"]
-    STAT["pm-stats\nStatistics recorder"]
-    DC["Drop-copy feed\n(built into pm-engine)\n:5557"]
-    SCH["pm-scheduler\nSession phases"]
+    subgraph order_entry["Order entry and control"]
+        ALF["pm-alf-console\ninteractive traders"]
+        ALFGWY["pm-alf-gwy\nexternal ALF clients"]
+        BALF["pm-balf-gwy\nbinary clients"]
+        ADM["pm-admin / pm-admin-cli\noperator commands"]
+        BOTS["pm-ai-trader / pm-ai-swarm / pm-mm-bot\nautomation"]
+    end
 
-    GW1 -- "NEW|SYM=AAPL|..." --> ENG
-    GW2 -- "NEW|SYM=AAPL|..." --> ENG
-    AI -- "orders" --> ENG
-    ADM -- "HALT / RESUME / STATUS" --> ENG
-    ENG -- "fills / book / session" --> GW1
-    ENG -- "fills / book / session" --> GW2
-    ENG -- "trade.executed" --> CLR
-    ENG -- "trade.executed / book." --> STAT
-    ENG -- "per-fill drop-copy" --> DC
-    SCH -- "session state" --> ENG
+    ENG["pm-engine\nmatching engine\norder books"]
+
+    subgraph observers["Internal observers"]
+        CLR["pm-clearing\nP&L"]
+        STATS["pm-stats\nOHLCV / VWAP / mid"]
+        AUDIT["pm-audit\naudit log"]
+        IDX["pm-index\nmarket index"]
+    end
+
+    subgraph external["External and visual interfaces"]
+        CALF["pm-md-gwy\nCALF market data"]
+        API["pm-api-gwy\nREST / WebSocket"]
+        RALF["pm-ralf-gwy\npost-trade feed"]
+        DC["pm-dc-gwy\ndrop-copy TCP"]
+        TERM["TapeDeck / pm-terminal\ntrader information terminal"]
+        LOG["pm-log-srv / pm-log-ui\ncentral logs"]
+    end
+
+    ALF --> ENG
+    ALFGWY --> ENG
+    BALF --> ENG
+    ADM --> ENG
+    BOTS --> ENG
+    ENG --> CLR
+    ENG --> STATS
+    ENG --> AUDIT
+    ENG --> IDX
+    ENG --> CALF
+    ENG --> API
+    ENG --> RALF
+    ENG --> DC
+    CALF --> TERM
+    API --> TERM
+    LOG -. receives logs from .- ENG
+    LOG -. receives logs from .- external
 ```
 
-## How to get started
+The important first idea is this: **the exchange is not one command**. It is a
+small operating environment. For a five-minute demo you only need `pm-engine`
+and two `pm-alf-console` terminals. For a classroom or realistic session you add
+configuration, the scheduler, clearing, statistics, market data, logging and
+visual displays.
 
-Running the exchange is complex enough that you really **need** to read the documentation and follow the instructions in the User Guide to get a full exchange up and running. The installation below is just the very first step to get started. The rest of the User Guide will explain how to configure the exchange, start and stop processes, and run the system in a realistic way. 
 
-This might seem overwhelming at first and the best way to get started is to skim through the entirety of the user-guide. After the installation a good way to get started is through the self-paced [training sections](../training/index.md)
+## The five concepts to learn first
+
+You do not need every detail yet. These concepts are enough to make the rest of
+the guide readable.
+
+| Concept | What it means | Read more |
+|---|---|---|
+| **Engine** | `pm-engine`, the authoritative process that owns all order books and matches orders | [Running the Exchange](040-running-the-exchange.md), [Processes](170-processes.md) |
+| **Symbol** | A tradeable instrument such as `AAPL`, with tick size, reference prices, optional market-maker seeds and risk settings | [Configuration](010-configuration.md), [Risk Controls](120-risk-controls.md) |
+| **Gateway ID** | The identity a trader, bot or operator uses when connecting; roles such as `TRADER`, `MARKET_MAKER` and `ADMIN` are attached to gateway IDs | [Configuration](010-configuration.md#alf-gateway-allowlist), [Gateway Concepts](051-gateway-intro.md) |
+| **Session phase** | Where the trading day is: `PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED`, or a halt-related phase | [Auctions & Scheduling](080-session-scheduling.md) |
+| **Deployed configuration** | The running system reads one compiled artifact at `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`; you edit YAML, then deploy it | [Configuration](010-configuration.md#file-location) |
+
+Two more ideas become important once you start observing or integrating:
+
+- **Events and records are not the same thing.** The engine publishes live
+  events. `pm-stats`, `pm-clearing`, `pm-audit`, `pm-index` and the log server
+  turn those events into durable records. See [Persistence](180-persistence.md).
+- **Internal tools and external protocols are separate.** Local processes use
+  ZeroMQ around the engine. External clients use ALF, BALF, CALF, RALF, DC1 or
+  the API gateway. See [External Protocols Overview](210-protocols-overview.md).
+
+
+## How to approach the documentation
+
+The User Guide is arranged roughly in layers:
+
+| Layer | Chapters | Use them when... |
+|---|---|---|
+| **Start and configure** | Getting Started, Configuration, Config Verifier, Config GUI, Running the Exchange | You need to install, create a session config, deploy it and start processes |
+| **Trade** | Gateway Reference, Order Types, Combo Orders, Auctions & Scheduling, Market Making | You want to understand what traders and market makers can do |
+| **Operate** | Risk Controls, P&L & Clearing, Statistics, Market Index, Exchange Commands, Processes | You are running a classroom, demo or test venue and need control and observability |
+| **Persist and audit** | Persistence, Audit Trail, Drop Copy, Centralized Log Server | You need to know what gets written, where, and how to inspect or replay it |
+| **Integrate** | External Protocols Overview, ALF, BALF, CALF, RALF, API Gateway, protocol appendices | You are writing a client, feed handler, dashboard or post-trade consumer |
+| **Observe visually** | TapeDeck, Log Operator Console, ticker/board/viewer process sections | You want browser or terminal displays for a running market |
+| **Practice** | Examples, Example Engine Configs, Training | You want guided exercises rather than reference material |
+
+The [Training Guide](../training/index.md) is the most beginner-friendly
+hands-on route. The User Guide is the reference; the training chapters are the
+guided lab.
 
 
 ## Installation
 
-EduMatcher supports three installation modes. Choose the one that matches your role:
+Choose one installation mode. The commands later in this chapter are shown in
+installed mode. In developer mode, prefix `pm-*` commands with `poetry run`.
 
-- **VM bootstrap** — a ready-to-run VM; nothing to install on your host
-- **End-user / pipx** — quickest way to just run an exchange session (recommended)
-- **Developer / Poetry** — for modifying the engine, running tests, or contributing
+| Mode | Best for | What you install | Command style |
+|---|---|---|---|
+| **VM bootstrap** | Workshops, clean demos, avoiding host setup | Multipass VM with EduMatcher installed inside it | `multipass shell edumatcher-vm`, then `pm-engine` |
+| **pipx** | Students and instructors running a local session | EduMatcher commands on your host PATH | `pm-engine` |
+| **Poetry checkout** | Development, tests, changing source code | Repository plus dev dependencies | `poetry run pm-engine` |
 
 
-### VM bootstrap mode — `curl` + Multipass (no repo clone)
+### VM bootstrap - ready-to-run Multipass VM
 
-Use this mode when you want a ready-to-run EduMatcher VM without installing
-Python or cloning this repository on your host.
-
-**What is Multipass?**
-
-Multipass is a lightweight VM manager from Canonical. It launches Ubuntu VMs
-with simple CLI commands so you can run isolated Linux environments locally on
-macOS, Linux, or Windows.
-
-**Requirements**
-
-| Requirement     | Notes                                                       |
-|-----------------|-------------------------------------------------------------|
-| Multipass       | Install from [multipass.run](https://multipass.run/install) |
-| curl            | Used to download the VM bootstrap script                    |
-| Internet access | Required for downloading scripts and PyPI packages          |
-| Host resources  | Recommended minimum: 2 vCPU, 3 GB RAM, 10 GB disk           |
-
-**Bootstrap with one command**
+Use this when you want the fewest host-machine assumptions. Your host needs
+Multipass and `curl`; Python, Poetry and EduMatcher are installed inside the VM.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.17.0 --snapshot
-```
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
+    bash -s -- --version 0.18.0 --snapshot
 
-This command downloads the VM setup scripts, launches a Multipass VM,
-installs EduMatcher in the VM, links all `pm-*` commands into
-`/usr/local/bin`, prepares `/home/ubuntu/session`, and optionally takes
-an initial snapshot.
-
-**Start using the VM**
-
-```bash
 multipass shell edumatcher-vm
 cd /home/ubuntu/session
 pm-engine --verbose
 ```
 
-Open additional host terminals and run `multipass shell edumatcher-vm` in each
-terminal to start `pm-alf-console`, `pm-viewer`, `pm-clearing`, and `pm-audit`.
-
-**Useful bootstrap options**
+Useful options:
 
 ```bash
-# Different VM name and version
+# Name the VM and take an initial snapshot
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
-    bash -s -- --name edumatcher-vm --version 0.17.0 --snapshot
+    bash -s -- --name edumatcher-vm --version 0.18.0 --snapshot
 
 # Tune resources
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
     bash -s -- --cpus 2 --memory 3G --disk 8G
 ```
 
-**Optional: inspect script before execution**
+If you prefer to inspect the script first:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.17.0 --snapshot
+bash curl_setup_vm.sh --version 0.18.0 --snapshot
 ```
 
-### End-user / student mode — `pipx install` (recommended)
 
-This is the quickest path if you just want to *run* an exchange session —
-no source code, no Poetry, no virtual environment management.
+### End-user / student mode - pipx
 
-**Requirements**
+Use this when you want to run EduMatcher directly on your host, without a source
+checkout or Poetry environment.
 
-| Requirement                    | Notes                                    |
-|--------------------------------|------------------------------------------|
-| Python 3.13 or later           | Check with `python --version`            |
-| Three or more terminal windows | Or a terminal multiplexer such as `tmux` |
+Requirements:
 
-**Install**
+| Requirement | Notes |
+|---|---|
+| Python 3.13 or later | Check with `python --version` |
+| `pipx` | Installs command-line applications into isolated environments |
+| Several terminals | Or `tmux` / `screen`; one process per pane is normal |
 
-If using `brew` then install `pipx` 
+Install `pipx` if needed:
 
 ```bash
-# Install pipx using homebrew
+# macOS with Homebrew
 brew install pipx
-pipx ensurepath        # adds ~/.local/bin to PATH; reopen your shell after this
+pipx ensurepath
+
+# Linux / generic Python install
+python -m pip install --user pipx
+python -m pipx ensurepath
 ```
 
-or on Linux
-
-```bash
-# Install pipx (once, if not already present)
-pip install pipx
-pipx ensurepath        # adds ~/.local/bin to PATH; reopen your shell after this
-```
-
-
-**Install EduMatcher — all pm-* commands land on your PATH**
-
-Run the commands below to install EduMatcher with `pipx`, create a fresh working
-directory for your exchange session, and initialize it with `pm-setup` so the
-`pm-*` commands and local defaults are ready to use.
+Install EduMatcher and bootstrap a session directory:
 
 ```bash
 pipx install edumatcher
-mkdir session
-cd session
+mkdir edumatcher-session
+cd edumatcher-session
 pm-setup
 ```
 
-`pm-setup` prints a shell snippet to add to your `.zshrc` / `.bashrc`:
-
-```bash
-export EDUMATCHER_DATA_DIR="$HOME/.local/share/edumatcher"
-export EDUMATCHER_CONFIG="$HOME/my-exchange-session/engine_config.yaml"
-```
-
-Or use the provided one-shot script (handles pipx installation automatically):
-
-```bash
-./scripts/install-runtime.sh
-```
-
-After reloading your shell, every `pm-*` command picks up the right data
-directory automatically — no flags needed.
-
-**Edit the config, then start trading**
-
-If you prefer generating a starter config instead of manually writing YAML:
-
-```bash
-pm-config-gen \
-    --symbols AAPL MSFT \
-    --gateways TRADER01 TRADER02 OPS01:ADMIN \
-    --sessions-enabled \
-    --output engine_config.yaml
-```
-
-Then edit any remaining details and start the engine.
-
-For full generator details (all flags, `--symbol-opts`, MM quote stubs,
-validation hints, and recipes), see
-[Configuration](010-configuration.md#generate-configs-with-pm-config-gen).
-
-```bash
-# Edit the sample config that pm-setup copied into your directory
-nano engine_config.yaml
-
-# Start the engine
-pm-engine --verbose
-```
+`pm-setup` prepares the data directory, deploys the bundled sample
+configuration, and prints the `EDUMATCHER_DATA_DIR` line to add to your shell
+profile. Open a new terminal after updating your profile so every `pm-*` command
+sees the same data directory.
 
 
+### Developer mode - Poetry checkout
 
-### Developer mode — Poetry + source checkout
-
-Use this mode if you want to modify the engine, run tests, or contribute.
-
-**Requirements**
-
-| Requirement                          | Notes                                         |
-|--------------------------------------|-----------------------------------------------|
-| Python 3.13 or later                 | Check with `python --version`                 |
-| [Poetry](https://python-poetry.org/) | `pip install poetry` or `pipx install poetry` |
-| Three terminal windows               | Or `tmux` / `screen`                          |
-
-**Install**
+Use this when you are changing code, running tests, or working with the docs
+from source.
 
 ```bash
 git clone https://github.com/johan162/EduMatcher.git
 cd EduMatcher
-poetry install --with dev
-```
+poetry config virtualenvs.in-project true
+poetry install --with dev,docs
 
-Data is stored in `src/data/` inside the repo and `engine_config.yaml` is
-read from the repo root — no environment variables needed.
-
-All commands are prefixed with `poetry run`:
-
-
-```bash
 poetry run pm-engine --verbose
-poetry run pm-alf-console --id GW01
+poetry run pm-alf-console --id TRADER01
 ```
 
-!!! tip "Switching from developer to end-user mode"
-    You can install the locally built wheel with pipx at any time:
-
-    ```bash
-    poetry build
-    pipx install dist/edumatcher-*.whl --force
-    pm-setup --force    # re-copy the latest sample config
-    ```
-
+Developer mode uses the repository-local defaults. When exact behavior matters,
+use the same deployed-configuration flow as installed mode: author YAML, run
+`poetry run pm-config-deploy ...`, then restart the processes.
 
 
 ## Environment variables
 
-These two variables work in both modes. Set them in your shell profile to
-override the defaults permanently.
+EduMatcher has one runtime location variable:
 
-| Variable              | Default (installed)          | Default (source)            | Purpose                                    |
-|-----------------------|------------------------------|-----------------------------|--------------------------------------------|
-| `EDUMATCHER_DATA_DIR` | `~/.local/share/edumatcher`  | `<repo>/src/data/`          | Where all persistent data files are stored |
-| `EDUMATCHER_CONFIG`   | `./engine_config.yaml` (CWD) | `<repo>/engine_config.yaml` | Path to the engine configuration YAML      |
-
-The `--config` flag on `pm-engine` and `pm-scheduler` always takes precedence
-over both the environment variable and the default.
-
-
-
-## PM command family overview
-
-Use these tables as a quick index for every `pm-` entry point currently
-documented. All commands are shown in pipx form; in developer mode prepend
-`poetry run`. All `pm-` processes/utilities are described in [Processes](170-processes.md).
-
-### Runtime processes (runnable)
-
-| Command | Interactivity | Purpose | More information |
+| Variable | Default in installed mode | Default in source checkout | Purpose |
 |---|---|---|---|
-| `pm-engine` | Background | Matching engine; central order-book writer | [Processes](170-processes.md), [Running the Engine](040-running-the-exchange.md), [Configuration](010-configuration.md) |
-| `pm-alf-console` | Interactive terminal | ALF participant terminal and order entry | [Processes](170-processes.md), [Gateway](050-gateway-reference.md), [ALF Protocol](900-app-alf-protocol.md) |
-| `pm-alf-gwy` | Background | External ALF TCP gateway — order entry for bots/remote clients over TCP :5565 | [Processes](170-processes.md#pm-alf-gwy-alf-tcp-gateway), [ALF TCP Gateway](220-alf-gateway.md), [ALF Protocol](900-app-alf-protocol.md) |
-| `pm-scheduler` | Background | Session phase transitions by schedule | [Processes](170-processes.md), [Auctions and Scheduling](080-session-scheduling.md) |
-| `pm-viewer` | Terminal display | Single-symbol live order book view | [Processes](170-processes.md), [Order Types](060-order-types.md) |
-| `pm-orders` | Terminal display | Live cross-gateway order status monitor | [Processes](170-processes.md), [Messages](270-message-reference.md) |
-| `pm-board` | Terminal display | Multi-symbol market board display | [Processes](170-processes.md) |
-| `pm-ticker` | Terminal display | Scrolling ticker with live plus OHLCV context | [Processes](170-processes.md), [Statistics and Reporting](140-statistics-and-reporting.md) |
-| `pm-stats` | Background | Persist market statistics to SQLite | [Processes](170-processes.md), [Statistics and Reporting](140-statistics-and-reporting.md) |
-| `pm-clearing` | Terminal display | Trade recording and running P&L | [Processes](170-processes.md), [P&L and Clearing](130-pnl-clearing.md) |
-| `pm-audit` | Background | Full event log capture from the bus | [Processes](170-processes.md), [Persistence](180-persistence.md) |
-| `pm-ralf-gwy` | Background | External post-trade dissemination gateway (RALF) | [Processes](170-processes.md), [Post-Trade Dissemination](250-ralf-gateway.md), [RALF Protocol](930-app-ralf-protocol.md) |
-| `pm-admin` | Interactive terminal | Interactive operational console | [Processes](170-processes.md), [Risk Controls](120-risk-controls.md) |
-| `pm-ai-trader` | Background | Single autonomous trading bot gateway | [Processes](170-processes.md), [AI Traders](110-ai-traders.md) |
-| `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](170-processes.md), [AI Traders](110-ai-traders.md) |
-| `pm-mm-bot` | Background | Autonomous market-maker quoting bot | [Processes](170-processes.md), [Market-Maker Bot](100-mm-bot.md) |
-| `pm-md-gwy` | Background | Market-data distribution gateway (CALF) | [Processes](170-processes.md#pm-md-gwy-calf-market-data-gateway), [Market Data Feed](240-calf-gateway.md), [CALF Protocol](920-app-calf-protocol.md) |
-| `pm-api-gwy` | Background | REST/WebSocket order-entry and market-data API gateway | [Processes](170-processes.md#pm-api-gwy-restwebsocket-api-gateway), [API Gateway](260-api-gateway.md) |
-| `pm-index` | Background | Real-time cap-weighted index calculation and dissemination | [Processes](170-processes.md#pm-index-index-calculation-process), [Market Index](150-market-index.md) |
-| `pm-balf-gwy` | Background | Binary order-entry gateway (BALF) over TCP | [Processes](170-processes.md), [BALF Gateway](230-balf-gateway.md), [BALF Protocol](910-app-balf-protocol.md) |
-| `pm-dc-gwy` | Background | External drop-copy gateway (DC1) — relays :5557 fills over TCP for non-ZeroMQ clients | [Processes](170-processes.md#pm-dc-gwy-drop-copy-tcp-gateway), [Drop-Copy TCP Gateway](201-dc-gateway.md), [Drop Copy](200-drop-copy.md) |
-| `pm-log-srv` | Background | Centralized LALF log collector — receives logging from every `pm-*` process over TCP :5600 into `log.db` | [Processes](170-processes.md#pm-log-srv-centralized-log-server), [Centralized Log Server](280-log-srv.md), [Configuration](010-configuration.md#configuring-pm-log-srv) |
+| `EDUMATCHER_DATA_DIR` | `~/.local/share/edumatcher` | `<repo>/src/data/` | Root directory for deployed reference data and runtime data files |
 
-### CLI utilities (runnable)
-
-| Command |  Purpose | More information |
-|---|---|---|
-| `pm-admin-cli` | Non-interactive admin commands for scripts | [Processes](170-processes.md), [Risk Controls](120-risk-controls.md) |
-| `pm-cverifier` | Validate `engine_config.yaml` before runtime (YAML, schema, semantic, completeness checks) | [Processes](170-processes.md), [Configuration](010-configuration.md), [Config Verifier](020-config-verifier.md) |
-| `pm-stats-cli` | Query `stats.db` without writing SQL | [Processes](170-processes.md#pm-stats-cli-statistics-query-cli), [Statistics and Reporting](140-statistics-and-reporting.md) |
-| `pm-clearing-cli` | Query `clearing.db` without writing SQL | [Processes](170-processes.md#pm-clearing-cli-clearing-query-cli), [P&L & Clearing](130-pnl-clearing.md) |
-| `pm-audit-cli` | Query audit log files without shell pipelines | [Processes](170-processes.md#pm-audit-event-logger), [Audit Trail](190-audit.md) |
-| `pm-index-cli` | Read-only query interface for index history files | [Processes](170-processes.md#pm-index-cli-index-structuralaudit-history-query-tool), [Commands](160-exchange-commands.md), [Market Index](150-market-index.md#using-pm-index-cli-for-structuralaudit-records) |
-| `pm-index-admin-cli` | Apply index corporate actions (splits, dividends, share issuance/buybacks) and constituent changes (add/delist) | [Processes](170-processes.md#pm-index-admin-cli-index-corporate-action-constituent-change-cli), [Index Admin CLI](152-index-admin-cli.md), [Market Index](150-market-index.md) |
-| `pm-calf-spy` | Spy on the CALF market-data protocol — connect to `pm-md-gwy` and print every line, human-readable or JSON | [Processes](170-processes.md#pm-calf-spy-calf-protocol-spy), [CALF Protocol Spy](241-calf-spy-cli.md), [Market Data Feed](240-calf-gateway.md) |
-| `pm-ralf-spy` | Spy on the RALF post-trade protocol — connect to `pm-ralf-gwy` and print every line, human-readable or JSON | [Processes](170-processes.md#pm-ralf-spy-ralf-protocol-spy), [RALF Protocol Spy](251-ralf-spy-cli.md), [Post-Trade Dissemination](250-ralf-gateway.md) |
-| `pm-dc-spy` | Spy on the engine's drop-copy feed — connect directly to `:5557` and print every fill event, human-readable or JSON | [Processes](170-processes.md#pm-dc-spy-drop-copy-spy), [Drop-Copy Spy](202-dc-spy-cli.md), [Drop Copy](200-drop-copy.md) |
-| `pm-log-cli` | Query, tail, and troubleshoot `log.db` — includes a rule-based `diagnose` subcommand and manual `prune` | [Processes](170-processes.md#pm-log-cli-log-server-querytroubleshooting-cli), [Centralized Log Server](280-log-srv.md), [Configuration](010-configuration.md#configuring-pm-log-srv) |
-| `pm-setup` |  Bootstrap local session directory and defaults | [Processes](170-processes.md), [Installation](000-getting-started.md#installation) |
-| `pm-config-gen` | Generate `engine_config.yaml` from CLI options | [Processes](170-processes.md), [Configuration generator](010-configuration.md#generate-configs-with-pm-config-gen) |
-
-For startup order and a practical first-run sequence, see
-[Processes](170-processes.md#process-overview).
+Every process reads the deployed config from
+`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`. Set this variable once in
+your shell profile or launcher so every process in a session sees the same
+configuration and writes to the same data area.
 
 
-## Market-Maker Quick Reference
+## Configuration: edit YAML, deploy artifact
 
-If your gateway role is `MARKET_MAKER`, this is the fastest practical command
-set for quote operation and fill recognition:
+EduMatcher separates the file you edit from the file the exchange runs.
 
-| Goal                       | Command                                                                            |
-|----------------------------|------------------------------------------------------------------------------------|
-| Submit/replace quote       | `QUOTE\|SYM=AAPL\|BID=209.80\|ASK=210.20\|BID_QTY=500\|ASK_QTY=500\|QUOTE_ID=Q123` |
-| Cancel active quote        | `QUOTE_CANCEL\|SYM=AAPL`                                                           |
-| Show active quote legs     | `QLEGS`                                                                            |
-| Show one-symbol quote legs | `QLEGS\|SYM=AAPL`                                                                  |
-| Show recent completed legs | `QLEGS\|SHOW=RECENT`                                                               |
-| Show active + recent legs  | `QLEGS\|SYM=AAPL\|SHOW=ALL`                                                        |
+| File | Purpose |
+|---|---|
+| `engine_config.yaml` | Authored configuration. Keep this in your session directory or version control. Edit this. |
+| `<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json` | Compiled deployed artifact. Every running process reads this. Do not edit it by hand. |
 
-Recommended manual loop:
+Why this matters: a multi-process exchange is dangerous if each process can be
+pointed at a different file. EduMatcher avoids that. You deploy once, then every
+process reads the same artifact.
 
-1. Send `QUOTE` with an explicit `QUOTE_ID`.
-2. After any `FILL`, run `QLEGS|SYM=<symbol>|SHOW=ALL`.
-3. Read `Filled?`, `Rem`, and `Leg status` to decide whether to re-quote.
-
-See [Gateway](050-gateway-reference.md#qlegs-inspect-mm-quote-legs-and-fill-flags) for
-full `QLEGS` behavior and [Market Making](090-market-maker.md) for operator
-workflows and policy-specific behavior.
-
-
-
-## Five-minute minimum session
-
-This walkthrough starts a matching engine, connects two participant terminals,
-and executes one trade. No configuration file is required — the engine starts in
-*unrestricted mode* when `engine_config.yaml` is absent.
-
-!!! tip "pipx vs. developer mode"
-    Commands below are shown in pipx (installed) form. In developer mode, prepend
-    `poetry run` to every `pm-*` command, e.g. `poetry run pm-engine`.
-
-### Step 1 — Start the engine
-
-Open a terminal and run:
+Typical loop:
 
 ```bash
-pm-engine -v
+# Start from the sample copied by pm-setup, or generate a new authored file
+pm-config-gen \
+    --symbols AAPL MSFT TSLA \
+    --gateways TRADER01:TRADER TRADER02:TRADER OPS01:ADMIN MM01:MARKET_MAKER \
+    --output engine_config.yaml
+
+# Validate only
+pm-config-deploy --check engine_config.yaml
+
+# Validate, compile and install as the deployed artifact
+pm-config-deploy engine_config.yaml
+
+# Confirm where the deployed config lives
+pm-config-deploy --show
 ```
 
-Expected output:
+For the full field reference, see [Configuration](010-configuration.md). For a
+visual editor, see [Configuration GUI](030-config-GUI.md). For a catalog of
+ready-made examples, see [Example Engine Configs](810-example-configs.md).
 
-```
-2026-07-23 09:30:00,001 WARNING edumatcher.engine.main - Config file engine_config.yaml could not be read — running without symbol restrictions. (...)
-2026-07-23 09:30:00,004 INFO edumatcher.engine.main - Drop copy PUB bound on port 5557
-2026-07-23 09:30:00,004 INFO edumatcher.engine.main - Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
-```
 
-With no config file the engine runs in **unrestricted mode** and session
-handling is **disabled**, so it starts directly in the `CONTINUOUS` state and
-matches orders immediately — there is no auction phase to advance past.
+## Your first session: one trade in five minutes
 
-!!! note "Default log level is WARNING"
-    Like every other `pm-` process, `pm-engine` is quiet by default — only
-    warnings and errors print. Pass `-v` for INFO (startup/lifecycle
-    messages, shown above), `-vv` for DEBUG, or `--log-level LEVEL` for an
-    explicit level. See [Running the Engine](040-running-the-exchange.md) for
-    the full flag reference.
+This path uses the sample configuration installed by `pm-setup`. It has
+`TRADER01`, `TRADER02`, `OPS01`, `MM01` and symbols such as `AAPL`, `MSFT` and
+`TSLA`. Session scheduling is disabled in the sample, so matching is available
+immediately.
 
-The engine is now running. Leave this terminal open.
+Open three terminals in the same session environment.
 
-### Step 2 — Connect Participant A (the buyer)
-
-Open a second terminal:
+### Terminal 1 - start the engine
 
 ```bash
-pm-alf-console --id GW01
+pm-engine --verbose
 ```
 
-You should see a prompt after the connection banner:
+Wait until the engine has bound its sockets and printed the deployed
+configuration it is using. Leave this process running.
 
-```
-[GW01] Connected to engine
-GW01>
-```
-
-### Step 3 — Connect Participant B (the seller)
-
-Open a third terminal:
+### Terminal 2 - connect the seller
 
 ```bash
-pm-alf-console --id GW02
+pm-alf-console --id TRADER02
 ```
 
-```
-[GW02] Connected to engine
-GW02>
-```
+At the `TRADER02>` prompt, post a resting sell order:
 
-### Step 4 — Check the session state
-
-On either gateway, ask what state the exchange is in:
-
-```
-GW01> STATUS
+```text
+NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 ```
 
-The engine replies with the current session state. In unrestricted mode (no
-config file) session handling is disabled, so the engine is already in
-`CONTINUOUS` and matching is enabled — you do **not** need to advance any phase.
-
-!!! tip "Session phases only apply when sessions are enabled"
-    Auction phases (`PRE_OPEN → OPENING_AUCTION → CONTINUOUS → …`) only exist
-    when you run with `sessions_enabled: true` and a `pm-scheduler` (or advance
-    them manually from `pm-admin`). With no config, or with
-    `sessions_enabled: false`, the engine stays in `CONTINUOUS` the whole time.
-
-You can run this walkthrough with no config at all. If you prefer to be explicit,
-start the engine with a config that disables sessions:
+### Terminal 3 - connect the buyer
 
 ```bash
-echo "sessions_enabled: false" > /tmp/demo.yaml
-pm-engine --config /tmp/demo.yaml       # installed
-# or:  poetry run pm-engine --config /tmp/demo.yaml
+pm-alf-console --id TRADER01
 ```
 
-### Step 5 — Place orders and trade
+At the `TRADER01>` prompt, buy at the same price:
 
-!!! info "Book liquidity depends on your configuration"
-    This walkthrough starts the engine with `sessions_enabled: false` and **no
-    `engine_config.yaml`**, so the book is completely empty at startup.
-
-    If you are running against an `engine_config.yaml` that configures `AAPL`
-    with a `market_maker_quotes` seed block, the book already has a two-sided
-    MM quote resting in it when trading opens. In that case, an aggressive order
-    from one participant will immediately match against the seed quote — **before**
-    the second participant even types anything. For example, a market buy from
-    GW01 would fill against the MM's resting ask rather than waiting for GW02's
-    sell.
-
-    If this happens and you are surprised by an unexpected fill, check whether
-    your config seeds the book:
-    ```bash
-    grep -A5 "market_maker_quotes" engine_config.yaml
-    ```
-    To follow this walkthrough exactly with a known-empty book, either start
-    the engine with no config file, or use a config with no `market_maker_quotes`
-    entries.
-
-On Participant B's terminal, post a sell order at 150.00:
-
-```
-GW02> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+```text
+NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 ```
 
-Expected response:
-
-```
-[HH:MM:SS] ORDER ACK  ord-xxxx  AAPL SELL LIMIT 100@150.00 DAY → RESTING
-```
-
-On Participant A's terminal, buy at the same price:
-
-```
-GW01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
-```
-
-Both gateways see fill events:
-
-```
-[HH:MM:SS] FILL  ord-xxxx  AAPL BUY 100@150.00
-[HH:MM:SS] FILL  ord-yyyy  AAPL SELL 100@150.00
-```
-
-A `trade.executed` event is published to all subscribers. Congratulations — you
-just ran a trade on your own exchange.
-
-### What happened under the hood
+Both gateways should report a fill. The engine matched the buy and sell because
+the bid price was high enough to trade with the resting ask.
 
 ```mermaid
 sequenceDiagram
-    participant A as GW01 (buyer)
+    participant S as TRADER02
     participant E as pm-engine
-    participant B as GW02 (seller)
+    participant B as TRADER01
 
-    B->>E: NEW SELL AAPL 100@150.00
-    E-->>B: order.ack → RESTING
-
-    A->>E: NEW BUY AAPL 100@150.00
-    E-->>A: order.ack → RESTING
-    note over E: bid price ≥ ask price → match
-    E-->>A: order.fill.GW01  AAPL BUY  100@150.00
-    E-->>B: order.fill.GW02  AAPL SELL 100@150.00
-    E-->>E: trade.executed published to all subscribers
+    S->>E: NEW SELL AAPL 100@150.00
+    E-->>S: ACK -> RESTING
+    B->>E: NEW BUY AAPL 100@150.00
+    E-->>B: FILL BUY 100@150.00
+    E-->>S: FILL SELL 100@150.00
+    E-->>E: publish trade.executed
 ```
 
+That is the core of the system. Everything else in EduMatcher either changes
+what orders can do, changes when matching is allowed, observes what happened, or
+exposes the same activity to other clients.
+
+!!! tip "What if the order fills before the other trader acts?"
+    Your configuration may contain market-maker seed quotes. In that case an
+    aggressive order can trade against the seeded quote instead of waiting for
+    the other participant. That is not a bug; it means the book already had
+    liquidity. Read [Market Making](090-market-maker.md) when you are ready for
+    that layer.
 
 
-## Starting more processes
+## Add one process at a time
 
-The engine is the only mandatory process. Add the others as you need them,
-grouped below by role.
+After the first trade, add observers. This is the safest way to learn the
+system: start with the engine and gateways, then add one new responsibility at a
+time.
 
-### Mandatory
+| When you want to... | Start this | Then read |
+|---|---|---|
+| See one live order book | `pm-viewer --symbol AAPL` | [Order Types](060-order-types.md), [Processes](170-processes.md) |
+| See a multi-symbol board or ticker | `pm-board`, `pm-ticker` | [Statistics and Reporting](140-statistics-and-reporting.md) |
+| Record OHLCV, VWAP and mid prices | `pm-stats` | [Statistics and Reporting](140-statistics-and-reporting.md) |
+| Track positions and P&L | `pm-clearing` | [P&L & Clearing](130-pnl-clearing.md) |
+| Capture a full audit log | `pm-audit` | [Audit Trail](190-audit.md), [Persistence](180-persistence.md) |
+| Drive opening and closing phases by time | `pm-scheduler` | [Auctions & Scheduling](080-session-scheduling.md) |
+| Run operator commands | `pm-admin` or `pm-admin-cli` | [Risk Controls](120-risk-controls.md), [Exchange Commands](160-exchange-commands.md) |
+| Publish external market data | `pm-md-gwy` | [Market Data Feed (CALF)](240-calf-gateway.md) |
+| Open the browser trader terminal | TapeDeck / `pm-terminal` stack | [Trader Information Terminal](290-trader-info-terminal.md) |
+| Collect logs from all processes | `pm-log-srv`, then `pm-log-cli` or `pm-log-ui` | [Centralized Log Server](280-log-srv.md), [Log Operator Console](285-log-srv-gui.md) |
 
-| When you want to…                                       | Start this process | More information                                |
-|-------------------------------------------------------------|-----------------------|------------------------------------------------------|
-| Run the matching engine (required for everything else)   | `pm-engine`         | [Running the Engine](040-running-the-exchange.md) |
+The full process catalog is in [Processes](170-processes.md). Use that chapter
+when you want exact command-line flags and startup dependencies.
 
-### Recommended core
 
-| When you want to…                            | Start this process             | More information                                      |
-|----------------------------------------------|----------------------------------|--------------------------------------------------------|
-| Automate opening/closing auctions            | `pm-scheduler`                  | [Auctions and Scheduling](080-session-scheduling.md) |
-| Capture the full event log for later audit   | `pm-audit`                      | [Audit Trail](190-audit.md)                           |
-| Watch P&L update in real time                | `pm-clearing`                   | [P&L and Clearing](130-pnl-clearing.md)               |
-| Use operator commands (halt/resume/session)  | `pm-admin` (interactive REPL)   | [Risk Controls](120-risk-controls.md)                 |
+## What the major feature areas are for
 
-### Reporting, statistics & monitoring
+### Trading and order behavior
 
-| When you want to…                                | Start this process                      | More information                                             |
-|------------------------------------------------------|--------------------------------------------|-------------------------------------------------------------------|
-| Record OHLCV statistics                           | `pm-stats`                              | [Statistics and Reporting](140-statistics-and-reporting.md) |
-| Query recorded statistics without SQL             | `pm-stats-cli daily --date 2026-06-14`  | [Statistics and Reporting](140-statistics-and-reporting.md) |
-| Query clearing and P&L data without SQL           | `pm-clearing-cli pnl`                   | [P&L and Clearing](130-pnl-clearing.md)                     |
-| Query audit logs without shell pipelines          | `pm-audit-cli events --date 2026-06-14` | [Audit Trail](190-audit.md)                                 |
-| Watch a single symbol's live order book           | `pm-viewer`                              | [Order Types](060-order-types.md)                           |
-| Monitor live order status across gateways         | `pm-orders`                              | [Messages](270-message-reference.md)                                 |
-| Display a multi-symbol market board               | `pm-board`                               | [Processes](170-processes.md)                               |
-| Show a scrolling ticker with OHLCV context        | `pm-ticker`                               | [Statistics and Reporting](140-statistics-and-reporting.md) |
-| Calculate and disseminate a cap-weighted index    | `pm-index`                               | [Market Index](150-market-index.md)                                |
-| Query index history without SQL                  | `pm-index-cli`                           | [Market Index](152-index-admin-cli.md) |
-| Collect every process's logging into one queryable place | `pm-log-srv`                     | [Processes](170-processes.md#pm-log-srv-centralized-log-server)  |
-| Query, tail, or troubleshoot collected logs without SQL | `pm-log-cli query`                 | [Processes](170-processes.md#pm-log-cli-log-server-querytroubleshooting-cli) |
+Start here if you are a trader, market maker or instructor building exercises.
 
-### Gateways
+- [ALF Console (pm-alf-console)](055-alf-console.md) explains command syntax and
+  responses such as `NEW`, `CANCEL`, `STATUS`, `ORDERS`, `QUOTE` and `QLEGS`
+  (see [Gateway Concepts](051-gateway-intro.md) for what a gateway is)
+- [Order Types](060-order-types.md) explains LIMIT, MARKET, STOP, ICEBERG,
+  trailing stop, OCO and time-in-force behavior
+- [Combo Orders](070-combo-orders.md) explains multi-leg strategies and
+  cascade cancellation
+- [Auctions & Scheduling](080-session-scheduling.md) explains opening/closing
+  auctions, equilibrium prices, trading dates, time zones and the scheduler
+- [Market Making](090-market-maker.md) and [Market-Maker Bot](100-mm-bot.md)
+  explain quote obligations, quote lifecycle and automated quoting
 
-| When you want to…                                    | Start this process                      | More information                                 |
-|-----------------------------------------------------------|--------------------------------------------|--------------------------------------------------------|
-| Distribute market data externally (CALF)             | `pm-md-gwy`                             | [Market Data Feed](240-calf-gateway.md)     |
-| Expose REST/WebSocket order entry & market data      | `pm-api-gwy`                             | [API Gateway](260-api-gateway.md)                |
-| Accept binary order entry over TCP (BALF)            | `pm-balf-gwy`                           | [BALF Gateway](230-balf-gateway.md)              |
-| Feed external clearing/drop-copy consumers (RALF)    | `pm-ralf-gwy`                           | [Post-Trade Dissemination](250-ralf-gateway.md)    |
-| Feed compliance/risk systems directly (ZeroMQ)       | Subscribe to `:5557` (drop-copy socket) | [Drop Copy](200-drop-copy.md)                    |
-| Feed compliance/risk systems directly (plain TCP, no ZeroMQ) | `pm-dc-gwy`                     | [Drop-Copy TCP Gateway](201-dc-gateway.md)       |
+### Operations and controls
 
-### Automation
+Start here if you are running the venue.
 
-| When you want to…                                | Start this process                    | More information                  |
-|------------------------------------------------------|------------------------------------------|----------------------------------------|
-| Add a single autonomous trading bot               | `pm-ai-trader`                        | [AI Traders](110-ai-traders.md)   |
-| Add autonomous AI order flow (multi-agent)        | `pm-ai-swarm --count 5 --duration 60` | [AI Traders](110-ai-traders.md)   |
-| Add automated market-maker liquidity              | `pm-mm-bot --symbol AAPL`             | [Market-Maker Bot](100-mm-bot.md) |
+- [Running the Exchange](040-running-the-exchange.md) gives practical startup
+  sequences and readiness checks
+- [Risk Controls](120-risk-controls.md) covers price collars, circuit breakers,
+  halts, resumes and kill switches
+- [Exchange Commands](160-exchange-commands.md) covers admin command flows and
+  automation helpers
+- [Processes](170-processes.md) is the map of every runtime process and utility
 
-### Other utilities
+### Observation, reports and records
 
-| When you want to…                                | Start this process | More information                                                                    |
-|-------------------------------------------------------|-----------------------|------------------------------------------------------------------------------------------|
-| Generate `engine_config.yaml` from CLI flags      | `pm-config-gen`     | [Configuration generator](010-configuration.md#generate-configs-with-pm-config-gen) |
-| Validate `engine_config.yaml` before runtime      | `pm-cverifier`      | [Config Verifier](020-config-verifier.md)                                          |
-| Run admin commands non-interactively (scripts)    | `pm-admin-cli`      | [Risk Controls](120-risk-controls.md)                                               |
-| Bootstrap a local session directory               | `pm-setup`          | [Installation](000-getting-started.md#installation)                                |
+Start here if you need to explain or audit what happened.
 
-!!! tip "Where does all this data go?"
-    Several of these processes write data files (statistics, P&L, audit log,
-    index history). For a single map of **every data file EduMatcher creates —
-    which process writes it, when, why, and how to query it** — see
-    [Persistence → Data files at a glance](180-persistence.md#data-files-at-a-glance).
+- [P&L & Clearing](130-pnl-clearing.md) explains positions, realized/unrealized
+  P&L and clearing queries
+- [Statistics and Reporting](140-statistics-and-reporting.md) explains daily
+  OHLCV, VWAP, midpoint snapshots, raw tick storage and `pm-stats-cli`
+- [Market Index](150-market-index.md) and [Index Admin CLI](152-index-admin-cli.md)
+  cover cap-weighted index calculation and corporate actions
+- [Persistence](180-persistence.md) shows every file EduMatcher writes
+- [Audit Trail](190-audit.md) explains full event capture and `pm-audit-cli`
 
-For a full classroom session, use the provided launch script:
+### External connectivity
+
+Start here if you are writing a client or integration.
+
+- [External Protocols Overview](210-protocols-overview.md) tells you which
+  protocol family to use
+- [ALF TCP Gateway](220-alf-gateway.md) and [Appendix: ALF Protocol](900-app-alf-protocol.md)
+  cover text order entry
+- [BALF TCP Gateway](230-balf-gateway.md) and [Appendix: BALF Protocol](910-app-balf-protocol.md)
+  cover binary order entry
+- [Market Data Feed (CALF)](240-calf-gateway.md), [CALF Protocol Spy](241-calf-spy-cli.md)
+  and [Appendix: CALF Protocol](920-app-calf-protocol.md) cover market-data
+  subscriptions, snapshots and replay
+- [Post-Trade Dissemination (RALF)](250-ralf-gateway.md), [RALF Protocol Spy](251-ralf-spy-cli.md)
+  and [Appendix: RALF Protocol](930-app-ralf-protocol.md) cover external
+  post-trade consumers
+- [API Gateway](260-api-gateway.md) covers REST and WebSocket access for
+  dashboards and application clients
+- [Message Reference](270-message-reference.md) is the internal event catalog
+
+
+## Roadmaps by role
+
+You can read the whole guide front to back, but most readers should not start
+that way. Pick the path that matches what you are trying to do.
+
+| Role or goal | Suggested path |
+|---|---|
+| **Beginner learning the market** | [How an Exchange Works](../how-exchange-works.md) -> this page -> [Training](../training/index.md) chapters 00-08 -> [ALF Console](055-alf-console.md) |
+| **Student trader** | Installation -> first session -> [ALF Console](055-alf-console.md) -> [Order Types](060-order-types.md) -> [Auctions & Scheduling](080-session-scheduling.md) |
+| **Instructor running a class** | Installation -> [Configuration](010-configuration.md) -> [Running the Exchange](040-running-the-exchange.md) -> [Processes](170-processes.md) -> [Training](../training/index.md) |
+| **Market maker** | [Market Making](090-market-maker.md) -> [Market-Maker Bot](100-mm-bot.md) -> [ALF Console](055-alf-console.md#qlegs-inspect-mm-quote-legs-and-fill-flags) |
+| **Operator / supervisor** | [Running the Exchange](040-running-the-exchange.md) -> [Risk Controls](120-risk-controls.md) -> [Exchange Commands](160-exchange-commands.md) -> [Centralized Log Server](280-log-srv.md) |
+| **Analyst / auditor** | [P&L & Clearing](130-pnl-clearing.md) -> [Statistics and Reporting](140-statistics-and-reporting.md) -> [Audit Trail](190-audit.md) -> [Persistence](180-persistence.md) |
+| **Dashboard or feed developer** | [External Protocols Overview](210-protocols-overview.md) -> [CALF](240-calf-gateway.md) or [API Gateway](260-api-gateway.md) -> protocol appendices |
+| **Core developer** | Developer install -> [Architecture](../architecture/01-architecture.md) -> [Developer Practice](../developer/01-dev-practice.md) -> tests for the subsystem you are changing |
+
+
+## Three details worth knowing early
+
+### Prices are exact integer ticks internally
+
+Displayed prices look like money: `150.25`. Internally, the engine matches on
+integer ticks. With `tick_decimals: 2`, `150.25` is stored as `15025` ticks.
+This avoids floating-point drift in matching, turnover and reports.
+
+Most commands, CLIs and APIs convert for you. Raw SQLite rows may show the tick
+form. Read [Prices are stored as integer ticks](140-statistics-and-reporting.md#prices-are-stored-as-integer-ticks)
+before doing direct SQL analysis.
+
+### Instants and trading dates are different
+
+Event timestamps are UTC instants. Daily OHLCV, clearing summaries and index
+rows are grouped by the exchange's local trading date. If a session crosses
+midnight UTC, one trading day can span two UTC dates.
+
+If you run `pm-stats` and `pm-clearing` with a non-default timezone, give both
+the same value:
 
 ```bash
-./tools/launch_all.sh
+pm-stats --timezone Europe/Stockholm
+pm-clearing --timezone Europe/Stockholm
 ```
 
-The script detects whether `pm-engine` is on PATH (installed mode) or falls
-back to `poetry run` automatically when running from a source checkout.
+Read [The trading date](080-session-scheduling.md#the-trading-date) before
+comparing daily reports.
+
+### Empty books are normal until someone provides liquidity
+
+An exchange does not create bids and asks by itself. The book has liquidity only
+when orders rest in it. For demos, you can provide liquidity manually, by seeded
+market-maker quotes in configuration, or with `pm-mm-bot` / AI traders.
+
+If a beginner sees no fill, the most common reason is simple: nobody is resting
+on the other side at a price that crosses.
 
 
+## Quick glossary
 
-## Typical architecture for a classroom demo
+| Term | Meaning |
+|---|---|
+| **Order book** | The sorted resting buy and sell orders for one symbol |
+| **Bid / ask** | Best available buy price / best available sell price |
+| **Spread** | Difference between best ask and best bid |
+| **Fill** | An execution: two orders matched and traded |
+| **TIF** | Time-in-force: how long an order may remain active (`DAY`, `GTC`, `ATO`, `ATC`, etc.) |
+| **Auction** | A call phase where orders collect first and execute together at an equilibrium price |
+| **Market maker** | A participant expected to quote both bid and ask liquidity |
+| **Circuit breaker** | A risk control that halts a symbol after a configured price move |
+| **Drop copy** | A copy of fills sent to compliance, audit or risk systems |
+| **CALF** | EduMatcher's external market-data protocol |
+| **RALF** | EduMatcher's external post-trade dissemination protocol |
+| **LALF** | EduMatcher's centralized log protocol |
 
-```mermaid
-flowchart TD
-    subgraph Instructor
-        direction TB
-        ADM["pm-admin\n(operator console)"]
-    end
-    subgraph Server
-        direction TB
-        ENG["pm-engine"]
-        CLR["pm-clearing"]
-        STAT["pm-stats"]
-        SCH["pm-scheduler"]
-        AI["pm-ai-swarm\n(simulated order flow)"]
-    end
-    subgraph Student terminals
-        direction TB
-        GW1["pm-alf-console --id ST01"]
-        GW2["pm-alf-console --id ST02"]
-        GWN["pm-alf-console --id STnn"]
-    end
-
-    ADM -- "halt / resume / session" --> ENG
-    ENG -- "gateway traffic" --> GW1
-    GW1 --> GW2
-    GW2 --> GWN
-
-    AI -. "orders" .-> ENG
-    SCH -. "phase changes" .-> ENG
-    ENG -- "trade events" --> CLR
-    ENG -- "market data" --> STAT
-```
-
-Typical setup:
-
-1. Instructor creates `engine_config.yaml` with student gateway IDs and symbols.
-2. Instructor starts engine, scheduler, clearing, stats, and a small AI swarm.
-3. Students each `ssh` to the server and run their gateway.
-4. Instructor uses `pm-admin` to manage session phases and monitor the market.
+For the full vocabulary, see the [Glossary](../glossary.md).
 
 
-## Reading path
+## Where to go next
 
-Use the table below to decide what to read based on your goal.
+If you want a guided path, go to [Training](../training/index.md). If you want
+to build your own session, go to [Configuration](010-configuration.md) and then
+[Running the Exchange](040-running-the-exchange.md). If you want the complete
+runtime map, go to [Processes](170-processes.md).
 
-| Goal                           | Read these sections in order                         |
-|--------------------------------|------------------------------------------------------|
-| **Understand the full system** | 01 → 03 → 08 → 04 → 06 → 11 → 12 → 02 → 07 → 09 → 10 |
-| **Set up a classroom session** | 01 → 03 → 08 → 06 → 14 (MM) → 15 (AI)                |
-| **Participate as a trader**    | 08 → 04 → 05                                         |
-| **Run as a market maker**      | 01 → 08 → 14 (MM)                                    |
-| **Monitor the market**         | 09 → 10 → 13 → 07                                    |
-| **Write a custom client**      | 09 → 20 → 02                                         |
-| **Understand risk controls**   | 12 → 06 → 04                                         |
-
-
-
-## Glossary of terms used throughout this guide
-
-| Term                | Meaning                                                                                            |
-|---------------------|----------------------------------------------------------------------------------------------------|
-| **Engine**          | The `pm-engine` matching engine process — the authoritative order book                             |
-| **Gateway**         | A `pm-alf-console` participant terminal; one per trader                                                |
-| **Symbol**          | A tradeable instrument, e.g. `AAPL`, `MSFT`                                                        |
-| **IPO / listing**   | Defining a new symbol with its opening reference price, issued shares, and (if a market maker exists) opening quote. Those seed the book and both risk-control references. The symbol universe is fixed at startup — see [Configuration - Adding or Removing Symbols](010-configuration.md#adding-or-removing-symbols) and [Risk Controls - Day one (IPO) behaviour](120-risk-controls.md#day-one-ipo-behaviour) |
-| **Order book**      | Sorted list of resting bids and asks for one symbol                                                |
-| **Fill**            | An execution — the result of two orders matching                                                   |
-| **TIF**             | Time-in-Force: how long an order lives (`DAY`, `GTC`, `ATO`, `ATC`)                                |
-| **Tick**            | Minimum price increment (e.g. 0.01 for most equities)                                              |
-| **Gateway ID**      | Unique identifier for a participant connection, e.g. `GW01`                                        |
-| **Session state**   | Phase of the trading day: `PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED` |
-| **Market maker**    | A participant with role `MARKET_MAKER` who quotes two-sided prices                                 |
-| **Circuit breaker** | Automatic halt triggered when price moves beyond a configured threshold                            |
-| **Drop copy**       | A copy of all fill events published to a dedicated socket for compliance systems                   |
-
-## See also
-
-- [Configuration](010-configuration.md) — full `engine_config.yaml` reference
-- [Configuration generator](010-configuration.md#generate-configs-with-pm-config-gen) — build `engine_config.yaml` from CLI flags
-- [Running the Engine](040-running-the-exchange.md) — detailed startup, monitoring, and troubleshooting
-- [Gateway Commands](050-gateway-reference.md) — complete command reference for participants
-- [Order Types](060-order-types.md) — LIMIT, MARKET, STOP, ICEBERG, TRAILING_STOP, OCO, COMBO
-- [Market Making](090-market-maker.md) — QUOTE command, obligations, and MMP
-- [AI Traders](110-ai-traders.md) — autonomous order flow with `pm-ai-trader` and `pm-ai-swarm`
-- [Market-Maker Bot](100-mm-bot.md) — automated quoting with `pm-mm-bot`
-- [Post-Trade Dissemination](250-ralf-gateway.md) — external post-trade gateway with `pm-ralf-gwy`
-- [External Protocols Overview](210-protocols-overview.md) — where ALF, BALF, CALF, and RALF fit and how to choose between them
-- [RALF Protocol](930-app-ralf-protocol.md) — protocol-level wire specification
+The rest of the guide is large, but it is not a wall. It is a map of a whole
+exchange. Start with one process, one symbol and one trade; then add the next
+layer when the previous one makes sense.

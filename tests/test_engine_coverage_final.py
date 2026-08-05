@@ -208,14 +208,14 @@ class TestRestoreGTCWithOrders:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=100.0,
+                    price=100,
                 ),
                 ComboLeg(
                     symbol="MSFT",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=200.0,
+                    price=200,
                 ),
             ],
         )
@@ -386,7 +386,7 @@ class TestVerboseRejectedOrder:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100.0,
+            price=100,
         )
         engine._handle_new_order(order.to_dict())
         topics = [decode(f)[0] for f in pub_sock.sent]
@@ -407,7 +407,7 @@ class TestVerboseRejectedOrder:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100.0,
+            price=100,
         )
         engine._handle_new_order(order.to_dict())
         topics = [decode(f)[0] for f in pub_sock.sent]
@@ -447,7 +447,7 @@ class TestEngineSMPIOCEvents:
             quantity=50,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=100.0,
+            price=100,
             smp_action=SmpAction.CANCEL_AGGRESSOR,
         )
         engine._handle_new_order(resting.to_dict())
@@ -461,7 +461,7 @@ class TestEngineSMPIOCEvents:
             quantity=100,
             gateway_id="GW01",
             tif=TIF.DAY,
-            price=105.0,
+            price=105,
             smp_action=SmpAction.CANCEL_AGGRESSOR,
         )
         engine._handle_new_order(ioc.to_dict())

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "sourceMap": true,
+    "paths": {
+      "@edumatcher/terminal-types": ["./packages/terminal-types/src/index.ts"],
+      "@edumatcher/terminal-types/*": ["./packages/terminal-types/src/*"],
+      "@edumatcher/calf-protocol": ["./packages/calf-protocol/src/index.ts"],
+      "@edumatcher/calf-protocol/*": ["./packages/calf-protocol/src/*"],
+      "@edumatcher/lalf-client": ["./packages/lalf-client/src/index.ts"],
+      "@edumatcher/lalf-client/*": ["./packages/lalf-client/src/*"]
+    }
+  }
+}

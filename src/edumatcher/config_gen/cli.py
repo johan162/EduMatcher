@@ -29,6 +29,7 @@ from edumatcher.config_gen.builder import MarketDataGatewaySpec
 from edumatcher.config_gen.builder import PostTradeGatewaySpec
 from edumatcher.config_gen.cb_spec import CbSpec, parse_cb_spec
 from edumatcher.config_gen.defaults import (
+    DEFAULT_ACE_EXPANSIONS,
     DEFAULT_API_GATEWAY_ENGINE_AUTH_SEC,
     DEFAULT_API_GATEWAY_ENGINE_REPLY_SEC,
     DEFAULT_API_GATEWAY_HOST,
@@ -129,6 +130,10 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--mm-min-qty must be > 0")
     if args.cb_window_ns <= 0:
         raise ValueError("--cb-window-ns must be > 0")
+    if not (0 < args.ace_initial_band < 1):
+        raise ValueError("--ace-initial-band must be in (0, 1)")
+    if args.ace_random_end_ns < 0:
+        raise ValueError("--ace-random-end-ns must be >= 0")
     if args.post_trade_port is not None and args.post_trade_port <= 0:
         raise ValueError("--post-trade-port must be > 0")
     if args.market_data_port is not None and args.market_data_port <= 0:
@@ -476,6 +481,34 @@ def _parse_outstanding_shares(
     return result
 
 
+def _parse_ace_expansion(raw: str) -> tuple[float, int]:
+    """Parse one ``WIDEN_PCT:MINUTES`` rung into (widen_pct, min_duration_ns)."""
+    parts = raw.split(":")
+    if len(parts) != 2:
+        raise ValueError(
+            f"Invalid --ace-expansions '{raw}': expected WIDEN_PCT:MINUTES"
+        )
+    try:
+        widen_pct = float(parts[0])
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid --ace-expansions '{raw}': WIDEN_PCT must be numeric"
+        ) from exc
+    if not (0 < widen_pct < 1):
+        raise ValueError(
+            f"Invalid --ace-expansions '{raw}': WIDEN_PCT must be in (0, 1)"
+        )
+    try:
+        minutes = int(parts[1])
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid --ace-expansions '{raw}': MINUTES must be an integer"
+        ) from exc
+    if minutes <= 0:
+        raise ValueError(f"Invalid --ace-expansions '{raw}': MINUTES must be > 0")
+    return widen_pct, minutes * 60 * 1_000_000_000
+
+
 def _parse_symbol_band_specs(
     specs: list[str],
     allowed_symbols: set[str],
@@ -640,6 +673,7 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
     list[GatewaySpec],
     dict[str, tuple[float, float | None]],
     list[CbSpec],
+    list[tuple[float, int]],
     dict[str, SymbolOverride],
     list[str],
     dict[str, int],
@@ -671,6 +705,12 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
     cb_levels: list[CbSpec] = []
     if args.cb_levels is not None:
         cb_levels = [parse_cb_spec(raw) for raw in args.cb_levels]
+
+    ace_expansions = (
+        [_parse_ace_expansion(raw) for raw in args.ace_expansions]
+        if args.ace_expansions is not None
+        else list(DEFAULT_ACE_EXPANSIONS)
+    )
 
     symbol_overrides, symbol_opt_warnings = parse_symbol_opts(
         specs=args.symbol_opts,
@@ -718,6 +758,7 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
         gateways,
         risk_levels,
         cb_levels,
+        ace_expansions,
         symbol_overrides,
         symbol_opt_warnings,
         outstanding_shares,
@@ -1578,6 +1619,7 @@ def main() -> None:
             gateways,
             risk_levels,
             cb_levels,
+            ace_expansions,
             symbol_overrides,
             symbol_opt_warnings,
             outstanding_shares,
@@ -1621,6 +1663,11 @@ def main() -> None:
             dynamic_band_pct=args.dynamic_band,
             risk_levels=risk_levels,
             cb_levels=cb_levels,
+            ace_enabled=not args.no_ace,
+            ace_initial_band_pct=float(args.ace_initial_band),
+            ace_random_end_max_ns=int(args.ace_random_end_ns),
+            ace_random_seed=args.ace_random_seed,
+            ace_expansions=ace_expansions,
             cb_window_ns=int(args.cb_window_ns),
             mm_spread_ticks=int(args.mm_spread_ticks),
             mm_min_qty=int(args.mm_min_qty),

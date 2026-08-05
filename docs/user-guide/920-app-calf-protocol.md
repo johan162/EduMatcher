@@ -48,16 +48,16 @@ behavior.
 - aggregated multi-level order book updates (`DEPTH`) — Level 2, not
   order-by-order
 - auction uncross results (`AUCTION`) — equilibrium price, matched quantity,
-  and imbalance for open/close auctions and circuit-breaker resumption
+  and imbalance for open/close auctions and circuit-breaker reopening
   auctions
 - full circuit-breaker halt/resume detail (`CB`) — trigger price, reference
-  price, ladder level, auto-resume time, and resumption mode, alongside the
+  price, ladder level, auto-resume time, and halt cause, alongside the
   coarse `STATE` transition
 - point-in-time stream baselines (`SNAP`) for `TOP`, `STATE`, `INDEX`,
   `DEPTH`, and `CB`
 - per-stream sequence numbers on `(CH, SYM)`
 - `SYM=*` wildcard subscriptions for `STATE`, `TOP`, `TRADE`, and `AUCTION`
-- bounded replay on reconnect (`RESUME=1` + `LASTSEQ`)
+- bounded replay on reconnect (`RESUME` + `LASTSEQ`)
 - heartbeat and liveness signaling
 - gateway capability advertisement via `WELCOME|CH_SUPPORTED=`
 
@@ -87,7 +87,7 @@ A CALF client connection is long-lived.
 
 - Client must send `HELLO` within 5 seconds of TCP connect.
 - Gateway replies with `WELCOME` on success.
-- Client may then send `SUB`, `UNSUB`, `PING`, and `EXIT`.
+- Client may then send `SUB`, `RESUME`, `UNSUB`, `SYMBOLS`, `PING`, and `EXIT`.
 - Gateway streams `SNAP`, `MD`, `TRADE`, `STATE`, `IDX`, `DEPTH`, `AUCTION`,
   `CB`, `HB`, and `ERR`.
 
@@ -149,10 +149,13 @@ contain half a line, one full line, or many lines.
 |---------------|----------------------|----------------------------|
 | Decimal price | Text decimal         | `150.25`                   |
 | Integer       | Base-10 text integer | `1200`                     |
-| Boolean flag  | `0` or `1`           | `RESUME=1`                 |
+| Boolean flag  | `0` or `1`           | `EXC=1`                    |
 | Timestamp     | UTC ISO-8601 ms      | `2026-06-07T10:15:23.411Z` |
 
 Optional fields are omitted when not present. Empty required values are invalid.
+One optional field pair carries meaning when empty rather than being malformed:
+`MD`'s `BID`/`ASK`, where an empty value marks that book side as withdrawn —
+see **Withdrawal of a book side** under `MD`.
 
 
 
@@ -241,10 +244,12 @@ SUB|CH=CB|SYM=AAPL
 
 | Message   | Direction         | Purpose                                      |
 |-----------|-------------------|----------------------------------------------|
-| `HELLO`   | Client -> Gateway | Start session; optional single-stream resume |
+| `HELLO`   | Client -> Gateway | Start session                                |
 | `WELCOME` | Gateway -> Client | Confirm session and advertise parameters     |
 | `SUB`     | Client -> Gateway | Add subscriptions                            |
+| `RESUME`  | Client -> Gateway | Replay one stream from a known sequence      |
 | `UNSUB`   | Client -> Gateway | Remove subscriptions                         |
+| `SYMBOLS` | Both directions   | Request, and reply with, the instrument universe |
 | `PING`    | Client -> Gateway | Liveness probe                               |
 | `PONG`    | Gateway -> Client | Probe reply                                  |
 | `HB`      | Gateway -> Client | Heartbeat when quiet                         |
@@ -257,6 +262,7 @@ SUB|CH=CB|SYM=AAPL
 |-----------|-------------------|---------------------------------------|
 | `SNAP`    | Gateway -> Client | Point-in-time baseline for one stream |
 | `MD`      | Gateway -> Client | Incremental top-of-book update        |
+| `INDIC`   | Gateway -> Client | Indicative auction uncross, during a call phase |
 | `TRADE`   | Gateway -> Client | Trade print                           |
 | `STATE`   | Gateway -> Client | Session/symbol state transition       |
 | `IDX`     | Gateway -> Client | Index level update                    |
@@ -272,38 +278,33 @@ SUB|CH=CB|SYM=AAPL
 
 **Direction:** Client -> Gateway
 
-**Purpose:** Session handshake. Optional replay request for one stream.
+**Purpose:** Session handshake.
 
 **Response:** `WELCOME` on successful handshake, or `ERR|CODE=PROTO_MISMATCH`
-(connection closed) if `CLIENT`/`PROTO` fail validation. When `RESUME=1` is
-present and the handshake itself succeeds, the gateway always sends
-`WELCOME` first and then evaluates the resume request separately — an
-invalid resume (bad `CH`/`SYM`/`LASTSEQ` shape, or a replay miss) produces
-`WELCOME` followed by an `ERR` (`BAD_MESSAGE` or `REPLAY_MISS`), not `ERR`
-alone. A `BAD_MESSAGE` resume error closes the connection after the queued
-messages are flushed; a `REPLAY_MISS` does not — it is followed by a `SNAP`
-and the session continues.
+(connection closed) if `CLIENT`/`PROTO` fail validation.
 
-| Field     | Req           | Description                            |
-|-----------|---------------|----------------------------------------|
-| `CLIENT`  | Yes           | Client ID (ASCII, max 32 chars)        |
-| `PROTO`   | Yes           | Must be `CALF1`                        |
-| `RESUME`  | No            | `1` enables replay request             |
-| `CH`      | If `RESUME=1` | One channel to resume                  |
-| `SYM`     | If `RESUME=1` | One symbol for resumed stream          |
-| `LASTSEQ` | If `RESUME=1` | Last received sequence for that stream |
+| Field    | Req | Description                     |
+|----------|-----|---------------------------------|
+| `CLIENT` | Yes | Client ID (ASCII, max 32 chars) |
+| `PROTO`  | Yes | Must be `CALF1`                 |
 
 Validation rules:
 
 - Messages other than `HELLO` sent before successful handshake receive
   `ERR|CODE=AUTH_REQUIRED`.
-- `RESUME=1` with missing `CH`, `SYM`, or `LASTSEQ` is invalid.
-- `RESUME=1` with multi-value `CH` or `SYM` is invalid.
+- `HELLO` is only accepted while a session is unauthenticated. A second
+  `HELLO` on an established session receives `ERR|CODE=BAD_MESSAGE`.
 
 ```text
 HELLO|CLIENT=bot01|PROTO=CALF1
-HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
 ```
+
+> **Changed:** replay is no longer requested through a `RESUME=1` flag on
+> `HELLO`. Because `HELLO` is only ever processed once per connection, that
+> form could resume a single stream and no more — leaving any client that
+> follows several streams, which is most of them, unable to recover the rest
+> after a reconnect. Replay now has its own repeatable
+> [`RESUME`](#resume) command, sent after the handshake.
 
 ### `WELCOME`
 
@@ -316,10 +317,11 @@ HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
 | `HBINT`        | Yes | Heartbeat interval in seconds        |
 | `REPLAY`       | Yes | Replay window in seconds             |
 | `SYMBOLS`      | No  | Comma-separated snapshot of instrument symbols known to the gateway at connect time. Omitted when the gateway has no known symbols yet. The known-symbol set can grow after `WELCOME` is sent, as new `book.{SYMBOL}`/trade events arrive from the engine — this field is a point-in-time snapshot, not a fixed universe, and a symbol absent here may still become subscribable later without a new `WELCOME`. |
+| `REF`          | No  | Per-symbol reference data as `SYM:DEC` tuples, where `DEC` is the instrument's display precision (`tick_decimals`). Covers exactly the symbols listed in `SYMBOLS=`, and is omitted whenever that field is. Absent entirely from gateways predating CALF `1.1.0` — a client detects support by its presence, not by `PROTO`, and falls back to `2` decimals when it is missing. |
 | `CH_SUPPORTED` | No  | Comma-separated list of channels this gateway build supports. Present on every CALF `1.0.0`+ gateway; omitted entirely by earlier gateways. A client uses its presence — not the `PROTO` value, which does not change — to detect whether `DEPTH`/`INDEX` and the `SYM=*` wildcard extension are available. |
 
 ```text
-WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE
+WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE|REF=AAPL:2,MSFT:4
 ```
 
 A client that receives no `CH_SUPPORTED` field must assume only `TOP`,
@@ -355,6 +357,120 @@ SUB|CH=DEPTH|SYM=AAPL
 SUB|CH=AUCTION|SYM=*
 SUB|CH=CB|SYM=AAPL
 ```
+
+### `RESUME`
+
+**Direction:** Client -> Gateway
+
+**Purpose:** Subscribe to one stream and replay what was missed since
+`LASTSEQ`, instead of starting from a `SNAP`.
+
+**Response:** replayed events in sequence order, or `ERR|CODE=REPLAY_MISS`
+when the gap is wider than the replay window. On the snapshot-backed channels
+(`TOP`, `STATE`, `INDEX`, `DEPTH`, `CB`) a fresh `SNAP` follows that error; on
+`TRADE` and `AUCTION` it does not, because a past print has no current state to
+snapshot. See "Reconnect behavior" below.
+
+| Field     | Req | Description                                      |
+|-----------|-----|--------------------------------------------------|
+| `CH`      | Yes | Exactly one channel                               |
+| `SYM`     | Yes | Exactly one concrete symbol; `SYM=*` is invalid   |
+| `LASTSEQ` | Yes | Last sequence the client received on that stream  |
+
+Send one `RESUME` per stream being recovered. Unlike `SUB`, this message
+takes no comma-separated lists: `LASTSEQ` describes a single stream's
+position, so a multi-stream `RESUME` would have no coherent meaning.
+
+```text
+RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042
+RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88
+RESUME|CH=DEPTH|SYM=MSFT|LASTSEQ=310
+```
+
+Validation rules:
+
+- `CH` or `SYM` carrying more than one value is `ERR|CODE=BAD_MESSAGE`.
+- A missing or non-positive `LASTSEQ` is `ERR|CODE=BAD_MESSAGE`.
+- An unknown channel is `ERR|CODE=INVALID_CHANNEL`.
+- `SYM=*` is `ERR|CODE=INVALID_SYMBOL` on every channel — see
+  "Reconnect behavior".
+
+All of these leave the session open. A client recovering several streams
+sends several `RESUME` messages, and one bad request must not cost it the
+others; only handshake-level failures close a connection.
+
+### `SYMBOLS`
+
+**Direction:** Client -> Gateway (request), Gateway -> Client (reply)
+
+**Purpose:** Ask which instruments this gateway knows about.
+
+The request carries no fields:
+
+```text
+SYMBOLS
+```
+
+The reply:
+
+| Field     | Req | Description                                              |
+|-----------|-----|----------------------------------------------------------|
+| `COUNT`   | Yes | How many symbols are known; `0` is a valid answer         |
+| `SYMBOLS` | No  | Comma-separated symbols, sorted; omitted when `COUNT=0`   |
+| `REF`     | No  | Per-symbol `SYM:DEC` display precision; same set as `SYMBOLS`, omitted alongside it |
+
+```text
+SYMBOLS|COUNT=3|SYMBOLS=AAPL,MSFT,TSLA|REF=AAPL:2,MSFT:2,TSLA:4
+SYMBOLS|COUNT=0
+```
+
+Read `COUNT`, not the presence of `SYMBOLS`. An empty universe omits the field
+rather than sending it empty, so the two must not be conflated with a
+malformed reply.
+
+**Why this exists, given `WELCOME|SYMBOLS=`.** That field is optional, sent
+once, and omitted entirely when the gateway was started without a readable
+engine config — a misconfiguration that otherwise looks, from the client side,
+exactly like an exchange with no instruments. The gateway's set also *grows*
+as symbols first appear on the engine bus, so a client that connected before a
+given instrument traded could not learn of it without reconnecting. `SYMBOLS`
+makes the universe both askable and refreshable.
+
+Repeatable at any time. A client that needs the universe up front should send
+it immediately after `WELCOME` rather than depending on the handshake field.
+
+#### `REF` — per-symbol display precision
+
+`REF` answers "how many decimal places does this instrument quote in?", which
+a client otherwise has no way to discover. The only other source is
+`GET /api/symbols` on the API gateway, which requires a *trading* credential —
+something a market data consumer has no business holding — so before this field
+existed every CALF client had to assume the default of `2` and was quietly
+wrong about any instrument configured otherwise.
+
+```text
+REF=AAPL:2,MSFT:2,TSLA:4
+```
+
+Three properties are deliberate:
+
+- **It is reference data, not market data.** `tick_decimals` never changes for
+  a symbol, so it rides the handshake and this reply rather than `TOP` or
+  `TRADE`. Repeating a constant on every tick would be exactly what `MD`'s
+  delta encoding exists to avoid.
+- **Its presence is the capability signal.** Like `CH_SUPPORTED`, and for the
+  same reason: `PROTO` stays `CALF1`. A client seeing no `REF` falls back to
+  `2` *knowingly* rather than by accident.
+- **The tuple has room to grow.** `SYM:DEC` reuses the colon-delimited grammar
+  `DEPTH` already uses for `price:qty:count`, and extends to
+  `SYM:DEC:MULT:CCY` as further reference fields are defined — without another
+  protocol change. Clients must ignore trailing components they do not
+  recognise rather than treating the entry as malformed.
+
+Every symbol in `SYMBOLS` appears in `REF`, so a client never has to reason
+about one being listed in one field and missing from the other. A symbol first
+seen on the engine bus, which has no configured precision, is reported at the
+default rather than omitted.
 
 ### `UNSUB`
 
@@ -426,7 +542,7 @@ below. Reflects the **last known** circuit-breaker status for the symbol —
 - Neither `CH=TRADE` nor `CH=AUCTION` has a `SNAP` variant in CALF `1.0.0` —
   both are pure event streams with no persistent "current value."
 - Delivery for both starts from events that occur after the subscription is
-  active (plus any replay via `RESUME=1`, see "Sequence and recovery
+  active (plus any replay via `RESUME`, see "Sequence and recovery
   semantics").
 
 ```text
@@ -434,7 +550,7 @@ SNAP|CH=TOP|SYM=AAPL|SEQ=100|TS=2026-06-07T10:16:00.000Z|BID=150.10|BIDSZ=1200|A
 SNAP|CH=STATE|SYM=*|SEQ=5|TS=2026-06-07T10:16:00.000Z|SESSION=CONTINUOUS
 SNAP|CH=INDEX|SYM=EDU100|SEQ=42|TS=2026-06-12T10:15:23.000Z|LEVEL=1048.73|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|SESSION=CONTINUOUS
 SNAP|CH=DEPTH|SYM=AAPL|SEQ=1|TS=2026-07-11T14:32:00.000Z|LEVELS=10|BIDS=150.10:1200:3,150.09:800:2|ASKS=150.12:900:2,150.13:600:1
-SNAP|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T14:05:00.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|MODE=AUCTION
+SNAP|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T14:05:00.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|SRC=CB
 SNAP|CH=CB|SYM=MSFT|SEQ=1|TS=2026-07-20T14:05:00.000Z|STATUS=ACTIVE
 ```
 
@@ -444,22 +560,72 @@ SNAP|CH=CB|SYM=MSFT|SEQ=1|TS=2026-07-20T14:05:00.000Z|STATUS=ACTIVE
 
 **Purpose:** Incremental `TOP` update. Unchanged sides may be omitted.
 
-| Field    | Req | Description              |
-|----------|-----|--------------------------|
-| `CH`     | Yes | `TOP`                    |
-| `SYM`    | Yes | Symbol                   |
-| `SEQ`    | Yes | Stream sequence          |
-| `TS`     | Yes | Event timestamp          |
-| `BID`    | No  | Updated bid              |
-| `BIDSZ`  | No  | Updated bid size         |
-| `ASK`    | No  | Updated ask              |
-| `ASKSZ`  | No  | Updated ask size         |
-| `LAST`   | No  | Updated last trade price |
-| `LASTSZ` | No  | Updated last trade size  |
+| Field    | Req | Description                                                        |
+|----------|-----|--------------------------------------------------------------------|
+| `CH`     | Yes | `TOP`                                                              |
+| `SYM`    | Yes | Symbol                                                             |
+| `SEQ`    | Yes | Stream sequence                                                    |
+| `TS`     | Yes | Event timestamp                                                    |
+| `BID`    | No  | Updated bid; **empty value means the bid side is now empty**       |
+| `BIDSZ`  | No  | Updated bid size                                                   |
+| `ASK`    | No  | Updated ask; **empty value means the ask side is now empty**       |
+| `ASKSZ`  | No  | Updated ask size                                                   |
+| `LAST`   | No  | Updated last trade price                                           |
+| `LASTSZ` | No  | Updated last trade size                                            |
 
 ```text
 MD|CH=TOP|SYM=AAPL|SEQ=1051|TS=2026-06-07T10:16:00.115Z|BID=150.11|BIDSZ=1400|ASK=150.13|ASKSZ=800
 ```
+
+#### Withdrawal of a book side
+
+`BID` and `ASK` have three distinct states on an `MD`, and a client must treat
+them differently:
+
+| On the wire | Meaning                                          |
+|-------------|--------------------------------------------------|
+| `BID=150.11`| New value for this side                          |
+| `BID=`      | This side is now **empty** — discard the price    |
+| *(absent)*  | Unchanged since the previous message              |
+
+An empty value is the *only* way the gateway can say "there is no bid". This
+is the one documented exception to **Wire value types** above: `BID`/`ASK` are
+optional fields, and for these two an empty value is meaningful rather than
+malformed.
+
+```text
+MD|CH=TOP|SYM=AAPL|SEQ=1052|TS=2026-06-07T10:16:00.210Z|BID=|BIDSZ=0
+```
+
+A client that treats a withdrawal as "unchanged" will display the last known
+price indefinitely, and will disagree with any client that reconnects and
+receives a fresh `SNAP` — which omits the side correctly. Merging code must
+therefore *remove* the field on an empty value, not overwrite it.
+
+`LAST`/`LASTSZ` are never withdrawn: once a symbol has traded, its last price
+persists for the session, so an empty value is not valid for those fields.
+
+#### `LAST` after a trade
+
+A trade updates `LAST`/`LASTSZ` on the `TOP` channel as well as producing a
+`TRADE` message. The two arrive at different times and neither replaces the
+other:
+
+| Channel | Carries | When |
+|---------|---------|------|
+| `TRADE` | Every individual print (`PX`, `QTY`, `SIDE`) | Immediately, one message per trade |
+| `TOP`   | The latest price only (`LAST`, `LASTSZ`)      | With the next book republish, throttled by the engine's `snapshot_interval_sec` |
+
+A client that wants every print subscribes to `TRADE`; a client that only wants
+"what did this last trade at" can rely on `TOP` alone, including its `SNAP`
+baseline. Several trades inside one throttle window collapse to the latest
+price on `TOP` — that is the intended behaviour, not a dropped update.
+
+A `SNAP` reports a trade immediately, without waiting for the next book
+republish, so a client subscribing between the two is not handed a stale
+price. Gateway builds before this was fixed suppressed `LAST` from the
+following `MD` entirely, leaving a continuously-connected client on the price
+baked into its original `SNAP` while a reconnecting client saw the true value.
 
 ### `TRADE`
 
@@ -491,6 +657,8 @@ TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SI
 | `TS`      | Yes | Transition timestamp      |
 | `SESSION` | Yes | New state value           |
 | `PREV`    | No  | Previous state when known |
+| `NEXTPHASE` | No | Phase the session moves to next; `SYM=*` only |
+| `NEXTAT`  | No  | When that transition is scheduled, UTC ISO-8601; `SYM=*` only |
 
 Valid `SESSION` values:
 
@@ -502,9 +670,52 @@ Valid `SESSION` values:
 - `HALTED` (symbol-level)
 
 ```text
-STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
-STATE|CH=STATE|SYM=AAPL|SEQ=3|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
+STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION|NEXTPHASE=CLOSING_AUCTION|NEXTAT=2026-06-07T16:25:00.000Z
+STATE|CH=STATE|SYM=AAPL|SEQ=8|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
+STATE|CH=STATE|SYM=AAPL|SEQ=9|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
 ```
+
+**`NEXTPHASE`/`NEXTAT`: the next scheduled transition.**
+
+Both appear on the `SYM=*` stream only, and only when the transition that
+produced this state was driven by the session scheduler — the one component
+that knows the day's timetable. They are what lets a client show a countdown
+to the open, the closing auction, or the close, which is otherwise the
+most-glanced number on a trading screen and the one CALF could not answer.
+
+They are sent together or not at all. A phase with no time cannot be counted
+down to, and a time with no phase does not say what happens when it arrives.
+
+**Their absence is information.** A manual or admin-driven transition carries
+no timetable, and the engine *clears* whatever the scheduler last advertised
+rather than leaving it in place: it has just moved somewhere the schedule did
+not predict, so the old target has stopped being a fact about anything. A
+client must render that as silence, not as a countdown to zero — and must not
+substitute a schedule it read from configuration, which describes what
+*should* happen rather than what the engine is actually going to do.
+
+`NEXTAT` may pass without the transition arriving, if the scheduler is late or
+has stopped. A client should say so rather than run a negative clock or freeze
+at zero, since a late scheduler, a wedged one, and an absent one otherwise
+look identical.
+
+**An exchange transition is published twice: once as `SYM=*`, and once per
+symbol.** A subscription matches on `SYM=*` *or* an exact symbol, so a client
+that subscribed to one instrument would otherwise see its halts and resumes
+but never the session around them — it would not learn the exchange had
+opened or closed. Wildcard subscribers receive both forms; that is
+deliberate, and the `SYM=*` line remains the authoritative exchange-level
+event.
+
+A symbol that is halted is **not** moved by an exchange transition. Its halt
+outlives the phase it began in, and the engine publishes an explicit resume
+when it ends.
+
+A resume returns the symbol to whatever the exchange is doing *at that
+moment*, which is not necessarily `CONTINUOUS`. Circuit-breaker halts expire
+on elapsed time with no session check, so an L2 halt — 15 minutes by default
+— triggered shortly before the close resumes into `CLOSING_AUCTION` or
+`CLOSED`.
 
 ### `IDX`
 
@@ -601,8 +812,9 @@ sequenceDiagram
 **Direction:** Gateway -> Client
 
 **Purpose:** Result of one auction uncross for a symbol — a scheduled
-opening/closing auction, or a circuit-breaker resumption auction. Published
-exactly once per uncross, even when there was no crossable interest at all.
+opening/closing auction, a circuit-breaker reopening auction, or the pass
+over restored GTC orders at engine startup. Published exactly once per
+uncross, even when there was no crossable interest at all.
 
 | Field     | Req | Description                                                                 |
 |-----------|-----|--------------------------------------------------------------------------------|
@@ -615,15 +827,79 @@ exactly once per uncross, even when there was no crossable interest at all.
 | `TRADES`  | Yes | Number of trades produced by the uncross (`0` when no cross)                |
 | `IMBSIDE` | No  | Residual imbalance side, `BUY` or `SELL`; omitted when balanced or no cross |
 | `IMBQTY`  | Yes | Residual imbalance quantity at `EQPX` (`0` when balanced or no cross)       |
+| `REASON`  | No  | Which uncross this was: `SCHEDULED` (leaving an auction or other non-matching phase), `REOPEN` (a halted symbol reopening) or `RECOVERY` (restored GTC orders at engine startup) |
+
+Without `REASON` the three are indistinguishable — the fields are otherwise
+identical — so a client cannot tell a circuit-breaker reopening from the
+closing auction. Treat an unrecognised value as absent rather than as an
+error: it means a gateway newer than the client.
 
 `AUCTION` has no baseline `SNAP` (see "Channel model" above) — a new
 subscriber only receives auction results from the next uncross onward,
-unless it also uses `RESUME=1` to replay recent history.
+unless it also uses `RESUME` to replay recent history.
 
 ```text
 AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|TS=2026-07-20T13:30:00.012Z|EQPX=150.10|EQQTY=48200|TRADES=37|IMBSIDE=BUY|IMBQTY=1400
 AUCTION|CH=AUCTION|SYM=TSLA|SEQ=4|TS=2026-07-20T20:00:00.004Z|EQQTY=0|TRADES=0|IMBQTY=0
 AUCTION|CH=AUCTION|SYM=MSFT|SEQ=2|TS=2026-07-20T13:30:00.031Z|EQPX=421.00|EQQTY=15000|TRADES=12|IMBQTY=0
+```
+
+
+### `INDIC`
+
+**Direction:** Gateway -> Client
+
+**Purpose:** Where a symbol *would* uncross if the call phase ended now.
+Published repeatedly, on an interval, for the whole of an `OPENING_AUCTION`
+or `CLOSING_AUCTION`.
+
+This is the same channel as `AUCTION` and a different statement. `AUCTION`
+reports what happened at an uncross; `INDIC` reports what would happen while
+there is still time to act on it. A client must not treat one as the other:
+an `INDIC` price is not a trade and nothing has printed at it.
+
+| Field      | Req | Description                                                              |
+|------------|-----|--------------------------------------------------------------------------|
+| `CH`       | Yes | `AUCTION`                                                                 |
+| `SYM`      | Yes | Symbol                                                                    |
+| `SEQ`      | Yes | Stream sequence for `(AUCTION, SYM)`                                     |
+| `TS`       | Yes | Event timestamp                                                           |
+| `INDICPX`  | No  | Indicative uncross price; **omitted when the book would not cross at all** |
+| `INDICQTY` | Yes | Quantity that would match at `INDICPX` (`0` when there is no cross)       |
+| `IMB`      | No  | Which side the surplus runs, `BUY` or `SELL`; omitted when balanced        |
+| `IMBQTY`   | Yes | Surplus quantity that would go unmatched (`0` when balanced)              |
+| `PHASE`    | No  | The call phase running, so a client need not infer it from `STATE`        |
+
+**`INDICPX` absent is a reading, not a gap.** It means the bids and offers
+collected so far do not overlap, so nothing would trade if the phase ended
+now. Rendering it as a price of zero is wrong in the way that matters: it
+asserts a clearing level the book does not have.
+
+**Why publish it at all.** An imbalance nobody can see before the uncross is
+an imbalance nobody can offset. Disseminating it is what lets participants
+supply the offsetting interest that resolves it — the same reasoning the
+circuit-breaker path already applies to a reopening, and it holds with more
+force at the open and the close, where the largest volume of the day prints.
+The field names are shared with that path deliberately: a reopening auction
+and a scheduled one are the same mechanism, and a client that learned to read
+one should not have to learn the other.
+
+**Cadence.** A fixed interval, configurable engine-side
+(`auction_indicative_interval_sec`, default 1s), not one message per book
+change: bounded cost regardless of how heavy order entry gets. Every symbol
+is republished every interval, including ones whose reading has not changed —
+otherwise a client cannot tell a stable indicative from a stalled feed.
+
+**Halted symbols are excluded.** A halt is its own reopening auction with its
+own corridor, and the `CB` channel already carries an indicative for it. Two
+sources describing one symbol would eventually disagree.
+
+Like `AUCTION`, `INDIC` has no baseline `SNAP`. A client joining mid-auction
+waits at most one interval for the next reading.
+
+```text
+INDIC|CH=AUCTION|SYM=AAPL|SEQ=12|TS=2026-07-20T13:29:45.000Z|INDICPX=150.10|INDICQTY=48200|IMB=BUY|IMBQTY=1400|PHASE=OPENING_AUCTION
+INDIC|CH=AUCTION|SYM=TSLA|SEQ=12|TS=2026-07-20T13:29:45.000Z|INDICQTY=0|IMBQTY=0|PHASE=OPENING_AUCTION
 ```
 
 The second example is a no-cross auction (`EQPX`/`IMBSIDE` both omitted, all
@@ -636,7 +912,7 @@ counts `0`); the third is a perfectly balanced cross (`IMBSIDE` omitted,
 
 **Purpose:** Full circuit-breaker halt/resume detail for one symbol —
 trigger price, reference price, ladder level, scheduled auto-resume time,
-and resumption mode. `STATE` (above) still carries the coarse
+and what caused the halt. `STATE` (above) still carries the coarse
 `SESSION=HALTED`/`SESSION=CONTINUOUS` transition unchanged; `CB` is emitted
 **alongside** `STATE`, from the same underlying engine event, for clients
 that also want the detail.
@@ -652,34 +928,86 @@ that also want the detail.
 | `TRIGGERPX` | No  | Trigger price; present only for an automatic (non-`ADMIN_*`) halt currently in effect    |
 | `REFPX`     | No  | Reference price at trigger time; present only for an automatic halt currently in effect  |
 | `RESUMEAT`  | No  | Scheduled auto-resume time, UTC ISO-8601 with ms (same format as `TS`); present only for a timed halt currently in effect — absent for rest-of-day or manual/`ADMIN_*` halts |
-| `MODE`      | No  | `AUCTION`, `CONTINUOUS`, or `MANUAL`; present only when `STATUS=HALTED`                  |
+| `SRC`       | No  | What halted the symbol: `CB` for an automatic breaker trigger, `ADMIN` for an operator halt |
+| `CORRLO`    | No  | Lower bound of the ACE reopening corridor; present only while `STATUS=HALTED` and ACE is enabled for the symbol |
+| `CORRHI`    | No  | Upper bound of the same corridor                                                          |
+| `EXP`       | No  | Number of ACE extensions consumed so far. `0` on the initial halt                        |
+| `INDICPX`   | No  | Indicative uncross price observed at the end of a call phase. Extension events only      |
+| `INDICQTY`  | No  | Quantity that would have executed at `INDICPX`. Extension events only                    |
+| `IMB`       | No  | `BUY` or `SELL` — which side the imbalance ran. Extension events only                    |
+| `REASON`    | No  | `CLOSING_BACKSTOP` when the resume was forced by the end of the trading day. Resume events only |
+| `CLAMPED`   | No  | `1` when the backstop printed *at* the corridor boundary rather than at the equilibrium. Resume events only |
+| `PRINTPX`   | No  | The price the backstop printed at. Resume events only                                     |
 
-`LEVEL`/`TRIGGERPX`/`REFPX`/`RESUMEAT` describe the halt that just ended and
-are always omitted on a resume event (`STATUS=ACTIVE`) — only `MODE` carries
-over, since it is meaningful for both halt and resume (which resumption
-mechanism applies/applied).
+`LEVEL`/`TRIGGERPX`/`REFPX`/`RESUMEAT`/`CORRLO`/`CORRHI`/`EXP` describe the
+halt that just ended and are always omitted on a resume event
+(`STATUS=ACTIVE`) — only `SRC` carries over, since what caused the halt is
+meaningful on the way out as well as in.
 
-> **Internal field-name note:** the engine's own halt payload uses the field
-> name `resumption_mode`, while its resume payload uses `mode` for the same
-> concept — an inconsistency in the underlying `circuit_breaker.halt.*`/
-> `circuit_breaker.resume.*` engine topics. CALF normalizes this: both the
-> `CB` halt event and the `CB` resume event use the same wire key, `MODE`, so
-> a CALF client never needs to know about the internal inconsistency.
+#### ACE corridor expansions
+
+A halt does not necessarily end when `RESUMEAT` arrives. If the indicative
+uncross price falls outside `[CORRLO, CORRHI]`, the symbol stays halted, the
+corridor widens by one ladder rung and a fresh call phase begins — see
+[Risk Controls - Automated Corridor Expansion](120-risk-controls.md#automated-corridor-expansion-ace).
+
+The gateway publishes this as a further `CB` event with `STATUS=HALTED` and an
+updated `RESUMEAT`, `CORRLO`, `CORRHI` and `EXP`. **A client that ignores these
+will show a `RESUMEAT` that has already passed and report the symbol as overdue
+to reopen.** No `STATE` event accompanies an extension: the symbol was halted
+before and is halted after, so the coarse session state has not changed.
+
+`INDICPX`/`INDICQTY`/`IMB` are carried on extension events only. They are
+computed once, at the instant the call phase ends, so they are deliberately
+absent from the `SNAP` baseline — replaying them later would assert a stale
+price for a book that has kept moving. Disseminating them at all mirrors the
+order-imbalance indicator real venues publish during a reopening, which is
+what lets participants supply the offsetting interest that resolves the halt.
+
+`CORRLO`/`CORRHI`/`EXP` *are* part of the `SNAP` baseline, because they
+describe the halt still in force: a client subscribing mid-halt otherwise
+cannot tell where the symbol is permitted to reopen.
+
+**A halt is a reopening auction's call phase.** While a symbol is halted the
+engine accepts LIMIT orders and rests them, rejects MARKET/FOK/IOC, and runs
+no matching; when the halt ends it uncrosses at the equilibrium price and
+publishes an `AUCTION` with `REASON=REOPEN` before the `STATE` and `CB`
+resume events. There is no separate "resumption mode" to choose, and CALF no
+longer carries one: crossed interest accumulates during the call, so
+restarting continuous matching without an uncross would begin on a crossed
+book. `RESUMEAT` says whether the halt ends by itself; `SRC` says who
+started it. The two are independent.
 
 `CB` has a baseline `SNAP` (see the `SNAP` section above) reflecting the
 last known status for the symbol.
 
 ```text
-CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T14:05:00.010Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|MODE=AUCTION
-CB|CH=CB|SYM=TSLA|SEQ=1|TS=2026-07-20T15:00:00.000Z|STATUS=HALTED|LEVEL=ADMIN_ALL|MODE=MANUAL
-CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T14:20:00.010Z|STATUS=ACTIVE|MODE=AUCTION
+CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T14:05:00.010Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|SRC=CB
+CB|CH=CB|SYM=TSLA|SEQ=1|TS=2026-07-20T15:00:00.000Z|STATUS=HALTED|LEVEL=ADMIN_ALL|SRC=ADMIN
+CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T14:20:00.010Z|STATUS=ACTIVE|SRC=CB
+```
+
+An ACE sequence — halt, one extension, then a reopen inside the widened
+corridor:
+
+```text
+CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T13:30:00.010Z|STATUS=HALTED|LEVEL=L1|TRIGGERPX=122.00|REFPX=100.00|RESUMEAT=2026-07-20T13:35:00.000Z|CORRLO=90.00|CORRHI=110.00|EXP=0|SRC=CB
+CB|CH=CB|SYM=AAPL|SEQ=5|TS=2026-07-20T13:35:00.010Z|STATUS=HALTED|LEVEL=L1|TRIGGERPX=122.00|REFPX=100.00|RESUMEAT=2026-07-20T13:37:00.000Z|CORRLO=80.00|CORRHI=120.00|EXP=1|SRC=CB|INDICPX=122.00|INDICQTY=500|IMB=BUY
+CB|CH=CB|SYM=AAPL|SEQ=6|TS=2026-07-20T13:37:00.010Z|STATUS=ACTIVE|SRC=CB
+```
+
+And a halt the trading day ended before ACE could resolve, printed at the
+corridor boundary rather than at the equilibrium:
+
+```text
+CB|CH=CB|SYM=AAPL|SEQ=9|TS=2026-07-20T16:05:00.010Z|STATUS=ACTIVE|SRC=CB|REASON=CLOSING_BACKSTOP|CLAMPED=1|PRINTPX=120.00
 ```
 
 The first example is an automatic threshold-breach halt (all detail fields
 present); the second is an ADMIN exchange-wide halt (`trigger`/`reference`/
 `resume` all omitted, matching the engine's `None` values for that path);
 the third is the resume that follows the first halt (`STATUS=ACTIVE`, only
-`MODE` retained).
+`SRC` retained).
 
 `SYM=*` is invalid for `SUB|CH=CB` — see "Subscription rules" above.
 
@@ -696,12 +1024,12 @@ sequenceDiagram
     Note over E: large trade shifts price beyond the L2 threshold
     E-->>G: circuit_breaker.halt.AAPL
     G-->>C: STATE|CH=STATE|SYM=AAPL|SEQ=10|SESSION=HALTED|PREV=CONTINUOUS
-    G-->>C: CB|CH=CB|SYM=AAPL|SEQ=3|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=...|MODE=AUCTION
+    G-->>C: CB|CH=CB|SYM=AAPL|SEQ=3|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=...|SRC=CB
 
     Note over E: halt duration elapses engine resumes and re-auctions AAPL
     E-->>G: circuit_breaker.resume.AAPL
     G-->>C: STATE|CH=STATE|SYM=AAPL|SEQ=11|SESSION=CONTINUOUS|PREV=HALTED
-    G-->>C: CB|CH=CB|SYM=AAPL|SEQ=4|STATUS=ACTIVE|MODE=AUCTION
+    G-->>C: CB|CH=CB|SYM=AAPL|SEQ=4|STATUS=ACTIVE|SRC=CB
     E-->>G: auction.result.AAPL
     G-->>C: AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|EQPX=149.80|EQQTY=6200|TRADES=5|IMBSIDE=SELL|IMBQTY=300
 ```
@@ -747,9 +1075,9 @@ Normative error codes:
 | `PROTO_MISMATCH`  | `HELLO` missing `CLIENT` or `PROTO != CALF1`                                    |
 | `AUTH_REQUIRED`   | Non-`HELLO` message sent before successful handshake                            |
 | `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX, DEPTH, AUCTION, CB}`                     |
-| `INVALID_SYMBOL`  | Symbol not in the gateway's known instrument list (does not apply to `INDEX`, which has no known-id check — see "Subscription rules"), `SYM=*` used with `INDEX`/`DEPTH`/`CB` on `SUB` (alone or mixed with any other channel), `SYM=*` used at all on `HELLO|RESUME=1` (every channel, including `TOP`/`TRADE`/`STATE`/`AUCTION`), a `SUB` with no `SYM` at all, or `CH=INDEX` combined with an empty symbol |
+| `INVALID_SYMBOL`  | Symbol not in the gateway's known instrument list (does not apply to `INDEX`, which has no known-id check — see "Subscription rules"), `SYM=*` used with `INDEX`/`DEPTH`/`CB` on `SUB` (alone or mixed with any other channel), `SYM=*` used at all on `RESUME` (every channel, including `TOP`/`TRADE`/`STATE`/`AUCTION`), a `SUB` with no `SYM` at all, or `CH=INDEX` combined with an empty symbol |
 | `SUB_LIMIT`       | Subscription would exceed `max_symbols_per_client`                              |
-| `REPLAY_MISS`     | `LASTSEQ` is older than the replay window; gateway sends a `SNAP` instead       |
+| `REPLAY_MISS`     | `LASTSEQ` is older than the replay window; a `SNAP` follows on `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`, but not on `TRADE`/`AUCTION` |
 | `SLOW_CLIENT`     | Outbound queue exceeded `max_client_queue`; connection closed                   |
 | `BAD_MESSAGE`     | Parse failure, oversized line (> 4096 bytes), or unsupported message type       |
 | `RATE_LIMITED`    | Client exceeded `max_messages_per_second` (inbound token-bucket); connection stays open |
@@ -808,36 +1136,59 @@ On first subscribe to a `TOP`, `STATE`, `INDEX`, `DEPTH`, or `CB` stream:
 
 `TRADE` and `AUCTION` have no step 1 — see the `SNAP` section above.
 
-### Reconnect behavior (`RESUME=1`)
+### Reconnect behavior (`RESUME`)
 
-`RESUME=1` applies to one stream per `HELLO`.
+`RESUME` applies to one stream per message, and may be sent as many times as
+there are streams to recover. Reconnect therefore looks like: `HELLO`, then
+one `RESUME` per stream the client was following, then a `SUB` for anything
+it wants that it has no sequence position for.
 
 - Client supplies `CH`, `SYM`, and `LASTSEQ`.
-- `CH` and `SYM` must each contain exactly one value when `RESUME=1`.
+- `CH` and `SYM` must each contain exactly one value.
 - `LASTSEQ` must be a positive base-10 integer.
 - If missing events are inside replay window, gateway replays in order then
   continues live.
-- If missing range is outside window, gateway sends `ERR|CODE=REPLAY_MISS`
-  followed by a fresh `SNAP`.
+- If missing range is outside window, gateway sends `ERR|CODE=REPLAY_MISS`.
+  A fresh `SNAP` follows on `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`. It does **not**
+  on `TRADE` or `AUCTION`: those carry discrete events, and there is no
+  snapshot of a print that already happened, so the missed events are simply
+  gone. Do not wait for a baseline that will not arrive — and if you are
+  talking to an older gateway that sends one anyway, discard it: it is an
+  envelope with no payload, and a decoder keyed on `CH` alone will read it as
+  a print of zero shares at zero price.
+- **A `SNAP` re-baselines the stream; it is never a gap.** Whatever `SEQ` it
+  carries becomes your new `last_seq` for that stream, with no gap check. Gap
+  checking a `SNAP` would ask to replay history it just superseded, and on the
+  replay-miss path — whose answer *is* a `SNAP` — loops `RESUME` against a
+  window already known to be too old.
+- **A replay is not disjoint from live delivery.** `RESUME|LASTSEQ=n` returns
+  every buffered message with `SEQ > n`, and `n` is your position from *before*
+  the gap — so the reply re-sends the message that revealed the gap, plus
+  anything delivered live while your request was in flight. Replayed and live
+  lines share one ordered connection, so duplicates always arrive after their
+  originals. **Discard any message at or below the `SEQ` you have already
+  recorded, and never let one lower your `last_seq`.** Track which sequence
+  ranges you are actually missing: that is the only thing distinguishing the
+  backfill you asked for from a print you already have.
 - If the stream has no retained replay history at all yet (nothing has been
   emitted for that `(CH,SYM)` since the gateway started or the buffer last
   pruned it), the gateway returns zero replay lines and does **not** send
   `ERR|CODE=REPLAY_MISS` or a `SNAP` — the client resumes live from
   whatever the next emitted event turns out to be. This differs from the
   replay-miss case above and is easy to mistake for a silently dropped
-  resume; clients that need a guaranteed baseline after `RESUME=1` should
+  resume; clients that need a guaranteed baseline after `RESUME` should
   also send an explicit `SUB` for the same stream, which always triggers a
-  `SNAP` for `TOP`/`STATE`/`INDEX`/`DEPTH` regardless of replay state.
-- `SYM=*` is always invalid for `RESUME=1`, for every channel, even for
-  `TOP`/`TRADE`/`STATE` where `SYM=*` is otherwise allowed on `SUB`.
-  `RESUME` has no equivalent of `SUB`'s per-symbol snapshot burst, 
-  so a wildcard resume cannot be served a meaningful
-  baseline on a replay miss. `HELLO|RESUME=1|CH=TOP|SYM=*` returns
-  `ERR|CODE=INVALID_SYMBOL` and closes the connection, the same as an
-  ineligible wildcard on `SUB`. Clients must always resume a single
-  concrete symbol and, if they also want an "everything" subscription,
-  add it separately via `SUB|SYM=*` after reconnecting.
-- Beyond the wildcard rule above, `RESUME=1`'s `SYM` value is otherwise
+  `SNAP` for `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB` regardless of replay state.
+- `SYM=*` is always invalid for `RESUME`, for every channel, even for
+  `TOP`/`TRADE`/`STATE`/`AUCTION` where `SYM=*` is otherwise allowed on
+  `SUB`. `RESUME` has no equivalent of `SUB`'s per-symbol snapshot burst,
+  so a wildcard resume cannot be served a meaningful baseline on a replay
+  miss. `RESUME|CH=TOP|SYM=*` returns `ERR|CODE=INVALID_SYMBOL` and, unlike
+  an ineligible wildcard on `HELLO` previously, leaves the session open.
+  Clients must always resume a single concrete symbol and, if they also
+  want an "everything" subscription, add it separately via `SUB|SYM=*`
+  after reconnecting.
+- Beyond the wildcard rule above, `RESUME`'s `SYM` value is otherwise
   **not** checked against the gateway's known-symbol list the way `SUB`'s
   is — a resume for a symbol the gateway doesn't currently know about is
   still accepted and added to the session's subscriptions; it simply won't
@@ -848,9 +1199,11 @@ sequenceDiagram
     participant C as Client
     participant G as pm-md-gwy
 
-    Note over C,G: Last seen on (TOP,AAPL): SEQ=1042
-    C->>G: HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
+    Note over C,G: Last seen on (TOP,AAPL): SEQ=1042, (TRADE,AAPL): SEQ=88
+    C->>G: HELLO|CLIENT=bot01|PROTO=CALF1
     G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+    C->>G: RESUME|CH=TOP|SYM=AAPL|LASTSEQ=1042
+    C->>G: RESUME|CH=TRADE|SYM=AAPL|LASTSEQ=88
 
     alt Replay hit
         G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1043|...
@@ -1009,15 +1362,15 @@ market_data_gateway:
   let `CB`'s richer detail leak into `STATE`'s field set, and do not let a
   `CB` normaliser failure suppress the `STATE` emission (or vice versa);
   both should be independent `_emit_stream_event` calls from the same handler.
-- Normalize the engine's `resumption_mode`/`mode` field-name inconsistency
-  (halt payload vs. resume payload) onto a single wire key, `MODE`, in `CB` —
+- Carry the halt's cause on a single wire key, `SRC`, in `CB` —
   do not propagate the internal inconsistency to clients.
 - Track sequence numbers independently per `(CH,SYM)` stream; never use a single
   global counter.
-- Treat `RESUME=1` as single-stream only and validate `CH`, `SYM`, and
+- Treat `RESUME` as single-stream only and validate `CH`, `SYM`, and
   `LASTSEQ` strictly.
-- Bound replay by configured window and emit deterministic `REPLAY_MISS` + fresh
-  `SNAP` behavior when outside window.
+- Bound replay by configured window and emit deterministic `REPLAY_MISS`
+  behavior when outside window — with a fresh `SNAP` only on the channels that
+  have one (`TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`), never on `TRADE`/`AUCTION`.
 - Apply slow-client backpressure deterministically: queue overflow must produce
   `SLOW_CLIENT` and disconnect.
 - Keep liveness signals (`HB`, `PING`, `PONG`) outside market-data sequencing;
@@ -1037,7 +1390,7 @@ If you are implementing a CALF client, the most important protocol truths are:
    — never for `INDEX`, `DEPTH`, or `CB`.
 6. A wildcard `TOP` subscription never yields a `SNAP` with a literal
    `SYM=*`; it yields one real `SNAP` per known symbol.
-7. Replay resume is single-stream per `HELLO|RESUME=1`.
+7. Replay resume is single-stream per `RESUME`; send one per stream.
 8. On replay miss, client must accept fresh `SNAP` and reset local baseline.
 9. `DEPTH` messages replace a side's entire tracked ladder, never a single
    price level in isolation.

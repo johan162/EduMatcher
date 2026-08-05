@@ -832,7 +832,7 @@ alf_gateway:
 CLI overrides:
 
 ```bash
-pm-alf-gwy --config engine_config.yaml --bind 127.0.0.1 --port 5565
+pm-alf-gwy --bind 127.0.0.1 --port 5565
 ```
 
 | Field | Default | Description |

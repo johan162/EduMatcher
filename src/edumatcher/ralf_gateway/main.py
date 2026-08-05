@@ -4,13 +4,10 @@ from __future__ import annotations
 
 import argparse
 import logging
-from pathlib import Path
 
-from edumatcher.config import ENGINE_CONFIG_FILE
 from edumatcher.ralf_gateway.config import (
     RalfGatewayConfig,
     load_default_ralf_gateway_config,
-    load_ralf_gateway_config,
 )
 from edumatcher.ralf_gateway.gateway import RalfGateway
 from edumatcher.log_srv.config import (
@@ -33,12 +30,6 @@ def _build_parser() -> argparse.ArgumentParser:
     from edumatcher.cli_version import add_version_argument
 
     add_version_argument(parser, "pm-ralf-gwy")
-    parser.add_argument(
-        "--config",
-        "-c",
-        default=str(ENGINE_CONFIG_FILE),
-        help="Engine config YAML path (default: engine_config.yaml)",
-    )
     parser.add_argument("--bind", help="TCP bind address override")
     parser.add_argument("--port", type=int, help="TCP bind port override")
     parser.add_argument(
@@ -132,8 +123,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 def _resolve_config(args: argparse.Namespace) -> RalfGatewayConfig:
-    cfg_path = Path(str(args.config))
-    cfg = load_ralf_gateway_config(cfg_path)
+    cfg = load_default_ralf_gateway_config()
 
     bind_address = str(args.bind) if args.bind else cfg.bind_address
     port = int(args.port) if args.port else cfg.port
@@ -153,10 +143,13 @@ def _resolve_config(args: argparse.Namespace) -> RalfGatewayConfig:
 
 
 def main() -> None:
+    from edumatcher.config_artifact import report_deployment
+
     parser = _build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-ralf-gwy with log level %s", logging.getLevelName(log_level))
+    report_deployment(log)
 
     try:
         config = _resolve_config(args)

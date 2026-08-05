@@ -11,6 +11,7 @@ import type {
   ProcessRow,
   StatsSummary,
   TimeseriesResponse,
+  UiConfig,
 } from "@edumatcher/log-types";
 
 async function getJson<T>(path: string): Promise<T> {
@@ -39,6 +40,8 @@ function filterToQuery(filter: LogFilter, extra: Record<string, string | number 
 }
 
 export const api = {
+  uiConfig: () => getJson<UiConfig>("/api/ui-config"),
+
   logs: (filter: LogFilter, opts: { cursor?: number; limit?: number; direction?: "ASC" | "DESC" } = {}) =>
     getJson<{ rows: LogRow[] }>(`/api/logs?${filterToQuery(filter, opts)}`),
 

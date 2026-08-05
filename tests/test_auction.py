@@ -223,6 +223,7 @@ class TestUncrossExecution:
         book.process(_make_order(side=Side.SELL, qty=10, price=100.0), match=False)
 
         result = compute_equilibrium(book)
+        assert result.eq_price is not None
         trades, events = execute_uncross(book, result.eq_price)
 
         assert len(trades) == 1
@@ -239,6 +240,7 @@ class TestUncrossExecution:
         book.process(_make_order(side=Side.SELL, qty=10, price=100.0), match=False)
 
         result = compute_equilibrium(book)
+        assert result.eq_price is not None
         trades, events = execute_uncross(book, result.eq_price)
 
         assert sum(t.quantity for t in trades) == 10
@@ -266,6 +268,7 @@ class TestUncrossExecution:
         book.process(_make_order(side=Side.SELL, qty=7, price=100.5), match=False)
 
         result = compute_equilibrium(book)
+        assert result.eq_price is not None
         trades, events = execute_uncross(book, result.eq_price)
 
         total_qty = sum(t.quantity for t in trades)
@@ -315,7 +318,7 @@ class TestOrderBookNoMatch:
             order_type=OrderType.STOP,
             quantity=10,
             gateway_id="TRADER01",
-            stop_price=105.0,
+            stop_price=105,
         )
         trades, events = book.process(order, match=False)
 

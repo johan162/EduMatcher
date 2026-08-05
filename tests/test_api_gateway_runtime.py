@@ -232,19 +232,21 @@ async def test_send_and_await_kill_switch_serializes_per_gateway(
     client.stop_listener()
 
 
-def test_config_overrides(tmp_path: Path) -> None:
-    config_path = tmp_path / "engine_config.yaml"
-    config_path.write_text("""
-api_gateways:
-  desk:
-    host: 127.0.0.1
-    port: 8080
-    credentials:
-      - api_key: key
-        gateway_id: GW01
-""")
+def test_config_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # This test is about how CLI flags merge over a configured instance, not
+    # about where that instance is read from, so the deployed configuration is
+    # stubbed rather than compiled. `pm-api-gwy` now takes its instance from
+    # the compiled artifact via load_default_api_gateway_config.
+    deployed = ApiGatewayConfig(
+        name="desk",
+        host="127.0.0.1",
+        port=8080,
+        credentials=(ApiCredential(api_key="key", gateway_id="GW01"),),
+    )
+    monkeypatch.setattr(
+        main, "load_default_api_gateway_config", lambda instance=None: deployed
+    )
     args = argparse.Namespace(
-        config=str(config_path),
         instance="desk",
         host="0.0.0.0",
         port=9090,
@@ -317,7 +319,9 @@ async def test_create_app_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
         def active_gateways(self) -> set[str]:
             return {"GW01"}
 
-        def send_disconnect(self, gateway_id: str, reason: str) -> None:
+        def send_disconnect(
+            self, gateway_id: str, reason: str, *, require_engine: bool = True
+        ) -> None:
             self.disconnects.append((gateway_id, reason))
 
         def stop_listener(self) -> None:
@@ -377,42 +381,41 @@ async def test_auth_dependency_success_and_failures() -> None:
             )
         )
     )
-    session = await auth(request, "Bearer good")
+    session = await auth(request, "Bearer good")  # type: ignore[arg-type]  # test double
     assert session.gateway_id == "GW01"
     with pytest.raises(Exception):
-        await auth(request, "Token nope")
+        await auth(request, "Token nope")  # type: ignore[arg-type]  # test double
     with pytest.raises(Exception):
-        await auth(request, "Bearer missing")
+        await auth(request, "Bearer missing")  # type: ignore[arg-type]  # test double
     with pytest.raises(Exception):
-        await auth(request, "Bearer bad")
+        await auth(request, "Bearer bad")  # type: ignore[arg-type]  # test double
 
 
 def prepare_history_db(path: Path) -> None:
+    """Seed a history DB using the recorder's own DDL.
+
+    Built from ``stats.main.SCHEMA`` rather than a hand-copied duplicate: the
+    copy silently drifted out of date twice as columns were added, and each
+    time the failure surfaced as an unrelated-looking "no such column" deep in
+    a query. Prices are integer ticks, matching what pm-stats writes.
+    """
+    from edumatcher.stats.main import SCHEMA
+
     conn = sqlite3.connect(path)
+    conn.executescript(SCHEMA)
     conn.executescript("""
-CREATE TABLE order_events (
-    seq INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, event_type TEXT, order_id TEXT,
-    gateway_id TEXT, symbol TEXT, side TEXT, order_type TEXT, tif TEXT, price REAL,
-    quantity INTEGER, remaining_qty INTEGER, status TEXT, fill_price REAL,
-    fill_qty INTEGER, trade_id TEXT, reason TEXT, client_order_id TEXT,
-    combo_parent_id TEXT, oco_group_id TEXT, priority_reset INTEGER
-);
-CREATE TABLE trade_log (
-    ts TEXT, trade_id TEXT, symbol TEXT, price REAL, quantity INTEGER,
-    buy_gateway_id TEXT, sell_gateway_id TEXT
-);
-CREATE TABLE daily_stats (
-    date TEXT, symbol TEXT, open_price REAL, high_price REAL, low_price REAL,
-    close_price REAL, open_bid REAL, open_ask REAL, close_bid REAL, close_ask REAL,
-    volume INTEGER, trade_count INTEGER, vwap REAL, largest_trade_qty INTEGER,
-    largest_trade_price REAL
-);
 INSERT INTO order_events (ts,event_type,order_id,gateway_id,symbol) VALUES
 ('2026-06-24T10:00:00','ACK','ORD1','GW01','AAPL'),
 ('2026-06-24T10:00:01','FILL','ORD1','GW01','AAPL');
-INSERT INTO trade_log VALUES ('2026-06-24T10:00:01','TRD1','AAPL',150.0,10,'GW01','GW02');
-INSERT INTO daily_stats VALUES ('2026-06-24','AAPL',150,151,149,150.5,NULL,NULL,NULL,NULL,10,1,150,10,150);
+INSERT INTO trade_log (ts,trade_id,symbol,price,quantity,tick_decimals,
+                       buy_gateway_id,sell_gateway_id,aggressor_side)
+VALUES ('2026-06-24T10:00:01','TRD1','AAPL',15000,10,2,'GW01','GW02','BUY');
+INSERT INTO daily_stats (date,symbol,open_price,high_price,low_price,close_price,
+                         volume,trade_count,turnover,vwap,largest_trade_qty,
+                         largest_trade_price,tick_decimals)
+VALUES ('2026-06-24','AAPL',15000,15100,14900,15050,10,1,150000,15000,10,15000,2);
 """)
+    conn.commit()
     conn.close()
 
 
@@ -427,8 +430,8 @@ async def test_history_routes(tmp_path: Path) -> None:
     )
     session = Session(api_key="key", gateway_id="GW01", description="")
     assert (
-        await history.history_orders(
-            request,
+        await history.history_orders(  # test double
+            request,  # type: ignore[arg-type]
             session,
             symbol=None,
             event_type=None,
@@ -438,12 +441,12 @@ async def test_history_routes(tmp_path: Path) -> None:
             limit=500,
         )
     )["count"] == 2
-    assert (await history.history_order_lifecycle("ORD1", request, session))[
-        "count"
-    ] == 2
     assert (
-        await history.history_fills(
-            request,
+        await history.history_order_lifecycle("ORD1", request, session)  # type: ignore[arg-type]  # test double
+    )["count"] == 2
+    assert (
+        await history.history_fills(  # test double
+            request,  # type: ignore[arg-type]
             session,
             symbol=None,
             date=None,
@@ -453,8 +456,8 @@ async def test_history_routes(tmp_path: Path) -> None:
         )
     )["count"] == 1
     assert (
-        await history.history_trades(
-            request,
+        await history.history_trades(  # test double
+            request,  # type: ignore[arg-type]
             session,
             symbol=None,
             date=None,
@@ -464,11 +467,15 @@ async def test_history_routes(tmp_path: Path) -> None:
         )
     )["count"] == 1
     assert (
-        await history.history_daily(
-            request,
+        await history.history_daily(  # test double
+            request,  # type: ignore[arg-type]
             session,
             symbol=None,
             date=None,
+            # Called as a plain coroutine, so FastAPI is not here to resolve
+            # the Query() defaults these two carry for their from/to aliases.
+            from_date=None,
+            to_date=None,
             limit=500,
         )
     )["count"] == 1
@@ -523,11 +530,11 @@ async def test_websocket_auth_controls_and_filtering() -> None:
             self.closed.append(code)
 
     authenticated = FakeWebSocket([{"api_key": "key"}])
-    assert await ws._authenticate_ws(authenticated) == ("key", "GW01")
+    assert await ws._authenticate_ws(authenticated) == ("key", "GW01")  # type: ignore[arg-type]  # test double
 
     rejected = FakeWebSocket([{"api_key": "bad"}])
     with pytest.raises(WebSocketDisconnect):
-        await ws._authenticate_ws(rejected)
+        await ws._authenticate_ws(rejected)  # type: ignore[arg-type]  # test double
     assert rejected.closed == [status.WS_1008_POLICY_VIOLATION]
 
     controls = FakeWebSocket(
@@ -540,7 +547,7 @@ async def test_websocket_auth_controls_and_filtering() -> None:
     symbols: set[str] = set()
     channels: set[str] = set()
     with pytest.raises(WebSocketDisconnect):
-        await ws._receive_market_controls(controls, symbols, channels)
+        await ws._receive_market_controls(controls, symbols, channels)  # type: ignore[arg-type]  # test double
     assert controls.sent[0]["data"] == {"symbols": ["AAPL"], "channels": ["trades"]}
     assert controls.sent[1]["data"] == {"symbols": [], "channels": []}
     assert controls.sent[2]["type"] == "error"
@@ -548,7 +555,7 @@ async def test_websocket_auth_controls_and_filtering() -> None:
     sender = FakeWebSocket([])
     queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     task = asyncio.create_task(
-        ws._send_market_data(sender, queue, {"AAPL"}, {"trades"})
+        ws._send_market_data(sender, queue, {"AAPL"}, {"trades"})  # type: ignore[arg-type]  # test double
     )
     await queue.put({"type": "session", "data": {}})
     await queue.put({"type": "trade", "data": {"symbol": "AAPL"}})
@@ -636,7 +643,7 @@ async def test_history_validation_rejects_bad_dates() -> None:
     session = Session(api_key="key", gateway_id="GW01", description="")
     with pytest.raises(HTTPException) as exc_info:
         await hist_router.history_orders(
-            request,
+            request,  # type: ignore[arg-type]
             session,
             symbol=None,
             event_type=None,

@@ -2,7 +2,7 @@
 Matching Engine — main process.
 
 Startup:
-  poetry run pm-engine [-v|-vv] [--config engine_config.yaml] [--log-level LEVEL] [-q]
+  poetry run pm-engine [-v|-vv] [--log-level LEVEL] [-q]
 
 ZMQ sockets:
   PULL :5555  — receives order.new / order.amend / order.cancel from gateways
@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 from collections import defaultdict
 import logging
+import random
 import signal
 import sys
 import time
@@ -38,6 +39,7 @@ from edumatcher.config import (
     DATA_DIR,
 )
 from edumatcher.engine.auction import (
+    AuctionResult,
     compute_equilibrium,
     execute_uncross,
 )
@@ -71,6 +73,7 @@ from edumatcher.models.message import (
     make_ack_msg,
     make_amended_msg,
     make_book_msg,
+    make_depth_msg,
     make_cancelled_msg,
     make_combo_ack_msg,
     make_combo_status_msg,
@@ -91,6 +94,7 @@ from edumatcher.models.message import (
     make_quote_legs_msg,
     make_quote_status_msg,
     make_symbols_msg,
+    make_auction_indicative_msg,
     make_session_state_msg,
     make_auction_result_msg,
     make_oco_ack_msg,
@@ -129,6 +133,7 @@ from edumatcher.models.session import (
     SessionState,
     VALID_TRANSITIONS,
     accepts_orders,
+    is_auction_phase,
     is_matching_enabled,
 )
 from edumatcher.models.trade import Trade
@@ -152,6 +157,30 @@ _TRADE_TOPIC = b"trade.executed"
 _FILL_STATUSES = frozenset({OrderStatus.PARTIAL, OrderStatus.FILLED})
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
+#: How often the resting book is checkpointed to disk while the session runs.
+#: This is the upper bound on what an abrupt termination can lose. Five
+#: seconds keeps the write volume negligible next to the 200 ms poll tick
+#: while bounding the exposure to something an operator can reason about.
+_PERSIST_INTERVAL_SEC = 5.0
+
+#: Topics whose payload names an order the submitting gateway is waiting on an
+#: ack for. If a handler for one of these raises, the client is left with no
+#: ACK and no REJECT, so the except path owes it a reject. Query topics
+#: (``*_request``) and session/risk control topics are absent deliberately:
+#: nothing is resting on them, and a spurious order-reject addressed to an id
+#: that is not an order is worse than silence.
+_ORDER_TOPICS = frozenset(
+    {
+        "order.new",
+        "order.cancel",
+        "order.amend",
+        "order.combo",
+        "order.combo_cancel",
+        "order.oco",
+        "order.oco_cancel",
+    }
+)
+
 
 def order_to_display_dict(order: Order) -> dict[str, Any]:
     """Serialize an order for an outbound snapshot in *display* units (L3).
@@ -173,6 +202,18 @@ def order_to_display_dict(order: Order) -> dict[str, Any]:
     return d
 
 
+def _compiled_engine_config() -> "EngineConfig | None":
+    """Return the engine section of the deployed artifact, if one is deployed.
+
+    Deferred import: ``config_artifact`` imports the subsystem config modules
+    to describe the artifact's shape.
+    """
+    from edumatcher.config_artifact import load_compiled_config
+
+    compiled = load_compiled_config()
+    return None if compiled is None else compiled.engine
+
+
 class Engine:
     # Minimum interval between book snapshot publishes per symbol (seconds)
     SNAPSHOT_INTERVAL = 0.5
@@ -191,6 +232,20 @@ class Engine:
         self._running = False
         self._error_count = 0
         self._unknown_topic_count = 0
+        # A fourth failure mode, distinct from the two above: the message
+        # could not be decoded at all, so it has no topic to route and no
+        # gateway to reject to.
+        self._undecodable_count = 0
+        # Every fill published, counted so a handler that raises part-way can
+        # tell whether anything already printed (see _reject_after_error).
+        self._fills_published = 0
+        # Maintenance flushes that failed. Degraded market data is preferable
+        # to an ended session, but the degradation must be visible.
+        self._flush_error_count = 0
+        # Monotonic timestamp of the last persistence checkpoint. Starts at 0
+        # so the first tick writes one immediately rather than waiting out an
+        # interval on a freshly started engine.
+        self._last_persist = 0.0
         # If None → no symbol restrictions (backward-compat mode)
         self._allowed_symbols: frozenset[str] | None = None
         self._allowed_fix_gateways: frozenset[str] | None = None
@@ -213,6 +268,10 @@ class Engine:
         self._collars: dict[str, CollarConfig] = {}
         # Circuit breaker states — keyed by symbol; populated in _load_config()
         self._circuit_breakers: dict[str, CircuitBreakerState] = {}
+        # Picks the random end of every reopening call phase. Seeded from
+        # config when reproducibility matters (demos, tests), from OS entropy
+        # otherwise — an unpredictable reopen instant is the entire point.
+        self._reopening_rng = random.Random()
         # Drop copy publisher — None until run() is called (avoids binding port 5557 in tests)
         self._drop_copy: Optional[DropCopyPublisher] = None
 
@@ -228,6 +287,8 @@ class Engine:
         # Set of symbols whose book changed since last snapshot publish
         self._dirty_symbols: set[str] = set()
         self.snapshot_interval_sec: float = self.SNAPSHOT_INTERVAL
+        self.auction_indicative_interval_sec: float = 1.0
+        self._last_auction_indicative: float = 0.0
 
         # Combo-order tracking
         self._combos: dict[str, ComboOrder] = {}  # combo internal id → ComboOrder
@@ -248,6 +309,11 @@ class Engine:
         # Session state (auction / continuous matching)
         self._sessions_enabled: bool = False
         self._session_state: SessionState = SessionState.CONTINUOUS
+        # The next scheduled transition, as told by whoever drove the last
+        # one. Empty unless the scheduler supplied it -- see
+        # `_handle_session_transition` for why a manual transition clears it.
+        self._next_session_state: str = ""
+        self._next_session_at: str = ""
         self._enforce_collars: bool = True
         self._enforce_circuit_breakers: bool = True
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
@@ -255,11 +321,17 @@ class Engine:
 
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-        # Load engine config (symbol allowlist + MM orders)
+        # Load engine config (symbol allowlist + MM orders).
+        #
+        # With no explicit path the engine reads the compiled artifact, so it
+        # and every gateway resolve the same defaults from the same validated
+        # file. An explicit path still parses YAML directly: tests construct an
+        # Engine from a fixture without compiling one first.
+        engine_config = _compiled_engine_config() if config_path is None else None
         path = Path(config_path) if config_path else ENGINE_CONFIG_FILE
-        if path.exists():
+        if engine_config is not None or path.exists():
             try:
-                self._engine_config = load_engine_config(path)
+                self._engine_config = engine_config or load_engine_config(path)
                 self._allowed_symbols = self._engine_config.allowed_symbols
                 self._allowed_fix_gateways = self._engine_config.allowed_fix_gateways
                 self._sessions_enabled = self._engine_config.sessions_enabled
@@ -267,7 +339,12 @@ class Engine:
                 self._enforce_circuit_breakers = (
                     self._engine_config.enforce_circuit_breakers
                 )
+                if self._engine_config.reopening_random_seed is not None:
+                    self._reopening_rng.seed(self._engine_config.reopening_random_seed)
                 self.snapshot_interval_sec = self._engine_config.snapshot_interval_sec
+                self.auction_indicative_interval_sec = (
+                    self._engine_config.auction_indicative_interval_sec
+                )
                 self.quote_history_maxlen = self._engine_config.quote_history_maxlen
                 self.drop_copy_buffer_size = self._engine_config.drop_copy_buffer_size
                 self.recent_trades_maxlen = self._engine_config.recent_trades_maxlen
@@ -408,6 +485,56 @@ class Engine:
             )
         return self.books[symbol]
 
+    def _flush_auction_indicative(self) -> None:
+        """Publish the indicative uncross for every symbol in a call phase.
+
+        This is the imbalance indicator a real venue disseminates while an
+        auction collects orders. The engine already computes exactly this at
+        the moment a phase *ends* (`_run_uncross`) and on the circuit-breaker
+        reopening path; what was missing is publishing it while there is
+        still time for anyone to act on it. A participant can only supply the
+        offsetting interest that resolves an imbalance if the imbalance is
+        visible beforehand, and the open and the close are where the largest
+        volume of the day prints (T-M1).
+
+        Every symbol every interval, including ones that would not cross at
+        all: "nothing would trade yet" is a real reading during a call phase,
+        and suppressing unchanged values would leave a client unable to tell a
+        stable indicative from a stalled feed.
+
+        Halted symbols are skipped. A halt is its own reopening auction with
+        its own corridor, and the circuit-breaker path already publishes an
+        indicative for it — two sources describing one symbol would sooner or
+        later disagree.
+        """
+        if not is_auction_phase(self._session_state):
+            return
+
+        now = time.monotonic()
+        if now - self._last_auction_indicative < self.auction_indicative_interval_sec:
+            return
+        self._last_auction_indicative = now
+
+        phase = self._session_state.value
+        for symbol, book in self.books.items():
+            if self._halted_symbols.get(symbol):
+                continue
+            indicative = compute_equilibrium(book)
+            self.pub_sock.send_multipart(
+                make_auction_indicative_msg(
+                    symbol,
+                    phase,
+                    (
+                        from_ticks(indicative.eq_price, symbol)
+                        if indicative.eq_price is not None
+                        else None
+                    ),
+                    indicative.eq_qty,
+                    indicative.imbalance_side,
+                    indicative.surplus,
+                )
+            )
+
     def _mark_dirty(self, symbol: str) -> None:
         """Flag a symbol as needing a snapshot publish."""
         self._dirty_symbols.add(symbol)
@@ -431,7 +558,10 @@ class Engine:
                         tolerance_ticks=self.depth_snapshot_tolerance_ticks
                     )
                     if depth:
-                        self.pub_sock.send_multipart(encode(f"depth.{symbol}", depth))
+                        # Via the factory, not an inline encode: the two drifted
+                        # apart once already, leaving make_depth_msg publishing a
+                        # topic nobody subscribed to.
+                        self.pub_sock.send_multipart(make_depth_msg(symbol, depth))
                 self._last_snapshot[symbol] = now
                 sent.add(symbol)
         self._dirty_symbols -= sent
@@ -556,6 +686,7 @@ class Engine:
                         if evt.status in _FILL_STATUSES:
                             if evt.id not in _seed_fill_ids:
                                 _seed_fill_ids.add(evt.id)
+                                self._fills_published += 1
                                 self.pub_sock.send_multipart(
                                     make_fill_msg(
                                         evt.gateway_id,
@@ -704,7 +835,7 @@ class Engine:
             # orders would leave the book crossed at startup.  Uncross each
             # book at the equilibrium price before continuous trading begins.
             for symbol in list(self.books.keys()):
-                self._run_uncross(symbol_filter=symbol)
+                self._run_uncross(symbol_filter=symbol, reason="RECOVERY")
             # Publish initial book snapshots immediately on startup
             for symbol, book in self.books.items():
                 self.pub_sock.send_multipart(make_book_msg(symbol, book.snapshot()))
@@ -1055,6 +1186,7 @@ class Engine:
             _filled_qty = evt.quantity - evt.remaining_qty
             if _filled_qty > 0 and evt.id not in _published_fill_ids:
                 _published_fill_ids.add(evt.id)
+                self._fills_published += 1
                 # Hot path: fill payload built inline with pre-cached topic
                 # bytes; for the aggressor (evt is order) canonical string values
                 # from the payload are reused (see docs-design/perf-notes.md).
@@ -1327,7 +1459,7 @@ class Engine:
             if cb and cb.halted:
                 entry["resume_at_ns"] = cb.resume_at_ns
                 entry["level"] = cb.triggered_level
-                entry["resumption_mode"] = cb.active_resumption_mode
+                entry["halt_source"] = cb.halt_source
             halted.append(entry)
         self.pub_sock.send_multipart(make_halt_status_msg(gateway_id, halted))
 
@@ -1846,7 +1978,7 @@ class Engine:
         if triggered_level is None:
             return
 
-        cb.activate(now, triggered_level)
+        cb.activate(now, triggered_level, self._reopening_rng)
         self._halted_symbols[symbol] = True
 
         # Cancel all resting quotes for the halted symbol.
@@ -1873,46 +2005,192 @@ class Engine:
                         else None
                     ),
                     "resume_at_ns": cb.resume_at_ns,
-                    "resumption_mode": cb.active_resumption_mode,
+                    "halt_source": cb.halt_source,
                     "level": cb.triggered_level,
+                    **self._corridor_payload(cb, symbol),
                 },
             )
         )
         self._mark_dirty(symbol)
+        bounds = cb.corridor()
         log.info(
             f"CIRCUIT BREAKER HALT {symbol}: "
             f"level={cb.triggered_level} "
             f"trigger={cb.trigger_price}, ref={cb.reference_price} ticks"
+            + (
+                f", corridor=[{bounds[0]}, {bounds[1]}] ticks "
+                f"(+/-{cb.config.reopening.band_pct_at(0):.1%})"
+                if bounds is not None
+                else ", corridor=unbounded (ACE disabled)"
+            )
         )
+
+    def _corridor_payload(self, cb: CircuitBreakerState, symbol: str) -> dict[str, Any]:
+        """Wire representation of the ACE corridor, in display prices."""
+        bounds = cb.corridor()
+        if bounds is None:
+            return {"corridor_low": None, "corridor_high": None, "expansion": None}
+        return {
+            "corridor_low": from_ticks(bounds[0], symbol),
+            "corridor_high": from_ticks(bounds[1], symbol),
+            "expansion": cb.expansion_index,
+        }
+
+    def _run_closing_backstop(self) -> None:
+        """Force every still-halted symbol to reopen at the session close.
+
+        ACE will widen a corridor indefinitely, so on its own it has no
+        terminating condition — the end of the trading day supplies one. This
+        mirrors Nasdaq's Hybrid Closing Cross (Rule 4754(b)(7)(D)): a symbol
+        that has not managed to reopen within its corridor prints *at* the
+        corridor boundary rather than at the outlying equilibrium.
+
+        This is the only place in the engine where a price is imposed rather
+        than discovered. A clamped print can leave the book crossed — bids and
+        asks beyond the boundary do not trade — which is intended: that
+        interest survives to the next session rather than executing at a price
+        the corridor was built to reject.
+        """
+        for symbol, cb in self._circuit_breakers.items():
+            if not self._halted_symbols.get(symbol):
+                continue
+
+            book = self._book(symbol)
+            indicative = compute_equilibrium(book)
+            halt_source = cb.halt_source
+            expansions = cb.expansion_index
+            bounds = cb.corridor()
+
+            print_price: int | None = None
+            clamped = False
+            if indicative.eq_price is not None and indicative.eq_qty > 0:
+                print_price = indicative.eq_price
+                if bounds is not None:
+                    low, high = bounds
+                    if print_price > high:
+                        print_price, clamped = high, True
+                    elif print_price < low:
+                        print_price, clamped = low, True
+
+            cb.deactivate()
+            self._halted_symbols[symbol] = False
+
+            if print_price is None:
+                log.info(
+                    f"CLOSING BACKSTOP {symbol}: no crossing interest, "
+                    f"halt cleared after {expansions} ACE extension(s)"
+                )
+            else:
+                log.info(
+                    f"CLOSING BACKSTOP {symbol}: "
+                    f"indicative={indicative.eq_price} ticks "
+                    + (
+                        f"outside [{bounds[0]}, {bounds[1]}] -> clamped to "
+                        f"{print_price} ({indicative.imbalance_side or 'no'} imbalance)"
+                        if clamped and bounds is not None
+                        else f"within corridor -> printing at {print_price}"
+                    )
+                    + f", after {expansions} ACE extension(s)"
+                )
+                self._run_uncross(
+                    symbol_filter=symbol,
+                    reason="BACKSTOP",
+                    price_override=print_price,
+                )
+
+            self.pub_sock.send_multipart(
+                encode(
+                    f"circuit_breaker.resume.{symbol}",
+                    {
+                        "symbol": symbol,
+                        "halt_source": halt_source,
+                        "reason": "CLOSING_BACKSTOP",
+                        "clamped": clamped,
+                        "print_price": (
+                            from_ticks(print_price, symbol)
+                            if print_price is not None
+                            else None
+                        ),
+                    },
+                )
+            )
+            self._mark_dirty(symbol)
 
     def _flush_circuit_breakers(self) -> None:
         """
-        Called once per poll loop tick.  Checks all halted symbols and resumes
-        trading for those whose ``halt_duration_ns`` has elapsed.
+        Called once per poll loop tick.  Checks all halted symbols and either
+        reopens them or extends their call phase under ACE.
 
-        If ``resumption_mode == "AUCTION"``, the accumulated resting orders
-        are uncrossed at the equilibrium price before continuous matching resumes.
+        The halt itself is the reopening auction's call phase: LIMIT orders are
+        accepted and rest while MARKET/FOK/IOC are rejected, and matching is
+        disabled. Resuming therefore always uncrosses at the equilibrium price
+        first — crossed interest accumulates during the call, so restarting
+        continuous matching without an uncross would begin on a crossed book.
+
+        Automated Corridor Expansion (ACE) sits in front of that uncross. At
+        the end of each call phase the equilibrium is computed as a dry run;
+        if it falls outside the corridor the symbol does *not* reopen. The
+        corridor widens one rung and another call phase begins. Because the
+        ladder's last rung repeats, the corridor eventually contains any
+        finite price, so no extension cap is needed — see §120.
         """
         now = now_ns()
         for symbol, cb in self._circuit_breakers.items():
             if not cb.should_resume(now):
                 continue
-            # Capture resumption_mode BEFORE deactivate() clears it.
-            _resumption_mode = cb.active_resumption_mode
+
+            # Dry run: what price *would* this reopen at?
+            book = self._book(symbol)
+            indicative = compute_equilibrium(book)
+            if (
+                indicative.eq_price is not None
+                and indicative.eq_qty > 0
+                and not cb.within_corridor(indicative.eq_price)
+            ):
+                before = cb.corridor()
+                cb.extend(now, self._reopening_rng)
+                after = cb.corridor()
+                assert before is not None and after is not None
+                log.info(
+                    f"ACE EXTEND {symbol}: indicative={indicative.eq_price} ticks "
+                    f"outside [{before[0]}, {before[1]}] -> "
+                    f"expansion={cb.expansion_index} "
+                    f"corridor=[{after[0]}, {after[1]}] "
+                    f"(+/-{cb.config.reopening.band_pct_at(cb.expansion_index):.1%}) "
+                    f"qty={indicative.eq_qty} next_call_ends={cb.resume_at_ns}"
+                )
+                self.pub_sock.send_multipart(
+                    encode(
+                        f"circuit_breaker.extend.{symbol}",
+                        {
+                            "symbol": symbol,
+                            "indicative_price": from_ticks(indicative.eq_price, symbol),
+                            "indicative_qty": indicative.eq_qty,
+                            "imbalance_side": indicative.imbalance_side,
+                            "resume_at_ns": cb.resume_at_ns,
+                            **self._corridor_payload(cb, symbol),
+                        },
+                    )
+                )
+                self._mark_dirty(symbol)
+                continue
+
+            # Capture the halt source BEFORE deactivate() clears it.
+            halt_source = cb.halt_source
+            expansions = cb.expansion_index
             cb.deactivate()
             self._halted_symbols[symbol] = False
-            # M3: crossed interest accumulates while halted (LIMITs rest
-            # unmatched).  Uncross it at the equilibrium price on EVERY resume,
-            # not only AUCTION mode, so continuous trading never starts crossed.
-            self._run_uncross(symbol_filter=symbol)
+            self._run_uncross(symbol_filter=symbol, reason="REOPEN")
             self.pub_sock.send_multipart(
                 encode(
                     f"circuit_breaker.resume.{symbol}",
-                    {"symbol": symbol, "mode": _resumption_mode},
+                    {"symbol": symbol, "halt_source": halt_source},
                 )
             )
             self._mark_dirty(symbol)
-            log.info(f"CIRCUIT BREAKER RESUME {symbol}")
+            log.info(
+                f"CIRCUIT BREAKER RESUME {symbol}: after {expansions} ACE extension(s)"
+            )
 
     def _on_quote_leg_filled(self, order: Order) -> None:
         if not order.quote_id:
@@ -2183,6 +2461,7 @@ class Engine:
                 if evt.status in _FILL_STATUSES:
                     if evt.id not in _pub_fill_ids:
                         _pub_fill_ids.add(evt.id)
+                        self._fills_published += 1
                         self.pub_sock.send_multipart(
                             make_fill_msg(
                                 evt.gateway_id,
@@ -2377,7 +2656,7 @@ class Engine:
                 cb.trigger_price = None
                 cb.reference_price = None
                 cb.triggered_level = "ADMIN_ALL"
-                cb.active_resumption_mode = "MANUAL"
+                cb.halt_source = "ADMIN"
 
             for entry in self._quote_index.cancel_all_for_symbol(
                 symbol, reason="Global circuit breaker halt"
@@ -2394,7 +2673,7 @@ class Engine:
                         "trigger_price": None,
                         "reference_price": None,
                         "resume_at_ns": None,
-                        "resumption_mode": "MANUAL",
+                        "halt_source": "ADMIN",
                         "level": "ADMIN_ALL",
                     },
                 )
@@ -2446,7 +2725,7 @@ class Engine:
             self.pub_sock.send_multipart(
                 encode(
                     f"circuit_breaker.resume.{symbol}",
-                    {"symbol": symbol, "mode": "MANUAL"},
+                    {"symbol": symbol, "halt_source": "ADMIN"},
                 )
             )
             self._mark_dirty(symbol)
@@ -2513,7 +2792,7 @@ class Engine:
             cb.trigger_price = None
             cb.reference_price = None
             cb.triggered_level = "ADMIN_SYMBOL"
-            cb.active_resumption_mode = "MANUAL"
+            cb.halt_source = "ADMIN"
 
         cancelled_quotes = 0
         for entry in self._quote_index.cancel_all_for_symbol(
@@ -2531,7 +2810,7 @@ class Engine:
                     "trigger_price": None,
                     "reference_price": None,
                     "resume_at_ns": None,
-                    "resumption_mode": "MANUAL",
+                    "halt_source": "ADMIN",
                     "level": "ADMIN_SYMBOL",
                 },
             )
@@ -2595,7 +2874,7 @@ class Engine:
         self.pub_sock.send_multipart(
             encode(
                 f"circuit_breaker.resume.{symbol}",
-                {"symbol": symbol, "mode": "MANUAL"},
+                {"symbol": symbol, "halt_source": "ADMIN"},
             )
         )
         self._mark_dirty(symbol)
@@ -2774,6 +3053,7 @@ class Engine:
                 if evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
                     if evt.id not in _pub_fill_ids:
                         _pub_fill_ids.add(evt.id)
+                        self._fills_published += 1
                         self.pub_sock.send_multipart(
                             make_fill_msg(
                                 evt.gateway_id,
@@ -3019,12 +3299,31 @@ class Engine:
             )
             return
 
+        # Adopted from this command, whatever it says -- including nothing --
+        # but only once the transition is known to be going ahead. A rejected
+        # command must leave every trace of itself behind.
+        #
+        # A manual or admin-driven transition carries no timetable, and so
+        # *clears* whatever the scheduler last advertised: the engine has
+        # just moved somewhere the schedule did not predict, and the old
+        # target has stopped being a fact about anything. Leaving it would
+        # count a terminal down to a transition nobody is going to perform,
+        # which is the failure this field exists to avoid (T-M6).
+        self._next_session_state = str(payload.get("next_state", ""))
+        self._next_session_at = str(payload.get("next_at", ""))
+
         # --- Uncrossing on exit from auction / no-matching phases ---
         needs_uncross = not is_matching_enabled(from_state) and (
             is_matching_enabled(to_state) or to_state == SessionState.CLOSED
         )
         if needs_uncross:
-            self._run_uncross()
+            self._run_uncross(reason="SCHEDULED")
+
+        # The end of the day terminates ACE. Runs after the scheduled uncross
+        # because the backstop can leave a book crossed on purpose, and the
+        # sweep must not undo that at the true equilibrium.
+        if to_state == SessionState.CLOSED:
+            self._run_closing_backstop()
 
         # --- Expire auction-only orders when their window closes ---
         if from_state == SessionState.OPENING_AUCTION:
@@ -3055,7 +3354,12 @@ class Engine:
                 book.daily_trades = 0
 
         self.pub_sock.send_multipart(
-            make_session_state_msg(to_state.value, prev_state=from_state.value)
+            make_session_state_msg(
+                to_state.value,
+                prev_state=from_state.value,
+                next_state=self._next_session_state,
+                next_at=self._next_session_at,
+            )
         )
         log.info(f"Session: {from_state.value} → {to_state.value}")
 
@@ -3078,6 +3382,9 @@ class Engine:
     def _run_uncross(
         self,
         symbol_filter: str | None = None,
+        *,
+        reason: str,
+        price_override: int | None = None,
     ) -> None:
         """Run the equilibrium-price uncrossing on every (or one) symbol book.
 
@@ -3085,15 +3392,49 @@ class Engine:
         ----------
         symbol_filter : When provided, only uncross this specific symbol.
                         Used by ``_flush_circuit_breakers()`` for per-symbol
-                        resumption auctions.
+                        reopening auctions.
+        reason :        Why this uncross is happening — ``SCHEDULED``,
+                        ``REOPEN``, ``RECOVERY`` or ``BACKSTOP``. Published on
+                        every ``auction.result`` so a consumer can tell a
+                        reopening auction from the closing one.
+        price_override: Print at this price instead of the computed
+                        equilibrium. Used only by the closing backstop, where
+                        the corridor boundary is imposed on a symbol that
+                        could not reopen inside it. Executes less than the
+                        true equilibrium would, by design.
         """
         for symbol, book in self.books.items():
             if symbol_filter is not None and symbol != symbol_filter:
                 continue
+            # A halted symbol's reopen is governed by ACE, not by the session
+            # sweep. Uncrossing it here would print outside its corridor and
+            # bypass the extension ladder entirely. The per-symbol REOPEN call
+            # arrives after deactivate(), so it is unaffected by this guard.
+            if self._halted_symbols.get(symbol):
+                continue
             result = compute_equilibrium(book)
+            if price_override is not None and result.eq_price is not None:
+                result = AuctionResult(
+                    eq_price=price_override,
+                    eq_qty=result.eq_qty,
+                    surplus=result.surplus,
+                    imbalance_side=result.imbalance_side,
+                )
             trades: list[Any] = []
             if result.eq_price is not None and result.eq_qty > 0:
-                trades, events = execute_uncross(book, result.eq_price)
+                # Bind before any reassignment of `result` below, which would
+                # otherwise discard the `is not None` narrowing.
+                fill_px = result.eq_price
+                trades, events = execute_uncross(book, fill_px)
+                if price_override is not None:
+                    # Fewer shares trade at a clamped price than at the true
+                    # equilibrium; report what actually executed.
+                    result = AuctionResult(
+                        eq_price=result.eq_price,
+                        eq_qty=sum(t.quantity for t in trades),
+                        surplus=result.surplus,
+                        imbalance_side=result.imbalance_side,
+                    )
 
                 # H5: dedup fills — an order that crosses multiple counterparties
                 # in the uncross appears once per fill in `events`, each with the
@@ -3103,12 +3444,13 @@ class Engine:
                     if evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
                         if evt.id not in _pub_fill_ids:
                             _pub_fill_ids.add(evt.id)
+                            self._fills_published += 1
                             self.pub_sock.send_multipart(
                                 make_fill_msg(
                                     evt.gateway_id,
                                     evt.id,
                                     fill_qty=evt.quantity - evt.remaining_qty,
-                                    fill_price=from_ticks(result.eq_price, symbol),
+                                    fill_price=from_ticks(fill_px, symbol),
                                     remaining_qty=evt.remaining_qty,
                                     status=evt.status.value,
                                     order=evt.to_dict(),
@@ -3134,6 +3476,7 @@ class Engine:
                         if sub_evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
                             if sub_evt.id not in published_stop_ids:
                                 published_stop_ids.add(sub_evt.id)
+                                self._fills_published += 1
                                 self.pub_sock.send_multipart(
                                     make_fill_msg(
                                         sub_evt.gateway_id,
@@ -3180,6 +3523,7 @@ class Engine:
                     trades_count=len(trades) if result.eq_price else 0,
                     imbalance_side=result.imbalance_side,
                     imbalance_qty=result.surplus,
+                    reason=reason,
                 )
             )
 
@@ -3390,6 +3734,7 @@ class Engine:
                 if evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
                     if evt.id not in _pub_fill_ids:
                         _pub_fill_ids.add(evt.id)
+                        self._fills_published += 1
                         self.pub_sock.send_multipart(
                             make_fill_msg(
                                 evt.gateway_id,
@@ -3776,6 +4121,7 @@ class Engine:
             filled = evt.quantity - evt.remaining_qty
             if filled > 0 and evt.id not in published_fill_ids:
                 published_fill_ids.add(evt.id)
+                self._fills_published += 1
                 self.pub_sock.send_multipart(
                     make_fill_msg(
                         evt.gateway_id,
@@ -3813,6 +4159,48 @@ class Engine:
     # ------------------------------------------------------------------
     # Shutdown
     # ------------------------------------------------------------------
+
+    def _resting_gtc_orders(self) -> list[Order]:
+        """GTC orders that should survive a restart.
+
+        Quote legs are excluded: they are re-seeded from config on every
+        startup, so persisting them accumulates duplicates across restarts.
+        """
+        resting: list[Order] = []
+        for book in self.books.values():
+            for order in book.resting_orders():
+                if order.tif == TIF.GTC and order.origin != OrderOrigin.QUOTE:
+                    resting.append(order)
+        return resting
+
+    def _flush_persistence(self, force: bool = False) -> None:
+        """Checkpoint the resting book, at most once per interval.
+
+        Persisting only at shutdown meant the entire resting book was lost to
+        anything that was not a polite exit — SIGKILL, OOM, container
+        eviction, power loss, or any unhandled exception in the loop. This
+        bounds that loss to the checkpoint interval instead.
+
+        Unlike :meth:`_shutdown`, this never mutates state: it does not expire
+        DAY orders and publishes nothing, so it is safe to run mid-session on
+        the poll tick.
+        """
+        now = time.monotonic()
+        if not force and now - self._last_persist < _PERSIST_INTERVAL_SEC:
+            return
+        self._last_persist = now
+        try:
+            save_gtc_orders(self._resting_gtc_orders(), GTC_ORDERS_FILE)
+            save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)
+            save_book_stats(self.books, BOOK_STATS_FILE)
+        except Exception as exc:
+            # A failed checkpoint must not end the session — the previous
+            # checkpoint is still intact on disk because the writes are
+            # atomic, so the correct response is to complain and carry on.
+            self._dbg_count("persist_errors")
+            log.error("Checkpoint failed: %s", exc)
+        else:
+            self._dbg_count("persist_checkpoints")
 
     def _shutdown(self) -> None:
         log.info("Shutting down …")
@@ -3884,7 +4272,12 @@ class Engine:
         handler raised) — "no handler is registered for this topic at all"
         is a routing/completeness bug, not a runtime exception, and
         operators benefit from being able to tell the two apart.
+
+        When a *known* handler raises, the except path also sends a reject —
+        see `_reject_after_error`. Logging alone left the submitting gateway
+        waiting on an ack that would never arrive.
         """
+        fills_before = self._fills_published
         try:
             if topic == "order.new":
                 self._handle_new_order(payload)
@@ -3960,6 +4353,94 @@ class Engine:
                 self._error_count,
                 exc,
             )
+            self._reject_after_error(topic, payload, fills_before)
+
+    def _reject_after_error(
+        self, topic: str, payload: dict[str, Any], fills_before: int
+    ) -> None:
+        """Answer an order whose handler raised, so its fate is not indefinite.
+
+        Every other path through the order handlers terminates in an ACK or a
+        reasoned NACK. An exception part-way through used to terminate in
+        neither, and the difference is not visible to the client: the API
+        gateway eventually raises TimeoutError, which is indistinguishable
+        from a slow engine, and ALF/BALF simply wait forever.
+
+        Two distinct reasons, because a bare "rejected" is a lie if anything
+        already printed. `fills_before` is the fill count as of entry to the
+        handler, so a fill published during the handler — even one belonging
+        to a *resting counterparty* rather than this order — moves the reject
+        to the partial-execution wording. That is deliberately conservative:
+        over-warning costs a participant a reconciliation against the drop
+        copy, while under-warning tells them an executed order never traded.
+        """
+        if topic not in _ORDER_TOPICS:
+            return
+        gateway_id = str(payload.get("gateway_id", ""))
+        order_id = payload.get("order_id") or payload.get("id")
+        if not gateway_id or not order_id:
+            # Nothing to address: the payload that broke the handler may be
+            # the very thing missing these fields. Say so rather than
+            # pretending the contract held.
+            log.error(
+                "No reject sent for %s — payload carries no gateway_id/order_id",
+                topic,
+            )
+            return
+        if self._fills_published > fills_before:
+            reason = (
+                "Internal error after execution — "
+                "fills already printed, reconcile against the drop copy"
+            )
+        else:
+            reason = "Internal error processing order"
+        try:
+            self.pub_sock.send_multipart(
+                make_ack_msg(gateway_id, str(order_id), accepted=False, reason=reason)
+            )
+        except Exception as send_exc:
+            # The reject is best-effort: raising here would escape run() and
+            # take the venue down over a message that already failed once.
+            log.error("Reject for %s could not be sent: %s", order_id, send_exc)
+        else:
+            log.info("REJECTED %s — %s", str(order_id)[:8], reason)
+
+    def _run_maintenance(self) -> None:
+        """Run the per-tick maintenance flushes, each guarded separately.
+
+        Every one of these publishes on `pub_sock`. Unguarded, a ZMQError
+        here ended run() — which skipped _shutdown(), and with it the only
+        code that persisted the resting book. Degraded market data is a much
+        smaller loss than the book.
+
+        Guarded per call rather than as a block, because a failure to publish
+        a snapshot must not skip the circuit-breaker timers behind it: those
+        resume halted symbols and are a safety function, not a convenience.
+        """
+        for flush in (
+            # Throttled snapshot publish — runs every poll tick (max 200ms)
+            self._flush_snapshots,
+            # Check circuit breaker timers — resume halted symbols
+            self._flush_circuit_breakers,
+            # Checkpoint the resting book so an abrupt exit loses at most
+            # _PERSIST_INTERVAL_SEC of changes rather than all of it.
+            self._flush_persistence,
+            # Publish where each symbol would uncross, while a call phase runs
+            self._flush_auction_indicative,
+            self._flush_debug_summary,
+        ):
+            try:
+                flush()
+            except Exception as exc:
+                self._flush_error_count += 1
+                log.error(
+                    "Maintenance flush %s failed (#%d): %s",
+                    # getattr, not .__name__: a handler that raises while
+                    # reporting a failure defeats the guard entirely.
+                    getattr(flush, "__name__", "?"),
+                    self._flush_error_count,
+                    exc,
+                )
 
     def run(self) -> None:
         self._restore_gtc()
@@ -3996,16 +4477,33 @@ class Engine:
             except zmq.ZMQError:
                 break
             if self.pull_sock in socks:
-                frames = self.pull_sock.recv_multipart()
-                topic, payload = decode(frames)
-                self._dbg_count("pull_messages")
-                self._dbg_count(f"topic_{topic}")
-                self._dispatch_pull_message(topic, payload)
-            # Throttled snapshot publish — runs every poll tick (max 200ms)
-            self._flush_snapshots()
-            # Check circuit breaker timers — resume halted symbols
-            self._flush_circuit_breakers()
-            self._flush_debug_summary()
+                # Receiving and decoding sit inside the guard, not only the
+                # dispatch behind them. decode() raises on input any peer
+                # controls — a single frame, malformed JSON, a non-UTF8 topic
+                # — and the PULL socket accepts from anyone who connects,
+                # with gateway identity checked inside the handlers, i.e.
+                # after this point. Unguarded, one such message ended the loop,
+                # which skipped _shutdown() and with it the only code that
+                # persisted the resting book.
+                try:
+                    frames = self.pull_sock.recv_multipart()
+                    topic, payload = decode(frames)
+                except Exception as exc:
+                    # No decodable topic means no gateway to reject to, so the
+                    # message can only be discarded — but it is counted, so
+                    # the condition is visible rather than silent.
+                    self._undecodable_count += 1
+                    self._dbg_count("undecodable_messages")
+                    log.warning(
+                        "Discarding undecodable PULL message (#%d): %s",
+                        self._undecodable_count,
+                        exc,
+                    )
+                else:
+                    self._dbg_count("pull_messages")
+                    self._dbg_count(f"topic_{topic}")
+                    self._dispatch_pull_message(topic, payload)
+            self._run_maintenance()
 
         self._flush_debug_summary(force=True)
         self._shutdown()
@@ -4014,12 +4512,6 @@ class Engine:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher matching engine")
     add_version_argument(parser, "pm-engine")
-    parser.add_argument(
-        "--config",
-        "-c",
-        metavar="FILE",
-        help="Engine config YAML (default: engine_config.yaml)",
-    )
     parser.add_argument(
         "--log-level",
         choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
@@ -4106,11 +4598,14 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
+    from edumatcher.config_artifact import report_deployment
+
     parser = _build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-engine with log level %s", logging.getLevelName(log_level))
-    Engine(config_path=args.config).run()
+    report_deployment(log)
+    Engine().run()
 
 
 if __name__ == "__main__":

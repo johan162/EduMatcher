@@ -12,8 +12,8 @@ def make_order(
     qty: int,
     gateway_id: str,
     tif: TIF = TIF.DAY,
-    price: float | None = None,
-    stop_price: float | None = None,
+    price: int | None = None,
+    stop_price: int | None = None,
     visible_qty: int | None = None,
 ) -> Order:
     return Order.create(
@@ -37,7 +37,7 @@ def test_limit_order_rests_when_not_crossing() -> None:
         order_type=OrderType.LIMIT,
         qty=10,
         gateway_id="TRADER01",
-        price=100.0,
+        price=100,
     )
     trades, events = book.process(buy)
 
@@ -56,7 +56,7 @@ def test_market_order_executes_and_discards_unfilled_remainder() -> None:
         order_type=OrderType.LIMIT,
         qty=5,
         gateway_id="TRADER02",
-        price=101.0,
+        price=101,
     )
     book.process(resting_ask)
 
@@ -94,7 +94,7 @@ def test_stop_order_triggers_into_market_after_trigger_trade() -> None:
         order_type=OrderType.LIMIT,
         qty=10,
         gateway_id="TRADER02",
-        price=101.0,
+        price=101,
     )
     book.process(ask)
 
@@ -103,7 +103,7 @@ def test_stop_order_triggers_into_market_after_trigger_trade() -> None:
         order_type=OrderType.STOP,
         qty=3,
         gateway_id="TRADER01",
-        stop_price=101.0,
+        stop_price=101,
     )
     stop_trades, _ = book.process(buy_stop)
     assert stop_trades == []
@@ -113,7 +113,7 @@ def test_stop_order_triggers_into_market_after_trigger_trade() -> None:
         order_type=OrderType.LIMIT,
         qty=1,
         gateway_id="TRADER03",
-        price=101.0,
+        price=101,
     )
     trades, _ = book.process(trigger_buy)
 
@@ -133,7 +133,7 @@ def test_stop_limit_triggers_and_rests_if_not_marketable() -> None:
         order_type=OrderType.LIMIT,
         qty=1,
         gateway_id="TRADER02",
-        price=100.0,
+        price=100,
     )
     book.process(ask)
 
@@ -142,8 +142,8 @@ def test_stop_limit_triggers_and_rests_if_not_marketable() -> None:
         order_type=OrderType.STOP_LIMIT,
         qty=4,
         gateway_id="TRADER01",
-        stop_price=100.0,
-        price=99.0,
+        stop_price=100,
+        price=99,
     )
     trades_before, _ = book.process(buy_stop_limit)
     assert trades_before == []
@@ -153,7 +153,7 @@ def test_stop_limit_triggers_and_rests_if_not_marketable() -> None:
         order_type=OrderType.LIMIT,
         qty=1,
         gateway_id="TRADER03",
-        price=100.0,
+        price=100,
     )
     book.process(trigger_buy)
 
@@ -171,7 +171,7 @@ def test_fok_rejects_when_liquidity_is_insufficient() -> None:
         order_type=OrderType.LIMIT,
         qty=5,
         gateway_id="TRADER02",
-        price=100.0,
+        price=100,
     )
     book.process(ask)
 
@@ -180,7 +180,7 @@ def test_fok_rejects_when_liquidity_is_insufficient() -> None:
         order_type=OrderType.FOK,
         qty=6,
         gateway_id="TRADER01",
-        price=100.0,
+        price=100,
     )
     trades, events = book.process(fok_buy)
 
@@ -197,7 +197,7 @@ def test_fok_fills_completely_when_liquidity_is_sufficient() -> None:
         order_type=OrderType.LIMIT,
         qty=6,
         gateway_id="TRADER02",
-        price=100.0,
+        price=100,
     )
     book.process(ask)
 
@@ -206,7 +206,7 @@ def test_fok_fills_completely_when_liquidity_is_sufficient() -> None:
         order_type=OrderType.FOK,
         qty=6,
         gateway_id="TRADER01",
-        price=100.0,
+        price=100,
     )
     trades, _ = book.process(fok_buy)
 
@@ -223,7 +223,7 @@ def test_iceberg_exposes_only_visible_slice_in_book_snapshot() -> None:
         order_type=OrderType.ICEBERG,
         qty=10,
         gateway_id="TRADER02",
-        price=100.0,
+        price=100,
         visible_qty=3,
     )
     book.process(iceberg_sell)

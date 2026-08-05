@@ -11,8 +11,8 @@ def make_order(
     qty: int,
     gateway_id: str,
     tif: TIF = TIF.DAY,
-    price: float | None = None,
-    stop_price: float | None = None,
+    price: int | None = None,
+    stop_price: int | None = None,
     visible_qty: int | None = None,
 ) -> Order:
     return Order.create(

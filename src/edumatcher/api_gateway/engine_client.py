@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import zmq
+from fastapi import HTTPException, status
 
 from edumatcher.api_gateway.caches import SessionCaches
 from edumatcher.api_gateway.events import envelope, gateway_from_topic
@@ -147,8 +148,53 @@ class EngineClient:
         """Return True if the SUB reader thread is active."""
         return self._running
 
-    def send_disconnect(self, gateway_id: str, reason: str) -> None:
-        self._push.send_multipart(make_gateway_disconnect_msg(gateway_id, reason))
+    def _send(self, frames: list[bytes], *, require_engine: bool = True) -> None:
+        """Forward *frames* to the engine, turning backpressure into a 503.
+
+        ``make_pusher`` sets ``SNDTIMEO=0`` and ``IMMEDIATE=1``, so
+        ``send_multipart`` raises ``zmq.Again`` when the engine is down, not
+        yet connected, or slower than we are. Left unguarded that surfaced as
+        a bare 500, which tells a client nothing: "the engine is busy, retry"
+        and "the gateway has a bug" call for opposite responses. 503 with
+        ``ENGINE_UNAVAILABLE`` mirrors what ALF already returns for the same
+        condition.
+
+        ``require_engine=False`` is for best-effort notifications — currently
+        shutdown disconnects — where no engine to receive the message is the
+        expected case, not an error.
+        """
+        if self._push.closed:
+            return
+        try:
+            self._push.send_multipart(frames)
+        except zmq.Again:
+            pass
+        except zmq.ZMQError as exc:
+            # zmq.Again is a ZMQError subclass, but not every EAGAIN arrives
+            # as one; ALF guards both and so must this.
+            if exc.errno != errno.EAGAIN:
+                raise
+        else:
+            return
+        if not require_engine:
+            return
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "ENGINE_UNAVAILABLE",
+                    "message": "Engine unavailable: command not forwarded; retry shortly",
+                }
+            },
+        )
+
+    def send_disconnect(
+        self, gateway_id: str, reason: str, *, require_engine: bool = True
+    ) -> None:
+        self._send(
+            make_gateway_disconnect_msg(gateway_id, reason),
+            require_engine=require_engine,
+        )
 
     async def authenticate(
         self, gateway_id: str, timeout: float = 3.0
@@ -174,8 +220,18 @@ class EngineClient:
                 gateway_id,
                 timeout,
             )
-            future = self._register_future(f"system.gateway_auth.{gateway_id}")
-            self._push.send_multipart(make_gateway_connect_msg(gateway_id))
+            auth_key = f"system.gateway_auth.{gateway_id}"
+            future = self._register_future(auth_key)
+            try:
+                self._send(make_gateway_connect_msg(gateway_id))
+            except HTTPException:
+                # The waiter is registered before the send because the SUB
+                # reader runs in its own thread and could otherwise resolve
+                # the reply before we were listening. Nothing will resolve
+                # this one now, so drop it — otherwise clients retrying
+                # against a down engine accumulate waiters indefinitely.
+                self._drop_pending(auth_key, future)
+                raise
             self._dbg_count("gateway_connect_sent")
             try:
                 payload = await asyncio.wait_for(future, timeout=timeout)
@@ -192,7 +248,11 @@ class EngineClient:
             )
             if accepted:
                 self._authenticated.add(gateway_id)
-                self._push.send_multipart(make_symbols_request_msg(gateway_id))
+                # Best-effort: the engine accepted the handshake, so the
+                # gateway *is* authenticated. Seeding the symbol cache is a
+                # convenience the client can obtain later via request_symbols,
+                # and failing the whole authentication over it would be wrong.
+                self._send(make_symbols_request_msg(gateway_id), require_engine=False)
                 self._dbg_count("symbols_request_sent")
             return accepted, reason
 
@@ -203,6 +263,15 @@ class EngineClient:
         self._pending[key].append(_PendingWait(future=future, match=match))
         self._dbg_count("futures_registered")
         return future
+
+    def _drop_pending(self, key: str, future: asyncio.Future[dict[str, Any]]) -> None:
+        """Remove a waiter that will never be resolved."""
+        pending = self._pending.get(key)
+        if pending is None:
+            return
+        self._pending[key] = [w for w in pending if w.future is not future]
+        if not self._pending[key]:
+            del self._pending[key]
 
     async def await_topic(self, key: str, timeout: float) -> dict[str, Any]:
         """Wait for the next event on *key* (any payload)."""
@@ -219,11 +288,7 @@ class EngineClient:
             # asyncio.wait_for cancels the inner future on timeout.  Remove it
             # from _pending so cancelled futures do not accumulate if the engine
             # never sends the matching topic.
-            pending = self._pending.get(key)
-            if pending is not None:
-                self._pending[key] = [w for w in pending if w.future is not future]
-                if not self._pending[key]:
-                    del self._pending[key]
+            self._drop_pending(key, future)
             raise TimeoutError(f"Timed out waiting for {key}") from exc
 
     def _resolve_pending(self, topic: str, payload: dict[str, Any]) -> None:
@@ -368,38 +433,36 @@ class EngineClient:
         return self._caches[gateway_id]
 
     def send_new_order(self, order: Order) -> None:
-        self._push.send_multipart(make_order_new_msg(order.to_dict()))
+        self._send(make_order_new_msg(order.to_dict()))
 
     def send_cancel(self, order_id: str, gateway_id: str) -> None:
-        self._push.send_multipart(make_order_cancel_msg(order_id, gateway_id))
+        self._send(make_order_cancel_msg(order_id, gateway_id))
 
     def send_amend(
         self, order_id: str, gateway_id: str, price: float | None, qty: int | None
     ) -> None:
-        self._push.send_multipart(
-            make_order_amend_msg(order_id, gateway_id, price=price, qty=qty)
-        )
+        self._send(make_order_amend_msg(order_id, gateway_id, price=price, qty=qty))
 
     def send_combo(self, payload: dict[str, Any]) -> None:
-        self._push.send_multipart(make_combo_order_msg(payload))
+        self._send(make_combo_order_msg(payload))
 
     def send_combo_cancel(self, combo_id: str, gateway_id: str) -> None:
-        self._push.send_multipart(make_combo_cancel_msg(combo_id, gateway_id))
+        self._send(make_combo_cancel_msg(combo_id, gateway_id))
 
     def send_oco(self, payload: dict[str, Any]) -> None:
-        self._push.send_multipart(make_oco_order_msg(payload))
+        self._send(make_oco_order_msg(payload))
 
     def send_oco_cancel(self, oco_id: str, gateway_id: str) -> None:
-        self._push.send_multipart(make_oco_cancel_msg(oco_id, gateway_id))
+        self._send(make_oco_cancel_msg(oco_id, gateway_id))
 
     def send_quote(self, payload: dict[str, Any]) -> None:
-        self._push.send_multipart(make_quote_new_msg(payload))
+        self._send(make_quote_new_msg(payload))
 
     def send_quote_cancel(self, gateway_id: str, symbol: str) -> None:
-        self._push.send_multipart(make_quote_cancel_msg(gateway_id, symbol))
+        self._send(make_quote_cancel_msg(gateway_id, symbol))
 
     def send_mass_cancel(self, gateway_id: str, symbol: str = "") -> None:
-        self._push.send_multipart(make_kill_switch_msg(gateway_id, symbol))
+        self._send(make_kill_switch_msg(gateway_id, symbol))
 
     async def send_and_await_kill_switch(
         self, gateway_id: str, symbol: str, timeout: float
@@ -417,49 +480,49 @@ class EngineClient:
             return await self.await_topic(f"risk.kill_switch_ack.{gateway_id}", timeout)
 
     def request_orders(self, gateway_id: str) -> None:
-        self._push.send_multipart(make_orders_request_msg(gateway_id))
+        self._send(make_orders_request_msg(gateway_id))
 
     def request_symbols(self, gateway_id: str) -> None:
-        self._push.send_multipart(make_symbols_request_msg(gateway_id))
+        self._send(make_symbols_request_msg(gateway_id))
 
     def request_session(self, gateway_id: str) -> None:
-        self._push.send_multipart(make_session_state_request_msg(gateway_id))
+        self._send(make_session_state_request_msg(gateway_id))
 
     def request_quote_bootstrap(self, gateway_id: str, symbol: str = "") -> None:
-        self._push.send_multipart(make_quote_bootstrap_request_msg(gateway_id, symbol))
+        self._send(make_quote_bootstrap_request_msg(gateway_id, symbol))
 
     def request_quote_legs(
         self, gateway_id: str, symbol: str = "", show: str = "ALL"
     ) -> None:
-        self._push.send_multipart(make_quote_legs_request_msg(gateway_id, symbol, show))
+        self._send(make_quote_legs_request_msg(gateway_id, symbol, show))
 
     # ------------------------------------------------------------------
     # ADMIN-persona commands (all map to existing engine topics)
     # ------------------------------------------------------------------
 
     def send_session_transition(self, to_state: str) -> None:
-        self._push.send_multipart(make_session_transition_msg(to_state))
+        self._send(make_session_transition_msg(to_state))
 
     def send_symbol_halt(self, gateway_id: str, symbol: str) -> None:
-        self._push.send_multipart(make_symbol_halt_msg(gateway_id, symbol))
+        self._send(make_symbol_halt_msg(gateway_id, symbol))
 
     def send_symbol_resume(self, gateway_id: str, symbol: str) -> None:
-        self._push.send_multipart(make_symbol_resume_msg(gateway_id, symbol))
+        self._send(make_symbol_resume_msg(gateway_id, symbol))
 
     def send_cancel_symbol(self, gateway_id: str, symbol: str) -> None:
-        self._push.send_multipart(make_cancel_symbol_msg(gateway_id, symbol))
+        self._send(make_cancel_symbol_msg(gateway_id, symbol))
 
     def send_gateway_disconnect(self, gateway_id: str, reason: str = "") -> None:
         self.send_disconnect(gateway_id, reason)
 
     def request_gateways(self, gateway_id: str) -> None:
-        self._push.send_multipart(make_gateways_request_msg(gateway_id))
+        self._send(make_gateways_request_msg(gateway_id))
 
     def request_session_schedule(self, gateway_id: str) -> None:
-        self._push.send_multipart(make_session_schedule_request_msg(gateway_id))
+        self._send(make_session_schedule_request_msg(gateway_id))
 
     def request_halt_status(self, gateway_id: str) -> None:
-        self._push.send_multipart(make_halt_status_request_msg(gateway_id))
+        self._send(make_halt_status_request_msg(gateway_id))
 
     async def resolve_role(self, gateway_id: str, timeout: float) -> str:
         """Resolve a gateway's ParticipantRole from the engine gateways reply.

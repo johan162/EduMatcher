@@ -3,6 +3,7 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
+    - How EduMatcher defines a **trading date**, and why it is not the UTC date
     - How to record market and exchange index statistics continuously using `pm-stats`
     - How to query statistics data without writing SQL using `pm-stats-cli`
       - Common analyst workflows: end-of-day summaries, intraday price analysis, trade analysis, index level history, and order lifecycle investigation
@@ -27,6 +28,129 @@ This split keeps the recorder separate from the query interface, so you can:
 - Reload historical data after the engine restarts
 - Build reports, dashboards, and automated analysis without needing live connections
 - Keep the database read-only for auditing and compliance
+
+
+
+## Dates and Timestamps — read this first
+
+Every date question in `stats.db` has two possible answers, and mixing them up
+is the easiest way to produce a report that is quietly wrong. The database
+uses two distinct concepts:
+
+| Concept | Where it appears | What it is |
+|---------|------------------|------------|
+| **Instant** | every `ts` column | An ISO-8601 UTC timestamp with an explicit `+00:00` offset, e.g. `2026-06-14T09:00:01.000+00:00` |
+| **Trading date** | the `date` column of `daily_stats` and `index_daily_stats` | The calendar date **in the exchange's session timezone** that an instant belongs to, e.g. `2026-06-14` |
+
+The trading date is deliberately *not* the UTC date. An exchange's daily
+rollup has to align to the calendar day its participants actually traded. A
+session that runs into the evening — or any session that straddles 00:00 UTC —
+would otherwise be split across two `date` values, and the daily summary would
+no longer describe a single trading session.
+
+### Setting the session timezone
+
+Set it once, on the recorder:
+
+```bash
+pm-stats --timezone Europe/Stockholm
+```
+
+`pm-stats` writes that value into the database's `stats_meta` table, and every
+reader — `pm-stats-cli`, `pm-ticker`, the API Gateway — picks it up from there.
+**Readers need no timezone configuration at all**, and cannot disagree with the
+recorder about which trading day a `--date` refers to:
+
+```bash
+pm-stats-cli daily --date 2026-06-14   # resolves in Europe/Stockholm automatically
+```
+
+Two guardrails back this up:
+
+- Restarting `pm-stats` against an existing database with a *different*
+  `--timezone` is **refused**, because the `date` column would then mean two
+  different things within one file. Use a different `--db` instead.
+- Passing `--timezone` to a reader overrides the recorded value and prints a
+  warning when the two disagree:
+
+  ```console
+  $ pm-stats-cli --timezone UTC daily --date 2026-06-14
+  [WARN] --timezone UTC differs from the session timezone this database was
+         recorded with (Europe/Stockholm); --date will resolve to a different
+         trading day than pm-stats used
+  ```
+
+!!! note "`pm-clearing` still needs its own `--timezone`"
+    `pm-clearing` keeps a separate database and takes the same flag with the
+    same meaning for `trade_events.trade_date`. Give it the same value you
+    gave `pm-stats`, or `daily_stats.volume` will not reconcile against
+    `gateway_daily_summary.traded_qty` — that pairing spans two files and is
+    not checked automatically.
+
+    If your exchange runs in UTC, leave everything at the default and none of
+    this applies.
+
+### Inspecting what a database was recorded with
+
+`stats_meta` is a plain key/value table:
+
+```console
+$ sqlite3 data/stats.db "SELECT key, value FROM stats_meta"
+recorder|pm-stats
+session_timezone|Europe/Stockholm
+snapshot_interval_sec|900.0
+```
+
+The schema version is in `PRAGMA user_version`:
+
+```console
+$ sqlite3 data/stats.db "PRAGMA user_version"
+5
+```
+
+The version is bumped both when the table definitions change and when the
+*meaning* of stored values changes — version 2 introduced the distinct combo,
+OCO and quote `event_type` values, which the DDL alone cannot express, and
+version 3 added `feed_gaps` and widened `trade_log`'s primary key, and
+version 4 moved prices from REAL display money to INTEGER ticks, and
+version 5 added the `instruments` reference table.
+
+`pm-stats` refuses to open a database whose `user_version` does not match the
+build, rather than writing new-format rows into an old-format file. If you hit
+that, move or delete the file and let `pm-stats` create a fresh one.
+
+### What `--date` means
+
+`--date 2026-06-14` always means "the 2026-06-14 trading day". For
+`daily_stats` and `index_daily_stats` that is a direct match on the `date`
+column. For the timestamped tables (`trade_log`, `price_snapshots`,
+`order_events`, `index_level_snapshots`) it is resolved to the UTC instant
+range that trading day covers:
+
+```text
+--timezone Europe/Stockholm --date 2026-06-14
+    →  ts >= 2026-06-13T22:00:00+00:00
+   and  ts <  2026-06-14T22:00:00+00:00
+```
+
+Daylight-saving transitions are handled: a trading day may be 23 or 25 hours
+long, and the range follows local midnight either side.
+
+### What `--from` / `--to` accept
+
+`--from` and `--to` are **instants**, and all of these are accepted:
+
+| Form | Example | Interpreted as |
+|------|---------|----------------|
+| UTC with `Z` | `2026-06-14T09:00:00Z` | 09:00 UTC |
+| Explicit offset | `2026-06-14T11:00:00+02:00` | 09:00 UTC |
+| No offset | `2026-06-14T11:00:00` | 11:00 **session-local**, so 09:00 UTC in Stockholm |
+
+Bounds are compared as instants, not as text, so the three rows above select
+exactly the same trades. Both bounds are inclusive, and they are precise: a
+`--to 2026-06-14T16:30:00` bound excludes a trade at `16:30:00.500`, because
+that trade genuinely happened after the bound. Give the bound sub-second
+precision if you want to include it.
 
 
 
@@ -87,78 +211,406 @@ Each session maintains its own `stats.db`, so historical data doesn't mix.
     ls -la $EDUMATCHER_DATA_DIR/stats.db  # If env var is set
     ```
 
-See [Processes — Environment variables](170-processes.md#environment-variables) for full details on `EDUMATCHER_DATA_DIR` and `EDUMATCHER_CONFIG`.
+See [Processes — Environment variables](170-processes.md#environment-variables) for full details on `EDUMATCHER_DATA_DIR`.
+
+
+
+## Prices Are Stored As Integer Ticks
+
+**The single most important thing to know about this database: the price
+columns do not contain money.** They contain an integer count of ticks. If you
+open `stats.db` in a SQL browser and see `15025`, that is `150.25`.
+
+```console
+$ sqlite3 data/stats.db "SELECT symbol, price, quantity, tick_decimals FROM trade_log LIMIT 1"
+AAPL|15025|100|2
+```
+
+```console
+$ pm-stats-cli trades --symbol AAPL --limit 1
+ts                            | trade_id | symbol | price  | quantity | ...
+------------------------------+----------+--------+--------+----------+----
+2026-06-14T09:00:01.000+00:00 | 1        | AAPL   | 150.25 | 100      | ...
+```
+
+Same row. `pm-stats-cli` and the API convert for you; raw SQL does not.
+
+### The conversion rule
+
+Every table holding prices carries a `tick_decimals` column — the number of
+decimal places that symbol prices to. Divide by ten to that power:
+
+```text
+display price = price / 10^tick_decimals
+150.25        = 15025 / 10^2
+1.2345        = 12345 / 10^4
+```
+
+Always use the **row's own** `tick_decimals`. Symbols do not share a tick size:
+an FX pair at four decimals and an equity at two sit in the same table, and
+assuming `2` for both silently mangles the FX prices.
+
+```sql
+-- Right
+SELECT symbol, price / power(10, tick_decimals) AS display_price FROM trade_log;
+
+-- Wrong: breaks on any symbol that is not 2-decimal
+SELECT symbol, price / 100.0 FROM trade_log;
+```
+
+### Why integers
+
+The engine matches in integer ticks and converts to a float only to publish.
+`pm-stats` converts straight back at ingest, so the number stored is the exact
+number the engine matched on. Nothing rounds, and a day's turnover is an
+integer sum that cannot drift however many fills it spans — where a float sum
+would differ in its last digits depending on the order the trades were added.
+
+This also lets `daily_stats` reconcile *exactly* against `pm-clearing`, which
+stores its own archive the same way (see
+[P&L and Clearing](130-pnl-clearing.md)).
+
+### The three exceptions
+
+| Column | Type | Why |
+|--------|------|-----|
+| `daily_stats.vwap` | REAL | `turnover / volume` is a ratio and rarely lands on a tick. Both inputs are stored exactly beside it, so compute it yourself when you need full precision. |
+| `price_snapshots.mid_price` | REAL | The midpoint of two adjacent ticks is a *half* tick, which no integer can hold. `best_bid` and `best_ask` beside it are exact. |
+| index `level`, `aggregate_cap`, `divisor` | REAL | An index level is a computed, dimensionless number, not a price on a tick grid — there is no tick size to express it in. |
+
+Both REAL exceptions are still **in ticks**, not in money, so they convert with
+the same rule. Index levels are neither — they are already the number you want.
+
+### `turnover` — stored in ticks, converted like a price
+
+`turnover` is `sum(price_ticks × quantity)`. Dividing by the tick scale gives
+`sum(price_money × quantity)` — the money notional, exactly:
+
+```text
+notional in money = turnover / 10^tick_decimals
+```
+
+So `turnover` converts on output like every other tick column, and a row is
+self-consistent in whichever unit you are reading:
+
+| | `turnover` | `volume` | `vwap` | `turnover / volume` |
+|---|---|---|---|---|
+| Raw SQL (ticks) | `460000` | `40` | `11500.0` | `11500.0` = `vwap` ✔ |
+| `pm-stats-cli` (money) | `4600.0` | `40` | `115.0` | `115.0` = `vwap` ✔ |
+
+### What this means for exported data
+
+A CSV export carries the converted display prices, since the conversion happens
+before output. But `--wide` also includes `tick_decimals`, so the exact integers
+remain recoverable:
+
+```text
+price_ticks = round(display_price × 10^tick_decimals)
+```
+
+Keep that column if you intend to reconcile against `stats.db` or `clearing.db`
+later.
+
+### Residual float exposure
+
+After all of the above, the only values where floating point can still bite are
+the three REAL exceptions. `aggregate_cap` is the most exposed: index market
+caps run to 10^12 or beyond, where a double's absolute resolution is around
+10^-4. Treat its last few digits as noise, and compare with a tolerance rather
+than for equality.
 
 
 
 ## The Statistics Database Schema
 
-All statistics are stored in `data/stats.db`, a SQLite 3 database with six tables:
+All statistics are stored in `data/stats.db`, a SQLite 3 database with seven data
+tables, an instrument reference table, and a metadata table.
+
+### Row identity and pagination cursors
+
+Keyset pagination (`--after`, and `next_cursor` on the API) needs a total
+ordering, so each cursor carries the last row's sort key plus a tiebreaker.
+Which tiebreaker depends on the table:
+
+| Table | Cursor tiebreaker | Stable across `VACUUM`? |
+|-------|-------------------|-------------------------|
+| `order_events` | `seq` — a real `INTEGER PRIMARY KEY AUTOINCREMENT` column | Yes |
+| `daily_stats` | `symbol` (with `date`) — real columns | Yes |
+| `index_daily_stats` | `index_id` (with `date`) — real columns | Yes |
+| `trade_log` | SQLite's implicit `rowid` | **Not guaranteed** |
+| `price_snapshots` | SQLite's implicit `rowid` | **Not guaranteed** |
+| `index_level_snapshots` | SQLite's implicit `rowid` | **Not guaranteed** |
+
+The last three have composite primary keys rather than an explicit `INTEGER
+PRIMARY KEY`, so SQLite is free to renumber their `rowid`s during a `VACUUM`.
+In practice it usually does not — SQLite 3.37 leaves them untouched in the
+straightforward case — but the documentation only says it *may*, so nothing
+should depend on it.
+
+!!! warning "Do not hold a cursor across a `VACUUM`"
+    A `VACUUM` between fetching one page and requesting the next can, on those
+    three tables, make the cursor's `rowid` refer to a different row. The
+    damage is bounded — `ts` is the primary sort and `rowid` only breaks ties —
+    so at worst you skip or repeat rows *sharing a single timestamp*. It will
+    not error.
+
+    This matters for the retention procedure below, which ends in a `VACUUM`.
+    Finish paginating first, or re-run the query from the start afterwards.
+
+### `instruments`
+
+Reference data for every instrument seen, so the database describes itself
+rather than requiring outside knowledge to interpret.
+
+**Primary key**: `symbol`.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `symbol` | TEXT | Instrument ticker |
+| `tick_decimals` | INTEGER | Decimal places a price trades in; 1 tick = `10^-tick_decimals` |
+| `tick_size` | REAL | The tick as a number, e.g. `0.01`. Derivable from `tick_decimals`, stored so a BI tool can join without arithmetic |
+| `currency` | TEXT | **Reserved for future use — always NULL.** See below |
+| `source` | TEXT | `config` (authoritative, from engine `symbol_meta`) or `observed` (inferred from a message) |
+| `updated_ts` | TEXT | When the row was last written |
+
+Two sources populate it, and **config wins**:
+
+- **`config`** — the engine's `symbol_meta.tick_size`, received in the startup
+  `system.symbols` response. Authoritative, and covers symbols that never
+  trade and would otherwise never appear.
+- **`observed`** — the `tick_decimals` on a trade or book message, for a
+  symbol that has no config entry. Best effort: a message only reveals the
+  scale *that message* was produced at, so it never overwrites a `config` row.
+
+```console
+$ pm-stats-cli instruments
+symbol | tick_decimals | tick_size | currency | source   | updated_ts
+-------+---------------+-----------+----------+----------+------------------------------
+AAPL   | 2             | 0.01      |          | config   | 2026-06-14T08:59:12.004+00:00
+FXPAIR | 4             | 0.0001    |          | config   | 2026-06-14T08:59:12.004+00:00
+NEWCO  | 3             | 0.001     |          | observed | 2026-06-14T09:11:40.882+00:00
+```
+
+!!! note "`currency` is reserved, not merely empty"
+    EduMatcher has **no currency model at all**. Prices carry no currency, no
+    conversion happens anywhere, and `index_daily_stats.aggregate_cap` sums
+    across whatever the constituents happen to be priced in. The column is
+    present and always `NULL` so that a consumer can see the field is
+    *absent* rather than assume a currency — and so introducing a currency
+    model later does not require migrating the reference table.
+
+    Do not write to it, and do not infer a currency from its emptiness.
+
+### `stats_meta`
+
+Key/value provenance for the file, written by `pm-stats` on every start.
+
+| Key | Description |
+|-----|-------------|
+| `session_timezone` | The IANA timezone the `date` columns are expressed in. Readers resolve this automatically |
+| `snapshot_interval_sec` | The `--snapshot-interval` in force, so a consumer can tell a sparse series from a coarse one |
+| `recorder` | The process that wrote the file (`pm-stats`) |
+
+The schema version lives in `PRAGMA user_version` rather than in this table, so
+it can be checked before any query is attempted.
 
 ### `daily_stats`
 
-Aggregated OHLCV (open, high, low, close, volume) and related metrics for each symbol per day.
+Aggregated OHLCV (open, high, low, close, volume) and related metrics for each symbol per trading day.
 
-| Column                | Type    | Description                              |
-|-----------------------|---------|------------------------------------------|
-| `date`                | TEXT    | Calendar date `YYYY-MM-DD`               |
-| `symbol`              | TEXT    | Instrument ticker                        |
-| `open_price`          | REAL    | First trade price of the day             |
-| `high_price`          | REAL    | Highest trade price                      |
-| `low_price`           | REAL    | Lowest trade price                       |
-| `close_price`         | REAL    | Last trade price                         |
-| `volume`              | INTEGER | Total traded quantity                    |
-| `trade_count`         | INTEGER | Number of trades                         |
-| `vwap`                | REAL    | Volume-weighted average price            |
-| `open_bid`            | REAL    | Best bid at first book update of the day |
-| `open_ask`            | REAL    | Best ask at first book update of the day |
-| `close_bid`           | REAL    | Best bid at engine shutdown              |
-| `close_ask`           | REAL    | Best ask at engine shutdown              |
-| `largest_trade_qty`   | INTEGER | Quantity of the single largest trade     |
-| `largest_trade_price` | REAL    | Price of the single largest trade        |
+**Primary key**: `(date, symbol)` — one row per symbol per trading day, upserted as trades arrive.
+
+| Column                | Type    | Null? | Description                                                       |
+|-----------------------|---------|-------|-------------------------------------------------------------------|
+| `date`                | TEXT    | no    | **Trading date** `YYYY-MM-DD` in the session timezone             |
+| `symbol`              | TEXT    | no    | Instrument ticker                                                 |
+| `open_price`          | INTEGER | yes   | First trade price of the day, **in ticks**; null if no trades     |
+| `high_price`          | INTEGER | yes   | Highest trade price, **in ticks**                                 |
+| `low_price`           | INTEGER | yes   | Lowest trade price, **in ticks**                                  |
+| `close_price`         | INTEGER | yes   | Last trade price, **in ticks**                                    |
+| `volume`              | INTEGER | no    | Total traded quantity; `0` if the day had no trades               |
+| `trade_count`         | INTEGER | no    | Number of trades; `0` if the day had no trades                    |
+| `turnover`            | INTEGER | no    | `sum(price_ticks × quantity)` — exact. Divide by `10^tick_decimals` for money notional |
+| `vwap`                | REAL    | yes   | Volume-weighted average price **in ticks**. Derived (`turnover / volume`), so REAL |
+| `open_bid`            | INTEGER | yes   | Best bid at first book update of the day, **in ticks**            |
+| `open_ask`            | INTEGER | yes   | Best ask at first book update of the day, **in ticks**            |
+| `close_bid`           | INTEGER | yes   | Best bid at engine shutdown, **in ticks**                         |
+| `close_ask`           | INTEGER | yes   | Best ask at engine shutdown, **in ticks**                         |
+| `largest_trade_qty`   | INTEGER | yes   | Quantity of the single largest trade. Note this is `0`, not null, on a day with no trades |
+| `largest_trade_price` | INTEGER | yes   | Price of the single largest trade, **in ticks**                   |
+| `tick_decimals`       | INTEGER | no    | Decimal scale for this row's tick columns                         |
 
 **Use case**: End-of-day summaries, daily trend analysis, multi-day performance tracking.
 
+!!! note "Prices are unadjusted"
+    `daily_stats` carries no corporate-action awareness. Prices are exactly
+    what printed on the day, with no split or dividend adjustment and no
+    marker indicating that an adjustment event occurred. A multi-day series
+    that spans a corporate action is therefore discontinuous, and returns
+    computed across it will be wrong. `pm-index` maintains the corporate-action
+    audit record — see [Market Index](150-market-index.md).
+
 ### `price_snapshots`
 
-Intraday mid-price, bid/ask, and percentage-change history captured every 15 minutes per symbol.
+Intraday mid-price, bid/ask, and percentage-change history, recorded at most once per interval per symbol (default: 15 minutes).
 
-| Column       | Type | Description                                                                       |
-|--------------|------|-----------------------------------------------------------------------------------|
-| `ts`         | TEXT | ISO-8601 timestamp (UTC, second precision)                                        |
-| `symbol`     | TEXT | Instrument ticker                                                                 |
-| `mid_price`  | REAL | `(best_bid + best_ask) / 2`; falls back to last trade price if book is empty      |
-| `best_bid`   | REAL | Best bid at snapshot time (null if empty)                                         |
-| `best_ask`   | REAL | Best ask at snapshot time (null if empty)                                         |
-| `pct_change` | REAL | Percentage change of mid-price from previous snapshot (e.g. `1.25` means +1.25 %) |
+**Primary key**: `(ts, symbol)`.
+**Index**: `(symbol, ts)`.
 
-**Use case**: Intraday price trends, volatility analysis, spread history, detecting trading halts or gaps.
+| Column       | Type | Null? | Description                                                                     |
+|--------------|------|-------|---------------------------------------------------------------------------------|
+| `ts`         | TEXT | no    | ISO-8601 UTC instant, **second** precision, e.g. `2026-06-14T09:00:00+00:00`     |
+| `symbol`     | TEXT | no    | Instrument ticker                                                               |
+| `mid_price`  | REAL | yes   | Midpoint **in ticks**; REAL because a midpoint can be a half tick. See the fallback chain below — **not always a true mid** |
+| `best_bid`   | INTEGER | yes | Best bid at snapshot time **in ticks**; null if the bid side was empty          |
+| `best_ask`   | INTEGER | yes | Best ask at snapshot time **in ticks**; null if the ask side was empty          |
+| `pct_change` | REAL | yes   | Percentage change of `mid_price` from the previous persisted row (`1.25` means +1.25 %); a percentage, never converted |
+| `tick_decimals` | INTEGER | no | Decimal scale for this row's tick columns                                    |
+
+`mid_price` is resolved in this order, and only the first case is a genuine mid-price:
+
+| Book state | `mid_price` |
+|------------|-------------|
+| Both sides present | `(best_bid + best_ask) / 2`, in ticks — may be a half tick |
+| Bid only | `best_bid` |
+| Ask only | `best_ask` |
+| Neither, but a last trade exists | `last_price` |
+| Nothing available | null |
+
+!!! warning "`mid_price` on a one-sided book"
+    On a one-sided book `mid_price` is simply whichever side exists, so a
+    series can silently mix true mid-prices with single-sided quotes. Because
+    `pct_change` is computed from consecutive `mid_price` values, a book
+    flipping between two-sided and one-sided produces a percentage move that
+    reflects the change in *definition*, not a change in the market. Check
+    `best_bid`/`best_ask` for null before treating `pct_change` as a return.
+
+    Related: `pct_change` compares against the previous snapshot that had a
+    usable `mid_price`. If an intervening snapshot had none, the percentage
+    silently spans more than one interval.
 
 ### `trade_log`
 
 Append-only record of every matched trade — no aggregation, one row per trade.
 
-| Column            | Type    | Description                                     |
-|-------------------|---------|-------------------------------------------------|
-| `ts`              | TEXT    | ISO-8601 timestamp (UTC, millisecond precision) |
-| `trade_id`        | TEXT    | UUID from the engine (unique per trade)         |
-| `symbol`          | TEXT    | Instrument ticker                               |
-| `price`           | REAL    | Execution price                                 |
-| `quantity`        | INTEGER | Matched quantity                                |
-| `buy_gateway_id`  | TEXT    | Gateway that submitted the buy order            |
-| `sell_gateway_id` | TEXT    | Gateway that submitted the sell order           |
+**Primary key**: `(trade_id, ts)`. Inserts are `OR IGNORE`, so a repeated delivery of the same trade — same id *and* same timestamp — is deduplicated.
 
-**Use case**: Trade-by-trade analysis, flow analysis, detecting potential market manipulation, audit trails.
+!!! note "Why the key is composite"
+    `trade_id` is a counter that **restarts at 1 on every engine run**, not a
+    globally unique identifier. Keyed on `trade_id` alone, the first trade of
+    a restarted engine would collide with the first trade of the previous run
+    and be silently discarded, understating volume for the rest of the day.
+    Including `ts` keeps a post-restart id reuse as a distinct row while still
+    deduplicating a genuine duplicate delivery. `pm-clearing` records the same
+    defect against its own archive as finding CL-C1.
+
+| Column            | Type    | Null? | Description                                                          |
+|-------------------|---------|-------|----------------------------------------------------------------------|
+| `ts`              | TEXT    | no    | ISO-8601 UTC instant, **millisecond** precision. This is the **engine's** trade timestamp |
+| `trade_id`        | TEXT    | no    | Engine trade counter, unique **within one engine run** only           |
+| `symbol`          | TEXT    | no    | Instrument ticker                                                    |
+| `price`           | INTEGER | no    | Execution price, **in ticks** — divide by `10^tick_decimals`         |
+| `quantity`        | INTEGER | no    | Matched quantity                                                     |
+| `tick_decimals`   | INTEGER | no    | Decimal scale for `price`                                            |
+| `buy_gateway_id`  | TEXT    | yes   | Gateway that submitted the buy order                                 |
+| `sell_gateway_id` | TEXT    | yes   | Gateway that submitted the sell order                                |
+| `aggressor_side`  | TEXT    | yes   | `BUY` or `SELL` for a continuous match; `AUCTION` for an uncross print |
+
+**Index**: `(symbol, ts)`.
+
+`aggressor_side` is mirrored from the engine payload verbatim:
+
+| Value | Meaning |
+|-------|---------|
+| `BUY` | An incoming buy order swept resting sell liquidity |
+| `SELL` | An incoming sell order swept resting buy liquidity |
+| `AUCTION` | An opening or closing uncross print — both sides were resting, so there is no true aggressor |
+
+This is what makes trade classification and order-flow imbalance possible, and
+it is also the only way to separate auction prints from continuous ones:
+
+```bash
+# Continuous-session buy-side pressure for one trading day
+pm-stats-cli --format json trades --symbol AAPL --date 2026-06-14 --limit 100000 \
+  | python3 -c "
+import json, sys, collections
+rows = json.load(sys.stdin)
+by_side = collections.Counter()
+for r in rows:
+    by_side[r['aggressor_side']] += r['quantity']
+print(dict(by_side))
+"
+```
+
+**Use case**: Trade-by-trade analysis, order-flow imbalance, separating auction
+from continuous volume, audit trails.
+
+### `feed_gaps`
+
+Trades the recorder can prove it never received.
+
+**Primary key**: `seq` (`AUTOINCREMENT`).
+**Index**: `(ts)`.
+
+| Column          | Type    | Description                                                     |
+|-----------------|---------|-----------------------------------------------------------------|
+| `seq`           | INTEGER | Monotonic local sequence                                        |
+| `ts`            | TEXT    | UTC instant of the trade that revealed the gap                  |
+| `stream`        | TEXT    | Which feed the gap was detected on (currently `trade.executed`) |
+| `expected_id`   | INTEGER | The trade id expected next                                      |
+| `received_id`   | INTEGER | The trade id that actually arrived                              |
+| `missing_count` | INTEGER | How many trades are unaccounted for between them                |
+
+ZeroMQ PUB/SUB drops messages silently once a subscriber falls behind its
+high-water mark, so without this table a session that lost trades is
+indistinguishable from a quiet one. Because the engine numbers trades with a
+monotonic counter, a jump in that counter is direct evidence of loss, and each
+jump is written here inside the same transaction as the trade that revealed it.
+
+**Use case**: answering "is this session's data complete?" before trusting a
+volume, VWAP or turnover figure.
+
+Detection works two ways, and both write here:
+
+| Source | Mechanism | Covers |
+|--------|-----------|--------|
+| Publisher sequence | Every published message carries a per-topic monotonic counter in a third ZeroMQ frame; a jump means messages were dropped | **Every subscribed stream** — `trade.executed`, `book.*`, `order.*`, `combo.*`, `oco.*`, `quote.*`, `index.update` |
+| Engine trade id | Engine trade ids are monotonic within a run, so a jump is independent evidence | `trade.executed` only |
+
+The two overlap on trades deliberately: the trade-id check still catches loss
+that happened upstream of the publisher, which a publisher-side counter cannot
+see by construction.
+
+!!! note "What an empty `feed_gaps` does and does not prove"
+    A sequence counter restarts at 1 when its publisher restarts, so the
+    recorder treats a *decrease* as a restart rather than a gap — messages
+    genuinely lost across a publisher restart are not detectable.
+
+    A topic published by a process that does not stamp sequences is reported
+    once at `WARNING` ("carries no sequence frame; loss on it cannot be
+    detected") and then ignored, so a silent stream cannot masquerade as a
+    clean one.
 
 ### `order_events`
 
 Append-only order lifecycle history captured from private engine topics. This table is used by API Gateway history endpoints to reconstruct per-gateway order, fill, cancel, amend, combo, OCO, and quote events.
 
+**Primary key**: `seq` (`AUTOINCREMENT`).
+**Indexes**: `(order_id)`, `(gateway_id, ts)`, `(symbol, ts)`, `(event_type, ts)`.
+
+!!! warning "`order_events.ts` is a different clock from `trade_log.ts`"
+    `order_events.ts` is the wall-clock instant at which **`pm-stats` recorded**
+    the event. `trade_log.ts` is the instant the **engine** stamped on the
+    trade. The two therefore cannot be merged into one ordered timeline: a
+    `FILL` row can carry a timestamp *earlier or later* than the `trade_log`
+    row for the same execution, depending on delivery latency. Within
+    `order_events` alone, order by `seq`, which is monotonic and reliable.
+
 | Column            | Type    | Description                                                                                                          |
 |-------------------|---------|----------------------------------------------------------------------------------------------------------------------|
 | `seq`             | INTEGER | Monotonic local sequence assigned by SQLite for stable event ordering                                                |
 | `ts`              | TEXT    | ISO-8601 timestamp (UTC, millisecond precision) when `pm-stats` recorded the event                                   |
-| `event_type`      | TEXT    | Normalized event category: `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, `QUOTE`, or `EVENT` |
+| `event_type`      | TEXT    | Normalized event category — see the full value table below                                                            |
 | `order_id`        | TEXT    | Order-like identifier; for combo/OCO/quote events this may be `combo_id`, `oco_id`, or `quote_id`                    |
 | `gateway_id`      | TEXT    | Gateway identity that owns the private event                                                                         |
 | `symbol`          | TEXT    | Instrument ticker when present in the event payload                                                                  |
@@ -180,21 +632,63 @@ Append-only order lifecycle history captured from private engine topics. This ta
 
 **Use case**: API Gateway order history, support investigations, per-gateway audit trails, fill-only history, and lifecycle reconstruction for a single order ID.
 
+#### `event_type` values
+
+Every value the recorder can write, and the engine topic it comes from:
+
+| `event_type` | Source topic | Meaning |
+|--------------|--------------|---------|
+| `ACK` | `order.ack.*` with `accepted: true` | Order accepted |
+| `REJECT` | `order.ack.*` with `accepted: false` | Order rejected |
+| `FILL` | `order.fill.*` | Execution against the order |
+| `AMEND` | `order.amended.*` | Order amended |
+| `CANCEL` | `order.cancelled.*` | Order cancelled |
+| `EXPIRE` | `order.expired.*` | Order expired |
+| `COMBO_ACK` | `combo.ack.*` with `accepted: true` | Combo accepted |
+| `COMBO_REJECT` | `combo.ack.*` with `accepted: false` | Combo rejected |
+| `COMBO_STATUS` | `combo.status.*` | Combo status update |
+| `OCO_ACK` | `oco.ack.*` with `accepted: true` | OCO pair accepted |
+| `OCO_REJECT` | `oco.ack.*` with `accepted: false` | OCO pair rejected |
+| `OCO_CANCEL` | `oco.cancelled.*` | One leg of an OCO pair cancelled |
+| `QUOTE_ACK` | `quote.ack.*` with `accepted: true` | Quote accepted |
+| `QUOTE_REJECT` | `quote.ack.*` with `accepted: false` | Quote rejected |
+| `QUOTE_STATUS` | `quote.status.*` | Quote status update |
+| `UNKNOWN` | any ack topic missing its `accepted` flag | See the note below |
+| `EVENT` | any other subscribed private topic | Unclassified |
+
+Combo, OCO and quote events each carry their own accept / reject / cancel /
+status value rather than a single family name, so a rejected combo is
+distinguishable from an accepted one and `oco.cancelled` is findable as a
+cancellation. Filters are validated against this list — `pm-stats-cli` rejects
+an unknown `--event-type` at parse time and the API returns `422`, rather than
+silently returning an empty page.
+
+!!! note "`UNKNOWN` means the engine did not say"
+    Every ack-style payload carries an `accepted` flag, so its absence
+    indicates a bug or a corrupted message. When that happens the recorder
+    writes `UNKNOWN` and logs at `ERROR`, rather than defaulting to `REJECT` —
+    recording a rejection the engine never asserted would put a fabricated
+    fact into the audit trail. If you see `UNKNOWN` rows, check the `pm-stats`
+    log for the topic that produced them.
+
 ### `index_daily_stats`
 
 Aggregated daily OHLC (open, high, low, close) for each configured exchange index, one row per `(date, index_id)`, upserted on every `index.update` event `pm-stats` receives from `pm-index`.
 
+**Primary key**: `(date, index_id)`.
+**Index**: `(index_id, date)`.
+
 | Column                 | Type    | Description                                          |
 |------------------------|---------|-------------------------------------------------------|
-| `date`                 | TEXT    | Calendar date `YYYY-MM-DD`                             |
+| `date`                 | TEXT    | **Trading date** `YYYY-MM-DD` in the session timezone   |
 | `index_id`             | TEXT    | Index identifier (e.g. `EDU100`)                        |
 | `open_level`           | REAL    | Index level at the first update of the day              |
 | `high_level`           | REAL    | Highest index level seen during the day                 |
 | `low_level`            | REAL    | Lowest index level seen during the day                  |
 | `close_level`          | REAL    | Index level at the *most recently received* update — see the finality note below |
 | `close_session_state`  | TEXT    | Session state as of that most recent update (e.g. `CONTINUOUS`, `CLOSED`) — the key to knowing whether `close_level` is final |
-| `open_aggregate_cap`   | REAL    | Aggregate constituent market cap at the first update     |
-| `close_aggregate_cap`  | REAL    | Aggregate constituent market cap at the most recent update |
+| `open_aggregate_cap`   | REAL    | Aggregate constituent market cap at the first update, in **display money** |
+| `close_aggregate_cap`  | REAL    | Aggregate constituent market cap at the most recent update, in **display money** |
 | `update_count`         | INTEGER | Number of `index.update` events folded into this day's row |
 
 **Use case**: Daily index trend analysis, comparing index performance across trading dates, spotting days with unusually few updates (a thin `update_count` may indicate a quiet index or a connectivity gap), and — the most common ask — looking up an index's official end-of-day (EOD) closing level for a chosen date.
@@ -215,17 +709,47 @@ Aggregated daily OHLC (open, high, low, close) for each configured exchange inde
 
 Time series of every index level update received from `pm-index`, one row per `index.update` event (no additional throttling in `pm-stats` — `pm-index` already rate-limits its own publications via `publish_interval_sec` before it ever sends one).
 
+**Primary key**: `(ts, index_id)`. Inserts are `OR IGNORE`, so two updates for one index landing in the same millisecond retain only the first.
+**Index**: `(index_id, ts)`.
+
 | Column          | Type | Description                                                          |
 |-----------------|------|------------------------------------------------------------------------|
-| `ts`            | TEXT | ISO-8601 timestamp (UTC, millisecond precision)                        |
+| `ts`            | TEXT | ISO-8601 UTC instant, millisecond precision                            |
 | `index_id`      | TEXT | Index identifier                                                        |
-| `level`         | REAL | Current index level at this update                                      |
-| `aggregate_cap` | REAL | Aggregate constituent market cap at this update                         |
-| `divisor`       | REAL | Index divisor in effect at this update                                  |
-| `session_state` | TEXT | Index session state at this update (e.g. `CONTINUOUS`, `CLOSED`)        |
+| `level`         | REAL | Current index level at this update. Dimensionless — an index level is a computed number, not a price, so it is neither in ticks nor in money |
+| `aggregate_cap` | REAL | Aggregate constituent market cap at this update, in **display money** — see the currency note below |
+| `divisor`       | REAL | Index divisor in effect at this update. Dimensionless: `level = aggregate_cap / divisor` |
+| `session_state` | TEXT | Index session state at this update — see the full set below            |
 | `day_open`      | REAL | Day's opening level, when known at this update                         |
 | `day_high`      | REAL | Day's high level so far, when known at this update                     |
 | `day_low`       | REAL | Day's low level so far, when known at this update                      |
+
+!!! note "`aggregate_cap` is money, but no currency is recorded"
+    Market cap is the one monetary value in `stats.db` that is **not** in
+    ticks — an index spans several instruments, so there is no single tick
+    grid to express it on, and it is stored as display money in whatever
+    currency the constituents are priced in. That currency is not recorded
+    anywhere in the database. If your exchange lists in more than one
+    currency, `aggregate_cap` sums across them and is not meaningful without
+    knowing the mix.
+
+    It is also the value most exposed to floating-point error: caps run to
+    10^12 or beyond, where a double resolves to roughly 10^-4. Treat its last
+    few digits as noise and compare with a tolerance.
+
+`session_state` (in both this table and `index_daily_stats.close_session_state`)
+takes exactly one of the five values from the engine's session model:
+
+| Value | Meaning |
+|-------|---------|
+| `PRE_OPEN` | Orders accepted, no matching |
+| `OPENING_AUCTION` | Auction collection before the opening uncross |
+| `CONTINUOUS` | Normal continuous matching |
+| `CLOSING_AUCTION` | Auction collection before the closing uncross |
+| `CLOSED` | Market closed — **the only value that makes `close_level` final** |
+
+See [Session Scheduling and Auctions](080-session-scheduling.md#session-phases)
+for the full phase model.
 
 **Use case**: Intraday index charting, index-level history queries for `pm-terminal`-style viewers, reconstructing an index's level trajectory over any time window.
 
@@ -250,8 +774,8 @@ pm-stats
 1. Connect as a subscriber to the engine's PUB socket (:5556)
 2. Connect as a second, independent subscriber to `pm-index`'s own PUB socket (:5558 by default) for `index.update` events — `pm-index` binds a separate endpoint from the engine, so this is a distinct ZMQ connection, not an additional topic filter on the engine socket
 3. Wait briefly for ZMQ subscriptions to propagate, then request the symbol list from the engine via PUSH (:5555); on receipt, request a current book snapshot per symbol so opening bid/ask and initial price rows are captured even before new trading activity
-4. Begin recording trades to `daily_stats` as they execute
-5. Write intraday snapshots every 15 minutes
+4. Begin recording trades to `daily_stats` as they execute, detecting and logging any trades that never arrived (see [`feed_gaps`](#feed_gaps))
+5. Write an intraday snapshot on the first book update for a symbol, then at most one per `--snapshot-interval` (default 15 minutes) — a quiet symbol produces none
 6. Write trade-by-trade records to `trade_log` immediately
 7. Write private order lifecycle events to `order_events`
 8. Write every received index update to `index_level_snapshots` and upsert the day's rollup into `index_daily_stats` — no exchange indexes configured means no `index.update` traffic and these two tables simply stay empty, which is expected and not an error
@@ -259,14 +783,18 @@ pm-stats
 
 **Startup options:**
 
-| Flag                    | Default         | Description                                                                            |
-|-------------------------|-----------------|----------------------------------------------------------------------------------------|
-| `--db`                  | `data/stats.db` | Custom statistics database path                                                        |
-| `--snapshot-interval`   | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol. Lower values give finer intraday resolution at the cost of more database writes. |
-| `--sql-trace`           | off             | Log executed SQLite statements from the stats writer connection — useful for debugging what `pm-stats` is actually writing |
-| `--log-level`           | `WARNING`       | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                       |
-| `-v`, `--verbose`       | off             | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                   |
-| `-q`, `--quiet`         | off             | Reduce output to warnings/errors                                                       |
+| Flag                     | Default         | Description                                                                            |
+|--------------------------|-----------------|----------------------------------------------------------------------------------------|
+| `--db`                   | `data/stats.db` | Custom statistics database path                                                        |
+| `--timezone`             | `UTC`           | Exchange session timezone defining the trading date written to the `date` columns (IANA name). Recorded into the database, so readers pick it up automatically. Restarting against an existing database with a different value is refused |
+| `--snapshot-interval`    | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol; minimum `1`. Lower values give finer intraday resolution at the cost of more database writes. Anything under a second is **rejected at startup**: `price_snapshots` is keyed on `(ts, symbol)` at second precision, so it cannot hold more than one row per second per symbol and the extras would be silently discarded |
+| `--sql-trace`            | off             | Log executed SQLite statements from the stats writer connection — useful for debugging what `pm-stats` is actually writing |
+| `--log-level`            | `WARNING`       | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                       |
+| `-v`, `--verbose`        | off             | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                   |
+| `-q`, `--quiet`          | off             | Reduce output to warnings/errors                                                       |
+| `--log-target`           | `server`        | Where this process's own operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`             | —               | Operational log file path — required when `--log-target file`                          |
+| `--log-failover-timeout` | `30`            | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
 
 Use `--db` if you want to record into a different location:
 
@@ -282,7 +810,69 @@ pm-stats --snapshot-interval 300   # five-minute snapshots
 pm-stats --snapshot-interval 3600  # hourly snapshots
 ```
 
-**Important**: `pm-stats` must start **after** the engine binds its ZeroMQ sockets. If you start it before the engine, it will fail to connect.
+**Start order**: ZeroMQ `connect()` is asynchronous and retries indefinitely, so
+starting `pm-stats` before the engine does not raise an error — but the startup
+symbol request is sent once, shortly after launch, and is lost if nothing is
+listening. The practical consequence of starting too early is that opening
+bid/ask and the initial snapshot row are missing for the day, not that the
+process fails. Start `pm-stats` after the engine is up.
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0`  | Stopped cleanly via `Ctrl-C` / `SIGTERM` |
+| `1`  | Startup failed, **or** the receive loop terminated unexpectedly and the process stopped recording |
+
+A non-zero exit means data was not being recorded. Supervise `pm-stats` on its
+exit code — a running process is not by itself evidence that recording is
+happening, and the log will carry a `pm-stats stopped recording: …` line.
+
+### Restarting mid-session
+
+`pm-stats` can be restarted at any point during a trading day without losing
+the day's figures. On the first event it sees for a given symbol it rebuilds
+that symbol's running totals from `trade_log`, and the opening bid/ask from the
+existing `daily_stats` row, before applying the new event. Open, high, low,
+volume, trade count, VWAP and largest-trade all continue from where they were.
+
+Two limits worth knowing:
+
+- Anything the engine published **while `pm-stats` was down** was never
+  received and cannot be recovered — ZeroMQ PUB/SUB has no replay. The rollup
+  is consistent with what was recorded, not necessarily with what traded.
+- For an index, `update_count` is rebuilt as the number of retained
+  `index_level_snapshots` rows, which can be marginally lower than the number
+  of updates originally received if any shared a millisecond.
+
+### One recorder per database
+
+Exactly one `pm-stats` process may write to a given `stats.db`, and this is
+**enforced**. Two recorders against one file would each keep their own
+in-memory rollup and overwrite each other's `daily_stats` rows, producing
+figures that describe neither process — so a second one refuses to start:
+
+```console
+$ pm-stats --db data/stats.db
+[ERROR] fatal startup error: another pm-stats process is already recording to
+        data/stats.db (lock held on data/stats.db.lock). Two recorders on one
+        database overwrite each other's daily rollups — use a different --db.
+$ echo $?
+1
+```
+
+The lock is an exclusive transaction on a sidecar `stats.db.lock` file, held
+for the life of the process and released on shutdown. A few consequences worth
+knowing:
+
+- The `.lock` file appears alongside `stats.db`. It holds no data and can be
+  deleted when no recorder is running.
+- If `pm-stats` is killed with `SIGKILL`, the operating system releases the
+  lock along with the process — there is no stale lock to clean up by hand.
+- Readers are unaffected: `pm-stats-cli`, `pm-ticker` and the API Gateway never
+  take this lock.
+- Running two recorders deliberately is still fine, as long as each has its
+  own `--db`.
 
 
 
@@ -293,7 +883,7 @@ Once `pm-stats` has recorded data, use `pm-stats-cli` to query without SQL.
 ### Basic Syntax
 
 ```bash
-pm-stats-cli [--db data/stats.db] [--format table|json|csv] COMMAND [options]
+pm-stats-cli [--db data/stats.db] [--format table|json|csv] [--timezone TZ] COMMAND [options]
 ```
 
 **Global options:**
@@ -302,7 +892,28 @@ pm-stats-cli [--db data/stats.db] [--format table|json|csv] COMMAND [options]
 |---------------|-----------------|------------------------------------------------------------------------|
 | `--db`        | `data/stats.db` | Path to statistics database                                            |
 | `--format`    | `table`         | Output format: `table` (human), `json` (structured), or `csv` (export) |
-| `--no-header` | off             | Omit header row (useful for CSV scripts)                               |
+| `--no-header` | off             | Omit the header row from `table` and `csv` output                      |
+| `--timezone`  | from the DB     | Override the session timezone that `--date` and offset-less `--from`/`--to` resolve in. Defaults to the value the database was recorded with; overriding warns on mismatch |
+
+### Row limits and truncation
+
+Every list command has a `--limit`. When more rows match than the limit allows,
+the CLI prints a warning **to stderr** and gives you a cursor to continue from:
+
+```console
+$ pm-stats-cli trades --date 2026-06-14 --limit 200
+... 200 rows ...
+[WARN] Output truncated at --limit 200. More rows exist; re-run with
+       --after eyJ0cyI6IjIwMjYtMDYtMTRUMTA6MDA6MDAuMDAwKzAwOjAwIiwicm93aWQiOjIwMH0= for the next page.
+```
+
+Because the warning goes to stderr it never corrupts a redirected CSV or JSON
+payload — but it also means **you will not see it if you redirect both
+streams**. When a count has to be exact, either raise `--limit` beyond the
+expected row count or page through with `--after` until no warning appears.
+
+`--after` takes the cursor verbatim and is available on `daily`, `snapshots`,
+`trades`, `order-events`, `index-daily` and `index-snapshots`.
 
 ### Available Commands
 
@@ -316,16 +927,30 @@ pm-stats-cli daily --date 2026-06-14
 pm-stats-cli daily --date 2026-06-14 --symbol AAPL
 pm-stats-cli daily --wide  # include bid/ask and largest-trade columns
 pm-stats-cli daily --limit 10
+
+# Multi-day history for one symbol, oldest first
+pm-stats-cli daily --symbol AAPL --from-date 2026-06-01 --to-date 2026-06-30
 ```
 
 **Options:**
 
-| Option     | Default          | Description                                         |
-|------------|------------------|-----------------------------------------------------|
-| `--date`   | latest available | Calendar date to query                              |
-| `--symbol` | all              | Limit to one symbol                                 |
-| `--limit`  | 100              | Maximum rows to return                              |
-| `--wide`   | off              | Include open/close bid/ask and largest-trade fields |
+| Option        | Default          | Description                                              |
+|---------------|------------------|----------------------------------------------------------|
+| `--date`      | latest available | One trading date to query                                |
+| `--from-date` | —                | Start of an inclusive multi-day range                    |
+| `--to-date`   | —                | End of an inclusive multi-day range                      |
+| `--symbol`    | all              | Limit to one symbol                                      |
+| `--limit`     | 100              | Maximum rows to return                                   |
+| `--after`     | —                | Continue from a previous run's truncation cursor         |
+| `--wide`      | off              | Include open/close bid/ask and largest-trade fields      |
+
+!!! important "`daily` returns a single date unless you ask for a range"
+    With no date filter at all, `daily` returns rows for the **latest
+    available date only** — `--limit` bounds how many *symbols* come back, not
+    how many days. To get history across dates you must pass `--from-date`
+    and/or `--to-date`; either bound may be omitted for an open-ended range.
+    Range results are ordered oldest first, which is the order a chart plots
+    them in. An explicit `--date` overrides a range if both are given.
 
 **Example output (default `table` format):**
 
@@ -335,6 +960,9 @@ date       | symbol | open_price | high_price | low_price | close_price | volume
 2026-06-14 | AAPL   | 150        | 153.25     | 149.5     | 152.75      | 5000   | 12          | 151.82
 2026-06-14 | MSFT   | 414        | 418.5      | 413       | 417         | 3200   | 8           | 415.63
 ```
+
+Null values render as an **empty cell** in `table` and `csv` output. Only
+`--format json` writes an explicit `null`.
 
 #### `snapshots` — Intraday Price History
 
@@ -349,23 +977,28 @@ pm-stats-cli snapshots --symbol AAPL --limit 50
 
 **Options:**
 
-| Option     | Required | Default   | Description                  |
-|------------|----------|-----------|------------------------------|
-| `--symbol` | Yes      | —         | Symbol to query              |
-| `--date`   | No       | all dates | Restrict to one trading date |
-| `--from`   | No       | —         | Start timestamp (ISO format) |
-| `--to`     | No       | —         | End timestamp (ISO format)   |
-| `--limit`  | No       | 500       | Maximum rows to return       |
+| Option     | Required | Default   | Description                                      |
+|------------|----------|-----------|--------------------------------------------------|
+| `--symbol` | Yes      | —         | Symbol to query                                  |
+| `--date`   | No       | all dates | Restrict to one trading date                     |
+| `--from`   | No       | —         | Start timestamp (inclusive, ISO format)          |
+| `--to`     | No       | —         | End timestamp (inclusive, ISO format)            |
+| `--limit`  | No       | 500       | Maximum rows to return                           |
+| `--after`  | No       | —         | Continue from a previous run's truncation cursor |
 
 **Example output:**
 
 ```
-ts                    | symbol | mid_price | best_bid | best_ask | pct_change
-----------------------|--------|-----------|----------|----------|----------
-2026-06-14T09:00:00   | AAPL   | 150.5     | 150      | 151      | null
-2026-06-14T09:15:00   | AAPL   | 151       | 150.5    | 151.5    | 0.33
-2026-06-14T09:30:00   | AAPL   | 151.25    | 151      | 151.5    | 0.17
+ts                        | symbol | mid_price | best_bid | best_ask | pct_change
+--------------------------|--------|-----------|----------|----------|-----------
+2026-06-14T09:00:00+00:00 | AAPL   | 150.5     | 150      | 151      |
+2026-06-14T09:15:00+00:00 | AAPL   | 151       | 150.5    | 151.5    | 0.33
+2026-06-14T09:30:00+00:00 | AAPL   | 151.25    | 151      | 151.5    | 0.17
 ```
+
+The first row's `pct_change` is empty because there is no previous snapshot to
+compare against. Timestamps always carry the `+00:00` offset — copy them
+verbatim into `--from`/`--to`.
 
 #### `trades` — Trade-by-Trade History
 
@@ -381,22 +1014,23 @@ pm-stats-cli trades --limit 50
 
 **Options:**
 
-| Option     | Default   | Description                  |
-|------------|-----------|------------------------------|
-| `--symbol` | all       | Limit to one symbol          |
-| `--date`   | all dates | Restrict to one trading date |
-| `--from`   | —         | Start timestamp              |
-| `--to`     | —         | End timestamp                |
-| `--limit`  | 200       | Maximum rows to return       |
+| Option     | Default   | Description                                      |
+|------------|-----------|--------------------------------------------------|
+| `--symbol` | all       | Limit to one symbol                              |
+| `--date`   | all dates | Restrict to one trading date                     |
+| `--from`   | —         | Start timestamp (inclusive)                      |
+| `--to`     | —         | End timestamp (inclusive)                        |
+| `--limit`  | 200       | Maximum rows to return                           |
+| `--after`  | —         | Continue from a previous run's truncation cursor |
 
 **Example output:**
 
 ```
-ts                       | trade_id  | symbol | price | quantity | buy_gateway_id | sell_gateway_id
--------------------------|-----------|--------|-------|----------|----------------|----------------
-2026-06-14T09:00:01.000  | T-AAPL-1  | AAPL   | 150   | 100      | TRADER01       | MM01
-2026-06-14T09:00:05.123  | T-AAPL-2  | AAPL   | 150.5 | 50       | MM01           | TRADER02
-2026-06-14T09:00:10.456  | T-AAPL-3  | AAPL   | 150.2 | 200      | TRADER02       | TRADER01
+ts                            | trade_id | symbol | price | quantity | aggressor_side | buy_gateway_id | sell_gateway_id
+------------------------------+----------+--------+-------+----------+----------------+----------------+----------------
+2026-06-14T09:00:01.000+00:00 | 1        | AAPL   | 150   | 100      | BUY            | TRADER01       | MM01
+2026-06-14T09:00:05.123+00:00 | 2        | AAPL   | 150.5 | 50       | AUCTION        | MM01           | TRADER02
+2026-06-14T09:00:10.456+00:00 | 3        | AAPL   | 150.2 | 200      | SELL           | TRADER02       | TRADER01
 ```
 
 #### `order-events` — Private Order Lifecycle Events
@@ -418,11 +1052,12 @@ pm-stats-cli --format json order-events --gateway TRADER01 --from 2026-06-14T09:
 |--------|----------|---------|-------------|
 | `--gateway` | Yes | - | Gateway ID that owns the private events |
 | `--symbol` | No | all symbols | Restrict to one symbol |
-| `--event-type` | No | all event types | Restrict to one normalized type such as `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, `QUOTE`, or `EVENT` |
+| `--event-type` | No | all event types | Restrict to one normalized type — see [`event_type` values](#event_type-values). An unknown value is rejected at parse time |
 | `--date` | No | all dates | Restrict to one trading date |
-| `--from` | No | - | Start timestamp |
-| `--to` | No | - | End timestamp |
+| `--from` | No | - | Start timestamp (inclusive) |
+| `--to` | No | - | End timestamp (inclusive) |
 | `--limit` | No | 500 | Maximum rows to return |
+| `--after` | No | - | Continue from a previous run's truncation cursor |
 
 **Example output:**
 
@@ -493,12 +1128,18 @@ pm-stats-cli index-daily --limit 10
 
 **Options:**
 
-| Option       | Default          | Description                                    |
-|--------------|------------------|--------------------------------------------------|
-| `--date`     | latest available | Calendar date to query                            |
-| `--index-id` | all indexes      | Limit to one index                                 |
-| `--limit`    | 100              | Maximum rows to return                             |
-| `--wide`     | off              | Include open/close aggregate market cap columns    |
+| Option        | Default          | Description                                      |
+|---------------|------------------|--------------------------------------------------|
+| `--date`      | latest available | One trading date to query                        |
+| `--from-date` | —                | Start of an inclusive multi-day range            |
+| `--to-date`   | —                | End of an inclusive multi-day range              |
+| `--index-id`  | all indexes      | Limit to one index                               |
+| `--limit`     | 100              | Maximum rows to return                           |
+| `--after`     | —                | Continue from a previous run's truncation cursor |
+| `--wide`      | off              | Include open/close aggregate market cap columns  |
+
+As with `daily`, omitting every date filter returns the **latest date only**;
+pass `--from-date`/`--to-date` for a series across days.
 
 **Example output (default `table` format):**
 
@@ -523,22 +1164,73 @@ pm-stats-cli index-snapshots --index-id EDU100 --limit 50
 
 **Options:**
 
-| Option       | Required | Default   | Description                     |
-|--------------|----------|-----------|------------------------------------|
-| `--index-id` | Yes      | —         | Index to query                       |
-| `--date`     | No       | all dates | Restrict to one trading date          |
-| `--from`     | No       | —         | Start timestamp (ISO format)          |
-| `--to`       | No       | —         | End timestamp (ISO format)            |
-| `--limit`    | No       | 500       | Maximum rows to return                |
+| Option       | Required | Default   | Description                                      |
+|--------------|----------|-----------|--------------------------------------------------|
+| `--index-id` | Yes      | —         | Index to query                                   |
+| `--date`     | No       | all dates | Restrict to one trading date                     |
+| `--from`     | No       | —         | Start timestamp (inclusive, ISO format)          |
+| `--to`       | No       | —         | End timestamp (inclusive, ISO format)            |
+| `--limit`    | No       | 500       | Maximum rows to return                           |
+| `--after`    | No       | —         | Continue from a previous run's truncation cursor |
 
 **Example output:**
 
 ```
-ts                      | index_id | level   | aggregate_cap | divisor | session_state
--------------------------|----------|---------|----------------|---------|---------------
-2026-06-14T09:00:00.000  | EDU100   | 1042.10 | 7350000000000  | 1.25    | OPENING_AUCTION
-2026-06-14T09:00:05.500  | EDU100   | 1043.85 | 7362000000000  | 1.25    | CONTINUOUS
+ts                            | index_id | level   | aggregate_cap | divisor | session_state
+------------------------------|----------|---------|---------------|---------|----------------
+2026-06-14T09:00:00.000+00:00 | EDU100   | 1042.10 | 7350000000000 | 1.25    | OPENING_AUCTION
+2026-06-14T09:00:05.500+00:00 | EDU100   | 1043.85 | 7362000000000 | 1.25    | CONTINUOUS
 ```
+
+#### `instruments` — Instrument Reference Data
+
+Show the tick scale for each symbol, from the [`instruments`](#instruments)
+table.
+
+```bash
+pm-stats-cli instruments
+pm-stats-cli instruments --symbol AAPL
+```
+
+**Options:**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--symbol` | all | Limit to one symbol |
+
+Use this to interpret raw SQL output: divide any tick column by
+`10^tick_decimals` to get display money.
+
+#### `gaps` — Detected Feed Gaps
+
+Show trades the recorder never received, from `feed_gaps`.
+
+```bash
+pm-stats-cli gaps
+pm-stats-cli gaps --date 2026-06-14
+pm-stats-cli gaps --from 2026-06-14T09:00:00Z --to 2026-06-14T12:00:00Z
+```
+
+**Options:**
+
+| Option    | Default   | Description                  |
+|-----------|-----------|------------------------------|
+| `--date`  | all dates | Restrict to one trading date |
+| `--from`  | —         | Start timestamp (inclusive)  |
+| `--to`    | —         | End timestamp (inclusive)    |
+| `--limit` | 500       | Maximum rows to return       |
+
+**Example output:**
+
+```
+seq | ts                            | stream         | expected_id | received_id | missing_count
+----+-------------------------------+----------------+-------------+-------------+--------------
+1   | 2026-06-14T09:14:02.115+00:00 | trade.executed | 3           | 6           | 3
+2   | 2026-06-14T11:41:55.008+00:00 | trade.executed | 8           | 20          | 12
+```
+
+`No rows found.` is the healthy result. See the
+[`feed_gaps`](#feed_gaps) warning for what detection does and does not cover.
 
 #### `index-ids` — Index Discovery
 
@@ -570,9 +1262,9 @@ For API Gateway history queries, start the recorder, engine, stats database, and
 API gateway with matching config:
 
 ```bash
-pm-engine --verbose --config engine_config.yaml
+pm-engine --verbose
 pm-stats --db data/stats.db
-pm-api-gwy --config engine_config.yaml --instance desk
+pm-api-gwy --instance desk
 ```
 
 Then query order lifecycle history through HTTP with a trading API key:
@@ -587,7 +1279,7 @@ API filters for `/api/v1/history/orders`:
 | Query parameter | Required | Description |
 |-----------------|----------|-------------|
 | `symbol` | No | Restrict to one symbol |
-| `event_type` | No | Restrict to one normalized type such as `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, `QUOTE`, or `EVENT` |
+| `event_type` | No | Restrict to one normalized type — see [`event_type` values](#event_type-values). An unknown value returns `422` |
 | `date` | No | Restrict to one `YYYY-MM-DD` date based on `order_events.ts` |
 | `from` | No | Inclusive ISO timestamp lower bound |
 | `to` | No | Inclusive ISO timestamp upper bound |
@@ -668,9 +1360,9 @@ pm-stats-cli --format csv trades --symbol AAPL --date 2026-06-14 > trades.csv
 Output:
 
 ```
-ts,trade_id,symbol,price,quantity,buy_gateway_id,sell_gateway_id
-2026-06-14T09:00:01.000,T-AAPL-1,AAPL,150,100,TRADER01,MM01
-2026-06-14T09:00:05.123,T-AAPL-2,AAPL,150.5,50,MM01,TRADER02
+ts,trade_id,symbol,price,quantity,aggressor_side,buy_gateway_id,sell_gateway_id
+2026-06-14T09:00:01.000+00:00,1,AAPL,150.0,100,BUY,TRADER01,MM01
+2026-06-14T09:00:05.123+00:00,2,AAPL,150.5,50,AUCTION,MM01,TRADER02
 ```
 
 Good for: Excel, Google Sheets, R/Python data frames, general-purpose analysis.
@@ -754,13 +1446,29 @@ Then aggregate in your tool of choice:
 
 ### Multi-Day Price Trends
 
-Compare the same symbol across multiple trading dates:
+Compare the same symbol across multiple trading dates. A date **range** is
+required — without one, `daily` returns only the latest date:
 
 ```bash
-pm-stats-cli --format csv daily --symbol AAPL --limit 100 > aapl_history.csv
+pm-stats-cli --format csv daily --symbol AAPL \
+  --from-date 2026-01-01 --to-date 2026-06-30 --limit 1000 > aapl_history.csv
 ```
 
-This gives you historical OHLCV to track trends, seasonal patterns, or support/resistance zones over time.
+Either bound may be omitted for an open-ended range, so this exports everything
+recorded for the symbol:
+
+```bash
+pm-stats-cli --format csv daily --symbol AAPL --from-date 1970-01-01 --limit 1000 \
+  > aapl_history.csv
+```
+
+Rows come back oldest first. Check stderr for a truncation warning — if one
+appears, raise `--limit` or page with `--after`.
+
+This gives you historical OHLCV to track trends, seasonal patterns, or
+support/resistance zones over time. Remember that prices are **unadjusted**:
+a series spanning a corporate action is discontinuous and returns computed
+across it will be wrong.
 
 ### Index Level History
 
@@ -776,10 +1484,11 @@ level movement, gaps that may indicate a connectivity issue between
 `OPENING_AUCTION`/`CONTINUOUS`/`CLOSED`.
 
 Compare the index's daily performance across dates the same way you would
-for a symbol:
+for a symbol — again, a date range is required for more than one day:
 
 ```bash
-pm-stats-cli --format csv index-daily --index-id EDU100 --limit 100 > edu100_history.csv
+pm-stats-cli --format csv index-daily --index-id EDU100 \
+  --from-date 2026-01-01 --to-date 2026-06-30 --limit 1000 > edu100_history.csv
 ```
 
 ### Getting the EOD index level for a date
@@ -832,6 +1541,23 @@ print(f\"EOD close for {row['date']} {row['index_id']}: {row['close_level']}\")
 
 After a trading session ends, verify key metrics:
 
+0. **Check the recording is complete — do this first:**
+   ```bash
+   pm-stats-cli gaps --date 2026-06-14
+   ```
+   `No rows found.` means no loss was detected. Any row means the figures
+   below are computed from an incomplete trade record, and `volume`,
+   `turnover` and `vwap` for the affected symbols will be understated. There
+   is no way to recover the missing trades after the fact — ZeroMQ PUB/SUB has
+   no replay — so treat the day's numbers as approximate and investigate why
+   `pm-stats` fell behind.
+
+   `pm-stats` also logs a session total at `INFO` when it shuts down:
+
+   ```text
+   session totals: book_topics=10432, messages_received=12905, trades_persisted=2471
+   ```
+
 1. **Check daily summary recorded:**
    ```bash
    pm-stats-cli daily --date 2026-06-14
@@ -840,15 +1566,34 @@ After a trading session ends, verify key metrics:
 
 2. **Check trade count:**
    ```bash
-   pm-stats-cli --format csv trades --date 2026-06-14 | wc -l
+   # --no-header so every line is a trade; --limit must exceed the expected
+   # count, or the result is silently truncated.
+   pm-stats-cli --format csv --no-header trades --date 2026-06-14 --limit 100000 | wc -l
    ```
-   Verify: matches expected number from the trading floor.
+   Verify: matches expected number from the trading floor. If a
+   `[WARN] Output truncated` line appears on stderr, the count is **not**
+   complete — raise `--limit` and re-run.
+
+   The authoritative count without any limit concerns:
+
+   ```bash
+   pm-stats-cli --format json daily --date 2026-06-14 \
+     | python3 -c "import json,sys; print(sum(r['trade_count'] for r in json.load(sys.stdin)))"
+   ```
 
 3. **Check for any empty books:**
    ```bash
-   pm-stats-cli snapshots --symbol AAPL --date 2026-06-14 | grep -E "(null|^-)"
+   pm-stats-cli --format json snapshots --symbol AAPL --date 2026-06-14 \
+     | python3 -c "
+   import json, sys
+   for row in json.load(sys.stdin):
+       if row['best_bid'] is None or row['best_ask'] is None:
+           print(row['ts'], row['best_bid'], row['best_ask'])
+   "
    ```
-   Empty books during active trading hours may indicate a problem.
+   Empty books during active trading hours may indicate a problem. Use JSON
+   here: `table` and `csv` render a null as an empty cell, so a text search for
+   `null` finds nothing.
 
 4. **Check largest trade vs. typical trade size:**
    ```bash
@@ -875,11 +1620,22 @@ pm-stats-cli order-events --gateway TRADER01 --symbol AAPL --event-type FILL --d
 
 Use this workflow to answer:
 
-- Was the order accepted or rejected?
+- Was the order accepted or rejected? (`ACK` / `REJECT`, and equally
+  `COMBO_ACK` / `COMBO_REJECT`, `OCO_ACK` / `OCO_REJECT`,
+  `QUOTE_ACK` / `QUOTE_REJECT`)
 - Did an amend reset priority?
 - Which fills belong to this order ID?
-- Was the order cancelled, expired, or linked to a combo/OCO group?
+- Was the order cancelled or expired? (`CANCEL`, `EXPIRE`, and `OCO_CANCEL`
+  for an OCO leg)
+- Was it linked to a combo or OCO group? (`combo_parent_id`, `oco_group_id`)
 - Does API Gateway history match the live private WebSocket events seen by the client?
+
+```bash
+# Every rejection across all event families for one gateway
+for t in REJECT COMBO_REJECT OCO_REJECT QUOTE_REJECT; do
+  pm-stats-cli order-events --gateway TRADER01 --event-type "$t"
+done
+```
 
 
 
@@ -910,18 +1666,34 @@ watch -n 5 'pm-stats-cli daily | tail -5'
 Example: Export daily summaries to a cloud data warehouse:
 
 ```bash
-# Export as CSV
-pm-stats-cli --format csv daily --limit 1000 > daily_stats.csv
+# Export as CSV — pass a date range, or you get only the latest date
+pm-stats-cli --format csv daily --from-date 2026-01-01 --limit 10000 > daily_stats.csv
 
 # Upload to BigQuery, Redshift, Snowflake, etc.
 bq load my_dataset.daily_stats daily_stats.csv
 
 # Or load into local database
-sqlite3 analysis.db < <<EOF
+sqlite3 analysis.db <<EOF
 .mode csv
-.import daily_stats.csv daily_stats
+.import --skip 1 daily_stats.csv daily_stats
 EOF
 ```
+
+!!! note "Carry the session timezone with the export"
+    `stats.db` records the session timezone in `stats_meta`, but a CSV export
+    does not — and `date` cannot be interpreted without it. Read it before
+    exporting and keep it with the file:
+
+    ```bash
+    sqlite3 data/stats.db \
+      "SELECT value FROM stats_meta WHERE key = 'session_timezone'"
+    ```
+
+    Tick size and price precision **are** now recorded, in the
+    [`instruments`](#instruments) table — export it alongside your data and
+    the prices become interpretable on their own. Currency still is not:
+    EduMatcher has no currency model, and `instruments.currency` is a reserved
+    NULL rather than a value to read.
 
 ### Python / Pandas Integration
 
@@ -973,7 +1745,8 @@ print(daily[['symbol', 'return_pct']])
    sqlite3 data/stats.db ".tables"
    ```
    You should see: `daily_stats`, `price_snapshots`, `trade_log`, `order_events`,
-   `index_daily_stats`, and `index_level_snapshots`.
+   `index_daily_stats`, `index_level_snapshots`, `feed_gaps`, `instruments`,
+   and `stats_meta`.
 
 4. **Check for recent trades:**
    ```bash
@@ -1024,35 +1797,70 @@ print(daily[['symbol', 'return_pct']])
    ```
    Use the exact date returned, e.g., `--date 2026-06-14`.
 
-2. **Verify the symbol is correct (case-sensitive):**
+2. **Verify the symbol exists:**
    ```bash
    pm-stats-cli symbols
    ```
-   Use exact symbol, e.g., `AAPL` not `aapl`.
+   `pm-stats-cli` upper-cases `--symbol`, `--gateway` and `--index-id` before
+   querying, so `--symbol aapl` and `--symbol AAPL` behave identically. The
+   values stored in the database are whatever the engine published — if those
+   are not upper-case, the CLI cannot match them and you must query with
+   `sqlite3` directly.
 
-3. **Check the time window for snapshots/trades:**
+3. **Check the session timezone.** `--date` selects a *trading day* in the
+   `--timezone` you pass. If `pm-stats-cli` uses a different `--timezone` than
+   `pm-stats` recorded with, `--date` resolves to the wrong window and returns
+   too few rows, too many, or none — with no error:
+   ```bash
+   pm-stats-cli --timezone Europe/Stockholm trades --date 2026-06-14
+   ```
+
+4. **Check the time window for snapshots/trades:**
    ```bash
    pm-stats-cli snapshots --symbol AAPL --date 2026-06-14
    ```
-   If using `--from` / `--to`, ensure they match the timestamp format (ISO 8601).
+   If using `--from` / `--to`, both bounds are inclusive instants. A bound
+   without an offset is read as session-local time; append `Z` or an explicit
+   offset to be unambiguous.
 
 ### Database is locked or "unable to open"
 
-1. **`pm-stats` acquires short write locks during individual database transactions** (trade writes, snapshot writes, daily-stats flushes, order-event inserts). Between transactions no lock is held, so `pm-stats-cli` reads are never blocked. If you try to directly write to the database while `pm-stats` is running, you may get a transient lock error.
+1. **`stats.db` runs in WAL mode**, so one writer (`pm-stats`) and any number
+   of readers (`pm-stats-cli`, `pm-ticker`, the API Gateway) proceed
+   concurrently without blocking each other. Both the writer and readers also
+   set a 5-second `busy_timeout` to absorb the brief exclusive lock taken
+   during a WAL checkpoint.
 
-2. **Solution**: Use `pm-stats-cli` for queries, not direct `sqlite3` access while `pm-stats` is running.
+2. **A second writer is still excluded.** Attempting to write directly with
+   `sqlite3` while `pm-stats` is running can still produce a lock error, and
+   running two `pm-stats` processes against one file corrupts the daily
+   rollups (see "One recorder per database" above). Use `pm-stats-cli` for
+   queries and keep a single recorder per file.
 
-3. **If you need to copy the DB for backup:**
+3. **If you need to copy the DB for backup**, do it online — do not `cp` the
+   file. In WAL mode a plain `cp` can capture a torn database without the
+   companion `-wal` file:
    ```bash
-   # Stop pm-stats first
-   # Then copy the DB
-   cp data/stats.db data/stats_backup.db
-   # Then restart pm-stats
+   # Safe while pm-stats is running; produces a consistent, compacted copy
+   sqlite3 data/stats.db "VACUUM INTO 'data/stats_backup.db'"
+
+   # Equivalent, and works on older sqlite3 builds
+   sqlite3 data/stats.db ".backup 'data/stats_backup.db'"
    ```
+
+!!! note "Growth and retention"
+    `trade_log`, `order_events` and `feed_gaps` are append-only and unbounded
+    — `pm-stats` never prunes them. **Never prune `feed_gaps`**: it is the only
+    record that a session was incomplete, and deleting it silently converts a
+    known-lossy dataset back into an apparently clean one. On a long-running deployment, plan for periodic
+    archival (copy out with `VACUUM INTO`, then `DELETE` old rows and `VACUUM`
+    — see the cursor caveat under [Row identity and pagination
+    cursors](#row-identity-and-pagination-cursors))
+    and monitor the file size. There is no built-in retention setting.
 
 ### Snapshot times seem wrong or are missing
 
-- Snapshots are written when a `book.*` message arrives **and** the configured interval has elapsed since the last snapshot for that symbol.
+- The **first** `book.*` message for a symbol always writes a snapshot. After that, a snapshot is written when a `book.*` message arrives **and** the configured interval has elapsed since the last one for that symbol.
 - The default interval is **15 minutes** (`--snapshot-interval 900`). If you need finer resolution, start `pm-stats` with a smaller value, e.g. `--snapshot-interval 60` for one-minute snapshots.
 - If trading is light and no book updates occur during the interval, no snapshot is recorded for that period. This is by design — snapshots only record when the market moves.
 
@@ -1071,11 +1879,47 @@ VWAP is recalculated on every trade and stored at that moment. The final VWAP fo
 To verify VWAP manually:
 
 ```bash
-pm-stats-cli --format csv trades --symbol AAPL --date 2026-06-14 | \
+# --limit must exceed the day's trade count, or you will be comparing a
+# partial recomputation against the full-day figure and they will not match.
+pm-stats-cli --format csv trades --symbol AAPL --date 2026-06-14 --limit 100000 | \
   awk -F, 'NR>1 {qty_sum += $5; price_qty += $4*$5} END {print price_qty/qty_sum}'
 ```
 
-This calculates $\sum(price \times qty) / \sum(qty)$ from the trade log. Compare it to the value in `daily_stats` — they should match.
+This calculates $\sum(price \times qty) / \sum(qty)$ from the trade log. Compare it to the value in `daily_stats`:
+
+```bash
+pm-stats-cli daily --symbol AAPL --date 2026-06-14
+```
+
+The awk figure is in **display money** because `pm-stats-cli` converted the
+prices on the way out, while `daily_stats.vwap` is in **ticks**. Divide the
+stored VWAP by `10^tick_decimals` before comparing, or the two will differ by
+a factor of a hundred and look catastrophically wrong when nothing is:
+
+```bash
+pm-stats-cli --format json daily --symbol AAPL --date 2026-06-14 --wide \
+  | python3 -c "
+import json, sys
+row = json.load(sys.stdin)[0]
+scale = 10 ** row['tick_decimals']
+print('vwap  (money):', row['vwap'])          # already converted on output
+print('vwap  (ticks):', row['vwap'] * scale)
+print('turnover/vol :', row['turnover'] / row['volume'] / scale)
+"
+```
+
+Because prices are stored as exact integers, the recomputation should now
+agree to full precision rather than merely to within rounding — `turnover` is
+an integer sum that does not depend on the order the trades were added.
+
+If the figures disagree, check in this order:
+
+1. **Are you comparing ticks against money?** By far the most common cause.
+2. **Was the output truncated?** A `[WARN]` line on stderr means the awk sum
+   covered only part of the day.
+3. **Do `pm-stats` and `pm-stats-cli` use the same `--timezone`?** If not,
+   `--date` selects a different set of trades than the one folded into the
+   `daily_stats` row, and the two will never match.
 
 
 

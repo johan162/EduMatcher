@@ -1,0 +1,80 @@
+# Single-service deployment of pm-terminal.
+#
+#   docker compose up --build
+#
+# Then open http://localhost:8090. The Fastify bridge serves the built web UI,
+# its WebSocket endpoint, and the small read-only REST proxy on the same port.
+#
+# Everything this container talks to runs outside this compose file:
+# pm-md-gwy for the CALF feed, pm-api-gwy for historical REST reads, and
+# optionally pm-log-srv for operational logging. Point the *_HOST variables at
+# wherever those are reachable from inside the container.
+#
+# The defaults below target Docker Desktop. On Podman, or on Linux Docker
+# without host-gateway support, export CALF_HOST/API_GATEWAY_URL/LOG_SRV_HOST
+# before running compose (for example, use host.containers.internal on Podman).
+#
+# Unlike log-gui there is no database mount: the bridge is stateless beyond
+# in-memory CALF bookkeeping (design §3.2). The one volume is for the LALF
+# failover log, written only when pm-log-srv is unreachable (§17.5).
+services:
+  terminal-gui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NPM_STRICT_SSL:
+        HTTP_PROXY:
+        HTTPS_PROXY:
+        NO_PROXY:
+    image: edumatcher-terminal-gui:latest
+    ports:
+      - "${TERMINAL_GUI_PORT:-8090}:8090"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8090"
+      # Restrict this to your site origin when exposed beyond localhost.
+      CORS_ORIGIN: "${CORS_ORIGIN:-*}"
+      MAX_WS_CLIENTS: "${MAX_WS_CLIENTS:-200}"
+
+      # CALF market-data feed — the bridge's only live-data connection.
+      # "host.docker.internal" on Docker Desktop, or the actual host/container
+      # name running pm-md-gwy.
+      CALF_HOST: "${CALF_HOST:-host.docker.internal}"
+      CALF_PORT: "${CALF_PORT:-5570}"
+      CALF_CLIENT_ID: "${CALF_CLIENT_ID:-pm-terminal-bridge}"
+      # Comma-separated index ids to subscribe to; CALF has no "list indexes"
+      # request, so they must be named here. Leave empty if none configured.
+      INDEX_IDS: "${INDEX_IDS:-}"
+
+      # Historical REST reads. The key is read-only (gateway_id: null) and
+      # never reaches the browser — supply it from the host environment
+      # rather than committing it here.
+      API_GATEWAY_URL: "${API_GATEWAY_URL:-http://host.docker.internal:8080}"
+      PM_TERMINAL_API_KEY: "${PM_TERMINAL_API_KEY:-}"
+
+      # Operational logging. An unreachable pm-log-srv is a normal condition:
+      # the bridge falls back to stdout at startup, or to LOG_FAILOVER_DIR if
+      # the connection drops later.
+      LOG_SRV_ENABLED: "${LOG_SRV_ENABLED:-true}"
+      LOG_SRV_HOST: "${LOG_SRV_HOST:-host.docker.internal}"
+      LOG_SRV_PORT: "${LOG_SRV_PORT:-5600}"
+      LOG_FAILOVER_DIR: "/app/logs"
+    volumes:
+      # LALF failover log only — see the note above.
+      - ./logs:/app/logs
+    extra_hosts:
+      # Makes host.docker.internal work on Linux Docker. Docker Desktop already
+      # provides it; Podman users can override the *_HOST variables instead.
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:8090/api/bridge/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped

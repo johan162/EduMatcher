@@ -215,7 +215,7 @@ exposure if one leg filled and the sibling stayed resting under a
 - [Market Making](../user-guide/090-market-maker.md)
 - [Market-Maker Bot (pm-mm-bot)](../user-guide/100-mm-bot.md)
 - [Market-Maker Bot CLI Reference](../user-guide/100-mm-bot.md#cli-reference)
-- [Gateway Commands](../user-guide/050-gateway-reference.md)
+- [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md)
 - [MM Quotes Concept](../concepts/03-concepts-mm-quotes.md)
 - [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md)
 

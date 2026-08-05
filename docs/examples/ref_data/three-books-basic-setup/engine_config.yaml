@@ -209,7 +209,7 @@
 #   api_gateways:
 #     desk:
 #       enabled: true
-#       host: 127.0.0.1
+#       host: 0.0.0.0
 #       port: 8080
 #       swagger_enabled: true
 #       log_level: info
@@ -227,7 +227,7 @@
 #         wait_ack_sec: 3.0
 #     dashboards:
 #       enabled: true
-#       host: 127.0.0.1
+#       host: 0.0.0.0
 #       port: 8081
 #       credentials:
 #         - api_key: key-dashboard-demo
@@ -492,8 +492,8 @@
 #     Named REST/WebSocket gateway process configuration.
 #   enabled: true
 #     Master switch that lets pm-api-gwy start serving clients.
-#   host: 127.0.0.1
-#     HTTP bind address used by uvicorn.
+#   host: 0.0.0.0
+#     HTTP bind address used by uvicorn (use 127.0.0.1 for loopback-only).
 #   port: 8080
 #     HTTP listen port for REST and WebSocket clients.
 #   swagger_enabled: true

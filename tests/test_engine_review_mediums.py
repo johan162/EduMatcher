@@ -198,7 +198,7 @@ class TestM3CrossedBookRecovery:
         state.halted = True
         state.halted_at_ns = 1
         state.resume_at_ns = 1  # already elapsed
-        state.active_resumption_mode = "CONTINUOUS"
+        state.halt_source = "CB"
         engine._circuit_breakers[SYMBOL] = state
         engine._halted_symbols[SYMBOL] = True
 

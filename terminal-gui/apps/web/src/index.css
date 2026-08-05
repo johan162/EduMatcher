@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Theme tokens (design §15).
+ *
+ * Same mechanism as log-gui: CSS variables swapped by a `.dark` class on
+ * <html>, so one set of Tailwind class names renders either palette.
+ *
+ * The palette itself is the terminal's own. Amber as the accent is the
+ * trading-floor convention and reads as "instrument panel" rather than "web
+ * app"; it is also the one hue that stays legible on both a near-black
+ * lobby display and a bright office monitor. Green/red are reserved
+ * exclusively for price direction — nothing else in the UI may use them, or
+ * the one signal a trader scans for stops being scannable.
+ */
+:root,
+html.dark {
+  --bg: #0a0c10;
+  --bg-subtle: #12151c;
+  --bg-inset: #05070a;
+  --bg-raised: #1a1f29;
+  --border: #262d3a;
+  --border-strong: #38414f;
+  --border-subtle: #232a36;
+  --fg: #e8edf5;
+  --fg-subtle: #8792a6;
+  --fg-faint: #5a6478;
+  --accent: #ffa028;
+  --accent-fg: #0a0c10;
+
+  --up: #26d07c;
+  --down: #ff4d5e;
+  --up-bg: rgba(38, 208, 124, 0.4);
+  --down-bg: rgba(255, 77, 94, 0.4);
+  --flash-up: rgba(38, 208, 124, 0.28);
+  --flash-down: rgba(255, 77, 94, 0.28);
+
+  --halt: #ffb020;
+  --halt-bg: rgba(255, 176, 32, 0.14);
+  --auction: #4d9fff;
+  --auction-bg: rgba(77, 159, 255, 0.14);
+  --live: #26d07c;
+  --offline: #ff4d5e;
+}
+
+html:not(.dark) {
+  --bg: #ffffff;
+  --bg-subtle: #f5f7fa;
+  --bg-inset: #eaeef3;
+  --bg-raised: #ffffff;
+  --border: #d5dbe3;
+  --border-strong: #b3bcc9;
+  --border-subtle: #e4e8ee;
+  --fg: #10141c;
+  --fg-subtle: #55606f;
+  --fg-faint: #808b9c;
+  --accent: #b26a00;
+  --accent-fg: #ffffff;
+
+  --up: #067647;
+  --down: #c8102e;
+  --up-bg: rgba(6, 118, 71, 0.35);
+  --down-bg: rgba(200, 16, 46, 0.35);
+  --flash-up: rgba(6, 118, 71, 0.16);
+  --flash-down: rgba(200, 16, 46, 0.16);
+
+  --halt: #8a5a00;
+  --halt-bg: rgba(255, 176, 32, 0.2);
+  --auction: #0b5fce;
+  --auction-bg: rgba(11, 95, 206, 0.12);
+  --live: #067647;
+  --offline: #c8102e;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Every price, size and quantity uses tabular figures so digits keep their
+ * column as values tick (design §15). Without this a fast-moving grid
+ * shimmers horizontally and becomes genuinely hard to read.
+ */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Price-change flash, ~600ms (design §15). */
+@keyframes flash-up {
+  from {
+    background-color: var(--flash-up);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@keyframes flash-down {
+  from {
+    background-color: var(--flash-down);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.flash-up {
+  animation: flash-up 600ms ease-out;
+}
+
+.flash-down {
+  animation: flash-down 600ms ease-out;
+}
+
+/*
+ * A halt is the one thing on this screen that must not be missed, so the
+ * badge pulses rather than sitting still. Reduced-motion users get a solid
+ * high-contrast border instead of the animation.
+ */
+@keyframes halt-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--halt-bg);
+  }
+  50% {
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
+.halt-pulse {
+  animation: halt-pulse 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash-up,
+  .flash-down,
+  .halt-pulse {
+    animation: none;
+  }
+}
+
+/* Panels dim when their data is no longer live (design §15). */
+.stale {
+  opacity: 0.5;
+  transition: opacity 200ms ease-out;
+}

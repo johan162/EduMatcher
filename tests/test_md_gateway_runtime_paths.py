@@ -200,9 +200,16 @@ def test_flush_client_writes_and_disconnect(unit_gateway: MarketDataGateway) -> 
     peer.close()
 
 
-def test_flush_writes_do_not_extend_idle_timeout(
+def test_flush_writes_extend_idle_timeout(
     unit_gateway: MarketDataGateway,
 ) -> None:
+    """A successful write is activity, so it renews the idle lease.
+
+    This test previously asserted the opposite — that flushing does *not*
+    extend the timeout — which contradicted the protocol's own "no inbound and
+    no outbound traffic" rule and meant every purely passive consumer was
+    disconnected on a fixed cycle no matter how healthy its socket was.
+    """
     session, peer = _make_session()
     session.authenticated = True
     session.last_activity = time.monotonic() - 10
@@ -212,7 +219,7 @@ def test_flush_writes_do_not_extend_idle_timeout(
     unit_gateway._flush_client_writes()
     unit_gateway._drop_idle_clients()
 
-    assert session.sock.fileno() not in unit_gateway._clients
+    assert session.sock.fileno() in unit_gateway._clients
     peer.close()
 
 
@@ -286,7 +293,7 @@ def test_poll_engine_events_halt_emits_state_and_cb(
                     "trigger_price": 148.20,
                     "reference_price": 150.10,
                     "resume_at_ns": 1_784_560_800_000_000_000,
-                    "resumption_mode": "AUCTION",
+                    "halt_source": "CB",
                     "level": "L2",
                     "timestamp": 4.0,
                 },
@@ -321,7 +328,7 @@ def test_poll_engine_events_halt_emits_state_and_cb(
     assert cb_fields["LEVEL"] == "L2"
     assert cb_fields["TRIGGERPX"] == "148.2"
     assert cb_fields["REFPX"] == "150.1"
-    assert cb_fields["MODE"] == "AUCTION"
+    assert cb_fields["SRC"] == "CB"
     assert "RESUMEAT" in cb_fields
     assert all(sym == "AAPL" for _, _, sym, _ in seen)
 
@@ -339,7 +346,7 @@ def test_poll_engine_events_admin_halt_omits_price_fields_on_cb(
                     "trigger_price": None,
                     "reference_price": None,
                     "resume_at_ns": None,
-                    "resumption_mode": "MANUAL",
+                    "halt_source": "ADMIN",
                     "level": "ADMIN_ALL",
                     "timestamp": 4.0,
                 },
@@ -361,7 +368,7 @@ def test_poll_engine_events_admin_halt_omits_price_fields_on_cb(
     cb_fields = next(fields for mt, ch, _s, fields in seen if (mt, ch) == ("CB", "CB"))
     assert cb_fields["STATUS"] == "HALTED"
     assert cb_fields["LEVEL"] == "ADMIN_ALL"
-    assert cb_fields["MODE"] == "MANUAL"
+    assert cb_fields["SRC"] == "ADMIN"
     assert "TRIGGERPX" not in cb_fields
     assert "REFPX" not in cb_fields
     assert "RESUMEAT" not in cb_fields
@@ -375,7 +382,7 @@ def test_poll_engine_events_resume_emits_state_and_cb(
         [
             (
                 "circuit_breaker.resume.aapl",
-                {"symbol": "AAPL", "mode": "AUCTION", "timestamp": 5.0},
+                {"symbol": "AAPL", "halt_source": "CB", "timestamp": 5.0},
             ),
         ]
     )
@@ -393,7 +400,7 @@ def test_poll_engine_events_resume_emits_state_and_cb(
 
     by_type = {(msg_type, ch): fields for msg_type, ch, _sym, fields in seen}
     assert by_type[("STATE", "STATE")] == {"SESSION": "CONTINUOUS", "PREV": "HALTED"}
-    assert by_type[("CB", "CB")] == {"STATUS": "ACTIVE", "MODE": "AUCTION"}
+    assert by_type[("CB", "CB")] == {"STATUS": "ACTIVE", "SRC": "CB"}
 
 
 def test_poll_engine_events_auction_result(
@@ -783,3 +790,73 @@ def test_extract_ts_fallback_and_parse_csv(unit_gateway: MarketDataGateway) -> N
     assert isinstance(_extract_ts({"timestamp": object()}), float)
     assert isinstance(_extract_ts({}), float)
     assert unit_gateway._parse_csv_upper(" aapl, msft ") == ["AAPL", "MSFT"]
+
+
+def test_session_transition_is_repeated_for_every_known_symbol(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A SUB naming a symbol must still learn the exchange opened or closed.
+
+    Subscriptions match on ``sub_sym == "*" or sub_sym == sym``, and an
+    exchange transition is published against ``SYM=*``. A client watching one
+    instrument therefore saw its halts and resumes but never the session
+    around them.
+    """
+    fake = _FakeSubscriber(
+        [
+            ("session.state", {"state": "CONTINUOUS", "timestamp": 1.0}),
+            (
+                "session.state",
+                {
+                    "state": "CLOSING_AUCTION",
+                    "prev_state": "CONTINUOUS",
+                    "timestamp": 2.0,
+                },
+            ),
+        ]
+    )
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = fake
+    monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
+
+    seen: list[tuple[str, dict[str, str]]] = []
+    monkeypatch.setattr(
+        unit_gateway,
+        "_emit_stream_event",
+        lambda msg_type, ch, sym, fields, ts: seen.append((sym, fields)),
+    )
+    unit_gateway._poll_engine_events()
+
+    per_symbol = {sym: fields for sym, fields in seen if sym != "*"}
+    assert per_symbol["AAPL"] == {"SESSION": "CLOSING_AUCTION", "PREV": "CONTINUOUS"}
+    assert per_symbol["MSFT"] == {"SESSION": "CLOSING_AUCTION", "PREV": "CONTINUOUS"}
+    # The wildcard line still goes out for clients that subscribe with SYM=*.
+    assert ("*", {"SESSION": "CLOSING_AUCTION", "PREV": "CONTINUOUS"}) in seen
+
+
+def test_session_transition_leaves_a_halted_symbol_halted(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeSubscriber(
+        [
+            ("session.state", {"state": "CONTINUOUS", "timestamp": 1.0}),
+            (
+                "circuit_breaker.halt.aapl",
+                {"symbol": "AAPL", "level": "L2", "timestamp": 2.0},
+            ),
+            ("session.state", {"state": "CLOSING_AUCTION", "timestamp": 3.0}),
+        ]
+    )
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = fake
+    monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
+    monkeypatch.setattr(
+        unit_gateway, "_emit_stream_event", lambda *args, **kwargs: None
+    )
+    unit_gateway._poll_engine_events()
+
+    # The halt outlives the phase it began in; only an explicit resume ends it.
+    snapshot = unit_gateway._normaliser.state_snapshot_fields("AAPL")
+    assert snapshot == {"SESSION": "HALTED"}

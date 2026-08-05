@@ -1,43 +1,44 @@
 """TCP client session logic for pm-calf-spy.
 
-Deliberately independent of argparse/console concerns: :class:`CalfSpyClient`
-owns the socket, the HELLO/SUB handshake, and the read loop, and hands each
-parsed :class:`CalfFrame` to a caller-supplied callback. This keeps the
-network code unit-testable without a terminal, and keeps ``cli.py`` a thin
-wrapper that only deals with argument parsing and output rendering.
+A thin adapter over :mod:`edumatcher.calf_client`, which owns the socket,
+the handshake, line framing and the keepalive. This module exists to keep
+``cli.py``'s vocabulary -- spy options, a resume request, a frame callback
+that also gets the raw line -- while there is only one implementation of
+the protocol behind it.
+
+**The spy runs the library passively** (``auto_recover=False``). A
+diagnostic tool has to show the wire exactly as it is: it must not send a
+``RESUME`` the operator did not ask for, and must not hide a duplicate the
+gateway actually sent. Both would misrepresent the feed it exists to
+reveal. Sequence gaps are still *detected* -- see ``on_gap`` -- they are
+simply reported rather than repaired.
 """
 
 from __future__ import annotations
 
 import logging
-import socket
-import threading
-import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from edumatcher.md_gateway.protocol import (
-    CalfFrame,
-    CalfProtocolError,
-    build_line,
-    parse_line,
+from edumatcher.calf_client import (
+    CalfClient,
+    CalfClientOptions,
+    CalfConnectionError,
 )
+from edumatcher.md_gateway.protocol import CalfFrame
 
 log = logging.getLogger(__name__)
 
-_MAX_LINE_BYTES = 4096
-_RECV_CHUNK_BYTES = 4096
-_CONNECT_TIMEOUT_SEC = 5.0
 _DEFAULT_PING_INTERVAL_SEC = 60.0
 
-
-class CalfSpyConnectionError(RuntimeError):
-    """Raised when the initial connection or handshake fails."""
+#: Kept as its own name so ``cli.py`` and the tests need not know that the
+#: transport moved. Every failure the spy can report is one of these.
+CalfSpyConnectionError = CalfConnectionError
 
 
 @dataclass(frozen=True)
 class ResumeRequest:
-    """A single-stream ``RESUME=1`` request to send on the initial HELLO."""
+    """A single-stream ``RESUME`` request to send just after the handshake."""
 
     channel: str
     symbol: str
@@ -66,12 +67,28 @@ class CalfSpyClient:
 
     def __init__(self, options: CalfSpyOptions) -> None:
         self._opts = options
-        self._sock: socket.socket | None = None
-        self._buf = bytearray()
-        self._running = False
-        self._send_lock = threading.Lock()
-        self._ping_thread: threading.Thread | None = None
-        self._ping_stop = threading.Event()
+        self._client = CalfClient(
+            CalfClientOptions(
+                host=options.host,
+                port=options.port,
+                client_name=options.client_name,
+                # The spy subscribes explicitly after inspecting WELCOME's
+                # CH_SUPPORTED, so it takes nothing on connect.
+                channels=(),
+                symbols=(),
+                ping_interval_sec=options.ping_interval_sec,
+                # One connection, one session: an operator watching a feed
+                # wants to see it drop, not have it silently re-established
+                # underneath them.
+                reconnect=False,
+                auto_recover=False,
+                track_state=False,
+                # Nothing on the wire the operator did not ask for, for the
+                # same reason as auto_recover above: an unrequested SYMBOLS
+                # would appear in the very capture the spy exists to take.
+                request_symbols=False,
+            )
+        )
 
     # ------------------------------------------------------------------
     # Connection lifecycle
@@ -79,73 +96,35 @@ class CalfSpyClient:
 
     def connect(self) -> None:
         """Open the TCP connection. Raises :class:`CalfSpyConnectionError`."""
-        try:
-            sock = socket.create_connection(
-                (self._opts.host, self._opts.port), timeout=_CONNECT_TIMEOUT_SEC
-            )
-        except OSError as exc:
-            raise CalfSpyConnectionError(
-                f"could not connect to {self._opts.host}:{self._opts.port}: {exc}"
-            ) from exc
-        sock.settimeout(None)
-        self._sock = sock
-        log.info("connected to %s:%s", self._opts.host, self._opts.port)
+        self._client.connect()
 
     def close(self) -> None:
-        self._running = False
-        self._stop_ping_thread()
-        if self._sock is not None:
-            try:
-                self._sock.close()
-            except OSError:
-                pass
-            self._sock = None
+        self._client.stop()
+        self._client.disconnect()
 
     # ------------------------------------------------------------------
     # Handshake
     # ------------------------------------------------------------------
 
     def handshake(self) -> CalfFrame:
-        """Send HELLO (with optional RESUME) and return the parsed WELCOME.
+        """Send HELLO, then any RESUME request, and return the parsed WELCOME.
+
+        RESUME is its own command sent after the handshake rather than a flag
+        on HELLO, so replay is no longer limited to one stream per connection.
 
         Raises :class:`CalfSpyConnectionError` if the connection closes
         before a WELCOME arrives, or if the gateway sends ERR instead.
         """
-        hello_fields = {"CLIENT": self._opts.client_name, "PROTO": "CALF1"}
+        welcome = self._client.handshake()
+
         resume = self._opts.resume
         if resume is not None:
-            hello_fields.update(
-                {
-                    "RESUME": "1",
-                    "CH": resume.channel,
-                    "SYM": resume.symbol,
-                    "LASTSEQ": str(resume.last_seq),
-                }
-            )
-        self._send_line("HELLO", hello_fields)
-
-        line = self._recv_line()
-        if line is None:
-            raise CalfSpyConnectionError("connection closed before WELCOME")
-        try:
-            frame = parse_line(line)
-        except CalfProtocolError as exc:
-            raise CalfSpyConnectionError(f"malformed reply to HELLO: {exc}") from exc
-
-        if frame.msg_type == "ERR":
-            raise CalfSpyConnectionError(
-                f"gateway rejected HELLO: {frame.fields.get('CODE', '?')} "
-                f"{frame.fields.get('MSG', '')}".rstrip()
-            )
-        if frame.msg_type != "WELCOME":
-            raise CalfSpyConnectionError(f"unexpected reply to HELLO: {frame.msg_type}")
-        return frame
+            self._client.resume(resume.channel, resume.symbol, resume.last_seq)
+        return welcome
 
     def subscribe(self, channels: list[str], symbols: list[str]) -> None:
         """Send one ``SUB`` for the Cartesian product of channels x symbols."""
-        if not channels or not symbols:
-            return
-        self._send_line("SUB", {"CH": ",".join(channels), "SYM": ",".join(symbols)})
+        self._client.subscribe(channels, symbols)
 
     # ------------------------------------------------------------------
     # Read loop
@@ -161,92 +140,22 @@ class CalfSpyClient:
         timeout never fires for a client (like calf-spy) that otherwise
         never sends anything after its initial SUB.
         """
-        self._running = True
-        self._start_ping_thread()
-        try:
-            delivered = 0
-            while self._running:
-                line = self._recv_line()
-                if line is None:
-                    log.info("gateway closed the connection")
-                    return
-                recv_time = time.time()
-                try:
-                    frame = parse_line(line)
-                except CalfProtocolError as exc:
-                    log.warning("unparseable line from gateway: %r (%s)", line, exc)
-                    continue
+        # The raw line and its arrival time are what the renderer formats,
+        # so they are paired back up with the parsed frame here. `on_line`
+        # fires immediately before the parse and dispatch of that same
+        # line, on the same thread, so holding only the latest is both
+        # sufficient and immune to the drift a queue would accumulate the
+        # first time a line failed to parse and never reached `deliver`.
+        latest: list[tuple[str, float]] = [("", 0.0)]
 
-                on_frame(frame, line, recv_time)
+        def on_line(line: str, recv_time: float) -> None:
+            latest[0] = (line, recv_time)
 
-                if frame.msg_type != "HB":
-                    delivered += 1
-                    if max_frames and delivered >= max_frames:
-                        return
-        finally:
-            self._stop_ping_thread()
+        def deliver(frame: CalfFrame) -> None:
+            raw, recv_time = latest[0]
+            on_frame(frame, raw, recv_time)
+
+        self._client.run(deliver, on_line=on_line, max_frames=max_frames)
 
     def stop(self) -> None:
-        self._running = False
-        self._stop_ping_thread()
-
-    # ------------------------------------------------------------------
-    # PING heartbeat
-    # ------------------------------------------------------------------
-
-    def _start_ping_thread(self) -> None:
-        interval = self._opts.ping_interval_sec
-        if interval <= 0:
-            return
-        self._ping_stop.clear()
-        thread = threading.Thread(
-            target=self._ping_loop, args=(interval,), daemon=True, name="calf-spy-ping"
-        )
-        self._ping_thread = thread
-        thread.start()
-
-    def _stop_ping_thread(self) -> None:
-        self._ping_stop.set()
-        thread = self._ping_thread
-        if thread is not None and thread is not threading.current_thread():
-            thread.join(timeout=1.0)
-        self._ping_thread = None
-
-    def _ping_loop(self, interval: float) -> None:
-        while not self._ping_stop.wait(interval):
-            if not self._running:
-                return
-            try:
-                self._send_line("PING", {})
-            except OSError as exc:
-                log.info("ping send failed: %s", exc)
-                return
-            log.debug("sent PING (interval=%ss)", interval)
-
-    # ------------------------------------------------------------------
-    # Low-level IO
-    # ------------------------------------------------------------------
-
-    def _send_line(self, msg_type: str, fields: dict[str, str]) -> None:
-        assert self._sock is not None, "connect() must be called first"
-        with self._send_lock:
-            self._sock.sendall(build_line(msg_type, fields))
-
-    def _recv_line(self) -> str | None:
-        assert self._sock is not None, "connect() must be called first"
-        while b"\n" not in self._buf:
-            if len(self._buf) > _MAX_LINE_BYTES:
-                raise CalfSpyConnectionError("line from gateway exceeds 4096 bytes")
-            try:
-                chunk = self._sock.recv(_RECV_CHUNK_BYTES)
-            except OSError as exc:
-                log.info("socket read error: %s", exc)
-                return None
-            if not chunk:
-                return None
-            self._buf.extend(chunk)
-
-        idx = self._buf.find(b"\n")
-        raw = bytes(self._buf[:idx])
-        del self._buf[: idx + 1]
-        return raw.decode("utf-8", errors="replace").strip("\r")
+        self._client.stop()

@@ -679,7 +679,7 @@ C: EXIT
 
 ### 5.10 What LALF deliberately does not have
 
-- **No replay/resume.** CALF's `RESUME=1`/`LASTSEQ=` exists because a
+- **No replay/resume.** CALF's `RESUME`/`LASTSEQ=` exists because a
   *subscriber* reconnecting needs to backfill a gap in a shared feed it
   cares about. A LALF client reconnecting after a drop has nothing to
   backfill — the records it would have sent during the gap were never

@@ -4,6 +4,7 @@ import { Moon, Sun } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api.js";
+import { useUiConfig } from "../../lib/useUiConfig.js";
 import type { ThemePreference } from "../../lib/theme.js";
 import { useLiveStore, type SourceState } from "../../store/useLiveStore.js";
 
@@ -39,9 +40,13 @@ export function TopBar({
   const connectionState = useLiveStore((s) => s.connectionState());
   const serverName = useLiveStore((s) => s.serverState?.server ?? "log-srv");
 
+  const alertLevel = useUiConfig()?.alertLevel;
   const { data: unackedIssues } = useQuery({
-    queryKey: ["issues", { acked: false, minLevel: "ERROR" }],
-    queryFn: () => api.issues({ acked: false, minLevel: "ERROR" }),
+    queryKey: ["issues", { acked: false, minLevel: alertLevel }],
+    queryFn: () => api.issues({ acked: false, minLevel: alertLevel }),
+    // Waits for the configured level rather than guessing ERROR: a badge
+    // computed from the wrong threshold is worse than a badge one tick late.
+    enabled: alertLevel !== undefined,
     refetchInterval: 15_000,
   });
   const unackedCount = unackedIssues?.issues.length ?? 0;

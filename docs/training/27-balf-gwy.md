@@ -87,8 +87,8 @@ balf_gateway:
 Start processes with that config:
 
 ```bash
-pm-engine --verbose --config engine_config.yaml
-pm-balf-gwy --config engine_config.yaml
+pm-engine --verbose
+pm-balf-gwy
 ```
 
 :material-checkbox-blank-outline: Checkpoint: `pm-balf-gwy` starts, logs that it is listening on port 5560, and reports a successful engine ZMQ connection.

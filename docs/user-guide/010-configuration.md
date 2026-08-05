@@ -11,6 +11,24 @@
     - How to choose between minimal, medium, and fully featured configurations
     - Which checks to perform before using a config in a class, demo, or test
 
+## Configuration Workflow
+
+`engine_config.yaml` is compiled, not read directly. The file you author is
+never the file any process runs — it always passes through the same
+create → verify → deploy pipeline before it becomes the ref-data artifact the
+exchange actually loads:
+
+```mermaid
+flowchart LR
+    A["Create config<br/>pm-config-gen / config-gui"] --> B{"Verify<br/>pm-cverifier"}
+    B -- issues found --> A
+    B -- clean --> C["Deploy<br/>pm-config-deploy"]
+    C --> D[("Compiled ref-data artifact<br/>ref_data/engine_config.json")]
+    D --> E["pm-engine, pm-scheduler,<br/>and gateway processes"]
+```
+
+The rest of this page documents each stage: generating a starter file,
+verifying it, and deploying it as the compiled artifact every process reads.
 
 ## Configuring the Exchange
 
@@ -59,33 +77,20 @@ Each protocol's configuration lives in a different part of `engine_config.yaml`:
 
 ## File Location
 
-By default, installed mode looks for `engine_config.yaml` in the current working
-directory, while source-checkout mode uses the repository root. You can override
-this with `--config` or `EDUMATCHER_CONFIG`.
+EduMatcher separates the configuration you *author* from the one the exchange
+*runs*.
 
-```bash
-pm-engine --verbose
-pm-engine --verbose --config my_config.yaml
+The authored `engine_config.yaml` lives wherever suits you — normally under
+version control alongside the rest of your course material. Edit it, review it,
+diff it.
 
-pm-scheduler
-pm-scheduler --config my_config.yaml
-```
+What the exchange runs is a *compiled artifact* at
+`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`. That is the only file any
+running process reads. No process accepts a config path, so it is not possible
+to start two of them against different files.
 
-If you are running from a Poetry checkout, prefix commands with `poetry run`.
-
-### Missing-file Behavior
-
-The engine and scheduler handle missing config differently:
-
-| Process        | Missing default config | Missing explicit `--config`       |
-|----------------|------------------------|-----------------------------------|
-| `pm-engine`    | Starts unrestricted    | Starts unrestricted for that path |
-| `pm-scheduler` | Uses built-in schedule | Fatal error                       |
-
-Unrestricted engine mode means there is no symbol allowlist, no gateway
-allowlist, no configured risk levels, no seeded last prices, no seeded
-market-maker quotes, no configured startup combos, and no outstanding share
-metadata.
+See [Compile Configs with `pm-config-deploy`](#compile-configs-with-pm-config-deploy)
+for how the authored file becomes that artifact.
 
 
 ## Generate Configs with `pm-config-gen`
@@ -501,7 +506,7 @@ pm-config-gen \
   --symbols AAPL MSFT \
   --gateways TRADER01 MM01:MARKET_MAKER \
   --symbol-opts AAPL:tick_decimals=2,level=L1,mm_spread_ticks=8 \
-  --symbol-opts MSFT:dynamic_band=0.03,cb_halt_l1=10,cb_resumption_l1=CONTINUOUS \
+  --symbol-opts MSFT:dynamic_band=0.03,cb_halt_l1=10,ace_initial_band=0.05 \
   --symbol-opts AAPL:enforce_mm_obligation=true
 ```
 
@@ -514,7 +519,9 @@ Supported `KEY` values:
 | `dynamic_band`                                                             | float `(0,1)`             | Symbol collar dynamic band                                          |
 | `cb_shift_l1` / `cb_shift_l2` / `cb_shift_l3`                             | float `(0,1)`             | Override CB level shift pct                                         |
 | `cb_halt_l1` / `cb_halt_l2` / `cb_halt_l3`                                | int `>= 0` minutes        | Override CB halt duration (`0` means rest-of-day)                  |
-| `cb_resumption_l1` / `cb_resumption_l2` / `cb_resumption_l3`              | `AUCTION` or `CONTINUOUS` | Override CB level resumption mode for that symbol                   |
+| `ace_enabled`                                                              | `true` / `false`          | Enable or disable Automated Corridor Expansion for that symbol       |
+| `ace_initial_band`                                                         | float `(0,1)`             | Symbol reopening corridor half-width                                 |
+| `ace_random_end_ns`                                                        | int `>= 0` ns             | Symbol random-end bound (`0` = predictable reopen times)             |
 | `level`                                                                    | string                    | Symbol risk level key                                               |
 | `mm_spread_ticks`                                                          | int `> 0`                 | Symbol MM spread threshold                                          |
 | `mm_min_qty`                                                               | int `> 0`                 | Symbol MM minimum quantity                                          |
@@ -734,7 +741,7 @@ pm-config-gen \
   --outstanding-shares MSFT:7430000000 \
   --api-gateway \
   --api-gateway-readonly-key \
-  --api-gateway-host 127.0.0.1 \
+  --api-gateway-host 0.0.0.0 \
   --api-gateway-port 8080 \
   --seed 20260624 \
   --output engine_config.yaml
@@ -746,7 +753,7 @@ Expected emitted section shape:
 api_gateways:
   default:
     enabled: true
-    host: 127.0.0.1
+    host: 0.0.0.0
     port: 8080
     swagger_enabled: true
     log_level: info
@@ -792,7 +799,7 @@ should manage secrets with the surrounding platform and terminate TLS in front
 of `pm-api-gwy`.
 
 For multiple generated processes, start a specific named entry with
-`pm-api-gwy --config engine_config.yaml --instance NAME`.
+`pm-api-gwy --instance NAME`.
 
 BALF gateway config with explicit settings:
 
@@ -910,7 +917,7 @@ pm-config-gen \
   --symbols AAPL TSLA \
   --gateways TRADER01 OPS01:ADMIN \
   --cb-levels L1:0.07:5 L2:0.13:15 L3:0.20 \
-  --symbol-opts TSLA:cb_resumption_l2=CONTINUOUS \
+  --symbol-opts TSLA:ace_initial_band=0.05 \
   --output engine_config.yaml
 ```
 
@@ -936,6 +943,81 @@ pm-config-gen \
 This uses `enforce_mm_obligation=false` on MSFT to disable the check for that
 symbol only, while leaving it enabled globally. Gateway descriptions appear in
 the generated YAML as the `description` field on each `gateways.alf` entry.
+
+
+## Compile Configs with `pm-config-deploy`
+
+`pm-config-deploy` is the bridge between the file you author and the compiled
+artifact the exchange runs (see [File Location](#file-location)). It:
+
+1. **validates** the authored file with all four `pm-cverifier` layers, so a
+   configuration nobody checked can no longer reach a running exchange;
+2. **resolves every default exactly once**, rather than in the eight loaders
+   that used to hold their own copies and could drift apart;
+3. **installs** the result atomically, alongside a copy of the source it was
+   built from.
+
+```bash
+pm-config-deploy my_config.yaml         # validate, compile and install
+pm-config-deploy --check my_config.yaml # validate only, install nothing
+pm-config-deploy --show                 # where do the deployed files live?
+
+pm-engine --verbose
+pm-scheduler
+```
+
+The artifact is not a reformatted copy of your YAML. A source naming two keys
+compiles to nine fully-resolved sections: a `market_data_gateway` block you
+never wrote still arrives with all of its fields, which is what lets each
+process deserialise rather than decide.
+
+Deployment replaces the running configuration but does not disturb live
+processes; restart them to pick it up.
+
+### What the artifact records about itself
+
+```json
+"meta": {
+  "schema_version": 3,
+  "compiler_version": "0.17.0",
+  "compiled_at": "2026-07-30T16:43:18.000Z",
+  "source_path": "/Users/you/course/engine_config.yaml",
+  "source_sha256": "e3bc2f14cf5c10da…",
+  "content_sha256": "87be4dc0b9b645cb…"
+}
+```
+
+The two digests answer different questions, and both are checked:
+
+- `source_sha256` — *has the authored file changed since this was built?* Each
+  process warns at startup when it has, so an edit you forgot to deploy is
+  visible rather than silently ignored.
+- `content_sha256` — *has this file changed since it was built?* Recomputed on
+  every load. Editing the deployed artifact by hand is refused, naming
+  `pm-config-deploy` as the way to make the change properly.
+
+The payload digest detects modification, not malice: it travels inside the file
+it protects, so anyone who edits the payload can recompute it. Proving
+provenance rather than integrity would need a signature.
+
+`schema_version` guards against a build reading an artifact shaped for another;
+an unknown version is refused with a message telling you to recompile.
+
+If you are running from a Poetry checkout, prefix commands with `poetry run`.
+
+### Missing-file Behavior
+
+The engine and scheduler handle missing config differently:
+
+| Process        | Missing default config | Missing explicit `--config`       |
+|----------------|------------------------|-----------------------------------|
+| `pm-engine`    | Starts unrestricted    | Starts unrestricted for that path |
+| `pm-scheduler` | Uses built-in schedule | Fatal error                       |
+
+Unrestricted engine mode means there is no symbol allowlist, no gateway
+allowlist, no configured risk levels, no seeded last prices, no seeded
+market-maker quotes, no configured startup combos, and no outstanding share
+metadata.
 
 
 ## Current Schema
@@ -1149,7 +1231,7 @@ Minimal generated example:
 api_gateways:
   desk:
     enabled: true
-    host: 127.0.0.1
+    host: 0.0.0.0
     port: 8080
     swagger_enabled: true
     log_level: info
@@ -1191,7 +1273,7 @@ dashboard-style key with `gateway_id: null`, or pass explicit `--api-key`
 entries when you need known token values.
 
 When more than one named API gateway is configured, start each process with its
-entry name, for example `pm-api-gwy --config engine_config.yaml --instance desk`.
+entry name, for example `pm-api-gwy --instance desk`.
 
 
 ## Configuring `pm-index`
@@ -1506,15 +1588,12 @@ circuit_breaker_defaults:
     L1:
       price_shift_pct: 0.07
       halt_duration_ns: 300000000000
-      resumption_mode: AUCTION
     L2:
       price_shift_pct: 0.13
       halt_duration_ns: 900000000000
-      resumption_mode: AUCTION
     L3:
       price_shift_pct: 0.20
       halt_duration_ns:
-      resumption_mode: AUCTION
 
 gateways:
   alf:
@@ -1694,8 +1773,8 @@ Use this checklist when creating a new engine configuration.
 8. Add index calculations if needed.
    Define each `pm-index` process in the `indices` block. Every constituent must
    appear in `symbols:` with a positive `outstanding_shares`. Run
-   `pm-index --config engine_config.yaml` for each configured index; `pm-config-gen
-   --index` generates the block automatically.
+   `pm-index` for each configured index; `pm-config-gen --index` generates the
+   block automatically.
 
 9. Add a schedule if sessions are enabled.
    Provide all five schedule keys for readability and confirm times are local
@@ -1708,7 +1787,7 @@ Use this checklist when creating a new engine configuration.
     when installed, or `$EDUMATCHER_DATA_DIR` if set).
 
 11. Validate before class or demo.
-    Start `pm-engine --verbose --config your_config.yaml`, connect each gateway
+    Start `pm-engine --verbose`, connect each gateway
     ID you expect to use, and run `SYMBOLS` from a gateway.
 
 
@@ -2199,15 +2278,12 @@ circuit_breaker_defaults:
     L1:
       price_shift_pct: 0.07
       halt_duration_ns: 300000000000
-      resumption_mode: AUCTION
     L2:
       price_shift_pct: 0.13
       halt_duration_ns: 900000000000
-      resumption_mode: AUCTION
     L3:
       price_shift_pct: 0.20
       halt_duration_ns:
-      resumption_mode: AUCTION
 
 symbols:
   TSLA:
@@ -2223,8 +2299,14 @@ Validation rules:
 - `levels` must be a non-empty mapping after defaults and symbol overrides merge
 - each level requires `price_shift_pct` in `(0, 1)`
 - `halt_duration_ns` must be a positive integer or null
-- `resumption_mode` must be `AUCTION` or `CONTINUOUS`
 - `reference_window_ns` is converted to integer nanoseconds
+
+A halt has no resumption setting, and deliberately so. The halt period *is* a
+reopening auction's call phase — LIMIT orders are accepted and rest, market
+and immediate-or-cancel orders are rejected, and no matching runs — so every
+halt ends in an uncross at the equilibrium price. Resuming without one would
+restart continuous matching on a book that had been accumulating crossed
+interest for the whole halt.
 
 A symbol only gets a circuit breaker if `circuit_breaker_defaults` or its own
 `symbols.<SYMBOL>.circuit_breaker` section is present. If neither exists, the
@@ -2250,7 +2332,6 @@ Circuit breakers may appear under `circuit_breaker_defaults` or under
 | `levels`                          | Yes when a breaker is active | Non-empty mapping after merging      | Built-in L1/L2/L3 only when no levels are supplied |
 | `levels.<LEVEL>.price_shift_pct`  |                          Yes | Number in `(0, 1)`                   | None                                               |
 | `levels.<LEVEL>.halt_duration_ns` |                           No | Positive integer nanoseconds or null | Null                                               |
-| `levels.<LEVEL>.resumption_mode`  |                           No | `AUCTION`, `CONTINUOUS`              | `AUCTION`                                          |
 
 
 ## Market-Maker Quote Seeds
@@ -2495,7 +2576,7 @@ For installed (pipx) users who do not have access to the `poetry run` environmen
 pass the config file to the engine directly — it validates on startup:
 
 ```bash
-pm-engine --config engine_config.yaml
+pm-engine
 ```
 
 For the focused config parser test suite:
@@ -2622,6 +2703,22 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 |---|---|---:|---|---|---|
 | `reference_window_ns` | int | No | `300000000000` (5 min) | Positive integer nanoseconds | Coerced to `int` |
 | `levels` | mapping | No | Built-in L1/L2/L3 ladder only when a CB section is present but omits `levels` | Level name → level config mapping | Values must be mappings |
+| `reopening` | mapping | No | Built-in ACE defaults | Automated Corridor Expansion settings | Merges field-by-field over defaults |
+
+### `circuit_breaker_defaults.reopening` and `symbols.<SYMBOL>.circuit_breaker.reopening` fields
+
+Governs how a circuit-breaker halt ends — see
+[Risk Controls - Automated Corridor Expansion](120-risk-controls.md#automated-corridor-expansion-ace).
+
+| Field | Type | Required | Default | Allowed values / range | Constraint |
+|---|---|---:|---|---|---|
+| `enabled` | bool | No | `true` | `true` / `false` | When `false` a halt reopens at the equilibrium price with no corridor |
+| `initial_band_pct` | float | No | `0.10` | `(0, 1)` exclusive | Corridor half-width as a fraction of the CB reference price |
+| `expansions` | list | No | `[{0.10, 2 min}, {0.20, 5 min}]` | Non-empty list of mappings | The final entry repeats indefinitely. **Only valid under `circuit_breaker_defaults`**; per-symbol is an error (`S112`) |
+| `expansions[].widen_pct` | float | Yes within an entry | — | `(0, 1)` exclusive | Added to the half-width; additive on the reference, not compounding |
+| `expansions[].min_duration_ns` | int | Yes within an entry | — | Positive integer nanoseconds | Minimum length of that extension's call phase |
+| `random_end_max_ns` | int | No | `30000000000` (30 s) | `>= 0` nanoseconds | Uniform random tail added to every call phase; `0` disables it |
+| `random_seed` | int or null | No | `null` | Integer or `null` | Engine-wide. **Only valid under `circuit_breaker_defaults`**; per-symbol is an error |
 
 ### `circuit_breaker_defaults.levels.<LEVEL>` and `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>` fields
 
@@ -2631,17 +2728,16 @@ Symbol-level entries merge over the defaults: only the fields you specify are ov
 |---|---|---:|---|---|---|
 | `price_shift_pct` | float | Yes when creating a level | — | `(0, 1)` exclusive | Required in any level that originates from config; inherited from defaults for symbol overrides |
 | `halt_duration_ns` | int or null | No | `null` | Positive integer nanoseconds, or `null`/omitted | `null` means rest-of-day halt; must be `> 0` when provided |
-| `resumption_mode` | Enum | No | `AUCTION` | `AUCTION`, `CONTINUOUS` | Case-insensitive |
 
 **Built-in default CB ladder** (used only when a circuit-breaker section exists
 but supplies no `levels`; if no circuit-breaker section is present at all, the
 symbol has no breaker):
 
-| Level | `price_shift_pct` | `halt_duration_ns`      | `resumption_mode` |
-|-------|-------------------|-------------------------|-------------------|
-| L1    | `0.07`            | `300000000000` (5 min)  | `AUCTION`         |
-| L2    | `0.13`            | `900000000000` (15 min) | `AUCTION`         |
-| L3    | `0.20`            | `null` (rest-of-day)    | `AUCTION`         |
+| Level | `price_shift_pct` | `halt_duration_ns`      |
+|-------|-------------------|-------------------------|
+| L1    | `0.07`            | `300000000000` (5 min)  |
+| L2    | `0.13`            | `900000000000` (15 min) |
+| L3    | `0.20`            | `null` (rest-of-day)    |
 
 ---
 
@@ -2740,7 +2836,7 @@ parsed:
 ## See Also
 
 - [Running the Engine](040-running-the-exchange.md) - startup order and common runtime workflows
-- [Gateway Commands](050-gateway-reference.md) - ALF commands and gateway behavior
+- [ALF Console](055-alf-console.md) - ALF commands and gateway behavior
 - [Risk Controls](120-risk-controls.md) - collar and circuit-breaker behavior in depth
 - [Persistence](180-persistence.md) - how GTC orders, book stats, and combos are saved and restored
 - [Processes](170-processes.md) - which process reads which config section

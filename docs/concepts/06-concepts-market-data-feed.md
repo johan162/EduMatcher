@@ -181,9 +181,18 @@ Every incremental message (`MD`, `TRADE`, `STATE`) that follows will have
 
 ### Reconnect
 
-- Send `HELLO` with `RESUME=1` and `LASTSEQ` for one stream
-- If gap is within replay window, gateway replays missing messages
-- If not, gateway sends `ERR|CODE=REPLAY_MISS` and then a fresh `SNAP`
+- Send a plain `HELLO`, then one `RESUME|CH=..|SYM=..|LASTSEQ=..` per stream
+  you were following. `RESUME` is a standalone, repeatable command — as a
+  `HELLO` flag it could only ever run once per connection.
+- If the gap is within the replay window, the gateway replays the missing
+  messages. Note it replays *everything* past `LASTSEQ`, so the reply also
+  re-sends messages you already have: discard anything at or below the `SEQ`
+  you last recorded.
+- If not, the gateway sends `ERR|CODE=REPLAY_MISS`, then a fresh `SNAP` on
+  `TOP`/`STATE`/`INDEX`/`DEPTH`/`CB`. On `TRADE` and `AUCTION` no `SNAP`
+  follows — there is no snapshot of a print that already happened, so those
+  events are gone.
+- A `SNAP` re-baselines the stream; it is never itself a gap.
 
 ```mermaid
 flowchart TD
@@ -272,7 +281,7 @@ For a robust CALF client implementation:
 2. **Track `last_seq` per stream** — keep a dict keyed by `(CH, SYM)` and check every incoming `SEQ`.
 3. **Treat missing fields in `MD` as unchanged** — if an `MD` message has no `ASK` field, the ask price has not moved since the last `SNAP` or `MD` that carried it. Do not reset it to zero.
 4. **Handle `HB`** — a heartbeat means the gateway is alive but quiet. If neither data nor `HB` arrives, the connection may be dead.
-5. **On gap, attempt replay; on replay miss, reset from `SNAP`** — send `HELLO|RESUME=1|LASTSEQ=<n>`; if you get `ERR CODE=REPLAY_MISS` instead of replayed messages, accept the fresh `SNAP` that follows.
+5. **On gap, attempt replay; on replay miss, reset from `SNAP`** — send `RESUME|CH=<ch>|SYM=<sym>|LASTSEQ=<n>`, and drop any replayed message at or below the `SEQ` you already recorded. If you get `ERR CODE=REPLAY_MISS` instead, accept the fresh `SNAP` that follows on the snapshot-backed channels; on `TRADE`/`AUCTION` none follows and the gap is permanent.
 6. **Keep subscriptions narrow** — only subscribe to `(CH, SYM)` pairs your process actually uses.
 
 

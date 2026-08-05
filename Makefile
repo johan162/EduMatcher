@@ -77,11 +77,22 @@ BUILD_SDIST  := $(DIST_DIR)/$(PYPI_NAME)-$(PYPI_VERSION).tar.gz
 # ============================================================================================
 # Timestamp dependencies
 # ============================================================================================
+
+# Install dependencies if pyproject.toml or poetry.lock changed
+# The lockfile dependency will createthe initial ".venv/" directory
+# 	@poetry config virtualenvs.in-project true --local
+#	@poetry env remove --all
+#	@rm -rf .venv
+
 $(INSTALL_STAMP): pyproject.toml $(LOCK_FILE)
 	@echo -e "$(DARKYELLOW)- Installing dependencies...$(NC)"
-	@poetry config virtualenvs.in-project true
-	@poetry install
-	@sleep 1
+	@poetry install --with dev,docs
+	# Check if .venv/bin/activate exists
+	@if [ ! -f .venv/bin/activate ]; then \
+		echo -e "$(RED)✗ Virtual environment not created. Check poetry installation.$(NC)"; \
+		exit 1; \
+	fi
+	source .venv/bin/activate
 	@touch $(INSTALL_STAMP)
 	@echo -e "$(GREEN)✓ Project dependencies installed$(NC)"
 
@@ -190,6 +201,17 @@ help: ## Show this help message
 # ============================================================================================
 install: $(INSTALL_STAMP) ## Install project dependencies into .venv
 	@:
+
+info-venv: ## List the current virtual environment path
+	@poetry env info --path
+
+list-venv: ## List all virtual environments managed by poetry
+	@poetry env list --full-path
+
+rm-venv: ## Remove all current virtual environment managed by poetry
+	@poetry env remove --all
+	@rm -rf .venv
+	@echo -e "$(GREEN)✓ All virtual environments removed$(NC)"
 
 reinstall: clean-venv install ## Remove .venv and reinstall from scratch
 	@echo -e "$(GREEN)✓ Project reinstalled$(NC)"

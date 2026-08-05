@@ -27,6 +27,7 @@ from edumatcher.api_gateway.schemas import (
     QuoteRequest,
 )
 from edumatcher.api_gateway.sessions import Session, SessionRegistry, require_trading
+from edumatcher.models.order import OrderType, Side
 
 
 class FakeEngine:
@@ -227,7 +228,11 @@ async def test_order_routes_send_engine_messages() -> None:
     request = fake_request(engine)
     session = trading_session()
     order_body = OrderRequest(
-        symbol="AAPL", side="BUY", order_type="LIMIT", quantity=10, price=150.0
+        symbol="AAPL",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=10,
+        price=150.0,
     )
     submitted = await orders.submit_order(order_body, request, session)
     assert submitted.status == "PENDING"
@@ -251,7 +256,11 @@ async def test_replace_order_and_error_paths() -> None:
     request = fake_request(FakeEngine())
     session = trading_session()
     order_body = OrderRequest(
-        symbol="AAPL", side="BUY", order_type="LIMIT", quantity=10, price=150.0
+        symbol="AAPL",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=10,
+        price=150.0,
     )
     replaced = await orders.replace_order("OLD", order_body, request, session)
     assert replaced.cancelled_order_id == "OLD"
@@ -276,14 +285,14 @@ async def test_composite_quote_and_risk_routes() -> None:
         oco_id="O1",
         symbol="AAPL",
         quantity=10,
-        leg1=OcoLegRequest(side="SELL", order_type="LIMIT", price=151.0),
-        leg2=OcoLegRequest(side="SELL", order_type="STOP", stop_price=149.0),
+        leg1=OcoLegRequest(side=Side.SELL, order_type=OrderType.LIMIT, price=151.0),
+        leg2=OcoLegRequest(side=Side.SELL, order_type=OrderType.STOP, stop_price=149.0),
     )
     combo = ComboRequest(
         combo_id="C1",
         legs=[
-            ComboLegRequest(symbol="AAPL", side="BUY", quantity=10, price=150.0),
-            ComboLegRequest(symbol="MSFT", side="SELL", quantity=5, price=410.0),
+            ComboLegRequest(symbol="AAPL", side=Side.BUY, quantity=10, price=150.0),
+            ComboLegRequest(symbol="MSFT", side=Side.SELL, quantity=5, price=410.0),
         ],
     )
     quote = QuoteRequest(
@@ -317,7 +326,7 @@ async def test_reference_routes() -> None:
     summary = await reference.status_summary(request, session)
     assert summary["positions"]
     assert summary["gateway_role"] == "TRADER"
-    assert (await reference.healthz(request))["ok"] is True
+    assert (await reference.healthz(request))["ok"] is True  # test double
 
 
 @pytest.mark.anyio
@@ -332,8 +341,8 @@ async def test_duplicate_client_order_id_returns_409() -> None:
     session = trading_session()
     body = OrderRequest(
         symbol="AAPL",
-        side="BUY",
-        order_type="LIMIT",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
         quantity=10,
         price=150.0,
         client_order_id="dup-1",
@@ -368,5 +377,5 @@ async def test_healthz_reports_unhealthy_when_not_running() -> None:
             )
         )
     )
-    result = await reference.healthz(request)
+    result = await reference.healthz(request)  # type: ignore[arg-type]  # test double
     assert result["ok"] is False

@@ -72,10 +72,30 @@ def encode(topic: str, payload: dict[str, Any]) -> list[bytes]:
 
 
 def decode(frames: list[bytes]) -> tuple[str, dict[str, Any]]:
-    """Parse a two-frame ZMQ multipart message."""
+    """Parse a ZMQ multipart message.
+
+    Reads only the topic and payload frames. Publishers append a third frame
+    carrying a per-topic sequence number (see ``messaging/bus.py``); it is
+    ignored here so every subscriber keeps working unchanged. Use
+    :func:`decode_sequence` to read it.
+    """
     topic = frames[0].decode()
     payload = _loads(frames[1])
     return topic, payload
+
+
+def decode_sequence(frames: list[bytes]) -> int | None:
+    """Return the publisher's per-topic sequence number, if the frame is there.
+
+    ``None`` means the message came from a publisher that does not stamp
+    sequences, so the receiver cannot tell whether anything was dropped.
+    """
+    if len(frames) < 3:
+        return None
+    try:
+        return int(frames[2])
+    except (ValueError, TypeError):
+        return None
 
 
 def dumps(payload: dict[str, Any]) -> bytes:
@@ -501,15 +521,70 @@ def make_combo_status_msg(
 # ---------------------------------------------------------------------------
 
 
-def make_session_transition_msg(to_state: str) -> list[bytes]:
-    """Scheduler → engine: request session state transition."""
-    return encode("session.transition", {"to_state": to_state})
+def make_session_transition_msg(
+    to_state: str, next_state: str = "", next_at: str = ""
+) -> list[bytes]:
+    """Scheduler → engine: request session state transition.
+
+    ``next_state``/``next_at`` describe the transition *after* this one, so
+    the engine can publish a countdown target the terminal can render. Only
+    the scheduler knows the day's timetable, and only the process that will
+    actually perform the next transition has any business asserting when it
+    happens — a manual transition omits them, which clears any stale target
+    the engine was holding.
+    """
+    payload: dict[str, Any] = {"to_state": to_state}
+    if next_state and next_at:
+        payload["next_state"] = next_state
+        payload["next_at"] = next_at
+    return encode("session.transition", payload)
 
 
-def make_session_state_msg(state: str, prev_state: str = "") -> list[bytes]:
+def make_session_state_msg(
+    state: str, prev_state: str = "", next_state: str = "", next_at: str = ""
+) -> list[bytes]:
     """Engine → all: broadcast current session state."""
-    typed = SessionStatePayload(state=state, prev_state=prev_state)
+    typed = SessionStatePayload(
+        state=state, prev_state=prev_state, next_state=next_state, next_at=next_at
+    )
     return encode("session.state", typed.to_dict())
+
+
+def make_auction_indicative_msg(
+    symbol: str,
+    phase: str,
+    eq_price: float | None,
+    eq_qty: int,
+    imbalance_side: str,
+    imbalance_qty: int,
+) -> list[bytes]:
+    """Engine → all: where a symbol *would* uncross, mid-call-phase.
+
+    Published repeatedly while an opening or closing auction collects orders,
+    which is the difference between this and ``auction.result``: that one
+    reports what happened, this one reports what would happen if the phase
+    ended now. Both are needed. A participant can only supply the offsetting
+    interest that resolves an imbalance if the imbalance is visible while
+    there is still time to act on it -- which is the reasoning
+    ``normalise_cb_halt`` already applies to a reopening, and which holds
+    with more force at the open and the close, where the largest volume of
+    the day prints.
+
+    ``eq_price`` is ``None`` when the book would not cross at all. That is a
+    real and informative state during a call phase -- nothing would trade yet
+    -- and is not the same as a price of zero.
+    """
+    return encode(
+        f"auction.indicative.{symbol}",
+        {
+            "symbol": symbol,
+            "phase": phase,
+            "eq_price": eq_price,
+            "eq_qty": eq_qty,
+            "imbalance_side": imbalance_side,
+            "imbalance_qty": imbalance_qty,
+        },
+    )
 
 
 def make_auction_result_msg(
@@ -519,8 +594,17 @@ def make_auction_result_msg(
     trades_count: int,
     imbalance_side: str,
     imbalance_qty: int,
+    reason: str,
 ) -> list[bytes]:
-    """Engine → all: auction uncross result for one symbol."""
+    """Engine → all: auction uncross result for one symbol.
+
+    ``reason`` says which uncross this was, because the three are otherwise
+    indistinguishable to a consumer:
+
+      ``SCHEDULED`` — leaving an auction or other non-matching session phase
+      ``REOPEN``    — a halted symbol reopening at the end of its halt
+      ``RECOVERY``  — restored GTC orders uncrossed at engine startup
+    """
     return encode(
         f"auction.result.{symbol}",
         {
@@ -530,6 +614,7 @@ def make_auction_result_msg(
             "trades_count": trades_count,
             "imbalance_side": imbalance_side,
             "imbalance_qty": imbalance_qty,
+            "reason": reason,
         },
     )
 
@@ -846,7 +931,7 @@ def make_halt_status_msg(
 
     Each entry in *halted* has:
       ``symbol`` (str), ``resume_at_ns`` (int | None),
-      ``level`` (str | None), ``resumption_mode`` (str | None).
+      ``level`` (str | None), ``halt_source`` (str | None).
     An empty list means no symbols are currently halted.
     """
     topic = f"system.halt_status.{gateway_id}"
@@ -1046,8 +1131,21 @@ def make_index_error_msg(gateway_id: str, reason: str) -> list[bytes]:
 
 
 def make_depth_msg(symbol: str, depth: dict[str, Any]) -> list[bytes]:
-    """Engine → subscribers: depth ladder snapshot."""
-    return encode(f"book.depth.{symbol}", depth)
+    """Engine → subscribers: depth ladder snapshot.
+
+    The topic is ``depth.{symbol}``, **not** ``book.depth.{symbol}``. It
+    published under the latter until this was corrected, which made the
+    factory a trap: the engine publishes depth inline as ``depth.{symbol}``,
+    every subscriber filters on ``depth.``, and the reference documents
+    ``depth.{SYMBOL}`` — so a caller using this factory produced messages that
+    no subscriber received.
+
+    Worse, ``book.depth.X`` matches a ``book.`` prefix subscription. pm-stats
+    subscribes to ``book.`` and derives the symbol as everything after the
+    first dot, so it recorded a phantom instrument literally named
+    ``depth.AAPL`` into daily_stats.
+    """
+    return encode(f"depth.{symbol}", depth)
 
 
 # ---------------------------------------------------------------------------

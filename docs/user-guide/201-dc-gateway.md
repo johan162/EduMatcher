@@ -117,14 +117,14 @@ Installed mode:
 
 ```bash
 pm-engine --verbose
-pm-dc-gwy --config engine_config.yaml
+pm-dc-gwy
 ```
 
 Developer mode:
 
 ```bash
 poetry run pm-engine --verbose
-poetry run pm-dc-gwy --config engine_config.yaml
+poetry run pm-dc-gwy
 ```
 
 CLI override options:
@@ -134,20 +134,17 @@ CLI override options:
 | `--bind ADDR` | from config / `0.0.0.0` | Override TCP bind address |
 | `--port PORT` | from config / `5590` | Override TCP listen port |
 | `--engine-dc-pub ADDR` | from config / `tcp://127.0.0.1:5557` | Override the engine drop-copy PUB address this gateway subscribes to |
-| `--config` / `-c` | see resolution order below | Path to engine config YAML |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | Reduce output to warnings/errors |
 
-**Config file resolution order** (first match wins):
+**Config file location**
 
-1. `--config PATH` CLI flag
-2. `EDUMATCHER_CONFIG` environment variable
-3. `<repo>/engine_config.yaml` — when running from a source checkout (detected automatically)
-4. `./engine_config.yaml` — current working directory (installed mode via pipx/pip)
-
-In practice: run from the directory that contains your `engine_config.yaml` and
-you never need to pass `--config`.
+The engine configuration is read from
+`<EDUMATCHER_DATA_DIR>/ref_data/engine_config.json`. There is no `--config`
+flag: every process reads that one file, so none of them can be started
+against a configuration the others have not seen. Install one with
+`pm-config-deploy`.
 
 
 ## Quick connect test

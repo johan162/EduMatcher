@@ -101,14 +101,14 @@ class TestComboStress:
                         side=Side.BUY,
                         order_type=OrderType.LIMIT,
                         quantity=10,
-                        price=100.0,
+                        price=100,
                     ),
                     ComboLeg(
                         symbol=f"SYM{(i * 2 + 1) % 20:02d}",
                         side=Side.SELL,
                         order_type=OrderType.LIMIT,
                         quantity=10,
-                        price=100.0,
+                        price=100,
                     ),
                 ],
             )
@@ -144,14 +144,14 @@ class TestComboStress:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=50.0,
+                    price=50,
                 ),
                 ComboLeg(
                     symbol="SYM01",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=50.0,
+                    price=50,
                 ),
             ],
         )
@@ -166,14 +166,14 @@ class TestComboStress:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=50.0,
+                    price=50,
                 ),
                 ComboLeg(
                     symbol="SYM00",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=50.0,
+                    price=50,
                 ),
             ],
         )
@@ -208,14 +208,14 @@ class TestComboStress:
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=50.0,
+                    price=50,
                 ),
                 ComboLeg(
                     symbol="SYM01",
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=50.0,
+                    price=50,
                 ),
             ],
         )
@@ -232,14 +232,14 @@ class TestComboStress:
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=50.0,
+                    price=50,
                 ),
                 ComboLeg(
                     symbol="SYM01",
                     side=Side.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=100,
-                    price=50.0,
+                    price=50,
                 ),
             ],
         )
@@ -260,7 +260,7 @@ class TestComboStress:
                 side=Side.BUY if i % 2 == 0 else Side.SELL,
                 order_type=OrderType.LIMIT,
                 quantity=10 + i,
-                price=100.0 + i,
+                price=100 + i,
             )
             for i in range(10)
         ]
@@ -297,7 +297,7 @@ class TestComboStress:
                 order_type=OrderType.LIMIT,
                 quantity=10 + i,
                 gateway_id="GW03",
-                price=100.0 + i,
+                price=100 + i,
             )
             engine._handle_new_order(order.to_dict())
         pub_sock.sent.clear()
@@ -308,7 +308,7 @@ class TestComboStress:
                 side=Side.BUY if i % 2 == 0 else Side.SELL,
                 order_type=OrderType.LIMIT,
                 quantity=10 + i,
-                price=100.0 + i,
+                price=100 + i,
             )
             for i in range(10)
         ]
@@ -345,14 +345,14 @@ class TestComboStress:
                         side=Side.BUY,
                         order_type=OrderType.LIMIT,
                         quantity=5,
-                        price=50.0,
+                        price=50,
                     ),
                     ComboLeg(
                         symbol=f"SYM{(i * 2 + 1) % 20:02d}",
                         side=Side.SELL,
                         order_type=OrderType.LIMIT,
                         quantity=5,
-                        price=50.0,
+                        price=50,
                     ),
                 ],
             )
@@ -366,7 +366,7 @@ class TestComboStress:
                     order_type=OrderType.LIMIT,
                     quantity=10,
                     gateway_id=f"GW{(i + j) % 4:02d}",
-                    price=50.0,
+                    price=50,
                 )
                 engine._handle_new_order(order.to_dict())
 
@@ -396,14 +396,14 @@ class TestComboStress:
                         side=Side.BUY,
                         order_type=OrderType.LIMIT,
                         quantity=10,
-                        price=100.0,
+                        price=100,
                     ),
                     ComboLeg(
                         symbol=f"SYM{(i * 2 + 1) % 20:02d}",
                         side=Side.SELL,
                         order_type=OrderType.LIMIT,
                         quantity=10,
-                        price=100.0,
+                        price=100,
                     ),
                 ],
             )
@@ -445,14 +445,14 @@ class TestComboStress:
                         side=Side.BUY,
                         order_type=OrderType.LIMIT,
                         quantity=1,
-                        price=100.0,
+                        price=100,
                     ),
                     ComboLeg(
                         symbol="SYM01",
                         side=Side.SELL,
                         order_type=OrderType.LIMIT,
                         quantity=1,
-                        price=100.0,
+                        price=100,
                     ),
                 ],
             )

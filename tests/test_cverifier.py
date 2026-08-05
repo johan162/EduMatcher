@@ -857,15 +857,6 @@ class TestLayer2CBDefaults:
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S033" in _codes(results)
 
-    def test_s034_invalid_resumption_mode(self) -> None:
-        raw = _raw(
-            "symbols:\n  AAPL: {}\ngateways:\n  alf:\n    - id: GW01\n"
-            "circuit_breaker_defaults:\n  levels:\n    L1:\n"
-            "      price_shift_pct: 0.07\n      resumption_mode: INVALID\n"
-        )
-        results = layer2_schema.check(raw, Path("x.yaml"))
-        assert "S034" in _codes(results)
-
     def test_m014_levels_not_ascending(self) -> None:
         raw = _raw(
             "symbols:\n  AAPL: {}\ngateways:\n  alf:\n    - id: GW01\n"

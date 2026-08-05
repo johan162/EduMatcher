@@ -179,9 +179,10 @@ multipass exec "$VM_NAME" -- mkdir -p /home/ubuntu/session
 # Run pm-setup to create a sample session file. This also verifies that the installed runtime is working.
 multipass exec "$VM_NAME" -- bash -c "cd /home/ubuntu/session && pm-setup --force"
 
-# Add EDUMATCHER_DATA_DIR, and EDUMATCHER_CONFIG to the default .bashrc for convenience.
+# Add EDUMATCHER_DATA_DIR to the default .bashrc for convenience. It is the only
+# location variable: pm-setup has already deployed the sample configuration to
+# <DATA_DIR>/ref_data/engine_config.yaml, which is where every process reads it.
 multipass exec "$VM_NAME" -- bash -c "echo 'export EDUMATCHER_DATA_DIR=\"/home/ubuntu/.local/share/edumatcher\"' >> ~/.bashrc"
-multipass exec "$VM_NAME" -- bash -c "echo 'export EDUMATCHER_CONFIG=\"/home/ubuntu/session/engine_config.yaml\"' >> ~/.bashrc"
 
 if [[ "$CREATE_SNAPSHOT" == "true" ]]; then
   echo -e "${BLUE}Stopping VM '$VM_NAME' before snapshot...${NC}"

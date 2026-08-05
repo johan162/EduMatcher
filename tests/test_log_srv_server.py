@@ -5,6 +5,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -23,7 +24,9 @@ def _free_port() -> int:
 class _RunningServer:
     """Test fixture wrapper: starts a LogServer on a background thread."""
 
-    def __init__(self, tmp_path: Path, **config_overrides: object) -> None:
+    # `object` makes the **splat below uncheckable; `Any` is the honest type
+    # for arbitrary per-test overrides and lets mypy verify the call.
+    def __init__(self, tmp_path: Path, **config_overrides: Any) -> None:
         self.port = _free_port()
         # LALF-PS binds two more sockets. Ephemeral ports keep concurrent test
         # workers (and any pm-log-srv the developer happens to have running on

@@ -1,31 +1,669 @@
 #!/bin/bash
-# Setup & Verification script for EduMatcher
-# Purpose: Do all necessary steps to setup a local development environment and verify installation
+# Setup and verification script for EduMatcher
+# Purpose: prepare a local development environment and verify prerequisites
 # CI/CD Support: Yes. Can be run in CI environments.
-# Usage: ./scripts/verify_setup.sh
+# Usage: ./scripts/verify_setup.sh [--non-interactive]
 
 set -e
+
+NON_INTERACTIVE=0
+ASSUME_YES=0
+APT_BOOTSTRAPPED=0
+for arg in "$@"; do
+    case "$arg" in
+        --non-interactive)
+            NON_INTERACTIVE=1
+            ;;
+        --yes|-y)
+            ASSUME_YES=1
+            ;;
+        -h|--help)
+            echo "Usage: ./scripts/verify_setup.sh [--non-interactive] [--yes|-y]"
+            echo "  --non-interactive  Do not prompt; fail fast with guidance"
+            echo "  --yes, -y          Do not prompt; auto-confirm and install missing prerequisites"
+            exit 0
+            ;;
+        *)
+            echo "❌ Unknown option: $arg"
+            echo "Usage: ./scripts/verify_setup.sh [--non-interactive] [--yes|-y]"
+            exit 1
+            ;;
+    esac
+done
+
+# Detect OS/distribution to provide package-manager specific guidance.
+OS_KERNEL="$(uname -s)"
+OS_ID=""
+OS_ID_LIKE=""
+if [ -f /etc/os-release ]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    OS_ID="${ID:-}"
+    OS_ID_LIKE="${ID_LIKE:-}"
+fi
+
+is_linux() {
+    [ "${OS_KERNEL}" = "Linux" ]
+}
+
+is_fedora() {
+    is_linux && { [ "${OS_ID}" = "fedora" ] || [[ " ${OS_ID_LIKE} " == *" fedora "* ]]; }
+}
+
+is_ubuntu_based() {
+    is_linux && { [ "${OS_ID}" = "ubuntu" ] || [[ " ${OS_ID_LIKE} " == *" ubuntu "* ]] || [[ " ${OS_ID_LIKE} " == *" debian "* ]]; }
+}
+
+print_linux_manual_help() {
+    echo "ℹ️  Auto-install on Linux is currently implemented only for Fedora."
+    echo "   For other Linux distributions, install prerequisites manually, then re-run this script."
+    echo ""
+    echo "Example commands for Debian/Ubuntu (apt):"
+    echo "  sudo apt update"
+    echo "  sudo apt install poetry nodejs npm pandoc fonts-dejavu-core fonts-noto-core build-essential libreadline-dev texlive-xetex texlive-latex-extra texlive-pictures"
+    echo "  sudo apt install chromium-browser  # or package name 'chromium' on some distros"
+    echo ""
+    echo "After installing the packages, run: ./scripts/verify_setup.sh"
+}
+
+run_apt_bootstrap_once() {
+    if [ "${APT_BOOTSTRAPPED}" -eq 0 ]; then
+        echo "ℹ️  Running apt bootstrap (update + upgrade)..."
+        sudo apt update -y
+        sudo apt upgrade -y
+        APT_BOOTSTRAPPED=1
+    fi
+}
+
+install_pandoc_310_local() {
+    local pandoc_archive="pandoc-3.10.1-linux-amd64.tar.gz"
+    local pandoc_dir="pandoc-3.10.1"
+
+    if ! command -v curl >/dev/null 2>&1; then
+        run_apt_bootstrap_once
+        sudo apt install -y curl
+    fi
+
+    curl -LO "https://github.com/jgm/pandoc/releases/download/3.10.1/${pandoc_archive}"
+    tar -xzf "${pandoc_archive}"
+    mkdir -p "$HOME/.local/bin"
+    install -m 0755 "${pandoc_dir}/bin/pandoc" "$HOME/.local/bin/pandoc"
+    install -m 0755 "${pandoc_dir}/bin/pandoc-lua" "$HOME/.local/bin/pandoc-lua"
+    export PATH="$HOME/.local/bin:$PATH"
+}
+
+confirm_action() {
+    local prompt="$1"
+    if [ "${ASSUME_YES}" -eq 1 ]; then
+        echo "${prompt} (y/n) y"
+        return 0
+    fi
+    if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+        return 1
+    fi
+    read -p "${prompt} (y/n) " -n 1 -r
+    echo ""
+    [[ $REPLY =~ ^[Yy]$ ]]
+}
+
+print_non_interactive_install_hint() {
+    echo "   Re-run without --non-interactive to allow this script to install it for you"
+}
+
+has_chrome() {
+    command -v google-chrome &> /dev/null || \
+    command -v google-chrome-stable &> /dev/null || \
+    command -v chrome &> /dev/null || \
+    command -v chromium &> /dev/null || \
+    command -v chromium-browser &> /dev/null
+}
+
+has_tex_file() {
+    local tex_file="$1"
+    kpsewhich "${tex_file}" >/dev/null 2>&1
+}
+
+has_readline_dev() {
+    if is_fedora; then
+        rpm -q readline-devel &> /dev/null
+        return $?
+    fi
+
+    pkg-config --exists readline 2>/dev/null || \
+    [ -f /usr/include/readline/readline.h ] || \
+    [ -f /usr/local/include/readline/readline.h ] || \
+    [ -f /opt/homebrew/opt/readline/include/readline/readline.h ] || \
+    [ -f /usr/local/opt/readline/include/readline/readline.h ]
+}
+
+readline_detection_source() {
+    if is_fedora && rpm -q readline-devel &> /dev/null; then
+        echo "rpm:readline-devel"
+    elif pkg-config --exists readline 2>/dev/null; then
+        echo "pkg-config:readline"
+    elif [ -f /usr/include/readline/readline.h ]; then
+        echo "/usr/include/readline/readline.h"
+    elif [ -f /usr/local/include/readline/readline.h ]; then
+        echo "/usr/local/include/readline/readline.h"
+    elif [ -f /opt/homebrew/opt/readline/include/readline/readline.h ]; then
+        echo "/opt/homebrew/opt/readline/include/readline/readline.h"
+    elif [ -f /usr/local/opt/readline/include/readline/readline.h ]; then
+        echo "/usr/local/opt/readline/include/readline/readline.h"
+    else
+        echo "unknown"
+    fi
+}
+
+version_ge() {
+    # Returns success when $1 >= $2 using semantic version sort.
+    local lhs="$1"
+    local rhs="$2"
+    [ "$(printf '%s\n' "${rhs}" "${lhs}" | sort -V | head -n 1)" = "${rhs}" ]
+}
+
+pandoc_version() {
+    pandoc --version 2>/dev/null | awk 'NR==1 {for (i=1; i<=NF; i++) if ($i ~ /^[0-9]+(\.[0-9]+)+$/) {print $i; exit}}'
+}
 
 echo "=== EduMatcher Dev Environment Setup & Verification ==="
 echo ""
 
-# Ensure Poetry is available
+# Ensure Poetry is available.
 if ! command -v poetry &> /dev/null; then
-    echo "❌ Poetry not found. Install with: pip install poetry"
-    # Asks user if he wants to install poetry if not found
-    read -p "Would you like to install Poetry now? (y/n) " -n -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        pip install poetry
-    else
+    echo "❌ Poetry not found"
+    if is_fedora; then
+        if confirm_action "Would you like to install Poetry now via dnf?"; then
+            sudo dnf install -y poetry
+        else
+            echo "❌ Poetry is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install Poetry now via apt/pipx?"; then
+            run_apt_bootstrap_once
+            sudo apt install -y pipx
+            pipx ensurepath
+            export PATH="$HOME/.local/bin:$PATH"
+            if pipx list 2>/dev/null | grep -q 'package poetry'; then
+                pipx upgrade poetry
+            else
+                pipx install poetry
+            fi
+            hash -r
+        else
+            echo "❌ Poetry is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        print_linux_manual_help
         exit 1
+    else
+        echo "Install with: pip install poetry"
+        if confirm_action "Would you like to install Poetry now?"; then
+            pip install poetry
+        else
+            echo "❌ Poetry is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
     fi
 fi
 echo "✅ Poetry is available"
 
+# Ensure Node.js and npm are available.
+if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
+    echo "❌ Node.js and npm are required but not fully available"
+    if is_fedora; then
+        if confirm_action "Would you like to install Node.js and npm now via dnf?"; then
+            sudo dnf install -y nodejs npm
+        else
+            echo "❌ Node.js and npm are required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install Node.js and npm now via apt?"; then
+            run_apt_bootstrap_once
+            sudo apt install -y nodejs npm
+        else
+            echo "❌ Node.js and npm are required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for Node.js/npm is currently implemented only for Fedora Linux."
+        echo "   Install Node.js and npm manually, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install nodejs npm"
+        echo ""
+        echo "After installing Node.js/npm, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        if confirm_action "Would you like to install Node.js (includes npm) now via Homebrew?"; then
+            if ! command -v brew &> /dev/null; then
+                echo "❌ Homebrew not found. Install Homebrew first, then run:"
+                echo "   brew install node"
+                exit 1
+            fi
+            brew install node
+        else
+            echo "❌ Node.js and npm are required to continue"
+            echo "   Install Node.js (for example: brew install node) and re-run this script"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    else
+        echo "❌ Node.js and npm are required to continue"
+        echo "   Install them with your system package manager, then re-run this script"
+        exit 1
+    fi
+fi
+echo "✅ Node.js and npm are available"
+
+# Ensure native build tools are available.
+required_tools=(gcc make)
+missing_tools=()
+for tool in "${required_tools[@]}"; do
+    if ! command -v "${tool}" &> /dev/null; then
+        missing_tools+=("${tool}")
+    fi
+done
+
+if [ ${#missing_tools[@]} -gt 0 ]; then
+    echo "❌ Missing required build tools: ${missing_tools[*]}"
+    if is_fedora; then
+        if confirm_action "Would you like to install missing build tools now via dnf?"; then
+            sudo dnf install -y gcc make
+        else
+            echo "❌ Build tools (${missing_tools[*]}) are required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install build tools now via apt?"; then
+            run_apt_bootstrap_once
+            sudo apt install -y make gcc libreadline-dev readline-common
+        else
+            echo "❌ Build tools (${missing_tools[*]}) are required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for build tools is currently implemented only for Fedora Linux."
+        echo "   Install the missing tools manually, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install build-essential"
+        echo ""
+        echo "After installing the tools, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        if confirm_action "Would you like to install Xcode Command Line Tools now?"; then
+            xcode-select --install || true
+            echo "ℹ️  Complete the Xcode Command Line Tools installation, then re-run this script."
+            exit 1
+        else
+            echo "❌ Build tools (${missing_tools[*]}) are required to continue"
+            echo "   Install Xcode Command Line Tools and re-run this script"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    else
+        echo "❌ Build tools (${missing_tools[*]}) are required to continue"
+        echo "   Install gcc and make with your system package manager, then re-run this script"
+        exit 1
+    fi
+fi
+echo "✅ Required build tools are available: gcc, make"
+
+# Ensure readline development headers/library are available.
+if ! has_readline_dev; then
+    echo "❌ Readline development library not found"
+    if is_fedora; then
+        if confirm_action "Would you like to install readline development headers now via dnf?"; then
+            sudo dnf install -y readline-devel
+        else
+            echo "❌ Readline development library is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install readline development headers now via apt?"; then
+            run_apt_bootstrap_once
+            sudo apt install -y libreadline-dev readline-common
+        else
+            echo "❌ Readline development library is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for readline development headers is currently implemented only for Fedora Linux."
+        echo "   Install readline development headers manually, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install libreadline-dev"
+        echo ""
+        echo "After installing libreadline-dev, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        if confirm_action "Would you like to install readline now via Homebrew?"; then
+            if ! command -v brew &> /dev/null; then
+                echo "❌ Homebrew not found. Install Homebrew first, then run:"
+                echo "   brew install readline"
+                exit 1
+            fi
+            brew install readline
+        else
+            echo "❌ Readline development library is required to continue"
+            echo "   Install readline (for example: brew install readline) and re-run this script"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    else
+        echo "❌ Readline development library is required to continue"
+        echo "   Install readline development headers with your system package manager, then re-run this script"
+        exit 1
+    fi
+fi
+echo "✅ Readline development library is available"
+echo "   Detected via: $(readline_detection_source)"
+
+# Ensure Chrome/Chromium browser is available.
+if ! has_chrome; then
+    echo "❌ Chrome/Chromium not found"
+    if is_fedora; then
+        if confirm_action "Would you like to install Google Chrome now via dnf?"; then
+            sudo dnf install -y google-chrome-stable || {
+                echo "⚠️  google-chrome-stable install failed."
+                echo "   Install Chrome manually or install Chromium, then re-run this script"
+                exit 1
+            }
+        else
+            echo "❌ Chrome/Chromium is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install Google Chrome now via apt package file?"; then
+            run_apt_bootstrap_once
+            wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+            mv google-chrome-stable_current_amd64.deb /tmp/
+            sudo apt install -y /tmp/google-chrome-stable_current_amd64.deb
+        else
+            echo "❌ Chrome/Chromium is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for Chrome is currently implemented only for Fedora Linux."
+        echo "   Install Chrome/Chromium manually, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install chromium-browser  # or package name 'chromium' on some distros"
+        echo ""
+        echo "After installing Chrome/Chromium, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        if confirm_action "Google Chrome was not found. Continue anyway?"; then
+            echo "⚠️  Continuing without Chrome may cause browser-based steps to fail"
+        else
+            echo "❌ Chrome/Chromium is required to continue"
+            echo "   Install Google Chrome and re-run this script"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    else
+        echo "❌ Chrome/Chromium is required to continue"
+        echo "   Install it with your system package manager and re-run this script"
+        exit 1
+    fi
+fi
+echo "✅ Chrome/Chromium is available"
+
+# Ensure xelatex is available for PDF generation.
+if ! command -v xelatex &> /dev/null; then
+    echo "❌ xelatex not found"
+    if is_fedora; then
+        if confirm_action "Would you like to install TeX Live XeLaTeX now via dnf?"; then
+            sudo dnf install -y texlive-xetex
+        else
+            echo "❌ xelatex is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install xelatex now via apt?"; then
+            run_apt_bootstrap_once
+            sudo apt install -y texlive-latex-base texlive-fonts-recommended texlive-xetex
+        else
+            echo "❌ xelatex is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for xelatex is currently implemented only for Fedora Linux."
+        echo "   Install TeX Live/XeLaTeX manually, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install texlive-xetex"
+        echo ""
+        echo "After installing xelatex, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        echo "❌ xelatex is required to continue"
+        echo "   Install MacTeX or BasicTeX, then re-run this script"
+        exit 1
+    else
+        echo "❌ xelatex is required to continue"
+        echo "   Install TeX Live (with xelatex) using your system package manager, then re-run this script"
+        exit 1
+    fi
+fi
+echo "✅ xelatex is available"
+
+# Ensure required TeX packages used by the PDF templates are installed.
+required_tex_files=(shorttoc.sty tcolorbox.sty tikzfill.image.sty)
+missing_tex_files=()
+for tex_file in "${required_tex_files[@]}"; do
+    if ! has_tex_file "${tex_file}"; then
+        missing_tex_files+=("${tex_file}")
+    fi
+done
+
+if [ ${#missing_tex_files[@]} -gt 0 ]; then
+    echo "❌ Missing required TeX packages/files: ${missing_tex_files[*]}"
+    if is_fedora; then
+        if confirm_action "Would you like to install the missing TeX Live packages now via dnf?"; then
+            sudo dnf install -y texlive-shorttoc texlive-tcolorbox texlive-tikzfill
+        else
+            echo "❌ Required TeX packages are missing"
+            echo "   Install texlive-shorttoc texlive-tcolorbox texlive-tikzfill and re-run this script"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install TeX helper packages now via apt?"; then
+            run_apt_bootstrap_once
+            sudo apt install -y texlive-latex-extra texlive-pictures
+        else
+            echo "❌ Required TeX packages are missing"
+            echo "   Install texlive-latex-extra texlive-pictures and re-run this script"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for TeX helper packages is currently implemented only for Fedora Linux."
+        echo "   Install packages providing shorttoc.sty, tcolorbox.sty, and tikzfill.image.sty, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install texlive-latex-extra texlive-pictures"
+        echo ""
+        echo "After installing the TeX packages, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        echo "❌ Required TeX packages are missing: ${missing_tex_files[*]}"
+        echo "   Update/install your TeX distribution so it provides shorttoc, tcolorbox, and tikzfill, then re-run this script"
+        exit 1
+    else
+        echo "❌ Required TeX packages are missing: ${missing_tex_files[*]}"
+        echo "   Install the TeX packages that provide these files, then re-run this script"
+        exit 1
+    fi
+fi
+echo "✅ Required TeX packages are available: shorttoc, tcolorbox, tikzfill"
+
+# Ensure pandoc is available.
+MIN_PANDOC_VERSION="3.10.0"
+if ! command -v pandoc &> /dev/null; then
+    echo "❌ Missing required documentation tool: pandoc"
+    if is_fedora; then
+        if confirm_action "Would you like to install pandoc now via dnf?"; then
+            sudo dnf install -y pandoc-cli
+        else
+            echo "❌ pandoc is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install Pandoc 3.10.1 locally in ~/.local/bin now?"; then
+            install_pandoc_310_local
+        else
+            echo "❌ pandoc is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for pandoc is currently implemented only for Fedora Linux."
+        echo "   Install pandoc manually, then re-run this script. "
+        echo "   Please note that we need pandoc version >= ${MIN_PANDOC_VERSION}."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        echo "  sudo apt install pandoc"
+        echo ""
+        echo "After installing pandoc, run: ./scripts/verify_setup.sh"
+        exit 1
+    elif [ "${OS_KERNEL}" = "Darwin" ]; then
+        if confirm_action "Would you like to install pandoc now via Homebrew?"; then
+            if ! command -v brew &> /dev/null; then
+                echo "❌ Homebrew not found. Install Homebrew first, then run:"
+                echo "   brew install pandoc"
+                exit 1
+            fi
+            brew install pandoc
+        else
+            echo "❌ pandoc is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    else
+        echo "❌ pandoc is required to continue"
+        echo "   Install it with your system package manager, then re-run this script"
+        exit 1
+    fi
+fi
+
+pandoc_ver="$(pandoc_version)"
+if [ -z "${pandoc_ver}" ]; then
+    echo "❌ Could not determine pandoc version"
+    echo "   Ensure pandoc is correctly installed and on PATH, then re-run this script"
+    exit 1
+fi
+
+if ! version_ge "${pandoc_ver}" "${MIN_PANDOC_VERSION}"; then
+    echo "❌ Pandoc version ${pandoc_ver} is too old (required: >= ${MIN_PANDOC_VERSION})"
+    if is_fedora; then
+        echo "   Fedora repositories may provide an older pandoc by default."
+        echo "   Install a newer upstream binary in ~/.local/bin to avoid changing the global install:"
+        echo "   curl -LO https://github.com/jgm/pandoc/releases/download/3.10.1/pandoc-3.10.1-linux-amd64.tar.gz"
+        echo "   tar -xzf pandoc-3.10.1-linux-amd64.tar.gz"
+        echo "   mkdir -p ~/.local/bin"
+        echo "   install -m 0755 pandoc-3.10.1/bin/pandoc ~/.local/bin/pandoc"
+        echo "   export PATH=\"$HOME/.local/bin:$PATH\""
+        echo "   Then re-run this script"
+    elif is_ubuntu_based; then
+        if confirm_action "Would you like to install Pandoc 3.10.1 locally in ~/.local/bin now?"; then
+            install_pandoc_310_local
+            pandoc_ver="$(pandoc_version)"
+            if [ -z "${pandoc_ver}" ] || ! version_ge "${pandoc_ver}" "${MIN_PANDOC_VERSION}"; then
+                echo "❌ Pandoc upgrade did not yield the required version (>= ${MIN_PANDOC_VERSION})"
+                exit 1
+            fi
+        else
+            echo "❌ pandoc >= ${MIN_PANDOC_VERSION} is required to continue"
+            if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                print_non_interactive_install_hint
+            fi
+            exit 1
+        fi
+    elif is_linux; then
+        echo "   Install a newer pandoc release (>= ${MIN_PANDOC_VERSION}) and re-run this script"
+    else
+        echo "   Upgrade pandoc to >= ${MIN_PANDOC_VERSION} and re-run this script"
+    fi
+    exit 1
+fi
+echo "✅ Pandoc is available"
+echo "   Detected pandoc version: ${pandoc_ver}"
+
 
 # Ensure required fonts are available for PDF rendering.
 MONO_FONT_NAME="DejaVu Sans Mono"
+DEJAVU_FONT_NAME="DejaVu Sans"
+DEJAVU_FONT_CASK_NAME="dejavu-sans-fonts"
 BODY_FONT_NAME="Arial Unicode MS"
 BODY_FONT_CASK_NAME="font-arial-unicode-ms"
 BODY_FONT_FALLBACK_NAME="Noto Sans"
@@ -47,6 +685,9 @@ missing_fonts=()
 if ! has_font "${MONO_FONT_NAME}"; then
     missing_fonts+=("${MONO_FONT_NAME}")
 fi
+if ! has_font "${DEJAVU_FONT_NAME}"; then
+    missing_fonts+=("${DEJAVU_FONT_NAME}")
+fi
 if ! has_body_font; then
     missing_fonts+=("${BODY_FONT_NAME}")
 fi
@@ -54,51 +695,99 @@ fi
 if [ ${#missing_fonts[@]} -gt 0 ]; then
     echo "❌ Missing required fonts: ${missing_fonts[*]}"
 
-    if [[ " ${missing_fonts[*]} " == *" ${MONO_FONT_NAME} "* ]]; then
-        read -p "Would you like to install ${MONO_FONT_NAME} now via Homebrew? (y/n) " -n 1 -r
-        echo ""
-
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            if ! command -v brew &> /dev/null; then
-                echo "❌ Homebrew not found. Install Homebrew first, then run:"
-                echo "   brew install --cask font-dejavu"
-                exit 1
-            fi
-
-            brew install --cask font-dejavu
-        else
-            echo "❌ ${MONO_FONT_NAME} is required for expected monospace PDF output"
-            exit 1
-        fi
-    fi
-
-    if [[ " ${missing_fonts[*]} " == *" ${BODY_FONT_NAME} "* ]]; then
-        read -p "Would you like to install ${BODY_FONT_NAME} now via Homebrew? (y/n) " -n 1 -r
-        echo ""
-
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            if ! command -v brew &> /dev/null; then
-                echo "❌ Homebrew not found. Install Homebrew first, then run:"
-                echo "   brew install --cask ${BODY_FONT_CASK_NAME}"
-                exit 1
-            fi
-
-            if brew info --cask "${BODY_FONT_CASK_NAME}" &> /dev/null; then
-                brew install --cask "${BODY_FONT_CASK_NAME}"
+    if is_fedora; then
+        if [[ " ${missing_fonts[*]} " == *" ${MONO_FONT_NAME} "* ]]; then
+            if confirm_action "Would you like to install ${MONO_FONT_NAME} now via dnf?"; then
+                sudo dnf install -y dejavu-sans-mono-fonts || sudo dnf install -y dejavu-sans-mono
             else
-                echo "⚠️  ${BODY_FONT_CASK_NAME} is not available in Homebrew casks."
-                read -p "Install fallback ${BODY_FONT_FALLBACK_NAME} instead? (y/n) " -n 1 -r
-                echo ""
-                if [[ $REPLY =~ ^[Yy]$ ]]; then
-                    brew install --cask font-noto-sans
-                else
-                    echo "❌ ${BODY_FONT_NAME} is still missing and fallback was declined"
+                echo "❌ ${MONO_FONT_NAME} is required for expected monospace PDF output"
+                echo "   Install it manually and re-run this script"
+                if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                    print_non_interactive_install_hint
+                fi
+                exit 1
+            fi
+        fi
+
+        if [[ " ${missing_fonts[*]} " == *" ${BODY_FONT_NAME} "* ]]; then
+            if confirm_action "Would you like to install fallback ${BODY_FONT_FALLBACK_NAME} now via dnf?"; then
+                sudo dnf install -y google-noto-sans-fonts
+            else
+                echo "❌ ${BODY_FONT_NAME} (or fallback ${BODY_FONT_FALLBACK_NAME}) is required for expected PDF body font output"
+                echo "   Install it manually and re-run this script"
+                if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                    print_non_interactive_install_hint
+                fi
+                exit 1
+            fi
+        fi
+    elif is_linux; then
+        echo "ℹ️  Auto-install for fonts is currently implemented only for Fedora Linux."
+        echo "   Install the missing fonts manually, then re-run this script."
+        echo ""
+        echo "Example commands for Debian/Ubuntu (apt):"
+        echo "  sudo apt update"
+        if [[ " ${missing_fonts[*]} " == *" ${MONO_FONT_NAME} "* ]] && [[ " ${missing_fonts[*]} " == *" ${BODY_FONT_NAME} "* ]]; then
+            echo "  sudo apt install fonts-dejavu-core fonts-noto-core"
+        elif [[ " ${missing_fonts[*]} " == *" ${MONO_FONT_NAME} "* ]]; then
+            echo "  sudo apt install fonts-dejavu-core"
+        else
+            echo "  sudo apt install fonts-noto-core"
+        fi
+        echo ""
+        echo "After installing the fonts, run: ./scripts/verify_setup.sh"
+        exit 1
+    else
+        if [[ " ${missing_fonts[*]} " == *" ${MONO_FONT_NAME} "* ]]; then
+            if confirm_action "Would you like to install ${MONO_FONT_NAME} now via Homebrew?"; then
+                if ! command -v brew &> /dev/null; then
+                    echo "❌ Homebrew not found. Install Homebrew first, then run:"
+                    echo "   brew install --cask font-dejavu"
                     exit 1
                 fi
+
+                brew install --cask font-dejavu
+            else
+                echo "❌ ${MONO_FONT_NAME} is required for expected monospace PDF output"
+                echo "   Install it manually and re-run this script"
+                if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                    print_non_interactive_install_hint
+                fi
+                exit 1
             fi
-        else
-            echo "❌ ${BODY_FONT_NAME} (or fallback ${BODY_FONT_FALLBACK_NAME}) is required for expected PDF body font output"
-            exit 1
+        fi
+
+        if [[ " ${missing_fonts[*]} " == *" ${BODY_FONT_NAME} "* ]]; then
+            if confirm_action "Would you like to install ${BODY_FONT_NAME} now via Homebrew?"; then
+                if ! command -v brew &> /dev/null; then
+                    echo "❌ Homebrew not found. Install Homebrew first, then run:"
+                    echo "   brew install --cask ${BODY_FONT_CASK_NAME}"
+                    exit 1
+                fi
+
+                if brew info --cask "${BODY_FONT_CASK_NAME}" &> /dev/null; then
+                    brew install --cask "${BODY_FONT_CASK_NAME}"
+                else
+                    echo "⚠️  ${BODY_FONT_CASK_NAME} is not available in Homebrew casks."
+                    if confirm_action "Install fallback ${BODY_FONT_FALLBACK_NAME} instead?"; then
+                        brew install --cask font-noto-sans
+                    else
+                        echo "❌ ${BODY_FONT_NAME} is still missing and fallback was declined"
+                        echo "   Install a compatible body font and re-run this script"
+                        if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                            print_non_interactive_install_hint
+                        fi
+                        exit 1
+                    fi
+                fi
+            else
+                echo "❌ ${BODY_FONT_NAME} (or fallback ${BODY_FONT_FALLBACK_NAME}) is required for expected PDF body font output"
+                echo "   Install it manually and re-run this script"
+                if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+                    print_non_interactive_install_hint
+                fi
+                exit 1
+            fi
         fi
     fi
 
@@ -113,7 +802,7 @@ if [ ${#missing_fonts[@]} -gt 0 ]; then
 
     if [ ${#missing_fonts[@]} -gt 0 ]; then
         echo "❌ Missing required fonts after installation attempt: ${missing_fonts[*]}"
-        echo "   Please install them before continuing."
+        echo "   Please install them before continuing, then re-run this script"
         exit 1
     fi
 fi
@@ -124,42 +813,46 @@ else
     resolved_body_font="${BODY_FONT_FALLBACK_NAME}"
 fi
 
-echo "✅ Required fonts are available: ${MONO_FONT_NAME}, ${resolved_body_font}"
+echo "✅ Required fonts are available: ${MONO_FONT_NAME}, ${resolved_body_font}, ${DEJAVU_FONT_NAME}"
 
 
 
-# Make sure a local virtual environment is used
-if [ -z "$VIRTUAL_ENV" ]; then
-    echo "❌ No virtual environment detected. Please create one with: python -m venv .venv"
-    # Automatically create and activate a virtual environment if not present
-    # If user answers "y", we will create and activate a virtual environment
-    read -p "Would you like to create and activate a virtual environment now? (y/n) " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        poetry config virtualenvs.in-project true --local
-        poetry env remove --all
-        rm -rf .venv
-        poetry install
-        source .venv/bin/activate
-        echo "✅ Virtual environment created and activated"
-    else
-        exit 1  
-    fi
-fi
-echo "✅ Activated virtual environment detected"
+# # Ensure we are running inside an active virtual environment.
+# if [ -z "$VIRTUAL_ENV" ]; then
+#     echo "❌ No active virtual environment detected (VIRTUAL_ENV is unset)."
+#     echo "   Recommended: python -m venv .venv"
+#     # If the user accepts, recreate the Poetry-managed in-project environment.
+#     if confirm_action "Would you like to create and activate a virtual environment now?"; then
+#         poetry config virtualenvs.in-project true --local
+#         poetry env remove --all
+#         rm -rf .venv
+#         poetry install
+#         source .venv/bin/activate
+#         echo "✅ Virtual environment created and activated"
+#     else
+#         echo "❌ An active virtual environment is required to continue"
+#         if [ "${NON_INTERACTIVE}" -eq 1 ]; then
+#             print_non_interactive_install_hint
+#         fi
+#         exit 1  
+#     fi
+# fi
+# echo "✅ Activated virtual environment detected"
 
-# Install project dependencies via Poetry
-echo "Installing dependencies with Poetry..."
-poetry lock 
-poetry install --with dev,docs
-echo "✅ Dependencies installed"
+# # Install project dependencies via Poetry.
+# echo "Installing dependencies with Poetry (this can take a few minutes)..."
+# poetry lock 
+# poetry install --with dev,docs
+# echo "✅ Dependencies installed"
 
-# Check if package is installed
-if ! poetry run edumatcher --version &> /dev/null; then
-    echo "❌ edumatcher command not found after poetry install"
-    exit 1
-fi
-echo "✅ edumatcher command available"
+# # Verify CLI entrypoint is available after install.
+# if ! poetry run pm-engine --version &> /dev/null; then
+#     echo "❌ pm-engine command not found after poetry install"
+#     exit 1
+# fi
+# echo "✅ pm-engine command available"
+
+rm -rf pandoc-3.10*
 
 echo ""
 echo "==================================="
@@ -167,7 +860,7 @@ echo "✅ All checks passed!"
 echo "==================================="
 echo ""
 echo "Full development environment for EduMatcher is ready to use!"
-echo ""
+echo "Download EduMatcher by cloning the repository and running `poetry install` to set up the Python environment."
 echo "See development.md for more information on how to contribute and run tests."
 
 # End of script

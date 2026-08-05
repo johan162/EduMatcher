@@ -80,15 +80,12 @@
 #       L1:
 #         price_shift_pct: 0.07
 #         halt_duration_ns: 300000000000
-#         resumption_mode: AUCTION
 #       L2:
 #         price_shift_pct: 0.13
 #         halt_duration_ns: 900000000000
-#         resumption_mode: AUCTION
 #       L3:
 #         price_shift_pct: 0.20
 #         halt_duration_ns: null
-#         resumption_mode: AUCTION
 #
 #   gateways:
 #     alf:
@@ -122,15 +119,12 @@
 #           L1:
 #             price_shift_pct: 0.07
 #             halt_duration_ns: 300000000000
-#             resumption_mode: AUCTION
 #           L2:
 #             price_shift_pct: 0.13
 #             halt_duration_ns: 900000000000
-#             resumption_mode: CONTINUOUS
 #           L3:
 #             price_shift_pct: 0.20
 #             halt_duration_ns:
-#             resumption_mode: AUCTION
 #       market_maker_quotes:
 #         - gateway_id: MM01
 #           quote_id: SEED-MM01-AAPL
@@ -227,7 +221,7 @@
 #   api_gateways:
 #     desk:
 #       enabled: true
-#       host: 127.0.0.1
+#       host: 0.0.0.0
 #       port: 8080
 #       swagger_enabled: true
 #       log_level: info
@@ -245,7 +239,7 @@
 #         wait_ack_sec: 3.0
 #     dashboards:
 #       enabled: true
-#       host: 127.0.0.1
+#       host: 0.0.0.0
 #       port: 8081
 #       credentials:
 #         - api_key: key-dashboard-demo
@@ -327,9 +321,6 @@
 #     Halt length for this level; null means halt remains active for the rest of day.
 #     Built-in ladder values: L1=300000000000 (5m), L2=900000000000
 #     (15m), L3=null.
-#   levels.<NAME>.resumption_mode: AUCTION
-#     How trading resumes after the halt: AUCTION runs an uncross,
-#     CONTINUOUS reopens matching immediately.
 #     Built-in default ladder: L1=7%/5m, L2=13%/15m, L3=20%/rest-of-day.
 #
 #   gateways.alf entries
@@ -388,8 +379,6 @@
 #     Percent move threshold that triggers halt level <NAME>.
 #   circuit_breaker.levels.<NAME>.halt_duration_ns: null
 #     Halt duration for level <NAME>; null means rest-of-day.
-#   circuit_breaker.levels.<NAME>.resumption_mode: AUCTION
-#     Trading resumption behavior for level <NAME>.
 #     halt_duration_ns may be null for rest-of-day halts.
 #     reference_window_ns can override the global rolling reference window.
 #   market_maker_quotes:
@@ -545,8 +534,8 @@
 #     Named REST/WebSocket gateway process configuration.
 #   enabled: true
 #     Master switch that lets pm-api-gwy start serving clients.
-#   host: 127.0.0.1
-#     HTTP bind address used by uvicorn.
+#   host: 0.0.0.0
+#     HTTP bind address used by uvicorn (use 127.0.0.1 for loopback-only).
 #   port: 8080
 #     HTTP listen port for REST and WebSocket clients.
 #   swagger_enabled: true

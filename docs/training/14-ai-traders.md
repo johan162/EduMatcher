@@ -82,7 +82,7 @@ Watch the gateway output — you'll see orders being submitted at the profile's
 Launch multiple traders across all configured symbols with one command:
 
 ```bash
-pm-ai-swarm --count 3 --config engine_config.yaml --duration 60
+pm-ai-swarm --count 3 --duration 60
 ```
 
 This spawns `AI01`, `AI02`, `AI03`, cycling through all four profiles and

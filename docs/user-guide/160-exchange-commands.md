@@ -870,7 +870,7 @@ result = client.halt_all()
 print(f"Halted {result['halted_symbols']} symbols, cancelled {result['cancelled_quotes']} quote legs")
 ```
 
-The engine sets every known symbol to `HALTED` with `resumption_mode = MANUAL`.
+The engine sets every known symbol to `HALTED` with `halt_source = ADMIN`.
 No timer is set — the halt is permanent until `resume_all()` is called or the
 session transitions to `CLOSED`.
 
@@ -900,7 +900,7 @@ print(f"Resumed {result['resumed_symbols']} symbols")
 ```
 
 For each previously halted symbol the engine publishes
-`circuit_breaker.resume.<SYMBOL>` with `mode = "MANUAL"`.  Normal order flow
+`circuit_breaker.resume.<SYMBOL>` with `halt_source = "ADMIN"`.  Normal order flow
 and MM quote obligations resume immediately after the ack is received.
 
 
@@ -1161,5 +1161,5 @@ To add a new command:
 - [Messages](270-message-reference.md) — raw frame format for every message
 - [Risk Controls](120-risk-controls.md) — how halt state affects order matching
 - [Configuration — Role Privileges](010-configuration.md#role-privileges) — the permissions matrix
-- [Gateway Commands](050-gateway-reference.md) — participant-facing CLI commands (TRADER / MM role)
+- [ALF Console](055-alf-console.md) — participant-facing CLI commands (TRADER / MM role)
 - [Auctions & Scheduling](080-session-scheduling.md) — valid session-state transitions

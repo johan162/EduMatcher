@@ -270,7 +270,7 @@ class TestStatsOnStartupSymbols:
             # Should have called send_multipart twice (once per symbol)
             assert fake_push.send_multipart.call_count == 2
         finally:
-            sp._conn.close()
+            sp.close()
 
     def test_on_startup_symbols_empty(self, tmp_path: Path) -> None:
         from edumatcher.stats.main import StatsProcess
@@ -287,7 +287,7 @@ class TestStatsOnStartupSymbols:
             # No requests sent
             fake_sock.send_multipart.assert_not_called()
         finally:
-            sp._conn.close()
+            sp.close()
 
 
 # ===========================================================================
@@ -431,13 +431,13 @@ class TestEngineSessionTransitions:
             order_type=OrderType.LIMIT,
             quantity=100,
             gateway_id="GW01",
-            price=100.0,
+            price=100,
         )
         engine._session_state = SessionState.OPENING_AUCTION
         engine._handle_new_order(o.to_dict())
         # No matching sell — uncross should find no crossable interest
         pub_sock.sent.clear()
-        engine._run_uncross()
+        engine._run_uncross(reason="SCHEDULED")
         from edumatcher.models.message import decode
 
         topics = [decode(f)[0] for f in pub_sock.sent]

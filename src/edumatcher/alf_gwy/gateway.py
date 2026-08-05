@@ -920,7 +920,7 @@ class AlfGateway:
                     "RESUME",
                     {
                         "SYMBOL": str(payload.get("symbol", "")),
-                        "MODE": str(payload.get("resumption_mode", "")),
+                        "SRC": str(payload.get("halt_source", "")),
                     },
                 )
                 continue

@@ -46,7 +46,7 @@ later chapters build on configuration and positions established in earlier ones.
 | 05 | [Order Types Deep Dive](../user-guide/060-order-types.md) | MARKET, STOP, FOK, IOC, ICEBERG, TRAILING_STOP |
 | 06 | [Time-in-Force & Sessions](../user-guide/080-session-scheduling.md) | DAY, GTC, ATO, ATC; session phases; scheduled transitions |
 | 07 | [Auctions](../user-guide/080-session-scheduling.md) | Opening/closing auctions, equilibrium price, ATO/ATC orders |
-| 08 | [Cancelling & Managing Orders](../user-guide/050-gateway-reference.md) | CANCEL, STATUS, ORDERS; managing resting order book |
+| 08 | [Cancelling & Managing Orders](../user-guide/055-alf-console.md) | CANCEL, STATUS, ORDERS; managing resting order book |
 | 09 | [Market Making](../user-guide/090-market-maker.md) | QUOTE command, inactivation policies, obligations, QLEGS |
 | 10 | [Combo Orders](../user-guide/070-combo-orders.md) | Multi-leg atomic fills, OCO, leg risk |
 | 11 | [Risk Controls](../user-guide/120-risk-controls.md) | pm-admin, pm-admin-cli, price collars, circuit breakers, HALT/RESUME, kill switch |
@@ -79,12 +79,12 @@ training chapter.
 | 00 | [Installation](../user-guide/000-getting-started.md#installation), [Environment variables](../user-guide/000-getting-started.md#environment-variables) |
 | 01 | [Configuring the Exchange](../user-guide/010-configuration.md#configuring-the-exchange), [Generate Configs with pm-config-gen](../user-guide/010-configuration.md#generate-configs-with-pm-config-gen) |
 | 02 | [The QUOTE command](../user-guide/090-market-maker.md#the-quote-command), [Quick start (pm-mm-bot)](../user-guide/100-mm-bot.md#quick-start) |
-| 03 | [Command Format](../user-guide/050-gateway-reference.md#command-format), [Gateway Responses](../user-guide/050-gateway-reference.md#gateway-responses) |
-| 04 | [Order Amendment (AMEND)](../user-guide/060-order-types.md#order-amendment-amend), [Command Format](../user-guide/050-gateway-reference.md#command-format) |
+| 03 | [Command Format](../user-guide/055-alf-console.md#command-format), [Gateway Responses](../user-guide/055-alf-console.md#gateway-responses) |
+| 04 | [Order Amendment (AMEND)](../user-guide/060-order-types.md#order-amendment-amend), [Command Format](../user-guide/055-alf-console.md#command-format) |
 | 05 | [STOP (Stop-Market)](../user-guide/060-order-types.md#stop-stop-market), [TRAILING_STOP](../user-guide/060-order-types.md#trailing_stop) |
 | 06 | [Session phases](../user-guide/080-session-scheduling.md#session-phases), [The session scheduler (pm-scheduler)](../user-guide/080-session-scheduling.md#the-session-scheduler-pm-scheduler) |
 | 07 | [Equilibrium price](../user-guide/080-session-scheduling.md#equilibrium-price), [What are auctions?](../user-guide/080-session-scheduling.md#what-are-auctions) |
-| 08 | [Command Format](../user-guide/050-gateway-reference.md#command-format), [Gateway Responses](../user-guide/050-gateway-reference.md#gateway-responses) |
+| 08 | [Command Format](../user-guide/055-alf-console.md#command-format), [Gateway Responses](../user-guide/055-alf-console.md#gateway-responses) |
 | 09 | [Quote lifecycle](../user-guide/090-market-maker.md#quote-lifecycle), [MM quote identification and quote-leg mapping](../user-guide/090-market-maker.md#mm-quote-identification-and-quote-leg-mapping) |
 | 10 | [What Are Combo Orders?](../user-guide/070-combo-orders.md#what-are-combo-orders), [OCO (One-Cancels-Other)](../user-guide/060-order-types.md#oco-one-cancels-other) |
 | 11 | [Price collars](../user-guide/120-risk-controls.md#price-collars), [Circuit breakers](../user-guide/120-risk-controls.md#circuit-breakers) |
@@ -102,7 +102,7 @@ training chapter.
 | 23 | [Market Data Feed (CALF)](../user-guide/240-calf-gateway.md), [Appendix: CALF Protocol Reference](../user-guide/920-app-calf-protocol.md) |
 | 24 | [pm-api-gwy processes](../user-guide/170-processes.md#pm-api-gwy-restwebsocket-api-gateway), [API Gateway Config](../user-guide/260-api-gateway.md) |
 | 25 | [Market Index (pm-index)](../user-guide/150-market-index.md), [Index Admin CLI](../user-guide/152-index-admin-cli.md), [pm-index-cli reference](../user-guide/160-exchange-commands.md), [pm-index process](../user-guide/170-processes.md#pm-index-index-calculation-process) |
-| 26 | [ALF TCP Gateway](../user-guide/220-alf-gateway.md), [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md), [Gateway Commands](../user-guide/050-gateway-reference.md) |
+| 26 | [ALF TCP Gateway](../user-guide/220-alf-gateway.md), [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md), [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md) |
 | 27 | [BALF TCP Gateway](../user-guide/230-balf-gateway.md), [BALF Protocol Reference](../user-guide/910-app-balf-protocol.md), [Configuration](../user-guide/010-configuration.md#configuring-pm-balf-gwy) |
 
  

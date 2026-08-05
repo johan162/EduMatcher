@@ -52,7 +52,7 @@ Installed mode:
 
 ```bash
 pm-index
-pm-index --config path/to/engine_config.yaml
+pm-index
 pm-index --reset
 ```
 
@@ -60,7 +60,7 @@ Developer / Poetry mode:
 
 ```bash
 poetry run pm-index
-poetry run pm-index --config path/to/engine_config.yaml
+poetry run pm-index
 poetry run pm-index --reset
 ```
 

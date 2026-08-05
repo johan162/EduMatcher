@@ -28,6 +28,7 @@ from edumatcher.md_gateway.replay_buffer import ReplayBuffer, ReplayMissError
 from edumatcher.md_gateway.sequencer import SequenceAllocator
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
+from edumatcher.models.price import DEFAULT_TICK_DECIMALS
 
 _ALLOWED_CHANNELS = frozenset(
     {"TOP", "TRADE", "STATE", "INDEX", "DEPTH", "AUCTION", "CB"}
@@ -43,6 +44,13 @@ _ALLOWED_CHANNELS = frozenset(
 # most a handful per symbol per day), so a wildcard subscription poses none
 # of DEPTH's bandwidth risk.
 _WILDCARD_ELIGIBLE_CHANNELS = frozenset({"STATE", "TOP", "TRADE", "AUCTION"})
+# Channels that have a current-state baseline a SNAP can express, and so the
+# exact set _send_snapshot_for_stream knows how to fill. TRADE and AUCTION are
+# streams of discrete events with no such state: there is no snapshot of a
+# print, and emitting an empty envelope in place of one tells a client
+# something false. Kept beside the channel sets it partitions so the two
+# cannot drift.
+_SNAPSHOT_CHANNELS = frozenset({"TOP", "STATE", "INDEX", "DEPTH", "CB"})
 _MAX_LINE_BYTES = 4096
 _HELLO_TIMEOUT_SEC = 5
 _MAX_ENGINE_EVENTS_PER_LOOP = 2000
@@ -58,9 +66,18 @@ class MarketDataGateway:
         self,
         config: MarketDataGatewayConfig,
         known_symbols: set[str] | None = None,
+        tick_decimals: dict[str, int] | None = None,
     ) -> None:
         self.config = config
         self._known_symbols = set(s.upper() for s in (known_symbols or set()))
+        # Per-symbol display precision, for WELCOME|REF= and the SYMBOLS reply.
+        # Separate from _known_symbols rather than replacing it: the symbol set
+        # grows at runtime as unseen instruments appear on the engine bus, and
+        # those arrive with no configured precision, so the two are genuinely
+        # different sets. _ref_fields resolves that difference in one place.
+        self._tick_decimals = {
+            s.upper(): int(d) for s, d in (tick_decimals or {}).items()
+        }
 
         self._running = False
         self._server: socket.socket | None = None
@@ -80,7 +97,9 @@ class MarketDataGateway:
             "session.state",
             "circuit_breaker.halt.",
             "circuit_breaker.resume.",
+            "circuit_breaker.extend.",
             "auction.result.",
+            "auction.indicative.",
         )
         self._index_sub = make_subscriber(config.index_pub_addr, "index.")
 
@@ -302,6 +321,16 @@ class MarketDataGateway:
                 if sent <= 0:
                     break
 
+                # Outbound progress counts as activity, per the protocol's
+                # "no inbound and no outbound traffic" idle rule. Without this
+                # the timer only ever advanced on inbound bytes, so a purely
+                # passive consumer — the normal shape of a market-data client,
+                # which has nothing to say — was disconnected every
+                # idle_timeout_sec despite a perfectly healthy socket.
+                # Deliberately keyed on a successful send rather than on
+                # queuing, so a client that has stopped draining still ages
+                # out instead of being kept alive by our own backlog.
+                session.last_activity = time.monotonic()
                 session.out_offset += sent
 
                 if session.out_offset >= len(payload):
@@ -367,6 +396,10 @@ class MarketDataGateway:
 
         if frame.msg_type == "SUB":
             self._handle_sub(session, frame.fields)
+        elif frame.msg_type == "SYMBOLS":
+            self._handle_symbols(session)
+        elif frame.msg_type == "RESUME":
+            self._handle_resume(session, frame.fields)
         elif frame.msg_type == "UNSUB":
             self._handle_unsub(session, frame.fields)
         elif frame.msg_type == "PING":
@@ -416,15 +449,77 @@ class MarketDataGateway:
         }
         if self._known_symbols:
             welcome_fields["SYMBOLS"] = ",".join(sorted(self._known_symbols))
+            welcome_fields["REF"] = self._ref_fields()
 
         self._queue_line(session, "WELCOME", welcome_fields)
         log.info("client authenticated fd=%d client=%s", session.sock.fileno(), client)
 
-        resume_raw = fields.get("RESUME", "0")
-        if resume_raw == "1":
-            self._handle_resume(session, fields)
+    def _handle_symbols(self, session: ClientSession) -> None:
+        """Answer a ``SYMBOLS`` request with the current instrument universe.
+
+        ``WELCOME|SYMBOLS=`` alone is not enough for a client that needs the
+        universe: it is optional, sent once, and omitted entirely when the
+        gateway started without a readable engine config. The set also *grows*
+        as instruments are seen on the engine bus, so a client that connected
+        before a symbol first traded had no way to learn of it short of
+        reconnecting. This makes the list askable at any time.
+
+        ``COUNT`` is always present, including when it is ``0`` — that is a
+        meaningful answer ("this gateway knows of no instruments yet"), and a
+        client must be able to tell it apart from a malformed reply.
+        """
+        fields = {"COUNT": str(len(self._known_symbols))}
+        if self._known_symbols:
+            fields["SYMBOLS"] = ",".join(sorted(self._known_symbols))
+            fields["REF"] = self._ref_fields()
+        self._queue_line(session, "SYMBOLS", fields)
+
+    def _ref_fields(self) -> str:
+        """Build ``REF=SYM:DEC,...`` — per-symbol display precision.
+
+        Static reference data, so it belongs here and on ``WELCOME`` rather
+        than on a market data channel: ``tick_decimals`` never changes for a
+        symbol, and repeating it on every ``TOP`` or ``TRADE`` would put a
+        constant on the hottest path in a protocol whose ``MD`` messages are
+        deliberately deltas.
+
+        Without it a client has no way to learn an instrument's precision at
+        all — the only other source is ``GET /api/symbols``, which requires a
+        trading credential that a market data consumer has no business holding
+        — so every client rendering a price had to assume the default of 2 and
+        be quietly wrong about anything else.
+
+        The ``SYM:DEC`` tuple reuses the colon-delimited grammar ``DEPTH``
+        already uses for ``price:qty:count``, and leaves room to grow to
+        ``SYM:DEC:MULT:CCY`` as further reference fields are defined, without
+        another protocol change. Parallel positional lists would have to stay
+        index-aligned forever.
+
+        Every symbol in ``SYMBOLS`` appears here, so a client never has to
+        reason about one being listed in one field and missing from the other.
+        Symbols first seen on the engine bus at runtime have no configured
+        precision and are reported at ``DEFAULT_TICK_DECIMALS``, which is what
+        the rest of the system assumes for them too.
+        """
+        return ",".join(
+            f"{sym}:{self._tick_decimals.get(sym, DEFAULT_TICK_DECIMALS)}"
+            for sym in sorted(self._known_symbols)
+        )
 
     def _handle_resume(self, session: ClientSession, fields: dict[str, str]) -> None:
+        """Resume one ``(CH, SYM)`` stream from ``LASTSEQ``.
+
+        A standalone, repeatable command rather than a ``HELLO`` flag. As a
+        flag it could only ever run once per connection — ``HELLO`` is
+        dispatched only while a session is unauthenticated — so a client
+        following more than one stream, which is the normal case, had no way to
+        resume the rest of them after a reconnect.
+
+        Malformed requests answer ``ERR`` and leave the session open, matching
+        ``SUB``. Killing the connection was defensible when this could only
+        happen during the handshake; for a command a client may send many times
+        it would turn one bad request into a full resubscribe cycle.
+        """
         ch_values = self._parse_csv_upper(fields.get("CH", ""))
         sym_values = self._parse_csv_upper(fields.get("SYM", ""))
 
@@ -437,7 +532,6 @@ class MarketDataGateway:
                     "MSG": "RESUME requires exactly one CH and one SYM",
                 },
             )
-            self._close_after_flush(session)
             return
 
         last_seq_raw = fields.get("LASTSEQ", "")
@@ -449,7 +543,6 @@ class MarketDataGateway:
                 "ERR",
                 {"CODE": "BAD_MESSAGE", "MSG": "LASTSEQ must be an integer"},
             )
-            self._close_after_flush(session)
             return
 
         if last_seq <= 0:
@@ -458,7 +551,6 @@ class MarketDataGateway:
                 "ERR",
                 {"CODE": "BAD_MESSAGE", "MSG": "LASTSEQ must be > 0"},
             )
-            self._close_after_flush(session)
             return
 
         ch = ch_values[0]
@@ -470,7 +562,6 @@ class MarketDataGateway:
                 "ERR",
                 {"CODE": "INVALID_CHANNEL", "CH": ch, "SYM": sym},
             )
-            self._close_after_flush(session)
             return
 
         # SYM=* is meaningless for RESUME: unlike SUB, there is no per-symbol
@@ -485,12 +576,18 @@ class MarketDataGateway:
                 "ERR",
                 {"CODE": "INVALID_SYMBOL", "CH": ch, "SYM": sym},
             )
-            self._close_after_flush(session)
             return
 
-        # Resume implies immediate live continuation for the requested stream.
-        session.subscriptions.add((ch, sym))
-        self._subs.set_for_client(session.sock.fileno(), session.subscriptions)
+        # Resume implies immediate live continuation for the requested stream,
+        # but only where the client is not already receiving it. A wildcard
+        # subscriber (SUB|CH=TRADE|SYM=*, which is how the terminal bridge
+        # follows the tape) would otherwise accumulate one redundant concrete
+        # pair per RESUME, permanently: nothing ever removes them, and
+        # session_wants scans the set linearly for every client on every
+        # stream event.
+        if not self._subs.session_wants(session.sock.fileno(), ch, sym):
+            session.subscriptions.add((ch, sym))
+            self._subs.set_for_client(session.sock.fileno(), session.subscriptions)
 
         try:
             lines = self._replay.replay_since(ch, sym, last_seq)
@@ -500,7 +597,15 @@ class MarketDataGateway:
                 "ERR",
                 {"CODE": "REPLAY_MISS", "CH": ch, "SYM": sym},
             )
-            self._send_snapshot_for_stream(session, ch, sym)
+            # Only the snapshot-backed channels have a baseline to re-sync to,
+            # and _send_snapshot_for_stream can only fill those. TRADE and
+            # AUCTION carry discrete events: it would emit a SNAP envelope with
+            # no payload, which a client decoding by CH reads as a print of
+            # zero shares at zero price. A missed print is simply gone — the
+            # ERR says so, and inventing a snapshot of one says something
+            # false.
+            if ch in _SNAPSHOT_CHANNELS:
+                self._send_snapshot_for_stream(session, ch, sym)
             return
 
         for line in lines:
@@ -581,7 +686,7 @@ class MarketDataGateway:
             # no baseline — contradicting EduMatcher-Index.md's original
             # design ("gateway sends an initial SNAP"). Fixed here to match
             # TOP/STATE/DEPTH's already-established pattern.
-            if ch in {"TOP", "STATE", "INDEX", "DEPTH", "CB"}:
+            if ch in _SNAPSHOT_CHANNELS:
                 self._send_snapshot_for_stream(session, ch, sym)
 
     def _handle_unsub(self, session: ClientSession, fields: dict[str, str]) -> None:
@@ -716,6 +821,19 @@ class MarketDataGateway:
                     self._emit_stream_event(
                         "STATE", "STATE", sym, state_fields, now_seconds
                     )
+                    # A SUB carrying an explicit symbol only matches events on
+                    # that symbol, so a client watching one instrument would
+                    # never learn the exchange had opened or closed — it saw
+                    # halts and resumes but not the session around them. Repeat
+                    # the transition per symbol so a single-symbol subscriber is
+                    # as well informed as a wildcard one.
+                    for (
+                        per_sym,
+                        per_fields,
+                    ) in self._normaliser.apply_session_to_symbols(self._known_symbols):
+                        self._emit_stream_event(
+                            "STATE", "STATE", per_sym, per_fields, now_seconds
+                        )
                     continue
 
                 if topic.startswith("circuit_breaker.halt."):
@@ -730,6 +848,18 @@ class MarketDataGateway:
                         now_seconds,
                     )
                     cb_sym, cb_fields = self._normaliser.normalise_cb_halt(sym, payload)
+                    self._emit_stream_event("CB", "CB", cb_sym, cb_fields, now_seconds)
+                    continue
+
+                if topic.startswith("circuit_breaker.extend."):
+                    # An ACE extension leaves the symbol halted, so STATE is
+                    # unchanged and deliberately not re-emitted — only the CB
+                    # corridor and resume time have moved.
+                    self._dbg_count("extend_topics")
+                    sym = topic.split(".", 2)[2].upper()
+                    cb_sym, cb_fields = self._normaliser.normalise_cb_extend(
+                        sym, payload
+                    )
                     self._emit_stream_event("CB", "CB", cb_sym, cb_fields, now_seconds)
                     continue
 
@@ -748,6 +878,23 @@ class MarketDataGateway:
                         sym, payload
                     )
                     self._emit_stream_event("CB", "CB", cb_sym, cb_fields, now_seconds)
+                    continue
+
+                if topic.startswith("auction.indicative."):
+                    self._dbg_count("auction_indicative_topics")
+                    (
+                        indic_sym,
+                        indic_fields,
+                    ) = self._normaliser.normalise_auction_indicative(payload)
+                    if indic_sym:
+                        # INDIC rather than AUCTION: same channel, different
+                        # statement. AUCTION says what happened at an uncross;
+                        # INDIC says what would happen if the phase ended now,
+                        # and a client must not mistake the second for the
+                        # first (T-M1).
+                        self._emit_stream_event(
+                            "INDIC", "AUCTION", indic_sym, indic_fields, now_seconds
+                        )
                     continue
 
                 if topic.startswith("auction.result."):

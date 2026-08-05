@@ -7,8 +7,10 @@ import logging
 import sys
 from pathlib import Path
 
-from edumatcher.config import ENGINE_CONFIG_FILE
-from edumatcher.log_srv.config import LogServerConfig, load_log_server_config
+from edumatcher.log_srv.config import (
+    LogServerConfig,
+    load_default_log_server_config,
+)
 from edumatcher.log_srv.server import LogServer
 
 log = logging.getLogger(__name__)
@@ -23,12 +25,6 @@ def _build_parser() -> argparse.ArgumentParser:
     from edumatcher.cli_version import add_version_argument
 
     add_version_argument(parser, "pm-log-srv")
-    parser.add_argument(
-        "--config",
-        "-c",
-        default=str(ENGINE_CONFIG_FILE),
-        help="Engine config YAML path (default: engine_config.yaml)",
-    )
     parser.add_argument("--host", help="TCP bind address override")
     parser.add_argument("--port", type=int, help="TCP bind port override")
     parser.add_argument(
@@ -155,8 +151,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 def _resolve_config(args: argparse.Namespace) -> LogServerConfig:
-    cfg_path = Path(str(args.config))
-    cfg = load_log_server_config(cfg_path)
+    cfg = load_default_log_server_config()
 
     bind_address = str(args.host) if args.host else cfg.bind_address
     port = int(args.port) if args.port else cfg.port
@@ -212,10 +207,13 @@ def _resolve_config(args: argparse.Namespace) -> LogServerConfig:
 
 
 def main() -> None:
+    from edumatcher.config_artifact import report_deployment
+
     parser = _build_parser()
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-log-srv with log level %s", logging.getLevelName(log_level))
+    report_deployment(log)
 
     try:
         config = _resolve_config(args)

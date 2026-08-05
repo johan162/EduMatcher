@@ -60,6 +60,86 @@ The scheduler process (`pm-scheduler`) drives these transitions by sending
 
 
 
+## The trading date
+
+A **trading date** is the calendar date, in the exchange's local wall clock, on
+which one `PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED`
+cycle runs. It is the unit every daily figure in EduMatcher is bucketed by:
+
+| Where | Column | Meaning |
+|-------|--------|---------|
+| `stats.db` | `daily_stats.date`, `index_daily_stats.date` | Trading date |
+| `clearing.db` | `trade_events.trade_date`, `gateway_daily_summary.trade_date` | Trading date |
+
+The trading date is deliberately **not** the UTC date, and **not** the date on
+the clock of whichever machine happens to be running a process. An exchange's
+daily rollup has to describe the session its participants actually traded. A
+venue whose session runs into the evening — or any venue whose session
+straddles 00:00 UTC — would otherwise have a single trading session split
+across two dates, and every daily summary, P&L statement and index close would
+describe half a day.
+
+All timestamps (`ts` columns, log lines, message payloads) remain **UTC
+instants**. Only the daily rollups use the trading date. Converting between the
+two is exactly the job of the session timezone.
+
+### Setting the session timezone
+
+The two **recorders** each take a `--timezone` argument, an IANA timezone name,
+defaulting to `UTC`:
+
+```bash
+pm-stats    --timezone Europe/Stockholm
+pm-clearing --timezone Europe/Stockholm
+```
+
+Each writes the value into its own database. Every **reader** then picks it up
+from there and needs no configuration:
+
+```bash
+pm-stats-cli daily --date 2026-06-14   # resolves in Europe/Stockholm
+pm-ticker                              # same
+```
+
+`pm-stats-cli --timezone`, `pm-ticker --timezone` and the API Gateway's
+`session_timezone:` config key remain available as explicit overrides, and warn
+when they contradict what the database records.
+
+!!! warning "The two recorders must agree with each other"
+    `pm-stats` and `pm-clearing` write separate databases, and nothing
+    cross-checks them. If they are started with different `--timezone` values,
+    `daily_stats.volume` will not reconcile against
+    `gateway_daily_summary.traded_qty`, and neither process will report an
+    error.
+
+    Within a single database the value is enforced: restarting a recorder
+    against an existing file with a different `--timezone` is refused outright,
+    since its `date` column would otherwise mean two different things.
+
+    Set it once, in whatever starts your processes. If your exchange runs in
+    UTC, leave both at the default.
+
+### Relationship to `country:`
+
+`country:` (used by `pm-scheduler` for the bank-holiday calendar, see
+[Bank holidays and weekends](#bank-holidays-and-weekends)) and `--timezone` are
+**separate settings and are not derived from one another**. `country:` decides
+*which days* the schedule runs on; `--timezone` decides *which calendar day* a
+timestamp is filed under. A country can span several timezones, so one cannot
+be inferred from the other.
+
+Keep them consistent: an exchange configured with `country: Sweden` should be
+recording with `--timezone Europe/Stockholm`.
+
+### Trading days are not always 24 hours
+
+On a daylight-saving transition the trading date spans 23 or 25 hours, and the
+query tooling accounts for this — a `--date` filter resolves to the instant
+range between local midnight and the *next* local midnight, whatever its
+length. Nothing needs configuring for this to work.
+
+
+
 ## Session phases
 
 | Phase             | Orders accepted? | Matching? | Description                                                                                                    |
@@ -155,7 +235,7 @@ poetry run pm-scheduler --now
 poetry run pm-scheduler --now --delay 5
 
 # Point to a different config file
-poetry run pm-scheduler --config my_schedule.yaml
+poetry run pm-scheduler
 ```
 
 ### CLI flag reference
@@ -229,6 +309,9 @@ country: Sweden
 
 - `country` accepts either a country name (`"Sweden"`) or an ISO 3166-1
   alpha-2 code (`"SE"`).
+- `country` selects the **holiday calendar** only. It does not set the session
+  timezone used to bucket daily statistics — that is `--timezone`, described
+  under [The trading date](#the-trading-date).
 - If omitted, or if the value is not a country `python-holidays` recognizes,
   it **falls back to `"Sweden"`** and logs a warning.
 - Weekends are always treated as non-working days, regardless of what the

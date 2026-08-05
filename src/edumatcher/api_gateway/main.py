@@ -15,13 +15,15 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from edumatcher.api_gateway.config import ApiGatewayConfig, load_api_gateway_config
+from edumatcher.api_gateway.config import (
+    ApiGatewayConfig,
+    load_default_api_gateway_config,
+)
 from edumatcher.api_gateway.engine_client import EngineClient
 from edumatcher.api_gateway.index_client import IndexClient
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import admin, history, orders, reference, ws
 from edumatcher.api_gateway.sessions import SessionRegistry
-from edumatcher.config import ENGINE_CONFIG_FILE
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -62,7 +64,13 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
             yield
         finally:
             for gateway_id in engine.active_gateways():
-                engine.send_disconnect(gateway_id, "api gateway shutdown")
+                # Best-effort: a 503 raised here would skip the two
+                # stop_listener calls below and leak the reader threads, and
+                # "the engine is already gone" is the ordinary case at
+                # shutdown, not an error.
+                engine.send_disconnect(
+                    gateway_id, "api gateway shutdown", require_engine=False
+                )
             engine.stop_listener()
             index_client.stop_listener()
 
@@ -106,8 +114,7 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
 
 
 def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
-    config_path = Path(args.config).expanduser() if args.config else ENGINE_CONFIG_FILE
-    config = load_api_gateway_config(config_path, instance=args.instance)
+    config = load_default_api_gateway_config(instance=args.instance)
     engine_pull_addr = config.engine_pull_addr
     engine_pub_addr = config.engine_pub_addr
     index_pull_addr = config.index_pull_addr
@@ -145,9 +152,6 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--port", default=None, type=int, metavar="PORT", help="HTTP listen port"
-    )
-    parser.add_argument(
-        "--config", default=None, metavar="PATH", help="Path to engine_config.yaml"
     )
     parser.add_argument(
         "--instance",

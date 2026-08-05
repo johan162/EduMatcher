@@ -194,7 +194,7 @@ reporting scripts.
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
-### Layer 2 — Schema (`S001`–`S103`)
+### Layer 2 — Schema (`S001`–`S112`)
 
 **Top-level structure**
 
@@ -238,7 +238,6 @@ these codes cover the per-symbol equivalents.
 | `S066` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>` missing `price_shift_pct` |
 | `S067` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.price_shift_pct` out of range `(0, 1)` |
 | `S068` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.halt_duration_ns` not a positive integer |
-| `S069` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.resumption_mode` not `AUCTION` or `CONTINUOUS` |
 
 **Gateway fields**
 
@@ -265,7 +264,6 @@ these codes cover the per-symbol equivalents.
 | `S031` | CB level missing `price_shift_pct`                    |
 | `S032` | `price_shift_pct` out of range `(0, 1)`               |
 | `S033` | `halt_duration_ns` not a positive integer             |
-| `S034` | `resumption_mode` not `AUCTION` or `CONTINUOUS`       |
 | `S035` | `circuit_breaker` present inside a risk level         |
 
 **Risk controls**
@@ -307,6 +305,29 @@ these codes cover the per-symbol equivalents.
 | `S062` | `enforce_collars` present but not a boolean                 |
 | `S063` | `enforce_circuit_breakers` present but not a boolean        |
 | `S064` | `schedule` present but not a mapping                        |
+
+**Reopening / Automated Corridor Expansion (`circuit_breaker.reopening`)**
+
+Applied to both `circuit_breaker_defaults.reopening` and each
+`symbols.<SYM>.circuit_breaker.reopening`.
+
+| Code   | Condition                                                                 |
+|--------|---------------------------------------------------------------------------|
+| `S104` | `reopening` is present but not a mapping                                  |
+| `S105` | `reopening.enabled` is not a boolean                                      |
+| `S106` | `reopening.initial_band_pct` is outside `(0, 1)`                          |
+| `S107` | `reopening.expansions` is not a non-empty list, or an entry is not a mapping |
+| `S108` | `reopening.expansions[].widen_pct` is missing or outside `(0, 1)`         |
+| `S109` | `reopening.expansions[].min_duration_ns` is missing or not `> 0`          |
+| `S110` | `reopening.random_seed` is set on a symbol — it is engine-wide and belongs in `circuit_breaker_defaults` |
+| `S111` | `reopening.random_end_max_ns` is not an integer `>= 0`                    |
+| `S112` | `reopening.expansions` is set on a symbol — the ladder is exchange-wide and belongs in `circuit_breaker_defaults` |
+
+`S110` and `S112` are errors rather than warnings because both keys would
+otherwise be accepted, stored and then ignored. The random-end generator is one
+engine-wide instance, and the expansion ladder is read from the exchange
+defaults, so in each case the symbol would appear configured while behaving
+exactly as if it were not.
 
 **MM obligation defaults (`mm_obligation_defaults`)**
 

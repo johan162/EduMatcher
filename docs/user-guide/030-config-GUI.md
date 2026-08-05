@@ -107,8 +107,8 @@ effort. Pick the one that matches your situation.
 
 | Method | Best for | Needs | URL |
 |---|---|---|---|
-| [Container stack](#option-1-one-command-with-the-container-stack) | Most users; production | Podman/Docker + Make | `http://localhost:8080` |
-| [Pre-built image artifact](#option-2-a-pre-built-image-artifact) | Offline hosts, no repo clone | Podman/Docker only | `http://localhost:8080` |
+| [Container stack](#option-1-one-command-with-the-container-stack) | Most users; production | Podman/Docker + Make | `http://localhost:8092` |
+| [Pre-built image artifact](#option-2-a-pre-built-image-artifact) | Offline hosts, no repo clone | Podman/Docker only | `http://localhost:8092` |
 | [Local development](#option-3-local-development) | Contributing to the GUI itself | Node.js + npm | `http://127.0.0.1:5174` |
 
 ### Option 1 — One command with the container stack
@@ -122,7 +122,7 @@ make up
 
 `make up` auto-detects Podman or Docker (preferring Podman), starts the Podman
 machine on macOS if needed, builds the image, and starts the stack in the
-background. Open **http://localhost:8080** once the build completes.
+background. Open **http://localhost:8092** once the build completes.
 
 ```bash
 make down     # stop and remove the stack
@@ -153,15 +153,15 @@ and run it on the target host:
 ```bash
 # Podman
 podman load  --input edumatcher-config-gui-<version>.tar
-podman run -d --name config-gui -p 8080:8080 edumatcher-config-gui:<version>
+podman run -d --name config-gui -p 8092:8092 edumatcher-config-gui:<version>
 
 # Docker
 docker load  --input edumatcher-config-gui-<version>.tar
-docker run -d --name config-gui -p 8080:8080 edumatcher-config-gui:<version>
+docker run -d --name config-gui -p 8092:8092 edumatcher-config-gui:<version>
 ```
 
 The `load` command prints the exact image tag, e.g. `edumatcher-config-gui:1.0.0`.
-Open **http://localhost:8080**. Stop and remove with
+Open **http://localhost:8092**. Stop and remove with
 `podman stop config-gui && podman rm config-gui` (or the `docker` equivalents).
 Pass any [backend environment variable](#backend-environment-variables) with
 `-e`, for example `-e CORS_ORIGIN="https://myhost.example"`.
@@ -748,9 +748,22 @@ The **Review & Export** tab (Beginner) is the final pass:
     - **Verify with pm-cverifier** — optional; see
       [server-side verification](#optional-server-side-verification).
 
-Once downloaded, the file is ready for the engine and its companion processes —
-see [Running the Engine](040-running-the-exchange.md) and, for a first end-to-end
-run, [Getting Started](000-getting-started.md).
+The download is an **authored** `engine_config.yaml` — the file you keep and
+version, not the one the exchange runs. Install it before starting anything:
+
+```bash
+pm-config-deploy ~/Downloads/engine_config.yaml
+```
+
+That validates it, resolves every default, and writes the compiled artifact the
+processes actually read. Because the GUI already refuses to export while any
+error exists, a file downloaded from here should deploy first time; if it does
+not, the deploy output names the finding.
+
+See [Configuration — File Location](010-configuration.md#file-location) for what
+compiling does, [Running the Engine](040-running-the-exchange.md) for starting
+the processes, and [Getting Started](000-getting-started.md) for a first
+end-to-end run.
 
 !!! note "📷 Figure 12 — Review & Export with YAML preview"
     _Screenshot placeholder._ Capture the Review tab showing the diagnostics
@@ -780,7 +793,7 @@ To run the pieces yourself:
 cd config-gui
 npm install
 npm run build            # emits the static UI to apps/web/dist
-STATIC_DIR="$PWD/apps/web/dist" HOST=0.0.0.0 PORT=8080 \
+STATIC_DIR="$PWD/apps/web/dist" HOST=0.0.0.0 PORT=8092 \
   npm run start --workspace @edumatcher/server
 ```
 
@@ -795,7 +808,7 @@ All optional, read by the Fastify server:
 | Variable | Default | Purpose |
 |---|---|---|
 | `HOST` | `127.0.0.1` | API bind address (use `0.0.0.0` in containers) |
-| `PORT` | `5175` | API port (`8080` in the container image) |
+| `PORT` | `5175` | API port (`8092` in the container image) |
 | `STATIC_DIR` | *(unset)* | Absolute path to the built UI; enables single-origin/single-container mode |
 | `MAX_IMPORT_BYTES` | `1000000` | Maximum accepted import payload (1 MB) |
 | `CVERIFIER_COMMAND` | `pm-cverifier` | Command for the optional verify endpoint, e.g. `"poetry run pm-cverifier"` |
@@ -825,7 +838,7 @@ up your shell's proxy variables automatically:
 | `NPM_STRICT_SSL` | Set to `false` **only** as a last resort for TLS interception when you cannot install the CA |
 
 ```bash
-export HTTPS_PROXY=http://proxy.corp.example:8080
+export HTTPS_PROXY=http://proxy.corp.example:8092
 export NPM_REGISTRY=https://artifactory.corp.example/api/npm/npm-remote/
 docker compose up --build
 ```
@@ -909,7 +922,7 @@ server can also serve the built UI, collapsing the two into one container.
 | **"pm-cverifier is not available"** in the Review tab | Verifier not on `PATH` (expected in the default container) | Optional; set `CVERIFIER_COMMAND="poetry run pm-cverifier"` or run where the tool is installed. |
 | **`npm run verify:python` cannot import `edumatcher`** | Python env not installed | Run `poetry install` at the repository root. |
 | **Import rejected as too large** | File exceeds `MAX_IMPORT_BYTES` (1 MB) | Raise the limit via the env var, or trim the file. |
-| **Port already in use** | Another process holds `5174`/`5175`/`8080` | Change `PORT` (API) or `server.port` / proxy target in `config-gui/apps/web/vite.config.ts` (web). |
+| **Port already in use** | Another process holds `5174`/`5175`/`8092` | Change `PORT` (API) or `server.port` / proxy target in `config-gui/apps/web/vite.config.ts` (web). |
 | **Imported config shows an "unmapped" banner** | The file has sections the GUI does not model | Expected — those sections are preserved read-only and re-emitted unchanged. |
 | **Quote Stub Review shows "! fill in" after import** | No mid-range seeding and no explicit quotes for some symbols | Set a mid-range on the Market Maker tab, or enter explicit bid/ask on each flagged symbol's MM Quotes sub-tab. |
 | **A tab you expected is missing** | It is above the current persona, or (Market Maker) no MM gateway exists | Raise the [persona](#personas), or add a `MARKET_MAKER` gateway. |

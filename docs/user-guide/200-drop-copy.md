@@ -330,7 +330,7 @@ DC|STATE=ON
 
 Once enabled, every fill for that gateway arrives asynchronously as a
 `DC_FILL` line — see
-[Gateway → DC](050-gateway-reference.md#dc-toggle-drop-copy-relay) and
+[ALF Console → DC](055-alf-console.md#dc-toggle-drop-copy-relay) and
 [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay) for the
 full command reference. Internally this is exactly the same ZMQ SUB
 connection to `drop_copy.event.{gateway_id}` described above — `pm-alf-gwy`
@@ -424,7 +424,7 @@ checks, see [RALF protocol reference](930-app-ralf-protocol.md) and
 
 - [Drop-Copy Spy (pm-dc-spy)](202-dc-spy-cli.md) — read-only CLI for inspecting this feed without writing a subscriber
 - [Drop-Copy TCP Gateway (pm-dc-gwy)](201-dc-gateway.md) — plain-TCP relay of this feed for non-ZeroMQ external clients
-- [Gateway → DC](050-gateway-reference.md#dc-toggle-drop-copy-relay) — relay this feed through your own `pm-alf-console` session
+- [ALF Console → DC](055-alf-console.md#dc-toggle-drop-copy-relay) — relay this feed through your own `pm-alf-console` session
 - [ALF TCP Gateway → DC](220-alf-gateway.md#dc-toggle-drop-copy-relay) — relay this feed through your own `pm-alf-gwy` session
 - [Processes](170-processes.md) — full ZeroMQ topology
 - [Risk Controls](120-risk-controls.md) — halt, collar, and circuit breaker events

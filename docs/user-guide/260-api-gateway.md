@@ -47,7 +47,7 @@ Use the top-level key `api_gateways` (underscore). The dashed form
 api_gateways:
   desk:
     enabled: true
-    host: 127.0.0.1
+    host: 0.0.0.0
     port: 8080
     swagger_enabled: true
     log_level: info
@@ -81,6 +81,11 @@ api_gateways:
 | `rate_limit` | Per-key write limiting for POST/PATCH/DELETE endpoints |
 | `timeouts` | Engine auth, request/reply, and synchronous ACK wait timeouts |
 
+`host` defaults to `0.0.0.0`, matching the external TCP gateways: the API
+gateway is intended to be reachable by browser clients, API clients, and
+read-only dashboards on other machines. Set it to `127.0.0.1` only for a
+loopback-only lab or when a reverse proxy on the same host is the only caller.
+
 The engine's `gateways.alf` allowlist remains authoritative. If a credential
 maps to `TRADER01` but `TRADER01` is not allowed by the engine config, the
 engine rejects the API gateway handshake and every request using that
@@ -100,7 +105,7 @@ Installed mode:
 ```bash
 pm-engine --verbose
 pm-stats
-pm-api-gwy --config engine_config.yaml --instance desk
+pm-api-gwy --instance desk
 ```
 
 Developer mode:
@@ -108,7 +113,7 @@ Developer mode:
 ```bash
 poetry run pm-engine --verbose
 poetry run pm-stats
-poetry run pm-api-gwy --config engine_config.yaml --instance desk
+poetry run pm-api-gwy --instance desk
 ```
 
 Useful options:
@@ -118,7 +123,6 @@ Useful options:
 | `--host ADDR`        |                             config value | Override HTTP bind address                       |
 | `--port PORT`        |                             config value | Override HTTP listen port                        |
 | `--instance NAME`    | auto-selected only when one entry exists | Select a named `api_gateways` entry              |
-| `--config PATH`      |           `EDUMATCHER_CONFIG` resolution | Central engine config path                       |
 | `--engine-host HOST` |                             config value | Override engine host for ZMQ ports `5555`/`5556` |
 | `--stats-db PATH`    |                             config value | SQLite database for `/history/*`                 |
 | `--log-level LEVEL`  |                             config value | `debug`, `info`, `warning`, or `error`           |
@@ -127,7 +131,7 @@ Uvicorn writes access and application logs to stdout/stderr. Redirect them with
 your shell or service manager:
 
 ```bash
-poetry run pm-api-gwy --config engine_config.yaml --instance desk --log-level debug \
+poetry run pm-api-gwy --instance desk --log-level debug \
   > api-gateway.log 2>&1
 ```
 
@@ -329,12 +333,41 @@ with no `gateway_id`.
 | `GET /history/orders/{order_id}` | none (path parameter only) | Trading credential only; full lifecycle for one order, scoped to the caller's `gateway_id`; **unbounded and unpaginated** — see the Pagination exceptions note below |
 | `GET /history/fills` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Trading credential only; `event_type=FILL` events for the caller's `gateway_id` |
 | `GET /history/trades` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Public trade tape |
-| `GET /history/daily` | `symbol`, `date`, `limit`, `after` | Omitting `date` returns the latest available date; no `from`/`to` range support |
+| `GET /history/daily` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Omitting every time filter returns the latest available date; `from`/`to` (inclusive, dates not timestamps) return a series across days, oldest first |
 | `GET /history/price-snapshots` | `symbol` (**required**), `date`, `from`, `to`, `limit`, `after` | Intraday mid/bid/ask ticks (15-minute recording interval); unlike `/trades`/`/daily` there is no "all symbols" mode |
-| `GET /history/index-daily` | `index_id`, `date`, `limit`, `after` | Same shape as `/daily` but for exchange indexes; omitting `date` returns the latest available date |
+| `GET /history/index-daily` | `index_id`, `date`, `from`, `to`, `limit`, `after` | Same shape as `/daily` but for exchange indexes, including the `from`/`to` range |
 | `GET /history/index-snapshots` | `index_id` (**required**), `date`, `from`, `to`, `limit`, `after` | Intraday index level ticks; unlike `/trades`/`/daily` there is no "all indexes" mode |
 | `GET /history/index-ids` | `date` | List of index IDs with recorded data; unpaginated |
 | `GET /history/index-events` | `index_id` (**required**), `from`, `to`, `types`, `max_records` | Structural/audit log; live round-trip to `pm-index`, not `pm-stats` — see below |
+
+#### Daily rollups: one date, or a series
+
+`/history/daily` and `/history/index-daily` answer two different questions
+depending on which time filter you pass:
+
+| Parameters | Result |
+|---|---|
+| *(none)* | The latest available date only |
+| `date=YYYY-MM-DD` | That one date |
+| `from=` and/or `to=` | Every date in range, **oldest first**; bounds are inclusive and either may be omitted |
+
+`from`/`to` here are **dates** (`YYYY-MM-DD`), unlike `/trades` and
+`/price-snapshots` where they are ISO timestamps — these tables are keyed by
+date, not by tick time. Passing `date` together with a range is not an error;
+the specific date wins.
+
+Use the range for anything spanning days, such as a multi-day OHLC chart.
+Without it, a month of bars would take one request per calendar day.
+
+```http
+GET /api/v1/history/daily?symbol=AAPL&from=2026-06-01&to=2026-06-30
+Authorization: Bearer key-readonly-demo
+```
+
+The cursor differs between the two modes. Within a single date, `symbol` (or
+`index_id`) alone identifies a row. Across a range it does not — the same
+symbol appears on every date — so the range cursor carries `(date, symbol)`.
+Both are opaque either way; just pass `next_cursor` back as `after`.
 
 #### Pagination
 

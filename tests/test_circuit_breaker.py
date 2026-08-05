@@ -20,19 +20,16 @@ def _make_cb(
                 name="L1",
                 price_shift_pct=0.07,
                 halt_duration_ns=300_000_000_000,
-                resumption_mode="AUCTION",
             ),
             CircuitBreakerLevel(
                 name="L2",
                 price_shift_pct=0.13,
                 halt_duration_ns=900_000_000_000,
-                resumption_mode="AUCTION",
             ),
             CircuitBreakerLevel(
                 name="L3",
                 price_shift_pct=0.20,
                 halt_duration_ns=None,
-                resumption_mode="AUCTION",
             ),
         ]
     cfg = CircuitBreakerConfig(
@@ -178,21 +175,19 @@ class TestActivateDeactivate:
             name="L1",
             price_shift_pct=0.07,
             halt_duration_ns=60_000_000_000,
-            resumption_mode="AUCTION",
         )
         cb = _make_cb(levels=[level])
         cb.activate(T0, level)
         assert cb.halted
         assert cb.halted_at_ns == T0
         assert cb.resume_at_ns == T0 + 60_000_000_000
-        assert cb.active_resumption_mode == "AUCTION"
+        assert cb.halt_source == "CB"
 
     def test_should_resume_before_duration_is_false(self) -> None:
         level = CircuitBreakerLevel(
             name="L1",
             price_shift_pct=0.07,
             halt_duration_ns=60_000_000_000,
-            resumption_mode="AUCTION",
         )
         cb = _make_cb(levels=[level])
         cb.activate(T0, level)
@@ -203,7 +198,6 @@ class TestActivateDeactivate:
             name="L1",
             price_shift_pct=0.07,
             halt_duration_ns=60_000_000_000,
-            resumption_mode="AUCTION",
         )
         cb = _make_cb(levels=[level])
         cb.activate(T0, level)
@@ -214,7 +208,6 @@ class TestActivateDeactivate:
             name="L1",
             price_shift_pct=0.07,
             halt_duration_ns=60_000_000_000,
-            resumption_mode="AUCTION",
         )
         cb = _make_cb(levels=[level])
         cb.activate(T0, level)
@@ -225,7 +218,6 @@ class TestActivateDeactivate:
             name="L3",
             price_shift_pct=0.20,
             halt_duration_ns=None,
-            resumption_mode="AUCTION",
         )
         cb = _make_cb(levels=[level])
         cb.activate(T0, level)
@@ -236,7 +228,6 @@ class TestActivateDeactivate:
             name="L1",
             price_shift_pct=0.07,
             halt_duration_ns=60_000_000_000,
-            resumption_mode="AUCTION",
         )
         cb = _make_cb(levels=[level])
         cb.activate(T0, level)
