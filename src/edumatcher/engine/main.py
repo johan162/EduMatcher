@@ -96,6 +96,7 @@ from edumatcher.models.message import (
     make_symbols_msg,
     make_auction_indicative_msg,
     make_session_state_msg,
+    make_session_transition_ack_msg,
     make_auction_result_msg,
     make_oco_ack_msg,
     make_oco_cancelled_msg,
@@ -2602,11 +2603,16 @@ class Engine:
     def _handle_kill_switch(self, payload: dict[str, Any]) -> None:
         gateway_id = str(payload.get("gateway_id", "")).upper()
         symbol_filter = str(payload.get("symbol", "")).upper()
+        # Echoed on the ack so concurrent mass cancels for one gateway can be
+        # told apart. Absent for callers that do not supply it.
+        command_id = str(payload.get("command_id", ""))
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
             self.pub_sock.send_multipart(
-                make_kill_switch_ack_msg(gateway_id, False, reason)
+                make_kill_switch_ack_msg(
+                    gateway_id, False, reason, command_id=command_id
+                )
             )
             return
 
@@ -2645,6 +2651,7 @@ class Engine:
                 True,
                 cancelled_orders=cancelled_orders,
                 cancelled_quotes=cancelled_quotes,
+                command_id=command_id,
             )
         )
 
@@ -3313,15 +3320,45 @@ class Engine:
     # Session / auction transitions
     # ------------------------------------------------------------------
 
+    def _reply_session_transition(
+        self,
+        payload: dict[str, Any],
+        accepted: bool,
+        to_state: str = "",
+        reason: str = "",
+    ) -> None:
+        """Answer an interactive transition request, if one asked to be told.
+
+        `pm-scheduler` sends no command_id and gets no reply — it drives the
+        timetable and reads the outcome off the public session.state
+        broadcast. An operator issuing a manual transition does supply one,
+        and previously received nothing at all when the request was discarded.
+        """
+        command_id = str(payload.get("command_id", ""))
+        gateway_id = str(payload.get("gateway_id", ""))
+        if not command_id or not gateway_id:
+            return
+        self.pub_sock.send_multipart(
+            make_session_transition_ack_msg(
+                gateway_id, command_id, accepted, to_state=to_state, reason=reason
+            )
+        )
+
     def _handle_session_transition(self, payload: dict[str, Any]) -> None:
         """Handle a session.transition message from the scheduler."""
         if not self._sessions_enabled:
+            self._reply_session_transition(
+                payload, False, reason="Sessions are not enabled on this engine"
+            )
             return
 
         try:
             to_state = SessionState(payload["to_state"])
         except (KeyError, ValueError) as exc:
             log.warning("Invalid session transition: %s", exc)
+            self._reply_session_transition(
+                payload, False, reason=f"Invalid session transition: {exc}"
+            )
             return
 
         from_state = self._session_state
@@ -3399,6 +3436,9 @@ class Engine:
                 next_at=self._next_session_at,
             )
         )
+        # After the broadcast, so a requester that sees its ack knows the
+        # public state has already been published.
+        self._reply_session_transition(payload, True, to_state=to_state.value)
         log.info(f"Session: {from_state.value} → {to_state.value}")
 
     def _expire_tif(self, tif: TIF) -> None:

@@ -94,10 +94,37 @@ async def session_transition(  # pyright: ignore[reportUnusedFunction]
     request: Request,
     session: Annotated[Session, Depends(auth)],
 ) -> dict[str, str]:
-    await require_admin(request, session)
+    gateway_id = await require_admin(request, session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_session_transition(body.to_state)
-    return {"requested_state": body.to_state, "status": "PENDING"}
+    try:
+        ack = await request.app.state.engine.send_and_await_session_transition(
+            gateway_id,
+            body.to_state,
+            request.app.state.config.timeouts.wait_ack_sec,
+        )
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "ENGINE_TIMEOUT", "message": str(exc)}},
+        ) from exc
+    # The engine discards a transition it cannot perform (sessions disabled,
+    # unknown state). It now says so instead of leaving the caller to infer it
+    # from a timeout that looks identical to a slow engine.
+    if not bool(ack.get("accepted")):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": {
+                    "code": "TRANSITION_REJECTED",
+                    "message": str(ack.get("reason", "Rejected by engine")),
+                }
+            },
+        )
+    return {
+        "requested_state": body.to_state,
+        "status": "APPLIED",
+        "command_id": str(ack.get("command_id", "")),
+    }
 
 
 @router.get("/session/schedule")

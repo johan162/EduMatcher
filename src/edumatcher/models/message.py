@@ -550,7 +550,11 @@ def make_combo_status_msg(
 
 
 def make_session_transition_msg(
-    to_state: str, next_state: str = "", next_at: str = ""
+    to_state: str,
+    next_state: str = "",
+    next_at: str = "",
+    command_id: str = "",
+    gateway_id: str = "",
 ) -> list[bytes]:
     """Scheduler → engine: request session state transition.
 
@@ -560,12 +564,52 @@ def make_session_transition_msg(
     actually perform the next transition has any business asserting when it
     happens — a manual transition omits them, which clears any stale target
     the engine was holding.
+
+    ``command_id``/``gateway_id`` are supplied by an *interactive* requester
+    that wants to know the outcome. When both are present the engine replies
+    on ``session.transition_ack.{gateway_id}``. `pm-scheduler` omits them: it
+    drives the timetable and has nobody to report back to, and the public
+    ``session.state`` broadcast already tells it what happened.
     """
     payload: dict[str, Any] = {"to_state": to_state}
     if next_state and next_at:
         payload["next_state"] = next_state
         payload["next_at"] = next_at
+    if command_id and gateway_id:
+        payload["command_id"] = command_id
+        payload["gateway_id"] = gateway_id
     return encode("session.transition", payload)
+
+
+def make_session_transition_ack_msg(
+    gateway_id: str,
+    command_id: str,
+    accepted: bool,
+    to_state: str = "",
+    reason: str = "",
+) -> list[bytes]:
+    """Engine → the requesting gateway: outcome of a transition request.
+
+    Addressed to one requester rather than broadcast, because a
+    ``command_id`` belongs to whoever issued it — putting it on the public
+    ``session.state`` topic would hand every subscriber another operator's
+    correlation id.
+
+    This also closes a silent failure: a transition request that the engine
+    discards (sessions disabled, unknown state) previously produced no reply
+    of any kind, so a caller saw only a timeout and could not tell a rejected
+    request from a slow one.
+    """
+    topic = f"session.transition_ack.{gateway_id}"
+    return encode(
+        topic,
+        {
+            "command_id": command_id,
+            "accepted": accepted,
+            "to_state": to_state,
+            "reason": reason,
+        },
+    )
 
 
 def make_session_state_msg(
@@ -777,9 +821,21 @@ def make_gateway_bye_msg(gateway_id: str, reason: str = "") -> list[bytes]:
     return encode(f"system.gateway_bye.{typed.gateway_id}", typed.to_dict())
 
 
-def make_kill_switch_msg(gateway_id: str, symbol: str = "") -> list[bytes]:
-    """Gateway/admin → engine: cancel open risk-bearing exposure."""
-    return encode("risk.kill_switch", {"gateway_id": gateway_id, "symbol": symbol})
+def make_kill_switch_msg(
+    gateway_id: str, symbol: str = "", command_id: str = ""
+) -> list[bytes]:
+    """Gateway/admin → engine: cancel open risk-bearing exposure.
+
+    ``command_id`` is echoed on the ack. Unlike the symbol halt/resume/cancel
+    acks — which carry ``symbol`` and can therefore be told apart — a
+    kill-switch ack has no natural identifier, so two concurrent mass cancels
+    for one gateway were previously indistinguishable once both acks were in
+    flight. Supplying it is optional; without it the ack is unchanged.
+    """
+    payload: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol}
+    if command_id:
+        payload["command_id"] = command_id
+    return encode("risk.kill_switch", payload)
 
 
 def make_kill_switch_ack_msg(
@@ -788,18 +844,19 @@ def make_kill_switch_ack_msg(
     reason: str = "",
     cancelled_orders: int = 0,
     cancelled_quotes: int = 0,
+    command_id: str = "",
 ) -> list[bytes]:
     """Engine → gateway/admin: kill-switch result summary."""
     topic = f"risk.kill_switch_ack.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "accepted": accepted,
-            "reason": reason,
-            "cancelled_orders": cancelled_orders,
-            "cancelled_quotes": cancelled_quotes,
-        },
-    )
+    payload: dict[str, Any] = {
+        "accepted": accepted,
+        "reason": reason,
+        "cancelled_orders": cancelled_orders,
+        "cancelled_quotes": cancelled_quotes,
+    }
+    if command_id:
+        payload["command_id"] = command_id
+    return encode(topic, payload)
 
 
 def make_circuit_breaker_halt_all_msg(gateway_id: str) -> list[bytes]:

@@ -708,6 +708,49 @@ The server side of the same signal is on `GET /healthz`, which reports
 `dropped_events` per sink (`market_data`, `private`, `admin`). The gateway also
 logs a warning on the first drop per sink and every hundredth thereafter.
 
+### Command correlation
+
+Most commands already carry an identifier you can correlate on, and those are
+unchanged:
+
+| Command | Correlate on |
+|---|---|
+| `POST /orders` | `order_id` (returned in the 202, echoed on every later event) |
+| Combos / OCO | `combo_id` / `oco_id` |
+| Symbol halt / resume / cancel-symbol | `symbol` |
+| Quotes | `symbol`, `quote_id` |
+
+Two commands had nothing to correlate on, and both now issue a `command_id`:
+
+**Mass cancel / kill switch.** `risk.kill_switch_ack` echoes the `command_id`
+of the request that caused it. Before this, two concurrent mass cancels for one
+gateway were indistinguishable once both acks were in flight, and the gateway
+had to serialise them behind a per-gateway lock to stay correct. They now run
+concurrently.
+
+**Session transition.** `POST /admin/session/transition` used to be
+fire-and-forget: it returned `202 PENDING` and awaited nothing. It now waits
+for the engine's verdict on `session.transition_ack.{gateway_id}` and returns:
+
+```json
+{ "requested_state": "CONTINUOUS", "status": "APPLIED", "command_id": "cmd-01j4..." }
+```
+
+A request the engine cannot perform — sessions not enabled, unknown state —
+now returns **409** with `TRANSITION_REJECTED` and the engine's reason. Those
+cases previously produced no reply at all, so a caller saw a timeout
+indistinguishable from a slow engine.
+
+!!! note "Why not a `command_id` on everything"
+    A second identifier alongside a working one adds ambiguity rather than
+    removing it — particularly on `POST /orders`, which already accepts
+    `client_order_id` as its idempotency key. The ack correlation is where the
+    value is; echoing a `command_id` through every downstream event a command
+    causes (a mass cancel produces one `order.cancelled` per affected order)
+    is a much larger change for much less benefit, and the
+    [group identifiers](#the-event-envelope) already let a client attribute
+    those cascades.
+
 ### Private event recovery
 
 `/api/v1/events` is designed so a reconnecting client needs one socket and no

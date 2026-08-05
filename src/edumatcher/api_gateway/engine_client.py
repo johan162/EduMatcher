@@ -14,7 +14,7 @@ import zmq
 from fastapi import HTTPException, status
 
 from edumatcher.api_gateway.caches import SessionCaches
-from edumatcher.api_gateway.events import envelope, gateway_from_topic
+from edumatcher.api_gateway.events import envelope, gateway_from_topic, new_command_id
 from edumatcher.messaging.bus import make_pusher, make_subscriber
 from edumatcher.models.message import (
     decode,
@@ -77,13 +77,12 @@ class EngineClient:
         # Per-gateway locks prevent duplicate gateway_connect messages when
         # concurrent requests authenticate the same gateway simultaneously.
         self._auth_locks: dict[str, asyncio.Lock] = {}
-        # risk.kill_switch_ack carries no per-call identifier (unlike the
-        # symbol halt/resume/cancel acks, which echo back `symbol`), so a
-        # second concurrent mass-cancel for the same gateway cannot be
-        # distinguished from the first once both acks are in flight. Rather
-        # than guess, serialize kill-switch calls per gateway so each call's
-        # send+await is atomic with respect to others on the same gateway.
-        self._kill_switch_locks: dict[str, asyncio.Lock] = {}
+        # There is deliberately no kill-switch lock here any more. One existed
+        # because risk.kill_switch_ack carried no per-call identifier, so two
+        # concurrent mass cancels for one gateway could consume each other's
+        # ack; serialising them was the only safe option. The ack now echoes
+        # command_id, so `match=` disambiguates them the way it always did for
+        # the symbol-scoped acks, and the serialisation is unnecessary.
         self._caches: dict[str, SessionCaches] = defaultdict(SessionCaches)
         self._sinks: dict[str, set[asyncio.Queue[dict[str, Any]]]] = defaultdict(set)
         self._market_data_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
@@ -546,23 +545,57 @@ class EngineClient:
     def send_quote_cancel(self, gateway_id: str, symbol: str) -> None:
         self._send(make_quote_cancel_msg(gateway_id, symbol))
 
-    def send_mass_cancel(self, gateway_id: str, symbol: str = "") -> None:
-        self._send(make_kill_switch_msg(gateway_id, symbol))
+    def send_mass_cancel(
+        self, gateway_id: str, symbol: str = "", command_id: str = ""
+    ) -> None:
+        self._send(make_kill_switch_msg(gateway_id, symbol, command_id=command_id))
 
     async def send_and_await_kill_switch(
         self, gateway_id: str, symbol: str, timeout: float
     ) -> dict[str, Any]:
-        """Send a mass-cancel/kill-switch request and await its one ack.
+        """Send a mass-cancel/kill-switch request and await its own ack.
 
-        Serialized per gateway_id via ``_kill_switch_locks`` — see the note
-        on that attribute for why this can't simply rely on ``match=``
-        filtering the way order-scoped and symbol-scoped acks do.
+        The ack now echoes ``command_id``, so concurrent mass cancels for one
+        gateway are told apart by ``match=`` exactly as the symbol-scoped
+        halt/resume/cancel acks already were. That replaced a per-gateway
+        ``asyncio.Lock`` whose only purpose was to stop two in-flight requests
+        consuming each other's ack — a correctness fix that also removes the
+        serialisation it imposed.
         """
-        if gateway_id not in self._kill_switch_locks:
-            self._kill_switch_locks[gateway_id] = asyncio.Lock()
-        async with self._kill_switch_locks[gateway_id]:
-            self.send_mass_cancel(gateway_id, symbol)
-            return await self.await_topic(f"risk.kill_switch_ack.{gateway_id}", timeout)
+        command_id = new_command_id()
+        self.send_mass_cancel(gateway_id, symbol, command_id=command_id)
+        return await self.await_event(
+            f"risk.kill_switch_ack.{gateway_id}",
+            match={"command_id": command_id},
+            timeout=timeout,
+        )
+
+    async def send_and_await_session_transition(
+        self, gateway_id: str, to_state: str, timeout: float
+    ) -> dict[str, Any]:
+        """Request a session transition and await the engine's verdict.
+
+        Without this the endpoint was fire-and-forget: the engine discards a
+        request outright when sessions are disabled or the state is unknown,
+        and the caller saw nothing at all.
+        """
+        command_id = new_command_id()
+        topic = f"session.transition_ack.{gateway_id}"
+        future = self._register_future(topic, match={"command_id": command_id})
+        try:
+            self._send(
+                make_session_transition_msg(
+                    to_state, command_id=command_id, gateway_id=gateway_id
+                )
+            )
+        except HTTPException:
+            self._drop_pending(topic, future)
+            raise
+        try:
+            return await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError as exc:
+            self._drop_pending(topic, future)
+            raise TimeoutError(f"Timed out waiting for {topic}") from exc
 
     def request_orders(self, gateway_id: str) -> None:
         self._send(make_orders_request_msg(gateway_id))

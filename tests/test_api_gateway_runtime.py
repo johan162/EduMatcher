@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sqlite3
 import sys
 from contextlib import suppress
@@ -193,13 +194,16 @@ async def test_resolve_pending_match_disambiguates_concurrent_symbol_waiters(
 
 
 @pytest.mark.anyio
-async def test_send_and_await_kill_switch_serializes_per_gateway(
+async def test_send_and_await_kill_switch_no_longer_serializes_per_gateway(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """risk.kill_switch_ack carries no per-call identifier, so concurrent
-    mass-cancel calls for the same gateway must be serialized rather than
-    raced — the second call's request must not even be sent until the
-    first call's ack has been consumed.
+    """Concurrent mass cancels for one gateway now run in parallel.
+
+    They used to be serialized behind a per-gateway lock, because
+    risk.kill_switch_ack carried no per-call identifier and two in-flight
+    acks were indistinguishable. The ack echoes command_id now, so the
+    second request is sent immediately and each caller gets its own ack —
+    even when they arrive out of order.
     """
     push = FakeSocket()
     monkeypatch.setattr(engine_client, "make_pusher", lambda _addr: push)
@@ -213,23 +217,23 @@ async def test_send_and_await_kill_switch_serializes_per_gateway(
     task_b = asyncio.create_task(client.send_and_await_kill_switch("GW01", "AAPL", 2.0))
     await asyncio.sleep(0)
 
-    # Only the first call's mass-cancel should have gone out so far — the
-    # second is blocked on the per-gateway lock until the first ack lands.
-    assert len(push.sent) == 1
-
-    client._handle_event("risk.kill_switch_ack.GW01", {"accepted": True, "call": 1})
-    result_a = await task_a
-    assert result_a["call"] == 1
-
-    for _ in range(20):
-        if len(push.sent) == 2:
-            break
-        await asyncio.sleep(0)
+    # Both requests are out; neither waited on the other.
     assert len(push.sent) == 2
+    ids = [json.loads(frames[1])["command_id"] for frames in push.sent]
+    assert ids[0] != ids[1]
 
-    client._handle_event("risk.kill_switch_ack.GW01", {"accepted": True, "call": 2})
-    result_b = await task_b
-    assert result_b["call"] == 2
+    # Answer the second one first: correlation, not arrival order, decides.
+    client._handle_event(
+        "risk.kill_switch_ack.GW01",
+        {"accepted": True, "call": 2, "command_id": ids[1]},
+    )
+    client._handle_event(
+        "risk.kill_switch_ack.GW01",
+        {"accepted": True, "call": 1, "command_id": ids[0]},
+    )
+
+    assert (await task_a)["call"] == 1
+    assert (await task_b)["call"] == 2
     client.stop_listener()
 
 

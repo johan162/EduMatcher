@@ -1,6 +1,8 @@
 ## [Unreleased]
 
 ### ✨ Added
+- Added `command_id` correlation to the two commands that had no natural identifier. `risk.kill_switch` now echoes it on `risk.kill_switch_ack`, and `session.transition` gains an addressed `session.transition_ack.{GW_ID}`. Commands that already correlate — orders on `order_id`, combos on `combo_id`, halts on `symbol` — are deliberately unchanged, since a second identifier alongside a working one adds ambiguity rather than removing it
+- Added a reply to `POST /admin/session/transition`, which was previously fire-and-forget. It now awaits the engine's verdict and returns `status: "APPLIED"` with the `command_id`, or **409 `TRANSITION_REJECTED`** with the engine's reason
 - Added OCO/combo/quote group identifiers to `order.ack`, `order.fill`, `order.cancelled` and `order.expired`. `oco_group_id`, `combo_parent_id`, `leg_index` and `quote_id` now travel with the event when the order belongs to such a structure, so a subscriber can attribute a fill to its combo or OCO group without keeping its own order-id-to-parent map — which it may not have after a reconnect. Omitted rather than emitted as `null` for ordinary single orders
 - Added an `orders.snapshot` frame pushed immediately after authenticating on `/api/v1/events`, carrying the gateway's cached orders, positions and quote legs. A reconnecting client no longer needs a separate `GET /orders`, and the race between authenticating and that response is gone. The event sink is registered *before* the snapshot is taken, so the worst case is a duplicate rather than a silently missing event
 - Added `stream_seq` to private events and to the `authenticated` frame: a sequence monotonic across all of one gateway's topics. The private socket applies no subscription filtering, so a single counter is contiguous there and is simpler to check than one per topic. Market data has no equivalent, deliberately — its subscribers filter, so a stream-wide counter would show phantom gaps
@@ -12,6 +14,8 @@
 - Added `dropped_events` to `GET /healthz`, reporting per-sink counts of events discarded because a WebSocket consumer could not keep up
 
 ### 🐛 Fixed
+- Fixed session transitions failing silently. The engine discarded a request outright when sessions were not enabled or the target state was unknown, publishing nothing, so an interactive caller saw only a timeout — indistinguishable from a slow engine. It now replies with `accepted: false` and a reason whenever the requester asked to be told
+- Removed the per-gateway kill-switch lock in the API gateway. It existed solely because `risk.kill_switch_ack` carried no per-call identifier, so two concurrent mass cancels for one gateway could consume each other's ack; serialising them was the only safe option. With `command_id` echoed on the ack they are disambiguated by payload match, as the symbol-scoped acks always were, and can run concurrently
 
 - Fixed silent, undetectable loss of WebSocket events. Each client's outbound queue is bounded and written with `put_nowait`, so a slow consumer loses events by design — but the drop was counted only through a DEBUG-gated counter, leaving it invisible to the client (no sequence to check) and to the operator (no counter to read) in a normal run. Drops are now counted in plain integers, exposed on `/healthz`, and logged at WARNING on the first occurrence per sink and every hundredth thereafter
 
