@@ -4,10 +4,11 @@
 
 By the end of this chapter you will have a working exchange with at least one
 gateway and three tradeable symbols, ready to accept orders.
-In addition you have become familiar with the two tools:
+In addition you have become familiar with the three tools:
 
 - **`pm-config-gen`** used to automatically generate configuration file based on options and flags. 
 - **`pm-cverifier`**  used to verify an existing (possibly hand-crafterd) configuration file for errors or missing settings
+- **`pm-config-deploy`** used to compile a verified configuration file and install it as the artifact `pm-engine`/`pm-scheduler` actually read
 
  
 
@@ -19,10 +20,18 @@ In addition you have become familiar with the two tools:
 
 EduMatcher requires two essential processes:
 
-1. **pm-engine** — the matching engine (reads `engine_config.yaml`).
+1. **pm-engine** — the matching engine.
 2. **pm-scheduler** — drives session phase transitions.
 
 A **gateway** (`pm-alf-console`) connects traders to the engine.
+
+Neither process reads `engine_config.yaml` directly, and neither accepts a
+config path on its command line. `engine_config.yaml` is the file *you*
+author and edit; what they actually read is a **compiled artifact** at
+`$EDUMATCHER_DATA_DIR/ref_data/engine_config.json`, produced by
+`pm-config-deploy` (see [00 — Installation & Setup](00-installation.md) for
+where that directory comes from). This chapter's exercises follow that exact
+pipeline: author → verify → deploy → start.
 
  
 
@@ -59,6 +68,10 @@ gateways:
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** file saved, YAML is valid (no tabs!).
+
+This file is only the **authored source** — nothing reads it yet. `pm-engine`
+will not see any of this until you compile and install it with
+`pm-config-deploy` in Exercise 5.
 
  
 
@@ -174,13 +187,73 @@ Now fix the file and rerun until verdict is `OK` or your expected warning-only s
 
 :material-checkbox-blank-outline: **Checkpoint:** you can reproduce a verifier finding, map it to a check code, and clear it by fixing the config.
 
-## Exercise 5: Start the Engine
+## Exercise 5: Compile and Deploy the Config with pm-config-deploy
+
+Verified YAML is still just a file on disk — no process reads it until it is
+compiled and installed. Check that it compiles without installing anything:
+
+```bash
+pm-config-deploy --check engine_config.yaml
+```
+
+Expected output:
+
+```
+OK — engine_config.yaml compiles (3 symbol(s), 3 gateway(s))
+```
+
+Now actually deploy it:
+
+```bash
+pm-config-deploy engine_config.yaml
+```
+
+Expected output:
+
+```
+Compiled engine_config.yaml
+      to /Users/you/.local/share/edumatcher/ref_data/engine_config.json
+   3 symbol(s), 3 gateway(s).
+   Restart any running processes to pick it up.
+```
+
+Confirm where it landed:
+
+```bash
+pm-config-deploy --show
+ls -la "$EDUMATCHER_DATA_DIR/ref_data"
+```
+
+Expected behavior:
+
+- `--check` validates and reports symbol/gateway counts but writes nothing
+- deploying overwrites the previous `ref_data/engine_config.json` atomically —
+  a process reading it mid-deploy sees either the old configuration or the
+  new one, never a half-written file
+- if `engine_config.yaml` fails validation, deploy fails and prints
+  `[ERROR] ...` followed by `Nothing was deployed.`; any previous deployment
+  is left untouched
+- deploying does **not** restart any already-running `pm-engine`/`pm-scheduler`
+  — they must be (re)started to pick up the new artifact, which Exercise 6
+  does next
+
+:material-checkbox-blank-outline: **Checkpoint:** you can explain, in one
+sentence, the difference between `engine_config.yaml` and
+`$EDUMATCHER_DATA_DIR/ref_data/engine_config.json`.
+
+ 
+
+## Exercise 6: Start the Engine
 
 Open a terminal and run:
 
 ```bash
 pm-engine
 ```
+
+`pm-engine` takes no config path on its command line — it always reads
+whatever is currently deployed at `$EDUMATCHER_DATA_DIR/ref_data/engine_config.json`,
+which is exactly the artifact Exercise 5 just installed.
 
 Expected output includes (exact wording/log format may vary by version — this
 is illustrative, not a literal match target):
@@ -192,7 +265,7 @@ is illustrative, not a literal match target):
 ```
 
 The stable way to confirm the engine actually loaded your config, independent
-of log wording, is to query it from a gateway once connected (Exercise 7) with
+of log wording, is to query it from a gateway once connected (Exercise 8) with
 `SYMBOLS` — if it lists `AAPL`, `MSFT`, and `TSLA`, the engine started correctly
 regardless of what the startup banner said.
 
@@ -200,7 +273,7 @@ regardless of what the startup banner said.
 
  
 
-## Exercise 6: Start the Scheduler
+## Exercise 7: Start the Scheduler
 
 In a **second terminal**:
 
@@ -217,11 +290,17 @@ Expected output (illustrative):
 The scheduler will transition through PRE_OPEN → OPENING_AUCTION → CONTINUOUS
 automatically (or you can trigger immediate continuous with `--immediate`).
 
+!!! note "If nothing was deployed"
+    `pm-scheduler` refuses to guess a schedule the engine has never seen. If
+    Exercise 5 was skipped, it exits immediately with a fatal error naming
+    `pm-config-deploy`, instead of silently falling back to a built-in
+    timetable.
+
 :material-checkbox-blank-outline: **Checkpoint:** scheduler reports session state changes.
 
  
 
-## Exercise 7: Connect a Gateway
+## Exercise 8: Connect a Gateway
 
 In a **third terminal**:
 
@@ -242,7 +321,7 @@ Try typing `ORDERS` — it should report no resting orders for this gateway.
 
  
 
-## Exercise 8: Verify the Setup
+## Exercise 9: Verify the Setup
 
 From the gateway prompt, confirm the three symbols are available by attempting
 a tiny limit order:
@@ -259,7 +338,7 @@ Repeat for `MSFT` and `TSLA` to confirm all three books are active.
 
  
 
-## Exercise 9: Connect the Admin Gateway
+## Exercise 10: Connect the Admin Gateway
 
 In a **fourth terminal**:
 
@@ -273,13 +352,13 @@ Try an admin command:
 GW_ADMIN> BOOK|SYM=AAPL
 ```
 
-You should see a book snapshot (possibly with the 1-lot bid from Exercise 8).
+You should see a book snapshot (possibly with the 1-lot bid from Exercise 9).
 
 :material-checkbox-blank-outline: **Checkpoint:** admin gateway works; BOOK command shows data.
 
  
 
-## Exercise 10: Inspect Enriched SYMBOLS Metadata
+## Exercise 11: Inspect Enriched SYMBOLS Metadata
 
 From any connected gateway:
 
@@ -301,6 +380,8 @@ You now have:
 
 - A configuration file defining 3 symbols and 3 gateways.
 - A repeatable verifier workflow (`pm-cverifier`) to catch config problems before startup.
+- A compiled, deployed configuration (`pm-config-deploy`) that `pm-engine` and
+  `pm-scheduler` actually read.
 - A running engine, scheduler, and at least one trader gateway.
 - Confirmation that all symbols accept orders.
 
@@ -310,6 +391,11 @@ Why does the engine, scheduler, and each gateway all run as **separate
 processes** connected over ZMQ sockets, instead of one monolithic program?
 What would you lose (or gain) operationally if the scheduler crashed while
 the engine kept running?
+
+`pm-engine` and `pm-scheduler` never accept a config path, and neither reads
+`engine_config.yaml` directly. What problem does forcing every process
+through one compiled artifact (`pm-config-deploy`) solve that letting each
+process parse its own copy of the YAML would not?
 
 ## Further Reading
 

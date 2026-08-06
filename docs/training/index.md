@@ -100,7 +100,7 @@ training chapter.
 | 21 | [ExchangeCommandClient](../user-guide/160-exchange-commands.md#exchangecommandclient), [CLI reference (pm-mm-bot)](../user-guide/100-mm-bot.md#cli-reference) |
 | 22 | [Post-Trade Dissemination (RALF)](../user-guide/250-ralf-gateway.md), [Appendix: RALF Protocol Reference](../user-guide/930-app-ralf-protocol.md) |
 | 23 | [Market Data Feed (CALF)](../user-guide/240-calf-gateway.md), [Appendix: CALF Protocol Reference](../user-guide/920-app-calf-protocol.md) |
-| 24 | [pm-api-gwy processes](../user-guide/170-processes.md#pm-api-gwy-restwebsocket-api-gateway), [API Gateway Config](../user-guide/260-api-gateway.md) |
+| 24 | [pm-api-gwy processes](../user-guide/170-processes.md#pm-api-gwy-restwebsocket-api-gateway), [API Gateway Config](../user-guide/260-api-gateway.md), [Appendix: REST API Reference](../user-guide/950-app-REST-API-reference.md) |
 | 25 | [Market Index (pm-index)](../user-guide/150-market-index.md), [Index Admin CLI](../user-guide/152-index-admin-cli.md), [pm-index-cli reference](../user-guide/160-exchange-commands.md), [pm-index process](../user-guide/170-processes.md#pm-index-index-calculation-process) |
 | 26 | [ALF TCP Gateway](../user-guide/220-alf-gateway.md), [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md), [ALF Console (pm-alf-console)](../user-guide/055-alf-console.md) |
 | 27 | [BALF TCP Gateway](../user-guide/230-balf-gateway.md), [BALF Protocol Reference](../user-guide/910-app-balf-protocol.md), [Configuration](../user-guide/010-configuration.md#configuring-pm-balf-gwy) |
