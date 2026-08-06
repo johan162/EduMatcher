@@ -19,77 +19,77 @@ All paths are rooted at `/api/v1`.
 
 ### Trading REST
 
-| Endpoint | Purpose |
-|---|---|
-| [POST /api/v1/orders](#21-post-apiv1orders) | Submit one order for the caller's gateway |
-| [DELETE /api/v1/orders/{order_id}](#22-delete-apiv1ordersorder_id) | Cancel one live order |
-| [PATCH /api/v1/orders/{order_id}](#23-patch-apiv1ordersorder_id) | Amend price and/or quantity on one live order |
-| [POST /api/v1/orders/{order_id}/replace](#24-post-apiv1ordersorder_idreplace) | Cancel then replace one live order |
-| [GET /api/v1/orders](#25-get-apiv1orders) | Return the caller gateway's live order cache |
-| [GET /api/v1/orders/{order_id}](#26-get-apiv1ordersorder_id) | Return one cached order |
-| [POST /api/v1/oco](#27-post-apiv1oco) | Submit an OCO pair |
-| [DELETE /api/v1/oco/{oco_id}](#28-delete-apiv1ocooco_id) | Cancel an OCO pair |
-| [POST /api/v1/combos](#29-post-apiv1combos) | Submit a combo order |
-| [DELETE /api/v1/combos/{combo_id}](#210-delete-apiv1comboscombo_id) | Cancel a combo order |
-| [POST /api/v1/quotes](#211-post-apiv1quotes) | Submit a two-sided market-maker quote |
-| [DELETE /api/v1/quotes/{symbol}](#212-delete-apiv1quotessymbol) | Cancel the active quote for one symbol |
-| [POST /api/v1/mass-cancel](#213-post-apiv1mass-cancel) | Cancel all resting exposure for the caller or one symbol |
-| [POST /api/v1/kill-switch](#214-post-apiv1kill-switch) | Alias of mass-cancel |
-| [GET /api/v1/symbols](#215-get-apiv1symbols) | Return instrument metadata |
-| [GET /api/v1/session](#216-get-apiv1session) | Return the current engine session state |
-| [GET /api/v1/status](#217-get-apiv1status) | Return gateway cache summary and resolved role |
-| [GET /api/v1/healthz](#218-get-apiv1healthz) | Liveness probe |
-| [GET /api/v1/quotes/bootstrap](#219-get-apiv1quotesbootstrap) | Return active market-maker quote bootstrap state |
-| [GET /api/v1/quotes/legs](#220-get-apiv1quoteslegs) | Return current quote-leg state |
-| [GET /api/v1/positions](#221-get-apiv1positions) | Return current net positions |
+| Endpoint | Access | Purpose |
+|---|---|---|
+| [POST /api/v1/orders](#post-apiv1orders) | Trading key | Submit one order for the caller's gateway |
+| [DELETE /api/v1/orders/{order_id}](#delete-apiv1ordersorder_id) | Trading key | Cancel one live order |
+| [PATCH /api/v1/orders/{order_id}](#patch-apiv1ordersorder_id) | Trading key | Amend price and/or quantity on one live order |
+| [POST /api/v1/orders/{order_id}/replace](#post-apiv1ordersorder_idreplace) | Trading key | Cancel then replace one live order |
+| [GET /api/v1/orders](#get-apiv1orders) | Trading key | Return the caller gateway's live order cache |
+| [GET /api/v1/orders/{order_id}](#get-apiv1ordersorder_id) | Trading key | Return one cached order |
+| [POST /api/v1/oco](#post-apiv1oco) | Trading key | Submit an OCO pair |
+| [DELETE /api/v1/oco/{oco_id}](#delete-apiv1ocooco_id) | Trading key | Cancel an OCO pair |
+| [POST /api/v1/combos](#post-apiv1combos) | Trading key | Submit a combo order |
+| [DELETE /api/v1/combos/{combo_id}](#delete-apiv1comboscombo_id) | Trading key | Cancel a combo order |
+| [POST /api/v1/quotes](#post-apiv1quotes) | Trading key | Submit a two-sided market-maker quote |
+| [DELETE /api/v1/quotes/{symbol}](#delete-apiv1quotessymbol) | Trading key | Cancel the active quote for one symbol |
+| [POST /api/v1/mass-cancel](#post-apiv1mass-cancel) | Trading key | Cancel all resting exposure for the caller or one symbol |
+| [POST /api/v1/kill-switch](#post-apiv1kill-switch) | Trading key | Alias of mass-cancel |
+| [GET /api/v1/symbols](#get-apiv1symbols) | Trading key | Return instrument metadata |
+| [GET /api/v1/session](#get-apiv1session) | Trading key | Return the current engine session state |
+| [GET /api/v1/status](#get-apiv1status) | Trading key | Return gateway cache summary and resolved role |
+| [GET /api/v1/healthz](#get-apiv1healthz) | Public | Liveness probe |
+| [GET /api/v1/quotes/bootstrap](#get-apiv1quotesbootstrap) | Trading key | Return active market-maker quote bootstrap state |
+| [GET /api/v1/quotes/legs](#get-apiv1quoteslegs) | Trading key | Return current quote-leg state |
+| [GET /api/v1/positions](#get-apiv1positions) | Trading key | Return current net positions |
 
 ### Reference data
 
-| Endpoint | Purpose |
-|---|---|
-| [GET /api/v1/reference](#31-get-apiv1reference) | Return the full reference bundle |
-| [GET /api/v1/reference/config-version](#32-get-apiv1referenceconfig-version) | Return the reference bundle version |
-| [GET /api/v1/reference/symbols](#33-get-apiv1referencesymbols) | Return per-symbol tick and risk metadata |
-| [GET /api/v1/reference/risk](#34-get-apiv1referencerisk) | Return risk-band definitions |
-| [GET /api/v1/reference/indexes](#35-get-apiv1referenceindexes) | Return configured exchange index definitions |
-| [GET /api/v1/reference/schedule](#36-get-apiv1referenceschedule) | Return session schedule metadata |
-| [POST /api/v1/admin/reference/reload](#37-post-apiv1adminreferencereload) | Reload the compiled reference bundle |
+| Endpoint | Access | Purpose |
+|---|---|---|
+| [GET /api/v1/reference](#get-apiv1reference) | Authenticated key | Return the full reference bundle |
+| [GET /api/v1/reference/config-version](#get-apiv1referenceconfig-version) | Authenticated key | Return the reference bundle version |
+| [GET /api/v1/reference/symbols](#get-apiv1referencesymbols) | Authenticated key | Return per-symbol tick and risk metadata |
+| [GET /api/v1/reference/risk](#get-apiv1referencerisk) | Authenticated key | Return risk-band definitions |
+| [GET /api/v1/reference/indexes](#get-apiv1referenceindexes) | Authenticated key | Return configured exchange index definitions |
+| [GET /api/v1/reference/schedule](#get-apiv1referenceschedule) | Authenticated key | Return session schedule metadata |
+| [POST /api/v1/admin/reference/reload](#post-apiv1adminreferencereload) | Admin role | Reload the compiled reference bundle |
 
 ### History
 
-| Endpoint | Purpose |
-|---|---|
-| [GET /api/v1/history/orders](#41-get-apiv1historyorders) | Return the caller gateway's order lifecycle events |
-| [GET /api/v1/history/orders/{order_id}](#42-get-apiv1historyordersorder_id) | Return the full lifecycle of one order |
-| [GET /api/v1/history/fills](#43-get-apiv1historyfills) | Return fill events |
-| [GET /api/v1/history/trades](#44-get-apiv1historytrades) | Return public trade tape rows |
-| [GET /api/v1/history/daily](#45-get-apiv1historydaily) | Return daily OHLCV rows |
-| [GET /api/v1/history/price-snapshots](#46-get-apiv1historyprice-snapshots) | Return intraday price snapshots |
-| [GET /api/v1/history/index-daily](#47-get-apiv1historyindex-daily) | Return daily index OHLC rows |
-| [GET /api/v1/history/index-snapshots](#48-get-apiv1historyindex-snapshots) | Return intraday index snapshots |
-| [GET /api/v1/history/index-ids](#49-get-apiv1historyindex-ids) | List index ids with recorded data |
-| [GET /api/v1/history/index-events](#410-get-apiv1historyindex-events) | Return index structural and audit events |
+| Endpoint | Access | Purpose |
+|---|---|---|
+| [GET /api/v1/history/orders](#get-apiv1historyorders) | Trading key | Return the caller gateway's order lifecycle events |
+| [GET /api/v1/history/orders/{order_id}](#get-apiv1historyordersorder_id) | Trading key | Return the full lifecycle of one order |
+| [GET /api/v1/history/fills](#get-apiv1historyfills) | Trading key | Return fill events |
+| [GET /api/v1/history/trades](#get-apiv1historytrades) | Authenticated key | Return public trade tape rows |
+| [GET /api/v1/history/daily](#get-apiv1historydaily) | Authenticated key | Return daily OHLCV rows |
+| [GET /api/v1/history/price-snapshots](#get-apiv1historyprice-snapshots) | Authenticated key | Return intraday price snapshots |
+| [GET /api/v1/history/index-daily](#get-apiv1historyindex-daily) | Authenticated key | Return daily index OHLC rows |
+| [GET /api/v1/history/index-snapshots](#get-apiv1historyindex-snapshots) | Authenticated key | Return intraday index snapshots |
+| [GET /api/v1/history/index-ids](#get-apiv1historyindex-ids) | Authenticated key | List index ids with recorded data |
+| [GET /api/v1/history/index-events](#get-apiv1historyindex-events) | Authenticated key | Return index structural and audit events |
 
 ### Admin REST
 
-| Endpoint | Purpose |
-|---|---|
-| [POST /api/v1/admin/session/transition](#51-post-apiv1adminsessiontransition) | Request a session-phase transition |
-| [GET /api/v1/admin/session/schedule](#52-get-apiv1adminsessionschedule) | Return current session schedule settings |
-| [GET /api/v1/admin/gateways](#53-get-apiv1admingateways) | List configured gateways and live connection state |
-| [POST /api/v1/admin/gateways/{gid}/disconnect](#54-post-apiv1admingatewaysgiddisconnect) | Forcibly disconnect one gateway |
-| [POST /api/v1/admin/circuit-breaker/trigger](#55-post-apiv1admincircuit-breakertrigger) | Halt one symbol through the circuit breaker |
-| [POST /api/v1/admin/circuit-breaker/resume](#56-post-apiv1admincircuit-breakerresume) | Resume one halted symbol |
-| [GET /api/v1/admin/halts](#57-get-apiv1adminhalts) | Return the current active halts table |
-| [GET /api/v1/admin/risk/state](#58-get-apiv1adminriskstate) | Return live per-symbol risk state |
-| [GET /api/v1/admin/orders](#59-get-apiv1adminorders) | Return the cross-gateway active-order table |
-| [GET /api/v1/admin/orders/{order_id}](#510-get-apiv1adminordersorder_id) | Return the full cross-gateway lifecycle of one order |
-| [POST /api/v1/admin/kill-switch/symbol](#511-post-apiv1adminkill-switchsymbol) | Cancel all resting exposure on one symbol |
-| [POST /api/v1/admin/kill-switch/gateway](#512-post-apiv1adminkill-switchgateway) | Cancel all resting exposure for one gateway |
-| [POST /api/v1/admin/kill-switch/global](#513-post-apiv1adminkill-switchglobal) | Cancel all resting exposure across every gateway and symbol |
-| [GET /api/v1/admin/indexes](#514-get-apiv1adminindexes) | Return index configuration for the ADMIN UI |
-| [POST /api/v1/admin/indexes/{id}/rebalance](#515-post-apiv1adminindexesidrebalance) | Rebalance one configured index |
-| [POST /api/v1/admin/reference/reload](#516-post-apiv1adminreferencereload) | Reload the compiled reference bundle in place |
+| Endpoint | Access | Purpose |
+|---|---|---|
+| [POST /api/v1/admin/session/transition](#post-apiv1adminsessiontransition) | Admin role | Request a session-phase transition |
+| [GET /api/v1/admin/session/schedule](#get-apiv1adminsessionschedule) | Admin role | Return current session schedule settings |
+| [GET /api/v1/admin/gateways](#get-apiv1admingateways) | Admin role | List configured gateways and live connection state |
+| [POST /api/v1/admin/gateways/{gid}/disconnect](#post-apiv1admingatewaysgiddisconnect) | Admin role | Forcibly disconnect one gateway |
+| [POST /api/v1/admin/circuit-breaker/trigger](#post-apiv1admincircuit-breakertrigger) | Admin role | Halt one symbol through the circuit breaker |
+| [POST /api/v1/admin/circuit-breaker/resume](#post-apiv1admincircuit-breakerresume) | Admin role | Resume one halted symbol |
+| [GET /api/v1/admin/halts](#get-apiv1adminhalts) | Admin role | Return the current active halts table |
+| [GET /api/v1/admin/risk/state](#get-apiv1adminriskstate) | Admin role | Return live per-symbol risk state |
+| [GET /api/v1/admin/orders](#get-apiv1adminorders) | Admin role | Return the cross-gateway active-order table |
+| [GET /api/v1/admin/orders/{order_id}](#get-apiv1adminordersorder_id) | Admin role | Return the full cross-gateway lifecycle of one order |
+| [POST /api/v1/admin/kill-switch/symbol](#post-apiv1adminkill-switchsymbol) | Admin role | Cancel all resting exposure on one symbol |
+| [POST /api/v1/admin/kill-switch/gateway](#post-apiv1adminkill-switchgateway) | Admin role | Cancel all resting exposure for one gateway |
+| [POST /api/v1/admin/kill-switch/global](#post-apiv1adminkill-switchglobal) | Admin role | Cancel all resting exposure across every gateway and symbol |
+| [GET /api/v1/admin/indexes](#get-apiv1adminindexes) | Admin role | Return index configuration for the ADMIN UI |
+| [POST /api/v1/admin/indexes/{id}/rebalance](#post-apiv1adminindexesidrebalance) | Admin role | Rebalance one configured index |
+| [POST /api/v1/admin/reference/reload](#post-apiv1adminreferencereload) | Admin role | Reload the compiled reference bundle in place |
 
 ### Auth and roles
 
@@ -98,6 +98,45 @@ All paths are rooted at `/api/v1`.
   and reference data, but not trading or admin write endpoints.
 - ADMIN endpoints require a credential whose resolved engine gateway role is
   `ADMIN`.
+
+### Key types and provisioning
+
+This appendix uses two access labels in endpoint tables:
+
+- `Authenticated key` (also called `Authentication key`): any configured API
+  key accepted by `pm-api-gwy`. This includes both read-only and trading keys.
+- `Trading key`: an authenticated key whose configured `gateway_id` is not
+  `null`. This key is bound to one engine gateway identity and can submit and
+  manage that gateway's orders.
+
+How keys are specified:
+
+- Keys are configured by operators in `engine_config.yaml` under
+  `api_gateways.<INSTANCE>.credentials`.
+- Each credential entry has `api_key` and `gateway_id`.
+- `gateway_id: null` creates a read-only authenticated key.
+- `gateway_id: <GW_ID>` creates a trading-capable key for that gateway.
+
+Example:
+
+```yaml
+api_gateways:
+  default:
+    credentials:
+      - api_key: key-trader-demo
+        gateway_id: TRADER01
+        description: Trading client for TRADER01
+      - api_key: key-dashboard-demo
+        gateway_id: null
+        description: Read-only dashboard client
+```
+
+How to get a key:
+
+- API keys are provisioned out-of-band by the venue/operator team.
+- There is no REST endpoint in `pm-api-gwy` to self-issue or rotate keys.
+- After updating credentials, restart/redeploy the API gateway instance so the
+  new key set is loaded.
 
 ### Common error codes
 
@@ -139,6 +178,235 @@ not exposed.
   response is immediately authoritative.
 - Pagination endpoints return `count`, `has_more`, and `next_cursor` where
   applicable; `after` is the opaque cursor input.
+
+### Canonical error envelope
+
+All non-2xx replies MUST use this JSON envelope shape.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `error` | `Object` | yes | Top-level error container |
+| `error.code` | `String` | yes | Stable machine-readable code (for example `VALIDATION`) |
+| `error.message` | `String` | yes | Human-readable summary |
+| `error.field` | `String` | no | Field name when validation pinpoints one input field |
+
+Canonical example:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION",
+    "message": "Input should be greater than 0",
+    "field": "quantity"
+  }
+}
+```
+
+### Pagination contract
+
+Endpoints that support pagination use keyset cursoring with these rules:
+
+- Clients MAY pass `after` (opaque cursor from a previous response).
+- Replies include `count` and `has_more`.
+- When another page exists, replies MUST include `next_cursor`.
+- Clients fetch the next page by passing `after=<next_cursor>` unchanged.
+- Ordering is deterministic and backend-defined per endpoint; cursors are valid
+  only for the same endpoint and compatible filter set.
+- A malformed, stale, or cross-endpoint cursor returns `422 VALIDATION`.
+
+### Idempotency and `client_order_id`
+
+Order submit supports `client_order_id` as an optional client-supplied id.
+
+- Scope: deduplication is per gateway session cache.
+- Behavior: submitting a currently-active `client_order_id` returns
+  `409 DUPLICATE`.
+- Lifetime: duplicates are detected while matching cached orders remain in
+  cache. After cache eviction, the same id MAY be reused.
+
+### Category examples
+
+The examples below are normative shape examples for each category. Values are
+illustrative.
+
+#### Trading example (`POST /api/v1/orders`)
+
+Minimal request:
+
+```json
+{
+  "symbol": "AAPL",
+  "side": "BUY",
+  "order_type": "LIMIT",
+  "quantity": 100,
+  "price": 187.25
+}
+```
+
+Full request:
+
+```json
+{
+  "symbol": "AAPL",
+  "side": "BUY",
+  "order_type": "LIMIT",
+  "quantity": 100,
+  "price": 187.25,
+  "tif": "DAY",
+  "smp_action": "CANCEL_NEW",
+  "client_order_id": "desk1-aapl-00042"
+}
+```
+
+Minimal response:
+
+```json
+{
+  "order_id": "ORD-20260806-00042",
+  "status": "PENDING"
+}
+```
+
+Full response:
+
+```json
+{
+  "order_id": "ORD-20260806-00042",
+  "client_order_id": "desk1-aapl-00042",
+  "status": "ACKED",
+  "accepted": true,
+  "event": {
+    "order_id": "ORD-20260806-00042",
+    "accepted": true,
+    "gateway_id": "G1"
+  }
+}
+```
+
+#### Reference data example (`GET /api/v1/reference`)
+
+Minimal response:
+
+```json
+{
+  "symbols": {},
+  "risk": {},
+  "indexes": [],
+  "schedule": {},
+  "config_version": "sha256:..."
+}
+```
+
+Full response:
+
+```json
+{
+  "symbols": {
+    "AAPL": {
+      "tick_decimals": 2,
+      "lot_size": 1
+    }
+  },
+  "risk": {
+    "default_level": "L1",
+    "levels": {
+      "L1": {
+        "soft_pct": 5.0,
+        "hard_pct": 10.0
+      }
+    }
+  },
+  "indexes": [
+    {
+      "id": "TECH10",
+      "description": "Tech sample index"
+    }
+  ],
+  "schedule": {
+    "sessions_enabled": true,
+    "country": "US"
+  },
+  "config_version": "sha256:6d8d..."
+}
+```
+
+#### History example (`GET /api/v1/history/trades`)
+
+Minimal response:
+
+```json
+{
+  "trades": [],
+  "count": 0,
+  "has_more": false
+}
+```
+
+Full response:
+
+```json
+{
+  "trades": [
+    {
+      "symbol": "AAPL",
+      "price": 187.3,
+      "quantity": 50,
+      "ts": "2026-08-06T09:30:00Z"
+    }
+  ],
+  "count": 1,
+  "has_more": true,
+  "next_cursor": "eyJhZnRlciI6Ii4uLiJ9"
+}
+```
+
+#### Admin example (`POST /api/v1/admin/session/transition`)
+
+Minimal request:
+
+```json
+{
+  "to_state": "OPEN"
+}
+```
+
+Full request:
+
+```json
+{
+  "to_state": "OPEN"
+}
+```
+
+Minimal response:
+
+```json
+{
+  "requested_state": "OPEN",
+  "status": "APPLIED",
+  "command_id": "c_01K17P..."
+}
+```
+
+Full response:
+
+```json
+{
+  "requested_state": "OPEN",
+  "status": "APPLIED",
+  "command_id": "c_01K17P9B7C6W9X0Y8Z7"
+}
+```
+
+### Compatibility and deprecation policy
+
+- Versioning: this surface is namespaced under `/api/v1`.
+- Backward compatibility: additive changes (new optional fields/endpoints) MAY
+  be introduced within v1 without changing the base path.
+- Breaking changes (field removal, required-field additions, semantic
+  redefinition) MUST ship under a new versioned base path.
+- Deprecation: deprecated fields/endpoints SHOULD be documented with migration
+  guidance before removal in a later major API version.
 
 ## Trading REST
 
