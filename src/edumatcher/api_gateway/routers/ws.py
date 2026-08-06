@@ -8,11 +8,97 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from pydantic import ValidationError
 
-from edumatcher.api_gateway.events import market_data_symbol
-from edumatcher.api_gateway.schemas import MarketDataControl
+from edumatcher.api_gateway.events import market_data_symbol, now_iso
+from edumatcher.api_gateway.schemas import ALWAYS_ON_CHANNELS, MarketDataControl
 from edumatcher.api_gateway.sessions import SessionRegistry
 
 router = APIRouter(prefix="/api/v1", tags=["websockets"])
+
+#: Stands in for "every symbol" inside a subscription pair.
+_ANY_SYMBOL = "*"
+
+
+class Subscription:
+    """What one market-data socket has asked for.
+
+    Held as a set of ``(symbol, channel)`` pairs rather than as a symbol set
+    and a channel set. The two-set form could only ever express their cross
+    product, so "book for every symbol, depth for AAPL only" — the ordinary
+    shape of a terminal with an overview grid and one focused symbol — was not
+    expressible: asking for depth on AAPL also asked for it on everything else
+    already subscribed. Pairs make each rule independent.
+
+    A consequence worth stating: accumulating two flat-form subscribes no
+    longer produces the cross product of the union. ``{AAPL, [book]}`` then
+    ``{MSFT, [depth]}`` now yields exactly those two rules, not four. That is
+    the defect being fixed, but it is a behaviour change for any client that
+    relied on the old widening.
+    """
+
+    def __init__(self) -> None:
+        self._pairs: set[tuple[str, str]] = set()
+
+    def apply(self, control: MarketDataControl) -> list[dict[str, Any]]:
+        """Add or remove rules. Returns items that contributed nothing."""
+        rejected: list[dict[str, Any]] = []
+        for item in control.as_items():
+            if not item.channels:
+                rejected.append(
+                    {
+                        "symbols": item.symbols,
+                        "channels": [],
+                        "reason": "no_channels",
+                    }
+                )
+                continue
+            symbols = {s.upper() for s in item.symbols if s} or {_ANY_SYMBOL}
+            if _ANY_SYMBOL in symbols:
+                symbols = {_ANY_SYMBOL}
+            pairs = {(sym, ch) for sym in symbols for ch in item.channels}
+            if control.action == "subscribe":
+                self._pairs |= pairs
+            else:
+                self._pairs -= pairs
+                # Unsubscribing a named symbol cannot cancel a wildcard rule;
+                # say so rather than leaving the client wondering why events
+                # keep arriving.
+                for _, ch in pairs:
+                    if (_ANY_SYMBOL, ch) in self._pairs and _ANY_SYMBOL not in symbols:
+                        rejected.append(
+                            {
+                                "symbols": sorted(symbols),
+                                "channels": [ch],
+                                "reason": "wildcard_still_subscribed",
+                            }
+                        )
+                        break
+        return rejected
+
+    def matches(self, symbol: str | None, channel: str | None) -> bool:
+        if channel is None:
+            return False
+        if (_ANY_SYMBOL, channel) in self._pairs:
+            return True
+        return symbol is not None and (symbol, channel) in self._pairs
+
+    def describe(self, rejected: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+        """The effective subscription, in both the new and the legacy shape."""
+        by_symbol: dict[str, list[str]] = {}
+        for sym, ch in sorted(self._pairs):
+            by_symbol.setdefault(sym, []).append(ch)
+        return {
+            "items": [
+                {"symbols": [sym], "channels": sorted(chans)}
+                for sym, chans in sorted(by_symbol.items())
+            ],
+            # Retained so a client parsing the previous ack still finds what it
+            # expects. Lossy by construction: it cannot represent per-symbol
+            # channels, which is the whole reason `items` exists.
+            "symbols": sorted(s for s, _ in self._pairs if s != _ANY_SYMBOL),
+            "channels": sorted({c for _, c in self._pairs}),
+            "always": list(ALWAYS_ON_CHANNELS),
+            "rejected": rejected or [],
+        }
 
 
 async def _authenticate_ws(websocket: WebSocket) -> tuple[str, str | None]:
@@ -50,9 +136,44 @@ async def private_events(websocket: WebSocket) -> None:
             await websocket.send_json({"type": "error", "data": {"message": reason}})
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-        await websocket.send_json({"type": "authenticated", "gateway_id": gateway_id})
+        engine = websocket.app.state.engine
+        # Register the sink *before* the snapshot is taken and sent. Doing it
+        # after would drop every event that landed in between — the gap a
+        # reconnecting client is least able to notice, because the snapshot
+        # would look complete. Registering first means the worst case is a
+        # duplicate: an event both included in the snapshot and delivered
+        # live. Order state is idempotent, so applying it twice is harmless,
+        # whereas missing it is not.
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=256)
-        websocket.app.state.engine.add_sink(gateway_id, queue)
+        engine.add_sink(gateway_id, queue)
+        try:
+            await websocket.send_json(
+                {
+                    "type": "authenticated",
+                    "gateway_id": gateway_id,
+                    "stream_seq": engine.stream_seq(gateway_id),
+                }
+            )
+            # The snapshot removes the reconnect round-trip to GET /orders and
+            # the race it opens. `stream_seq` is the point the snapshot is
+            # accurate as of: anything numbered above it arrives live.
+            cache = engine.get_caches(gateway_id)
+            await websocket.send_json(
+                {
+                    "type": "orders.snapshot",
+                    "gateway_id": gateway_id,
+                    "stream_seq": engine.stream_seq(gateway_id),
+                    "ts": now_iso(),
+                    "data": {
+                        "orders": list(cache.orders.values()),
+                        "positions": dict(cache.positions),
+                        "quote_legs": list(cache.quote_legs.values()),
+                    },
+                }
+            )
+        except Exception:
+            engine.remove_sink(gateway_id, queue)
+            raise
         try:
             while True:
                 event = await queue.get()
@@ -92,9 +213,17 @@ async def admin_monitor(websocket: WebSocket) -> None:
             )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-        await websocket.send_json({"type": "authenticated"})
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=512)
+        # Registered before the snapshot for the same reason as the private
+        # stream: an event landing in between would be lost while the
+        # snapshot still looked complete.
         engine.add_admin_sink(queue)
+        try:
+            await websocket.send_json({"type": "authenticated"})
+            await websocket.send_json(await _monitor_snapshot(websocket, gateway_id))
+        except Exception:
+            engine.remove_admin_sink(queue)
+            raise
         try:
             while True:
                 event = await queue.get()
@@ -105,6 +234,52 @@ async def admin_monitor(websocket: WebSocket) -> None:
         return
 
 
+async def _monitor_snapshot(websocket: WebSocket, gateway_id: str) -> dict[str, Any]:
+    """Assemble the admin monitor's opening state.
+
+    Orders come from the gateway's own cross-gateway cache. Halts and the
+    gateway roster come from the **engine**, not from local state:
+    `engine.active_gateways()` lists only the gateways that authenticated
+    through *this* API gateway instance, so an admin monitor built on it
+    would silently omit every participant connected over ALF, BALF, or a
+    second API gateway. The venue-wide answer has to be asked for.
+
+    Both engine queries are best-effort. A monitor that opens with a partial
+    snapshot and says so is more useful than one that refuses to open.
+    """
+    engine = websocket.app.state.engine
+    timeout = websocket.app.state.config.timeouts.engine_reply_sec
+    incomplete: list[str] = []
+
+    async def _ask(request_fn: Any, topic: str, key: str) -> Any:
+        try:
+            request_fn(gateway_id)
+            return await engine.await_topic(topic, timeout)
+        except (TimeoutError, Exception):
+            incomplete.append(key)
+            return None
+
+    halts = await _ask(
+        engine.request_halt_status, f"system.halt_status.{gateway_id}", "halts"
+    )
+    gateways = await _ask(
+        engine.request_gateways, f"system.gateways.{gateway_id}", "gateways"
+    )
+    return {
+        "type": "monitor.snapshot",
+        "ts": now_iso(),
+        "data": {
+            "orders": engine.all_orders(),
+            "halts": halts,
+            "gateways": gateways,
+            "last_seq": {
+                gid: engine.stream_seq(gid) for gid in sorted(engine.active_gateways())
+            },
+            "incomplete": incomplete,
+        },
+    }
+
+
 @router.websocket("/market-data")
 async def market_data(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -113,14 +288,13 @@ async def market_data(websocket: WebSocket) -> None:
         await websocket.send_json({"type": "authenticated"})
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=512)
         websocket.app.state.engine.add_market_data_sink(queue)
-        symbols: set[str] = set()
-        channels: set[str] = set()
+        subscription = Subscription()
         try:
             sender = asyncio.create_task(
-                _send_market_data(websocket, queue, symbols, channels)
+                _send_market_data(websocket, queue, subscription)
             )
             receiver = asyncio.create_task(
-                _receive_market_controls(websocket, symbols, channels)
+                _receive_market_controls(websocket, subscription)
             )
             done, pending = await asyncio.wait(
                 {sender, receiver}, return_when=asyncio.FIRST_COMPLETED
@@ -137,8 +311,7 @@ async def market_data(websocket: WebSocket) -> None:
 
 async def _receive_market_controls(
     websocket: WebSocket,
-    symbols: set[str],
-    channels: set[str],
+    subscription: Subscription,
 ) -> None:
     while True:
         try:
@@ -151,27 +324,16 @@ async def _receive_market_controls(
         except ValidationError as exc:
             await websocket.send_json({"type": "error", "data": {"message": str(exc)}})
             continue
-        requested_symbols = {symbol.upper() for symbol in control.symbols}
-        requested_channels = set(control.channels)
-        if control.action == "subscribe":
-            symbols.update(requested_symbols)
-            channels.update(requested_channels)
-        else:
-            symbols.difference_update(requested_symbols)
-            channels.difference_update(requested_channels)
+        rejected = subscription.apply(control)
         await websocket.send_json(
-            {
-                "type": "subscription",
-                "data": {"symbols": sorted(symbols), "channels": sorted(channels)},
-            }
+            {"type": "subscription", "data": subscription.describe(rejected)}
         )
 
 
 async def _send_market_data(
     websocket: WebSocket,
     queue: asyncio.Queue[dict[str, Any]],
-    symbols: set[str],
-    channels: set[str],
+    subscription: Subscription,
 ) -> None:
     while True:
         event = await queue.get()
@@ -181,9 +343,12 @@ async def _send_market_data(
         symbol = market_data_symbol(
             _topic_from_event(event), data if isinstance(data, dict) else {}
         )
-        if topic_channel in {"session", "circuit_breaker"}:
+        # Venue-wide status bypasses the subscription entirely — see
+        # ALWAYS_ON_CHANNELS for why, and `describe()["always"]` for how a
+        # client learns that it will receive these without asking.
+        if topic_channel in ALWAYS_ON_CHANNELS:
             await websocket.send_json(event)
-        elif topic_channel in channels and (not symbols or symbol in symbols):
+        elif subscription.matches(symbol, topic_channel):
             await websocket.send_json(event)
 
 

@@ -167,6 +167,28 @@ def make_amended_msg(
     )
 
 
+#: Identifiers that tie an order to the structure it belongs to. Carried on
+#: every ack/fill/cancel/expiry so a consumer can attribute an event without
+#: joining it against its own record of the parent order — which it may not
+#: have after a reconnect, and which is exactly the state-stitching that made
+#: these events awkward to consume.
+GROUP_ID_FIELDS = ("oco_group_id", "combo_parent_id", "quote_id", "leg_index")
+
+
+def group_ids(order: dict[str, Any] | None) -> dict[str, Any]:
+    """Extract the group identifiers present on *order*.
+
+    Absent keys are omitted rather than emitted as ``null``: an ordinary
+    single order carries none of these, and its events should not grow four
+    empty fields to say so.
+    """
+    if not order:
+        return {}
+    return {
+        field: order[field] for field in GROUP_ID_FIELDS if order.get(field) is not None
+    }
+
+
 def make_ack_msg(
     gateway_id: str,
     order_id: str,
@@ -193,6 +215,7 @@ def make_ack_msg(
         )
         if order.get("client_tag") is not None:
             payload["client_tag"] = order["client_tag"]
+        payload.update(group_ids(order))
     return encode(topic, payload)
 
 
@@ -226,6 +249,7 @@ def make_fill_msg(
         )
         if order.get("client_tag") is not None:
             payload["client_tag"] = order["client_tag"]
+        payload.update(group_ids(order))
     return encode(topic, payload)
 
 
@@ -233,11 +257,13 @@ def make_cancelled_msg(
     gateway_id: str,
     order_id: str,
     client_tag: str | None = None,
+    order: dict[str, Any] | None = None,
 ) -> list[bytes]:
     topic = f"order.cancelled.{gateway_id}"
     payload: dict[str, Any] = {"order_id": order_id}
     if client_tag is not None:
         payload["client_tag"] = client_tag
+    payload.update(group_ids(order))
     return encode(topic, payload)
 
 
@@ -245,11 +271,13 @@ def make_expired_msg(
     gateway_id: str,
     order_id: str,
     client_tag: str | None = None,
+    order: dict[str, Any] | None = None,
 ) -> list[bytes]:
     topic = f"order.expired.{gateway_id}"
     payload: dict[str, Any] = {"order_id": order_id}
     if client_tag is not None:
         payload["client_tag"] = client_tag
+    payload.update(group_ids(order))
     return encode(topic, payload)
 
 
@@ -411,6 +439,65 @@ def make_session_schedule_msg(
 
 
 # ------------------------------------------------------------------
+# Compiled reference data (tick sizes, risk levels, circuit breaker
+# ladders, schedule, indexes) — static, changes only on reload.
+# ------------------------------------------------------------------
+
+
+def make_reference_request_msg(gateway_id: str) -> list[bytes]:
+    """Any caller → engine: request the compiled reference-data bundle."""
+    return encode("system.reference_request", {"gateway_id": gateway_id})
+
+
+def make_reference_msg(gateway_id: str, reference: dict[str, Any]) -> list[bytes]:
+    """Engine → caller: reply with the compiled reference-data bundle."""
+    topic = f"system.reference.{gateway_id}"
+    return encode(topic, reference)
+
+
+def make_reference_reload_msg(gateway_id: str, command_id: str) -> list[bytes]:
+    """ADMIN → engine: request a reload of static reference data from disk."""
+    return encode(
+        "system.reference_reload",
+        {"gateway_id": gateway_id, "command_id": command_id},
+    )
+
+
+def make_reference_reload_ack_msg(
+    gateway_id: str,
+    command_id: str,
+    accepted: bool,
+    config_version: str | None = None,
+    reason: str | None = None,
+) -> list[bytes]:
+    """Engine → ADMIN: reload verdict."""
+    topic = f"system.reference_reload_ack.{gateway_id}"
+    payload: dict[str, Any] = {"command_id": command_id, "accepted": accepted}
+    if config_version is not None:
+        payload["config_version"] = config_version
+    if reason is not None:
+        payload["reason"] = reason
+    return encode(topic, payload)
+
+
+# ------------------------------------------------------------------
+# Live per-symbol risk state (collar reference price, circuit-breaker
+# reference/trigger/expansion state) — distinct from the *static* risk
+# definitions in the reference-data bundle.
+# ------------------------------------------------------------------
+
+
+def make_risk_state_request_msg(gateway_id: str) -> list[bytes]:
+    """ADMIN → engine: request live per-symbol risk state."""
+    return encode("system.risk_state_request", {"gateway_id": gateway_id})
+
+
+def make_risk_state_msg(gateway_id: str, symbols: dict[str, Any]) -> list[bytes]:
+    """Engine → ADMIN: reply with live per-symbol risk state."""
+    return encode(f"system.risk_state.{gateway_id}", {"symbols": symbols})
+
+
+# ------------------------------------------------------------------
 # Gateway-list query
 # ------------------------------------------------------------------
 
@@ -522,7 +609,11 @@ def make_combo_status_msg(
 
 
 def make_session_transition_msg(
-    to_state: str, next_state: str = "", next_at: str = ""
+    to_state: str,
+    next_state: str = "",
+    next_at: str = "",
+    command_id: str = "",
+    gateway_id: str = "",
 ) -> list[bytes]:
     """Scheduler → engine: request session state transition.
 
@@ -532,12 +623,52 @@ def make_session_transition_msg(
     actually perform the next transition has any business asserting when it
     happens — a manual transition omits them, which clears any stale target
     the engine was holding.
+
+    ``command_id``/``gateway_id`` are supplied by an *interactive* requester
+    that wants to know the outcome. When both are present the engine replies
+    on ``session.transition_ack.{gateway_id}``. `pm-scheduler` omits them: it
+    drives the timetable and has nobody to report back to, and the public
+    ``session.state`` broadcast already tells it what happened.
     """
     payload: dict[str, Any] = {"to_state": to_state}
     if next_state and next_at:
         payload["next_state"] = next_state
         payload["next_at"] = next_at
+    if command_id and gateway_id:
+        payload["command_id"] = command_id
+        payload["gateway_id"] = gateway_id
     return encode("session.transition", payload)
+
+
+def make_session_transition_ack_msg(
+    gateway_id: str,
+    command_id: str,
+    accepted: bool,
+    to_state: str = "",
+    reason: str = "",
+) -> list[bytes]:
+    """Engine → the requesting gateway: outcome of a transition request.
+
+    Addressed to one requester rather than broadcast, because a
+    ``command_id`` belongs to whoever issued it — putting it on the public
+    ``session.state`` topic would hand every subscriber another operator's
+    correlation id.
+
+    This also closes a silent failure: a transition request that the engine
+    discards (sessions disabled, unknown state) previously produced no reply
+    of any kind, so a caller saw only a timeout and could not tell a rejected
+    request from a slow one.
+    """
+    topic = f"session.transition_ack.{gateway_id}"
+    return encode(
+        topic,
+        {
+            "command_id": command_id,
+            "accepted": accepted,
+            "to_state": to_state,
+            "reason": reason,
+        },
+    )
 
 
 def make_session_state_msg(
@@ -749,9 +880,21 @@ def make_gateway_bye_msg(gateway_id: str, reason: str = "") -> list[bytes]:
     return encode(f"system.gateway_bye.{typed.gateway_id}", typed.to_dict())
 
 
-def make_kill_switch_msg(gateway_id: str, symbol: str = "") -> list[bytes]:
-    """Gateway/admin → engine: cancel open risk-bearing exposure."""
-    return encode("risk.kill_switch", {"gateway_id": gateway_id, "symbol": symbol})
+def make_kill_switch_msg(
+    gateway_id: str, symbol: str = "", command_id: str = ""
+) -> list[bytes]:
+    """Gateway/admin → engine: cancel open risk-bearing exposure.
+
+    ``command_id`` is echoed on the ack. Unlike the symbol halt/resume/cancel
+    acks — which carry ``symbol`` and can therefore be told apart — a
+    kill-switch ack has no natural identifier, so two concurrent mass cancels
+    for one gateway were previously indistinguishable once both acks were in
+    flight. Supplying it is optional; without it the ack is unchanged.
+    """
+    payload: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol}
+    if command_id:
+        payload["command_id"] = command_id
+    return encode("risk.kill_switch", payload)
 
 
 def make_kill_switch_ack_msg(
@@ -760,18 +903,19 @@ def make_kill_switch_ack_msg(
     reason: str = "",
     cancelled_orders: int = 0,
     cancelled_quotes: int = 0,
+    command_id: str = "",
 ) -> list[bytes]:
     """Engine → gateway/admin: kill-switch result summary."""
     topic = f"risk.kill_switch_ack.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "accepted": accepted,
-            "reason": reason,
-            "cancelled_orders": cancelled_orders,
-            "cancelled_quotes": cancelled_quotes,
-        },
-    )
+    payload: dict[str, Any] = {
+        "accepted": accepted,
+        "reason": reason,
+        "cancelled_orders": cancelled_orders,
+        "cancelled_quotes": cancelled_quotes,
+    }
+    if command_id:
+        payload["command_id"] = command_id
+    return encode(topic, payload)
 
 
 def make_circuit_breaker_halt_all_msg(gateway_id: str) -> list[bytes]:
@@ -827,12 +971,30 @@ def make_circuit_breaker_resume_all_ack_msg(
 # ---------------------------------------------------------------------------
 
 
-def make_symbol_halt_msg(gateway_id: str, symbol: str) -> list[bytes]:
-    """Admin → engine: halt trading on a single symbol (ADMIN role required)."""
-    return encode(
-        "risk.symbol_halt",
-        {"gateway_id": gateway_id, "symbol": symbol.upper()},
-    )
+def make_symbol_halt_msg(
+    gateway_id: str,
+    symbol: str,
+    level: str | None = None,
+    note: str = "",
+    command_id: str = "",
+) -> list[bytes]:
+    """Admin → engine: halt trading on a single symbol (ADMIN role required).
+
+    ``level``, when given, must name one of the symbol's configured
+    ``circuit_breaker.levels`` — the halt then runs through the same
+    ``CircuitBreakerState.activate()`` state machine a price-triggered halt
+    uses (so it gets a real ``resume_at_ns``, ACE corridor, etc). Omitted or
+    unmatched, the halt falls back to the previous behaviour: an indefinite
+    halt with no timed resume, cleared only by an explicit resume.
+    """
+    payload: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol.upper()}
+    if level:
+        payload["level"] = level.upper()
+    if note:
+        payload["note"] = note
+    if command_id:
+        payload["command_id"] = command_id
+    return encode("risk.symbol_halt", payload)
 
 
 def make_symbol_halt_ack_msg(
@@ -841,25 +1003,30 @@ def make_symbol_halt_ack_msg(
     accepted: bool,
     reason: str = "",
     cancelled_quotes: int = 0,
+    command_id: str = "",
 ) -> list[bytes]:
     """Engine → admin: per-symbol halt result."""
-    return encode(
-        f"risk.symbol_halt_ack.{gateway_id}",
-        {
-            "accepted": accepted,
-            "symbol": symbol,
-            "reason": reason,
-            "cancelled_quotes": cancelled_quotes,
-        },
-    )
+    payload: dict[str, Any] = {
+        "accepted": accepted,
+        "symbol": symbol,
+        "reason": reason,
+        "cancelled_quotes": cancelled_quotes,
+    }
+    if command_id:
+        payload["command_id"] = command_id
+    return encode(f"risk.symbol_halt_ack.{gateway_id}", payload)
 
 
-def make_symbol_resume_msg(gateway_id: str, symbol: str) -> list[bytes]:
+def make_symbol_resume_msg(
+    gateway_id: str, symbol: str, note: str = "", command_id: str = ""
+) -> list[bytes]:
     """Admin → engine: resume trading on a single halted symbol (ADMIN role required)."""
-    return encode(
-        "risk.symbol_resume",
-        {"gateway_id": gateway_id, "symbol": symbol.upper()},
-    )
+    payload: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol.upper()}
+    if note:
+        payload["note"] = note
+    if command_id:
+        payload["command_id"] = command_id
+    return encode("risk.symbol_resume", payload)
 
 
 def make_symbol_resume_ack_msg(
@@ -867,16 +1034,17 @@ def make_symbol_resume_ack_msg(
     symbol: str,
     accepted: bool,
     reason: str = "",
+    command_id: str = "",
 ) -> list[bytes]:
     """Engine → admin: per-symbol resume result."""
-    return encode(
-        f"risk.symbol_resume_ack.{gateway_id}",
-        {
-            "accepted": accepted,
-            "symbol": symbol,
-            "reason": reason,
-        },
-    )
+    payload: dict[str, Any] = {
+        "accepted": accepted,
+        "symbol": symbol,
+        "reason": reason,
+    }
+    if command_id:
+        payload["command_id"] = command_id
+    return encode(f"risk.symbol_resume_ack.{gateway_id}", payload)
 
 
 # ---------------------------------------------------------------------------
@@ -884,12 +1052,16 @@ def make_symbol_resume_ack_msg(
 # ---------------------------------------------------------------------------
 
 
-def make_cancel_symbol_msg(gateway_id: str, symbol: str) -> list[bytes]:
+def make_cancel_symbol_msg(
+    gateway_id: str, symbol: str, note: str = "", command_id: str = ""
+) -> list[bytes]:
     """Admin → engine: cancel all resting orders for *symbol* across every gateway."""
-    return encode(
-        "risk.cancel_symbol",
-        {"gateway_id": gateway_id, "symbol": symbol.upper()},
-    )
+    payload: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol.upper()}
+    if note:
+        payload["note"] = note
+    if command_id:
+        payload["command_id"] = command_id
+    return encode("risk.cancel_symbol", payload)
 
 
 def make_cancel_symbol_ack_msg(
@@ -899,16 +1071,136 @@ def make_cancel_symbol_ack_msg(
     reason: str = "",
     cancelled_orders: int = 0,
     cancelled_quotes: int = 0,
+    command_id: str = "",
 ) -> list[bytes]:
     """Engine → admin: symbol-level mass-cancel result."""
+    payload: dict[str, Any] = {
+        "accepted": accepted,
+        "symbol": symbol,
+        "reason": reason,
+        "cancelled_orders": cancelled_orders,
+        "cancelled_quotes": cancelled_quotes,
+    }
+    if command_id:
+        payload["command_id"] = command_id
+    return encode(f"risk.cancel_symbol_ack.{gateway_id}", payload)
+
+
+# ---------------------------------------------------------------------------
+# Gateway-scoped and market-wide kill switch (ADMIN targeting another
+# gateway, or every gateway at once) — distinct from risk.kill_switch, which
+# only ever acts on the caller's own gateway_id.
+# ---------------------------------------------------------------------------
+
+
+def make_kill_switch_gateway_msg(
+    gateway_id: str, target_gateway_id: str, note: str = "", command_id: str = ""
+) -> list[bytes]:
+    """ADMIN → engine: cancel every order/quote belonging to *target_gateway_id*.
+
+    ``gateway_id`` is the ADMIN caller (for role/connection checks and the
+    ack topic); ``target_gateway_id`` is whose exposure gets cancelled —
+    unlike ``risk.kill_switch``, these are allowed to differ.
+    """
+    payload: dict[str, Any] = {
+        "gateway_id": gateway_id,
+        "target_gateway_id": target_gateway_id.upper(),
+    }
+    if note:
+        payload["note"] = note
+    if command_id:
+        payload["command_id"] = command_id
+    return encode("risk.kill_switch_gateway", payload)
+
+
+def make_kill_switch_gateway_ack_msg(
+    gateway_id: str,
+    target_gateway_id: str,
+    accepted: bool,
+    reason: str = "",
+    cancelled_orders: int = 0,
+    cancelled_quotes: int = 0,
+    command_id: str = "",
+) -> list[bytes]:
+    """Engine → ADMIN: gateway-targeted kill-switch result."""
+    payload: dict[str, Any] = {
+        "accepted": accepted,
+        "target_gateway_id": target_gateway_id,
+        "reason": reason,
+        "cancelled_orders": cancelled_orders,
+        "cancelled_quotes": cancelled_quotes,
+    }
+    if command_id:
+        payload["command_id"] = command_id
+    return encode(f"risk.kill_switch_gateway_ack.{gateway_id}", payload)
+
+
+def make_kill_switch_global_msg(
+    gateway_id: str, note: str = "", command_id: str = ""
+) -> list[bytes]:
+    """ADMIN → engine: cancel every resting order/quote for every gateway."""
+    payload: dict[str, Any] = {"gateway_id": gateway_id}
+    if note:
+        payload["note"] = note
+    if command_id:
+        payload["command_id"] = command_id
+    return encode("risk.kill_switch_global", payload)
+
+
+def make_kill_switch_global_ack_msg(
+    gateway_id: str,
+    accepted: bool,
+    reason: str = "",
+    cancelled_orders: int = 0,
+    cancelled_quotes: int = 0,
+    affected_gateways: int = 0,
+    command_id: str = "",
+) -> list[bytes]:
+    """Engine → ADMIN: market-wide kill-switch result."""
+    payload: dict[str, Any] = {
+        "accepted": accepted,
+        "reason": reason,
+        "cancelled_orders": cancelled_orders,
+        "cancelled_quotes": cancelled_quotes,
+        "affected_gateways": affected_gateways,
+    }
+    if command_id:
+        payload["command_id"] = command_id
+    return encode(f"risk.kill_switch_global_ack.{gateway_id}", payload)
+
+
+# ---------------------------------------------------------------------------
+# Synthetic admin-monitor-only event — published alongside (not instead of)
+# each admin command's own ack, so /admin/monitor has one uniform shape to
+# watch regardless of which command ran. Never routed to a trading client's
+# private or market-data stream — see events.py's ADMIN_ACTION_PREFIX.
+# ---------------------------------------------------------------------------
+
+
+def make_admin_action_msg(
+    gateway_id: str,
+    command_id: str,
+    action: str,
+    scope: dict[str, Any],
+    accepted: bool,
+    reason: str = "",
+) -> list[bytes]:
+    """Engine → admin monitor: uniform record of one admin-gated command.
+
+    ``gateway_id`` is the initiator (the ADMIN caller), ``action`` names the
+    command (e.g. ``"circuit_breaker.trigger"``, ``"kill_switch.global"``),
+    and ``scope`` carries whatever identifies what it acted on (symbol,
+    target_gateway_id, index_id, ...) — shape varies by ``action``.
+    """
     return encode(
-        f"risk.cancel_symbol_ack.{gateway_id}",
+        f"admin.action.{gateway_id}",
         {
+            "command_id": command_id,
+            "initiator_gateway_id": gateway_id,
+            "action": action,
+            "scope": scope,
             "accepted": accepted,
-            "symbol": symbol,
             "reason": reason,
-            "cancelled_orders": cancelled_orders,
-            "cancelled_quotes": cancelled_quotes,
         },
     )
 
@@ -1120,6 +1412,57 @@ def make_index_constituent_change_ack_msg(
     if divisor is not None:
         payload["divisor"] = divisor
     return encode(f"index.constituent_change_ack.{gateway_id}", payload)
+
+
+def make_index_rebalance_msg(
+    index_id: str,
+    gateway_id: str,
+    updates: list[dict[str, Any]],
+    command_id: str = "",
+) -> list[bytes]:
+    """ADMIN → pm-index: batch update constituent shares outstanding.
+
+    ``updates`` is a list of ``{"symbol": ..., "new_shares_outstanding": ...}``
+    — each entry mirrors the existing SHARES_ISSUANCE corporate action,
+    applied to every named *existing* constituent as one batch with a single
+    recompute/publish, rather than one corp-action round-trip per symbol.
+    """
+    payload: dict[str, Any] = {
+        "index_id": index_id,
+        "gateway_id": gateway_id,
+        "updates": updates,
+    }
+    if command_id:
+        payload["command_id"] = command_id
+    return encode("index.rebalance", payload)
+
+
+def make_index_rebalance_ack_msg(
+    gateway_id: str,
+    accepted: bool,
+    reason: str = "",
+    index_id: str = "",
+    level: float | None = None,
+    divisor: float | None = None,
+    updated_symbols: int = 0,
+    command_id: str = "",
+) -> list[bytes]:
+    """pm-index → ADMIN: rebalance result."""
+    payload: dict[str, Any] = {
+        "accepted": accepted,
+        "reason": reason,
+        "timestamp": time.time(),
+        "updated_symbols": updated_symbols,
+    }
+    if index_id:
+        payload["index_id"] = index_id
+    if level is not None:
+        payload["level"] = level
+    if divisor is not None:
+        payload["divisor"] = divisor
+    if command_id:
+        payload["command_id"] = command_id
+    return encode(f"index.rebalance_ack.{gateway_id}", payload)
 
 
 def make_index_error_msg(gateway_id: str, reason: str) -> list[bytes]:

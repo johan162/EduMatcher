@@ -39,6 +39,7 @@ from edumatcher.models.message import (
     make_index_corp_action_ack_msg,
     make_index_error_msg,
     make_index_history_msg,
+    make_index_rebalance_ack_msg,
     make_index_update_msg,
 )
 
@@ -581,6 +582,130 @@ class IndexProcess:
             )
         )
 
+    def _handle_rebalance(self, payload: dict[str, Any]) -> None:
+        """Batch shares-outstanding update for existing constituents.
+
+        Mechanically identical to the SHARES_ISSUANCE corporate action,
+        applied once per {symbol, new_shares_outstanding} pair in the batch,
+        followed by a single recalculate/publish/persist — not one per
+        symbol. The whole batch is validated (shape, unknown symbols,
+        non-positive share counts) *before* any mutation, so an invalid
+        entry anywhere in the batch rejects it without applying any of it —
+        the same all-or-nothing guarantee the single-action corp-action
+        handlers get for free by only ever doing one mutation.
+        """
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        index_id = str(payload.get("index_id", "")).upper()
+        command_id = str(payload.get("command_id", ""))
+        updates_raw = payload.get("updates")
+        log.info(
+            "received rebalance gateway_id=%s index_id=%s updates=%s",
+            gateway_id,
+            index_id,
+            updates_raw,
+        )
+
+        idx = self._indices.get(index_id)
+        if not gateway_id or idx is None:
+            if gateway_id:
+                self._pub_sock.send_multipart(
+                    make_index_error_msg(gateway_id, f"Unknown index_id '{index_id}'")
+                )
+            return
+
+        def _reject(reason: str) -> None:
+            self._pub_sock.send_multipart(
+                make_index_rebalance_ack_msg(
+                    gateway_id,
+                    accepted=False,
+                    reason=reason,
+                    index_id=index_id,
+                    command_id=command_id,
+                )
+            )
+
+        if not isinstance(updates_raw, list) or not updates_raw:
+            _reject("updates must be a non-empty list")
+            return
+
+        known_symbols = set(idx.calc.constituent_symbols())
+        parsed: list[tuple[str, int]] = []
+        seen_symbols: set[str] = set()
+        for i, entry in enumerate(updates_raw):
+            if not isinstance(entry, dict):
+                _reject(f"updates[{i}] must be a mapping")
+                return
+            symbol_raw = entry.get("symbol")
+            if not isinstance(symbol_raw, str) or not symbol_raw.strip():
+                _reject(f"updates[{i}].symbol must be a non-empty string")
+                return
+            symbol = symbol_raw.strip().upper()
+            if symbol not in known_symbols:
+                _reject(f"updates[{i}]: {symbol} is not a constituent of {index_id}")
+                return
+            if symbol in seen_symbols:
+                _reject(f"updates[{i}]: duplicate symbol {symbol}")
+                return
+            try:
+                new_shares = int(entry["new_shares_outstanding"])
+            except (KeyError, TypeError, ValueError):
+                _reject(f"updates[{i}].new_shares_outstanding must be an integer")
+                return
+            if new_shares <= 0:
+                _reject(f"updates[{i}].new_shares_outstanding must be positive")
+                return
+            seen_symbols.add(symbol)
+            parsed.append((symbol, new_shares))
+
+        old_divisor = idx.calc.divisor
+        applied: list[str] = []
+        try:
+            for symbol, new_shares in parsed:
+                idx.calc.apply_shares_issuance(symbol, new_shares)
+                applied.append(symbol)
+        except ValueError as exc:
+            # Only the aggregate-cap-non-positive guard inside
+            # apply_shares_issuance can still fail here — everything
+            # pre-validated above. Whatever already applied in this batch
+            # stays applied; the corp-action handlers accept the same
+            # limitation for a single mutation, and this is no worse.
+            log.error(
+                "rebalance partially applied before failure index_id=%s applied=%s: %s",
+                index_id,
+                applied,
+                exc,
+            )
+            _reject(f"applied {len(applied)} of {len(parsed)} update(s), then: {exc}")
+            return
+
+        level = idx.calc.recalculate()
+        self._update_day_ohlc(idx, level)
+        self._publish_level(idx, level, force=True)
+        idx.history.append(
+            {
+                "type": "REBALANCE",
+                "timestamp": time.time(),
+                "index_id": idx.cfg.id,
+                "symbols": applied,
+                "old_divisor": old_divisor,
+                "new_divisor": idx.calc.divisor,
+                "level": level,
+            }
+        )
+        self._persist_state(idx, level)
+
+        self._pub_sock.send_multipart(
+            make_index_rebalance_ack_msg(
+                gateway_id,
+                accepted=True,
+                index_id=index_id,
+                level=level,
+                divisor=idx.calc.divisor,
+                updated_symbols=len(applied),
+                command_id=command_id,
+            )
+        )
+
     def run(self) -> None:
         self._initialise()
         log.info("index process entering main poll loop")
@@ -626,6 +751,8 @@ class IndexProcess:
                         self._handle_corp_action(payload)
                     elif topic == "index.constituent_change":
                         self._handle_constituent_change(payload)
+                    elif topic == "index.rebalance":
+                        self._handle_rebalance(payload)
 
             for idx in self._indices.values():
                 idx.history.flush()

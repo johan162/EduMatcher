@@ -160,6 +160,7 @@ export const DEFAULT_API_GATEWAY = {
   engineAuthSec: 3.0,
   engineReplySec: 3.0,
   waitAckSec: 3.0,
+  orderRetentionSec: 3600,
 } as const;
 
 export const DEFAULT_SCHEDULE = {

@@ -34,6 +34,9 @@ class FakeEngine:
     def __init__(self) -> None:
         self.calls: list[tuple[str, Any]] = []
         self.cache = SessionCaches()
+        # /healthz reports per-sink drop counts; the real EngineClient exposes
+        # this as a property.
+        self.dropped_events: dict[str, int] = {}
 
     async def authenticate(
         self, gateway_id: str, timeout: float = 3.0

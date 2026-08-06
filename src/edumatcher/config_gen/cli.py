@@ -38,6 +38,7 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_API_GATEWAY_RATE_LIMIT_BURST,
     DEFAULT_API_GATEWAY_RATE_LIMIT_WRITES_PER_SECOND,
     DEFAULT_API_GATEWAY_STATS_DB,
+    DEFAULT_API_GATEWAY_ORDER_RETENTION_SEC,
     DEFAULT_API_GATEWAY_WAIT_ACK_SEC,
     DEFAULT_BALF_GATEWAY_AUTH_TIMEOUT_SEC,
     DEFAULT_BALF_GATEWAY_BIND_ADDRESS,
@@ -207,6 +208,12 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         and args.api_gateway_engine_reply_sec <= 0
     ):
         raise ValueError("--api-gateway-engine-reply-sec must be > 0")
+    if (
+        args.api_gateway_order_retention_sec is not None
+        and args.api_gateway_order_retention_sec < 0
+    ):
+        # >= 0, not > 0: zero is meaningful here and disables eviction.
+        raise ValueError("--api-gateway-order-retention-sec must be >= 0")
     if args.api_gateway_wait_ack_sec is not None and args.api_gateway_wait_ack_sec <= 0:
         raise ValueError("--api-gateway-wait-ack-sec must be > 0")
 
@@ -1116,6 +1123,7 @@ def _build_api_gateway_specs(
             args.api_gateway_engine_auth_sec,
             args.api_gateway_engine_reply_sec,
             args.api_gateway_wait_ack_sec,
+            args.api_gateway_order_retention_sec,
         )
     ) or bool(
         args.api_gateway
@@ -1191,6 +1199,13 @@ def _build_api_gateway_specs(
     wait_ack_sec = float(
         args.api_gateway_wait_ack_sec or DEFAULT_API_GATEWAY_WAIT_ACK_SEC
     )
+    # `or` would turn an explicit 0 into the default, and 0 is a meaningful
+    # value here — it disables eviction. Test for None instead.
+    order_retention_sec = (
+        DEFAULT_API_GATEWAY_ORDER_RETENTION_SEC
+        if args.api_gateway_order_retention_sec is None
+        else int(args.api_gateway_order_retention_sec)
+    )
 
     def make_spec(
         *,
@@ -1216,6 +1231,7 @@ def _build_api_gateway_specs(
             engine_auth_sec=engine_auth_sec,
             engine_reply_sec=engine_reply_sec,
             wait_ack_sec=wait_ack_sec,
+            order_retention_sec=order_retention_sec,
         )
 
     base_port = int(args.api_gateway_port or DEFAULT_API_GATEWAY_PORT)

@@ -14,7 +14,12 @@ import zmq
 from fastapi import HTTPException, status
 
 from edumatcher.api_gateway.caches import SessionCaches
-from edumatcher.api_gateway.events import envelope, gateway_from_topic
+from edumatcher.api_gateway.events import (
+    ADMIN_ACTION_PREFIX,
+    envelope,
+    gateway_from_topic,
+    new_command_id,
+)
 from edumatcher.messaging.bus import make_pusher, make_subscriber
 from edumatcher.models.message import (
     decode,
@@ -25,6 +30,8 @@ from edumatcher.models.message import (
     make_gateway_disconnect_msg,
     make_gateways_request_msg,
     make_halt_status_request_msg,
+    make_kill_switch_gateway_msg,
+    make_kill_switch_global_msg,
     make_kill_switch_msg,
     make_oco_cancel_msg,
     make_oco_order_msg,
@@ -36,6 +43,9 @@ from edumatcher.models.message import (
     make_quote_cancel_msg,
     make_quote_legs_request_msg,
     make_quote_new_msg,
+    make_reference_reload_msg,
+    make_reference_request_msg,
+    make_risk_state_request_msg,
     make_session_schedule_request_msg,
     make_session_state_request_msg,
     make_session_transition_msg,
@@ -77,13 +87,12 @@ class EngineClient:
         # Per-gateway locks prevent duplicate gateway_connect messages when
         # concurrent requests authenticate the same gateway simultaneously.
         self._auth_locks: dict[str, asyncio.Lock] = {}
-        # risk.kill_switch_ack carries no per-call identifier (unlike the
-        # symbol halt/resume/cancel acks, which echo back `symbol`), so a
-        # second concurrent mass-cancel for the same gateway cannot be
-        # distinguished from the first once both acks are in flight. Rather
-        # than guess, serialize kill-switch calls per gateway so each call's
-        # send+await is atomic with respect to others on the same gateway.
-        self._kill_switch_locks: dict[str, asyncio.Lock] = {}
+        # There is deliberately no kill-switch lock here any more. One existed
+        # because risk.kill_switch_ack carried no per-call identifier, so two
+        # concurrent mass cancels for one gateway could consume each other's
+        # ack; serialising them was the only safe option. The ack now echoes
+        # command_id, so `match=` disambiguates them the way it always did for
+        # the symbol-scoped acks, and the serialisation is unnecessary.
         self._caches: dict[str, SessionCaches] = defaultdict(SessionCaches)
         self._sinks: dict[str, set[asyncio.Queue[dict[str, Any]]]] = defaultdict(set)
         self._market_data_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
@@ -92,6 +101,13 @@ class EngineClient:
         # Cache of resolved gateway roles (keyed by upper-cased gateway id).
         self._role_cache: dict[str, str] = {}
         self._pending: dict[str, list[_PendingWait]] = defaultdict(list)
+        # Per-topic outbound sequence numbers — see _next_seq for why per topic.
+        self._topic_seq: defaultdict[str, int] = defaultdict(int)
+        # Per-gateway private-stream sequence — see _next_stream_seq.
+        self._gateway_stream_seq: defaultdict[str, int] = defaultdict(int)
+        # Plain counters, not _dbg_count: these must be readable in a normal
+        # run, because they are the only server-side evidence of dropped events.
+        self._dropped_events: defaultdict[str, int] = defaultdict(int)
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = 0.0
 
@@ -360,37 +376,124 @@ class EngineClient:
             # exits on EINTR or an unrecoverable ZMQError instead of a clean stop.
             self._running = False
 
+    def _next_seq(self, topic: str) -> int:
+        """Monotonic sequence number for *topic*, starting at 1.
+
+        Per **topic**, not per connection or per stream, and that choice is
+        forced by how clients subscribe. A market-data client filters down to
+        the symbols and channels it cares about, so a connection-wide counter
+        would arrive with holes wherever an event was filtered out — every
+        subscriber would see permanent phantom gaps and no subscriber could
+        distinguish those from real loss. Per-topic numbering is contiguous
+        for anyone receiving that topic at all, which is the only property
+        that makes gap detection usable. (Same reasoning as the per-topic
+        sequence on the engine's own PUB socket.)
+        """
+        seq = self._topic_seq[topic] + 1
+        self._topic_seq[topic] = seq
+        return seq
+
+    def _next_stream_seq(self, gateway_id: str) -> int:
+        """Monotonic sequence across *all* of one gateway's private events.
+
+        Market data cannot have this: subscribers filter, so a stream-wide
+        counter would show phantom gaps. ``/api/v1/events`` applies no
+        filtering at all — a client receives every topic for its gateway — so
+        a single counter is contiguous there, and one counter is markedly
+        easier to check than one per topic.
+
+        Both numbers are emitted. ``seq`` stays per-topic so the two sockets
+        share one meaning for that field; ``stream_seq`` is the private
+        stream's own.
+        """
+        seq = self._gateway_stream_seq[gateway_id] + 1
+        self._gateway_stream_seq[gateway_id] = seq
+        return seq
+
+    def stream_seq(self, gateway_id: str) -> int:
+        """The last private-stream sequence issued for *gateway_id*."""
+        return self._gateway_stream_seq[gateway_id]
+
+    def _record_drop(self, sink: str, event: dict[str, Any]) -> None:
+        """Account for an event that could not be queued.
+
+        The sink queues are bounded and written with ``put_nowait``, so a
+        consumer slower than the feed loses events. That is the correct
+        trade-off — one slow browser must not stall the gateway — but it was
+        previously counted only through ``_dbg_count``, which is gated on
+        DEBUG being enabled. In a normal run the loss was therefore invisible
+        from both ends: the client had no sequence to check and the operator
+        had no counter to read. Both halves of that are now fixed.
+        """
+        self._dropped_events[sink] += 1
+        total = self._dropped_events[sink]
+        # Log the first drop per sink immediately, then back off geometrically:
+        # a saturated consumer would otherwise produce one line per event.
+        if total == 1 or total % 100 == 0:
+            log.warning(
+                "%s sink full — dropped event (topic=%s, %d dropped on this sink). "
+                "A client is slower than the feed; it can detect this from the "
+                "per-topic seq gap.",
+                sink,
+                event.get("topic", "?"),
+                total,
+            )
+
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         self._dbg_count("events_handled")
         self._resolve_pending(topic, payload)
+        if topic.startswith(ADMIN_ACTION_PREFIX):
+            # Admin-monitor-only: must reach neither the initiating gateway's
+            # own private stream nor market data, so it bypasses both branches
+            # below rather than relying on gateway_from_topic() returning None
+            # (which would otherwise fall into the market-data branch and leak
+            # to every subscriber).
+            event = envelope(topic, payload, seq=self._next_seq(topic))
+            for queue in list(self._admin_sinks):
+                if self._try_put(queue, event):
+                    self._dbg_count("admin_sink_events")
+                else:
+                    self._dbg_count("admin_sink_drops")
+                    self._record_drop("admin", event)
+            return
         gateway_id = gateway_from_topic(topic)
+        # Sequenced once per event, so every sink that receives it agrees on
+        # the number. Assigned before fan-out and regardless of whether any
+        # sink accepts it — a dropped event still consumes its sequence
+        # number, which is precisely what makes the gap detectable.
+        seq = self._next_seq(topic)
         if gateway_id is not None:
             self._dbg_count("gateway_scoped_events")
             cache = self._caches[gateway_id]
             cache.apply(topic, payload)
             self._register_tick_metadata(payload)
-            event = envelope(topic, payload)
+            event = envelope(
+                topic, payload, seq=seq, stream_seq=self._next_stream_seq(gateway_id)
+            )
             for queue in list(self._sinks.get(gateway_id, set())):
                 if self._try_put(queue, event):
                     self._dbg_count("gateway_sink_events")
                 else:
                     self._dbg_count("gateway_sink_drops")
+                    self._record_drop("private", event)
         else:
             self._dbg_count("market_data_events")
             for cache in self._caches.values():
                 cache.apply(topic, payload)
-            event = envelope(topic, payload)
+            event = envelope(topic, payload, seq=seq)
             for queue in list(self._market_data_sinks):
                 if self._try_put(queue, event):
                     self._dbg_count("market_data_sink_events")
                 else:
                     self._dbg_count("market_data_sink_drops")
+                    self._record_drop("market_data", event)
         # The ADMIN monitor feed sees every event regardless of routing branch.
         for queue in list(self._admin_sinks):
             if self._try_put(queue, event):
                 self._dbg_count("admin_sink_events")
             else:
                 self._dbg_count("admin_sink_drops")
+                self._record_drop("admin", event)
 
     @staticmethod
     def _try_put(queue: asyncio.Queue[dict[str, Any]], event: dict[str, Any]) -> bool:
@@ -429,8 +532,35 @@ class EngineClient:
     def remove_admin_sink(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
         self._admin_sinks.discard(queue)
 
+    @property
+    def dropped_events(self) -> dict[str, int]:
+        """Events discarded per sink because a consumer could not keep up."""
+        return dict(self._dropped_events)
+
     def get_caches(self, gateway_id: str) -> SessionCaches:
         return self._caches[gateway_id]
+
+    def evict_terminal_orders(self, retention_sec: int) -> int:
+        """Sweep every gateway's cache. Returns the number of orders dropped."""
+        return sum(
+            cache.evict_terminal_orders(retention_sec)
+            for cache in list(self._caches.values())
+        )
+
+    def all_orders(self) -> list[dict[str, Any]]:
+        """Every cached order across every gateway, tagged with its owner.
+
+        `_caches` accumulates an entry for each gateway whose events pass
+        through, so the cross-gateway view an admin needs is already here —
+        it just was not reachable. `gateway_id` is added on the way out
+        because the order payloads themselves do not carry it; it is the
+        dictionary key.
+        """
+        out: list[dict[str, Any]] = []
+        for gateway_id, cache in self._caches.items():
+            for order in cache.orders.values():
+                out.append({**order, "gateway_id": gateway_id})
+        return out
 
     def send_new_order(self, order: Order) -> None:
         self._send(make_order_new_msg(order.to_dict()))
@@ -461,29 +591,89 @@ class EngineClient:
     def send_quote_cancel(self, gateway_id: str, symbol: str) -> None:
         self._send(make_quote_cancel_msg(gateway_id, symbol))
 
-    def send_mass_cancel(self, gateway_id: str, symbol: str = "") -> None:
-        self._send(make_kill_switch_msg(gateway_id, symbol))
+    def send_mass_cancel(
+        self, gateway_id: str, symbol: str = "", command_id: str = ""
+    ) -> None:
+        self._send(make_kill_switch_msg(gateway_id, symbol, command_id=command_id))
 
     async def send_and_await_kill_switch(
         self, gateway_id: str, symbol: str, timeout: float
     ) -> dict[str, Any]:
-        """Send a mass-cancel/kill-switch request and await its one ack.
+        """Send a mass-cancel/kill-switch request and await its own ack.
 
-        Serialized per gateway_id via ``_kill_switch_locks`` — see the note
-        on that attribute for why this can't simply rely on ``match=``
-        filtering the way order-scoped and symbol-scoped acks do.
+        The ack now echoes ``command_id``, so concurrent mass cancels for one
+        gateway are told apart by ``match=`` exactly as the symbol-scoped
+        halt/resume/cancel acks already were. That replaced a per-gateway
+        ``asyncio.Lock`` whose only purpose was to stop two in-flight requests
+        consuming each other's ack — a correctness fix that also removes the
+        serialisation it imposed.
         """
-        if gateway_id not in self._kill_switch_locks:
-            self._kill_switch_locks[gateway_id] = asyncio.Lock()
-        async with self._kill_switch_locks[gateway_id]:
-            self.send_mass_cancel(gateway_id, symbol)
-            return await self.await_topic(f"risk.kill_switch_ack.{gateway_id}", timeout)
+        command_id = new_command_id()
+        self.send_mass_cancel(gateway_id, symbol, command_id=command_id)
+        return await self.await_event(
+            f"risk.kill_switch_ack.{gateway_id}",
+            match={"command_id": command_id},
+            timeout=timeout,
+        )
+
+    async def send_and_await_session_transition(
+        self, gateway_id: str, to_state: str, timeout: float
+    ) -> dict[str, Any]:
+        """Request a session transition and await the engine's verdict.
+
+        Without this the endpoint was fire-and-forget: the engine discards a
+        request outright when sessions are disabled or the state is unknown,
+        and the caller saw nothing at all.
+        """
+        command_id = new_command_id()
+        topic = f"session.transition_ack.{gateway_id}"
+        future = self._register_future(topic, match={"command_id": command_id})
+        try:
+            self._send(
+                make_session_transition_msg(
+                    to_state, command_id=command_id, gateway_id=gateway_id
+                )
+            )
+        except HTTPException:
+            self._drop_pending(topic, future)
+            raise
+        try:
+            return await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError as exc:
+            self._drop_pending(topic, future)
+            raise TimeoutError(f"Timed out waiting for {topic}") from exc
+
+    async def send_and_await_reference_reload(
+        self, gateway_id: str, timeout: float
+    ) -> dict[str, Any]:
+        """Request a reference-data reload and await the engine's verdict.
+
+        Mirrors send_and_await_session_transition: fire-and-forget would
+        leave a rejected reload (e.g. the symbol set changed) indistinguishable
+        from a slow one.
+        """
+        command_id = new_command_id()
+        topic = f"system.reference_reload_ack.{gateway_id}"
+        future = self._register_future(topic, match={"command_id": command_id})
+        try:
+            self._send(make_reference_reload_msg(gateway_id, command_id))
+        except HTTPException:
+            self._drop_pending(topic, future)
+            raise
+        try:
+            return await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError as exc:
+            self._drop_pending(topic, future)
+            raise TimeoutError(f"Timed out waiting for {topic}") from exc
 
     def request_orders(self, gateway_id: str) -> None:
         self._send(make_orders_request_msg(gateway_id))
 
     def request_symbols(self, gateway_id: str) -> None:
         self._send(make_symbols_request_msg(gateway_id))
+
+    def request_reference(self, gateway_id: str) -> None:
+        self._send(make_reference_request_msg(gateway_id))
 
     def request_session(self, gateway_id: str) -> None:
         self._send(make_session_state_request_msg(gateway_id))
@@ -503,14 +693,53 @@ class EngineClient:
     def send_session_transition(self, to_state: str) -> None:
         self._send(make_session_transition_msg(to_state))
 
-    def send_symbol_halt(self, gateway_id: str, symbol: str) -> None:
-        self._send(make_symbol_halt_msg(gateway_id, symbol))
+    def send_symbol_halt(
+        self,
+        gateway_id: str,
+        symbol: str,
+        level: str | None = None,
+        note: str = "",
+        command_id: str = "",
+    ) -> None:
+        self._send(
+            make_symbol_halt_msg(
+                gateway_id, symbol, level=level, note=note, command_id=command_id
+            )
+        )
 
-    def send_symbol_resume(self, gateway_id: str, symbol: str) -> None:
-        self._send(make_symbol_resume_msg(gateway_id, symbol))
+    def send_symbol_resume(
+        self, gateway_id: str, symbol: str, note: str = "", command_id: str = ""
+    ) -> None:
+        self._send(
+            make_symbol_resume_msg(gateway_id, symbol, note=note, command_id=command_id)
+        )
 
-    def send_cancel_symbol(self, gateway_id: str, symbol: str) -> None:
-        self._send(make_cancel_symbol_msg(gateway_id, symbol))
+    def send_cancel_symbol(
+        self, gateway_id: str, symbol: str, note: str = "", command_id: str = ""
+    ) -> None:
+        self._send(
+            make_cancel_symbol_msg(gateway_id, symbol, note=note, command_id=command_id)
+        )
+
+    def send_kill_switch_gateway(
+        self,
+        gateway_id: str,
+        target_gateway_id: str,
+        note: str = "",
+        command_id: str = "",
+    ) -> None:
+        self._send(
+            make_kill_switch_gateway_msg(
+                gateway_id, target_gateway_id, note=note, command_id=command_id
+            )
+        )
+
+    def send_kill_switch_global(
+        self, gateway_id: str, note: str = "", command_id: str = ""
+    ) -> None:
+        self._send(
+            make_kill_switch_global_msg(gateway_id, note=note, command_id=command_id)
+        )
 
     def send_gateway_disconnect(self, gateway_id: str, reason: str = "") -> None:
         self.send_disconnect(gateway_id, reason)
@@ -523,6 +752,9 @@ class EngineClient:
 
     def request_halt_status(self, gateway_id: str) -> None:
         self._send(make_halt_status_request_msg(gateway_id))
+
+    def request_risk_state(self, gateway_id: str) -> None:
+        self._send(make_risk_state_request_msg(gateway_id))
 
     async def resolve_role(self, gateway_id: str, timeout: float) -> str:
         """Resolve a gateway's ParticipantRole from the engine gateways reply.

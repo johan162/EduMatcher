@@ -200,12 +200,12 @@ sequenceDiagram
     participant G as pm-alf-gwy
     participant E as pm-engine
 
-    C->>G: TCP connect :5565
+    C->>G: TCP connect 5565
     C->>G: HELLO|CLIENT=mybot|PROTO=ALF1|ID=TRADER01
-    G->>E: system.gateway_connect {gateway_id: "TRADER01"}
-    E-->>G: system.gateway_auth.TRADER01 {accepted: true}
+    G->>E: system.gateway_connect {gateway_id "TRADER01"}
+    E-->>G: system.gateway_auth.TRADER01 {accepted true}
     G-->>C: WELCOME|PROTO=ALF1|GW=alf-gwy01|ID=TRADER01|HBINT=5|IDLE=30
-    Note over C,G: Session active — commands accepted
+    Note over C,G: Session active - commands accepted
     C->>G: NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
     G->>E: order.new ...
     E-->>G: order.ack.TRADER01 {accepted: true, ...}

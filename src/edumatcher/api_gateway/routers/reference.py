@@ -37,6 +37,95 @@ async def _request_reply(
         ) from exc
 
 
+async def fetch_reference_bundle(request: Request, session: Session) -> dict[str, Any]:
+    """Fetch the compiled reference-data bundle, one engine round-trip.
+
+    Every /reference/* endpoint below, plus GET /admin/indexes, slices this
+    rather than round-tripping separately. There is no
+    per-endpoint caching in the gateway: correctness (never serving stale
+    data after a reload) is worth more here than shaving one ZMQ round-trip
+    off an endpoint nobody is expected to poll at high frequency.
+
+    Open to any valid key, including read-only (``gateway_id is None``)
+    credentials — this is metadata, not account data. The reply topic is
+    keyed on the caller's identity (falling back to the API key for
+    read-only callers, same as history.py's cursor tokens) purely to give
+    concurrent callers distinct correlation keys; the payload itself does
+    not vary by caller.
+    """
+    correlation_id = session.gateway_id or session.api_key
+    engine = request.app.state.engine
+    engine.request_reference(correlation_id)
+    try:
+        return cast(
+            dict[str, Any],
+            await engine.await_topic(
+                f"system.reference.{correlation_id}",
+                request.app.state.config.timeouts.engine_reply_sec,
+            ),
+        )
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "ENGINE_TIMEOUT", "message": str(exc)}},
+        ) from exc
+
+
+@router.get("/reference")
+async def reference_bundle(
+    request: Request, session: Annotated[Session, Depends(auth)]
+) -> dict[str, Any]:
+    return await fetch_reference_bundle(request, session)
+
+
+@router.get("/reference/config-version")
+async def reference_config_version(
+    request: Request, session: Annotated[Session, Depends(auth)]
+) -> dict[str, Any]:
+    bundle = await fetch_reference_bundle(request, session)
+    return {"config_version": bundle.get("config_version")}
+
+
+@router.get("/reference/symbols")
+async def reference_symbols(
+    request: Request, session: Annotated[Session, Depends(auth)]
+) -> dict[str, Any]:
+    bundle = await fetch_reference_bundle(request, session)
+    return {
+        "symbols": bundle.get("symbols", {}),
+        "config_version": bundle.get("config_version"),
+    }
+
+
+@router.get("/reference/risk")
+async def reference_risk(
+    request: Request, session: Annotated[Session, Depends(auth)]
+) -> dict[str, Any]:
+    bundle = await fetch_reference_bundle(request, session)
+    risk = cast(dict[str, Any], bundle.get("risk", {}))
+    return {**risk, "config_version": bundle.get("config_version")}
+
+
+@router.get("/reference/indexes")
+async def reference_indexes(
+    request: Request, session: Annotated[Session, Depends(auth)]
+) -> dict[str, Any]:
+    bundle = await fetch_reference_bundle(request, session)
+    return {
+        "indexes": bundle.get("indexes", []),
+        "config_version": bundle.get("config_version"),
+    }
+
+
+@router.get("/reference/schedule")
+async def reference_schedule(
+    request: Request, session: Annotated[Session, Depends(auth)]
+) -> dict[str, Any]:
+    bundle = await fetch_reference_bundle(request, session)
+    schedule = cast(dict[str, Any], bundle.get("schedule", {}))
+    return {**schedule, "config_version": bundle.get("config_version")}
+
+
 @router.get("/symbols")
 async def symbols(
     request: Request, session: Annotated[Session, Depends(auth)]
@@ -126,8 +215,13 @@ async def status_summary(
 async def healthz(request: Request) -> dict[str, Any]:
     engine = request.app.state.engine
     healthy = request.app.state.config.enabled and engine.is_running()
+    # dropped_events is the only server-side evidence that a slow WebSocket
+    # consumer lost data. A non-zero count does not make the gateway
+    # unhealthy — shedding for a slow client is the intended behaviour — but
+    # it must be visible, because previously it was not.
     return {
         "ok": healthy,
         "enabled": request.app.state.config.enabled,
         "active_gateways": sorted(engine.active_gateways()),
+        "dropped_events": engine.dropped_events,
     }

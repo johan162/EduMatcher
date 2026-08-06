@@ -72,7 +72,7 @@ Quick index of all defined message topics with publisher and purpose.
 | `circuit_breaker.halt.{SYMBOL}` | pm-engine via PUB :5556 | Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions. |
 | `circuit_breaker.resume.{SYMBOL}` | pm-engine via PUB :5556 | Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions. |
 | `circuit_breaker.extend.{SYMBOL}` | pm-engine via PUB :5556 | An ACE corridor expansion: the call phase ended with the indicative price outside the corridor, so the symbol stays halted, the corridor widens and a fresh call phase begins. A consumer that ignores this keeps a `resume_at_ns` that has already passed. |
-| `session.transition` | pm-scheduler (PUSH -> engine on :5555) | Sent by the `pm-scheduler` process to request a session-phase transition. |
+| `session.transition` | pm-scheduler, or an admin client (PUSH -> engine on :5555) | Sent to request a session-phase transition. An interactive requester may supply `command_id`/`gateway_id` to receive `session.transition_ack.{GW_ID}`. |
 | `index.history_request` | Requesting client process via PUSH → pm-index PULL | Retrieves pm-index's structural/audit trail (creation, corporate actions, constituent changes, delistings). |
 | `index.corp_action` | Operator tool via PUSH → pm-index PULL | Applies a corporate action (split, dividend, share issuance) affecting index divisor continuity. |
 | `index.constituent_change` | Operator tool via PUSH → pm-index PULL | Adds or delists an index constituent with a divisor adjustment. |
@@ -535,6 +535,7 @@ Cancels all resting orders and quotes for the specified gateway. Does not halt t
 |---|---|---|
 | `gateway_id` | string | Gateway whose exposure to cancel |
 | `symbol` | string \| empty | Scope to a single symbol; empty string or absent means all symbols |
+| `command_id` | string \| absent | Correlation id echoed on the ack. Optional; see the note below |
 
 **Reply:** `risk.kill_switch_ack.{GW_ID}`
 
@@ -543,6 +544,15 @@ Cancels all resting orders and quotes for the specified gateway. Does not halt t
 | `accepted` | boolean | Always `true` for authenticated gateways |
 | `cancelled_orders` | integer | Number of resting orders cancelled |
 | `cancelled_quotes` | integer | Number of quote legs cancelled |
+| `command_id` | string \| absent | Echoed from the request when it supplied one |
+
+!!! note "Why this ack needs a correlation id"
+    Unlike the symbol halt/resume/cancel acks — which echo `symbol` and can
+    therefore be told apart — a kill-switch ack has no natural identifier.
+    Two concurrent mass cancels for one gateway were indistinguishable once
+    both acks were in flight, so a client had to serialise them. Supplying
+    `command_id` removes that constraint. It is optional: a request without
+    one produces an ack without one, exactly as before.
 
 ### `risk.symbol_halt`
 
@@ -884,6 +894,19 @@ Subscribed to by the originating gateway and the order monitor.
 | `qty` | integer | Original quantity *(present when accepted)* |
 | `price` | float \| null | Limit price *(present when accepted)* |
 | `client_tag` | string \| absent | Echoed from `order.new` when the field was set |
+| `oco_group_id` | string \| absent | Present when the order is one side of an OCO pair |
+| `combo_parent_id` | string \| absent | Present when the order is a combo leg |
+| `leg_index` | integer \| absent | 0-based leg position, present when the order is a combo leg |
+| `quote_id` | string \| absent | Present when the order originated from a market-maker quote |
+
+!!! note "Group identifiers on order lifecycle events"
+    `oco_group_id`, `combo_parent_id`, `leg_index` and `quote_id` appear on
+    `order.ack`, `order.fill`, `order.cancelled` and `order.expired` whenever
+    the order belongs to such a structure, and are **omitted entirely**
+    otherwise — an ordinary single order does not carry four null fields to
+    say it belongs to nothing. Carrying them on the event lets a subscriber
+    attribute a fill to its combo or OCO group without keeping its own map of
+    order id → parent, which it may not have after reconnecting.
 
 !!! note "Rejection reasons"
     Common rejection reasons: `"Symbol not configured: XYZ"`, `"Insufficient liquidity"` (FOK), `"Order not found"` (cancel), `"Gateway not configured: TRADER99"`, `"Gateway not connected: TRADER01"`.
@@ -931,6 +954,10 @@ on this page is mirrored to `:5557`.
 | `qty` | integer | Original quantity |
 | `price` | float \| null | Limit price |
 | `client_tag` | string \| absent | Echoed from `order.new` when the field was set |
+| `oco_group_id` | string \| absent | Present when the order is one side of an OCO pair |
+| `combo_parent_id` | string \| absent | Present when the order is a combo leg |
+| `leg_index` | integer \| absent | 0-based leg position, present when the order is a combo leg |
+| `quote_id` | string \| absent | Present when the order originated from a market-maker quote |
 
 
 
@@ -945,6 +972,10 @@ Confirms a cancel request or a Self-Match Prevention (SMP) forced cancellation.
 |---|---|---|
 | `order_id` | string (UUID) | Cancelled order |
 | `client_tag` | string \| absent | Echoed from the original `order.new` when the field was set |
+| `oco_group_id` | string \| absent | Present when the order is one side of an OCO pair |
+| `combo_parent_id` | string \| absent | Present when the order is a combo leg |
+| `leg_index` | integer \| absent | 0-based leg position, present when the order is a combo leg |
+| `quote_id` | string \| absent | Present when the order originated from a market-maker quote |
 
 
 
@@ -976,6 +1007,10 @@ Published during engine shutdown for every resting `DAY` order that did not fill
 |---|---|---|
 | `order_id` | string (UUID) | Expired order |
 | `client_tag` | string \| absent | Echoed from the original `order.new` when the field was set |
+| `oco_group_id` | string \| absent | Present when the order is one side of an OCO pair |
+| `combo_parent_id` | string \| absent | Present when the order is a combo leg |
+| `leg_index` | integer \| absent | 0-based leg position, present when the order is a combo leg |
+| `quote_id` | string \| absent | Present when the order originated from a market-maker quote |
 
 
 
@@ -1619,11 +1654,36 @@ Travels over the PUSH/PULL channel (port 5555), same as order messages.
 | Field      | Type   | Description                                                                                      |
 |------------|--------|--------------------------------------------------------------------------------------------------|
 | `to_state` | string | Target state: `"PRE_OPEN"`, `"OPENING_AUCTION"`, `"CONTINUOUS"`, `"CLOSING_AUCTION"`, `"CLOSED"` |
+| `next_state` | string \| absent | The transition *after* this one, when the sender knows the timetable |
+| `next_at` | string \| absent | When that next transition is due |
+| `command_id` | string \| absent | Correlation id. Requires `gateway_id`; see below |
+| `gateway_id` | string \| absent | Who to address the ack to. Requires `command_id` |
 
 The engine validates the transition (see [Auctions & Scheduling](080-session-scheduling.md)
-for valid state transitions).  Invalid transitions are silently rejected
-and logged to stderr.  On success, the engine publishes a `session.state`
+for valid state transitions).  On success, the engine publishes a `session.state`
 event confirming the new phase.
+
+**Reply (only when `command_id` and `gateway_id` are both present):**
+`session.transition_ack.{GW_ID}`
+
+| Field | Type | Description |
+|---|---|---|
+| `command_id` | string | Echoed from the request |
+| `accepted` | boolean | `false` when the engine discarded the request |
+| `to_state` | string | The state actually applied (empty when rejected) |
+| `reason` | string | Why it was rejected (empty when accepted) |
+
+!!! note "Who gets an ack, and why it is addressed rather than broadcast"
+    `pm-scheduler` omits both fields: it drives the timetable and reads the
+    outcome off the public `session.state` broadcast. An *interactive*
+    requester supplies them and gets a direct reply — which also closes a
+    silent failure, since a request the engine discards (sessions not enabled,
+    unknown state) previously produced no reply at all, leaving the caller
+    with a timeout indistinguishable from a slow engine.
+
+    The ack is addressed to one gateway rather than added to `session.state`
+    because a `command_id` belongs to whoever issued it; broadcasting it would
+    hand every subscriber another operator's correlation id.
 
 
 

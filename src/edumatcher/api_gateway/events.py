@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -11,6 +12,14 @@ ORDER_AMENDED_PREFIX = "order.amended."
 ORDER_CANCELLED_PREFIX = "order.cancelled."
 ORDER_EXPIRED_PREFIX = "order.expired."
 SYSTEM_SYMBOLS_PREFIX = "system.symbols."
+
+#: Synthetic admin-monitor-only event (see models.message.make_admin_action_msg).
+#: Deliberately NOT in PRIVATE_PREFIXES: it isn't addressed to the trading
+#: gateway named in its topic suffix the way order/quote acks are, and must
+#: never reach that gateway's own private stream. EngineClient._handle_event
+#: checks this prefix before the private/market-data split so it only ever
+#: reaches admin monitor sinks.
+ADMIN_ACTION_PREFIX = "admin.action."
 
 PRIVATE_PREFIXES = (
     ORDER_ACK_PREFIX,
@@ -34,6 +43,17 @@ PRIVATE_PREFIXES = (
 )
 
 
+def new_command_id() -> str:
+    """A correlation id for one asynchronous command.
+
+    Only issued for commands whose ack carries no natural identifier — mass
+    cancel and session transition. Orders correlate on ``order_id``, combos on
+    ``combo_id``, halts on ``symbol``; giving those a second id would invite
+    confusion about which one is authoritative.
+    """
+    return f"cmd-{uuid.uuid4().hex}"
+
+
 def now_iso() -> str:
     """Return an RFC3339-ish UTC timestamp for outgoing envelopes."""
     return (
@@ -53,6 +73,8 @@ def gateway_from_topic(topic: str) -> str | None:
 
 def websocket_type(topic: str) -> str:
     """Translate an engine topic to the stable public WebSocket type."""
+    if topic.startswith(ADMIN_ACTION_PREFIX):
+        return "admin.action"
     if topic.startswith("risk.kill_switch_ack."):
         return "mass_cancel.ack"
     if topic == "trade.executed":
@@ -73,13 +95,39 @@ def websocket_type(topic: str) -> str:
     return topic
 
 
-def envelope(topic: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Build the uniform JSON event envelope used by both WebSockets."""
+def envelope(
+    topic: str,
+    payload: dict[str, Any],
+    *,
+    seq: int | None = None,
+    stream_seq: int | None = None,
+) -> dict[str, Any]:
+    """Build the uniform JSON event envelope used by both WebSockets.
+
+    ``topic`` and ``seq`` are additive: ``type``, ``ts``, ``data`` and
+    ``gateway_id`` keep their existing meanings, so a client written against
+    the previous envelope keeps working and simply ignores the new fields.
+
+    ``topic`` is the engine topic the event came from and is what ``seq``
+    counts within — a client tracking gaps must key on ``topic``, not on
+    ``type``, because one type (``depth``) spans many topics (``depth.AAPL``,
+    ``depth.MSFT``) each with its own independent sequence.
+
+    ``stream_seq`` is present on private events only. Those reach a client
+    unfiltered, so one counter across the whole gateway stream is contiguous
+    and is simpler to check than one counter per topic. Market data has no
+    equivalent because subscribers filter.
+    """
     body: dict[str, Any] = {
         "type": websocket_type(topic),
+        "topic": topic,
         "ts": now_iso(),
         "data": payload,
     }
+    if seq is not None:
+        body["seq"] = seq
+    if stream_seq is not None:
+        body["stream_seq"] = stream_seq
     gateway_id = gateway_from_topic(topic)
     if gateway_id is not None:
         body["gateway_id"] = gateway_id

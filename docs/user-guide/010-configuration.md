@@ -409,6 +409,7 @@ API gateway options:
 | `--api-gateway-engine-auth-sec SECS` | float (`> 0`) | `3.0` | Engine auth timeout field |
 | `--api-gateway-engine-reply-sec SECS` | float (`> 0`) | `3.0` | Engine request/reply timeout |
 | `--api-gateway-wait-ack-sec SECS` | float (`> 0`) | `3.0` | `?wait=ack` timeout |
+| `--api-gateway-order-retention-sec SECS` | int (`>= 0`) | `3600` | Seconds a terminal order stays in the gateway's in-memory cache. `0` disables eviction |
 
 Combo seed options:
 

@@ -516,6 +516,8 @@ function parseApiGateways(node: unknown, draft: EngineConfigDraft): void {
       logLevel:
         (asString(value.log_level) as ApiGatewayConfig["logLevel"]) ?? "info",
       statsDb: asString(value.stats_db) ?? "data/stats.db",
+      // ?? not ||: an explicit 0 must survive, it means "never evict".
+      orderRetentionSec: asNumber(value.order_retention_sec) ?? 3600,
       gatewayIds: credentials
         .map((c) => c.gatewayId)
         .filter((id): id is string => id !== null),

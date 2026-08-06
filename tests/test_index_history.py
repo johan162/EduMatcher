@@ -17,6 +17,7 @@ def test_structural_record_types_are_exactly_the_audit_events() -> None:
         "CORP_ACTION",
         "DELIST",
         "ADD_CONSTITUENT",
+        "REBALANCE",
     }
     assert "LEVEL" not in STRUCTURAL_RECORD_TYPES
     assert "EOD" not in STRUCTURAL_RECORD_TYPES

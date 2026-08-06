@@ -205,6 +205,10 @@ class QuoteIndex:
                 removed.append(entry)
         return removed
 
+    def gateway_ids(self) -> list[str]:
+        """Every gateway id with at least one active quote."""
+        return list(self._keys_by_gateway.keys())
+
     def has_symbol(self, symbol: str) -> bool:
         return bool(self._keys_by_symbol.get(symbol))
 

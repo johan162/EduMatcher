@@ -60,9 +60,32 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
             config.rate_limit.writes_per_second,
             config.rate_limit.burst,
         )
+
+        async def _evict_terminal_orders() -> None:
+            """Bound the order cache. Without this it grows for the process's
+            lifetime and the admin order table would show this morning's
+            fills as current."""
+            interval = max(60, config.order_retention_sec // 10)
+            while True:
+                await asyncio.sleep(interval)
+                dropped = engine.evict_terminal_orders(config.order_retention_sec)
+                if dropped:
+                    logging.getLogger(__name__).debug(
+                        "evicted %d terminal order(s) older than %ds",
+                        dropped,
+                        config.order_retention_sec,
+                    )
+
+        sweeper = (
+            asyncio.create_task(_evict_terminal_orders())
+            if config.order_retention_sec > 0
+            else None
+        )
         try:
             yield
         finally:
+            if sweeper is not None:
+                sweeper.cancel()
             for gateway_id in engine.active_gateways():
                 # Best-effort: a 503 raised here would skip the two
                 # stop_listener calls below and leak the reader threads, and

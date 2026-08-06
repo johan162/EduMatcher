@@ -132,6 +132,7 @@ nav:
     - "Appendix: CALF Protocol": user-guide/920-app-calf-protocol.md
     - "Appendix: RALF Protocol": user-guide/930-app-ralf-protocol.md
     - "Appendix: LALF Protocol": user-guide/940-app-lalf-protocol.md
+    - "Appendix: REST API Reference": user-guide/950-app-REST-API-reference.md
     - "Appendix: Engine Config Specification": user-guide/990-app-config-spec.md
   - Training:
     - Overview: training/index.md

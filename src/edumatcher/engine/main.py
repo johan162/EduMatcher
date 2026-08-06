@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+import hashlib
+import json
 import logging
 import random
 import signal
@@ -44,7 +46,7 @@ from edumatcher.engine.auction import (
     execute_uncross,
 )
 from edumatcher.cli_version import add_version_argument
-from edumatcher.engine.circuit_breaker import CircuitBreakerState
+from edumatcher.engine.circuit_breaker import CircuitBreakerLevel, CircuitBreakerState
 from edumatcher.engine.collar import CollarConfig, validate_collar
 from edumatcher.engine.config_loader import EngineConfig, load_engine_config
 from edumatcher.engine.drop_copy import DropCopyPublisher
@@ -88,6 +90,8 @@ from edumatcher.models.message import (
     make_symbol_resume_ack_msg,
     make_cancel_symbol_ack_msg,
     make_kill_switch_ack_msg,
+    make_kill_switch_gateway_ack_msg,
+    make_kill_switch_global_ack_msg,
     make_orders_msg,
     make_quote_ack_msg,
     make_quote_bootstrap_msg,
@@ -96,6 +100,7 @@ from edumatcher.models.message import (
     make_symbols_msg,
     make_auction_indicative_msg,
     make_session_state_msg,
+    make_session_transition_ack_msg,
     make_auction_result_msg,
     make_oco_ack_msg,
     make_oco_cancelled_msg,
@@ -105,6 +110,10 @@ from edumatcher.models.message import (
     make_volume_msg,
     make_halt_status_msg,
     make_position_snapshot_msg,
+    make_reference_msg,
+    make_reference_reload_ack_msg,
+    make_admin_action_msg,
+    make_risk_state_msg,
 )
 from edumatcher.models.participant import (
     DisconnectBehaviour,
@@ -250,6 +259,15 @@ class Engine:
         self._allowed_symbols: frozenset[str] | None = None
         self._allowed_fix_gateways: frozenset[str] | None = None
         self._engine_config: EngineConfig | None = None
+        # Path _load_config() re-reads on POST /admin/reference/reload.
+        # None when the engine was constructed from an in-memory EngineConfig
+        # (tests, or the compiled-artifact fast path) rather than a file.
+        self._config_path: Path | None = None
+        # Compiled reference-data bundle + its content-hash version, cached
+        # so GET /reference/* doesn't recompute it on every request. Rebuilt
+        # on load and on a successful reload.
+        self._reference_cache: dict[str, Any] | None = None
+        self._reference_config_version: str | None = None
         self._gateway_descriptions: dict[str, str] = {}
         self._connected_fix_gateways: set[str] = set()
         self._sessions: dict[str, ParticipantSession] = {}
@@ -332,6 +350,12 @@ class Engine:
         if engine_config is not None or path.exists():
             try:
                 self._engine_config = engine_config or load_engine_config(path)
+                # Reload (POST /admin/reference/reload) re-parses this same
+                # YAML file with load_engine_config(). Not offered when the
+                # engine started from a compiled artifact (engine_config is
+                # not None here) — that path has no single YAML file to
+                # re-read; the artifact is a separate build step.
+                self._config_path = path if engine_config is None else None
                 self._allowed_symbols = self._engine_config.allowed_symbols
                 self._allowed_fix_gateways = self._engine_config.allowed_fix_gateways
                 self._sessions_enabled = self._engine_config.sessions_enabled
@@ -378,6 +402,7 @@ class Engine:
                     f"collars={'on' if self._enforce_collars else 'off'}, "
                     f"circuit_breakers={'on' if self._enforce_circuit_breakers else 'off'}"
                 )
+                self._rebuild_reference_cache()
             except (FileNotFoundError, PermissionError) as exc:
                 log.warning(
                     "Config file %s could not be read — "
@@ -713,7 +738,9 @@ class Engine:
                             if evt.id not in _seed_cancel_ids:
                                 _seed_cancel_ids.add(evt.id)
                                 self.pub_sock.send_multipart(
-                                    make_cancelled_msg(evt.gateway_id, evt.id)
+                                    make_cancelled_msg(
+                                        evt.gateway_id, evt.id, order=evt.to_dict()
+                                    )
                                 )
                     for trade in trades:
                         self._publish_trade(trade)
@@ -1226,6 +1253,33 @@ class Engine:
                                     )
                                 ),
                                 "client_tag": evt.client_tag,
+                                # Group ids travel with the fill so a consumer
+                                # can attribute a combo leg or an OCO side
+                                # without joining against its own record of the
+                                # parent — which it may not have after a
+                                # reconnect. Built inline rather than via
+                                # group_ids() because this is the hot path and
+                                # the fields are already in scope.
+                                **(
+                                    {"oco_group_id": evt.oco_group_id}
+                                    if evt.oco_group_id is not None
+                                    else {}
+                                ),
+                                **(
+                                    {"combo_parent_id": evt.combo_parent_id}
+                                    if evt.combo_parent_id is not None
+                                    else {}
+                                ),
+                                **(
+                                    {"quote_id": evt.quote_id}
+                                    if evt.quote_id is not None
+                                    else {}
+                                ),
+                                **(
+                                    {"leg_index": evt.leg_index}
+                                    if evt.leg_index is not None
+                                    else {}
+                                ),
                             }
                         ),
                     ]
@@ -1307,6 +1361,167 @@ class Engine:
 
         # Mark book dirty; snapshot will be published on next throttle tick
         self._dirty_symbols.add(order.symbol)
+
+    def _rebuild_reference_cache(self) -> None:
+        """(Re)build the compiled reference-data bundle and its version hash.
+
+        Static data only — tick sizes, resolved risk levels, circuit-breaker
+        ladders, schedule, index definitions. Deliberately excludes anything
+        that changes during a session (prices, halts, positions): those are
+        served live by the existing /symbols, /session, /halts endpoints.
+        """
+        engine_cfg = self._engine_config
+        if engine_cfg is None:
+            self._reference_cache = None
+            self._reference_config_version = None
+            return
+
+        symbols: dict[str, dict[str, Any]] = {}
+        for sym, sym_cfg in sorted(engine_cfg.symbols.items()):
+            entry: dict[str, Any] = {
+                "tick_size": 10 ** (-int(sym_cfg.tick_decimals)),
+                "level": sym_cfg.level,
+            }
+            if sym_cfg.collar is not None:
+                entry["collar"] = {
+                    "static_band_pct": sym_cfg.collar.static_band_pct,
+                    "dynamic_band_pct": sym_cfg.collar.dynamic_band_pct,
+                }
+            if sym_cfg.circuit_breaker is not None:
+                entry["circuit_breaker"] = {
+                    "reference_window_ns": sym_cfg.circuit_breaker.reference_window_ns,
+                    "levels": [
+                        {
+                            "name": lvl.name,
+                            "price_shift_pct": lvl.price_shift_pct,
+                            "halt_duration_ns": lvl.halt_duration_ns,
+                        }
+                        for lvl in sym_cfg.circuit_breaker.levels
+                    ],
+                }
+            symbols[sym] = entry
+
+        risk_levels: dict[str, dict[str, Any]] = {
+            name: {"collar": dict(level_cfg.get("collar", {}))}
+            for name, level_cfg in sorted(engine_cfg.risk_control_levels.items())
+        }
+
+        schedule = engine_cfg.schedule
+        reference: dict[str, Any] = {
+            "symbols": symbols,
+            "risk": {
+                "default_level": engine_cfg.default_risk_level,
+                "levels": risk_levels,
+            },
+            "indexes": [
+                {
+                    "id": idx.id,
+                    "description": idx.description,
+                    "base_value": idx.base_value,
+                    "constituents": list(idx.constituents),
+                }
+                for idx in engine_cfg.indices
+            ],
+            "schedule": {
+                "sessions_enabled": engine_cfg.sessions_enabled,
+                "country": engine_cfg.country,
+                "pre_open": schedule.pre_open if schedule else None,
+                "opening_auction_start": (
+                    schedule.opening_auction_start if schedule else None
+                ),
+                "continuous_start": schedule.continuous_start if schedule else None,
+                "closing_auction_start": (
+                    schedule.closing_auction_start if schedule else None
+                ),
+                "closing_auction_end": (
+                    schedule.closing_auction_end if schedule else None
+                ),
+            },
+        }
+        digest = hashlib.sha256(
+            json.dumps(reference, sort_keys=True, default=str).encode()
+        ).hexdigest()[:16]
+        reference["config_version"] = digest
+        self._reference_cache = reference
+        self._reference_config_version = digest
+
+    def _handle_reference_request(self, payload: dict[str, Any]) -> None:
+        gateway_id = str(payload.get("gateway_id", ""))
+        reference = self._reference_cache or {"config_version": None}
+        self.pub_sock.send_multipart(make_reference_msg(gateway_id, reference))
+
+    def _handle_reference_reload(self, payload: dict[str, Any]) -> None:
+        """Re-read static reference data from disk without touching live state.
+
+        Deliberately narrower than the startup config load: it never
+        re-seeds market-maker quotes, never creates or removes order books,
+        and never touches session/halt state. A reload that changed the
+        symbol or index set would require doing exactly those unsafe things
+        mid-session, so it is rejected rather than partially applied.
+        """
+        gateway_id = str(payload.get("gateway_id", ""))
+        command_id = str(payload.get("command_id", ""))
+
+        if self._config_path is None:
+            self.pub_sock.send_multipart(
+                make_reference_reload_ack_msg(
+                    gateway_id,
+                    command_id,
+                    accepted=False,
+                    reason=(
+                        "No reloadable config file "
+                        "(engine started from a compiled artifact)"
+                    ),
+                )
+            )
+            return
+
+        try:
+            new_config = load_engine_config(self._config_path)
+        except Exception as exc:
+            self.pub_sock.send_multipart(
+                make_reference_reload_ack_msg(
+                    gateway_id, command_id, accepted=False, reason=str(exc)
+                )
+            )
+            return
+
+        old_symbols = (
+            frozenset(self._engine_config.symbols)
+            if self._engine_config
+            else frozenset()
+        )
+        new_symbols = frozenset(new_config.symbols)
+        old_index_ids = (
+            frozenset(idx.id for idx in self._engine_config.indices)
+            if self._engine_config
+            else frozenset()
+        )
+        new_index_ids = frozenset(idx.id for idx in new_config.indices)
+        if new_symbols != old_symbols or new_index_ids != old_index_ids:
+            self.pub_sock.send_multipart(
+                make_reference_reload_ack_msg(
+                    gateway_id,
+                    command_id,
+                    accepted=False,
+                    reason=(
+                        "Reload cannot add or remove symbols/indexes mid-session "
+                        "(requires a restart); the symbol/index set changed"
+                    ),
+                )
+            )
+            return
+
+        self._engine_config = new_config
+        self._rebuild_reference_cache()
+        self.pub_sock.send_multipart(
+            make_reference_reload_ack_msg(
+                gateway_id,
+                command_id,
+                accepted=True,
+                config_version=self._reference_config_version,
+            )
+        )
 
     def _handle_symbols_request(self, payload: dict[str, Any]) -> None:
         gateway_id = payload.get("gateway_id", "")
@@ -1462,6 +1677,52 @@ class Engine:
                 entry["halt_source"] = cb.halt_source
             halted.append(entry)
         self.pub_sock.send_multipart(make_halt_status_msg(gateway_id, halted))
+
+    def _handle_risk_state_request(self, payload: dict[str, Any]) -> None:
+        """Reply with live per-symbol risk state (ADMIN only).
+
+        Distinct from GET /reference/risk (static, named risk-level
+        definitions) and GET /admin/halts (currently-halted symbols only):
+        this reports the *live* collar reference price and circuit-breaker
+        state for every symbol that has one configured, halted or not.
+        Prices are converted to display units; nothing here is a new piece
+        of engine state, only a read of self._collars / self._circuit_breakers.
+        """
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        symbols: dict[str, Any] = {}
+        symbol_names: set[str] = set(self._collars.keys()) | set(
+            self._circuit_breakers.keys()
+        )
+        for symbol in sorted(symbol_names):
+            entry: dict[str, Any] = {}
+            collar = self._collars.get(symbol)
+            if collar is not None:
+                entry["collar_reference_price"] = (
+                    from_ticks(collar.reference_price, symbol)
+                    if collar.reference_price
+                    else None
+                )
+            cb = self._circuit_breakers.get(symbol)
+            if cb is not None:
+                entry["circuit_breaker"] = {
+                    "halted": cb.halted,
+                    "reference_price": (
+                        from_ticks(cb.reference_price, symbol)
+                        if cb.reference_price is not None
+                        else None
+                    ),
+                    "trigger_price": (
+                        from_ticks(cb.trigger_price, symbol)
+                        if cb.trigger_price is not None
+                        else None
+                    ),
+                    "triggered_level": cb.triggered_level,
+                    "expansion_index": cb.expansion_index,
+                    "corridor": self._corridor_payload(cb, symbol),
+                    "resume_at_ns": cb.resume_at_ns,
+                }
+            symbols[symbol] = entry
+        self.pub_sock.send_multipart(make_risk_state_msg(gateway_id, symbols))
 
     def _handle_session_schedule_request(self, payload: dict[str, Any]) -> None:
         """Return the session schedule configuration from the loaded engine config."""
@@ -1827,7 +2088,10 @@ class Engine:
         # correlate on it don't miss quote/combo-driven cancels.
         self.pub_sock.send_multipart(
             make_cancelled_msg(
-                cancelled.gateway_id, order_id, client_tag=cancelled.client_tag
+                cancelled.gateway_id,
+                order_id,
+                client_tag=cancelled.client_tag,
+                order=cancelled.to_dict(),
             )
         )
         return cancelled
@@ -2486,7 +2750,9 @@ class Engine:
                     if evt.id not in _pub_cancel_ids:
                         _pub_cancel_ids.add(evt.id)
                         self.pub_sock.send_multipart(
-                            make_cancelled_msg(evt.gateway_id, evt.id)
+                            make_cancelled_msg(
+                                evt.gateway_id, evt.id, order=evt.to_dict()
+                            )
                         )
             for trade in trades:
                 self._publish_trade(trade)
@@ -2568,11 +2834,25 @@ class Engine:
     def _handle_kill_switch(self, payload: dict[str, Any]) -> None:
         gateway_id = str(payload.get("gateway_id", "")).upper()
         symbol_filter = str(payload.get("symbol", "")).upper()
+        # Echoed on the ack so concurrent mass cancels for one gateway can be
+        # told apart. Absent for callers that do not supply it.
+        command_id = str(payload.get("command_id", ""))
+        note = str(payload.get("note", ""))
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
             self.pub_sock.send_multipart(
-                make_kill_switch_ack_msg(gateway_id, False, reason)
+                make_kill_switch_ack_msg(
+                    gateway_id, False, reason, command_id=command_id
+                )
+            )
+            self._publish_admin_action(
+                gateway_id,
+                command_id,
+                "kill_switch.self",
+                {"symbol": symbol_filter or None},
+                accepted=False,
+                reason=reason,
             )
             return
 
@@ -2611,7 +2891,197 @@ class Engine:
                 True,
                 cancelled_orders=cancelled_orders,
                 cancelled_quotes=cancelled_quotes,
+                command_id=command_id,
             )
+        )
+        self._publish_admin_action(
+            gateway_id,
+            command_id,
+            "kill_switch.self",
+            {
+                "symbol": symbol_filter or None,
+                "note": note,
+                "cancelled_orders": cancelled_orders,
+                "cancelled_quotes": cancelled_quotes,
+            },
+            accepted=True,
+        )
+
+    def _handle_kill_switch_gateway(self, payload: dict[str, Any]) -> None:
+        """ADMIN → engine: cancel every order/quote for *target_gateway_id*.
+
+        Unlike ``_handle_kill_switch``, the caller (``gateway_id``, checked
+        for ADMIN role) and the affected gateway (``target_gateway_id``) are
+        allowed to differ — this is one admin acting on another participant's
+        exposure, not a gateway acting on its own.
+        """
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        target_gateway_id = str(payload.get("target_gateway_id", "")).upper()
+        command_id = str(payload.get("command_id", ""))
+        note = str(payload.get("note", ""))
+
+        def _reject(reason: str) -> None:
+            self.pub_sock.send_multipart(
+                make_kill_switch_gateway_ack_msg(
+                    gateway_id, target_gateway_id, False, reason, command_id=command_id
+                )
+            )
+            self._publish_admin_action(
+                gateway_id,
+                command_id,
+                "kill_switch.gateway",
+                {"target_gateway_id": target_gateway_id},
+                accepted=False,
+                reason=reason,
+            )
+
+        ok, reason = self._gateway_status(gateway_id)
+        if not ok:
+            _reject(reason)
+            return
+
+        session = self._session_for_gateway(gateway_id)
+        if session.role != ParticipantRole.ADMIN:
+            _reject(
+                "Gateway-targeted kill switch is only allowed for ADMIN participants"
+            )
+            return
+
+        if not target_gateway_id:
+            _reject("target_gateway_id required")
+            return
+
+        cancelled_orders = 0
+        cancelled_quotes = 0
+
+        for entry in self._quote_index.cancel_all_for_gateway(
+            target_gateway_id, reason="ADMIN kill switch"
+        ):
+            cancelled_quotes += self._cancel_quote_entry(
+                entry, reason="ADMIN kill switch"
+            )
+
+        for book in self.books.values():
+            for order in list(book.resting_orders()):
+                if (
+                    order.gateway_id == target_gateway_id
+                    and order.origin != OrderOrigin.QUOTE
+                ):
+                    if self._cancel_order_by_id(order.id):
+                        cancelled_orders += 1
+
+        self.pub_sock.send_multipart(
+            make_kill_switch_gateway_ack_msg(
+                gateway_id,
+                target_gateway_id,
+                True,
+                cancelled_orders=cancelled_orders,
+                cancelled_quotes=cancelled_quotes,
+                command_id=command_id,
+            )
+        )
+        self._publish_admin_action(
+            gateway_id,
+            command_id,
+            "kill_switch.gateway",
+            {
+                "target_gateway_id": target_gateway_id,
+                "note": note,
+                "cancelled_orders": cancelled_orders,
+                "cancelled_quotes": cancelled_quotes,
+            },
+            accepted=True,
+        )
+        log.info(
+            f"ADMIN KILL SWITCH (gateway) — target={target_gateway_id} by {gateway_id}:"
+            f" orders={cancelled_orders} quotes={cancelled_quotes}"
+        )
+
+    def _handle_kill_switch_global(self, payload: dict[str, Any]) -> None:
+        """ADMIN → engine: cancel every resting order/quote for every gateway.
+
+        The full-market emergency stop. Distinct from
+        ``risk.circuit_breaker_halt_all``, which halts trading but leaves
+        resting orders in place — this cancels them outright.
+        """
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        command_id = str(payload.get("command_id", ""))
+        note = str(payload.get("note", ""))
+
+        def _reject(reason: str) -> None:
+            self.pub_sock.send_multipart(
+                make_kill_switch_global_ack_msg(
+                    gateway_id, False, reason, command_id=command_id
+                )
+            )
+            self._publish_admin_action(
+                gateway_id,
+                command_id,
+                "kill_switch.global",
+                {},
+                accepted=False,
+                reason=reason,
+            )
+
+        ok, reason = self._gateway_status(gateway_id)
+        if not ok:
+            _reject(reason)
+            return
+
+        session = self._session_for_gateway(gateway_id)
+        if session.role != ParticipantRole.ADMIN:
+            _reject("Global kill switch is only allowed for ADMIN participants")
+            return
+
+        cancelled_orders = 0
+        cancelled_quotes = 0
+        affected_gateways: set[str] = set()
+
+        for target_gateway_id in self._quote_index.gateway_ids():
+            entries = self._quote_index.cancel_all_for_gateway(
+                target_gateway_id, reason="ADMIN global kill switch"
+            )
+            if entries:
+                affected_gateways.add(target_gateway_id)
+            for entry in entries:
+                cancelled_quotes += self._cancel_quote_entry(
+                    entry, reason="ADMIN global kill switch"
+                )
+
+        for book in self.books.values():
+            for order in list(book.resting_orders()):
+                if order.origin != OrderOrigin.QUOTE:
+                    owner = order.gateway_id
+                    if self._cancel_order_by_id(order.id):
+                        cancelled_orders += 1
+                        affected_gateways.add(owner)
+
+        self.pub_sock.send_multipart(
+            make_kill_switch_global_ack_msg(
+                gateway_id,
+                True,
+                cancelled_orders=cancelled_orders,
+                cancelled_quotes=cancelled_quotes,
+                affected_gateways=len(affected_gateways),
+                command_id=command_id,
+            )
+        )
+        self._publish_admin_action(
+            gateway_id,
+            command_id,
+            "kill_switch.global",
+            {
+                "note": note,
+                "cancelled_orders": cancelled_orders,
+                "cancelled_quotes": cancelled_quotes,
+                "affected_gateways": len(affected_gateways),
+            },
+            accepted=True,
+        )
+        log.warning(
+            f"ADMIN KILL SWITCH (global) by {gateway_id}: "
+            f"orders={cancelled_orders} quotes={cancelled_quotes} "
+            f"gateways={len(affected_gateways)}"
         )
 
     def _handle_circuit_breaker_halt_all(self, payload: dict[str, Any]) -> None:
@@ -2744,55 +3214,101 @@ class Engine:
             )
 
     def _handle_symbol_halt(self, payload: dict[str, Any]) -> None:
-        """Halt trading on a single symbol (ADMIN only)."""
+        """Halt trading on a single symbol (ADMIN only).
+
+        With a ``level`` naming one of the symbol's configured
+        ``circuit_breaker.levels``, this runs through the same
+        ``CircuitBreakerState.activate()`` state machine a price-triggered
+        halt uses, so it gets a real ``resume_at_ns`` / ACE corridor and is
+        picked up by the normal ``_flush_circuit_breakers()`` tick. Without a
+        matching level (the previous behaviour), the halt is indefinite —
+        cleared only by an explicit resume.
+        """
         gateway_id = str(payload.get("gateway_id", "")).upper()
         symbol = str(payload.get("symbol", "")).upper()
+        level_name_raw = payload.get("level")
+        level_name = str(level_name_raw).upper() if level_name_raw else None
+        note = str(payload.get("note", ""))
+        command_id = str(payload.get("command_id", ""))
+
+        def _reject(reason: str) -> None:
+            self.pub_sock.send_multipart(
+                make_symbol_halt_ack_msg(
+                    gateway_id, symbol, False, reason, command_id=command_id
+                )
+            )
+            self._publish_admin_action(
+                gateway_id,
+                command_id,
+                "circuit_breaker.trigger",
+                {"symbol": symbol, "level": level_name},
+                accepted=False,
+                reason=reason,
+            )
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
-            self.pub_sock.send_multipart(
-                make_symbol_halt_ack_msg(gateway_id, symbol, False, reason)
-            )
+            _reject(reason)
             return
 
         session = self._session_for_gateway(gateway_id)
         if session.role != ParticipantRole.ADMIN:
-            self.pub_sock.send_multipart(
-                make_symbol_halt_ack_msg(
-                    gateway_id,
-                    symbol,
-                    False,
-                    "Per-symbol halt is only allowed for ADMIN participants",
-                )
-            )
+            _reject("Per-symbol halt is only allowed for ADMIN participants")
             return
 
         if not symbol:
-            self.pub_sock.send_multipart(
-                make_symbol_halt_ack_msg(gateway_id, symbol, False, "symbol required")
-            )
+            _reject("symbol required")
             return
 
         if self._allowed_symbols is not None and symbol not in self._allowed_symbols:
-            self.pub_sock.send_multipart(
-                make_symbol_halt_ack_msg(
-                    gateway_id, symbol, False, f"Unknown symbol: {symbol}"
-                )
-            )
+            _reject(f"Unknown symbol: {symbol}")
             return
 
         now = now_ns()
         self._halted_symbols[symbol] = True
 
         cb = self._circuit_breakers.get(symbol)
+        if level_name is not None and cb is None:
+            _reject(f"{symbol} has no circuit breaker configured")
+            return
+
+        triggered_level = "ADMIN_SYMBOL"
+        resume_at_ns: int | None = None
         if cb is not None:
-            cb.halted = True
-            cb.halted_at_ns = now
-            cb.resume_at_ns = None
-            cb.trigger_price = None
-            cb.reference_price = None
-            cb.triggered_level = "ADMIN_SYMBOL"
-            cb.halt_source = "ADMIN"
+            selected: CircuitBreakerLevel | None = None
+            if level_name is not None:
+                selected = next(
+                    (lvl for lvl in cb.config.levels if lvl.name == level_name),
+                    None,
+                )
+                if selected is None:
+                    _reject(f"Unknown circuit-breaker level for {symbol}: {level_name}")
+                    return
+            if selected is not None:
+                # Seed a reference price if none exists yet (mirrors the
+                # startup seeding in _load_config()) — activate() itself does
+                # not compute one, it only uses whatever is already set.
+                if cb.reference_price is None:
+                    book = self._book(symbol)
+                    ref_ticks = (
+                        book.last_buy_price
+                        if book.last_buy_price is not None
+                        else book.last_sell_price
+                    )
+                    if ref_ticks is not None:
+                        cb.seed_reference(ref_ticks, now)
+                cb.activate(now, selected, self._reopening_rng)
+                cb.halt_source = "ADMIN"
+                triggered_level = selected.name
+                resume_at_ns = cb.resume_at_ns
+            else:
+                cb.halted = True
+                cb.halted_at_ns = now
+                cb.resume_at_ns = None
+                cb.trigger_price = None
+                cb.reference_price = None
+                cb.triggered_level = "ADMIN_SYMBOL"
+                cb.halt_source = "ADMIN"
 
         cancelled_quotes = 0
         for entry in self._quote_index.cancel_all_for_symbol(
@@ -2809,9 +3325,9 @@ class Engine:
                     "symbol": symbol,
                     "trigger_price": None,
                     "reference_price": None,
-                    "resume_at_ns": None,
+                    "resume_at_ns": resume_at_ns,
                     "halt_source": "ADMIN",
-                    "level": "ADMIN_SYMBOL",
+                    "level": triggered_level,
                 },
             )
         )
@@ -2823,46 +3339,58 @@ class Engine:
                 symbol,
                 True,
                 cancelled_quotes=cancelled_quotes,
+                command_id=command_id,
             )
         )
-        log.info(f"ADMIN SYMBOL HALT — {symbol} by {gateway_id}")
+        self._publish_admin_action(
+            gateway_id,
+            command_id,
+            "circuit_breaker.trigger",
+            {"symbol": symbol, "level": triggered_level, "note": note},
+            accepted=True,
+        )
+        log.info(
+            f"ADMIN SYMBOL HALT — {symbol} by {gateway_id} (level={triggered_level})"
+        )
 
     def _handle_symbol_resume(self, payload: dict[str, Any]) -> None:
         """Resume a single symbol that was halted by a per-symbol or global halt (ADMIN only)."""
         gateway_id = str(payload.get("gateway_id", "")).upper()
         symbol = str(payload.get("symbol", "")).upper()
+        note = str(payload.get("note", ""))
+        command_id = str(payload.get("command_id", ""))
+
+        def _reject(reason: str) -> None:
+            self.pub_sock.send_multipart(
+                make_symbol_resume_ack_msg(
+                    gateway_id, symbol, False, reason, command_id=command_id
+                )
+            )
+            self._publish_admin_action(
+                gateway_id,
+                command_id,
+                "circuit_breaker.resume",
+                {"symbol": symbol},
+                accepted=False,
+                reason=reason,
+            )
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
-            self.pub_sock.send_multipart(
-                make_symbol_resume_ack_msg(gateway_id, symbol, False, reason)
-            )
+            _reject(reason)
             return
 
         session = self._session_for_gateway(gateway_id)
         if session.role != ParticipantRole.ADMIN:
-            self.pub_sock.send_multipart(
-                make_symbol_resume_ack_msg(
-                    gateway_id,
-                    symbol,
-                    False,
-                    "Per-symbol resume is only allowed for ADMIN participants",
-                )
-            )
+            _reject("Per-symbol resume is only allowed for ADMIN participants")
             return
 
         if not symbol:
-            self.pub_sock.send_multipart(
-                make_symbol_resume_ack_msg(gateway_id, symbol, False, "symbol required")
-            )
+            _reject("symbol required")
             return
 
         if not self._halted_symbols.get(symbol):
-            self.pub_sock.send_multipart(
-                make_symbol_resume_ack_msg(
-                    gateway_id, symbol, False, f"{symbol} is not halted"
-                )
-            )
+            _reject(f"{symbol} is not halted")
             return
 
         self._halted_symbols[symbol] = False
@@ -2880,7 +3408,14 @@ class Engine:
         self._mark_dirty(symbol)
 
         self.pub_sock.send_multipart(
-            make_symbol_resume_ack_msg(gateway_id, symbol, True)
+            make_symbol_resume_ack_msg(gateway_id, symbol, True, command_id=command_id)
+        )
+        self._publish_admin_action(
+            gateway_id,
+            command_id,
+            "circuit_breaker.resume",
+            {"symbol": symbol, "note": note},
+            accepted=True,
         )
         log.info(f"ADMIN SYMBOL RESUME — {symbol} by {gateway_id}")
 
@@ -2889,29 +3424,36 @@ class Engine:
         gateway_id = str(payload.get("gateway_id", "")).upper()
         symbol = str(payload.get("symbol", "")).upper()
 
+        note = str(payload.get("note", ""))
+        command_id = str(payload.get("command_id", ""))
+
+        def _reject(reason: str) -> None:
+            self.pub_sock.send_multipart(
+                make_cancel_symbol_ack_msg(
+                    gateway_id, symbol, False, reason, command_id=command_id
+                )
+            )
+            self._publish_admin_action(
+                gateway_id,
+                command_id,
+                "kill_switch.symbol",
+                {"symbol": symbol},
+                accepted=False,
+                reason=reason,
+            )
+
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
-            self.pub_sock.send_multipart(
-                make_cancel_symbol_ack_msg(gateway_id, symbol, False, reason)
-            )
+            _reject(reason)
             return
 
         session = self._session_for_gateway(gateway_id)
         if session.role != ParticipantRole.ADMIN:
-            self.pub_sock.send_multipart(
-                make_cancel_symbol_ack_msg(
-                    gateway_id,
-                    symbol,
-                    False,
-                    "Symbol-level mass cancel is only allowed for ADMIN participants",
-                )
-            )
+            _reject("Symbol-level mass cancel is only allowed for ADMIN participants")
             return
 
         if not symbol:
-            self.pub_sock.send_multipart(
-                make_cancel_symbol_ack_msg(gateway_id, symbol, False, "symbol required")
-            )
+            _reject("symbol required")
             return
 
         book = self.books.get(symbol)
@@ -2937,7 +3479,20 @@ class Engine:
                 True,
                 cancelled_orders=cancelled_orders,
                 cancelled_quotes=cancelled_quotes,
+                command_id=command_id,
             )
+        )
+        self._publish_admin_action(
+            gateway_id,
+            command_id,
+            "kill_switch.symbol",
+            {
+                "symbol": symbol,
+                "note": note,
+                "cancelled_orders": cancelled_orders,
+                "cancelled_quotes": cancelled_quotes,
+            },
+            accepted=True,
         )
         log.info(
             f"ADMIN CANCEL SYMBOL — {symbol} by {gateway_id}:"
@@ -3089,7 +3644,9 @@ class Engine:
                     if evt.id not in _pub_terminal_ids:
                         _pub_terminal_ids.add(evt.id)
                         self.pub_sock.send_multipart(
-                            make_cancelled_msg(evt.gateway_id, evt.id)
+                            make_cancelled_msg(
+                                evt.gateway_id, evt.id, order=evt.to_dict()
+                            )
                         )
                     if evt.combo_parent_id and evt.id != child.id:
                         self._check_combo_after_child_event(evt)
@@ -3252,7 +3809,9 @@ class Engine:
                 cancelled = book.cancel_order(child_id)
                 if cancelled:
                     self.pub_sock.send_multipart(
-                        make_cancelled_msg(combo.gateway_id, child_id)
+                        make_cancelled_msg(
+                            combo.gateway_id, child_id, order=cancelled.to_dict()
+                        )
                     )
                     self._mark_dirty(symbol)  # type: ignore[arg-type]
             self._order_symbol.pop(child_id, None)
@@ -3275,15 +3834,70 @@ class Engine:
     # Session / auction transitions
     # ------------------------------------------------------------------
 
+    def _reply_session_transition(
+        self,
+        payload: dict[str, Any],
+        accepted: bool,
+        to_state: str = "",
+        reason: str = "",
+    ) -> None:
+        """Answer an interactive transition request, if one asked to be told.
+
+        `pm-scheduler` sends no command_id and gets no reply — it drives the
+        timetable and reads the outcome off the public session.state
+        broadcast. An operator issuing a manual transition does supply one,
+        and previously received nothing at all when the request was discarded.
+        """
+        command_id = str(payload.get("command_id", ""))
+        gateway_id = str(payload.get("gateway_id", ""))
+        if not command_id or not gateway_id:
+            return
+        self.pub_sock.send_multipart(
+            make_session_transition_ack_msg(
+                gateway_id, command_id, accepted, to_state=to_state, reason=reason
+            )
+        )
+
+    def _publish_admin_action(
+        self,
+        gateway_id: str,
+        command_id: str,
+        action: str,
+        scope: dict[str, Any],
+        accepted: bool,
+        reason: str = "",
+    ) -> None:
+        """Publish the uniform admin-monitor record for one admin command.
+
+        Sent in addition to (never instead of) the command's own ack — the
+        ack is what the calling gateway correlates on; this is purely for
+        /admin/monitor to have one consistent shape to watch across every
+        admin-gated command. No-op if ``command_id`` is empty: without one
+        there is nothing for a monitor client to correlate against, and
+        every call site here already has one (either supplied by the caller
+        or minted for this purpose).
+        """
+        self.pub_sock.send_multipart(
+            make_admin_action_msg(
+                gateway_id, command_id, action, scope, accepted, reason=reason
+            )
+        )
+
     def _handle_session_transition(self, payload: dict[str, Any]) -> None:
         """Handle a session.transition message from the scheduler."""
         if not self._sessions_enabled:
+            self._reply_session_transition(
+                payload, False, reason="Sessions are not enabled on this engine"
+            )
             return
 
         try:
             to_state = SessionState(payload["to_state"])
         except (KeyError, ValueError) as exc:
             log.warning("Invalid session transition: %s", exc)
+            self._reply_session_transition(
+                payload, False, reason=f"Invalid session transition: {exc}"
+            )
             return
 
         from_state = self._session_state
@@ -3361,6 +3975,9 @@ class Engine:
                 next_at=self._next_session_at,
             )
         )
+        # After the broadcast, so a requester that sees its ack knows the
+        # public state has already been published.
+        self._reply_session_transition(payload, True, to_state=to_state.value)
         log.info(f"Session: {from_state.value} → {to_state.value}")
 
     def _expire_tif(self, tif: TIF) -> None:
@@ -3372,7 +3989,11 @@ class Engine:
                     if cancelled:
                         cancelled.status = OrderStatus.EXPIRED
                         self.pub_sock.send_multipart(
-                            make_expired_msg(cancelled.gateway_id, cancelled.id)
+                            make_expired_msg(
+                                cancelled.gateway_id,
+                                cancelled.id,
+                                order=cancelled.to_dict(),
+                            )
                         )
                         self._order_symbol.pop(cancelled.id, None)
                         if cancelled.combo_parent_id:
@@ -3759,7 +4380,9 @@ class Engine:
                     if evt.id not in _pub_terminal_ids:
                         _pub_terminal_ids.add(evt.id)
                         self.pub_sock.send_multipart(
-                            make_cancelled_msg(evt.gateway_id, evt.id)
+                            make_cancelled_msg(
+                                evt.gateway_id, evt.id, order=evt.to_dict()
+                            )
                         )
                         if evt.oco_group_id:
                             _oco_pending_checks.append(evt)
@@ -3813,7 +4436,9 @@ class Engine:
                 cancelled = book.cancel_order(order_id)
                 if cancelled:
                     self.pub_sock.send_multipart(
-                        make_cancelled_msg(gateway_id, order_id)
+                        make_cancelled_msg(
+                            gateway_id, order_id, order=cancelled.to_dict()
+                        )
                     )
                     self._mark_dirty(symbol)  # type: ignore[arg-type]
             self._order_symbol.pop(order_id, None)
@@ -3900,7 +4525,10 @@ class Engine:
             self._order_symbol.pop(order_id, None)
             self.pub_sock.send_multipart(
                 make_cancelled_msg(
-                    gateway_id, order_id, client_tag=cancelled.client_tag
+                    gateway_id,
+                    order_id,
+                    client_tag=cancelled.client_tag,
+                    order=cancelled.to_dict(),
                 )
             )
             self._mark_dirty(cancelled.symbol)
@@ -4138,7 +4766,9 @@ class Engine:
                 and evt.id not in published_terminal_ids
             ):
                 published_terminal_ids.add(evt.id)
-                self.pub_sock.send_multipart(make_cancelled_msg(evt.gateway_id, evt.id))
+                self.pub_sock.send_multipart(
+                    make_cancelled_msg(evt.gateway_id, evt.id, order=evt.to_dict())
+                )
             elif (
                 evt.status == OrderStatus.REJECTED
                 and evt.id not in published_terminal_ids
@@ -4220,7 +4850,10 @@ class Engine:
                     order.status = OrderStatus.EXPIRED
                     self.pub_sock.send_multipart(
                         make_expired_msg(
-                            order.gateway_id, order.id, client_tag=order.client_tag
+                            order.gateway_id,
+                            order.id,
+                            client_tag=order.client_tag,
+                            order=order.to_dict(),
                         )
                     )
                     # If this was a combo child, cascade-cancel sibling legs
@@ -4303,6 +4936,10 @@ class Engine:
                 self._handle_gateway_disconnect(payload)
             elif topic == "system.symbols_request":
                 self._handle_symbols_request(payload)
+            elif topic == "system.reference_request":
+                self._handle_reference_request(payload)
+            elif topic == "system.reference_reload":
+                self._handle_reference_reload(payload)
             elif topic == "book.snapshot_request":
                 self._handle_book_snapshot_request(payload)
             elif topic == "order.orders_request":
@@ -4313,6 +4950,10 @@ class Engine:
                 self._handle_quote_legs_request(payload)
             elif topic == "risk.kill_switch":
                 self._handle_kill_switch(payload)
+            elif topic == "risk.kill_switch_gateway":
+                self._handle_kill_switch_gateway(payload)
+            elif topic == "risk.kill_switch_global":
+                self._handle_kill_switch_global(payload)
             elif topic == "risk.circuit_breaker_halt_all":
                 self._handle_circuit_breaker_halt_all(payload)
             elif topic == "risk.circuit_breaker_resume_all":
@@ -4335,6 +4976,8 @@ class Engine:
                 self._handle_volume_request(payload)
             elif topic == "system.halt_status_request":
                 self._handle_halt_status_request(payload)
+            elif topic == "system.risk_state_request":
+                self._handle_risk_state_request(payload)
             elif topic == "system.position_request":
                 self._handle_position_request(payload)
             else:

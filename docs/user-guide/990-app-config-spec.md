@@ -455,6 +455,8 @@ be rejected.
 | `log_level` | `Str` | – | `"info"` | |
 | `swagger_enabled` | `Bool` | – | `true` | |
 | `stats_db` | `Path` | – | resolved `stats.db` | `~` expanded |
+| `audit_db` | `Path` | – | resolved `audit_index.db` | `~` expanded. Read-only; only `GET /admin/orders/{order_id}` uses it, and that endpoint returns 503 when the file is absent |
+| `order_retention_sec` | `Int` | – | `3600` | `>= 0`. Seconds a terminal order stays in the in-memory cache; `0` disables eviction |
 | `credentials` | `List<ApiCredentialSpec>` | – | `[]` | api keys unique within instance |
 | `rate_limit` | `RateLimitSpec` | – | see below | |
 | `timeouts` | `TimeoutSpec` | – | see below | |

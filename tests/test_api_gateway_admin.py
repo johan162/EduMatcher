@@ -49,6 +49,17 @@ class AdminFakeEngine:
         self.calls.append(("resolve_role", gateway_id))
         return self.role
 
+    async def send_and_await_session_transition(
+        self, gateway_id: str, to_state: str, timeout: float
+    ) -> dict[str, Any]:
+        self.calls.append(("send_and_await_session_transition", (gateway_id, to_state)))
+        return {
+            "command_id": "cmd-test",
+            "accepted": self.ack_accepted,
+            "to_state": to_state,
+            "reason": "" if self.ack_accepted else "Sessions are not enabled",
+        }
+
     async def await_topic(self, topic: str, timeout: float) -> dict[str, Any]:
         return await self.await_event(topic, match=None, timeout=timeout)
 
@@ -83,14 +94,39 @@ class AdminFakeEngine:
     def send_session_transition(self, to_state: str) -> None:
         self.calls.append(("send_session_transition", to_state))
 
-    def send_symbol_halt(self, gateway_id: str, symbol: str) -> None:
+    def send_symbol_halt(
+        self,
+        gateway_id: str,
+        symbol: str,
+        level: str | None = None,
+        note: str = "",
+        command_id: str = "",
+    ) -> None:
         self.calls.append(("send_symbol_halt", (gateway_id, symbol)))
 
-    def send_symbol_resume(self, gateway_id: str, symbol: str) -> None:
+    def send_symbol_resume(
+        self, gateway_id: str, symbol: str, note: str = "", command_id: str = ""
+    ) -> None:
         self.calls.append(("send_symbol_resume", (gateway_id, symbol)))
 
-    def send_cancel_symbol(self, gateway_id: str, symbol: str) -> None:
+    def send_cancel_symbol(
+        self, gateway_id: str, symbol: str, note: str = "", command_id: str = ""
+    ) -> None:
         self.calls.append(("send_cancel_symbol", (gateway_id, symbol)))
+
+    def send_kill_switch_gateway(
+        self,
+        gateway_id: str,
+        target_gateway_id: str,
+        note: str = "",
+        command_id: str = "",
+    ) -> None:
+        self.calls.append(("send_kill_switch_gateway", (gateway_id, target_gateway_id)))
+
+    def send_kill_switch_global(
+        self, gateway_id: str, note: str = "", command_id: str = ""
+    ) -> None:
+        self.calls.append(("send_kill_switch_global", (gateway_id,)))
 
     def send_disconnect(self, gateway_id: str, reason: str) -> None:
         self.calls.append(("send_disconnect", (gateway_id, reason)))
@@ -147,8 +183,14 @@ async def test_require_admin_allows_admin_role() -> None:
     request = admin_request(engine)
     body = SessionTransitionRequest(to_state=SessionState.CONTINUOUS)
     result = await admin.session_transition(body, request, admin_session())
-    assert result == {"requested_state": "CONTINUOUS", "status": "PENDING"}
-    assert ("send_session_transition", "CONTINUOUS") in engine.calls
+    # No longer fire-and-forget: the endpoint awaits the engine's verdict, so
+    # the caller learns whether the transition actually happened.
+    assert result["requested_state"] == "CONTINUOUS"
+    assert result["status"] == "APPLIED"
+    assert result["command_id"]
+    assert any(
+        call[0] == "send_and_await_session_transition" for call in engine.calls
+    ), engine.calls
 
 
 @pytest.mark.anyio
