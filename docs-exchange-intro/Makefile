@@ -5,7 +5,9 @@
 
 NODE_TOOLS_DIR := ../build-tools
 NODE_MODULES_PATH := $(NODE_TOOLS_DIR)/node_modules
-MERMAID_FILTER := $(NODE_MODULES_PATH)/.bin/mermaid-filter
+# Vendored, cache-enabled wrapper around the npm mermaid-filter package (see
+# scripts/mermaid-filter-cached.js for why this isn't the installed binary).
+MERMAID_FILTER := ../scripts/mermaid-filter-cached.js
 MERMAID_FILTER_FORMAT ?= pdf
 MERMAID_FILTER_WIDTH ?= 600
 

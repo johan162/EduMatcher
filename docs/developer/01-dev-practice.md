@@ -425,6 +425,64 @@ than duplicating large explanations in new pages.
 
 
 
+##  Mermaid diagrams in the docs build (cached Pandoc filter)
+
+The PDF docs pipeline (`docs/Makefile`, `docs-design/Makefile`,
+`docs-exchange-intro/Makefile`) renders every ` ```mermaid ` code block to an
+image via Pandoc's `--filter` mechanism. We use our **own** filter,
+`scripts/mermaid-filter-cached.js`, instead of the stock `mermaid-filter` npm
+package installed under `build-tools/node_modules/`.
+
+### Why a custom filter
+
+Rendering one diagram means launching `mmdc` (`@mermaid-js/mermaid-cli`),
+which starts a full headless Chrome instance via Puppeteer — by far the
+slowest step in a documentation build, repeated once per diagram, on every
+single build, even though the diagrams themselves rarely change. Building all
+four PDF variants (A4/B5, light/dark) in parallel (`make -j4`) multiplies
+that cost further, since they share the same Markdown sources.
+
+`scripts/mermaid-filter-cached.js` adds a render cache on top of the stock
+filter's behavior: a diagram whose Mermaid source hasn't changed is reused
+from disk instead of being re-rendered.
+
+### Why it isn't just a patch to the installed package
+
+`build-tools/` is entirely git-ignored and is wiped and recreated by
+`npm install` on every fresh checkout (see the `$(NODE_MODULES_PATH):` targets
+in the Makefiles). Editing
+`build-tools/node_modules/.bin/mermaid-filter` (a symlink into
+`build-tools/node_modules/mermaid-filter/index.js`) directly would be
+silently lost the next time dependencies are (re)installed. The cached filter
+therefore lives as a normal, version-controlled file under `scripts/`, and
+each Makefile's `MERMAID_FILTER` variable points at it instead of the
+npm-installed binary.
+
+### How the cache works
+
+- **Cache key**: sha256 of the raw Mermaid diagram text, truncated to 12 hex
+  characters — independent of caption, filename, or which document the
+  diagram appears in, so two identical diagrams anywhere share one render.
+- **Cache location**: `build-tools/.mermaid-cache/<hash>.<format>` by
+  default, overridable with `MERMAID_FILTER_CACHE_DIR`. This is deliberately
+  **not** the per-build `.mermaid-img` directory the Makefiles pass via
+  `MERMAID_FILTER_LOC` — that directory is `rm -rf`'d at the start of every
+  PDF build, so anything cached there would never survive to be reused.
+- **Cache hit**: `mmdc`/Puppeteer is skipped entirely; the previously
+  rendered file is referenced directly from the cache.
+- **Cache miss**: rendered via `mmdc` exactly as the stock filter does, then
+  persisted into the cache using a write-to-temp-then-atomic-rename so that
+  concurrent builds (the four `make -j4` PDF variants, which share diagrams)
+  can never observe — or produce — a partially-written cache file.
+
+Caveat: the cache key covers only the diagram text, not rendering options
+(`MERMAID_FILTER_THEME`/`WIDTH`/`FORMAT`/`SCALE`/...). Changing one of those
+globally does not invalidate previously cached renders. To force a full
+re-render, delete `build-tools/.mermaid-cache/` (or point
+`MERMAID_FILTER_CACHE_DIR` somewhere fresh).
+
+
+
 ##  Current release workflow
 
 Follow `release_checklist.md` as the source of truth.
