@@ -1,35 +1,34 @@
 ## [Unreleased]
 
-### ✨ Added
-- Added `order_retention_sec` to the config toolchain end to end: the `--api-gateway-order-retention-sec` flag on `pm-config-gen`, validation in `pm-cverifier`, an **Order cache retention (s)** field on the Config GUI's Auxiliary Gateways → API sub-tab, and compilation through `pm-config-deploy`. `pm-cverifier` and `pm-config-deploy` needed no new rules of their own — both delegate to the `pm-api-gwy` loader, so the constraint has exactly one home
-- Added `GET /api/v1/admin/orders`, the cross-gateway active-order table, with `symbol`, `gateway_id` and `status` filters. Served entirely from the gateway's own read model with no engine round-trip, because it already maintained a cache per gateway whose events pass through — that view simply was not reachable
-- Added `GET /api/v1/admin/orders/{order_id}`, the complete cross-gateway lifecycle of one order, read from `pm-audit`'s index. **This is a new read-only dependency on `audit_index.db`** — the only store the API gateway reads that it does not own — added so the REST API can be a single stop rather than sending an operator to `pm-audit-cli`. It is optional: without an index that one endpoint returns `503 AUDIT_INDEX_UNAVAILABLE` and every other route is unaffected. The gateway never writes the file
-- Added a `monitor.snapshot` frame after authentication on `WS /api/v1/admin/monitor`, carrying cross-gateway orders, halts, the venue-wide gateway roster and per-gateway sequence positions. Halts and the roster are asked of the *engine*, not taken from local state: the gateway's own view lists only participants that authenticated through this instance and would silently omit anyone on ALF, BALF or a second API gateway
-- Added `audit_db` and `order_retention_sec` to the `api_gateways` configuration block
-- Added an `order_id` filter to `query_index_events` in the audit indexer. The column was always indexed; only the filter was missing, so a single order's lifecycle could not be asked for
+### 📋 Summary
 
-- Added `command_id` correlation to the two commands that had no natural identifier. `risk.kill_switch` now echoes it on `risk.kill_switch_ack`, and `session.transition` gains an addressed `session.transition_ack.{GW_ID}`. Commands that already correlate — orders on `order_id`, combos on `combo_id`, halts on `symbol` — are deliberately unchanged, since a second identifier alongside a working one adds ambiguity rather than removing it
-- Added a reply to `POST /admin/session/transition`, which was previously fire-and-forget. It now awaits the engine's verdict and returns `status: "APPLIED"` with the `command_id`, or **409 `TRANSITION_REJECTED`** with the engine's reason
-- Added OCO/combo/quote group identifiers to `order.ack`, `order.fill`, `order.cancelled` and `order.expired`. `oco_group_id`, `combo_parent_id`, `leg_index` and `quote_id` now travel with the event when the order belongs to such a structure, so a subscriber can attribute a fill to its combo or OCO group without keeping its own order-id-to-parent map — which it may not have after a reconnect. Omitted rather than emitted as `null` for ordinary single orders
-- Added an `orders.snapshot` frame pushed immediately after authenticating on `/api/v1/events`, carrying the gateway's cached orders, positions and quote legs. A reconnecting client no longer needs a separate `GET /orders`, and the race between authenticating and that response is gone. The event sink is registered *before* the snapshot is taken, so the worst case is a duplicate rather than a silently missing event
-- Added `stream_seq` to private events and to the `authenticated` frame: a sequence monotonic across all of one gateway's topics. The private socket applies no subscription filtering, so a single counter is contiguous there and is simpler to check than one per topic. Market data has no equivalent, deliberately — its subscribers filter, so a stream-wide counter would show phantom gaps
-
-- Added per-topic sequence numbers to every API-gateway WebSocket event. Each envelope now carries `topic` (the engine topic it came from) and `seq` (monotonic within that topic, from 1), so a client can distinguish a dropped event from a quiet market. Sequencing is per topic rather than per connection because a connection-wide counter would show permanent phantom gaps wherever a subscription filtered an event out
-- Added per-symbol market-data subscription rules via a new `items` form on the subscribe/unsubscribe control frame. One socket can now carry, for example, top-of-book for every symbol and the full depth ladder for one — which the flat `symbols` × `channels` form could not express, since a single symbol set was shared by every channel
-- Added `rejected` to the subscription acknowledgement, reporting rules that did nothing (`no_channels`) and unsubscribes that cannot take effect because a wildcard rule still covers the symbol (`wildcard_still_subscribed`)
-- Added `always` to the subscription acknowledgement, making explicit that `session` and `circuit_breaker` are delivered to every market-data client regardless of subscription — previously true but undocumented
-- Added `dropped_events` to `GET /healthz`, reporting per-sink counts of events discarded because a WebSocket consumer could not keep up
-
-### 🐛 Fixed
-- Fixed unbounded growth of the API gateway's in-memory order cache. Nothing ever removed a filled or cancelled order, so it grew for the lifetime of the process. Terminal orders (`FILLED`, `CANCELLED`, `EXPIRED`, `REJECTED`) are now evicted after `order_retention_sec` (default one hour). Resting orders are never evicted whatever their age, and positions are untouched — forgetting the order that created one would not undo it
-- Fixed session transitions failing silently. The engine discarded a request outright when sessions were not enabled or the target state was unknown, publishing nothing, so an interactive caller saw only a timeout — indistinguishable from a slow engine. It now replies with `accepted: false` and a reason whenever the requester asked to be told
-- Removed the per-gateway kill-switch lock in the API gateway. It existed solely because `risk.kill_switch_ack` carried no per-call identifier, so two concurrent mass cancels for one gateway could consume each other's ack; serialising them was the only safe option. With `command_id` echoed on the ack they are disambiguated by payload match, as the symbol-scoped acks always were, and can run concurrently
-
-- Fixed silent, undetectable loss of WebSocket events. Each client's outbound queue is bounded and written with `put_nowait`, so a slow consumer loses events by design — but the drop was counted only through a DEBUG-gated counter, leaving it invisible to the client (no sequence to check) and to the operator (no counter to read) in a normal run. Drops are now counted in plain integers, exposed on `/healthz`, and logged at WARNING on the first occurrence per sink and every hundredth thereafter
 
 ### ⚠️ Breaking Changes
+- Changed cumulative market-data subscription behavior to track symbol/channel pairs directly (instead of widening to a cross-product), which may reduce previously over-broad streams in existing clients
 
-- Changed accumulated market-data subscriptions to stop widening into a cross product. Subscriptions are now held as symbol/channel pairs, so subscribing `{AAPL, [book]}` and then `{MSFT, [depth]}` yields exactly those two rules rather than also delivering depth for `AAPL` and book for `MSFT`. A single control frame behaves exactly as before, and the acknowledgement retains its `symbols` and `channels` keys for existing clients
+
+### ✨ Added
+- Added API-gateway order visibility improvements: new admin endpoints for active orders and per-order lifecycle, plus richer monitor snapshots for operators
+- Added stronger WebSocket state and recovery support: post-auth snapshots, sequence markers, and clearer event metadata for reconnecting clients
+- Added market-data subscription enhancements with per-symbol/per-channel rules and explicit acknowledgement feedback for rejected or always-on channels
+- Added config/runtime support for API-gateway order retention (`order_retention_sec`) and optional audit index integration for deep order-history lookups
+- Added command correlation and acknowledgements for session transitions and kill-switch flows, plus richer order lifecycle events (including combo/OCO/quote relationships)
+
+### 🚀 Improvements
+- xxx
+
+### 🐛 Fixed
+- Fixed API-gateway order-cache growth by expiring terminal orders after a configurable retention window while keeping active orders and positions intact
+- Fixed silent session-transition failures by returning explicit acceptance/rejection outcomes to callers
+- Fixed kill-switch concurrency limits by introducing command-level correlation instead of per-gateway serialization
+- Fixed previously hard-to-detect WebSocket event drops by surfacing counters in health checks and logs
+
+
+### 📚 Documentation 
+- Improved the REST API documentation with a new separate normative API reference
+
+### 🛠 Internal
+- xxx
 
 ## [v0.18.0] - 2026-08-04
 
@@ -109,7 +108,7 @@ The engine configuration now has exactly one location, and it is compiled. Every
 - Multiple calculations and conceptual fixes in stats module including better discovery of lost information
 
 
-### 🚀 Improvements — statistics correctness
+### 🚀 Improvements
 - Improved `pm-stats` after review hardening: trading-day classification, API/history semantics, gap visibility, query results and derived calculations now follow the corrected post-review rules rather than quietly mixing incompatible assumptions
 - Improved stats ingestion safety with explicit feed-gap detection, a single-writer lock and tick-size-aware schema/calculation updates, and now refuse older stats databases rather than interpreting them under the wrong schema semantics
 
