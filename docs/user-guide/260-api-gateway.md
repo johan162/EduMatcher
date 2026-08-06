@@ -177,8 +177,95 @@ WebSocket clients send the API key as their first JSON message:
 { "api_key": "key-trader-demo" }
 ```
 
-Read-only credentials (`gateway_id: null`) can use `/api/v1/market-data` but
-cannot submit, cancel, or inspect private orders.
+### Auth and roles
+
+The gateway checks auth in two steps:
+
+1. The presented API key must exist in
+   `api_gateways.<NAME>.credentials[].api_key`.
+2. For trading/admin actions, the key must map to a non-null `gateway_id` and
+   that gateway must be accepted by the engine allowlist and role model.
+
+Access classes used across this guide:
+
+- `Authenticated key` (or `Authentication key`): any configured API key.
+- `Trading key`: an authenticated key with a non-null `gateway_id`.
+- `Admin key`: a trading key whose mapped gateway role resolves to `ADMIN`.
+
+What each class can do:
+
+- Authenticated key: reference data and public history/market-data endpoints.
+- Trading key: everything above plus private order/position/trading endpoints.
+- Admin key: everything above plus `/api/v1/admin/*`.
+
+Read-only credentials (`gateway_id: null`) can use public and reference
+surfaces but cannot submit, cancel, or inspect private orders.
+
+### Key types and provisioning
+
+Keys are configured centrally in `engine_config.yaml` under
+`api_gateways.<NAME>.credentials`.
+
+```yaml
+api_gateways:
+  desk:
+    credentials:
+      - api_key: key-trader-demo
+        gateway_id: TRADER01
+        description: Trading client
+      - api_key: key-dashboard-demo
+        gateway_id: null
+        description: Read-only dashboard
+      - api_key: key-admin-demo
+        gateway_id: ADMIN01
+        description: Admin operator client
+```
+
+Provisioning rules:
+
+- `gateway_id: null` creates a read-only authenticated key.
+- `gateway_id: <GW_ID>` creates a trading-capable key bound to that gateway.
+- ADMIN access is not set on the API key itself; it comes from the mapped
+  gateway role in `gateways.alf`.
+- Non-null `gateway_id` values must be unique across `api_gateways` entries.
+
+How to get a key in practice:
+
+- Keys are issued out-of-band by the venue/operator team.
+- There is no self-service endpoint to create or rotate keys in `pm-api-gwy`.
+- After key changes in config, restart/redeploy the API gateway instance.
+
+Usage examples:
+
+Trading REST call:
+
+```http
+Authorization: Bearer key-trader-demo
+POST /api/v1/orders
+```
+
+Read-only REST call:
+
+```http
+Authorization: Bearer key-dashboard-demo
+GET /api/v1/reference
+```
+
+Admin REST call:
+
+```http
+Authorization: Bearer key-admin-demo
+POST /api/v1/admin/session/transition
+```
+
+Read-only WebSocket auth:
+
+```json
+{ "api_key": "key-dashboard-demo" }
+```
+
+For strict endpoint-by-endpoint access rules, see
+[Appendix: REST API Reference](950-app-REST-API-reference.md).
 
 | Error code | Status | Cause |
 |---|---|---|
