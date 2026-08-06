@@ -5,7 +5,7 @@
 > tutorial-style guide see [API Gateway (REST/WebSocket)](260-api-gateway.md).
 > The key words MUST, MUST NOT, SHOULD, and MAY are used per RFC 2119.
 
-## 1. Scope & conventions
+## Scope & conventions
 
 This appendix documents the client-visible REST surface of the API gateway.
 It covers request shapes, replies, query parameters, auth rules, and the
@@ -91,7 +91,7 @@ All paths are rooted at `/api/v1`.
 | [POST /api/v1/admin/indexes/{id}/rebalance](#515-post-apiv1adminindexesidrebalance) | Rebalance one configured index |
 | [POST /api/v1/admin/reference/reload](#516-post-apiv1adminreferencereload) | Reload the compiled reference bundle in place |
 
-### 1.1 Auth and roles
+### Auth and roles
 
 - Trading and admin REST requests use `Authorization: Bearer <api_key>`.
 - `gateway_id: null` credentials are read-only and may access public history
@@ -99,28 +99,39 @@ All paths are rooted at `/api/v1`.
 - ADMIN endpoints require a credential whose resolved engine gateway role is
   `ADMIN`.
 
-### 1.2 Common error codes
+### Common error codes
 
-| Code | Meaning |
-|---|---|
-| `AUTH` | Missing or malformed API key |
-| `ENGINE_AUTH` | Engine rejected the gateway identity |
-| `READ_ONLY` | Read-only key used on a trading endpoint |
-| `ROLE_DENIED` | Non-admin key used on an admin endpoint |
-| `VALIDATION` | Request body or parameters failed validation |
-| `DUPLICATE` | `client_order_id` already active |
-| `RATE_LIMIT` | Per-key write limit exceeded |
-| `ENGINE_TIMEOUT` | No engine reply in time |
-| `STATS_DB` | `pm-stats` database not present |
-| `AUDIT_INDEX_UNAVAILABLE` | `pm-audit` index not built or not running |
-| `UNKNOWN_ORDER` | Order id has no audited events |
-| `TRANSITION_REJECTED` | Session transition refused by the engine |
-| `RELOAD_REJECTED` | Reference reload rejected |
-| `REBALANCE_REJECTED` | Index rebalance rejected |
-| `INDEX_TIMEOUT` | No `pm-index` reply in time |
-| `INDEX_ERROR` | `pm-index` rejected the request |
+| Code | HTTP status | Meaning |
+|---|---:|---|
+| `AUTH` | `401` | Missing or malformed API key |
+| `ENGINE_AUTH` | `403` | Engine rejected the gateway identity |
+| `READ_ONLY` | `403` | Read-only key used on a trading endpoint |
+| `ROLE_DENIED` | `403` | Non-admin key used on an admin endpoint |
+| `VALIDATION` | `400`, `422` | Request body or parameters failed validation |
+| `DUPLICATE` | `409` | `client_order_id` already active |
+| `RATE_LIMIT` | `429` | Per-key write limit exceeded |
+| `ENGINE_TIMEOUT` | `503` | No engine reply in time |
+| `STATS_DB` | `503` | `pm-stats` database not present |
+| `AUDIT_INDEX_UNAVAILABLE` | `503` | `pm-audit` index not built or not running |
+| `UNKNOWN_ORDER` | `404` | Order id has no audited events |
+| `TRANSITION_REJECTED` | `409` | Session transition refused by the engine |
+| `RELOAD_REJECTED` | `409` | Reference reload rejected |
+| `REBALANCE_REJECTED` | `409` | Index rebalance rejected |
+| `INDEX_TIMEOUT` | `503` | No `pm-index` reply in time |
+| `INDEX_ERROR` | `502` | `pm-index` rejected the request |
 
-### 1.3 Common reply shapes
+### Swagger/OpenAPI documentation
+
+The API gateway supports live API documentation through FastAPI:
+
+- OpenAPI schema: `/openapi.json`
+- Swagger UI: `/docs`
+
+These endpoints are available when `swagger_enabled: true` in the
+`api_gateways` configuration. When disabled, `/docs` and `/openapi.json` are
+not exposed.
+
+### Common reply shapes
 
 - `202 Accepted` means the gateway accepted the request and is waiting for the
   engine or `pm-index` to confirm it.
@@ -129,9 +140,9 @@ All paths are rooted at `/api/v1`.
 - Pagination endpoints return `count`, `has_more`, and `next_cursor` where
   applicable; `after` is the opaque cursor input.
 
-## 2. Trading REST
+## Trading REST
 
-### 2.1 `POST /api/v1/orders`
+### `POST /api/v1/orders`
 
 Purpose: submit one order for the caller's gateway.
 
@@ -171,7 +182,7 @@ Purpose: submit one order for the caller's gateway.
 | `RATE_LIMIT` | Write limit exceeded |
 | `ENGINE_TIMEOUT` | Engine did not ACK in time |
 
-### 2.2 `DELETE /api/v1/orders/{order_id}`
+### `DELETE /api/v1/orders/{order_id}`
 
 Purpose: cancel one live order in the caller's gateway.
 
@@ -198,7 +209,7 @@ Purpose: cancel one live order in the caller's gateway.
 | `VALIDATION` | Bad path or query |
 | `ENGINE_TIMEOUT` | Engine did not ACK in time |
 
-### 2.3 `PATCH /api/v1/orders/{order_id}`
+### `PATCH /api/v1/orders/{order_id}`
 
 Purpose: amend price and/or quantity on one live order.
 
@@ -227,7 +238,7 @@ Purpose: amend price and/or quantity on one live order.
 | `VALIDATION` | Neither or both fields invalid |
 | `ENGINE_TIMEOUT` | Engine did not ACK in time |
 
-### 2.4 `POST /api/v1/orders/{order_id}/replace`
+### `POST /api/v1/orders/{order_id}/replace`
 
 Purpose: cancel one live order and submit a replacement in one workflow.
 
@@ -242,7 +253,7 @@ Purpose: cancel one live order and submit a replacement in one workflow.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | cancel ACK then replacement ACK | Synchronous cancel-then-submit workflow |
+| `202 Accepted` | cancel ACK then replacement ACK | Synchronous cancel-then-submit workflow |
 
 **Errors**
 
@@ -253,7 +264,7 @@ Purpose: cancel one live order and submit a replacement in one workflow.
 | `VALIDATION` | Replacement body invalid |
 | `ENGINE_TIMEOUT` | Cancel or submit timed out |
 
-### 2.5 `GET /api/v1/orders`
+### `GET /api/v1/orders`
 
 Purpose: return the caller gateway's live order cache.
 
@@ -281,7 +292,7 @@ Purpose: return the caller gateway's live order cache.
 | `VALIDATION` | Query parameters invalid |
 | `ENGINE_TIMEOUT` | Fresh snapshot request to the engine timed out |
 
-### 2.6 `GET /api/v1/orders/{order_id}`
+### `GET /api/v1/orders/{order_id}`
 
 Purpose: return one cached order from the caller gateway.
 
@@ -306,7 +317,7 @@ Purpose: return one cached order from the caller gateway.
 | `READ_ONLY` | Read-only credential used |
 | `UNKNOWN_ORDER` | Order id unknown to the cache |
 
-### 2.7 `POST /api/v1/oco`
+### `POST /api/v1/oco`
 
 Purpose: submit an OCO pair.
 
@@ -335,7 +346,7 @@ Purpose: submit an OCO pair.
 | `VALIDATION` | Body invalid |
 | `ENGINE_TIMEOUT` | Engine did not ACK in time |
 
-### 2.8 `DELETE /api/v1/oco/{oco_id}`
+### `DELETE /api/v1/oco/{oco_id}`
 
 Purpose: cancel an OCO pair.
 
@@ -359,7 +370,7 @@ Purpose: cancel an OCO pair.
 | `READ_ONLY` | Read-only credential used |
 | `ENGINE_TIMEOUT` | Cancel timed out |
 
-### 2.9 `POST /api/v1/combos`
+### `POST /api/v1/combos`
 
 Purpose: submit a combo order.
 
@@ -385,7 +396,7 @@ Purpose: submit a combo order.
 | `VALIDATION` | Body invalid |
 | `ENGINE_TIMEOUT` | Engine did not ACK in time |
 
-### 2.10 `DELETE /api/v1/combos/{combo_id}`
+### `DELETE /api/v1/combos/{combo_id}`
 
 Purpose: cancel a combo order.
 
@@ -409,7 +420,7 @@ Purpose: cancel a combo order.
 | `READ_ONLY` | Read-only credential used |
 | `ENGINE_TIMEOUT` | Cancel timed out |
 
-### 2.11 `POST /api/v1/quotes`
+### `POST /api/v1/quotes`
 
 Purpose: submit a two-sided market-maker quote.
 
@@ -438,7 +449,7 @@ Purpose: submit a two-sided market-maker quote.
 | `VALIDATION` | Quote body invalid |
 | `ENGINE_TIMEOUT` | Quote ACK timed out |
 
-### 2.12 `DELETE /api/v1/quotes/{symbol}`
+### `DELETE /api/v1/quotes/{symbol}`
 
 Purpose: cancel the active quote for one symbol.
 
@@ -462,7 +473,7 @@ Purpose: cancel the active quote for one symbol.
 | `READ_ONLY` | Read-only credential used |
 | `ENGINE_TIMEOUT` | Cancel timed out |
 
-### 2.13 `POST /api/v1/mass-cancel`
+### `POST /api/v1/mass-cancel`
 
 Purpose: cancel all resting exposure for the caller or one symbol.
 
@@ -487,7 +498,7 @@ Purpose: cancel all resting exposure for the caller or one symbol.
 | `READ_ONLY` | Read-only credential used |
 | `ENGINE_TIMEOUT` | Engine did not ACK in time |
 
-### 2.14 `POST /api/v1/kill-switch`
+### `POST /api/v1/kill-switch`
 
 Purpose: alias of `POST /api/v1/mass-cancel`.
 
@@ -512,7 +523,7 @@ Purpose: alias of `POST /api/v1/mass-cancel`.
 | `READ_ONLY` | Read-only credential used |
 | `ENGINE_TIMEOUT` | Engine did not ACK in time |
 
-### 2.15 `GET /api/v1/symbols`
+### `GET /api/v1/symbols`
 
 Purpose: return instrument metadata for the caller gateway.
 
@@ -535,7 +546,7 @@ Purpose: return instrument metadata for the caller gateway.
 | `AUTH` | Missing or malformed key |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 2.16 `GET /api/v1/session`
+### `GET /api/v1/session`
 
 Purpose: return the current engine session state for the caller.
 
@@ -558,7 +569,7 @@ Purpose: return the current engine session state for the caller.
 | `AUTH` | Missing or malformed key |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 2.17 `GET /api/v1/status`
+### `GET /api/v1/status`
 
 Purpose: return the gateway cache summary and resolved role.
 
@@ -580,7 +591,7 @@ Purpose: return the gateway cache summary and resolved role.
 |---|---|
 | `AUTH` | Missing or malformed key |
 
-### 2.18 `GET /api/v1/healthz`
+### `GET /api/v1/healthz`
 
 Purpose: liveness probe for the API gateway.
 
@@ -602,7 +613,7 @@ Purpose: liveness probe for the API gateway.
 |---|---|
 | none | — | This endpoint does not require auth |
 
-### 2.19 `GET /api/v1/quotes/bootstrap`
+### `GET /api/v1/quotes/bootstrap`
 
 Purpose: return the active market-maker quote bootstrap state.
 
@@ -625,7 +636,7 @@ Purpose: return the active market-maker quote bootstrap state.
 | `AUTH` | Missing or malformed key |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 2.20 `GET /api/v1/quotes/legs`
+### `GET /api/v1/quotes/legs`
 
 Purpose: return the current quote-leg state for the caller.
 
@@ -648,7 +659,7 @@ Purpose: return the current quote-leg state for the caller.
 | `AUTH` | Missing or malformed key |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 2.21 `GET /api/v1/positions`
+### `GET /api/v1/positions`
 
 Purpose: return current net positions by symbol.
 
@@ -671,12 +682,12 @@ Purpose: return current net positions by symbol.
 | `AUTH` | Missing or malformed key |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-## 3. Reference data
+## Reference data
 
 Base path: `/api/v1/reference`. These endpoints expose compiled reference data
 that changes only when an admin reloads it.
 
-### 3.1 `GET /api/v1/reference`
+### `GET /api/v1/reference`
 
 Purpose: return the full reference bundle in one round-trip.
 
@@ -699,7 +710,7 @@ Purpose: return the full reference bundle in one round-trip.
 | `AUTH` | Missing or malformed key |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 3.2 `GET /api/v1/reference/config-version`
+### `GET /api/v1/reference/config-version`
 
 Purpose: return the content-hash version of the reference bundle.
 
@@ -722,7 +733,7 @@ Purpose: return the content-hash version of the reference bundle.
 | `AUTH` | Missing or malformed key |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 3.3 `GET /api/v1/reference/symbols`
+### `GET /api/v1/reference/symbols`
 
 Purpose: return per-symbol tick and risk metadata.
 
@@ -745,7 +756,7 @@ Purpose: return per-symbol tick and risk metadata.
 | `AUTH` | Missing or malformed key |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 3.4 `GET /api/v1/reference/risk`
+### `GET /api/v1/reference/risk`
 
 Purpose: return risk-band definitions and the default risk level.
 
@@ -768,7 +779,7 @@ Purpose: return risk-band definitions and the default risk level.
 | `AUTH` | Missing or malformed key |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 3.5 `GET /api/v1/reference/indexes`
+### `GET /api/v1/reference/indexes`
 
 Purpose: return configured exchange index definitions.
 
@@ -791,7 +802,7 @@ Purpose: return configured exchange index definitions.
 | `AUTH` | Missing or malformed key |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 3.6 `GET /api/v1/reference/schedule`
+### `GET /api/v1/reference/schedule`
 
 Purpose: return session schedule metadata.
 
@@ -814,7 +825,7 @@ Purpose: return session schedule metadata.
 | `AUTH` | Missing or malformed key |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 3.7 `POST /api/v1/admin/reference/reload`
+### `POST /api/v1/admin/reference/reload`
 
 Purpose: reload the compiled reference bundle without restarting the engine.
 
@@ -839,12 +850,12 @@ Purpose: reload the compiled reference bundle without restarting the engine.
 | `RELOAD_REJECTED` | Reload would change the symbol or index set |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-## 4. History
+## History
 
 Base path: `/api/v1/history`. Trading endpoints are scoped to the caller's
 gateway id; public history accepts any valid key.
 
-### 4.1 `GET /api/v1/history/orders`
+### `GET /api/v1/history/orders`
 
 Purpose: return the caller gateway's order lifecycle events.
 
@@ -875,7 +886,7 @@ Purpose: return the caller gateway's order lifecycle events.
 | `STATS_DB` | `pm-stats` database missing |
 | `VALIDATION` | Query invalid |
 
-### 4.2 `GET /api/v1/history/orders/{order_id}`
+### `GET /api/v1/history/orders/{order_id}`
 
 Purpose: return the full lifecycle of one order for the caller gateway.
 
@@ -900,7 +911,7 @@ Purpose: return the full lifecycle of one order for the caller gateway.
 | `STATS_DB` | `pm-stats` database missing |
 | `VALIDATION` | Path invalid |
 
-### 4.3 `GET /api/v1/history/fills`
+### `GET /api/v1/history/fills`
 
 Purpose: return fill events for the caller gateway.
 
@@ -929,7 +940,7 @@ Purpose: return fill events for the caller gateway.
 | `READ_ONLY` | Read-only credential used |
 | `STATS_DB` | `pm-stats` database missing |
 
-### 4.4 `GET /api/v1/history/trades`
+### `GET /api/v1/history/trades`
 
 Purpose: return public trade tape rows.
 
@@ -957,7 +968,7 @@ Purpose: return public trade tape rows.
 | `AUTH` | Missing or malformed key |
 | `STATS_DB` | `pm-stats` database missing |
 
-### 4.5 `GET /api/v1/history/daily`
+### `GET /api/v1/history/daily`
 
 Purpose: return daily OHLCV rows.
 
@@ -985,7 +996,7 @@ Purpose: return daily OHLCV rows.
 | `AUTH` | Missing or malformed key |
 | `STATS_DB` | `pm-stats` database missing |
 
-### 4.6 `GET /api/v1/history/price-snapshots`
+### `GET /api/v1/history/price-snapshots`
 
 Purpose: return intraday price snapshots.
 
@@ -1013,7 +1024,7 @@ Purpose: return intraday price snapshots.
 | `AUTH` | Missing or malformed key |
 | `STATS_DB` | `pm-stats` database missing |
 
-### 4.7 `GET /api/v1/history/index-daily`
+### `GET /api/v1/history/index-daily`
 
 Purpose: return daily index OHLC rows.
 
@@ -1041,7 +1052,7 @@ Purpose: return daily index OHLC rows.
 | `AUTH` | Missing or malformed key |
 | `STATS_DB` | `pm-stats` database missing |
 
-### 4.8 `GET /api/v1/history/index-snapshots`
+### `GET /api/v1/history/index-snapshots`
 
 Purpose: return intraday index snapshots.
 
@@ -1069,7 +1080,7 @@ Purpose: return intraday index snapshots.
 | `AUTH` | Missing or malformed key |
 | `STATS_DB` | `pm-stats` database missing |
 
-### 4.9 `GET /api/v1/history/index-ids`
+### `GET /api/v1/history/index-ids`
 
 Purpose: list index ids with recorded data.
 
@@ -1092,7 +1103,7 @@ Purpose: list index ids with recorded data.
 | `AUTH` | Missing or malformed key |
 | `STATS_DB` | `pm-stats` database missing |
 
-### 4.10 `GET /api/v1/history/index-events`
+### `GET /api/v1/history/index-events`
 
 Purpose: return index structural and audit events from `pm-index`.
 
@@ -1120,11 +1131,11 @@ Purpose: return index structural and audit events from `pm-index`.
 | `INDEX_TIMEOUT` | `pm-index` did not reply in time |
 | `INDEX_ERROR` | `pm-index` rejected the request |
 
-## 5. Admin REST
+## Admin REST
 
 Base path: `/api/v1/admin`. ADMIN role required.
 
-### 5.1 `POST /api/v1/admin/session/transition`
+### `POST /api/v1/admin/session/transition`
 
 Purpose: request a session-phase transition from the engine.
 
@@ -1138,7 +1149,7 @@ Purpose: request a session-phase transition from the engine.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{"requested_state": "...", "status": "ACCEPTED", "command_id": "..."}` | Transition accepted |
+| `202 Accepted` | `{"requested_state": "...", "status": "APPLIED", "command_id": "..."}` | Transition request accepted and applied |
 | `409 Conflict` | error envelope | The engine refused the transition |
 
 **Errors**
@@ -1151,7 +1162,7 @@ Purpose: request a session-phase transition from the engine.
 | `TRANSITION_REJECTED` | Engine rejected the transition |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 5.2 `GET /api/v1/admin/session/schedule`
+### `GET /api/v1/admin/session/schedule`
 
 Purpose: return the current session schedule settings.
 
@@ -1175,7 +1186,7 @@ Purpose: return the current session schedule settings.
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 5.3 `GET /api/v1/admin/gateways`
+### `GET /api/v1/admin/gateways`
 
 Purpose: list configured gateways and live connection state.
 
@@ -1199,7 +1210,7 @@ Purpose: list configured gateways and live connection state.
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 5.4 `POST /api/v1/admin/gateways/{gid}/disconnect`
+### `POST /api/v1/admin/gateways/{gid}/disconnect`
 
 Purpose: forcibly disconnect one gateway.
 
@@ -1224,7 +1235,7 @@ Purpose: forcibly disconnect one gateway.
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 5.5 `POST /api/v1/admin/circuit-breaker/trigger`
+### `POST /api/v1/admin/circuit-breaker/trigger`
 
 Purpose: halt one symbol through the engine's circuit-breaker path.
 
@@ -1251,7 +1262,7 @@ Purpose: halt one symbol through the engine's circuit-breaker path.
 | `VALIDATION` | Symbol or level invalid |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 5.6 `POST /api/v1/admin/circuit-breaker/resume`
+### `POST /api/v1/admin/circuit-breaker/resume`
 
 Purpose: resume one halted symbol.
 
@@ -1276,7 +1287,7 @@ Purpose: resume one halted symbol.
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 5.7 `GET /api/v1/admin/halts`
+### `GET /api/v1/admin/halts`
 
 Purpose: return the current active halts table.
 
@@ -1300,7 +1311,7 @@ Purpose: return the current active halts table.
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 5.8 `GET /api/v1/admin/risk/state`
+### `GET /api/v1/admin/risk/state`
 
 Purpose: return live per-symbol risk state.
 
@@ -1324,7 +1335,7 @@ Purpose: return live per-symbol risk state.
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 5.9 `GET /api/v1/admin/orders`
+### `GET /api/v1/admin/orders`
 
 Purpose: return the cross-gateway active-order table.
 
@@ -1349,7 +1360,7 @@ Purpose: return the cross-gateway active-order table.
 | `AUTH` | Missing or malformed key |
 | `ROLE_DENIED` | Caller is not ADMIN |
 
-### 5.10 `GET /api/v1/admin/orders/{order_id}`
+### `GET /api/v1/admin/orders/{order_id}`
 
 Purpose: return the full cross-gateway lifecycle of one order.
 
@@ -1375,7 +1386,7 @@ Purpose: return the full cross-gateway lifecycle of one order.
 | `AUDIT_INDEX_UNAVAILABLE` | No audit index available |
 | `UNKNOWN_ORDER` | No audited events for the order |
 
-### 5.11 `POST /api/v1/admin/kill-switch/symbol`
+### `POST /api/v1/admin/kill-switch/symbol`
 
 Purpose: cancel all resting exposure on one symbol.
 
@@ -1400,7 +1411,7 @@ Purpose: cancel all resting exposure on one symbol.
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 5.12 `POST /api/v1/admin/kill-switch/gateway`
+### `POST /api/v1/admin/kill-switch/gateway`
 
 Purpose: cancel all resting exposure for one target gateway.
 
@@ -1425,7 +1436,7 @@ Purpose: cancel all resting exposure for one target gateway.
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 5.13 `POST /api/v1/admin/kill-switch/global`
+### `POST /api/v1/admin/kill-switch/global`
 
 Purpose: cancel all resting exposure across every gateway and symbol.
 
@@ -1449,7 +1460,7 @@ Purpose: cancel all resting exposure across every gateway and symbol.
 | `ROLE_DENIED` | Caller is not ADMIN |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-### 5.14 `GET /api/v1/admin/indexes`
+### `GET /api/v1/admin/indexes`
 
 Purpose: return index configuration for the ADMIN UI.
 
@@ -1472,7 +1483,7 @@ Purpose: return index configuration for the ADMIN UI.
 | `AUTH` | Missing or malformed key |
 | `ROLE_DENIED` | Caller is not ADMIN |
 
-### 5.15 `POST /api/v1/admin/indexes/{id}/rebalance`
+### `POST /api/v1/admin/indexes/{id}/rebalance`
 
 Purpose: rebalance one configured index through `pm-index`.
 
@@ -1488,7 +1499,7 @@ Purpose: rebalance one configured index through `pm-index`.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | rebalance ack | Update accepted and applied |
+| `202 Accepted` | rebalance ack | Update accepted and applied |
 | `409 Conflict` | error envelope | Rebalance rejected |
 
 **Errors**
@@ -1502,7 +1513,7 @@ Purpose: rebalance one configured index through `pm-index`.
 | `INDEX_TIMEOUT` | `pm-index` did not reply in time |
 | `INDEX_ERROR` | `pm-index` returned an error |
 
-### 5.16 `POST /api/v1/admin/reference/reload`
+### `POST /api/v1/admin/reference/reload`
 
 Purpose: reload the compiled reference bundle in place.
 
@@ -1527,7 +1538,7 @@ Purpose: reload the compiled reference bundle in place.
 | `RELOAD_REJECTED` | Reload would change the symbol or index set |
 | `ENGINE_TIMEOUT` | Engine did not reply in time |
 
-## 6. Operational notes
+## Operational notes
 
 - Read-only dashboard keys can call reference and public history endpoints,
   but not trading or admin write endpoints.
