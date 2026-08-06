@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import logging
-from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import patch
 import sys
 
@@ -46,7 +45,7 @@ class _FakeLive:
     def __enter__(self) -> "_FakeLive":
         return self
 
-    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> Literal[False]:
         _ = (exc_type, exc, tb)
         return False
 
@@ -114,7 +113,7 @@ def test_board_main_aggregates_book_and_trade_before_render(
         patch("edumatcher.board.main.decode", side_effect=decode_values),
         patch("edumatcher.board.main.Live", _FakeLive),
         patch("edumatcher.board.main._build_table", side_effect=_capture_build_table),
-        patch.object(board_main.sys.stdin, "isatty", return_value=False),
+        patch.object(sys.stdin, "isatty", return_value=False),
     ):
         board_main.main()
 

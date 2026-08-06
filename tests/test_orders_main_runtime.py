@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import patch
 
 import pytest
@@ -59,7 +59,7 @@ class _FakeLive:
     def __enter__(self) -> "_FakeLive":
         return self
 
-    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> Literal[False]:
         _ = (exc_type, exc, tb)
         return False
 

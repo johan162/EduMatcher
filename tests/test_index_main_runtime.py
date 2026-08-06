@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import errno
 from pathlib import Path
+from collections.abc import Generator
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 import zmq
@@ -49,7 +49,9 @@ def anyio_backend() -> str:
 
 
 @pytest.fixture
-def proc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> index_main.IndexProcess:
+def proc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[index_main.IndexProcess, None, None]:
     sub = _FakeSocket()
     pull = _FakeSocket()
     pub = _FakeSocket()
@@ -86,11 +88,13 @@ def test_run_dispatches_sub_and_pull_topics(
     history_calls: list[dict[str, Any]] = []
 
     monkeypatch.setattr(
-        index_main.zmq,
+        zmq,
         "Poller",
         lambda: _PollerOneCycleThenEintr(proc._sub_sock, proc._pull_sock),
     )
-    monkeypatch.setattr(proc, "_handle_trade", lambda payload: trade_calls.append(payload))
+    monkeypatch.setattr(
+        proc, "_handle_trade", lambda payload: trade_calls.append(payload)
+    )
     monkeypatch.setattr(
         proc, "_handle_history_request", lambda payload: history_calls.append(payload)
     )
@@ -108,7 +112,9 @@ def test_run_dispatches_sub_and_pull_topics(
     proc.run()
 
     assert trade_calls == [{"symbol": "AAPL", "price": 101.25}]
-    assert history_calls == [{"gateway_id": "GW1", "index_id": "EDU100", "from_ts": 0.0}]
+    assert history_calls == [
+        {"gateway_id": "GW1", "index_id": "EDU100", "from_ts": 0.0}
+    ]
 
 
 def test_run_ignores_malformed_frames_without_crashing(
@@ -120,7 +126,7 @@ def test_run_ignores_malformed_frames_without_crashing(
     not terminate the process.
     """
     monkeypatch.setattr(
-        index_main.zmq,
+        zmq,
         "Poller",
         lambda: _PollerOneCycleThenEintr(proc._sub_sock, proc._pull_sock),
     )
