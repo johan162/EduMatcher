@@ -1,11 +1,13 @@
-## [Unreleased]
+## [v0.19.0] - 2026-08-07
 
 ### 📋 Summary
-
+This release focus on extending the REST API with several areas and also improve the API documentation
+and add a new normative reference appendix of all endpoints. 
+Internally a rework of the mermaid filter, used in building the documentation via Pandoc, have been forked
+and updated to cache generated PDF images which results in a dramatically reduced build time for the documentation.
 
 ### ⚠️ Breaking Changes
 - Changed cumulative market-data subscription behavior to track symbol/channel pairs directly (instead of widening to a cross-product), which may reduce previously over-broad streams in existing clients
-
 
 ### ✨ Added
 - Added API-gateway order visibility improvements: new admin endpoints for active orders and per-order lifecycle, plus richer monitor snapshots for operators
@@ -13,9 +15,10 @@
 - Added market-data subscription enhancements with per-symbol/per-channel rules and explicit acknowledgement feedback for rejected or always-on channels
 - Added config/runtime support for API-gateway order retention (`order_retention_sec`) and optional audit index integration for deep order-history lookups
 - Added command correlation and acknowledgements for session transitions and kill-switch flows, plus richer order lifecycle events (including combo/OCO/quote relationships)
+- Added APIs for getting reference data as a single source of truth
 
 ### 🚀 Improvements
-- xxx
+- Improved the REST API documentation with a new separate normative API reference
 
 ### 🐛 Fixed
 - Fixed API-gateway order-cache growth by expiring terminal orders after a configurable retention window while keeping active orders and positions intact
@@ -23,12 +26,11 @@
 - Fixed kill-switch concurrency limits by introducing command-level correlation instead of per-gateway serialization
 - Fixed previously hard-to-detect WebSocket event drops by surfacing counters in health checks and logs
 
-
 ### 📚 Documentation 
-- Improved the REST API documentation with a new separate normative API reference
+- Updated devel documentatoin with information about the new mermaid-filter and configuration
 
 ### 🛠 Internal
-- xxx
+- Added our own version of mermaid-filter that caches the generated PDF images. This cuts down the documentation build process by >5x !
 
 ## [v0.18.0] - 2026-08-04
 
