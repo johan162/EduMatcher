@@ -1,16 +1,14 @@
-Version: 1.0.0
+Version: 1.4.0
 
-Date: 2026-08-04
+Date: 2026-08-07
 
-Status: Design and Research Proposal
+Status: Design and Research Proposal (reviewed twice; code-grounded; normative IDL + parser design)
 
-# Message Generator — Canonical Message Specification and Code Generation
+# Message Generator - Canonical Message Specification and Code Generation
 
 Generate the Python structures, the C structures, and the reference
 documentation for every EduMatcher message from one canonical specification,
 so the three can no longer disagree.
-
----
 
 ## 1. The problem, measured
 
@@ -21,19 +19,21 @@ Counted against the current tree:
 
 | Surface | Count | Notes |
 |---|---|---|
-| `make_*` factories in `models/message.py` | 78 | The de-facto publisher API |
+| `make_*` factories in `models/message.py` | 92 | The de-facto publisher API (`grep -cE '^def make_' `; was 78 at v1.0.0) |
 | Typed payloads in `models/feed_schema.py` | 7 | Only the payloads clearing needed |
 | Topics documented in `270-message-reference.md` | 66 | 2 222 lines, hand-maintained |
 | Topics constructed by `encode()` in `message.py` | 53 | |
 | **Distinct topic string literals outside `message.py`** | **108** | across **25 files** |
 
-Three findings follow directly from those numbers.
+The counts are a point-in-time snapshot; the exact numbers matter less than
+the shape they describe, and §7.4 provides the tooling to keep the literal
+count honest rather than re-counting by hand. Three findings follow directly.
 
-### 1.1 Payload shape is typed for 7 of 78 messages
+### 1.1 Payload shape is typed for 7 of 92 messages
 
 `feed_schema.py` exists precisely because clearing needed a contract it could
 rely on, and its module docstring says so — it documents units per field for
-the handful of payloads it covers. The other 71 factories build a `dict`
+the handful of payloads it covers. The other 85 factories build a `dict`
 literal inline. Nothing declares that `trade.executed` carries `tick_decimals`,
 or that `price` is display money rather than ticks; a reader has to infer it
 from the factory body.
@@ -76,7 +76,7 @@ const char *calf_get_field(const calf_message_t *msg, const char *key);
 Every C client re-derives field names as string literals and re-implements
 parsing per field. A field rename in Python cannot reach them at all.
 
----
+
 
 ## 2. Goals and non-goals
 
@@ -101,10 +101,14 @@ parsing per field. A field rename in Python cannot reach them at all.
   what already flows; it does not change it.
 - Generating engine business logic. Only message construction, parsing and
   validation.
+- Generating stateful *normalisation*. `md_gateway/normaliser.py` and
+  `ralf_gateway` keep their per-symbol caches and delta suppression; they call
+  the generated projection instead of building field-map literals by hand
+  (§4.6, N1).
 - A big-bang migration. §8 is explicitly incremental.
 - Cross-language RPC. This is a message-shape tool, not a service framework.
 
----
+
 
 ## 3. Why not an off-the-shelf IDL
 
@@ -115,13 +119,17 @@ parsing per field. A field rename in Python cannot reach them at all.
 | AsyncAPI | Closest fit, and the topic model is right, but generation targets are web-oriented and it cannot express BALF's fixed binary header or CALF's positional text. |
 | Hand-written | The status quo. §1 measures the result. |
 
-The differentiator is that EduMatcher carries **three encodings of the same
-logical message** — JSON on the internal bus, CALF text key-value, BALF binary
-with a fixed header — and the docs must show all three. No off-the-shelf tool
-covers that trio, and the specification needed is small enough that owning it
-is cheaper than bending one that does not fit.
+The differentiator is that EduMatcher carries **several encodings of one
+logical event** — JSON on the internal bus, CALF text key-value, BALF binary
+with a fixed header, RALF post-trade text — and each is a *projection* of the
+bus payload, not a copy of it (§4.6): a transport carries a subset of fields
+under its own names, and some events do not appear on some transports at all.
+The docs must show every projection. No off-the-shelf tool covers that
+projection-across-heterogeneous-wire-formats model, and the specification
+needed is small enough that owning it is cheaper than bending one that does
+not fit.
 
----
+
 
 ## 4. The canonical specification
 
@@ -136,8 +144,7 @@ version: 1
 messages:
   - name: trade_executed
     topic: "trade.executed"
-    direction: engine->all
-    transport: [bus, calf, balf]
+    transport: [engine_pub, calf, ralf]   # names resolved in §4.4's transport registry
 
     # ---- documentation-only, never reaches the wire ----
     doc:
@@ -163,6 +170,26 @@ messages:
         type: string
         required: true
         validate: { max_len: 16, pattern: '^[A-Z0-9._]+$' }
+
+      - name: buy_order_id
+        type: string
+        required: true
+        validate: { max_len: 64 }
+
+      - name: sell_order_id
+        type: string
+        required: true
+        validate: { max_len: 64 }
+
+      - name: buy_gateway_id
+        type: string
+        required: true
+        validate: { max_len: 32 }
+
+      - name: sell_gateway_id
+        type: string
+        required: true
+        validate: { max_len: 32 }
 
       - name: price
         type: float
@@ -194,24 +221,129 @@ messages:
         required: true
         unit: epoch_seconds
 
-    # ---- per-transport encoding ----
+    # ---- per-transport encoding (projection model: see §4.6) ----
     encoding:
       bus:
-        frames: [topic, json_payload, sequence]
+        # encode() (models/message.py) returns exactly TWO frames
+        # [topic, json_payload]. The per-topic sequence is a third frame added
+        # by SequencedPublisher.send_multipart() (messaging/bus.py) at publish
+        # time — never by make_*. Emitting it here would double-stamp and fail
+        # the Phase 2 byte-identical test.
+        frames: [topic, json_payload]
+        include: all                       # every field above
+
       calf:
+        # Public market-data print. md_gateway.normaliser.normalise_trade()
+        # emits ONLY PX/QTY/SIDE; CH/SYM/SEQ/TS are gateway-injected, not
+        # payload keys. The engine trade `id` is deliberately not on this feed.
         msg_type: TRADE
-        keys: { id: ID, symbol: SYM, price: PX, quantity: QTY,
-                aggressor_side: AGG, timestamp: TS }
-      balf:
-        msg_type: 0x21
-        layout:                       # little-endian, matching balf_parser.c
-          - { field: id,        repr: u64 }
-          - { field: symbol,    repr: char[16] }
-          - { field: price,     repr: i64, scale: tick_decimals }
-          - { field: quantity,  repr: u32 }
-          - { field: aggressor_side, repr: u8, enum_map: { BUY: 1, SELL: 2, AUCTION: 3 } }
-          - { field: timestamp, repr: u64, unit: epoch_nanos }
+        include: [price, quantity, aggressor_side]
+        keys: { price: PX, quantity: QTY, aggressor_side: SIDE }
+        gateway_injected: [CH, SYM, SEQ, TS]
+
+      ralf:
+        # Post-trade dissemination. ralf_gateway._handle_trade() emits an EXEC
+        # line carrying most of the bus fields. `id` feeds both EXEC_ID and
+        # MATCH_ID (a projection may map one source field to several keys).
+        msg_type: EXEC
+        include: [id, buy_order_id, sell_order_id, buy_gateway_id,
+                  sell_gateway_id, aggressor_side, quantity, price]
+        keys:
+          id: [EXEC_ID, MATCH_ID]
+          buy_order_id: BUY_ORDER_ID
+          sell_order_id: SELL_ORDER_ID
+          buy_gateway_id: BUY_GW
+          sell_gateway_id: SELL_GW
+          aggressor_side: SIDE
+          quantity: QTY
+          price: PX
+        gateway_injected: [CH, SYM, TS]
+
+      # No `balf:` block. BALF is a per-gateway order-entry protocol and carries
+      # no public trade print; the real BALF layout is shown by execution_report
+      # below.
 ```
+
+BALF is illustrated by a message that genuinely lives there. The layout,
+`msg_type`, sizes and the fixed price scale are all taken from
+`docs/examples/balf/balf_parser.py`, not invented:
+
+```yaml
+  - name: execution_report
+    # BALF-only: a private per-order fill sent to the owning gateway session.
+    # This is NOT the public trade.executed print — different transport,
+    # different field set (see §4.6 on why they are separate messages).
+    transport: [balf]
+
+    fields:
+      - { name: client_order_id, type: int,    required: true }
+      - { name: order_id,        type: string, required: true, validate: { max_len: 16 } }
+      - { name: fill_price,      type: float,  required: true, unit: display_price, validate: { gt: 0 } }
+      - { name: fill_qty,        type: int,    required: true, unit: shares }
+      - { name: remaining_qty,   type: int,    required: true, unit: shares }
+      - { name: timestamp_ns,    type: int,    required: true, unit: epoch_nanos }
+      - { name: symbol,          type: string, required: true, validate: { max_len: 8 } }
+      - { name: side,            type: enum,   values: [BUY, SELL], required: true }
+      - { name: status,          type: enum,   values: [NEW, PARTIAL, FILLED, CANCELLED], required: true }
+
+    encoding:
+      balf:
+        msg_type: 0x20                 # MSG_EXECUTION_REPORT in balf_parser.py
+        frame_size: 72                 # header(8) + body(64); MUST equal FRAME_SIZES[0x20]
+        # Fixed 8-byte header (magic=0xBA, version=0x01, msg_type, flags,
+        # seq_no u32 LE) is prepended automatically by the generator.
+        price_scale: 100000000         # PRICE_SCALE = 1e8, FIXED for all BALF prices — never tick_decimals
+        layout:                        # little-endian, offsets relative to body
+          - { field: client_order_id, repr: u64,      offset: 0  }
+          - { field: order_id,        repr: char[16], offset: 8  }
+          - { field: fill_price,      repr: i64,       offset: 24, scale: price_scale }
+          - { field: fill_qty,        repr: u32,       offset: 32 }
+          - { field: remaining_qty,   repr: u32,       offset: 36 }
+          - { field: timestamp_ns,    repr: u64,       offset: 40 }
+          - { field: symbol,          repr: char[8],   offset: 48 }
+          - { field: side,            repr: u8,        offset: 56, enum_map: { BUY: 1, SELL: 2 } }
+          - { field: status,          repr: u8,        offset: 57 }
+        # bytes 58..63 are reserved padding to reach the 64-byte body.
+```
+
+A second, shorter fragment shows the two type-table entries the example above
+never exercises — `nested` and `list[T]` — using the real `book.{SYMBOL}`
+shape from `feed_schema.BookLevelPayload`:
+
+```yaml
+  - name: book_snapshot
+    topic: "book.{symbol}"
+    transport: [engine_pub]
+
+    fields:
+      - name: symbol
+        type: string
+        required: true
+        validate: { max_len: 16 }
+
+      - name: bids
+        type: list[nested]
+        item: book_level
+        required: true
+        validate: { max_items: 32 }        # mandatory for C: fixes book_level_t bids[32]
+
+      - name: asks
+        type: list[nested]
+        item: book_level
+        required: true
+        validate: { max_items: 32 }
+
+    nested_types:
+      book_level:
+        fields:
+          - { name: price, type: float, required: false, unit: display_price }
+          - { name: qty,   type: int,   required: true,  default: 0, unit: shares }
+          - { name: count, type: int,   required: true,  default: 0 }
+```
+
+For C, `list[nested]` generates a fixed-size array of the nested struct plus a
+count field (`book_level_t bids[32]; uint8_t bids_count;`), never a pointer —
+consistent with the fixed-buffer, no-allocation rule in §5.2.
 
 ### 4.2 Type system
 
@@ -250,7 +382,132 @@ Anything beyond that stays in hand-written code. The vocabulary is
 deliberately small: a validation language rich enough to express the engine's
 risk rules would be a second implementation of the engine.
 
----
+### 4.4 Transport registry
+
+The bus is not one socket. `docs/user-guide/270-message-reference.md` alone
+distinguishes at least: order/command PUSH→PULL on `:5555`, engine PUB→SUB on
+`:5556`, drop-copy PUB on `:5557`, `pm-index` PUB on a configurable address,
+and `pm-log-srv` PUSH/PULL on `:5602` with its own PUB on `:5601`. A message
+spec should name one of these, not restate address/pattern per message.
+
+One `spec/transports.yaml`, referenced by name from every family:
+
+```yaml
+transports:
+  engine_pub:
+    pattern: PUB
+    subscriber_pattern: SUB
+    address_config_key: ENGINE_PUB_ADDR   # symbolic; resolved from engine_config at runtime, never hardcoded
+  engine_push:
+    pattern: PUSH
+    subscriber_pattern: PULL
+    address_config_key: ENGINE_PUSH_ADDR
+  drop_copy_pub:
+    pattern: PUB
+    address_config_key: DROP_COPY_PUB_ADDR
+  log_pub:
+    pattern: PUB
+    address_config_key: LOG_PUB_ADDR
+  log_push:
+    pattern: PUSH
+    subscriber_pattern: PULL
+    address_config_key: LOG_PUSH_ADDR
+  index_pub:
+    pattern: PUB
+    address_config_key: INDEX_PUB_ADDR
+  ralf:
+    pattern: TCP            # post-trade dissemination gateway (pm-ralf-gwy), line protocol
+    address_config_key: POST_TRADE_GATEWAY_PORT
+```
+
+The non-bus transports (`calf`, `balf`, `ralf`) are *external line/binary
+protocols* fronted by their own gateway processes, not ZeroMQ endpoints; they
+are named the same way so a message can list `transport: [engine_pub, calf,
+ralf]` uniformly. The generator emits ZeroMQ helpers only for the bus
+transports; for `calf`/`balf`/`ralf` it emits the field projection and
+parse/serialise functions the gateways call (see §4.6, N1).
+
+`pm-msgen lint` rejects a message whose `transport` entry is not one of these
+names, and the generated docs table (§5.3) prints
+the pattern and config key instead of a hand-typed sentence, which is what
+keeps the `270-message-reference.md` "Published by" column from drifting the
+way §1.3 describes.
+
+### 4.5 Field deprecation
+
+Removing or renaming a field is the one lifecycle event the vocabulary above
+cannot express, and it is the one that will happen first the moment a real
+family is migrated (§10 already documents a field, `aggressor_side`, that was
+added after the fact). A field gains two optional keys:
+
+```yaml
+      - name: old_field_name
+        type: string
+        required: false
+        deprecated_since: "1.2"
+        removed_after: "1.4"     # generator refuses to remove it before this family version ships
+        doc: "Superseded by new_field_name. Kept nullable for one minor version."
+```
+
+While deprecated: the field stays present and optional in the generated
+Python/C/docs, `pm-msgen lint` requires a non-empty `doc`, and generated docs
+move the field to a "Deprecated fields" sub-table instead of deleting it
+outright. `pm-msgen check` fails the build if a field disappears from a spec
+without having passed through `deprecated_since` first.
+
+### 4.6 Per-transport field projection
+
+This is the concept v1.0.0/1.1.0 missed and the reason the trade example was
+wrong. The three client-facing encodings of a "trade" are **not the same
+fields under three names** — they are three different projections of the
+engine's internal payload, and this is visible directly in the code:
+
+| Field (bus `trade.executed`) | bus (JSON) | CALF `TRADE` (`normalise_trade`) | RALF `EXEC` (`_handle_trade`) |
+|---|---|---|---|
+| `id` | `id` | — (not on public feed) | `EXEC_ID`, `MATCH_ID` |
+| `symbol` | `symbol` | `SYM` (gateway-injected) | `SYM` (gateway-injected) |
+| `buy_order_id` | `buy_order_id` | — | `BUY_ORDER_ID` |
+| `sell_order_id` | `sell_order_id` | — | `SELL_ORDER_ID` |
+| `buy_gateway_id` | `buy_gateway_id` | — | `BUY_GW` |
+| `sell_gateway_id` | `sell_gateway_id` | — | `SELL_GW` |
+| `price` | `price` | `PX` | `PX` |
+| `quantity` | `quantity` | `QTY` | `QTY` |
+| `aggressor_side` | `aggressor_side` | `SIDE` | `SIDE` |
+| `timestamp` | `timestamp` | `TS` (gateway-injected) | `TS` (gateway-injected) |
+| `tick_decimals` | `tick_decimals` | — | — |
+
+So a projection is: **a subset of fields, each renamed, some marked as
+gateway-injected rather than carried in the message body.** The spec models it
+with three keys per `encoding.<transport>` block:
+
+- `include:` — which source fields this transport carries (`all` or a list).
+- `keys:` — the per-transport name for each included field. A source field may
+  map to several keys (RALF's `id → [EXEC_ID, MATCH_ID]`).
+- `gateway_injected:` — keys the gateway process supplies at send time
+  (`CH`/`SYM`/`SEQ`/`TS`), which the generator documents and round-trips but
+  does **not** source from the payload.
+
+Two consequences the generator must enforce, checked by `pm-msgen lint`:
+
+1. **A message may omit a transport entirely.** `trade_executed` has no `balf`
+   block; `execution_report` has *only* `balf`. There is no requirement that a
+   family appear on every transport.
+2. **`include` may not name a field absent from `fields:`,** and every
+   `required` field must be included by at least the bus transport (the
+   authoritative one), or lint fails.
+
+**Scope boundary (N1).** The generator owns the *projection and the
+serialise/parse* of each transport — turning the bus payload dict into the
+`{PX, QTY, SIDE}` field map and back. It does **not** own the stateful
+*normalisation* around that: `md_gateway/normaliser.py` also updates a
+top-of-book cache and suppresses unchanged deltas on every trade, and
+`ralf_gateway` maintains per-symbol execution counts. That logic stays
+hand-written; it simply calls the generated projection instead of hand-coding
+the `{"PX": ..., "QTY": ..., "SIDE": ...}` literal it builds today. Drawing the
+line here is what keeps the generator a message-shape tool (§2 non-goals)
+rather than a second gateway.
+
+
 
 ## 5. Generated output
 
@@ -270,12 +527,18 @@ compiling a C example never needs the generator. CI regenerates and diffs
 
 ```python
 # GENERATED FROM spec/messages/trade.yaml — DO NOT EDIT
+from edumatcher.models.generated._runtime import MessageValidationError
+
 TOPIC_TRADE_EXECUTED = "trade.executed"
 
 @dataclass(frozen=True, slots=True)
 class TradeExecuted:
     id: str
     symbol: str
+    buy_order_id: str
+    sell_order_id: str
+    buy_gateway_id: str
+    sell_gateway_id: str
     price: float                    # unit: display_price
     quantity: int                   # unit: shares
     aggressor_side: Literal["BUY", "SELL", "AUCTION"]
@@ -288,11 +551,23 @@ class TradeExecuted:
     def to_dict(self) -> dict[str, Any]: ...
 
 def make_trade_executed(*, id: str, symbol: str, ...) -> list[bytes]:
-    """Validating constructor. Returns ZMQ frames."""
+    """Validating constructor. Returns the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here — it is appended by
+    SequencedPublisher.send_multipart() at publish time (messaging/bus.py).
+    """
 
 def parse_trade_executed(frames: list[bytes]) -> TradeExecuted: ...
 def is_trade_executed(topic: str) -> bool: ...
 ```
+
+`MessageValidationError` does not exist in the tree today (the repo has
+`CalfParseError`, `alf_gwy.protocol.ValidationError`,
+`balf_gwy.protocol.BalfValidationError`, none of which fit). The generator
+defines it **once**, hand-written and committed, in
+`src/edumatcher/models/generated/_runtime.py`, subclassing `ValueError` so
+existing `except ValueError` call sites keep working. Every generated family
+module imports it from there rather than each declaring its own.
 
 For parameterised topics the constants become functions, which is what removes
 the 108 scattered literals:
@@ -306,42 +581,93 @@ PREFIX_ORDER_ACK = "order.ack."                  # for setsockopt(SUBSCRIBE)
 
 ### 5.2 C
 
+A C struct mirrors the **transport projection** (§4.6), not the full bus
+payload, because C clients speak CALF/BALF, never the internal bus. So a public
+CALF trade yields a small struct — the three fields the feed actually carries —
+while the BALF `execution_report` yields the full fixed-layout struct:
+
 ```c
-/* GENERATED FROM spec/messages/trade.yaml — DO NOT EDIT */
+/* GENERATED FROM spec/messages/trade.yaml (calf projection) — DO NOT EDIT */
 typedef enum { EDU_AGG_BUY = 1, EDU_AGG_SELL = 2, EDU_AGG_AUCTION = 3 } edu_aggressor_side_t;
 
 typedef struct {
-    char                 id[65];
-    char                 symbol[17];
-    double               price;          /* unit: display_price */
-    uint32_t             quantity;       /* unit: shares       */
-    edu_aggressor_side_t aggressor_side;
-    int32_t              tick_decimals;
-    double               timestamp;      /* unit: epoch_seconds */
-} edu_trade_executed_t;
+    double               price;          /* PX,  unit: display_price */
+    uint32_t             quantity;       /* QTY, unit: shares        */
+    edu_aggressor_side_t aggressor_side; /* SIDE                     */
+    /* SYM/TS are gateway-injected CALF fields, parsed into the frame envelope,
+       not this message struct — see §4.6. */
+} edu_trade_calf_t;
 
-int  edu_trade_executed_parse_calf(const calf_message_t *in, edu_trade_executed_t *out);
-int  edu_trade_executed_parse_balf(const uint8_t *buf, size_t len, edu_trade_executed_t *out);
-int  edu_trade_executed_validate(const edu_trade_executed_t *m, char *err, size_t errlen);
+int  edu_trade_calf_parse(const calf_message_t *in, edu_trade_calf_t *out);
 const char *edu_aggressor_side_to_str(edu_aggressor_side_t v);
+```
+
+```c
+/* GENERATED FROM spec/messages/order.yaml (execution_report, balf) — DO NOT EDIT */
+typedef enum { EDU_SIDE_BUY = 1, EDU_SIDE_SELL = 2 } edu_side_t;
+
+typedef struct {
+    uint64_t   client_order_id;
+    char       order_id[17];      /* char[16] + NUL */
+    double     fill_price;        /* i64 / 1e8, unit: display_price */
+    uint32_t   fill_qty;
+    uint32_t   remaining_qty;
+    uint64_t   timestamp_ns;
+    char       symbol[9];         /* char[8] + NUL — BALF symbol is 8 bytes */
+    edu_side_t side;
+    uint8_t    status;
+} edu_execution_report_t;
+
+int edu_execution_report_parse_balf(const uint8_t *buf, size_t len, edu_execution_report_t *out);
+int edu_execution_report_validate(const edu_execution_report_t *m, char *err, size_t errlen);
 ```
 
 Fixed-size buffers, no allocation, `int` returns — matching the existing
 example clients' style so generated code drops in beside hand-written code.
+The existing hand-written parsers use small negative-integer error codes
+(`balf_parser.c`'s `parse_header`/`split_frame` return `-1`..`-5` for bad
+length, bad magic, bad version, unknown `msg_type`, and length mismatch).
+Generated `_parse_calf`/`_parse_balf`/`_validate` functions reuse the same
+convention rather than inventing a second one:
+
+| Return | Meaning |
+|---|---|
+| `0` | success |
+| `-1` | frame/line too short |
+| `-2` | bad magic (BALF only) |
+| `-3` | bad version (BALF only) |
+| `-4` | unknown `msg_type` |
+| `-5` | length mismatch for this `msg_type` (BALF only) |
+| `-6` | required field missing (CALF) or validation rule failed |
+| `-7` | field value exceeds a fixed-size buffer (`max_len`/`max_items`) |
+
+Codes `-6`/`-7` are new — negotiated once in Phase 1 and then fixed, since a
+generated header is a contract every hand-written C client compiles against.
 
 ### 5.3 Documentation
 
 A generated `271-message-appendix.md` in the existing chapter's table style:
-motivation, publisher, direction, transports, then the field table with type,
-unit, required, constraints and description, then a worked example per
-transport (JSON, CALF line, BALF hexdump).
+motivation and transports (with each transport's pattern and config key taken
+from the registry, §4.4 — there is no `direction`/`publisher` field in the
+spec; both are derived), then the field table with type, unit, required,
+constraints and description, then one worked example per
+*declared* transport (bus JSON, a CALF/RALF line, or a BALF hexdump) — only the
+transports the message actually appears on (§4.6), so a public-feed message
+shows no BALF example and an order-entry message shows no bus example.
 
 The existing hand-written `270-message-reference.md` stays. It carries the
 narrative — sequence diagrams, subscription tables, protocol walkthroughs —
 that no generator should attempt. The appendix carries the mechanical field
 detail that currently rots.
 
----
+`mkdocs.yml`'s `nav` is a hand-maintained explicit list (it is today, for
+every existing page under `user-guide/`) — it is **not** auto-discovered from
+the directory. A generated `271-message-appendix.md` that isn't also added to
+`nav` builds silently and is unreachable from the rendered site. `pm-msgen
+generate` therefore also inserts/updates the single `nav` line for the
+appendix (idempotently, keyed on the file path), and `pm-msgen check` fails if
+the appendix file exists on disk but its `nav` entry does not match.
+
 
 ## 6. Helper surface
 
@@ -358,20 +684,42 @@ Generated per family, so no consumer hand-writes them:
 | `FAMILY_TOPICS` | Registry for routers and spy tools |
 | `describe_*()` | Field metadata at runtime, for `pm-*-spy` pretty-printing |
 
----
+
 
 ## 7. Tooling and build integration
 
 ### 7.1 The generator
 
-`tools/msgen/` — a standalone Python package, no runtime dependency from
-`edumatcher`.
+`src/edumatcher/msgen/` — following the same convention as every other
+free-standing CLI in this repo (`cverifier`, `config_gen`, `audit`): a package
+under `src/edumatcher/`, registered as a `[tool.poetry.scripts]` entry
+(`pm-msgen = "edumatcher.msgen.cli:main"`), with tests under
+`tests/test_msgen_*.py`. It carries no *runtime* dependency from the engine or
+gateways (nothing under `edumatcher/engine`, `alf_gwy`, etc. imports it) —
+only the generated output in `models/generated/` and `docs/examples/generated/`
+is a runtime dependency, and those are committed, ordinary, hand-reviewable
+Python/C files.
+
+Code generation needs a templating story that isn't in `pyproject.toml`
+today (no Jinja2, no pydantic). Add a new optional dependency group. The repo
+has only `dev` and `docs` groups today — there is no `mcp` group — so model the
+new one on the real `docs` group:
+
+```toml
+[tool.poetry.group.msgen.dependencies]
+jinja2 = "^3.1"
+```
+
+`jinja2` is generation-time only — it never appears in the generated files'
+imports, so it does not become a transitive runtime dependency of the engine.
+Spec parsing reuses the `pyyaml` dependency already in `[tool.poetry.dependencies]`.
 
 ```bash
+poetry install --with dev,docs,msgen
 pm-msgen generate --spec spec/messages --out-python src/edumatcher/models/generated \
                   --out-c docs/examples/generated --out-docs docs/user-guide
 pm-msgen check                 # regenerate to temp, diff against committed
-pm-msgen lint                  # spec-only: missing units, undocumented fields
+pm-msgen lint                  # spec-only: missing units, undocumented fields, cross-family collisions
 ```
 
 ### 7.2 The guarantee
@@ -381,16 +729,34 @@ directory and diffs. Any of the following fails the build:
 
 - a spec change without regenerating
 - a hand-edit to a generated file
-- documentation drifting from the spec
+- documentation (including the `mkdocs.yml` nav entry, §5.3) drifting from the spec
 
-Without this the generator is merely a scaffolder and §1 recurs within a
+This only works if generation is **deterministic**: byte-identical output for
+an unchanged spec, run twice, on any machine. That means sorted dict/field
+iteration (not insertion order of a `set`), no wall-clock timestamps or
+absolute paths in the `DO NOT EDIT` banner, and stable enum-value ordering.
+This requirement is not optional — a generator that occasionally reorders its
+own output turns `pm-msgen check` into a source of flaky CI failures, which is
+worse than not having the check at all.
+
+Without the check, the generator is merely a scaffolder and §1 recurs within a
 release. With it, the three surfaces are provably identical.
 
-Add to the `Makefile` alongside the existing checks:
+The real `Makefile` names its checks `format` (black), `lint` (flake8),
+`typecheck` (mypy), `typecheck-pyright` (pyright), aggregated under `_check`;
+`ci.yml` runs the equivalent `poetry run` commands directly rather than
+through `make`. Add a matching target and wire it into both:
 
 ```make
-msgen-check: ; pm-msgen check
-check: black flake8 mypy pyright msgen-check test
+# Makefile
+msgen-check: ; poetry run pm-msgen check
+_check: format lint typecheck typecheck-pyright msgen-check
+```
+
+```yaml
+# .github/workflows/ci.yml, alongside the existing black/flake8/mypy steps
+- name: msgen check
+  run: poetry run pm-msgen check
 ```
 
 ### 7.3 Spec linting
@@ -398,19 +764,183 @@ check: black flake8 mypy pyright msgen-check test
 `pm-msgen lint` catches what generation alone cannot: a field without a `unit`,
 a `string` without `max_len` (which would break C generation), an enum without
 `values`, a message without a `doc.motivation`, a topic parameter not present
-in the field list.
+in the field list, and — across the whole `spec/messages/` tree, not just one
+file — the same topic string declared in two families, or two `transport`
+entries pointing at a transport name absent from `spec/transports.yaml` (§4.4).
 
----
+### 7.4 Migration helper
+
+"Replace 108 literals across 25 files" (§8, Phase 5) is not a step a design
+document can hand-wave; it needs a way to know when it is done. `pm-msgen
+grep-literals` re-runs the same scan behind the counts in §1 — every quoted
+string outside `models/generated/` and `models/message.py` matching a topic
+pattern declared in `spec/messages/` — and lists remaining hits with
+file:line. Each specified family should drive its count in that report to
+zero before Phase 5 calls the family migrated; the report itself is the
+acceptance check, not a manual `grep`.
+
+### 7.5 Parsing and diagnostics — the way forward
+
+The IDL is designed to be parsed into a typed AST with compiler-grade error
+messages. The key realisation is that **the outer syntax is YAML**, so there is
+no hand-written scanner for the file as a whole — `pyyaml` is the lexer and
+parser. The parsing work splits into two layers, and only the second is a
+purpose-built scanner. The existing `pm-cverifier` is the template for all of
+it: the same coded-diagnostic model, the same layered gating.
+
+#### 7.5.1 Two-layer architecture
+
+**Layer A — outer structure (YAML → typed AST).** Load with `yaml.compose()`,
+**not** `yaml.safe_load()`. `compose()` returns a node tree in which every
+scalar, mapping and sequence carries `start_mark`/`end_mark` (line *and*
+column). A recursive descent over that tree builds the AST of §B.19
+(`Family`/`Message`/`Field`/…), attaching a `Span(line, col, end_line, end_col)`
+to every AST node. This is the one deliberate upgrade over `cverifier`, which
+loads with `safe_load` (`layer1_yaml.py`) and therefore has a line number only
+for YAML *parse* errors (its `Y003`, read from `exc.problem_mark`) and nothing
+for *semantic* errors. Preserving marks is what lets "unknown key `requird`"
+point at `file:line:col` instead of "somewhere in this file".
+
+**Layer B — embedded string sub-languages (a real scanner).** Four constructs
+are opaque strings to YAML and need their own tokeniser to give
+column-accurate errors *inside* the string. In descending order of how much
+they benefit:
+
+- **invariant expressions** (§B.15): `price > 0 or order_type == 'MARKET'` — a
+  lexer feeding a small Pratt/recursive-descent parser that yields an
+  expression AST. The §B.15 EBNF is exactly what it implements.
+- **`type` expressions**: `list[list[int]]`, `nested` — a ~20-line recursive
+  tokeniser.
+- **`repr`**: `char[16]` — trivial.
+- **topic patterns**: `order.ack.{gateway_id}` — a segment scanner that also
+  yields the `{param}` list used by §B.18 rule 3.
+
+Each embedded scanner reports offsets *within* its string; adding the enclosing
+YAML node's `start_mark` promotes that to a file-absolute `file:line:col`
+pointing at the exact character.
+
+#### 7.5.2 The diagnostic model (reuse, don't reinvent)
+
+Reuse `cverifier`'s types verbatim in spirit: a `Diagnostic` mirroring
+`CheckResult(code, severity, message, suggestion, path, context)` plus a
+`Severity` enum, rendered by a formatter of the same shape. Add one field the
+config verifier does not need: a `Span` (from §7.5.1) so the renderer can print
+a caret/underline snippet.
+
+```python
+@dataclass(frozen=True)
+class Span:
+    line: int
+    col: int
+    end_line: int
+    end_col: int
+
+@dataclass(frozen=True)
+class Diagnostic:
+    code: str                 # e.g. "G201", "V007" — namespaced (§7.5.4)
+    severity: Severity        # ERROR | WARN | INFO
+    message: str
+    span: Span | None
+    suggestion: str = ""      # "did you mean 'required'?"
+    path: str = ""            # dotted spec path, e.g. messages[2].fields[0].validate
+```
+
+#### 7.5.3 Layered gating (never emit noise from a half-parsed file)
+
+Run the same skip-on-earlier-failure discipline `cverifier` uses:
+
+1. **Syntax (YAML).** `compose()` fails → one `Y###` diagnostic, stop.
+2. **Shape (AST build).** Unknown keys, wrong node kinds, missing required
+   keys, malformed `type`/`repr`/topic/expression strings → `G###`. All shape
+   errors in the file are collected, not fail-on-first (see 7.5.5).
+3. **Semantic (single family).** The 15 rules of §B.18 → `V###`, one code per
+   rule (V001…V015 map 1:1 to B.18.1…B.18.15).
+4. **Cross-family.** Duplicate topics / `msg_type` bytes / transport references
+   across the whole `spec/messages/` tree (§7.3) → `X###`.
+
+A later layer runs only if the earlier one produced no `ERROR`, so a mistyped
+key never spawns a cascade of misleading semantic errors.
+
+#### 7.5.4 Diagnostic code namespace
+
+Mirror `cverifier`'s letter+number scheme so the two tools feel identical:
+
+| Prefix | Layer | Examples |
+|---|---|---|
+| `Y###` | YAML syntax | `Y003` parse error (reused wording) |
+| `G###` | grammar / AST shape | `G101` unknown key, `G102` wrong value type, `G120` bad `type` expression, `G121` bad `repr`, `G130` malformed invariant expression |
+| `V###` | semantic (§B.18) | `V001` unknown transport … `V015` unknown key rejected (one per B.18 rule) |
+| `X###` | cross-family | `X001` duplicate topic, `X002` duplicate BALF `msg_type` |
+
+Every code is documented once in a table in the generated docs, so an error
+message can end with "see `V007`" and a reader can look it up — the pattern the
+statistics and config-verifier work already established.
+
+#### 7.5.5 What makes the errors *excellent* (concrete requirements)
+
+- **Every diagnostic carries a `Span`** (7.5.1). Non-negotiable; it is what the
+  rest depends on.
+- **Multiple errors per run.** Layers 2–4 collect a list and continue rather
+  than raising on the first. The expression parser recovers by inserting an
+  error node and resuming at the next operator, so one bad invariant yields one
+  diagnostic, not a truncated parse.
+- **"Did you mean …?"** For every closed vocabulary — field keys, `type`
+  values, `unit` values, enum `values`, transport names — compute Levenshtein
+  distance to the allowed set and suggest the nearest when distance ≤ 2. The
+  strict-loader rule (§B.18.15) becomes `G101: unknown key 'requird' — did you
+  mean 'required'?`.
+- **Caret snippets.** With `start`/`end` marks the renderer prints the source
+  line and underlines the exact span, rustc/ruff-style:
+
+  ```
+  error[G101]: unknown key 'requird'
+    --> spec/messages/order.yaml:14:9
+     |
+  14 |       - { name: reason, requird: false }
+     |                         ^^^^^^^ did you mean 'required'?
+     |
+  ```
+
+- **Stable dotted `path`.** `messages[2].fields[0].validate` so a diagnostic is
+  greppable and testable independent of line numbers.
+
+#### 7.5.6 The invariant expression parser (the one real scanner)
+
+Recommended: a hand-written ~50-line Pratt parser, no dependency. It stays
+inside R2 ("small vocabulary, no Turing-complete rules") and matches open
+question 6's hand-rolled-vs-library trade-off. The token set is tiny —
+identifiers, number/string/bool literals, the six relational operators,
+`and`/`or`, and parentheses — and the grammar is already written in §B.15.
+`Lark` is a reasonable alternative *only* for this sub-language if a declarative
+grammar is preferred; it must not be introduced for the outer (YAML) layer,
+which the design keeps deliberately (§3). The parser resolves each
+`field-name` against the message's declared fields at parse time, so an unknown
+field in an invariant is a `G130` with a caret on the identifier, not a runtime
+`KeyError` later.
+
+#### 7.5.7 Placement and effort
+
+This is the `spec.py` loader of §A.2 built properly (`compose`-based, span-
+carrying) plus a small `expr.py`, both under `src/edumatcher/msgen/`, feeding
+`pm-msgen lint`. The diagnostic renderer is a near-copy of
+`cverifier/formatter.py`. The genuinely *new* code is the mark-preserving AST
+builder and the expression scanner; everything else — the `Diagnostic` shape,
+severities, layered reporting, suggestions, the `V###` rule list — is either
+already shipped in `cverifier` or already specified in §B.18. It is therefore a
+low-risk build, and a good Phase-1 stretch goal once the generator itself
+(§A.5) is green.
+
+
 
 ## 8. Phased adoption
 
-78 factories cannot move at once, and there is no reason to. Each phase is
+92 factories cannot move at once, and there is no reason to. Each phase is
 independently shippable and independently verifiable.
 
 ### Phase 1 — Generator, one family, no adoption
 
-Build `tools/msgen`. Specify `trade.yaml` only. Generate all three outputs.
-Commit them **unused**.
+Build `src/edumatcher/msgen/` (§7.1). Specify `trade.yaml` only. Generate all
+three outputs. Commit them **unused**.
 
 *Test:* generated `TradeExecuted.from_dict` accepts every payload the existing
 `TradeExecutedPayload` accepts, and produces byte-identical `to_dict()` output.
@@ -468,25 +998,44 @@ Generate `271-message-appendix.md`; prune the mechanical field tables from
 
 ### Capstone
 
-`tests/test_msgen_roundtrip.py::test_every_specified_message_survives_all_transports`
+`tests/test_msgen_roundtrip.py::test_every_message_survives_its_declared_transports`
 
-For every message in every spec, over generated random payloads:
+For every message in every spec, over generated random payloads, and **only
+for the transports that message declares** (§4.6 — a message need not appear on
+all transports):
 
 ```
-1. make_*(**payload)                 -> frames
-2. parse_*(frames)                   -> object   == payload
-3. to_dict -> from_dict              -> object   == payload
-4. CALF encode -> C parse -> compare           == payload   (via cffi harness)
-5. BALF encode -> C parse -> compare           == payload
-6. every validate() rule rejects an out-of-range mutation of each field
-7. generated docs list exactly the fields in the spec, no more, no fewer
-8. pm-msgen check reports no drift
+For a bus message (engine_pub / engine_push / ...):
+  1. make_*(**payload)               -> frames
+  2. parse_*(frames)                 -> object   == payload
+For each declared text transport (calf / ralf):
+  4. project -> serialise line -> C parse -> compare   == projection  (cffi)
+For each declared binary transport (balf):
+  5. serialise frame -> C parse -> compare             == payload      (cffi)
+Always (every message has a Python reference binding):
+  3. to_dict -> from_dict            -> object   == payload
+  6. every validate() rule rejects an out-of-range mutation of each field
+  7. generated docs list exactly the fields in the spec, no more, no fewer
+  8. pm-msgen check reports no drift
 ```
 
 Assertions 4 and 5 are the ones that matter: they prove the Python and C
 bindings agree on the wire, which is the property no current test can state.
+Because they compare against the transport's *projection* (§4.6), not the full
+bus payload, a CALF trade round-trips `{PX, QTY, SIDE}` while a BALF
+execution_report round-trips its own fields — neither is forced to carry the
+other's.
 
----
+They also require a C compiler in CI, which `.github/workflows/ci.yml` does
+not install today (only `graphviz`, for docs, via `apt-get`). Add a
+`build-essential` (or equivalent) install step to the job that runs the
+capstone test, gated behind a marker (`pytest -m msgen_c`) so the rest of
+the suite doesn't pay for a C toolchain it doesn't need. Because the repo runs
+pytest with `--strict-markers` and registers only `perf` today, `msgen_c` must
+be added to `[tool.pytest.ini_options] markers` in `pyproject.toml` or the
+tests fail at collection.
+
+
 
 ## 9. Risks
 
@@ -498,10 +1047,15 @@ bindings agree on the wire, which is the property no current test can state.
 | R4 | C fixed-size buffers truncate a longer field | **High** | `max_len` mandatory for C targets; `lint` enforces; generated parser returns an error rather than truncating |
 | R5 | Committed generated files make review noisy | Low | Generated files carry a `DO NOT EDIT` banner and live in `generated/` directories; reviewers read the spec diff |
 | R6 | Enum drift between Python and C | Medium | Both generated from the same `values`; capstone assertion 4/5 compares round-trips |
-| R7 | Binary layout changes break deployed C clients | **High** | `family.version` in the spec; BALF header already carries a version byte; generator refuses to change a layout without a version bump |
+| R7 | Binary layout changes break deployed C clients | **High** | `family.version` in the spec pins the *logical* layout; note the BALF wire header carries a **single global** version byte (`0x01`) shared by all messages, so the generator must refuse a layout change unless either the family version bumps *and* a compatibility note is written, or the global BALF version is bumped deliberately — the two are not the same knob |
 | R8 | Two engineers edit the same generated file from different specs | Low | `pm-msgen check` in CI catches it before merge |
+| R9 | Non-deterministic generation (dict/set iteration order, timestamps) makes `pm-msgen check` flaky, undermining the one guarantee that matters | **High** | §7.2 makes reproducibility an explicit requirement, tested by running `generate` twice and diffing |
+| R10 | Generated `271-message-appendix.md` ships but isn't wired into `mkdocs.yml` nav (§5.3), so it never appears in the built docs | Medium | `pm-msgen check` also validates the nav entry, not just the file content |
+| R11 | CI capstone C round-trip tests (assertions 4/5) need a C toolchain not currently installed in `ci.yml` | Low | Marker-gated test + toolchain install step added only to the job that needs it |
+| R12 | Generator creep into stateful normalisation (top-of-book cache, exec counts) it cannot own | Medium | §4.6 (N1) fixes the scope boundary: generator owns projection + parse/serialise only; `md_gateway/normaliser.py` and `ralf_gateway` keep their business logic and call the generated projection |
+| R13 | Same logical event modelled as one message across transports when the field sets genuinely differ (public trade vs private fill) | **High** | §4.6 projection model; `trade_executed` and `execution_report` are separate messages by design, not one message forced onto BALF |
 
----
+
 
 ## 10. What this would have prevented
 
@@ -519,7 +1073,7 @@ Grounding the value in defects this repository actually produced:
 Every one is a mechanical inconsistency between surfaces, which is exactly the
 class a generator removes and a reviewer does not reliably catch.
 
----
+
 
 ## 11. Open questions
 
@@ -539,3 +1093,863 @@ class a generator removes and a reviewer does not reliably catch.
 5. **Versioning across the wire.** `family.version` covers layout changes, but
    there is no negotiation today. Out of scope here; worth its own note if
    external clients are ever versioned independently.
+6. **Templating engine choice.** §7.1 proposes Jinja2 as a new generation-time
+   dependency group. An alternative is hand-rolled string templates (no new
+   dependency, matches the "small vocabulary" philosophy of §2, but harder to
+   keep readable as the C template grows). Worth a short spike before Phase 1
+   rather than deciding in this document.
+7. **Spec-file JSON Schema.** `pm-msgen lint` (§7.3) validates spec semantics,
+   but nothing validates the YAML *shape* itself (e.g. a typo'd key like
+   `requird: true`) before that. Worth deciding whether `lint` also loads a
+   checked-in JSON Schema for the spec format, or whether the loader's own
+   dataclass parsing is considered sufficient (it will reject unknown keys
+   only if it is written strictly, which should be stated as a requirement).
+
+
+
+## Appendix A — Phase 1 implementation starter
+
+Sections 1–11 are the design. This appendix is the *how* for the first
+engineer, scoped tightly to **Phase 1 only** (§8): generate the Python output
+for the one `trade` family and prove it byte-identical to the existing
+`TradeExecutedPayload`. It exists so a junior can start without first inventing
+the module layout, the parsed-spec model, and one worked generated function.
+Everything here is Phase 1; C generation (§5.2) and the cffi harness are
+Phase 4 and get only a pointer at the end.
+
+### A.1 Module layout
+
+Mirror `cverifier`/`config_gen`. Build exactly this and no more for Phase 1:
+
+```
+src/edumatcher/msgen/
+    __init__.py
+    cli.py              # argparse dispatch: generate | check | lint  (grep-literals is Phase 5)
+    spec.py             # parsed-spec dataclasses + strict YAML loader
+    generate.py         # orchestration: load spec -> write output files
+    generators/
+        __init__.py
+        python.py       # spec -> src/edumatcher/models/generated/<family>.py
+        # c.py    -> Phase 4
+        # docs.py -> Phase 6
+    templates/
+        family_py.jinja2         # if Jinja2 is chosen (open question 6)
+
+src/edumatcher/models/generated/
+    __init__.py
+    _runtime.py         # hand-written, committed: MessageValidationError (see §5.1)
+
+spec/messages/
+    trade.yaml          # the only spec file in Phase 1
+
+tests/
+    test_msgen_spec.py           # loader accepts trade.yaml, rejects unknown keys
+    test_msgen_python.py         # generator output compiles and imports
+    test_msgen_trade_wire_compat.py   # THE Phase 1 acceptance test (A.5)
+```
+
+Register the script in `pyproject.toml`: `pm-msgen =
+"edumatcher.msgen.cli:main"`, and add the `msgen` dependency group (§7.1).
+
+### A.2 The parsed-spec data model (`spec.py`)
+
+This is the single most useful artefact to build first: the typed shape the
+YAML loads into, which every generator then consumes. It is *not* generated —
+it is hand-written and is the generator's own contract.
+
+```python
+from __future__ import annotations
+from dataclasses import dataclass, field
+from typing import Any
+
+@dataclass(frozen=True)
+class Validate:
+    gt: float | None = None
+    ge: float | None = None
+    lt: float | None = None
+    le: float | None = None
+    max_len: int | None = None
+    min_len: int | None = None
+    max_items: int | None = None
+    pattern: str | None = None
+
+@dataclass(frozen=True)
+class Field:
+    name: str
+    type: str                       # string|int|float|bool|enum|ticks|list[...]
+    required: bool = True
+    default: Any = None
+    unit: str | None = None
+    doc: str = ""
+    values: tuple[str, ...] | None = None      # enum only
+    validate: Validate = field(default_factory=Validate)
+    deprecated_since: str | None = None
+    removed_after: str | None = None
+
+@dataclass(frozen=True)
+class Message:
+    name: str
+    topic: str
+    transport: tuple[str, ...]
+    fields: tuple[Field, ...]
+    doc: dict[str, Any] = field(default_factory=dict)
+    encoding: dict[str, Any] = field(default_factory=dict)
+
+@dataclass(frozen=True)
+class Family:
+    family: str
+    version: int
+    messages: tuple[Message, ...]
+```
+
+**Loader requirement (open question 7): be strict.** Unknown keys must raise,
+not be silently ignored — otherwise `requird: true` disables a field with no
+error, which is the exact failure class this whole tool exists to kill:
+
+```python
+import yaml
+
+_FIELD_KEYS = {f.name for f in dataclasses.fields(Field)}
+
+def _load_field(raw: dict[str, Any]) -> Field:
+    unknown = set(raw) - _FIELD_KEYS
+    if unknown:
+        raise SpecError(f"field {raw.get('name')!r}: unknown keys {sorted(unknown)}")
+    v = raw.get("validate", {}) or {}
+    return Field(
+        name=raw["name"],
+        type=raw["type"],
+        required=raw.get("required", True),
+        default=raw.get("default"),
+        unit=raw.get("unit"),
+        doc=raw.get("doc", ""),
+        values=tuple(raw["values"]) if "values" in raw else None,
+        validate=Validate(**v),          # Validate(**v) itself raises on a typo'd rule key
+        deprecated_since=raw.get("deprecated_since"),
+        removed_after=raw.get("removed_after"),
+    )
+```
+
+### A.3 One fully-worked generated function
+
+The design shows only signatures (§5.1). Here is the *complete* Python the
+generator must emit for `trade`, so the junior has a target to pattern-match.
+It is written to match `feed_schema.TradeExecutedPayload` field-for-field —
+same field order, same `str()/int()/float()` coercion, same `.get()` defaults —
+because A.5 asserts byte-identical `to_dict()`.
+
+```python
+# GENERATED FROM spec/messages/trade.yaml — DO NOT EDIT
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import Any, Literal, Mapping
+
+from edumatcher.models import message as _msg
+from edumatcher.models.generated._runtime import MessageValidationError
+
+TOPIC_TRADE_EXECUTED = "trade.executed"
+
+@dataclass(frozen=True, slots=True)
+class TradeExecuted:
+    id: str
+    symbol: str
+    buy_order_id: str
+    sell_order_id: str
+    buy_gateway_id: str
+    sell_gateway_id: str
+    price: float
+    quantity: int
+    aggressor_side: Literal["BUY", "SELL", "AUCTION"]
+    timestamp: float
+    tick_decimals: int = 2
+
+    def validate(self) -> None:
+        if self.price <= 0:                          # from validate: { gt: 0 }
+            raise MessageValidationError("price must be > 0")
+        if self.quantity <= 0:                       # from validate: { gt: 0 }
+            raise MessageValidationError("quantity must be > 0")
+        if self.aggressor_side not in ("BUY", "SELL", "AUCTION"):
+            raise MessageValidationError(f"bad aggressor_side {self.aggressor_side!r}")
+        if not (0 <= self.tick_decimals <= 8):       # from validate: { ge: 0, le: 8 }
+            raise MessageValidationError("tick_decimals out of [0, 8]")
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "TradeExecuted":
+        return cls(
+            id=str(p["id"]),
+            symbol=str(p["symbol"]),
+            buy_order_id=str(p["buy_order_id"]),
+            sell_order_id=str(p["sell_order_id"]),
+            buy_gateway_id=str(p["buy_gateway_id"]),
+            sell_gateway_id=str(p["sell_gateway_id"]),
+            price=float(p["price"]),
+            quantity=int(p["quantity"]),
+            aggressor_side=str(p.get("aggressor_side", "")),  # type: ignore[arg-type]
+            timestamp=float(p["timestamp"]),
+            tick_decimals=int(p.get("tick_decimals", 2)),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "symbol": self.symbol,
+            "buy_order_id": self.buy_order_id,
+            "sell_order_id": self.sell_order_id,
+            "buy_gateway_id": self.buy_gateway_id,
+            "sell_gateway_id": self.sell_gateway_id,
+            "price": self.price,
+            "quantity": self.quantity,
+            "aggressor_side": self.aggressor_side,
+            "timestamp": self.timestamp,
+            "tick_decimals": self.tick_decimals,
+        }
+
+def make_trade_executed(**kw: Any) -> list[bytes]:
+    obj = TradeExecuted(**kw)
+    obj.validate()
+    return _msg.encode(TOPIC_TRADE_EXECUTED, obj.to_dict())   # two frames — sequence added by the bus
+
+def parse_trade_executed(frames: list[bytes]) -> TradeExecuted:
+    _topic, payload = _msg.decode(frames)
+    obj = TradeExecuted.from_dict(payload)
+    obj.validate()
+    return obj
+
+def is_trade_executed(topic: str) -> bool:
+    return topic == TOPIC_TRADE_EXECUTED
+```
+
+The generator's job in Phase 1 is to produce exactly the above from the field
+list and `validate:` rules — a template with one loop over `fields` for the
+dataclass body, one over `fields` for `from_dict`/`to_dict`, and a small
+`rule → line` map for `validate()` (`gt` → `<= 0 raise`, `ge/le` → range
+check, `values` → membership, `pattern` → `re.fullmatch`).
+
+### A.4 Parameterised topics (the `match_*`/`topic_*` derivation)
+
+For a topic like `order.ack.{gateway_id}` the generator derives three things
+mechanically; this is the algorithm the design shows only as output (§5.1):
+
+```python
+# pattern = "order.ack.{gateway_id}"
+# PREFIX  = pattern up to the first "{"           -> "order.ack."
+# regex   = re.escape each literal run, replace {param} with (?P<param>[^.]+)
+#           -> r"^order\.ack\.(?P<gateway_id>[^.]+)$"
+def topic_order_ack(gateway_id: str) -> str:
+    return f"order.ack.{gateway_id}"
+
+_ORDER_ACK_RE = re.compile(r"^order\.ack\.(?P<gateway_id>[^.]+)$")
+def match_order_ack(topic: str) -> str | None:
+    m = _ORDER_ACK_RE.match(topic)
+    return m.group("gateway_id") if m else None
+
+PREFIX_ORDER_ACK = "order.ack."   # for setsockopt(zmq.SUBSCRIBE, ...)
+```
+
+`[^.]+` (not `.+`) matters: topic segments are dot-delimited, so a greedy `.+`
+would swallow a trailing `.suffix`. `trade_executed` has no `{param}` so it
+gets only the constant and `is_trade_executed`.
+
+### A.5 The Phase 1 acceptance test (write this first)
+
+This is the definition of done for Phase 1 and should be written *before* the
+generator, red-to-green:
+
+```python
+# tests/test_msgen_trade_wire_compat.py
+import pytest
+from edumatcher.models.feed_schema import TradeExecutedPayload
+from edumatcher.models.generated.trade import TradeExecuted
+
+_SAMPLE = {
+    "id": "42", "symbol": "ACME",
+    "buy_order_id": "b-1", "sell_order_id": "s-1",
+    "buy_gateway_id": "GW1", "sell_gateway_id": "GW2",
+    "price": 101.5, "quantity": 300,
+    "aggressor_side": "BUY", "timestamp": 1_700_000_000.0, "tick_decimals": 2,
+}
+
+def test_to_dict_byte_identical_to_hand_written():
+    hand = TradeExecutedPayload.from_dict(_SAMPLE).to_dict()
+    gen  = TradeExecuted.from_dict(_SAMPLE).to_dict()
+    assert gen == hand
+    # frames must also match: generated make_* and the existing make_trade_msg
+    from edumatcher.models.message import make_trade_msg
+    from edumatcher.models.generated.trade import make_trade_executed
+    assert make_trade_executed(**_SAMPLE) == make_trade_msg(_SAMPLE)
+
+@pytest.mark.parametrize("bad", [
+    {**_SAMPLE, "price": 0}, {**_SAMPLE, "quantity": 0},
+    {**_SAMPLE, "tick_decimals": 9}, {**_SAMPLE, "aggressor_side": "X"},
+])
+def test_validate_rejects_out_of_range(bad):
+    from edumatcher.models.generated._runtime import MessageValidationError
+    obj = TradeExecuted.from_dict(bad)
+    with pytest.raises(MessageValidationError):
+        obj.validate()
+```
+
+If both tests pass and `black`/`flake8`/`mypy`/`pyright` are clean on the
+generated file, Phase 1 is done.
+
+### A.6 Per-phase definition-of-done checklist
+
+- [ ] **Phase 1** `spec.py` loads `trade.yaml` and rejects unknown keys;
+  `generators/python.py` emits `models/generated/trade.py`; A.5 passes; static
+  tools clean on the generated file; `_runtime.py` committed.
+- [ ] **Phase 2** `make_trade_msg` delegates to `make_trade_executed`; full
+  existing suite passes unchanged; the frame-equality assertion in A.5 holds.
+- [ ] **Phase 3** `pm-msgen check` added to `_check` and `ci.yml`; a
+  deliberate hand-edit to `trade.py` fails CI; a spec edit without regen fails
+  CI; generation proven deterministic (`generate` twice → identical bytes).
+- [ ] **Phase 4** C generation + the cffi round-trip harness (below); `msgen_c`
+  marker registered; toolchain step added to the C-test job.
+- [ ] **Phase 5** one family per PR, each with its own wire-compat test;
+  `grep-literals` count for the family driven to zero.
+- [ ] **Phase 6** `271-message-appendix.md` generated and wired into
+  `mkdocs.yml` nav.
+
+### A.7 Pointer for Phase 4 (not Phase 1)
+
+The cffi harness that assertions 4/5 of the capstone need is a `cffi`
+`ffi.cdef(generated_header) + ffi.verify(generated_c)` at test-collection time,
+then calling `edu_execution_report_parse_balf(bytes, len, out)` and comparing
+`out` field-by-field against the Python object. A junior should not attempt
+this in Phase 1; it is listed here only so the shape is known when Phase 4
+arrives. The serialisation algorithm (`repr` → `struct.pack` format code,
+`offset` placement, `enum_map`, fixed `price_scale`) is likewise Phase 4 and
+should get its own short design note once Phase 1–3 have shaken out the spec
+model.
+
+
+
+## Appendix B — IDL specification (normative)
+
+This appendix is the **authoritative** definition of the specification
+language. Where a prose example earlier in this document disagrees with this
+appendix, this appendix wins. Sections 4–5 are illustrative; Appendix B is the
+contract the generator, the loader (Appendix A.2 is a Phase-1 subset of it),
+and `pm-msgen lint` implement.
+
+### B.1 Conformance and notation
+
+- The key words **MUST**, **MUST NOT**, **REQUIRED**, **OPTIONAL** and
+  **DEFAULT** are normative.
+- A spec is a **YAML 1.2** document restricted to the subset defined here:
+  mappings, sequences, and the scalar types string, integer, float, boolean.
+  No anchors, aliases, tags, or multi-document streams.
+- Grammar is given as a schema over YAML nodes using EBNF (§B.19). `{ X }`
+  means zero-or-more; `[ X ]` means optional; `A | B` means alternation.
+- Every generated artefact is a pure function of the spec files; see §B.17
+  (determinism) — this is what makes `pm-msgen check` sound.
+
+### B.2 File organisation
+
+Two kinds of file, both under `spec/`:
+
+| File | Cardinality | Root key | Defines |
+|---|---|---|---|
+| `spec/transports.yaml` | exactly one | `transports:` | the transport registry (§B.4) |
+| `spec/messages/<family>.yaml` | one per family | `family:` | one message family (§B.5) |
+
+`<family>` in the filename MUST equal the `family:` value inside it.
+
+### B.3 Lexical rules
+
+| Token | Rule |
+|---|---|
+| `identifier` | `^[a-z][a-z0-9_]*$` — snake_case; used for family, message, field, nested-type and transport names |
+| `enum-name` | `^[A-Z][A-Z0-9_]*$` — SCREAMING_SNAKE; used for enum `values` and `enum_map` keys |
+| `key-name` | `^[A-Z][A-Z0-9_]*$` — a CALF/RALF wire field key (e.g. `PX`, `EXEC_ID`) |
+| `msg-type-text` | `^[A-Z][A-Z0-9_]*$` — a CALF/RALF `MSGTYPE` (e.g. `TRADE`, `EXEC`) |
+| `msg-type-bin` | integer literal `0x00`–`0xFF` — a BALF message-type byte |
+| `topic-pattern` | dot-delimited segments; a segment is either a literal `^[a-z0-9_]+$` or a single placeholder `{identifier}`; e.g. `order.ack.{gateway_id}` |
+| `version-str` | `^[0-9]+\.[0-9]+$` — a two-part version used by `since`, `deprecated_since`, `removed_after` |
+
+### B.4 Transport registry — `spec/transports.yaml`
+
+```yaml
+transports:
+  <identifier>:
+    pattern: <PUB|SUB|PUSH|PULL|TCP>          # REQUIRED
+    subscriber_pattern: <PUB|SUB|PUSH|PULL>   # OPTIONAL; the peer pattern for a bus transport
+    address_config_key: <IDENTIFIER>          # REQUIRED; symbolic key resolved from engine_config at runtime
+```
+
+- A transport whose `pattern` is `TCP` is an **external line/binary protocol**
+  fronted by a gateway (CALF/BALF/RALF). Bus transports use the ZeroMQ patterns.
+- `address_config_key` MUST NOT be a literal address; it is a name the runtime
+  resolves. This keeps ports/addresses out of the generated code.
+- The names `calf`, `balf`, `ralf` are **reserved** external-protocol
+  transport names. They MAY be declared in the registry to bind an
+  `address_config_key` (as `ralf` is in §4.4) or referenced bare (as `calf`
+  and `balf` are, when their address is fully owned by the gateway); either way
+  `lint` accepts them. Every *other* transport reference MUST be a registry
+  entry.
+
+### B.5 Family file — top level
+
+```yaml
+family:   <identifier>          # REQUIRED; MUST equal the filename stem
+version:  <integer>             # REQUIRED; the logical layout version (see §B.17)
+messages: [ <message>, ... ]    # REQUIRED; non-empty
+```
+
+### B.6 Message object
+
+| Key | Req. | Type | Notes |
+|---|---|---|---|
+| `name` | REQUIRED | identifier | unique within the family |
+| `topic` | CONDITIONAL | topic-pattern | REQUIRED iff `transport` lists ≥1 bus transport; MUST be omitted for purely external-protocol messages (e.g. BALF-only) |
+| `transport` | REQUIRED | list of transport-ref | non-empty; each entry is a registry name or `calf`/`balf`/`ralf` |
+| `doc` | OPTIONAL | doc-block (§B.16) | documentation-only; never reaches the wire |
+| `fields` | REQUIRED | list of field (§B.7) | non-empty; declaration order is authoritative (§B.17) |
+| `nested_types` | CONDITIONAL | map of identifier → nested-def (§B.8) | REQUIRED iff any field is `list[nested]` or `nested` |
+| `encoding` | OPTIONAL | map of transport-ref → encoding-def (§B.13) | if omitted, defaults to `include: all` for each listed transport |
+| `invariants` | OPTIONAL | list of invariant (§B.15) | cross-field rules |
+
+### B.7 Field object
+
+| Key | Req. | Type | Default | Notes |
+|---|---|---|---|---|
+| `name` | REQUIRED | identifier | — | unique within the field's message or nested type |
+| `type` | REQUIRED | type (§B.9) | — | |
+| `required` | OPTIONAL | boolean | `true` | |
+| `default` | OPTIONAL | scalar | — | type MUST match `type`; only meaningful when `required: false` |
+| `unit` | OPTIONAL | unit (§B.11) | — | REQUIRED by `lint` for numeric fields (§B.18 rule 15) |
+| `doc` | OPTIONAL | string | `""` | REQUIRED non-empty when the field is deprecated |
+| `values` | CONDITIONAL | list of enum-name | — | REQUIRED iff `type == enum`; order is authoritative |
+| `item` | CONDITIONAL | identifier | — | REQUIRED iff `type == list[nested]`; names a `nested_types` entry |
+| `validate` | OPTIONAL | validate-map (§B.12) | `{}` | |
+| `deprecated_since` | OPTIONAL | version-str | — | see §B.17 |
+| `removed_after` | OPTIONAL | version-str | — | generator refuses to delete the field before this family version |
+
+### B.8 Nested type object
+
+```yaml
+nested_types:
+  <identifier>:
+    fields: [ <field>, ... ]     # same field grammar as §B.7; nested types MAY nest further
+```
+
+A nested type is referenced by `type: nested` (single) with an `item:` naming
+it, or by `type: list[nested]` with `item:` naming it. Recursion (a nested type
+referencing itself, directly or transitively) is **forbidden**; the generator
+emits fixed-size structs and cannot size a cyclic type.
+
+### B.9 Type system (logical `type` → bindings)
+
+| `type` | Python | C | JSON | Required companions |
+|---|---|---|---|---|
+| `string` | `str` | `char[N]` | string | `validate.max_len` REQUIRED when any transport is external (fixes `N`) |
+| `int` | `int` | `int64_t` (or sized by `repr`) | number | — |
+| `float` | `float` | `double` | number | — |
+| `bool` | `bool` | `uint8_t` | bool | — |
+| `enum` | `str` + `Literal[values]` | generated `enum` + `_to_str`/`_from_str` | string | `values` REQUIRED; `enum_map` REQUIRED for a binary transport |
+| `ticks` | `int` | `int64_t` | number | conventionally paired with a `tick_decimals` field |
+| `list[T]` | `list[T]` | `T[N] + <name>_count` | array | `validate.max_items` REQUIRED when any transport is external (fixes `N`) |
+| `nested` | dataclass | struct | object | `item` REQUIRED; entry in `nested_types` |
+
+`list[T]` nests: `list[int]`, `list[nested]` are both legal. `T` MUST itself be
+a valid `type`.
+
+### B.10 `repr` reference (binary layout only)
+
+| `repr` | Bytes | Wire meaning |
+|---|---|---|
+| `u8` `u16` `u32` `u64` | 1/2/4/8 | little-endian unsigned integer |
+| `i8` `i16` `i32` `i64` | 1/2/4/8 | little-endian signed integer |
+| `f32` `f64` | 4/8 | IEEE-754 (rare; EduMatcher money is scaled integers, not floats) |
+| `char[N]` | N | zero-padded ASCII, `N` MUST equal the field's `validate.max_len` |
+
+A numeric `repr` MAY carry `scale:` (§B.13) to convert a wire integer to a
+display float. `enum_map` MAY accompany a `u8`/`u16` carrying an enum.
+
+### B.11 `unit` reference (complete enumeration)
+
+`display_price`, `ticks`, `shares`, `epoch_seconds`, `epoch_nanos`, `percent`,
+`dimensionless`, `money`. A `unit` is **declarative metadata** only — it appears
+in generated docs and is never a runtime conversion. Any other value is a
+lint error.
+
+### B.12 Validation vocabulary (complete)
+
+Field-level keys (§B.7): `required`, `default`, `values`. The `validate:` block
+holds the remaining constraints:
+
+| `validate` key | Applies to | Meaning |
+|---|---|---|
+| `gt` / `ge` / `lt` / `le` | int, float, ticks | strict/inclusive bounds |
+| `max_len` / `min_len` | string | length bounds; `max_len` also fixes C `char[N]` |
+| `max_items` | list[T] | element-count bound; also fixes C array size |
+| `pattern` | string | full-match regular expression (`re.fullmatch` semantics) |
+
+No other `validate` keys are permitted. Anything more expressive than the above
+belongs in `invariants` (§B.15) or stays hand-written (§4.3).
+
+### B.13 Encoding object
+
+`encoding` is a map keyed by transport-ref. Three shapes, selected by the
+transport's class:
+
+**Bus** (ZeroMQ transports — `engine_pub`, `engine_push`, …):
+
+```yaml
+bus:
+  frames: [ topic, json_payload ]   # ordered; allowed tokens: topic, json_payload
+  include: <all | [field, ...]>     # DEFAULT all
+```
+
+`frames` MUST NOT contain a `sequence` token — the per-topic sequence is a
+third frame injected by `SequencedPublisher` at publish time, never declared
+here (see §4.1, B6).
+
+**Text** (`calf`, `ralf`):
+
+```yaml
+calf:
+  msg_type: <msg-type-text>                 # REQUIRED
+  include: <all | [field, ...]>             # DEFAULT all
+  keys: { <field>: <key-name | [key-name, ...]>, ... }   # REQUIRED for every included field
+  gateway_injected: [ <key-name>, ... ]     # OPTIONAL; keys the gateway supplies, not the payload
+```
+
+A `keys` entry MAY map one source field to several wire keys (RALF
+`id: [EXEC_ID, MATCH_ID]`). `gateway_injected` keys MUST NOT collide with any
+`keys` value.
+
+**Binary** (`balf`):
+
+```yaml
+balf:
+  msg_type: <msg-type-bin>          # REQUIRED; 0x00–0xFF, unique within the transport
+  frame_size: <integer>             # REQUIRED; total bytes = 8-byte header + body
+  price_scale: <integer>            # OPTIONAL; fixed divisor for scaled prices (e.g. 100000000)
+  layout: [ <layout-entry>, ... ]   # REQUIRED; ordered
+```
+
+`layout-entry` is one of:
+
+```yaml
+- { field: <field>, repr: <repr>, offset: <int>,
+    scale: <int | price_scale>,          # OPTIONAL; integer or the literal token price_scale
+    enum_map: { <ENUM_NAME>: <int>, ... } }   # OPTIONAL; REQUIRED when the field is an enum
+- { reserved: <int>, offset: <int> }     # explicit zero-padding run of <int> bytes
+```
+
+The fixed 8-byte header (`magic=0xBA`, `version`, `msg_type`, `flags`,
+`seq_no` u32 LE) is **implicit** and prepended by the generator; it MUST NOT be
+declared in `layout`. `offset` is relative to the **body** (byte 0 = first byte
+after the header).
+
+### B.14 Projection semantics
+
+For each transport a message declares, the generated projection carries exactly
+the fields named by `include` (or all fields when `include: all`), renamed per
+`keys` (text) or placed per `layout` (binary). Fields not in `include` are
+absent from that transport. `gateway_injected` keys are documented and
+round-tripped by the gateway but are **not** sourced from the message payload
+(§4.6).
+
+### B.15 Invariant expression grammar
+
+`invariants` express cross-field rules the per-field vocabulary cannot. The
+expression language is deliberately **not** Turing-complete: boolean
+combination of comparisons over fields and literals, nothing else.
+
+```yaml
+invariants:
+  - rule: "price > 0 or order_type == 'MARKET'"    # REQUIRED; see grammar below
+    message: "limit orders require a positive price" # REQUIRED; used as the error text
+```
+
+```ebnf
+expr     ::= or-expr
+or-expr  ::= and-expr { "or" and-expr }
+and-expr ::= comparison { "and" comparison }
+comparison ::= operand rel-op operand | "(" expr ")"
+rel-op   ::= "==" | "!=" | ">" | ">=" | "<" | "<="
+operand  ::= field-name | number | "'" string "'" | "true" | "false"
+```
+
+Every `field-name` in an invariant MUST be a field of the message. No function
+calls, no arithmetic operators, no indexing.
+
+### B.16 `doc` object
+
+```yaml
+doc:
+  motivation:   <string>              # REQUIRED by lint for every message
+  since:        <version-str>         # OPTIONAL
+  see_also:     [ <string>, ... ]     # OPTIONAL; free-form topic/message references
+  example_note: <string>              # OPTIONAL
+```
+
+Nothing under `doc` reaches the wire; it feeds the generated documentation
+appendix (§5.3) only.
+
+### B.17 Versioning and determinism
+
+- `family.version` (integer) is the **logical layout version** of the family.
+  It is distinct from the single global BALF wire-header version byte (`0x01`)
+  shared by all binary messages (R7): a family bump does not change the header
+  byte, and the header byte changes only by a deliberate protocol-wide decision.
+- A field MUST pass through `deprecated_since` before it may be removed, and MUST
+  NOT be deleted before the family reaches `removed_after` (§4.5).
+- **Determinism (normative):** generated output MUST be a byte-for-byte pure
+  function of the spec. Field/enum/message order in every artefact follows
+  **declaration order** in the spec; mappings are emitted in a stable
+  (declaration or lexicographic) order; no timestamps, absolute paths, or
+  set-iteration-dependent ordering may appear. This is what makes `pm-msgen
+  check` (§7.2) a reliable gate rather than a flaky one.
+
+### B.18 Static semantic rules (normative; enforced by `pm-msgen lint`)
+
+A spec is **valid** only if all of the following hold. Each is a lint error.
+
+1. Every `transport` entry is a registry name or one of `calf`/`balf`/`ralf`.
+2. `topic` is present iff the message lists ≥1 bus transport, and matches the
+   `topic-pattern` lexical rule.
+3. Every `{param}` in `topic` names a field of the message.
+4. `include` (every transport) names only declared fields; `all` is allowed.
+5. Every `required` field appears in the **bus** projection's `include` (the bus
+   payload is authoritative).
+6. For a **text** encoding, `keys` covers exactly the included, non-gateway-injected
+   fields; no `keys` value collides with a `gateway_injected` key.
+7. An `enum` field has `values`; a binary encoding of an enum field has an
+   `enum_map` covering **every** name in `values`.
+8. A `string` field reaching any external transport has `validate.max_len`; a
+   binary `char[N]` has `N == validate.max_len`.
+9. A `list[nested]`/`nested` field has `item` naming a declared `nested_types`
+   entry; `list[...]` reaching an external transport has `validate.max_items`.
+10. Binary `layout` offsets are non-overlapping, in range `[0, frame_size-8)`,
+    and every non-reserved byte up to `frame_size-8` is covered by exactly one
+    entry (gaps MUST be explicit `reserved` runs). A `scale: price_scale`
+    reference requires `price_scale` to be declared on the same `balf` block;
+    every `char[N]` in the layout matches its field's `max_len` (rule 8).
+11. Binary `msg_type` is a byte and unique within its transport across all families.
+12. Deprecated fields carry a non-empty `doc`; a field is not deleted before
+    `removed_after` (§B.17).
+13. `unit`, when present, is one of the §B.11 values; `lint` additionally
+    requires a `unit` on numeric (`int`/`float`/`ticks`) fields.
+14. `topic` strings are unique across **all** families (§7.3).
+15. Unknown keys anywhere in the spec are rejected (strict loader, §A.2, §7.3).
+
+Rules 1–15 are properties of a spec (`V001`–`V015`, §7.5.4). One further rule
+binds the **loader itself**, not the spec: it MUST load via `yaml.compose()`
+(not `safe_load`) so every diagnostic carries `file:line:col` (§7.5.1), every
+diagnostic MUST be a coded `Diagnostic` (§7.5.2) rather than a bare exception,
+and a run MUST report all errors in a layer instead of failing on the first
+(§7.5.5).
+
+### B.19 Formal grammar (authoritative summary)
+
+```ebnf
+(* ---- transport registry: spec/transports.yaml ---- *)
+transport-file ::= "transports:" { identifier ":" transport-def }
+transport-def  ::= "pattern:" pattern
+                   [ "subscriber_pattern:" pattern ]
+                   "address_config_key:" identifier
+pattern        ::= "PUB" | "SUB" | "PUSH" | "PULL" | "TCP"
+
+(* ---- family file: spec/messages/<family>.yaml ---- *)
+family-file    ::= "family:" identifier
+                   "version:" integer
+                   "messages:" nonempty-list(message)
+
+message        ::= "name:" identifier
+                   [ "topic:" topic-pattern ]
+                   "transport:" nonempty-list(transport-ref)
+                   [ "doc:" doc-block ]
+                   "fields:" nonempty-list(field)
+                   [ "nested_types:" { identifier ":" nested-def } ]
+                   [ "encoding:" { transport-ref ":" encoding-def } ]
+                   [ "invariants:" list(invariant) ]
+transport-ref  ::= identifier | "calf" | "balf" | "ralf"
+
+nested-def     ::= "fields:" nonempty-list(field)
+
+field          ::= "name:" identifier
+                   "type:" type
+                   [ "required:" boolean ]
+                   [ "default:" scalar ]
+                   [ "unit:" unit ]
+                   [ "doc:" string ]
+                   [ "values:" nonempty-list(enum-name) ]
+                   [ "item:" identifier ]
+                   [ "validate:" validate-map ]
+                   [ "deprecated_since:" version-str ]
+                   [ "removed_after:" version-str ]
+
+type           ::= "string" | "int" | "float" | "bool" | "enum" | "ticks"
+                 | "nested" | "list[" type "]"
+
+unit           ::= "display_price" | "ticks" | "shares" | "epoch_seconds"
+                 | "epoch_nanos" | "percent" | "dimensionless" | "money"
+
+validate-map   ::= "{" { validate-key ":" scalar } "}"
+validate-key   ::= "gt" | "ge" | "lt" | "le"
+                 | "max_len" | "min_len" | "max_items" | "pattern"
+
+encoding-def   ::= bus-enc | text-enc | binary-enc
+bus-enc        ::= "frames:" "[" frame-token { "," frame-token } "]"
+                   [ "include:" include-spec ]
+frame-token    ::= "topic" | "json_payload"
+text-enc       ::= "msg_type:" msg-type-text
+                   [ "include:" include-spec ]
+                   "keys:" "{" { identifier ":" key-target } "}"
+                   [ "gateway_injected:" "[" key-name { "," key-name } "]" ]
+key-target     ::= key-name | "[" key-name { "," key-name } "]"
+binary-enc     ::= "msg_type:" hex-byte
+                   "frame_size:" integer
+                   [ "price_scale:" integer ]
+                   "layout:" nonempty-list(layout-entry)
+layout-entry   ::= "{" "field:" identifier "," "repr:" repr "," "offset:" integer
+                       [ "," "scale:" ( integer | "price_scale" ) ]
+                       [ "," "enum_map:" "{" { enum-name ":" integer } "}" ] "}"
+                 | "{" "reserved:" integer "," "offset:" integer "}"
+repr           ::= "u8"|"u16"|"u32"|"u64"|"i8"|"i16"|"i32"|"i64"
+                 | "f32"|"f64"|"char[" integer "]"
+include-spec   ::= "all" | "[" identifier { "," identifier } "]"
+
+invariant      ::= "rule:" invariant-expr "message:" string
+doc-block      ::= [ "motivation:" string ] [ "since:" version-str ]
+                   [ "see_also:" "[" string { "," string } "]" ]
+                   [ "example_note:" string ]
+```
+
+### B.20 Complete worked example (exercises every construct)
+
+The following single family file exercises every feature of the grammar —
+bus/text/binary encodings, `all` and explicit `include`, one-to-many `keys`,
+`gateway_injected`, `nested_types` + `list[nested]`, every `type`, every
+`validate` key, `enum_map`, `scale`/`price_scale`, `reserved` padding, an
+`invariant`, a full `doc` block, deprecation keys, and a parameterised topic.
+
+```yaml
+family: sample
+version: 2
+
+messages:
+  # --- bus + text projections, parameterised topic, invariant, deprecation ---
+  - name: order_ack
+    topic: "order.ack.{gateway_id}"          # {gateway_id} MUST be a field
+    transport: [engine_pub, ralf]
+    doc:
+      motivation: "Acknowledge acceptance or rejection of a new order."
+      since: "1.0"
+      see_also: ["order.new", "order.fill.{GW_ID}"]
+      example_note: "reason is empty on ACCEPTED."
+    fields:
+      - { name: gateway_id, type: string, required: true, validate: { max_len: 32 } }
+      - { name: order_id,   type: string, required: true, validate: { max_len: 64, pattern: '^[0-9]+$' } }
+      - name: status
+        type: enum
+        values: [ACCEPTED, REJECTED]
+        required: true
+      - { name: reason, type: string, required: false, default: "", doc: "Rejection detail.",
+          validate: { max_len: 128, min_len: 0 } }
+      - name: limit_price
+        type: float
+        required: false
+        unit: display_price
+        validate: { gt: 0 }
+      - name: order_type
+        type: enum
+        values: [LIMIT, MARKET]
+        required: true
+      - { name: legacy_flag, type: bool, required: false, default: false,
+          deprecated_since: "1.2", removed_after: "2.0", doc: "Superseded by status." }
+      - { name: ts, type: float, required: true, unit: epoch_seconds }
+    invariants:
+      - rule: "limit_price > 0 or order_type == 'MARKET'"
+        message: "limit orders require a positive price"
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: all
+      ralf:
+        msg_type: ACK
+        include: [order_id, status, reason]
+        keys: { order_id: [OID, ORDER_ID], status: ST, reason: RSN }
+        gateway_injected: [CH, GW, TS]
+
+  # --- nested + list[nested] projection over the bus ---
+  - name: book_snapshot
+    topic: "book.{symbol}"
+    transport: [engine_pub]
+    fields:
+      - { name: symbol, type: string, required: true, validate: { max_len: 16 } }
+      - { name: depth,  type: int,    required: true, unit: dimensionless, validate: { ge: 1, le: 50 } }
+      - { name: bids,   type: list[nested], item: level, required: true, validate: { max_items: 32 } }
+      - { name: asks,   type: list[nested], item: level, required: true, validate: { max_items: 32 } }
+    nested_types:
+      level:
+        fields:
+          - { name: price, type: float, required: false, unit: display_price }
+          - { name: qty,   type: int,   required: true,  default: 0, unit: shares }
+          - { name: count, type: int,   required: true,  default: 0, unit: dimensionless }
+
+  # --- binary-only message: full layout, scale, enum_map, reserved padding ---
+  - name: execution_report
+    transport: [balf]                          # no `topic:` — not a bus message
+    fields:
+      - { name: client_order_id, type: int,    required: true, unit: dimensionless }
+      - { name: order_id,        type: string, required: true, validate: { max_len: 16 } }
+      - { name: fill_price,      type: float,  required: true, unit: display_price, validate: { gt: 0 } }
+      - { name: fill_qty,        type: int,    required: true, unit: shares }
+      - { name: timestamp_ns,    type: int,    required: true, unit: epoch_nanos }
+      - { name: symbol,          type: string, required: true, validate: { max_len: 8 } }
+      - name: side
+        type: enum
+        values: [BUY, SELL]
+        required: true
+      - name: status
+        type: enum
+        values: [NEW, PARTIAL, FILLED, CANCELLED]
+        required: true
+    encoding:
+      balf:
+        msg_type: 0x20
+        frame_size: 64           # 8-byte header + 56-byte body
+        price_scale: 100000000
+        layout:
+          - { field: client_order_id, repr: u64,      offset: 0  }
+          - { field: order_id,        repr: char[16], offset: 8  }
+          - { field: fill_price,      repr: i64,       offset: 24, scale: price_scale }
+          - { field: fill_qty,        repr: u32,       offset: 32 }
+          - { field: timestamp_ns,    repr: u64,       offset: 36 }
+          - { field: symbol,          repr: char[8],   offset: 44 }
+          - { field: side,            repr: u8,        offset: 52, enum_map: { BUY: 1, SELL: 2 } }
+          - { field: status,          repr: u8,        offset: 53, enum_map: { NEW: 0, PARTIAL: 1, FILLED: 2, CANCELLED: 3 } }
+          - { reserved: 2, offset: 54 }     # pad body to 56 bytes -> frame_size 64
+```
+
+If a construct is needed that this grammar cannot express, that is a defect in
+this appendix and MUST be resolved by extending §B.19 (and this example) — not
+by an ad-hoc key in a single spec file.
+
+### B.21 Coverage check
+
+Every construct used anywhere in this document is defined above:
+
+| Construct (first used in) | Defined in |
+|---|---|
+| `family` / `version` / `messages` (§4.1) | §B.5 |
+| `topic` with `{param}` (§4.1, §5.1) | §B.3, §B.6, §B.18 r2–3 |
+| `transport` list, registry, `calf`/`balf`/`ralf` (§4.4) | §B.4, §B.6 |
+| `doc` block: motivation/since/see_also/example_note (§4.1) | §B.16 |
+| `fields`, all `type` values (§4.1, §4.2) | §B.7, §B.9 |
+| `unit` enumeration (§4.2) | §B.11 |
+| `validate` keys gt/ge/lt/le/max_len/min_len/max_items/pattern (§4.3) | §B.12 |
+| `required` / `default` / `values` (§4.1) | §B.7 |
+| `nested_types`, `item`, `list[nested]` (§4.1) | §B.8, §B.9 |
+| `encoding.bus` `frames`/`include` (§4.1) | §B.13 |
+| `encoding.calf`/`ralf` `msg_type`/`include`/`keys`/`gateway_injected`, one-to-many keys (§4.1, §4.6) | §B.13, §B.14 |
+| `encoding.balf` `msg_type`/`frame_size`/`price_scale`/`layout` (§4.1) | §B.13 |
+| layout `repr`/`offset`/`scale`/`enum_map`/`reserved` (§4.1, §5.2) | §B.10, §B.13 |
+| `invariants` `rule`/`message` + expression language (§4.3) | §B.15 |
+| `deprecated_since` / `removed_after` (§4.5) | §B.7, §B.17 |
+| determinism guarantee (§7.2) | §B.17 |
+| strict-loader / lint rules (§7.3, §A.2) | §B.18 |
+| parsing, source spans, coded diagnostics, expression scanner (§7.5) | §B.18 (loader rule), §B.15 (expression grammar) |
