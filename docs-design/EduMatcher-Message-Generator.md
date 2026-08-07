@@ -1,8 +1,50 @@
-Version: 1.4.0
+Version: 1.6.0
 
 Date: 2026-08-07
 
-Status: Design and Research Proposal (reviewed twice; code-grounded; normative IDL + parser design)
+Changes in 1.6.0 — Phases 1 and 2 are implemented; these are the two
+corrections implementation forced, both recorded in §8:
+
+- **§8.1** `pm-stats` adopts the generated *topic constant*, not the validating
+  parser. A recorder must record what it received; validating it would make the
+  recorder refuse exactly the malformed messages someone needs to investigate.
+  Generalised into a rule for Phase 5.
+- **§8.2** `make_*_unchecked` was reshaped. Phase 1's version routed through
+  `from_dict`/dataclass/`to_dict` and measured 4.03 µs against the hand-written
+  literal's 0.96 — unusable on a path where `perf-notes.md` counts 0.2–1.0 µs
+  savings. It now builds the payload dict directly (1.47 µs, +0.50). Coercion is
+  kept deliberately, because dropping it saves 0.34 µs and reintroduces a silent
+  int/float wire divergence that mypy cannot catch.
+
+Status: Design and Research Proposal (reviewed three times; code-grounded; normative IDL + parser design)
+
+Changes in 1.5.0 — all seven are corrections found by grounding v1.4.0 against the
+tree before Phase 1 began; see §12 for the evidence:
+
+- §4.1's worked example keyed its bus encoding block `bus:`; §B.13/§B.20 key it
+  by transport name. The appendix is normative, so §4.1 was wrong and is fixed
+  to `engine_pub:`.
+- **New normative rule (§5.1.1): `from_dict` coerces and never validates;
+  `validate()` is the only strictness gate.** This is what makes a strict spec
+  safe for a lenient archive, and it resolves the `aggressor_side` question.
+- A.3's `make_*` bypassed `from_dict`, so it skipped the coercion the
+  hand-written factory performs. `make_*` now routes through `from_dict`.
+- Phase 2's "byte-identical" acceptance criterion asserted one invariant where
+  the system has two of different strength; §8 Phase 2 now states both.
+- Open question 4 (validating vs unchecked constructors) is promoted to a
+  **Phase 2 requirement** for any family whose producer is on a hot path,
+  because `trade` is such a family and `make_trade_msg` has no production
+  callers (§12.2).
+- §B.13 gains a normative key-ordering rule for text projections, without
+  which a generated RALF line cannot reproduce the existing one.
+- §B.6's `encoding` default and §B.18 rule 5 were both stated unconditionally
+  and are unsatisfiable for text-only and BALF-only messages respectively.
+
+One construct was added to the IDL rather than corrected: **`parse_default`**
+(§B.7, §B.7.1). It is the syntax the new §5.1.1 rule needs and had no
+expression in v1.4.0's grammar; per §B.20's closing paragraph the grammar was
+extended rather than an ad-hoc key being introduced in a single spec file.
+Open questions 4 and 6 are resolved (§12.5, §8 Phase 2).
 
 # Message Generator - Canonical Message Specification and Code Generation
 
@@ -222,8 +264,11 @@ messages:
         unit: epoch_seconds
 
     # ---- per-transport encoding (projection model: see §4.6) ----
+    # NOTE: `encoding` is keyed by TRANSPORT NAME (§B.13), not by transport
+    # class. There is no `bus:` key — the bus block for this message is
+    # `engine_pub:`, matching the entry in `transport:` above.
     encoding:
-      bus:
+      engine_pub:
         # encode() (models/message.py) returns exactly TWO frames
         # [topic, json_payload]. The per-topic sequence is a third frame added
         # by SequencedPublisher.send_multipart() (messaging/bus.py) at publish
@@ -550,12 +595,15 @@ class TradeExecuted:
     def from_dict(cls, payload: Mapping[str, Any]) -> "TradeExecuted": ...
     def to_dict(self) -> dict[str, Any]: ...
 
-def make_trade_executed(*, id: str, symbol: str, ...) -> list[bytes]:
-    """Validating constructor. Returns the TWO bus frames [topic, payload].
+def make_trade_executed(**kw: Any) -> list[bytes]:
+    """Coercing + validating constructor. Returns the TWO bus frames.
 
     The per-topic sequence third frame is NOT added here — it is appended by
     SequencedPublisher.send_multipart() at publish time (messaging/bus.py).
     """
+
+def make_trade_executed_unchecked(**kw: Any) -> list[bytes]:
+    """Identical frames, no validate(). Measured hot paths only (§8 Phase 2)."""
 
 def parse_trade_executed(frames: list[bytes]) -> TradeExecuted: ...
 def is_trade_executed(topic: str) -> bool: ...
@@ -568,6 +616,55 @@ defines it **once**, hand-written and committed, in
 `src/edumatcher/models/generated/_runtime.py`, subclassing `ValueError` so
 existing `except ValueError` call sites keep working. Every generated family
 module imports it from there rather than each declaring its own.
+
+#### 5.1.1 Coercion and validation are different jobs (normative)
+
+This rule is what lets the spec be strict about a field while the running
+system remains tolerant of an archive written before the spec existed. It is
+not an implementation detail; it is the contract:
+
+| Function | Coerces? | Validates? |
+|---|---|---|
+| `from_dict(payload)` | **yes** | **no** |
+| `validate()` | no | **yes** — the only strictness gate |
+| `make_*(**kw)` | yes (via `from_dict`) | yes |
+| `parse_*(frames)` | yes (via `from_dict`) | yes |
+| `to_dict()` | no | no |
+
+- **`from_dict` MUST NOT validate.** It performs exactly the `str()`/`int()`/
+  `float()` coercion and `.get(field, default)` fallbacks the hand-written
+  payload performs, and nothing else. A parser that cannot read the system's
+  own archive is useless, and the migration in §8 depends on `from_dict` being
+  a drop-in for the hand-written equivalent.
+- **`validate()` MUST be the only place a rule is enforced**, so that a
+  consumer reading historical data can choose leniency by calling `from_dict`
+  alone, while every *producer* path is strict.
+- **`make_*` MUST route through `from_dict`, not the dataclass constructor.**
+  `Cls(**kw)` skips coercion, so `make_*(price=100)` would put an `int` on the
+  wire where the hand-written factory puts a `float` — a silent wire difference
+  and exactly the failure class this tool exists to remove. (Appendix A.3
+  showed `TradeExecuted(**kw)`; that was a defect, corrected there.)
+
+The practical consequence, worked through for the case that motivated the
+rule. `trade.executed`'s `aggressor_side` is typed as a required `str` in
+`models/trade.py` and `models/feed_schema.py`, yet five separate deserialisers
+independently default it to `""` (`feed_schema.py:60`, `trade.py:113`,
+`ralf_gateway/gateway.py:472`, `alf_gwy/gateway.py:935`), and
+`clearing/main.py:120` then writes `trade.aggressor_side or None` to undo it.
+Nobody decided `""` was legal; it accreted. Under the rule above the spec
+declares the field `required: true, values: [BUY, SELL, AUCTION]` — the honest
+contract — while generated `from_dict` keeps the `""` fallback verbatim. So:
+
+- Nothing that reads history breaks.
+- Every *published* message is checked, and the engine already always supplies
+  a real value (`engine/order_book.py:1124`).
+- `""` can never reach the generated C enum (§5.2), because C only ever sees
+  the projection of a validated, published message — so no `EDU_AGG_UNKNOWN`
+  sentinel has to be invented, and an accident is not exported into a second
+  language and frozen in a wire contract.
+- The `""` population becomes **countable for the first time**: run `validate()`
+  over the clearing archive and read the failure count. Today nothing asserts,
+  so nobody knows.
 
 For parameterised topics the constants become functions, which is what removes
 the 108 scattered literals:
@@ -677,10 +774,11 @@ Generated per family, so no consumer hand-writes them:
 |---|---|
 | `topic_*()` / `PREFIX_*` | Build and subscribe without literals |
 | `match_*(topic)` | Extract the parameter, or `None` |
-| `parse_*(frames)` | Frames → typed object, validated |
-| `make_*(**kw)` | Validated construction → frames |
-| `to_dict` / `from_dict` | Interop with existing dict-based code |
-| `validate()` | Standalone, for tests and gateways |
+| `parse_*(frames)` | Frames → typed object, coerced **and** validated |
+| `make_*(**kw)` | Coerced + validated construction → frames |
+| `make_*_unchecked(**kw)` | Same frames, no `validate()`. Hot paths only (§8 Phase 2) |
+| `to_dict` / `from_dict` | Interop with existing dict-based code. `from_dict` **coerces only** — see §5.1.1 |
+| `validate()` | Standalone, the only strictness gate (§5.1.1) |
 | `FAMILY_TOPICS` | Registry for routers and spy tools |
 | `describe_*()` | Field metadata at runtime, for `pm-*-spy` pretty-printing |
 
@@ -700,22 +798,13 @@ only the generated output in `models/generated/` and `docs/examples/generated/`
 is a runtime dependency, and those are committed, ordinary, hand-reviewable
 Python/C files.
 
-Code generation needs a templating story that isn't in `pyproject.toml`
-today (no Jinja2, no pydantic). Add a new optional dependency group. The repo
-has only `dev` and `docs` groups today — there is no `mcp` group — so model the
-new one on the real `docs` group:
-
-```toml
-[tool.poetry.group.msgen.dependencies]
-jinja2 = "^3.1"
-```
-
-`jinja2` is generation-time only — it never appears in the generated files'
-imports, so it does not become a transitive runtime dependency of the engine.
-Spec parsing reuses the `pyyaml` dependency already in `[tool.poetry.dependencies]`.
+Code generation needs no new dependency (open question 6, resolved in 1.5.0 —
+see §12.5). Templates are hand-rolled string assembly; spec parsing reuses the
+`pyyaml` dependency already in `[tool.poetry.dependencies]`. There is therefore
+**no `[tool.poetry.group.msgen.dependencies]` group**, and no change to
+`poetry install --with dev,docs`.
 
 ```bash
-poetry install --with dev,docs,msgen
 pm-msgen generate --spec spec/messages --out-python src/edumatcher/models/generated \
                   --out-c docs/examples/generated --out-docs docs/user-guide
 pm-msgen check                 # regenerate to temp, diff against committed
@@ -951,14 +1040,118 @@ that already has a hand-written typed equivalent.
 
 ### Phase 2 — Adopt for one family
 
-`make_trade_msg` becomes a thin shim over `make_trade_executed`. `pm-stats`
-parses with the generated parser.
+`make_trade_msg` becomes a thin shim over `make_trade_executed`.
+`engine/main.py::_publish_trade` adopts `make_trade_executed_unchecked`.
+`pm-stats` adopts the generated **topic constant** — but deliberately not the
+validating parser; see §8.1 below for why, and §8.2 for what the hot path cost.
 
 *Test:* the entire existing suite passes unchanged — that is the acceptance
-criterion. Plus a wire-compatibility test asserting generated frames are
-byte-identical to the previous hand-written ones.
+criterion. Plus a wire-compatibility test asserting **two claims of different
+strength**, because the system has two producers with two different contracts:
 
-*Ships:* one family, provably wire-compatible.
+| Comparison | Assertion | Why this strength |
+|---|---|---|
+| `make_trade_msg` vs `make_trade_executed` | **byte-identical frames** | Both derive from `to_dict()`. There is no excuse for a difference. |
+| `engine/main.py::_publish_trade`'s inline dict vs `make_trade_executed` | **equal key sets and equal parsed payloads** | `_publish_trade` emits `tick_decimals` between `price` and `quantity`; `to_dict()` emits it last. Nothing on the wire cares — JSON objects are unordered and every consumer uses `.get` — so byte-identity here is *stronger than the system's actual contract* and would block a legitimate change. |
+
+v1.4.0 asserted byte-identity for both. That was wrong in one direction and
+would have pushed the fix in the wrong direction too: matching the spec's field
+order to `_publish_trade`'s would let an incidental artefact of one hand-written
+call site dictate the canonical field order forever.
+
+**`make_*_unchecked` is a Phase 2 requirement, not a later optimisation.**
+Open question 4 proposed generating a non-validating constructor for measured
+hot paths and deferred the decision. For `trade` it cannot be deferred, because
+of §12.2: `make_trade_msg` has **no production callers** — the only references
+are in `tests/`. The real producer is the inline dict literal in
+`engine/main.py:2140-2162`. Adopting only `make_trade_msg` would therefore
+adopt the generator into code that never runs in anger: `pm-msgen check` goes
+green, the engine keeps hand-writing the dict, and the generator has not
+removed the drift for this family — it has added a *fourth* place a trade is
+described.
+
+So Phase 2 for a family whose producer is on a hot path MUST generate both
+`make_<msg>` (validating) and `make_<msg>_unchecked` (identical field order and
+serialiser, no `validate()` call), and MUST convert the producer. The
+substitution is mechanical — `_publish_trade` already does
+`send_multipart([_TRADE_TOPIC, dumps({...})])` and the unchecked function
+returns exactly `[topic_bytes, dumps(...)]` — but it does mean **Phase 2 touches
+the engine's hot path, which is higher-risk than this section implied at
+v1.4.0.** Mitigation: the byte-identity test above, plus a `perf`-marked test
+asserting the unchecked path costs no more than the inline literal.
+
+*Ships:* one family, provably wire-compatible, with the *actual* producer
+generated.
+
+#### 8.1 A recorder must not validate (correction, found during Phase 2)
+
+v1.5.0 said "`pm-stats` parses with the generated parser". Implementing it
+showed that to be wrong, and the reason generalises to every consumer of this
+kind.
+
+`stats/main.py::_on_trade` is deliberately tolerant, in three separately
+documented ways:
+
+| Tolerance | Where | Why it is there |
+|---|---|---|
+| Returns early when `symbol`/`price`/`quantity` is missing | `_on_trade` head | a partial print is skipped, not fatal |
+| Falls back to receipt time when `timestamp` is absent, with a warning | `_on_trade` | the row is still worth recording |
+| Accepts a non-numeric `id`, disabling gap detection with one warning | `_check_trade_sequence` | "a synthetic or gateway-supplied id" is an expected input |
+
+`parse_trade_executed` validates, so adopting it would make pm-stats **raise**
+on a non-numeric `id`, on `aggressor_side == ""`, and on a non-positive price —
+inputs the recorder currently handles on purpose. Even `from_dict` is stricter
+about *presence* than `_on_trade` is: it raises `KeyError` where `_on_trade`
+returns early or warns.
+
+The principle: **a recorder records what it received.** Refusing to store a
+message because it fails the current spec destroys exactly the evidence needed
+to find out why it was malformed. Validation belongs on the *producer* side and
+at trust boundaries, which is what §5.1.1 already says — `parse_*` is for a
+consumer that would rather fail than act on a bad message, and a statistics
+recorder is not one.
+
+So pm-stats adopts `TOPIC_TRADE_EXECUTED` in place of its two `"trade.executed"`
+literals (`TRADE_STREAM` and the dispatch test). That is a real gain against
+§1.2 — a topic rename in the spec now reaches the recorder — at zero behavioural
+risk. Its payload handling stays hand-written and tolerant.
+
+**The general rule for Phase 5:** adopt the *topic constants* everywhere, and
+adopt `parse_*` only where the consumer genuinely wants to reject a
+non-conforming message. Do not assume every subscriber wants validation.
+
+#### 8.2 `make_*_unchecked` had to be reshaped (correction, found during Phase 2)
+
+As generated in Phase 1, `make_*_unchecked` routed through
+`from_dict` → dataclass → `to_dict` → `encode`. Measured on `trade`
+(200 000 iterations, `orjson`):
+
+| Construction | µs/call | vs. the hand-written literal |
+|---|---|---|
+| `engine/main.py`'s inline dict + `dumps` | 0.96 | — |
+| generated, dict literal, no coercion | 1.12 | +0.16 |
+| **generated, dict literal, inline coercion** | **1.47** | **+0.50** |
+| generated, via `from_dict`/dataclass/`to_dict` | 4.03 | +3.08 |
+
+Two conclusions:
+
+1. **The Phase 1 shape was unusable.** `perf-notes.md` records publication
+   optimisations worth 0.2–1.0 µs each; +3.1 µs would undo all of them several
+   times over. A constructor whose stated purpose is "measured hot paths only"
+   cannot be four times slower than the code it replaces. `make_*_unchecked` is
+   therefore generated as explicit keyword-only typed parameters building the
+   payload dict literal directly, with the topic pre-encoded at import — the
+   same optimisation the engine's own `_TRADE_TOPIC` was.
+2. **Coercion stays, and the 0.34 µs is paid.** Dropping it is nearly free but
+   makes `make_*_unchecked(price=100)` put an int on the wire where `make_*`
+   puts a float. mypy does **not** catch this — `int` is promotable to `float`
+   in the type system — so it would be a silent wire divergence between two
+   functions documented as producing identical frames. That is the failure class
+   in §1; paying 0.34 µs to keep it impossible is the whole point of the tool.
+
+`make_*` (validating) keeps the `**kw: Any` + `from_dict` route: its callers
+have a dict of uncertain provenance, which is exactly what `from_dict` is for,
+and it is not on a hot path.
 
 ### Phase 3 — CI drift check
 
@@ -1085,19 +1278,19 @@ class a generator removes and a reviewer does not reliably catch.
 3. **BALF layout ownership.** The spec would become authoritative for the
    binary layout, which currently lives in `910-app-balf-protocol.md` and the
    example parser. Migrating it is valuable but makes Phase 4 larger.
-4. **Runtime validation cost.** Generated `make_*` validates on every
-   construction. The engine's hot path publishes per order; the perf notes are
-   explicit about microseconds. Proposal: generate `make_*` (validating) and
-   `make_*_unchecked` (not), with the engine opting into the latter on
-   measured paths only.
+4. ~~**Runtime validation cost.**~~ **Resolved in 1.5.0 — promoted to a Phase 2
+   requirement.** Generate both `make_*` (validating) and `make_*_unchecked`
+   (not), and convert the hot-path producer to the latter. This is no longer
+   optional for a family whose producer is on a hot path, because otherwise the
+   family's real producer stays hand-written and the adoption is cosmetic
+   (§8 Phase 2, §12.2).
 5. **Versioning across the wire.** `family.version` covers layout changes, but
    there is no negotiation today. Out of scope here; worth its own note if
    external clients are ever versioned independently.
-6. **Templating engine choice.** §7.1 proposes Jinja2 as a new generation-time
-   dependency group. An alternative is hand-rolled string templates (no new
-   dependency, matches the "small vocabulary" philosophy of §2, but harder to
-   keep readable as the C template grows). Worth a short spike before Phase 1
-   rather than deciding in this document.
+6. ~~**Templating engine choice.**~~ **Resolved in 1.5.0: hand-rolled, no new
+   dependency.** See §12.5. §7.1's `[tool.poetry.group.msgen.dependencies]`
+   block is therefore not added; `pyyaml` (already a runtime dependency) is the
+   only thing the generator needs.
 7. **Spec-file JSON Schema.** `pm-msgen lint` (§7.3) validates spec semantics,
    but nothing validates the YAML *shape* itself (e.g. a typo'd key like
    `requird: true`) before that. Worth deciding whether `lint` also loads a
@@ -1106,6 +1299,190 @@ class a generator removes and a reviewer does not reliably catch.
    only if it is written strictly, which should be stated as a requirement).
 
 
+
+## 12. Grounding notes for the corrections in 1.5.0
+
+Each correction listed at the top of this document came from checking a v1.4.0
+claim against the tree. Recorded here so a later reader can re-verify rather
+than re-derive.
+
+### 12.1 `aggressor_side` is undecided, not defaulted
+
+| Site | Code |
+|---|---|
+| `models/trade.py:45` | `aggressor_side: str` — required, no default |
+| `models/feed_schema.py:45` | `aggressor_side: str` — required, no default |
+| `models/trade.py:113` | `d.get("aggressor_side", "")` |
+| `models/feed_schema.py:60` | `str(payload.get("aggressor_side", ""))` |
+| `ralf_gateway/gateway.py:472` | `str(payload.get("aggressor_side", ""))` |
+| `alf_gwy/gateway.py:935` | `str(payload.get("aggressor_side", ""))` |
+| `clearing/main.py:120` | `trade.aggressor_side or None` — undoes the `""` |
+| `engine/order_book.py:1124` | always assigns a real value, never `""` |
+
+The type says the field is required; four deserialisers say `""` is expected;
+one consumer converts `""` back to `NULL`. No single site is wrong and the set
+is incoherent. §5.1.1 resolves it by separating coercion from validation rather
+than by picking one of the two existing answers.
+
+### 12.2 `make_trade_msg` has no production callers
+
+```
+$ grep -rn "make_trade_msg" --include=*.py . | grep -v '^./tests/'
+./src/edumatcher/models/message.py:284:def make_trade_msg(...)   # the definition
+```
+
+Only `tests/test_messages.py` and `tests/test_clearing_main.py` call it. The
+same scan finds six further `make_*` factories with no `src/` caller
+(`make_position_request_msg`, `make_log_subscribe_msg`, `make_log_renew_msg`,
+`make_log_unsubscribe_msg`, `make_log_backfill_request_msg`,
+`make_log_status_request_msg`) — noted, not touched; whether they are dead or
+merely externally-facing is a separate question this work does not answer.
+
+The consequence for §8 Phase 2 is in that section. The consequence for §1's
+framing is worth stating too: the "92 `make_*` factories are the de-facto
+publisher API" claim is *approximately* right but not uniformly so, and the
+engine's hot path is exactly where it is least true.
+
+### 12.3 The two trade producers disagree on key order
+
+`engine/main.py:2146-2160` emits
+`id, symbol, buy_order_id, sell_order_id, buy_gateway_id, sell_gateway_id,
+price, tick_decimals, quantity, aggressor_side, timestamp`.
+
+`feed_schema.TradeExecutedPayload.to_dict()` (`:66-78`) emits the same eleven
+keys with `tick_decimals` **last**.
+
+Both are valid JSON for the same logical message and every consumer uses
+`.get`, so no consumer can tell. Only a byte-comparing test can — which is why
+§8 Phase 2 now states two assertions of different strength instead of one.
+
+### 12.4 Claims that checked out
+
+Recorded so they are not re-investigated:
+
+- §4.6's CALF projection table matches `md_gateway/normaliser.py:191-210`
+  exactly: `normalise_trade` emits `{PX, QTY, SIDE}` and nothing else.
+- §4.6's RALF projection matches `ralf_gateway/gateway.py:452-478`, including
+  `id` feeding both `EXEC_ID` and `MATCH_ID`.
+- §4.1's BALF `execution_report` layout matches
+  `docs/examples/balf/balf_parser.py:139-161` byte-for-byte: `frame_size 72`
+  = `FRAME_SIZES[0x20]`, 64-byte body, offsets 0/8/24/32/36/40/48/56/57,
+  `PRICE_SCALE = 100_000_000`, `magic 0xBA`, `version 0x01`.
+- §4.1's note that `encode()` returns two frames and `SequencedPublisher` adds
+  the third matches `models/message.py:69-71` and `messaging/bus.py:42-72`.
+- §7.1's claim that `pyproject.toml` has only `dev` and `docs` groups, and no
+  Jinja2 or pydantic, holds.
+- The capstone's warning about `--strict-markers` holds: `markers` registers
+  only `perf`, so `msgen_c` must be added before any marked test is collected.
+  (`addopts` additionally deselects `heavy`, `probabilistic` and
+  `probabilistic_full`, none of which is registered — pre-existing, noted, not
+  changed here.)
+
+### 12.5 Open question 6 decided: hand-rolled templates
+
+Phase 1 emits Python only, which is a few hundred lines of `str.join` over a
+field list. Jinja2 would add a dependency group *and* a whitespace-control
+problem in exchange for nothing at this size, and §B.17's byte-for-byte
+determinism requirement is easier to audit in plain Python than in a template.
+Revisit at Phase 4 if the C emitter grows unwieldy; that is a local decision
+inside `generators/`, not a change to the spec model.
+
+## 13. Where the intent stands after Phase 2
+
+§1 opened by measuring the problem. This section measures the progress against
+it honestly, including where the answer is "not yet". Written after Phases 1
+and 2 shipped; update it after each subsequent phase.
+
+### 13.1 Against the §2 goals
+
+| # | Goal | Status |
+|---|---|---|
+| 1 | One canonical file per family; everything else generated | **partial** — true for `trade`; 1 family of ~15 specified |
+| 2 | Generated Python: typed payload, validating constructor, parser, topic constant | **done**, plus `describe_*`, `FAMILY_TOPICS`, `make_*_unchecked` |
+| 3 | Generated C | not started (Phase 4) |
+| 4 | Generated documentation appendix | not started (Phase 6) |
+| 5 | Validation declared once, enforced by *both* bindings | **half** — enforced in Python; no C binding to agree with yet |
+| 6 | Documentation-only metadata that never reaches the wire | **done** — `doc.motivation`/`since`/`see_also`/`example_note`, surfaced through `describe_*` |
+| 7 | **A CI check that fails on drift** | **not started (Phase 3)** — see 13.3 |
+
+### 13.2 Against the §1 measurements
+
+| §1 finding | Then | Now |
+|---|---|---|
+| 1.1 Payload shape typed for 7 of 92 messages | 7 typed by hand | 1 of those 7 now *generated* from a declared spec with units and constraints; the other 6 unchanged |
+| 1.2 Topic names duplicated as literals in subscribers | `"trade.executed"` in 17 modules | **14 modules, 26 occurrences** — Phase 2 removed 3 modules (`engine/main.py`, `stats/main.py`, `models/message.py`) |
+| 1.3 Documentation drifts in both directions | unchanged | unchanged — Phase 6 |
+| 1.4 The C surface has no message types | unchanged | unchanged — Phase 4 |
+
+The 1.2 number is the honest one to watch. Phase 2 adopted the *producer* side
+of `trade.executed` completely, and three of seventeen consumers. A publisher-side
+rename is therefore still silent for `ralf_gateway`, `board`, `api_gateway`,
+`alf_console`, `audit`, `balf_gwy`, `index`, `alf_gwy`, `clearing`,
+`ai_trader`, `md_gateway` and `mm_bot`. Driving that count to zero is what
+§7.4's `pm-msgen grep-literals` exists to measure, and it is Phase 5 work.
+
+### 13.3 The one thing that is not yet true
+
+§7.2 says it plainly: *"Without the check, the generator is merely a scaffolder
+and §1 recurs within a release."*
+
+That is the current state. `pm-msgen check` exists and works, and is exercised
+by four tests, but **it does not run in CI**. Nothing today stops someone
+hand-editing `models/generated/trade.py` and merging it. Until Phase 3 lands,
+the alignment rests on a test suite and reviewer attention — better than before,
+but not the guarantee this design is built around.
+
+Phase 3 is small (a Makefile target and a CI step) and should not be left
+sitting behind Phase 4 or 5. It is the highest value-per-line remaining.
+
+### 13.4 A duplicate this created, and why it was left
+
+Phase 2 made the spec authoritative for the engine, `make_trade_msg` and
+pm-stats — but `models/feed_schema.py::TradeExecutedPayload` is still
+hand-written, still field-for-field identical to the generated `TradeExecuted`,
+and still used by `clearing/main.py::_trade_from_payload`.
+
+Two typed descriptions of one message is §1's problem in miniature, so this is a
+real (if small) regression against the intent, created by this work. It is
+guarded rather than removed: `TestNoDuplicateDescriptionSurvivesUnguarded`
+asserts field-for-field parity, so drift fails the suite immediately.
+
+It was not folded into an alias because `feed_schema` is imported by
+`models/message.py`, which the generated module imports in turn; an alias would
+create a cycle whose safety depends on statement order inside `feed_schema.py`.
+That is worth doing deliberately, and it is the same decision as open question 2
+(should `feed_schema` be generated?) — which Phase 5 should now answer *yes* to,
+since the generator has proven it can reproduce these payloads exactly.
+
+### 13.5 What went better than the design predicted
+
+- **R1 (generated output silently diverges during migration)** did not
+  materialise, because the byte-identity test was written before the adoption
+  rather than after. The design's insistence that no family is adopted without
+  one earned its place.
+- **R9 (non-deterministic generation)** was designed out rather than tested for:
+  emitting black-formatted output directly, instead of shelling out to black,
+  removed the dependence on a formatter version entirely.
+- The **strict loader** (§B.18 rule 15) caught real typos during spec authoring,
+  including one in this repository's own first `trade.yaml` draft. The
+  "did you mean …?" suggestion cost about twenty lines and paid for itself
+  immediately.
+
+### 13.6 What the design got wrong, and the pattern in it
+
+Three corrections were needed once implementation started (§8.1, §8.2, and the
+seven fixed in 1.5.0). All three share a shape worth naming: **the design
+reasoned about the system from its documentation and its structure, and was
+right about both, but had not measured its behaviour.**
+
+- §12.2: `make_trade_msg` *looked* like the publisher API; it had no callers.
+- §8.2: routing `_unchecked` through the dataclass *looked* free; it was 4×.
+- §8.1: pm-stats *looked* like a parser; it is a recorder, and its tolerance was
+  load-bearing.
+
+The lesson for Phases 4–6: before adopting a generated artefact in a module,
+read what that module actually does with the message, and measure the path if
+it is hot. The design is a good map; it is not the territory.
 
 ## Appendix A — Phase 1 implementation starter
 
@@ -1132,8 +1509,7 @@ src/edumatcher/msgen/
         python.py       # spec -> src/edumatcher/models/generated/<family>.py
         # c.py    -> Phase 4
         # docs.py -> Phase 6
-    templates/
-        family_py.jinja2         # if Jinja2 is chosen (open question 6)
+    # no templates/ dir: hand-rolled string assembly (open question 6, §12.5)
 
 src/edumatcher/models/generated/
     __init__.py
@@ -1149,7 +1525,7 @@ tests/
 ```
 
 Register the script in `pyproject.toml`: `pm-msgen =
-"edumatcher.msgen.cli:main"`, and add the `msgen` dependency group (§7.1).
+"edumatcher.msgen.cli:main"`. No dependency group is needed (§12.5).
 
 ### A.2 The parsed-spec data model (`spec.py`)
 
@@ -1305,9 +1681,16 @@ class TradeExecuted:
         }
 
 def make_trade_executed(**kw: Any) -> list[bytes]:
-    obj = TradeExecuted(**kw)
+    # from_dict, NOT TradeExecuted(**kw): the constructor skips coercion, so
+    # make_trade_executed(price=100) would put an int on the wire where the
+    # hand-written factory puts a float. See §5.1.1 (normative).
+    obj = TradeExecuted.from_dict(kw)
     obj.validate()
     return _msg.encode(TOPIC_TRADE_EXECUTED, obj.to_dict())   # two frames — sequence added by the bus
+
+def make_trade_executed_unchecked(**kw: Any) -> list[bytes]:
+    """Same frames, no validate(). For measured hot paths only (§8 Phase 2)."""
+    return _msg.encode(TOPIC_TRADE_EXECUTED, TradeExecuted.from_dict(kw).to_dict())
 
 def parse_trade_executed(frames: list[bytes]) -> TradeExecuted:
     _topic, payload = _msg.decode(frames)
@@ -1373,10 +1756,25 @@ def test_to_dict_byte_identical_to_hand_written():
     hand = TradeExecutedPayload.from_dict(_SAMPLE).to_dict()
     gen  = TradeExecuted.from_dict(_SAMPLE).to_dict()
     assert gen == hand
+    assert list(gen) == list(hand)          # key ORDER too — to_dict feeds orjson
     # frames must also match: generated make_* and the existing make_trade_msg
     from edumatcher.models.message import make_trade_msg
     from edumatcher.models.generated.trade import make_trade_executed
     assert make_trade_executed(**_SAMPLE) == make_trade_msg(_SAMPLE)
+
+def test_from_dict_coerces_but_does_not_validate():
+    """§5.1.1: from_dict is lenient; validate() is the only strictness gate."""
+    loose = {**_SAMPLE, "price": 101, "quantity": "300", "id": 42}
+    obj = TradeExecuted.from_dict(loose)     # must NOT raise
+    assert obj.price == 101.0 and isinstance(obj.price, float)
+    assert obj.quantity == 300 and isinstance(obj.quantity, int)
+    assert obj.id == "42"
+    # and the archive case: a payload with no aggressor_side parses, then fails
+    # validate() — which is what makes the "" population countable (§5.1.1).
+    archived = {k: v for k, v in _SAMPLE.items() if k != "aggressor_side"}
+    assert TradeExecuted.from_dict(archived).aggressor_side == ""
+    with pytest.raises(MessageValidationError):
+        TradeExecuted.from_dict(archived).validate()
 
 @pytest.mark.parametrize("bad", [
     {**_SAMPLE, "price": 0}, {**_SAMPLE, "quantity": 0},
@@ -1394,11 +1792,14 @@ generated file, Phase 1 is done.
 
 ### A.6 Per-phase definition-of-done checklist
 
-- [ ] **Phase 1** `spec.py` loads `trade.yaml` and rejects unknown keys;
+- [x] **Phase 1** `spec.py` loads `trade.yaml` and rejects unknown keys;
   `generators/python.py` emits `models/generated/trade.py`; A.5 passes; static
   tools clean on the generated file; `_runtime.py` committed.
-- [ ] **Phase 2** `make_trade_msg` delegates to `make_trade_executed`; full
-  existing suite passes unchanged; the frame-equality assertion in A.5 holds.
+- [x] **Phase 2** `make_trade_msg` delegates to `make_trade_executed`;
+  `engine/main.py::_publish_trade` delegates to `make_trade_executed_unchecked`;
+  full existing suite passes unchanged; **both** wire assertions of §8 Phase 2
+  hold (byte-identity factory-vs-factory, payload+key-set equality
+  engine-vs-factory); a `perf`-marked test shows no hot-path regression.
 - [ ] **Phase 3** `pm-msgen check` added to `_check` and `ci.yml`; a
   deliberate hand-edit to `trade.py` fails CI; a spec edit without regen fails
   CI; generation proven deterministic (`generate` twice → identical bytes).
@@ -1505,7 +1906,7 @@ messages: [ <message>, ... ]    # REQUIRED; non-empty
 | `doc` | OPTIONAL | doc-block (§B.16) | documentation-only; never reaches the wire |
 | `fields` | REQUIRED | list of field (§B.7) | non-empty; declaration order is authoritative (§B.17) |
 | `nested_types` | CONDITIONAL | map of identifier → nested-def (§B.8) | REQUIRED iff any field is `list[nested]` or `nested` |
-| `encoding` | OPTIONAL | map of transport-ref → encoding-def (§B.13) | if omitted, defaults to `include: all` for each listed transport |
+| `encoding` | CONDITIONAL | map of transport-ref → encoding-def (§B.13) | A **bus** transport's block MAY be omitted, defaulting to `frames: [topic, json_payload]`, `include: all`. A **text** or **binary** transport's block is REQUIRED, because `keys`/`msg_type` (text) and `layout`/`frame_size` (binary) have no defensible default — there is nothing to infer a wire key or a byte offset from. |
 | `invariants` | OPTIONAL | list of invariant (§B.15) | cross-field rules |
 
 ### B.7 Field object
@@ -1515,7 +1916,8 @@ messages: [ <message>, ... ]    # REQUIRED; non-empty
 | `name` | REQUIRED | identifier | — | unique within the field's message or nested type |
 | `type` | REQUIRED | type (§B.9) | — | |
 | `required` | OPTIONAL | boolean | `true` | |
-| `default` | OPTIONAL | scalar | — | type MUST match `type`; only meaningful when `required: false` |
+| `default` | OPTIONAL | scalar | — | type MUST match `type`; only meaningful when `required: false`. A **producer** may omit the field; the value is legal and passes `validate()` |
+| `parse_default` | OPTIONAL | scalar | — | the lenient fallback `from_dict` substitutes when the key is **absent from an inbound payload**. Distinct from `default` and NOT required to be a legal value (§B.7.1) |
 | `unit` | OPTIONAL | unit (§B.11) | — | REQUIRED by `lint` for numeric fields (§B.18 rule 15) |
 | `doc` | OPTIONAL | string | `""` | REQUIRED non-empty when the field is deprecated |
 | `values` | CONDITIONAL | list of enum-name | — | REQUIRED iff `type == enum`; order is authoritative |
@@ -1523,6 +1925,37 @@ messages: [ <message>, ... ]    # REQUIRED; non-empty
 | `validate` | OPTIONAL | validate-map (§B.12) | `{}` | |
 | `deprecated_since` | OPTIONAL | version-str | — | see §B.17 |
 | `removed_after` | OPTIONAL | version-str | — | generator refuses to delete the field before this family version |
+
+#### B.7.1 `default` vs `parse_default` (normative)
+
+The two keys look similar and are not interchangeable. They exist because
+§5.1.1 splits coercion from validation, and each half needs its own fallback:
+
+| | `default` | `parse_default` |
+|---|---|---|
+| Consumed by | the **producer** side — `make_*`, the generated dataclass field default | the **consumer** side — `from_dict` only |
+| Question it answers | "what value does a producer get if it omits this field?" | "what does `from_dict` substitute if this key is missing from an inbound payload?" |
+| Must be a legal value? | **yes** — it must pass `validate()` | **no** — it may be a value `validate()` rejects |
+| Meaningful when | `required: false` | either |
+
+`from_dict`'s emission rule follows directly, in this precedence:
+
+1. `parse_default` declared → `p.get("<name>", <parse_default>)`
+2. else `required: false` with a `default` → `p.get("<name>", <default>)`
+3. else → `p["<name>"]` (raises `KeyError`, matching the hand-written payloads)
+
+The key exists because the very first message needs it. `trade.executed`'s
+`aggressor_side` is `required: true, values: [BUY, SELL, AUCTION]` — the honest
+contract, and what the engine always publishes — while
+`feed_schema.py:60` reads it as `p.get("aggressor_side", "")` because archived
+and replayed payloads predate the field (§12.1). Without `parse_default` the
+spec would have to choose between lying about the contract (declaring `""` a
+legal `aggressor_side`, which then has to become a C enum member) and breaking
+every reader of the archive. It expresses "strict for producers, lenient for
+readers" as one declared line instead of an accident spread over five files.
+
+`parse_default` never reaches the wire, never appears in `to_dict`, and never
+weakens `validate()`.
 
 ### B.8 Nested type object
 
@@ -1618,6 +2051,24 @@ A `keys` entry MAY map one source field to several wire keys (RALF
 `id: [EXEC_ID, MATCH_ID]`). `gateway_injected` keys MUST NOT collide with any
 `keys` value.
 
+**Key emission order (normative).** A text projection is an *ordered* mapping,
+because the gateways emit their lines key-by-key and a reordered line is a
+different line. The generated projection MUST emit, in this order:
+
+1. every `gateway_injected` key, in declaration order;
+2. then every included field, in `include` order (or `fields` declaration order
+   when `include: all`), each expanded to its `keys` targets in declaration
+   order.
+
+This matches the existing hand-written emitters and is what makes a generated
+line comparable to today's. `ralf_gateway/gateway.py:459-478` builds
+`{CH, SYM, TS, EXEC_ID, MATCH_ID, BUY_ORDER_ID, …}` — injected keys first,
+payload keys after — and `md_gateway/normaliser.py:194-198` builds
+`{PX, QTY, SIDE}` with `CH`/`SYM`/`SEQ`/`TS` added by the frame envelope
+outside the field map. Without this rule the `include` list order in §4.1 would
+produce `EXEC_ID` before `CH` and the projection could not be substituted for
+the hand-written dict.
+
 **Binary** (`balf`):
 
 ```yaml
@@ -1712,8 +2163,11 @@ A spec is **valid** only if all of the following hold. Each is a lint error.
    `topic-pattern` lexical rule.
 3. Every `{param}` in `topic` names a field of the message.
 4. `include` (every transport) names only declared fields; `all` is allowed.
-5. Every `required` field appears in the **bus** projection's `include` (the bus
-   payload is authoritative).
+5. **If the message declares a bus transport,** every `required` field appears
+   in that bus projection's `include` (the bus payload is authoritative). A
+   message with no bus transport (e.g. the BALF-only `execution_report`) is
+   exempt — there is no authoritative projection to check against, and rules 6
+   and 10 already constrain its external encodings.
 6. For a **text** encoding, `keys` covers exactly the included, non-gateway-injected
    fields; no `keys` value collides with a `gateway_injected` key.
 7. An `enum` field has `values`; a binary encoding of an enum field has an
@@ -1773,6 +2227,7 @@ field          ::= "name:" identifier
                    "type:" type
                    [ "required:" boolean ]
                    [ "default:" scalar ]
+                   [ "parse_default:" scalar ]
                    [ "unit:" unit ]
                    [ "doc:" string ]
                    [ "values:" nonempty-list(enum-name) ]
@@ -1943,6 +2398,7 @@ Every construct used anywhere in this document is defined above:
 | `unit` enumeration (§4.2) | §B.11 |
 | `validate` keys gt/ge/lt/le/max_len/min_len/max_items/pattern (§4.3) | §B.12 |
 | `required` / `default` / `values` (§4.1) | §B.7 |
+| `parse_default` (§5.1.1, §12.1) | §B.7, §B.7.1 |
 | `nested_types`, `item`, `list[nested]` (§4.1) | §B.8, §B.9 |
 | `encoding.bus` `frames`/`include` (§4.1) | §B.13 |
 | `encoding.calf`/`ralf` `msg_type`/`include`/`keys`/`gateway_injected`, one-to-many keys (§4.1, §4.6) | §B.13, §B.14 |
