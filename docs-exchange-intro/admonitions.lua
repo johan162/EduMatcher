@@ -147,6 +147,192 @@ local function latex_from_blocks(blocks)
   return trim(latex)
 end
 
+local function split_target(target)
+  local path, fragment = target:match("^([^#]+)#(.+)$")
+  if path then
+    return path, fragment
+  end
+  return target, nil
+end
+
+local function is_markdown_path(path)
+  if not path or path == "" then
+    return false
+  end
+  path = path:gsub("%?.*$", "")
+  if path:match("^[%a][%w+.-]*:") then
+    return false
+  end
+  return path:match("%.md$") ~= nil or path:match("%.markdown$") ~= nil
+end
+
+local function normalize_path(path)
+  local is_abs = path:sub(1, 1) == "/"
+  local parts = {}
+  for part in path:gmatch("[^/]+") do
+    if part == "." or part == "" then
+      -- skip
+    elseif part == ".." then
+      if #parts > 0 and parts[#parts] ~= ".." then
+        table.remove(parts)
+      elseif not is_abs then
+        table.insert(parts, "..")
+      end
+    else
+      table.insert(parts, part)
+    end
+  end
+  local joined = table.concat(parts, "/")
+  if is_abs then
+    return "/" .. joined
+  end
+  return joined
+end
+
+local function join_paths(base, rel)
+  if rel:sub(1, 1) == "/" then
+    return normalize_path(rel)
+  end
+  if base == "" then
+    return normalize_path(rel)
+  end
+  return normalize_path(base .. "/" .. rel)
+end
+
+local function file_exists(path)
+  local fh = io.open(path, "r")
+  if fh then
+    fh:close()
+    return true
+  end
+  return false
+end
+
+local function resolve_existing_markdown(path)
+  local clean = trim(path:gsub("%?.*$", ""))
+  local candidates = {
+    normalize_path(clean),
+    join_paths("src", clean),
+    join_paths("docs-exchange-intro", clean),
+    join_paths("docs-exchange-intro/src", clean),
+    join_paths("../src", clean),
+    join_paths("../docs-exchange-intro", clean),
+    join_paths("../docs-exchange-intro/src", clean),
+  }
+
+  for _, candidate in ipairs(candidates) do
+    if candidate ~= "" and file_exists(candidate) then
+      return candidate
+    end
+  end
+
+  return nil
+end
+
+local first_anchor_cache = {}
+local first_header_text_cache = {}
+
+local function first_header_anchor_for_markdown(path)
+  local resolved = resolve_existing_markdown(path)
+  if not resolved then
+    return nil
+  end
+
+  if first_anchor_cache[resolved] ~= nil then
+    return first_anchor_cache[resolved]
+  end
+
+  local fh = io.open(resolved, "r")
+  if not fh then
+    first_anchor_cache[resolved] = false
+    return nil
+  end
+
+  local markdown = fh:read("*a")
+  fh:close()
+
+  local parsed = pandoc.read(markdown, "markdown")
+  for _, block in ipairs(parsed.blocks) do
+    if block.t == "Header" and block.identifier and block.identifier ~= "" then
+      first_anchor_cache[resolved] = block.identifier
+      return block.identifier
+    end
+  end
+
+  first_anchor_cache[resolved] = false
+  return nil
+end
+
+local function first_header_text_for_markdown(path)
+  local resolved = resolve_existing_markdown(path)
+  if not resolved then
+    return nil
+  end
+
+  if first_header_text_cache[resolved] ~= nil then
+    return first_header_text_cache[resolved]
+  end
+
+  local fh = io.open(resolved, "r")
+  if not fh then
+    first_header_text_cache[resolved] = false
+    return nil
+  end
+
+  local markdown = fh:read("*a")
+  fh:close()
+
+  local parsed = pandoc.read(markdown, "markdown")
+  for _, block in ipairs(parsed.blocks) do
+    if block.t == "Header" then
+      local title = pandoc.utils.stringify(block.content)
+      if title and title ~= "" then
+        first_header_text_cache[resolved] = title
+        return title
+      end
+      break
+    end
+  end
+
+  first_header_text_cache[resolved] = false
+  return nil
+end
+
+local function rewrite_internal_markdown_links(blocks, known_anchors, h1_ids_by_title)
+  local rewritten = pandoc.walk_block(pandoc.Div(blocks), {
+    Link = function(el)
+      local path, fragment = split_target(el.target)
+      if not is_markdown_path(path) then
+        return nil
+      end
+
+      if fragment and known_anchors[fragment] then
+        el.target = "#" .. fragment
+        return el
+      end
+
+      if not fragment then
+        local first_anchor = first_header_anchor_for_markdown(path)
+        if first_anchor and known_anchors[first_anchor] then
+          el.target = "#" .. first_anchor
+          return el
+        end
+
+        local first_title = first_header_text_for_markdown(path)
+        local merged_h1_id = first_title and h1_ids_by_title[first_title] or nil
+        if merged_h1_id and merged_h1_id ~= "" then
+          el.target = "#" .. merged_h1_id
+          return el
+        end
+      end
+
+      return nil
+    end,
+  })
+
+  return rewritten.content
+end
+
 local function build_tcolorbox(kind, title, body_latex)
   local style = STYLE[kind]
   local safe_title = title:gsub("([%%{}_$#&])", "\\%1")
@@ -195,6 +381,23 @@ function Pandoc(doc)
     return doc
   end
 
+  local known_anchors = {}
+  local h1_ids_by_title = {}
+  doc:walk({
+    Header = function(el)
+      if el.identifier and el.identifier ~= "" then
+        known_anchors[el.identifier] = true
+        if el.level == 1 then
+          local title = pandoc.utils.stringify(el.content)
+          if title and title ~= "" and not h1_ids_by_title[title] then
+            h1_ids_by_title[title] = el.identifier
+          end
+        end
+      end
+      return nil
+    end,
+  })
+
   local out = pandoc.List()
   local i = 1
 
@@ -241,6 +444,7 @@ function Pandoc(doc)
         end
 
         if #body_blocks > 0 then
+          body_blocks = rewrite_internal_markdown_links(body_blocks, known_anchors, h1_ids_by_title)
           local body_latex = latex_from_blocks(body_blocks)
           out:insert(pandoc.RawBlock("latex", build_tcolorbox(header.kind, header.title, body_latex)))
         end
