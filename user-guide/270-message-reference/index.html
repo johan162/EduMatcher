@@ -3229,6 +3229,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../950-app-REST-API-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: REST API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../990-app-config-spec/" class="md-nav__link">
         
   
@@ -4806,8 +4834,8 @@
 </tr>
 <tr>
 <td><code>session.transition</code></td>
-<td>pm-scheduler (PUSH -&gt; engine on :5555)</td>
-<td>Sent by the <code>pm-scheduler</code> process to request a session-phase transition.</td>
+<td>pm-scheduler, or an admin client (PUSH -&gt; engine on :5555)</td>
+<td>Sent to request a session-phase transition. An interactive requester may supply <code>command_id</code>/<code>gateway_id</code> to receive <code>session.transition_ack.{GW_ID}</code>.</td>
 </tr>
 <tr>
 <td><code>index.history_request</code></td>
@@ -5798,6 +5826,11 @@ Role requirements and MM obligation controls are documented in
 <td>string | empty</td>
 <td>Scope to a single symbol; empty string or absent means all symbols</td>
 </tr>
+<tr>
+<td><code>command_id</code></td>
+<td>string | absent</td>
+<td>Correlation id echoed on the ack. Optional; see the note below</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Reply:</strong> <code>risk.kill_switch_ack.{GW_ID}</code></p>
@@ -5825,8 +5858,22 @@ Role requirements and MM obligation controls are documented in
 <td>integer</td>
 <td>Number of quote legs cancelled</td>
 </tr>
+<tr>
+<td><code>command_id</code></td>
+<td>string | absent</td>
+<td>Echoed from the request when it supplied one</td>
+</tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="admonition-title">Why this ack needs a correlation id</p>
+<p>Unlike the symbol halt/resume/cancel acks — which echo <code>symbol</code> and can
+therefore be told apart — a kill-switch ack has no natural identifier.
+Two concurrent mass cancels for one gateway were indistinguishable once
+both acks were in flight, so a client had to serialise them. Supplying
+<code>command_id</code> removes that constraint. It is optional: a request without
+one produces an ack without one, exactly as before.</p>
+</div>
 <h3 id="risksymbol_halt"><code>risk.symbol_halt</code><a class="headerlink" href="#risksymbol_halt" title="Permanent link">&para;</a></h3>
 <p><strong>Motivation:</strong> Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
 <strong>Published by:</strong> Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
@@ -6410,8 +6457,38 @@ Subscribed to by the originating gateway and the order monitor.</p>
 <td>string | absent</td>
 <td>Echoed from <code>order.new</code> when the field was set</td>
 </tr>
+<tr>
+<td><code>oco_group_id</code></td>
+<td>string | absent</td>
+<td>Present when the order is one side of an OCO pair</td>
+</tr>
+<tr>
+<td><code>combo_parent_id</code></td>
+<td>string | absent</td>
+<td>Present when the order is a combo leg</td>
+</tr>
+<tr>
+<td><code>leg_index</code></td>
+<td>integer | absent</td>
+<td>0-based leg position, present when the order is a combo leg</td>
+</tr>
+<tr>
+<td><code>quote_id</code></td>
+<td>string | absent</td>
+<td>Present when the order originated from a market-maker quote</td>
+</tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="admonition-title">Group identifiers on order lifecycle events</p>
+<p><code>oco_group_id</code>, <code>combo_parent_id</code>, <code>leg_index</code> and <code>quote_id</code> appear on
+<code>order.ack</code>, <code>order.fill</code>, <code>order.cancelled</code> and <code>order.expired</code> whenever
+the order belongs to such a structure, and are <strong>omitted entirely</strong>
+otherwise — an ordinary single order does not carry four null fields to
+say it belongs to nothing. Carrying them on the event lets a subscriber
+attribute a fill to its combo or OCO group without keeping its own map of
+order id → parent, which it may not have after reconnecting.</p>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Rejection reasons</p>
 <p>Common rejection reasons: <code>"Symbol not configured: XYZ"</code>, <code>"Insufficient liquidity"</code> (FOK), <code>"Order not found"</code> (cancel), <code>"Gateway not configured: TRADER99"</code>, <code>"Gateway not connected: TRADER01"</code>.</p>
@@ -6509,6 +6586,26 @@ as an ALF <code>DC_FILL</code> line scoped to that session's own <code>gateway_i
 <td>string | absent</td>
 <td>Echoed from <code>order.new</code> when the field was set</td>
 </tr>
+<tr>
+<td><code>oco_group_id</code></td>
+<td>string | absent</td>
+<td>Present when the order is one side of an OCO pair</td>
+</tr>
+<tr>
+<td><code>combo_parent_id</code></td>
+<td>string | absent</td>
+<td>Present when the order is a combo leg</td>
+</tr>
+<tr>
+<td><code>leg_index</code></td>
+<td>integer | absent</td>
+<td>0-based leg position, present when the order is a combo leg</td>
+</tr>
+<tr>
+<td><code>quote_id</code></td>
+<td>string | absent</td>
+<td>Present when the order originated from a market-maker quote</td>
+</tr>
 </tbody>
 </table>
 <h3 id="ordercancelledgw_id"><code>order.cancelled.{GW_ID}</code><a class="headerlink" href="#ordercancelledgw_id" title="Permanent link">&para;</a></h3>
@@ -6533,6 +6630,26 @@ as an ALF <code>DC_FILL</code> line scoped to that session's own <code>gateway_i
 <td><code>client_tag</code></td>
 <td>string | absent</td>
 <td>Echoed from the original <code>order.new</code> when the field was set</td>
+</tr>
+<tr>
+<td><code>oco_group_id</code></td>
+<td>string | absent</td>
+<td>Present when the order is one side of an OCO pair</td>
+</tr>
+<tr>
+<td><code>combo_parent_id</code></td>
+<td>string | absent</td>
+<td>Present when the order is a combo leg</td>
+</tr>
+<tr>
+<td><code>leg_index</code></td>
+<td>integer | absent</td>
+<td>0-based leg position, present when the order is a combo leg</td>
+</tr>
+<tr>
+<td><code>quote_id</code></td>
+<td>string | absent</td>
+<td>Present when the order originated from a market-maker quote</td>
 </tr>
 </tbody>
 </table>
@@ -6598,6 +6715,26 @@ as an ALF <code>DC_FILL</code> line scoped to that session's own <code>gateway_i
 <td><code>client_tag</code></td>
 <td>string | absent</td>
 <td>Echoed from the original <code>order.new</code> when the field was set</td>
+</tr>
+<tr>
+<td><code>oco_group_id</code></td>
+<td>string | absent</td>
+<td>Present when the order is one side of an OCO pair</td>
+</tr>
+<tr>
+<td><code>combo_parent_id</code></td>
+<td>string | absent</td>
+<td>Present when the order is a combo leg</td>
+</tr>
+<tr>
+<td><code>leg_index</code></td>
+<td>integer | absent</td>
+<td>0-based leg position, present when the order is a combo leg</td>
+</tr>
+<tr>
+<td><code>quote_id</code></td>
+<td>string | absent</td>
+<td>Present when the order originated from a market-maker quote</td>
 </tr>
 </tbody>
 </table>
@@ -7965,12 +8102,76 @@ Travels over the PUSH/PULL channel (port 5555), same as order messages.</p>
 <td>string</td>
 <td>Target state: <code>"PRE_OPEN"</code>, <code>"OPENING_AUCTION"</code>, <code>"CONTINUOUS"</code>, <code>"CLOSING_AUCTION"</code>, <code>"CLOSED"</code></td>
 </tr>
+<tr>
+<td><code>next_state</code></td>
+<td>string | absent</td>
+<td>The transition <em>after</em> this one, when the sender knows the timetable</td>
+</tr>
+<tr>
+<td><code>next_at</code></td>
+<td>string | absent</td>
+<td>When that next transition is due</td>
+</tr>
+<tr>
+<td><code>command_id</code></td>
+<td>string | absent</td>
+<td>Correlation id. Requires <code>gateway_id</code>; see below</td>
+</tr>
+<tr>
+<td><code>gateway_id</code></td>
+<td>string | absent</td>
+<td>Who to address the ack to. Requires <code>command_id</code></td>
+</tr>
 </tbody>
 </table>
 <p>The engine validates the transition (see <a href="../080-session-scheduling/">Auctions &amp; Scheduling</a>
-for valid state transitions).  Invalid transitions are silently rejected
-and logged to stderr.  On success, the engine publishes a <code>session.state</code>
+for valid state transitions).  On success, the engine publishes a <code>session.state</code>
 event confirming the new phase.</p>
+<p><strong>Reply (only when <code>command_id</code> and <code>gateway_id</code> are both present):</strong>
+<code>session.transition_ack.{GW_ID}</code></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>command_id</code></td>
+<td>string</td>
+<td>Echoed from the request</td>
+</tr>
+<tr>
+<td><code>accepted</code></td>
+<td>boolean</td>
+<td><code>false</code> when the engine discarded the request</td>
+</tr>
+<tr>
+<td><code>to_state</code></td>
+<td>string</td>
+<td>The state actually applied (empty when rejected)</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>string</td>
+<td>Why it was rejected (empty when accepted)</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Who gets an ack, and why it is addressed rather than broadcast</p>
+<p><code>pm-scheduler</code> omits both fields: it drives the timetable and reads the
+outcome off the public <code>session.state</code> broadcast. An <em>interactive</em>
+requester supplies them and gets a direct reply — which also closes a
+silent failure, since a request the engine discards (sessions not enabled,
+unknown state) previously produced no reply at all, leaving the caller
+with a timeout indistinguishable from a slow engine.</p>
+<p>The ack is addressed to one gateway rather than added to <code>session.state</code>
+because a <code>command_id</code> belongs to whoever issued it; broadcasting it would
+hand every subscriber another operator's correlation id.</p>
+</div>
 <h2 id="index-messages-operator-gateway-pm-index-pm-index-subscribers">Index messages (operator / gateway → pm-index / pm-index → subscribers)<a class="headerlink" href="#index-messages-operator-gateway-pm-index-pm-index-subscribers" title="Permanent link">&para;</a></h2>
 <p>The <code>pm-index</code> process owns its own PULL socket (<code>:INDEX_PULL_ADDR</code>) for
 operator commands and publishes results on its own PUB socket

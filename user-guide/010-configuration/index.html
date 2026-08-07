@@ -3068,6 +3068,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../950-app-REST-API-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: REST API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../990-app-config-spec/" class="md-nav__link">
         
   
@@ -5443,6 +5471,12 @@ other's <em>defaults</em>, not only against explicitly-set values), and
 <td>float (<code>&gt; 0</code>)</td>
 <td><code>3.0</code></td>
 <td><code>?wait=ack</code> timeout</td>
+</tr>
+<tr>
+<td><code>--api-gateway-order-retention-sec SECS</code></td>
+<td>int (<code>&gt;= 0</code>)</td>
+<td><code>3600</code></td>
+<td>Seconds a terminal order stays in the gateway's in-memory cache. <code>0</code> disables eviction</td>
 </tr>
 </tbody>
 </table>

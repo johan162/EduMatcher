@@ -2664,6 +2664,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../950-app-REST-API-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: REST API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../990-app-config-spec/" class="md-nav__link">
         
   
@@ -4836,6 +4864,14 @@ services around the engine, each on its own sub-tab:</p>
 excludes the section from the exported file. <strong>Ports are collision-checked
 across every enabled gateway</strong> — the diagnostics drawer warns if two services
 would bind the same address and port.</p>
+<p>The <strong>API</strong> sub-tab includes <strong>Order cache retention (s)</strong>
+(<code>order_retention_sec</code>, default <code>3600</code>), which bounds how long a terminal
+order — <code>FILLED</code>, <code>CANCELLED</code>, <code>EXPIRED</code>, <code>REJECTED</code> — stays in the gateway's
+in-memory cache. That cache backs <code>GET /orders</code> and the cross-gateway admin
+order table, so the setting decides how far back those views reach. Resting
+orders are never evicted whatever their age. <code>0</code> disables eviction entirely,
+letting the cache grow for the lifetime of the process. See
+<a href="../260-api-gateway/#order-cache-retention">API Gateway → Order cache retention</a>.</p>
 <h3 id="engine-tuning">Engine tuning<a class="headerlink" href="#engine-tuning" title="Permanent link">&para;</a></h3>
 <p>The <strong>Engine Tuning</strong> tab (Expert) exposes low-level performance knobs that
 rarely need changing. It mirrors the grouped

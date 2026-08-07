@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/990-app-config-spec/">
       
       
-        <link rel="prev" href="../940-app-lalf-protocol/">
+        <link rel="prev" href="../950-app-REST-API-reference/">
       
       
         <link rel="next" href="../../training/">
@@ -2061,6 +2061,34 @@
     
   
     Appendix: LALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../950-app-REST-API-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: REST API Reference
   
 
     
@@ -5249,6 +5277,20 @@ be rejected.</p>
 <td style="text-align: center;">–</td>
 <td>resolved <code>stats.db</code></td>
 <td><code>~</code> expanded</td>
+</tr>
+<tr>
+<td><code>audit_db</code></td>
+<td><code>Path</code></td>
+<td style="text-align: center;">–</td>
+<td>resolved <code>audit_index.db</code></td>
+<td><code>~</code> expanded. Read-only; only <code>GET /admin/orders/{order_id}</code> uses it, and that endpoint returns 503 when the file is absent</td>
+</tr>
+<tr>
+<td><code>order_retention_sec</code></td>
+<td><code>Int</code></td>
+<td style="text-align: center;">–</td>
+<td><code>3600</code></td>
+<td><code>&gt;= 0</code>. Seconds a terminal order stays in the in-memory cache; <code>0</code> disables eviction</td>
 </tr>
 <tr>
 <td><code>credentials</code></td>

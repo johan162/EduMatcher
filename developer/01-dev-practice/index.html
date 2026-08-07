@@ -2078,6 +2078,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/950-app-REST-API-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: REST API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/990-app-config-spec/" class="md-nav__link">
         
   
@@ -3592,6 +3620,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#mermaid-diagrams-in-the-docs-build-cached-pandoc-filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mermaid diagrams in the docs build (cached Pandoc filter)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Mermaid diagrams in the docs build (cached Pandoc filter)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-a-custom-filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why a custom filter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-isnt-just-a-patch-to-the-installed-package" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it isn't just a patch to the installed package
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-the-cache-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the cache works
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#current-release-workflow" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4459,6 +4537,54 @@ date.</p>
 </ul>
 <p>This repository already has a lot of explanatory documentation. Reuse it rather
 than duplicating large explanations in new pages.</p>
+<h2 id="mermaid-diagrams-in-the-docs-build-cached-pandoc-filter">Mermaid diagrams in the docs build (cached Pandoc filter)<a class="headerlink" href="#mermaid-diagrams-in-the-docs-build-cached-pandoc-filter" title="Permanent link">&para;</a></h2>
+<p>The PDF docs pipeline (<code>docs/Makefile</code>, <code>docs-design/Makefile</code>,
+<code>docs-exchange-intro/Makefile</code>) renders every <code>```mermaid</code> code block to an
+image via Pandoc's <code>--filter</code> mechanism. We use our <strong>own</strong> filter,
+<code>scripts/mermaid-filter-cached.js</code>, instead of the stock <code>mermaid-filter</code> npm
+package installed under <code>build-tools/node_modules/</code>.</p>
+<h3 id="why-a-custom-filter">Why a custom filter<a class="headerlink" href="#why-a-custom-filter" title="Permanent link">&para;</a></h3>
+<p>Rendering one diagram means launching <code>mmdc</code> (<code>@mermaid-js/mermaid-cli</code>),
+which starts a full headless Chrome instance via Puppeteer — by far the
+slowest step in a documentation build, repeated once per diagram, on every
+single build, even though the diagrams themselves rarely change. Building all
+four PDF variants (A4/B5, light/dark) in parallel (<code>make -j4</code>) multiplies
+that cost further, since they share the same Markdown sources.</p>
+<p><code>scripts/mermaid-filter-cached.js</code> adds a render cache on top of the stock
+filter's behavior: a diagram whose Mermaid source hasn't changed is reused
+from disk instead of being re-rendered.</p>
+<h3 id="why-it-isnt-just-a-patch-to-the-installed-package">Why it isn't just a patch to the installed package<a class="headerlink" href="#why-it-isnt-just-a-patch-to-the-installed-package" title="Permanent link">&para;</a></h3>
+<p><code>build-tools/</code> is entirely git-ignored and is wiped and recreated by
+<code>npm install</code> on every fresh checkout (see the <code>$(NODE_MODULES_PATH):</code> targets
+in the Makefiles). Editing
+<code>build-tools/node_modules/.bin/mermaid-filter</code> (a symlink into
+<code>build-tools/node_modules/mermaid-filter/index.js</code>) directly would be
+silently lost the next time dependencies are (re)installed. The cached filter
+therefore lives as a normal, version-controlled file under <code>scripts/</code>, and
+each Makefile's <code>MERMAID_FILTER</code> variable points at it instead of the
+npm-installed binary.</p>
+<h3 id="how-the-cache-works">How the cache works<a class="headerlink" href="#how-the-cache-works" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Cache key</strong>: sha256 of the raw Mermaid diagram text, truncated to 12 hex
+  characters — independent of caption, filename, or which document the
+  diagram appears in, so two identical diagrams anywhere share one render.</li>
+<li><strong>Cache location</strong>: <code>build-tools/.mermaid-cache/&lt;hash&gt;.&lt;format&gt;</code> by
+  default, overridable with <code>MERMAID_FILTER_CACHE_DIR</code>. This is deliberately
+  <strong>not</strong> the per-build <code>.mermaid-img</code> directory the Makefiles pass via
+  <code>MERMAID_FILTER_LOC</code> — that directory is <code>rm -rf</code>'d at the start of every
+  PDF build, so anything cached there would never survive to be reused.</li>
+<li><strong>Cache hit</strong>: <code>mmdc</code>/Puppeteer is skipped entirely; the previously
+  rendered file is referenced directly from the cache.</li>
+<li><strong>Cache miss</strong>: rendered via <code>mmdc</code> exactly as the stock filter does, then
+  persisted into the cache using a write-to-temp-then-atomic-rename so that
+  concurrent builds (the four <code>make -j4</code> PDF variants, which share diagrams)
+  can never observe — or produce — a partially-written cache file.</li>
+</ul>
+<p>Caveat: the cache key covers only the diagram text, not rendering options
+(<code>MERMAID_FILTER_THEME</code>/<code>WIDTH</code>/<code>FORMAT</code>/<code>SCALE</code>/...). Changing one of those
+globally does not invalidate previously cached renders. To force a full
+re-render, delete <code>build-tools/.mermaid-cache/</code> (or point
+<code>MERMAID_FILTER_CACHE_DIR</code> somewhere fresh).</p>
 <h2 id="current-release-workflow">Current release workflow<a class="headerlink" href="#current-release-workflow" title="Permanent link">&para;</a></h2>
 <p>Follow <code>release_checklist.md</code> as the source of truth.
 The practical flow below is aligned with the current script behavior.</p>

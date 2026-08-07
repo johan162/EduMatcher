@@ -1,0 +1,8942 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/950-app-REST-API-reference/">
+      
+      
+        <link rel="prev" href="../940-app-lalf-protocol/">
+      
+      
+        <link rel="next" href="../990-app-config-spec/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Appendix: REST API Reference - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#appendix-rest-api-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Appendix: REST API Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../000-getting-started/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../training/" class="md-tabs__link">
+          
+  
+  
+  Training
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/johan162/EduMatcher" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    johan162/EduMatcher
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/07-concepts-implied-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implied Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../000-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../010-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engine Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../020-config-verifier/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config Verifier
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../030-config-GUI/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration GUI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../040-running-the-exchange/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../051-gateway-intro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../055-alf-console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF Console (pm-alf-console)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../060-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../070-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../080-session-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../090-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../100-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market-Maker Bot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../110-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../120-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../130-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../140-statistics-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../150-market-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../152-index-admin-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index Admin CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../160-exchange-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exchange Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../170-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../180-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../190-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Trail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../200-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../201-dc-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy TCP Gateway (pm-dc-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../202-dc-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop-Copy Spy (pm-dc-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../210-protocols-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Protocols Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../220-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../230-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../240-calf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../241-calf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CALF Protocol Spy (pm-calf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../250-ralf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-Trade Dissemination (RALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../251-ralf-spy-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RALF Protocol Spy (pm-ralf-spy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../260-api-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../270-message-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../280-log-srv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Centralized Log Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../285-log-srv-gui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Log Operator Console (pm-log-ui)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../290-trader-info-terminal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Information Terminal (TapeDeck)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../800-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../810-example-configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../890-known-limitations-bugs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Limitations & Bugs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../900-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../910-app-balf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../920-app-calf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../930-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../940-app-lalf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: LALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: REST API Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: REST API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#scope-conventions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scope &amp; conventions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#endpoint-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Endpoint index
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Endpoint index">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trading-rest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trading REST
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reference-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        History
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#admin-rest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin REST
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#auth-and-roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auth and roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-types-and-provisioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key types and provisioning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common-error-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common error codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#swaggeropenapi-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Swagger/OpenAPI documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common-reply-shapes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common reply shapes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#canonical-error-envelope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Canonical error envelope
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pagination-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pagination contract
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#idempotency-and-client_order_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Idempotency and client_order_id
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#category-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Category examples
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Category examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trading-example-post-apiv1orders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trading example (POST /api/v1/orders)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reference-data-example-get-apiv1reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference data example (GET /api/v1/reference)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#history-example-get-apiv1historytrades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        History example (GET /api/v1/history/trades)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#admin-example-post-apiv1adminsessiontransition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin example (POST /api/v1/admin/session/transition)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compatibility-and-deprecation-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compatibility and deprecation policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#trading-rest_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trading REST
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Trading REST">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1orders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/orders
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete-apiv1ordersorder_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DELETE /api/v1/orders/{order_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#patch-apiv1ordersorder_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PATCH /api/v1/orders/{order_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1ordersorder_idreplace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/orders/{order_id}/replace
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1orders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/orders
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1ordersorder_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/orders/{order_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1oco" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/oco
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete-apiv1ocooco_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DELETE /api/v1/oco/{oco_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1combos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/combos
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete-apiv1comboscombo_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DELETE /api/v1/combos/{combo_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1quotes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/quotes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete-apiv1quotessymbol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DELETE /api/v1/quotes/{symbol}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1mass-cancel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/mass-cancel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1kill-switch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/kill-switch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1symbols" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/symbols
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/session
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/status
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1healthz" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/healthz
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1quotesbootstrap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/quotes/bootstrap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1quoteslegs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/quotes/legs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1positions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/positions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-data_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reference data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1referenceconfig-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/reference/config-version
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1referencesymbols" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/reference/symbols
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1referencerisk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/reference/risk
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1referenceindexes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/reference/indexes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1referenceschedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/reference/schedule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1adminreferencereload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/admin/reference/reload
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#history_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        History
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="History">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1historyorders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/history/orders
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1historyordersorder_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/history/orders/{order_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1historyfills" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/history/fills
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1historytrades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/history/trades
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1historydaily" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/history/daily
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1historyprice-snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/history/price-snapshots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1historyindex-daily" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/history/index-daily
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1historyindex-snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/history/index-snapshots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1historyindex-ids" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/history/index-ids
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1historyindex-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/history/index-events
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#admin-rest_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin REST
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Admin REST">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1adminsessiontransition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/admin/session/transition
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1adminsessionschedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/admin/session/schedule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1admingateways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/admin/gateways
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1admingatewaysgiddisconnect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/admin/gateways/{gid}/disconnect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1admincircuit-breakertrigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/admin/circuit-breaker/trigger
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1admincircuit-breakerresume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/admin/circuit-breaker/resume
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1adminhalts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/admin/halts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1adminriskstate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/admin/risk/state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1adminorders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/admin/orders
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1adminordersorder_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/admin/orders/{order_id}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1adminkill-switchsymbol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/admin/kill-switch/symbol
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1adminkill-switchgateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/admin/kill-switch/gateway
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1adminkill-switchglobal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/admin/kill-switch/global
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1adminindexes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/admin/indexes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1adminindexesidrebalance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/admin/indexes/{id}/rebalance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-apiv1adminreferencereload_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/v1/admin/reference/reload
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#operational-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../990-app-config-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: Engine Config Specification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Training
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/00-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    00 — Installation & Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/01-configuring-startup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    01 — Configuring & Starting Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/02-setting-up-MM-bots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    02 — Setting Up Market-Maker Liquidity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/03-the-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    03 — The First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/04-amending-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04 — Amending Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/05-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05 — Order Types Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/06-time-in-force-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    06 — Time-in-Force & Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/07-auctions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    07 — Auctions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/08-cancelling-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    08 — Cancelling & Managing Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/09-market-making/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    09 — Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/10-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10 — Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/11-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11 — Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/12-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12 — P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/13-market-data-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13 — Market Data & Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/14-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14 — AI Traders & Swarm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/15-statistics-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15 — Statistics & Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/16-persistence-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16 — Persistence & Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/17-capstone-scenario/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17 — Capstone Scenario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/18-exchange-observer-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18 — Exchange Observer Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/19-advanced-admin-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    19 — Advanced Admin Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/20-drop-copy-replay-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20 — Drop-Copy Replay & Recovery Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/21-automation-commandclient-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21 — Automation with CommandClient & MM Bot Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/22-ralf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/24-api-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24 — API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/25-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/26-alf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 - ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/27-balf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27 - BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/05-vm-runtime-image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Runtime Image
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="appendix-rest-api-reference">Appendix: REST API Reference<a class="headerlink" href="#appendix-rest-api-reference" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>Status: Normative.</strong> This appendix is the single source of truth for the
+<code>pm-api-gwy</code> REST contract as exposed under <code>/api/v1</code>. For an operational,
+tutorial-style guide see <a href="../260-api-gateway/">API Gateway (REST/WebSocket)</a>.
+The key words MUST, MUST NOT, SHOULD, and MAY are used per RFC 2119.</p>
+</blockquote>
+<h2 id="scope-conventions">Scope &amp; conventions<a class="headerlink" href="#scope-conventions" title="Permanent link">&para;</a></h2>
+<p>This appendix documents the client-visible REST surface of the API gateway.
+It covers request shapes, replies, query parameters, auth rules, and the
+stable error codes returned by the gateway. WebSocket streams are documented
+in <a href="../260-api-gateway/">API Gateway (REST/WebSocket)</a> and are not repeated
+here.</p>
+<p>All paths are rooted at <code>/api/v1</code>.</p>
+<h2 id="endpoint-index">Endpoint index<a class="headerlink" href="#endpoint-index" title="Permanent link">&para;</a></h2>
+<h3 id="trading-rest">Trading REST<a class="headerlink" href="#trading-rest" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Access</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#post-apiv1orders">POST /api/v1/orders</a></td>
+<td>Trading key</td>
+<td>Submit one order for the caller's gateway</td>
+</tr>
+<tr>
+<td><a href="#delete-apiv1ordersorder_id">DELETE /api/v1/orders/{order_id}</a></td>
+<td>Trading key</td>
+<td>Cancel one live order</td>
+</tr>
+<tr>
+<td><a href="#patch-apiv1ordersorder_id">PATCH /api/v1/orders/{order_id}</a></td>
+<td>Trading key</td>
+<td>Amend price and/or quantity on one live order</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1ordersorder_idreplace">POST /api/v1/orders/{order_id}/replace</a></td>
+<td>Trading key</td>
+<td>Cancel then replace one live order</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1orders">GET /api/v1/orders</a></td>
+<td>Trading key</td>
+<td>Return the caller gateway's live order cache</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1ordersorder_id">GET /api/v1/orders/{order_id}</a></td>
+<td>Trading key</td>
+<td>Return one cached order</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1oco">POST /api/v1/oco</a></td>
+<td>Trading key</td>
+<td>Submit an OCO pair</td>
+</tr>
+<tr>
+<td><a href="#delete-apiv1ocooco_id">DELETE /api/v1/oco/{oco_id}</a></td>
+<td>Trading key</td>
+<td>Cancel an OCO pair</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1combos">POST /api/v1/combos</a></td>
+<td>Trading key</td>
+<td>Submit a combo order</td>
+</tr>
+<tr>
+<td><a href="#delete-apiv1comboscombo_id">DELETE /api/v1/combos/{combo_id}</a></td>
+<td>Trading key</td>
+<td>Cancel a combo order</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1quotes">POST /api/v1/quotes</a></td>
+<td>Trading key</td>
+<td>Submit a two-sided market-maker quote</td>
+</tr>
+<tr>
+<td><a href="#delete-apiv1quotessymbol">DELETE /api/v1/quotes/{symbol}</a></td>
+<td>Trading key</td>
+<td>Cancel the active quote for one symbol</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1mass-cancel">POST /api/v1/mass-cancel</a></td>
+<td>Trading key</td>
+<td>Cancel all resting exposure for the caller or one symbol</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1kill-switch">POST /api/v1/kill-switch</a></td>
+<td>Trading key</td>
+<td>Alias of mass-cancel</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1symbols">GET /api/v1/symbols</a></td>
+<td>Trading key</td>
+<td>Return instrument metadata</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1session">GET /api/v1/session</a></td>
+<td>Trading key</td>
+<td>Return the current engine session state</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1status">GET /api/v1/status</a></td>
+<td>Trading key</td>
+<td>Return gateway cache summary and resolved role</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1healthz">GET /api/v1/healthz</a></td>
+<td>Public</td>
+<td>Liveness probe</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1quotesbootstrap">GET /api/v1/quotes/bootstrap</a></td>
+<td>Trading key</td>
+<td>Return active market-maker quote bootstrap state</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1quoteslegs">GET /api/v1/quotes/legs</a></td>
+<td>Trading key</td>
+<td>Return current quote-leg state</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1positions">GET /api/v1/positions</a></td>
+<td>Trading key</td>
+<td>Return current net positions</td>
+</tr>
+</tbody>
+</table>
+<h3 id="reference-data">Reference data<a class="headerlink" href="#reference-data" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Access</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#get-apiv1reference">GET /api/v1/reference</a></td>
+<td>Authenticated key</td>
+<td>Return the full reference bundle</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1referenceconfig-version">GET /api/v1/reference/config-version</a></td>
+<td>Authenticated key</td>
+<td>Return the reference bundle version</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1referencesymbols">GET /api/v1/reference/symbols</a></td>
+<td>Authenticated key</td>
+<td>Return per-symbol tick and risk metadata</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1referencerisk">GET /api/v1/reference/risk</a></td>
+<td>Authenticated key</td>
+<td>Return risk-band definitions</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1referenceindexes">GET /api/v1/reference/indexes</a></td>
+<td>Authenticated key</td>
+<td>Return configured exchange index definitions</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1referenceschedule">GET /api/v1/reference/schedule</a></td>
+<td>Authenticated key</td>
+<td>Return session schedule metadata</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1adminreferencereload">POST /api/v1/admin/reference/reload</a></td>
+<td>Admin role</td>
+<td>Reload the compiled reference bundle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="history">History<a class="headerlink" href="#history" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Access</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#get-apiv1historyorders">GET /api/v1/history/orders</a></td>
+<td>Trading key</td>
+<td>Return the caller gateway's order lifecycle events</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1historyordersorder_id">GET /api/v1/history/orders/{order_id}</a></td>
+<td>Trading key</td>
+<td>Return the full lifecycle of one order</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1historyfills">GET /api/v1/history/fills</a></td>
+<td>Trading key</td>
+<td>Return fill events</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1historytrades">GET /api/v1/history/trades</a></td>
+<td>Authenticated key</td>
+<td>Return public trade tape rows</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1historydaily">GET /api/v1/history/daily</a></td>
+<td>Authenticated key</td>
+<td>Return daily OHLCV rows</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1historyprice-snapshots">GET /api/v1/history/price-snapshots</a></td>
+<td>Authenticated key</td>
+<td>Return intraday price snapshots</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1historyindex-daily">GET /api/v1/history/index-daily</a></td>
+<td>Authenticated key</td>
+<td>Return daily index OHLC rows</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1historyindex-snapshots">GET /api/v1/history/index-snapshots</a></td>
+<td>Authenticated key</td>
+<td>Return intraday index snapshots</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1historyindex-ids">GET /api/v1/history/index-ids</a></td>
+<td>Authenticated key</td>
+<td>List index ids with recorded data</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1historyindex-events">GET /api/v1/history/index-events</a></td>
+<td>Authenticated key</td>
+<td>Return index structural and audit events</td>
+</tr>
+</tbody>
+</table>
+<h3 id="admin-rest">Admin REST<a class="headerlink" href="#admin-rest" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Access</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#post-apiv1adminsessiontransition">POST /api/v1/admin/session/transition</a></td>
+<td>Admin role</td>
+<td>Request a session-phase transition</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1adminsessionschedule">GET /api/v1/admin/session/schedule</a></td>
+<td>Admin role</td>
+<td>Return current session schedule settings</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1admingateways">GET /api/v1/admin/gateways</a></td>
+<td>Admin role</td>
+<td>List configured gateways and live connection state</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1admingatewaysgiddisconnect">POST /api/v1/admin/gateways/{gid}/disconnect</a></td>
+<td>Admin role</td>
+<td>Forcibly disconnect one gateway</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1admincircuit-breakertrigger">POST /api/v1/admin/circuit-breaker/trigger</a></td>
+<td>Admin role</td>
+<td>Halt one symbol through the circuit breaker</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1admincircuit-breakerresume">POST /api/v1/admin/circuit-breaker/resume</a></td>
+<td>Admin role</td>
+<td>Resume one halted symbol</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1adminhalts">GET /api/v1/admin/halts</a></td>
+<td>Admin role</td>
+<td>Return the current active halts table</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1adminriskstate">GET /api/v1/admin/risk/state</a></td>
+<td>Admin role</td>
+<td>Return live per-symbol risk state</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1adminorders">GET /api/v1/admin/orders</a></td>
+<td>Admin role</td>
+<td>Return the cross-gateway active-order table</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1adminordersorder_id">GET /api/v1/admin/orders/{order_id}</a></td>
+<td>Admin role</td>
+<td>Return the full cross-gateway lifecycle of one order</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1adminkill-switchsymbol">POST /api/v1/admin/kill-switch/symbol</a></td>
+<td>Admin role</td>
+<td>Cancel all resting exposure on one symbol</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1adminkill-switchgateway">POST /api/v1/admin/kill-switch/gateway</a></td>
+<td>Admin role</td>
+<td>Cancel all resting exposure for one gateway</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1adminkill-switchglobal">POST /api/v1/admin/kill-switch/global</a></td>
+<td>Admin role</td>
+<td>Cancel all resting exposure across every gateway and symbol</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1adminindexes">GET /api/v1/admin/indexes</a></td>
+<td>Admin role</td>
+<td>Return index configuration for the ADMIN UI</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1adminindexesidrebalance">POST /api/v1/admin/indexes/{id}/rebalance</a></td>
+<td>Admin role</td>
+<td>Rebalance one configured index</td>
+</tr>
+<tr>
+<td><a href="#post-apiv1adminreferencereload">POST /api/v1/admin/reference/reload</a></td>
+<td>Admin role</td>
+<td>Reload the compiled reference bundle in place</td>
+</tr>
+</tbody>
+</table>
+<h3 id="auth-and-roles">Auth and roles<a class="headerlink" href="#auth-and-roles" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Trading and admin REST requests use <code>Authorization: Bearer &lt;api_key&gt;</code>.</li>
+<li><code>gateway_id: null</code> credentials are read-only and may access public history
+  and reference data, but not trading or admin write endpoints.</li>
+<li>ADMIN endpoints require a credential whose resolved engine gateway role is
+  <code>ADMIN</code>.</li>
+</ul>
+<h3 id="key-types-and-provisioning">Key types and provisioning<a class="headerlink" href="#key-types-and-provisioning" title="Permanent link">&para;</a></h3>
+<p>This appendix uses two access labels in endpoint tables:</p>
+<ul>
+<li><code>Authenticated key</code> (also called <code>Authentication key</code>): any configured API
+  key accepted by <code>pm-api-gwy</code>. This includes both read-only and trading keys.</li>
+<li><code>Trading key</code>: an authenticated key whose configured <code>gateway_id</code> is not
+  <code>null</code>. This key is bound to one engine gateway identity and can submit and
+  manage that gateway's orders.</li>
+</ul>
+<p>How keys are specified:</p>
+<ul>
+<li>Keys are configured by operators in <code>engine_config.yaml</code> under
+  <code>api_gateways.&lt;INSTANCE&gt;.credentials</code>.</li>
+<li>Each credential entry has <code>api_key</code> and <code>gateway_id</code>.</li>
+<li><code>gateway_id: null</code> creates a read-only authenticated key.</li>
+<li><code>gateway_id: &lt;GW_ID&gt;</code> creates a trading-capable key for that gateway.</li>
+</ul>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">api_gateways</span><span class="p">:</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">default</span><span class="p">:</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-trader-demo</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Trading client for TRADER01</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-dashboard-demo</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Read-only dashboard client</span>
+</code></pre></div>
+<p>How to get a key:</p>
+<ul>
+<li>API keys are provisioned out-of-band by the venue/operator team.</li>
+<li>There is no REST endpoint in <code>pm-api-gwy</code> to self-issue or rotate keys.</li>
+<li>After updating credentials, restart/redeploy the API gateway instance so the
+  new key set is loaded.</li>
+</ul>
+<h3 id="common-error-codes">Common error codes<a class="headerlink" href="#common-error-codes" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th style="text-align: right;">HTTP status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td style="text-align: right;"><code>401</code></td>
+<td>Missing or malformed API key</td>
+</tr>
+<tr>
+<td><code>ENGINE_AUTH</code></td>
+<td style="text-align: right;"><code>403</code></td>
+<td>Engine rejected the gateway identity</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td style="text-align: right;"><code>403</code></td>
+<td>Read-only key used on a trading endpoint</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td style="text-align: right;"><code>403</code></td>
+<td>Non-admin key used on an admin endpoint</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td style="text-align: right;"><code>400</code>, <code>422</code></td>
+<td>Request body or parameters failed validation</td>
+</tr>
+<tr>
+<td><code>DUPLICATE</code></td>
+<td style="text-align: right;"><code>409</code></td>
+<td><code>client_order_id</code> already active</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td style="text-align: right;"><code>429</code></td>
+<td>Per-key write limit exceeded</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td style="text-align: right;"><code>503</code></td>
+<td>No engine reply in time</td>
+</tr>
+<tr>
+<td><code>STATS_DB</code></td>
+<td style="text-align: right;"><code>503</code></td>
+<td><code>pm-stats</code> database not present</td>
+</tr>
+<tr>
+<td><code>AUDIT_INDEX_UNAVAILABLE</code></td>
+<td style="text-align: right;"><code>503</code></td>
+<td><code>pm-audit</code> index not built or not running</td>
+</tr>
+<tr>
+<td><code>UNKNOWN_ORDER</code></td>
+<td style="text-align: right;"><code>404</code></td>
+<td>Order id has no audited events</td>
+</tr>
+<tr>
+<td><code>TRANSITION_REJECTED</code></td>
+<td style="text-align: right;"><code>409</code></td>
+<td>Session transition refused by the engine</td>
+</tr>
+<tr>
+<td><code>RELOAD_REJECTED</code></td>
+<td style="text-align: right;"><code>409</code></td>
+<td>Reference reload rejected</td>
+</tr>
+<tr>
+<td><code>REBALANCE_REJECTED</code></td>
+<td style="text-align: right;"><code>409</code></td>
+<td>Index rebalance rejected</td>
+</tr>
+<tr>
+<td><code>INDEX_TIMEOUT</code></td>
+<td style="text-align: right;"><code>503</code></td>
+<td>No <code>pm-index</code> reply in time</td>
+</tr>
+<tr>
+<td><code>INDEX_ERROR</code></td>
+<td style="text-align: right;"><code>502</code></td>
+<td><code>pm-index</code> rejected the request</td>
+</tr>
+</tbody>
+</table>
+<h3 id="swaggeropenapi-documentation">Swagger/OpenAPI documentation<a class="headerlink" href="#swaggeropenapi-documentation" title="Permanent link">&para;</a></h3>
+<p>The API gateway supports live API documentation through FastAPI:</p>
+<ul>
+<li>OpenAPI schema: <code>/openapi.json</code></li>
+<li>Swagger UI: <code>/docs</code></li>
+</ul>
+<p>These endpoints are available when <code>swagger_enabled: true</code> in the
+<code>api_gateways</code> configuration. When disabled, <code>/docs</code> and <code>/openapi.json</code> are
+not exposed.</p>
+<h3 id="common-reply-shapes">Common reply shapes<a class="headerlink" href="#common-reply-shapes" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>202 Accepted</code> means the gateway accepted the request and is waiting for the
+  engine or <code>pm-index</code> to confirm it.</li>
+<li><code>200 OK</code> is used for read endpoints and for a few admin endpoints whose
+  response is immediately authoritative.</li>
+<li>Pagination endpoints return <code>count</code>, <code>has_more</code>, and <code>next_cursor</code> where
+  applicable; <code>after</code> is the opaque cursor input.</li>
+</ul>
+<h3 id="canonical-error-envelope">Canonical error envelope<a class="headerlink" href="#canonical-error-envelope" title="Permanent link">&para;</a></h3>
+<p>All non-2xx replies MUST use this JSON envelope shape.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>error</code></td>
+<td><code>Object</code></td>
+<td>yes</td>
+<td>Top-level error container</td>
+</tr>
+<tr>
+<td><code>error.code</code></td>
+<td><code>String</code></td>
+<td>yes</td>
+<td>Stable machine-readable code (for example <code>VALIDATION</code>)</td>
+</tr>
+<tr>
+<td><code>error.message</code></td>
+<td><code>String</code></td>
+<td>yes</td>
+<td>Human-readable summary</td>
+</tr>
+<tr>
+<td><code>error.field</code></td>
+<td><code>String</code></td>
+<td>no</td>
+<td>Field name when validation pinpoints one input field</td>
+</tr>
+</tbody>
+</table>
+<p>Canonical example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;VALIDATION&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">&quot;message&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Input should be greater than 0&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nt">&quot;field&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;quantity&quot;</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="pagination-contract">Pagination contract<a class="headerlink" href="#pagination-contract" title="Permanent link">&para;</a></h3>
+<p>Endpoints that support pagination use keyset cursoring with these rules:</p>
+<ul>
+<li>Clients MAY pass <code>after</code> (opaque cursor from a previous response).</li>
+<li>Replies include <code>count</code> and <code>has_more</code>.</li>
+<li>When another page exists, replies MUST include <code>next_cursor</code>.</li>
+<li>Clients fetch the next page by passing <code>after=&lt;next_cursor&gt;</code> unchanged.</li>
+<li>Ordering is deterministic and backend-defined per endpoint; cursors are valid
+  only for the same endpoint and compatible filter set.</li>
+<li>A malformed, stale, or cross-endpoint cursor returns <code>422 VALIDATION</code>.</li>
+</ul>
+<h3 id="idempotency-and-client_order_id">Idempotency and <code>client_order_id</code><a class="headerlink" href="#idempotency-and-client_order_id" title="Permanent link">&para;</a></h3>
+<p>Order submit supports <code>client_order_id</code> as an optional client-supplied id.</p>
+<ul>
+<li>Scope: deduplication is per gateway session cache.</li>
+<li>Behavior: submitting a currently-active <code>client_order_id</code> returns
+  <code>409 DUPLICATE</code>.</li>
+<li>Lifetime: duplicates are detected while matching cached orders remain in
+  cache. After cache eviction, the same id MAY be reused.</li>
+</ul>
+<h3 id="category-examples">Category examples<a class="headerlink" href="#category-examples" title="Permanent link">&para;</a></h3>
+<p>The examples below are normative shape examples for each category. Values are
+illustrative.</p>
+<h4 id="trading-example-post-apiv1orders">Trading example (<code>POST /api/v1/orders</code>)<a class="headerlink" href="#trading-example-post-apiv1orders" title="Permanent link">&para;</a></h4>
+<p>Minimal request:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&quot;side&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;BUY&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">&quot;order_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;LIMIT&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">&quot;quantity&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="nt">&quot;price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">187.25</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="p">}</span>
+</code></pre></div>
+<p>Full request:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;side&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;BUY&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">&quot;order_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;LIMIT&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">&quot;quantity&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">&quot;price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">187.25</span><span class="p">,</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">&quot;tif&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;DAY&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">&quot;smp_action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CANCEL_NEW&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">&quot;client_order_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;desk1-aapl-00042&quot;</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="p">}</span>
+</code></pre></div>
+<p>Minimal response:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;order_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ORD-20260806-00042&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PENDING&quot;</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="p">}</span>
+</code></pre></div>
+<p>Full response:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;order_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ORD-20260806-00042&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;client_order_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;desk1-aapl-00042&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ACKED&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">&quot;accepted&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">&quot;event&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nt">&quot;order_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ORD-20260806-00042&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="nt">&quot;accepted&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="nt">&quot;gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;G1&quot;</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="p">}</span>
+</code></pre></div>
+<h4 id="reference-data-example-get-apiv1reference">Reference data example (<code>GET /api/v1/reference</code>)<a class="headerlink" href="#reference-data-example-get-apiv1reference" title="Permanent link">&para;</a></h4>
+<p>Minimal response:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;symbols&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">&quot;risk&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">&quot;indexes&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">&quot;schedule&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span><span class="nt">&quot;config_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sha256:...&quot;</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="p">}</span>
+</code></pre></div>
+<p>Full response:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">&quot;symbols&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="nt">&quot;AAPL&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">      </span><span class="nt">&quot;tick_decimals&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">      </span><span class="nt">&quot;lot_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span><span class="nt">&quot;risk&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">    </span><span class="nt">&quot;default_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;L1&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">    </span><span class="nt">&quot;levels&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">      </span><span class="nt">&quot;L1&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">        </span><span class="nt">&quot;soft_pct&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">5.0</span><span class="p">,</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">        </span><span class="nt">&quot;hard_pct&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">10.0</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="w">      </span><span class="p">}</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="w">  </span><span class="nt">&quot;indexes&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="w">      </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TECH10&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="w">      </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Tech sample index&quot;</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a><span class="w">  </span><span class="nt">&quot;schedule&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="w">    </span><span class="nt">&quot;sessions_enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="w">    </span><span class="nt">&quot;country&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;US&quot;</span>
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a><span class="w">  </span><span class="nt">&quot;config_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sha256:6d8d...&quot;</span>
+<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="p">}</span>
+</code></pre></div>
+<h4 id="history-example-get-apiv1historytrades">History example (<code>GET /api/v1/history/trades</code>)<a class="headerlink" href="#history-example-get-apiv1historytrades" title="Permanent link">&para;</a></h4>
+<p>Minimal response:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">&quot;trades&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">&quot;has_more&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="p">}</span>
+</code></pre></div>
+<p>Full response:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">&quot;trades&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">      </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">      </span><span class="nt">&quot;price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">187.3</span><span class="p">,</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">      </span><span class="nt">&quot;quantity&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">      </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-08-06T09:30:00Z&quot;</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span><span class="nt">&quot;has_more&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="nt">&quot;next_cursor&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;eyJhZnRlciI6Ii4uLiJ9&quot;</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="p">}</span>
+</code></pre></div>
+<h4 id="admin-example-post-apiv1adminsessiontransition">Admin example (<code>POST /api/v1/admin/session/transition</code>)<a class="headerlink" href="#admin-example-post-apiv1adminsessiontransition" title="Permanent link">&para;</a></h4>
+<p>Minimal request:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">&quot;to_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OPEN&quot;</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="p">}</span>
+</code></pre></div>
+<p>Full request:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">&quot;to_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OPEN&quot;</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="p">}</span>
+</code></pre></div>
+<p>Minimal response:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="p">{</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">&quot;requested_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OPEN&quot;</span><span class="p">,</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;APPLIED&quot;</span><span class="p">,</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span><span class="nt">&quot;command_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;c_01K17P...&quot;</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="p">}</span>
+</code></pre></div>
+<p>Full response:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="p">{</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">&quot;requested_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OPEN&quot;</span><span class="p">,</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;APPLIED&quot;</span><span class="p">,</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="nt">&quot;command_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;c_01K17P9B7C6W9X0Y8Z7&quot;</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="compatibility-and-deprecation-policy">Compatibility and deprecation policy<a class="headerlink" href="#compatibility-and-deprecation-policy" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Versioning: this surface is namespaced under <code>/api/v1</code>.</li>
+<li>Backward compatibility: additive changes (new optional fields/endpoints) MAY
+  be introduced within v1 without changing the base path.</li>
+<li>Breaking changes (field removal, required-field additions, semantic
+  redefinition) MUST ship under a new versioned base path.</li>
+<li>Deprecation: deprecated fields/endpoints SHOULD be documented with migration
+  guidance before removal in a later major API version.</li>
+</ul>
+<h2 id="trading-rest_1">Trading REST<a class="headerlink" href="#trading-rest_1" title="Permanent link">&para;</a></h2>
+<h3 id="post-apiv1orders"><code>POST /api/v1/orders</code><a class="headerlink" href="#post-apiv1orders" title="Permanent link">&para;</a></h3>
+<p>Purpose: submit one order for the caller's gateway.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>yes</td>
+<td>Instrument symbol</td>
+</tr>
+<tr>
+<td><code>side</code></td>
+<td><code>Side</code></td>
+<td>yes</td>
+<td><code>BUY</code> or <code>SELL</code></td>
+</tr>
+<tr>
+<td><code>order_type</code></td>
+<td><code>OrderType</code></td>
+<td>yes</td>
+<td><code>MARKET</code>, <code>LIMIT</code>, <code>STOP</code>, <code>STOP_LIMIT</code>, <code>FOK</code>, <code>ICEBERG</code>, <code>IOC</code>, or <code>TRAILING_STOP</code></td>
+</tr>
+<tr>
+<td><code>quantity</code></td>
+<td><code>Int</code></td>
+<td>yes</td>
+<td>Positive order quantity</td>
+</tr>
+<tr>
+<td><code>tif</code></td>
+<td><code>Tif</code></td>
+<td>no</td>
+<td>Time-in-force; defaults to <code>DAY</code></td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td><code>Price</code></td>
+<td>conditional</td>
+<td>Required for limit-style orders</td>
+</tr>
+<tr>
+<td><code>stop_price</code></td>
+<td><code>Price</code></td>
+<td>conditional</td>
+<td>Required for stop-style orders</td>
+</tr>
+<tr>
+<td><code>visible_qty</code></td>
+<td><code>Qty</code></td>
+<td>conditional</td>
+<td>Required for iceberg orders</td>
+</tr>
+<tr>
+<td><code>trail_offset</code></td>
+<td><code>Ticks</code></td>
+<td>conditional</td>
+<td>Required for trailing-stop orders</td>
+</tr>
+<tr>
+<td><code>smp_action</code></td>
+<td><code>SmpAction</code></td>
+<td>no</td>
+<td>Self-match prevention action</td>
+</tr>
+<tr>
+<td><code>client_order_id</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Optional idempotency key in the session cache</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{"order_id": "...", "status": "PENDING"}</code></td>
+<td>Default immediate reply</td>
+</tr>
+<tr>
+<td><code>200 OK</code></td>
+<td>engine ACK payload</td>
+<td>Returned when <code>?wait=ack</code> waits for the matching ACK</td>
+</tr>
+<tr>
+<td><code>409 Conflict</code></td>
+<td>error envelope</td>
+<td><code>client_order_id</code> already active</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>ADMIN-only restriction violated</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td>Body does not match the order type</td>
+</tr>
+<tr>
+<td><code>DUPLICATE</code></td>
+<td><code>client_order_id</code> already active</td>
+</tr>
+<tr>
+<td><code>RATE_LIMIT</code></td>
+<td>Write limit exceeded</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not ACK in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="delete-apiv1ordersorder_id"><code>DELETE /api/v1/orders/{order_id}</code><a class="headerlink" href="#delete-apiv1ordersorder_id" title="Permanent link">&para;</a></h3>
+<p>Purpose: cancel one live order in the caller's gateway.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order_id</code></td>
+<td><code>Str</code></td>
+<td>yes (path)</td>
+<td>Order to cancel</td>
+</tr>
+<tr>
+<td><code>wait</code></td>
+<td><code>Bool</code></td>
+<td>no</td>
+<td><code>?wait=ack</code> waits for <code>order.cancelled.*</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{"order_id": "...", "status": "PENDING"}</code></td>
+<td>Request accepted</td>
+</tr>
+<tr>
+<td><code>200 OK</code></td>
+<td>cancel ACK payload</td>
+<td>Returned when waiting for the ACK</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td>Bad path or query</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not ACK in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="patch-apiv1ordersorder_id"><code>PATCH /api/v1/orders/{order_id}</code><a class="headerlink" href="#patch-apiv1ordersorder_id" title="Permanent link">&para;</a></h3>
+<p>Purpose: amend price and/or quantity on one live order.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order_id</code></td>
+<td><code>Str</code></td>
+<td>yes (path)</td>
+<td>Order to amend</td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td><code>Price</code></td>
+<td>conditional</td>
+<td>New order price</td>
+</tr>
+<tr>
+<td><code>quantity</code></td>
+<td><code>Qty</code></td>
+<td>conditional</td>
+<td>New order quantity</td>
+</tr>
+<tr>
+<td><code>wait</code></td>
+<td><code>Bool</code></td>
+<td>no</td>
+<td><code>?wait=ack</code> waits for <code>order.amended.*</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{"order_id": "...", "status": "PENDING"}</code></td>
+<td>Request accepted</td>
+</tr>
+<tr>
+<td><code>200 OK</code></td>
+<td>amend ACK payload</td>
+<td>Returned when waiting for the ACK</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td>Neither or both fields invalid</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not ACK in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1ordersorder_idreplace"><code>POST /api/v1/orders/{order_id}/replace</code><a class="headerlink" href="#post-apiv1ordersorder_idreplace" title="Permanent link">&para;</a></h3>
+<p>Purpose: cancel one live order and submit a replacement in one workflow.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order_id</code></td>
+<td><code>Str</code></td>
+<td>yes (path)</td>
+<td>Order to replace</td>
+</tr>
+<tr>
+<td>body</td>
+<td><code>Order</code> fields</td>
+<td>yes</td>
+<td>Same shape as <code>POST /orders</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>cancel ACK then replacement ACK</td>
+<td>Synchronous cancel-then-submit workflow</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td>Replacement body invalid</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Cancel or submit timed out</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1orders"><code>GET /api/v1/orders</code><a class="headerlink" href="#get-apiv1orders" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the caller gateway's live order cache.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>no</td>
+<td>Filter by symbol</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>OrderStatus</code></td>
+<td>no</td>
+<td>Filter by order status</td>
+</tr>
+<tr>
+<td><code>after</code></td>
+<td><code>Cursor</code></td>
+<td>no</td>
+<td>Opaque page cursor</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td><code>Int</code></td>
+<td>no</td>
+<td>Page size, bounded by the gateway</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "orders": [...], "count": N, "has_more": bool, "next_cursor": str? }</code></td>
+<td>Current live orders</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td>Query parameters invalid</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Fresh snapshot request to the engine timed out</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1ordersorder_id"><code>GET /api/v1/orders/{order_id}</code><a class="headerlink" href="#get-apiv1ordersorder_id" title="Permanent link">&para;</a></h3>
+<p>Purpose: return one cached order from the caller gateway.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order_id</code></td>
+<td><code>Str</code></td>
+<td>yes (path)</td>
+<td>Order to fetch</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>cached order object</td>
+<td>Current order state</td>
+</tr>
+<tr>
+<td><code>404 Not Found</code></td>
+<td>error envelope</td>
+<td>Order id not in cache</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>UNKNOWN_ORDER</code></td>
+<td>Order id unknown to the cache</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1oco"><code>POST /api/v1/oco</code><a class="headerlink" href="#post-apiv1oco" title="Permanent link">&para;</a></h3>
+<p>Purpose: submit an OCO pair.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>oco_id</code></td>
+<td><code>Str</code></td>
+<td>yes</td>
+<td>Group id for the pair</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>yes</td>
+<td>Instrument symbol</td>
+</tr>
+<tr>
+<td><code>quantity</code></td>
+<td><code>Qty</code></td>
+<td>yes</td>
+<td>Total quantity</td>
+</tr>
+<tr>
+<td><code>leg1</code></td>
+<td><code>OrderLeg</code></td>
+<td>yes</td>
+<td>First leg definition</td>
+</tr>
+<tr>
+<td><code>leg2</code></td>
+<td><code>OrderLeg</code></td>
+<td>yes</td>
+<td>Second leg definition</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>ack payload</td>
+<td>OCO accepted for processing</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td>Body invalid</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not ACK in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="delete-apiv1ocooco_id"><code>DELETE /api/v1/oco/{oco_id}</code><a class="headerlink" href="#delete-apiv1ocooco_id" title="Permanent link">&para;</a></h3>
+<p>Purpose: cancel an OCO pair.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>oco_id</code></td>
+<td><code>Str</code></td>
+<td>yes (path)</td>
+<td>OCO group to cancel</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>cancel ack payload</td>
+<td>OCO cancel accepted</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Cancel timed out</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1combos"><code>POST /api/v1/combos</code><a class="headerlink" href="#post-apiv1combos" title="Permanent link">&para;</a></h3>
+<p>Purpose: submit a combo order.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>combo_id</code></td>
+<td><code>Str</code></td>
+<td>yes</td>
+<td>Combo group id</td>
+</tr>
+<tr>
+<td><code>legs</code></td>
+<td><code>List&lt;ComboLeg&gt;</code></td>
+<td>yes</td>
+<td>Leg list</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>ack payload</td>
+<td>Combo accepted for processing</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td>Body invalid</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not ACK in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="delete-apiv1comboscombo_id"><code>DELETE /api/v1/combos/{combo_id}</code><a class="headerlink" href="#delete-apiv1comboscombo_id" title="Permanent link">&para;</a></h3>
+<p>Purpose: cancel a combo order.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>combo_id</code></td>
+<td><code>Str</code></td>
+<td>yes (path)</td>
+<td>Combo group to cancel</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>cancel ack payload</td>
+<td>Combo cancel accepted</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Cancel timed out</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1quotes"><code>POST /api/v1/quotes</code><a class="headerlink" href="#post-apiv1quotes" title="Permanent link">&para;</a></h3>
+<p>Purpose: submit a two-sided market-maker quote.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>yes</td>
+<td>Quoted instrument</td>
+</tr>
+<tr>
+<td><code>bid_price</code></td>
+<td><code>Price</code></td>
+<td>yes</td>
+<td>Bid price</td>
+</tr>
+<tr>
+<td><code>bid_qty</code></td>
+<td><code>Qty</code></td>
+<td>yes</td>
+<td>Bid quantity</td>
+</tr>
+<tr>
+<td><code>ask_price</code></td>
+<td><code>Price</code></td>
+<td>yes</td>
+<td>Ask price</td>
+</tr>
+<tr>
+<td><code>ask_qty</code></td>
+<td><code>Qty</code></td>
+<td>yes</td>
+<td>Ask quantity</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>quote ack payload</td>
+<td>Quote accepted</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td>Quote body invalid</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Quote ACK timed out</td>
+</tr>
+</tbody>
+</table>
+<h3 id="delete-apiv1quotessymbol"><code>DELETE /api/v1/quotes/{symbol}</code><a class="headerlink" href="#delete-apiv1quotessymbol" title="Permanent link">&para;</a></h3>
+<p>Purpose: cancel the active quote for one symbol.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>yes (path)</td>
+<td>Quoted instrument</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>cancel ack payload</td>
+<td>Quote cancel accepted</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Cancel timed out</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1mass-cancel"><code>POST /api/v1/mass-cancel</code><a class="headerlink" href="#post-apiv1mass-cancel" title="Permanent link">&para;</a></h3>
+<p>Purpose: cancel all resting exposure for the caller or one symbol.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>no</td>
+<td>Restrict the cancel to one symbol</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Free-text note carried to monitor events</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>ack payload</td>
+<td>Cancel request accepted</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not ACK in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1kill-switch"><code>POST /api/v1/kill-switch</code><a class="headerlink" href="#post-apiv1kill-switch" title="Permanent link">&para;</a></h3>
+<p>Purpose: alias of <code>POST /api/v1/mass-cancel</code>.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>no</td>
+<td>Optional symbol-scoped kill</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Free-text note</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>ack payload</td>
+<td>Same behavior as <code>/mass-cancel</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not ACK in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1symbols"><code>GET /api/v1/symbols</code><a class="headerlink" href="#get-apiv1symbols" title="Permanent link">&para;</a></h3>
+<p>Purpose: return instrument metadata for the caller gateway.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "symbols": [...] }</code></td>
+<td>Current symbol metadata</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1session"><code>GET /api/v1/session</code><a class="headerlink" href="#get-apiv1session" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the current engine session state for the caller.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>session state object</td>
+<td>Current session state</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1status"><code>GET /api/v1/status</code><a class="headerlink" href="#get-apiv1status" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the gateway cache summary and resolved role.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>status object</td>
+<td>Cache summary, resolved role, and for ADMIN keys <code>gateway_count</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1healthz"><code>GET /api/v1/healthz</code><a class="headerlink" href="#get-apiv1healthz" title="Permanent link">&para;</a></h3>
+<p>Purpose: liveness probe for the API gateway.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No auth required</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>health object</td>
+<td>Gateway is enabled and its engine listener is alive</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1quotesbootstrap"><code>GET /api/v1/quotes/bootstrap</code><a class="headerlink" href="#get-apiv1quotesbootstrap" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the active market-maker quote bootstrap state.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>quote bootstrap object</td>
+<td>Current quote bootstrap state</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1quoteslegs"><code>GET /api/v1/quotes/legs</code><a class="headerlink" href="#get-apiv1quoteslegs" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the current quote-leg state for the caller.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "legs": [...] }</code></td>
+<td>Current quote legs</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1positions"><code>GET /api/v1/positions</code><a class="headerlink" href="#get-apiv1positions" title="Permanent link">&para;</a></h3>
+<p>Purpose: return current net positions by symbol.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "positions": [...] }</code></td>
+<td>Net positions for the caller gateway</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h2 id="reference-data_1">Reference data<a class="headerlink" href="#reference-data_1" title="Permanent link">&para;</a></h2>
+<p>Base path: <code>/api/v1/reference</code>. These endpoints expose compiled reference data
+that changes only when an admin reloads it.</p>
+<h3 id="get-apiv1reference"><code>GET /api/v1/reference</code><a class="headerlink" href="#get-apiv1reference" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the full reference bundle in one round-trip.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "symbols", "risk", "indexes", "schedule", "config_version" }</code></td>
+<td>Full resolved reference bundle</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1referenceconfig-version"><code>GET /api/v1/reference/config-version</code><a class="headerlink" href="#get-apiv1referenceconfig-version" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the content-hash version of the reference bundle.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "config_version": "..." }</code></td>
+<td>Opaque bundle version hash</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1referencesymbols"><code>GET /api/v1/reference/symbols</code><a class="headerlink" href="#get-apiv1referencesymbols" title="Permanent link">&para;</a></h3>
+<p>Purpose: return per-symbol tick and risk metadata.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "symbols": {...}, "config_version": "..." }</code></td>
+<td>Symbol metadata keyed by symbol</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1referencerisk"><code>GET /api/v1/reference/risk</code><a class="headerlink" href="#get-apiv1referencerisk" title="Permanent link">&para;</a></h3>
+<p>Purpose: return risk-band definitions and the default risk level.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "default_level", "levels", "config_version" }</code></td>
+<td>Risk-band configuration</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1referenceindexes"><code>GET /api/v1/reference/indexes</code><a class="headerlink" href="#get-apiv1referenceindexes" title="Permanent link">&para;</a></h3>
+<p>Purpose: return configured exchange index definitions.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "indexes": [...], "config_version": "..." }</code></td>
+<td>Static index definitions</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1referenceschedule"><code>GET /api/v1/reference/schedule</code><a class="headerlink" href="#get-apiv1referenceschedule" title="Permanent link">&para;</a></h3>
+<p>Purpose: return session schedule metadata.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>schedule object</td>
+<td><code>sessions_enabled</code>, <code>country</code>, and session transition times</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1adminreferencereload"><code>POST /api/v1/admin/reference/reload</code><a class="headerlink" href="#post-apiv1adminreferencereload" title="Permanent link">&para;</a></h3>
+<p>Purpose: reload the compiled reference bundle without restarting the engine.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No request body</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "status": "RELOADED", "config_version": "..." }</code></td>
+<td>Reference bundle reloaded successfully</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>RELOAD_REJECTED</code></td>
+<td>Reload would change the symbol or index set</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h2 id="history_1">History<a class="headerlink" href="#history_1" title="Permanent link">&para;</a></h2>
+<p>Base path: <code>/api/v1/history</code>. Trading endpoints are scoped to the caller's
+gateway id; public history accepts any valid key.</p>
+<h3 id="get-apiv1historyorders"><code>GET /api/v1/history/orders</code><a class="headerlink" href="#get-apiv1historyorders" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the caller gateway's order lifecycle events.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>no</td>
+<td>Filter by symbol</td>
+</tr>
+<tr>
+<td><code>event_type</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Filter by event type</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>Single trading date</td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td><code>DateTime</code></td>
+<td>no</td>
+<td>Range start</td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td><code>DateTime</code></td>
+<td>no</td>
+<td>Range end</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td><code>Int</code></td>
+<td>no</td>
+<td>Page size</td>
+</tr>
+<tr>
+<td><code>after</code></td>
+<td><code>Cursor</code></td>
+<td>no</td>
+<td>Opaque page cursor</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>paginated list envelope</td>
+<td>Order lifecycle events for the caller gateway</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>STATS_DB</code></td>
+<td><code>pm-stats</code> database missing</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td>Query invalid</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1historyordersorder_id"><code>GET /api/v1/history/orders/{order_id}</code><a class="headerlink" href="#get-apiv1historyordersorder_id" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the full lifecycle of one order for the caller gateway.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order_id</code></td>
+<td><code>Str</code></td>
+<td>yes (path)</td>
+<td>Order to fetch</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "order_id", "count", "events" }</code></td>
+<td>Full lifecycle for one order</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>STATS_DB</code></td>
+<td><code>pm-stats</code> database missing</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td>Path invalid</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1historyfills"><code>GET /api/v1/history/fills</code><a class="headerlink" href="#get-apiv1historyfills" title="Permanent link">&para;</a></h3>
+<p>Purpose: return fill events for the caller gateway.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>no</td>
+<td>Filter by symbol</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>Trading date</td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td><code>DateTime</code></td>
+<td>no</td>
+<td>Range start</td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td><code>DateTime</code></td>
+<td>no</td>
+<td>Range end</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td><code>Int</code></td>
+<td>no</td>
+<td>Page size</td>
+</tr>
+<tr>
+<td><code>after</code></td>
+<td><code>Cursor</code></td>
+<td>no</td>
+<td>Opaque page cursor</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>paginated list envelope</td>
+<td>Fill history for the caller gateway</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td>Read-only credential used</td>
+</tr>
+<tr>
+<td><code>STATS_DB</code></td>
+<td><code>pm-stats</code> database missing</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1historytrades"><code>GET /api/v1/history/trades</code><a class="headerlink" href="#get-apiv1historytrades" title="Permanent link">&para;</a></h3>
+<p>Purpose: return public trade tape rows.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>no</td>
+<td>Filter by symbol</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>Trading date</td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td><code>DateTime</code></td>
+<td>no</td>
+<td>Range start</td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td><code>DateTime</code></td>
+<td>no</td>
+<td>Range end</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td><code>Int</code></td>
+<td>no</td>
+<td>Page size</td>
+</tr>
+<tr>
+<td><code>after</code></td>
+<td><code>Cursor</code></td>
+<td>no</td>
+<td>Opaque page cursor</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>paginated list envelope</td>
+<td>Public trade rows</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>STATS_DB</code></td>
+<td><code>pm-stats</code> database missing</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1historydaily"><code>GET /api/v1/history/daily</code><a class="headerlink" href="#get-apiv1historydaily" title="Permanent link">&para;</a></h3>
+<p>Purpose: return daily OHLCV rows.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>no</td>
+<td>Filter by symbol</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>Single trading day</td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>Range start</td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>Range end</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td><code>Int</code></td>
+<td>no</td>
+<td>Page size</td>
+</tr>
+<tr>
+<td><code>after</code></td>
+<td><code>Cursor</code></td>
+<td>no</td>
+<td>Opaque page cursor</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>paginated list envelope</td>
+<td>Daily OHLCV rows</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>STATS_DB</code></td>
+<td><code>pm-stats</code> database missing</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1historyprice-snapshots"><code>GET /api/v1/history/price-snapshots</code><a class="headerlink" href="#get-apiv1historyprice-snapshots" title="Permanent link">&para;</a></h3>
+<p>Purpose: return intraday price snapshots.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>yes</td>
+<td>Instrument symbol</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>Trading day</td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td><code>DateTime</code></td>
+<td>no</td>
+<td>Range start</td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td><code>DateTime</code></td>
+<td>no</td>
+<td>Range end</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td><code>Int</code></td>
+<td>no</td>
+<td>Page size</td>
+</tr>
+<tr>
+<td><code>after</code></td>
+<td><code>Cursor</code></td>
+<td>no</td>
+<td>Opaque page cursor</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>paginated list envelope</td>
+<td>Intraday mid/bid/ask series</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>STATS_DB</code></td>
+<td><code>pm-stats</code> database missing</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1historyindex-daily"><code>GET /api/v1/history/index-daily</code><a class="headerlink" href="#get-apiv1historyindex-daily" title="Permanent link">&para;</a></h3>
+<p>Purpose: return daily index OHLC rows.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>index_id</code></td>
+<td><code>IndexId</code></td>
+<td>no</td>
+<td>Index id</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>Single trading day</td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>Range start</td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>Range end</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td><code>Int</code></td>
+<td>no</td>
+<td>Page size</td>
+</tr>
+<tr>
+<td><code>after</code></td>
+<td><code>Cursor</code></td>
+<td>no</td>
+<td>Opaque page cursor</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>paginated list envelope</td>
+<td>Daily index rows</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>STATS_DB</code></td>
+<td><code>pm-stats</code> database missing</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1historyindex-snapshots"><code>GET /api/v1/history/index-snapshots</code><a class="headerlink" href="#get-apiv1historyindex-snapshots" title="Permanent link">&para;</a></h3>
+<p>Purpose: return intraday index snapshots.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>index_id</code></td>
+<td><code>IndexId</code></td>
+<td>yes</td>
+<td>Index id</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>Trading day</td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td><code>DateTime</code></td>
+<td>no</td>
+<td>Range start</td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td><code>DateTime</code></td>
+<td>no</td>
+<td>Range end</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td><code>Int</code></td>
+<td>no</td>
+<td>Page size</td>
+</tr>
+<tr>
+<td><code>after</code></td>
+<td><code>Cursor</code></td>
+<td>no</td>
+<td>Opaque page cursor</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>paginated list envelope</td>
+<td>Intraday index series</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>STATS_DB</code></td>
+<td><code>pm-stats</code> database missing</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1historyindex-ids"><code>GET /api/v1/history/index-ids</code><a class="headerlink" href="#get-apiv1historyindex-ids" title="Permanent link">&para;</a></h3>
+<p>Purpose: list index ids with recorded data.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>date</code></td>
+<td><code>Date</code></td>
+<td>no</td>
+<td>Filter by trading day</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "index_ids": [...], "count": N }</code></td>
+<td>Index ids with data</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>STATS_DB</code></td>
+<td><code>pm-stats</code> database missing</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1historyindex-events"><code>GET /api/v1/history/index-events</code><a class="headerlink" href="#get-apiv1historyindex-events" title="Permanent link">&para;</a></h3>
+<p>Purpose: return index structural and audit events from <code>pm-index</code>.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>index_id</code></td>
+<td><code>IndexId</code></td>
+<td>yes</td>
+<td>Index id</td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td><code>Secs</code></td>
+<td>no</td>
+<td>Unix time start</td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td><code>Secs</code></td>
+<td>no</td>
+<td>Unix time end</td>
+</tr>
+<tr>
+<td><code>types</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Repeatable event-type filter</td>
+</tr>
+<tr>
+<td><code>max_records</code></td>
+<td><code>Int</code></td>
+<td>no</td>
+<td>Reply cap</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "events": [...], "count": N }</code></td>
+<td>Structural audit log</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>INDEX_TIMEOUT</code></td>
+<td><code>pm-index</code> did not reply in time</td>
+</tr>
+<tr>
+<td><code>INDEX_ERROR</code></td>
+<td><code>pm-index</code> rejected the request</td>
+</tr>
+</tbody>
+</table>
+<h2 id="admin-rest_1">Admin REST<a class="headerlink" href="#admin-rest_1" title="Permanent link">&para;</a></h2>
+<p>Base path: <code>/api/v1/admin</code>. ADMIN role required.</p>
+<h3 id="post-apiv1adminsessiontransition"><code>POST /api/v1/admin/session/transition</code><a class="headerlink" href="#post-apiv1adminsessiontransition" title="Permanent link">&para;</a></h3>
+<p>Purpose: request a session-phase transition from the engine.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>to_state</code></td>
+<td><code>SessionState</code></td>
+<td>yes</td>
+<td>Requested session phase</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{"requested_state": "...", "status": "APPLIED", "command_id": "..."}</code></td>
+<td>Transition request accepted and applied</td>
+</tr>
+<tr>
+<td><code>409 Conflict</code></td>
+<td>error envelope</td>
+<td>The engine refused the transition</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td>Invalid <code>to_state</code></td>
+</tr>
+<tr>
+<td><code>TRANSITION_REJECTED</code></td>
+<td>Engine rejected the transition</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1adminsessionschedule"><code>GET /api/v1/admin/session/schedule</code><a class="headerlink" href="#get-apiv1adminsessionschedule" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the current session schedule settings.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td>schedule object</td>
+<td>Current schedule and session enablement</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1admingateways"><code>GET /api/v1/admin/gateways</code><a class="headerlink" href="#get-apiv1admingateways" title="Permanent link">&para;</a></h3>
+<p>Purpose: list configured gateways and live connection state.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "gateways": [...] }</code></td>
+<td>Gateway roster and connection status</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1admingatewaysgiddisconnect"><code>POST /api/v1/admin/gateways/{gid}/disconnect</code><a class="headerlink" href="#post-apiv1admingatewaysgiddisconnect" title="Permanent link">&para;</a></h3>
+<p>Purpose: forcibly disconnect one gateway.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gid</code></td>
+<td><code>GatewayId</code></td>
+<td>yes (path)</td>
+<td>Gateway to disconnect</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Optional note</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td><code>{ "gateway_id": "...", "status": "DISCONNECTED" }</code></td>
+<td>Gateway disconnect accepted</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1admincircuit-breakertrigger"><code>POST /api/v1/admin/circuit-breaker/trigger</code><a class="headerlink" href="#post-apiv1admincircuit-breakertrigger" title="Permanent link">&para;</a></h3>
+<p>Purpose: halt one symbol through the engine's circuit-breaker path.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>yes</td>
+<td>Symbol to halt</td>
+</tr>
+<tr>
+<td><code>level</code></td>
+<td><code>Str</code></td>
+<td>yes</td>
+<td>Requested level name</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Optional note</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>ack payload</td>
+<td>Halt accepted</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td>Symbol or level invalid</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1admincircuit-breakerresume"><code>POST /api/v1/admin/circuit-breaker/resume</code><a class="headerlink" href="#post-apiv1admincircuit-breakerresume" title="Permanent link">&para;</a></h3>
+<p>Purpose: resume one halted symbol.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>yes</td>
+<td>Symbol to resume</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Optional note</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>ack payload</td>
+<td>Resume accepted</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1adminhalts"><code>GET /api/v1/admin/halts</code><a class="headerlink" href="#get-apiv1adminhalts" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the current active halts table.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "halts": [...] }</code></td>
+<td>Active halts for the venue</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1adminriskstate"><code>GET /api/v1/admin/risk/state</code><a class="headerlink" href="#get-apiv1adminriskstate" title="Permanent link">&para;</a></h3>
+<p>Purpose: return live per-symbol risk state.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "symbols": {...} }</code></td>
+<td>Current collar and circuit-breaker state</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1adminorders"><code>GET /api/v1/admin/orders</code><a class="headerlink" href="#get-apiv1adminorders" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the cross-gateway active-order table.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>no</td>
+<td>Filter by symbol</td>
+</tr>
+<tr>
+<td><code>gateway_id</code></td>
+<td><code>GatewayId</code></td>
+<td>no</td>
+<td>Filter by gateway</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>OrderStatus</code></td>
+<td>no</td>
+<td>Filter by status</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "count": N, "orders": [...], "retention_sec": N }</code></td>
+<td>Current cross-gateway active orders</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1adminordersorder_id"><code>GET /api/v1/admin/orders/{order_id}</code><a class="headerlink" href="#get-apiv1adminordersorder_id" title="Permanent link">&para;</a></h3>
+<p>Purpose: return the full cross-gateway lifecycle of one order.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order_id</code></td>
+<td><code>Str</code></td>
+<td>yes (path)</td>
+<td>Order to fetch</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td><code>Int</code></td>
+<td>no</td>
+<td>Maximum number of events</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "order_id", "count", "events" }</code></td>
+<td>Full audited lifecycle</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>AUDIT_INDEX_UNAVAILABLE</code></td>
+<td>No audit index available</td>
+</tr>
+<tr>
+<td><code>UNKNOWN_ORDER</code></td>
+<td>No audited events for the order</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1adminkill-switchsymbol"><code>POST /api/v1/admin/kill-switch/symbol</code><a class="headerlink" href="#post-apiv1adminkill-switchsymbol" title="Permanent link">&para;</a></h3>
+<p>Purpose: cancel all resting exposure on one symbol.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td><code>Symbol</code></td>
+<td>yes</td>
+<td>Symbol to cancel</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Optional note</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>ack payload</td>
+<td>Symbol kill-switch accepted</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1adminkill-switchgateway"><code>POST /api/v1/admin/kill-switch/gateway</code><a class="headerlink" href="#post-apiv1adminkill-switchgateway" title="Permanent link">&para;</a></h3>
+<p>Purpose: cancel all resting exposure for one target gateway.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>target_gateway_id</code></td>
+<td><code>GatewayId</code></td>
+<td>yes</td>
+<td>Gateway to cancel</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Optional note</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>ack payload</td>
+<td>Gateway kill-switch accepted</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1adminkill-switchglobal"><code>POST /api/v1/admin/kill-switch/global</code><a class="headerlink" href="#post-apiv1adminkill-switchglobal" title="Permanent link">&para;</a></h3>
+<p>Purpose: cancel all resting exposure across every gateway and symbol.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reason</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Optional note</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>ack payload</td>
+<td>Global kill-switch accepted</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apiv1adminindexes"><code>GET /api/v1/admin/indexes</code><a class="headerlink" href="#get-apiv1adminindexes" title="Permanent link">&para;</a></h3>
+<p>Purpose: return index configuration for the ADMIN UI.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No query parameters</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "indexes": [...], "config_version": "..." }</code></td>
+<td>Static index definitions</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1adminindexesidrebalance"><code>POST /api/v1/admin/indexes/{id}/rebalance</code><a class="headerlink" href="#post-apiv1adminindexesidrebalance" title="Permanent link">&para;</a></h3>
+<p>Purpose: rebalance one configured index through <code>pm-index</code>.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td><code>IndexId</code></td>
+<td>yes (path)</td>
+<td>Index to rebalance</td>
+</tr>
+<tr>
+<td><code>updates</code></td>
+<td><code>List&lt;RebalanceUpdate&gt;</code></td>
+<td>yes</td>
+<td>Shares-outstanding updates</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td><code>Str</code></td>
+<td>no</td>
+<td>Optional note</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202 Accepted</code></td>
+<td>rebalance ack</td>
+<td>Update accepted and applied</td>
+</tr>
+<tr>
+<td><code>409 Conflict</code></td>
+<td>error envelope</td>
+<td>Rebalance rejected</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td>Batch body invalid</td>
+</tr>
+<tr>
+<td><code>REBALANCE_REJECTED</code></td>
+<td><code>pm-index</code> rejected the request</td>
+</tr>
+<tr>
+<td><code>INDEX_TIMEOUT</code></td>
+<td><code>pm-index</code> did not reply in time</td>
+</tr>
+<tr>
+<td><code>INDEX_ERROR</code></td>
+<td><code>pm-index</code> returned an error</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-apiv1adminreferencereload_1"><code>POST /api/v1/admin/reference/reload</code><a class="headerlink" href="#post-apiv1adminreferencereload_1" title="Permanent link">&para;</a></h3>
+<p>Purpose: reload the compiled reference bundle in place.</p>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>—</td>
+<td>—</td>
+<td>No request body</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>200 OK</code></td>
+<td><code>{ "status": "RELOADED", "config_version": "..." }</code></td>
+<td>Reference bundle reloaded</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td>Caller is not ADMIN</td>
+</tr>
+<tr>
+<td><code>RELOAD_REJECTED</code></td>
+<td>Reload would change the symbol or index set</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td>Engine did not reply in time</td>
+</tr>
+</tbody>
+</table>
+<h2 id="operational-notes">Operational notes<a class="headerlink" href="#operational-notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Read-only dashboard keys can call reference and public history endpoints,
+  but not trading or admin write endpoints.</li>
+<li><code>order_retention_sec</code> bounds the live order cache, the private
+  <code>orders.snapshot</code> frame, and <code>GET /api/v1/admin/orders</code>.</li>
+<li>WebSocket streams use the chapter-level contracts in
+  <a href="../260-api-gateway/">API Gateway (REST/WebSocket)</a>; this appendix is REST
+  only.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["toc.integrate", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

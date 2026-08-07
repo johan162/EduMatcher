@@ -2078,6 +2078,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/950-app-REST-API-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: REST API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/990-app-config-spec/" class="md-nav__link">
         
   
@@ -2363,10 +2391,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-5-start-the-engine" class="md-nav__link">
+  <a href="#exercise-5-compile-and-deploy-the-config-with-pm-config-deploy" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 5: Start the Engine
+        Exercise 5: Compile and Deploy the Config with pm-config-deploy
       
     </span>
   </a>
@@ -2374,10 +2402,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-6-start-the-scheduler" class="md-nav__link">
+  <a href="#exercise-6-start-the-engine" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 6: Start the Scheduler
+        Exercise 6: Start the Engine
       
     </span>
   </a>
@@ -2385,10 +2413,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-7-connect-a-gateway" class="md-nav__link">
+  <a href="#exercise-7-start-the-scheduler" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 7: Connect a Gateway
+        Exercise 7: Start the Scheduler
       
     </span>
   </a>
@@ -2396,10 +2424,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-8-verify-the-setup" class="md-nav__link">
+  <a href="#exercise-8-connect-a-gateway" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 8: Verify the Setup
+        Exercise 8: Connect a Gateway
       
     </span>
   </a>
@@ -2407,10 +2435,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-9-connect-the-admin-gateway" class="md-nav__link">
+  <a href="#exercise-9-verify-the-setup" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 9: Connect the Admin Gateway
+        Exercise 9: Verify the Setup
       
     </span>
   </a>
@@ -2418,10 +2446,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-10-inspect-enriched-symbols-metadata" class="md-nav__link">
+  <a href="#exercise-10-connect-the-admin-gateway" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 10: Inspect Enriched SYMBOLS Metadata
+        Exercise 10: Connect the Admin Gateway
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-11-inspect-enriched-symbols-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 11: Inspect Enriched SYMBOLS Metadata
       
     </span>
   </a>
@@ -3601,10 +3640,11 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>By the end of this chapter you will have a working exchange with at least one
 gateway and three tradeable symbols, ready to accept orders.
-In addition you have become familiar with the two tools:</p>
+In addition you have become familiar with the three tools:</p>
 <ul>
 <li><strong><code>pm-config-gen</code></strong> used to automatically generate configuration file based on options and flags. </li>
 <li><strong><code>pm-cverifier</code></strong>  used to verify an existing (possibly hand-crafterd) configuration file for errors or missing settings</li>
+<li><strong><code>pm-config-deploy</code></strong> used to compile a verified configuration file and install it as the artifact <code>pm-engine</code>/<code>pm-scheduler</code> actually read</li>
 </ul>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
@@ -3613,10 +3653,17 @@ In addition you have become familiar with the two tools:</p>
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>EduMatcher requires two essential processes:</p>
 <ol>
-<li><strong>pm-engine</strong> — the matching engine (reads <code>engine_config.yaml</code>).</li>
+<li><strong>pm-engine</strong> — the matching engine.</li>
 <li><strong>pm-scheduler</strong> — drives session phase transitions.</li>
 </ol>
 <p>A <strong>gateway</strong> (<code>pm-alf-console</code>) connects traders to the engine.</p>
+<p>Neither process reads <code>engine_config.yaml</code> directly, and neither accepts a
+config path on its command line. <code>engine_config.yaml</code> is the file <em>you</em>
+author and edit; what they actually read is a <strong>compiled artifact</strong> at
+<code>$EDUMATCHER_DATA_DIR/ref_data/engine_config.json</code>, produced by
+<code>pm-config-deploy</code> (see <a href="../00-installation/">00 — Installation &amp; Setup</a> for
+where that directory comes from). This chapter's exercises follow that exact
+pipeline: author → verify → deploy → start.</p>
 <h2 id="exercise-1-create-a-minimal-configuration">Exercise 1: Create a Minimal Configuration<a class="headerlink" href="#exercise-1-create-a-minimal-configuration" title="Permanent link">&para;</a></h2>
 <p>Create a file called <code>engine_config.yaml</code> in your working directory:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">symbols</span><span class="p">:</span>
@@ -3646,6 +3693,9 @@ In addition you have become familiar with the two tools:</p>
 <a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> file saved, YAML is valid (no tabs!).</p>
+<p>This file is only the <strong>authored source</strong> — nothing reads it yet. <code>pm-engine</code>
+will not see any of this until you compile and install it with
+<code>pm-config-deploy</code> in Exercise 5.</p>
 <h2 id="exercise-2-generate-a-config-with-pm-config-gen">Exercise 2: Generate a Config with pm-config-gen<a class="headerlink" href="#exercise-2-generate-a-config-with-pm-config-gen" title="Permanent link">&para;</a></h2>
 <p>Instead of writing YAML by hand, you can use the <code>pm-config-gen</code> helper to
 scaffold a configuration. Try generating an equivalent config:</p>
@@ -3731,61 +3781,108 @@ scaffold a configuration. Try generating an equivalent config:</p>
 </ul>
 <p>Now fix the file and rerun until verdict is <code>OK</code> or your expected warning-only state.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can reproduce a verifier finding, map it to a check code, and clear it by fixing the config.</p>
-<h2 id="exercise-5-start-the-engine">Exercise 5: Start the Engine<a class="headerlink" href="#exercise-5-start-the-engine" title="Permanent link">&para;</a></h2>
-<p>Open a terminal and run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-engine
+<h2 id="exercise-5-compile-and-deploy-the-config-with-pm-config-deploy">Exercise 5: Compile and Deploy the Config with pm-config-deploy<a class="headerlink" href="#exercise-5-compile-and-deploy-the-config-with-pm-config-deploy" title="Permanent link">&para;</a></h2>
+<p>Verified YAML is still just a file on disk — no process reads it until it is
+compiled and installed. Check that it compiles without installing anything:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-config-deploy<span class="w"> </span>--check<span class="w"> </span>engine_config.yaml
 </code></pre></div>
+<p>Expected output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>OK — engine_config.yaml compiles (3 symbol(s), 3 gateway(s))
+</code></pre></div>
+<p>Now actually deploy it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<p>Expected output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>Compiled engine_config.yaml
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>      to /Users/you/.local/share/edumatcher/ref_data/engine_config.json
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>   3 symbol(s), 3 gateway(s).
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>   Restart any running processes to pick it up.
+</code></pre></div>
+<p>Confirm where it landed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-config-deploy<span class="w"> </span>--show
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/ref_data&quot;</span>
+</code></pre></div>
+<p>Expected behavior:</p>
+<ul>
+<li><code>--check</code> validates and reports symbol/gateway counts but writes nothing</li>
+<li>deploying overwrites the previous <code>ref_data/engine_config.json</code> atomically —
+  a process reading it mid-deploy sees either the old configuration or the
+  new one, never a half-written file</li>
+<li>if <code>engine_config.yaml</code> fails validation, deploy fails and prints
+  <code>[ERROR] ...</code> followed by <code>Nothing was deployed.</code>; any previous deployment
+  is left untouched</li>
+<li>deploying does <strong>not</strong> restart any already-running <code>pm-engine</code>/<code>pm-scheduler</code>
+  — they must be (re)started to pick up the new artifact, which Exercise 6
+  does next</li>
+</ul>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can explain, in one
+sentence, the difference between <code>engine_config.yaml</code> and
+<code>$EDUMATCHER_DATA_DIR/ref_data/engine_config.json</code>.</p>
+<h2 id="exercise-6-start-the-engine">Exercise 6: Start the Engine<a class="headerlink" href="#exercise-6-start-the-engine" title="Permanent link">&para;</a></h2>
+<p>Open a terminal and run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-engine
+</code></pre></div>
+<p><code>pm-engine</code> takes no config path on its command line — it always reads
+whatever is currently deployed at <code>$EDUMATCHER_DATA_DIR/ref_data/engine_config.json</code>,
+which is exactly the artifact Exercise 5 just installed.</p>
 <p>Expected output includes (exact wording/log format may vary by version — this
 is illustrative, not a literal match target):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[INFO] Loaded 3 symbols: AAPL, MSFT, TSLA
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[INFO] Loaded 3 gateways
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>[INFO] Engine listening on :5555 (PULL), publishing on :5556 (PUB)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[INFO] Loaded 3 symbols: AAPL, MSFT, TSLA
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>[INFO] Loaded 3 gateways
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>[INFO] Engine listening on :5555 (PULL), publishing on :5556 (PUB)
 </code></pre></div>
 <p>The stable way to confirm the engine actually loaded your config, independent
-of log wording, is to query it from a gateway once connected (Exercise 7) with
+of log wording, is to query it from a gateway once connected (Exercise 8) with
 <code>SYMBOLS</code> — if it lists <code>AAPL</code>, <code>MSFT</code>, and <code>TSLA</code>, the engine started correctly
 regardless of what the startup banner said.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> engine is running without errors.</p>
-<h2 id="exercise-6-start-the-scheduler">Exercise 6: Start the Scheduler<a class="headerlink" href="#exercise-6-start-the-scheduler" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-7-start-the-scheduler">Exercise 7: Start the Scheduler<a class="headerlink" href="#exercise-7-start-the-scheduler" title="Permanent link">&para;</a></h2>
 <p>In a <strong>second terminal</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-scheduler
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-scheduler
 </code></pre></div>
 <p>Expected output (illustrative):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[INFO] Session state: PRE_OPEN
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>[INFO] Session state: PRE_OPEN
 </code></pre></div>
 <p>The scheduler will transition through PRE_OPEN → OPENING_AUCTION → CONTINUOUS
 automatically (or you can trigger immediate continuous with <code>--immediate</code>).</p>
+<div class="admonition note">
+<p class="admonition-title">If nothing was deployed</p>
+<p><code>pm-scheduler</code> refuses to guess a schedule the engine has never seen. If
+Exercise 5 was skipped, it exits immediately with a fatal error naming
+<code>pm-config-deploy</code>, instead of silently falling back to a built-in
+timetable.</p>
+</div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> scheduler reports session state changes.</p>
-<h2 id="exercise-7-connect-a-gateway">Exercise 7: Connect a Gateway<a class="headerlink" href="#exercise-7-connect-a-gateway" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-8-connect-a-gateway">Exercise 8: Connect a Gateway<a class="headerlink" href="#exercise-8-connect-a-gateway" title="Permanent link">&para;</a></h2>
 <p>In a <strong>third terminal</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
 <p>You should see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[INFO] Connected as TRADER01
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>TRADER01&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[INFO] Connected as TRADER01
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>TRADER01&gt;
 </code></pre></div>
 <p>Try typing <code>ORDERS</code> — it should report no resting orders for this gateway.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> gateway prompt is interactive and connected.</p>
-<h2 id="exercise-8-verify-the-setup">Exercise 8: Verify the Setup<a class="headerlink" href="#exercise-8-verify-the-setup" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-9-verify-the-setup">Exercise 9: Verify the Setup<a class="headerlink" href="#exercise-9-verify-the-setup" title="Permanent link">&para;</a></h2>
 <p>From the gateway prompt, confirm the three symbols are available by attempting
 a tiny limit order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=0.01|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=0.01|TIF=DAY
 </code></pre></div>
 <p>You should see an acknowledgement (the order rests since no matching ask exists).</p>
 <p>Repeat for <code>MSFT</code> and <code>TSLA</code> to confirm all three books are active.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all three symbols accept orders.</p>
-<h2 id="exercise-9-connect-the-admin-gateway">Exercise 9: Connect the Admin Gateway<a class="headerlink" href="#exercise-9-connect-the-admin-gateway" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-10-connect-the-admin-gateway">Exercise 10: Connect the Admin Gateway<a class="headerlink" href="#exercise-10-connect-the-admin-gateway" title="Permanent link">&para;</a></h2>
 <p>In a <strong>fourth terminal</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
 </code></pre></div>
 <p>Try an admin command:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>GW_ADMIN&gt; BOOK|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>GW_ADMIN&gt; BOOK|SYM=AAPL
 </code></pre></div>
-<p>You should see a book snapshot (possibly with the 1-lot bid from Exercise 8).</p>
+<p>You should see a book snapshot (possibly with the 1-lot bid from Exercise 9).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> admin gateway works; BOOK command shows data.</p>
-<h2 id="exercise-10-inspect-enriched-symbols-metadata">Exercise 10: Inspect Enriched SYMBOLS Metadata<a class="headerlink" href="#exercise-10-inspect-enriched-symbols-metadata" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-11-inspect-enriched-symbols-metadata">Exercise 11: Inspect Enriched SYMBOLS Metadata<a class="headerlink" href="#exercise-11-inspect-enriched-symbols-metadata" title="Permanent link">&para;</a></h2>
 <p>From any connected gateway:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>TRADER01&gt; SYMBOLS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>TRADER01&gt; SYMBOLS
 </code></pre></div>
 <p>In addition to symbol IDs, inspect metadata fields exposed by the gateway view,
 including symbol description and matching constraints such as tick size and MM
@@ -3796,6 +3893,8 @@ obligation settings when configured.</p>
 <ul>
 <li>A configuration file defining 3 symbols and 3 gateways.</li>
 <li>A repeatable verifier workflow (<code>pm-cverifier</code>) to catch config problems before startup.</li>
+<li>A compiled, deployed configuration (<code>pm-config-deploy</code>) that <code>pm-engine</code> and
+  <code>pm-scheduler</code> actually read.</li>
 <li>A running engine, scheduler, and at least one trader gateway.</li>
 <li>Confirmation that all symbols accept orders.</li>
 </ul>
@@ -3804,6 +3903,10 @@ obligation settings when configured.</p>
 processes</strong> connected over ZMQ sockets, instead of one monolithic program?
 What would you lose (or gain) operationally if the scheduler crashed while
 the engine kept running?</p>
+<p><code>pm-engine</code> and <code>pm-scheduler</code> never accept a config path, and neither reads
+<code>engine_config.yaml</code> directly. What problem does forcing every process
+through one compiled artifact (<code>pm-config-deploy</code>) solve that letting each
+process parse its own copy of the YAML would not?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/010-configuration/">Configuration</a></li>

@@ -2587,6 +2587,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../950-app-REST-API-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix: REST API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../990-app-config-spec/" class="md-nav__link">
         
   
@@ -4148,12 +4176,12 @@ as shown in the Python example below.</p>
     participant G as pm-alf-gwy
     participant E as pm-engine
 
-    C-&gt;&gt;G: TCP connect :5565
+    C-&gt;&gt;G: TCP connect 5565
     C-&gt;&gt;G: HELLO|CLIENT=mybot|PROTO=ALF1|ID=TRADER01
-    G-&gt;&gt;E: system.gateway_connect {gateway_id: "TRADER01"}
-    E--&gt;&gt;G: system.gateway_auth.TRADER01 {accepted: true}
+    G-&gt;&gt;E: system.gateway_connect {gateway_id "TRADER01"}
+    E--&gt;&gt;G: system.gateway_auth.TRADER01 {accepted true}
     G--&gt;&gt;C: WELCOME|PROTO=ALF1|GW=alf-gwy01|ID=TRADER01|HBINT=5|IDLE=30
-    Note over C,G: Session active — commands accepted
+    Note over C,G: Session active - commands accepted
     C-&gt;&gt;G: NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
     G-&gt;&gt;E: order.new ...
     E--&gt;&gt;G: order.ack.TRADER01 {accepted: true, ...}
