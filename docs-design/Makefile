@@ -176,8 +176,9 @@ $$($1_STAMP): $$($1_MD) $$(DESIGN_LATEX_TEMPLATE) $$($1_EXTRA_DEPS) | $$(BUILD_D
 		echo -e "$$(RED)✗ Error: Could not extract title from $$($1_MD)$$(NC)"; \
 		exit 1; \
 	fi; \
+	TITLE_FROM_MD_ESCAPED=$$$$(printf '%s' "$$$$TITLE_FROM_MD" | sed -e 's/[\/&\\]/\\&/g'); \
 	sed -i.bak -E "s/\{\{VERSION\}\}/Version: $$$$VERSION_FROM_MD/g" $$($1_TEX); \
-	sed -i.bak -E "s/\{\{TITLE\}\}/$$$$TITLE_FROM_MD/g" $$($1_TEX); \
+	sed -i.bak -E "s/\{\{TITLE\}\}/$$$$TITLE_FROM_MD_ESCAPED/g" $$($1_TEX); \
 	if ! grep -q "Version: $$$$VERSION_FROM_MD" $$($1_TEX); then \
 		echo -e "$$(RED)✗ Error: Failed to update version number in LaTeX template from markdown source$$(NC)"; \
 		exit 1; \
@@ -239,6 +240,11 @@ $(eval $(call DEFINE_DESIGN_DOC_VARS,CALF_AUCTION_CB,EduMatcher-CALF-auction-cb,
 $(eval $(call DEFINE_DESIGN_DOC_VARS,LOG_SRV,EduMatcher-log-srv,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,LOG_GUI,EduMatcher-log-GUI,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,ARCH_ASYNCIO,EduMatcher-arch-asyncio,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,MESSAGE_GENERATOR,EduMatcher-Message-Generator,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,AI_TRADING_BOT,EduMatcher-AI-trading-bot,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,ALF_GWY,EduMatcher-ALF-Gwy,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,DEPLOYMENT,EduMatcher-deployment,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,ENGINE_CORP_ACTIONS,EduMatcher-Engine-Corp-Actions,,))
 
 # ============================================================================================
 # Makefile Targets
@@ -276,6 +282,11 @@ $(eval $(call DESIGN_DOC_PDF_RULE,CALF_AUCTION_CB,"EduMatcher-CALF-auction-cb"))
 $(eval $(call DESIGN_DOC_PDF_RULE,LOG_SRV,"EduMatcher-log-srv"))
 $(eval $(call DESIGN_DOC_PDF_RULE,LOG_GUI,"EduMatcher-log-GUI"))
 $(eval $(call DESIGN_DOC_PDF_RULE,ARCH_ASYNCIO,"EduMatcher-arch-asyncio"))
+$(eval $(call DESIGN_DOC_PDF_RULE,MESSAGE_GENERATOR,"EduMatcher-Message-Generator"))
+$(eval $(call DESIGN_DOC_PDF_RULE,AI_TRADING_BOT,"EduMatcher-AI-trading-bot"))
+$(eval $(call DESIGN_DOC_PDF_RULE,ALF_GWY,"EduMatcher-ALF-Gwy"))
+$(eval $(call DESIGN_DOC_PDF_RULE,DEPLOYMENT,"EduMatcher-deployment"))
+$(eval $(call DESIGN_DOC_PDF_RULE,ENGINE_CORP_ACTIONS,"EduMatcher-Engine-Corp-Actions"))
 
 
 PDF_DESIGN_DOCS := $(BALF_PROPOSAL_PDF) $(FEATURE_IMPLEMENTATION_PDF) $(MM_QUOTES_IMPLEMENTATION_PDF) \
@@ -285,7 +296,8 @@ $(CROSS_HOST_CONNECTION_PDF) $(STAT_COMMANDS_PDF) $(CONFIG_GENERATOR_PDF) $(MM_Q
 $(MM_BOTS_PDF) $(POST_TRADE_DISSEMINATION_GATEWAY_PDF) $(API_GATEWAY_V2_PDF) \
 $(CONFIG_VERIFIER_PDF) $(AI_TRADING_BOT_V2_PDF) $(CLEARING_V2_PDF) $(CONTRACT_MULTIPLYER_PDF) $(AUDIT_CLI_PDF) \
 $(TRADING_GUI_PDF) $(CONFIG_GUI_PDF) $(TERMINAL_GUI_PDF) $(CALF_EXTENSIONS_PDF) $(QLEGS_RECENT_PDF) \
-$(INDEX_ADMIN_CLI_PDF) $(CALF_AUCTION_CB_PDF) $(LOG_SRV_PDF) $(ARCH_ASYNCIO_PDF)
+$(INDEX_ADMIN_CLI_PDF) $(CALF_AUCTION_CB_PDF) $(LOG_SRV_PDF) $(LOG_GUI_PDF) $(ARCH_ASYNCIO_PDF) \
+$(MESSAGE_GENERATOR_PDF) $(AI_TRADING_BOT_PDF) $(ALF_GWY_PDF) $(DEPLOYMENT_PDF) $(ENGINE_CORP_ACTIONS_PDF)
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"
