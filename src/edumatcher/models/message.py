@@ -31,8 +31,16 @@ from edumatcher.models.feed_schema import (
     GatewayByePayload,
     SessionStatePayload,
     SystemEodPayload,
-    TradeExecutedPayload,
 )
+
+# Imported as a MODULE, not by name, and so is this module's counterpart import
+# inside the generated file. The two import each other: generated code needs
+# encode/decode/dumps from here, and make_trade_msg below delegates to there.
+# Binding module objects keeps that cycle harmless, because neither side needs
+# the other's contents until call time. Importing `make_trade_executed` by name
+# instead would raise ImportError whenever the generated module happened to be
+# imported first.
+from edumatcher.models.generated import trade as _gen_trade
 
 # PERF improvement #6: Use orjson instead of stdlib json.
 #
@@ -282,8 +290,18 @@ def make_expired_msg(
 
 
 def make_trade_msg(trade_dict: dict[str, Any]) -> list[bytes]:
-    typed = TradeExecutedPayload.from_dict(trade_dict)
-    return encode("trade.executed", typed.to_dict())
+    """Build the ``trade.executed`` frames from a payload dict.
+
+    Generated from ``spec/messages/trade.yaml``. The frames are byte-identical
+    to what this function produced when it built them by hand, but it now also
+    **validates**: a payload with a price of 0, or an ``aggressor_side``
+    outside ``BUY``/``SELL``/``AUCTION``, raises ``MessageValidationError``
+    (a ``ValueError``) instead of being published. Producers are held to the
+    contract; readers of historical data should use
+    ``generated.trade.TradeExecuted.from_dict``, which coerces without
+    validating. See ``docs/developer/06-msgen.md``.
+    """
+    return _gen_trade.make_trade_executed(**trade_dict)
 
 
 def make_book_msg(symbol: str, book_snapshot: dict[str, Any]) -> list[bytes]:

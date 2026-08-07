@@ -68,6 +68,7 @@ from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_puller, make_publisher
 from edumatcher.models.combo import ComboOrder, ComboStatus, ComboType
 from edumatcher.models.clock import now_ns
+from edumatcher.models.generated.trade import make_trade_executed_unchecked
 from edumatcher.models.message import (
     dumps,
     decode,
@@ -159,10 +160,9 @@ log = logging.getLogger(__name__)
 _CLIENT_NAME = "pm-engine"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
-# Pre-encoded static trade topic and a pre-built fill-status set — small hot-path
-# allocations avoided (see docs-design/perf-notes.md).
-_TRADE_TOPIC = b"trade.executed"
-
+# Pre-built fill-status set — a small hot-path allocation avoided (see
+# docs-design/perf-notes.md). The pre-encoded trade topic that used to sit here
+# now lives in the generated binding, which pre-encodes it the same way.
 _FILL_STATUSES = frozenset({OrderStatus.PARTIAL, OrderStatus.FILLED})
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
@@ -2138,27 +2138,30 @@ class Engine:
         return cancelled
 
     def _publish_trade(self, trade: Any) -> None:
-        _pub = self.pub_sock
-        tick_decimals = get_tick_decimals(trade.symbol)
-        _pub.send_multipart(
-            [
-                _TRADE_TOPIC,
-                dumps(
-                    {
-                        "id": trade.id,
-                        "symbol": trade.symbol,
-                        "buy_order_id": trade.buy_order_id,
-                        "sell_order_id": trade.sell_order_id,
-                        "buy_gateway_id": trade.buy_gateway_id,
-                        "sell_gateway_id": trade.sell_gateway_id,
-                        "price": from_ticks(trade.price, trade.symbol),
-                        "tick_decimals": tick_decimals,
-                        "quantity": trade.quantity,
-                        "aggressor_side": trade.aggressor_side,
-                        "timestamp": trade.timestamp / 1_000_000_000,
-                    }
-                ),
-            ]
+        # Generated from spec/messages/trade.yaml. The field list used to be a
+        # dict literal here, which meant adding a field to trade.executed took
+        # three coordinated edits (this function, feed_schema, the reference
+        # docs) and reached the C clients not at all. It now takes one edit to
+        # the spec. Costs ~0.6 µs/trade against the literal; see
+        # docs-design/perf-notes.md and docs/developer/06-msgen.md.
+        #
+        # The *unchecked* constructor: this is a measured hot path and the
+        # engine is the authority on its own trades. Every other producer uses
+        # the validating make_trade_executed.
+        self.pub_sock.send_multipart(
+            make_trade_executed_unchecked(
+                id=trade.id,
+                symbol=trade.symbol,
+                buy_order_id=trade.buy_order_id,
+                sell_order_id=trade.sell_order_id,
+                buy_gateway_id=trade.buy_gateway_id,
+                sell_gateway_id=trade.sell_gateway_id,
+                price=from_ticks(trade.price, trade.symbol),
+                quantity=trade.quantity,
+                aggressor_side=trade.aggressor_side,
+                timestamp=trade.timestamp / 1_000_000_000,
+                tick_decimals=get_tick_decimals(trade.symbol),
+            )
         )
         # #10: update BOTH counterparties' position ledgers for every trade,
         # right here in the single trade-publication path — so fills produced

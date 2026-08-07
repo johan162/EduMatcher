@@ -101,6 +101,7 @@ from edumatcher.log_srv.config import (
 )
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.message import (
     decode,
     decode_sequence,
@@ -305,7 +306,10 @@ class _IndexDayAccum:
 SCHEMA_VERSION = 5
 
 #: Stream name recorded in ``feed_gaps.stream`` for engine trade prints.
-TRADE_STREAM = "trade.executed"
+#: Taken from the generated binding rather than retyped, so a topic rename in
+#: spec/messages/trade.yaml reaches this recorder instead of silently leaving
+#: it subscribed to a topic nobody publishes any more.
+TRADE_STREAM = TOPIC_TRADE_EXECUTED
 
 
 def _payload_tick_decimals(payload: dict[str, Any]) -> int:
@@ -872,7 +876,7 @@ class StatsProcess:
         try:
             self.sub = make_subscriber(
                 ENGINE_PUB_ADDR,
-                "trade.executed",
+                TOPIC_TRADE_EXECUTED,
                 "book.",
                 "system.eod",
                 "system.symbols.STATS",
@@ -1661,7 +1665,7 @@ class StatsProcess:
         Split out of the receive loop so the topic-matching rules are
         reachable from a test without driving a socket.
         """
-        if topic.startswith("trade.executed"):
+        if topic.startswith(TOPIC_TRADE_EXECUTED):
             self._dbg_count("trade_topics")
             self._on_trade(payload)
         elif topic.startswith("book."):
