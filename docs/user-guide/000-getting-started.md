@@ -106,7 +106,7 @@ the guide readable.
 
 | Concept | What it means | Read more |
 |---|---|---|
-| **Engine** | `pm-engine`, the authoritative process that owns all order books and matches orders | [Running the Exchange](040-running-the-exchange.md), [Processes](170-processes.md) |
+| **Engine** | `pm-engine`, the authoritative process that owns all order books and matches orders | [Running the Exchange](040-running-the-exchange.md#running-the-exchange), [Processes](170-processes.md) |
 | **Symbol** | A tradeable instrument such as `AAPL`, with tick size, reference prices, optional market-maker seeds and risk settings | [Configuration](010-configuration.md), [Risk Controls](120-risk-controls.md) |
 | **Gateway ID** | The identity a trader, bot or operator uses when connecting; roles such as `TRADER`, `MARKET_MAKER` and `ADMIN` are attached to gateway IDs | [Configuration](010-configuration.md#alf-gateway-allowlist), [Gateway Concepts](051-gateway-intro.md) |
 | **Session phase** | Where the trading day is: `PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED`, or a halt-related phase | [Auctions & Scheduling](080-session-scheduling.md) |
@@ -160,7 +160,7 @@ Multipass and `curl`; Python, Poetry and EduMatcher are installed inside the VM.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.19.0 --snapshot
+    bash -s -- --version 0.19.1 --snapshot
 
 multipass shell edumatcher-vm
 cd /home/ubuntu/session
@@ -172,7 +172,7 @@ Useful options:
 ```bash
 # Name the VM and take an initial snapshot
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
-    bash -s -- --name edumatcher-vm --version 0.19.0 --snapshot
+    bash -s -- --name edumatcher-vm --version 0.19.1 --snapshot
 
 # Tune resources
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
@@ -184,7 +184,7 @@ If you prefer to inspect the script first:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.19.0 --snapshot
+bash curl_setup_vm.sh --version 0.19.1 --snapshot
 ```
 
 

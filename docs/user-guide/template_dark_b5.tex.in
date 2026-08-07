@@ -26,7 +26,7 @@
 \hypersetup{
   colorlinks=true,
   linkcolor=brandblue,   % internal links (TOC, refs)
-  urlcolor=BrickRed,     % external URLs
+  urlcolor=darkorange,     % external URLs
   citecolor=ForestGreen, % citations
   hypertexnames=false,
   pdfborder={0 0 0}

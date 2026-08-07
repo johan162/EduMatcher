@@ -66,7 +66,7 @@ multipass version
 Run the curl bootstrap script (pinned to this release):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.19.0 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.19.1 --snapshot
 ```
 
 This command will:
@@ -81,7 +81,7 @@ This command will:
     ```bash
     curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
     less curl_setup_vm.sh
-    bash curl_setup_vm.sh --version 0.19.0 --snapshot
+    bash curl_setup_vm.sh --version 0.19.1 --snapshot
     ```
 
 ### Step 3: Enter the VM and verify commands
@@ -148,7 +148,8 @@ pm-setup
 What it does:
 
 1. Creates the data directory at `~/.local/share/edumatcher/`.
-2. Copies a sample `engine_config.yaml` into the current working directory.
+2. Compiles the bundled sample configuration and installs it as the deployed
+   ref-data artifact, keeping the authored YAML it compiled from alongside it.
 3. Prints a shell snippet with the environment variable exports you need.
 
 Expected output (abbreviated — the real output also prints the exact
@@ -169,11 +170,26 @@ pm-setup — EduMatcher session initialisation
   ----------------------------------------------
 ```
 
+Notice `pm-setup` never mentions an `engine_config.yaml` in your **current
+working directory** — that file is gone from this workflow. There is exactly
+one file every process reads, and it is not a path you choose: the compiled
+artifact under `$EDUMATCHER_DATA_DIR/ref_data/`. Confirm both paths it just
+created:
+
+```bash
+pm-config-deploy --show
+```
+
+```
+compiled: /Users/you/.local/share/edumatcher/ref_data/engine_config.json
+source:   /Users/you/.local/share/edumatcher/ref_data/engine_config.yaml
+```
+
 !!! note "Re-running pm-setup"
     Use `pm-setup --force` to replace an already-deployed config with the
     latest sample from the package.
 
-:material-checkbox-blank-outline: **Checkpoint:** data directory exists; sample config deployed.
+:material-checkbox-blank-outline: **Checkpoint:** data directory exists; `pm-config-deploy --show` prints both a `compiled:` and a `source:` path.
 
  
 
@@ -224,28 +240,37 @@ Check that the data directory was created and is writable:
 
 ```bash
 ls -la "$EDUMATCHER_DATA_DIR"
+ls -la "$EDUMATCHER_DATA_DIR/ref_data"
 ```
 
 This directory will hold:
 
+- `ref_data/engine_config.json` — the **compiled artifact** every `pm-*`
+  process actually reads; never edit this file by hand.
+- `ref_data/engine_config.yaml` — the authored source it was last compiled
+  from, kept only for provenance.
 - `stats.db` — trade and market statistics (created by `pm-stats`).
 - Session state and persistence files (created by `pm-engine`).
 - Log files (if file logging is enabled).
 
-:material-checkbox-blank-outline: **Checkpoint:** directory exists and is writable.
+:material-checkbox-blank-outline: **Checkpoint:** directory exists and is writable; `ref_data/` contains both `engine_config.json` and `engine_config.yaml`.
 
  
 
 ## Exercise 5: Inspect the Sample Configuration
 
-Open the generated config:
+`pm-setup` deployed the sample config from inside the installed package — it
+never lands in your current working directory. Open the authored copy it
+kept alongside the compiled artifact:
 
 ```bash
-cat engine_config.yaml
+cat "$EDUMATCHER_DATA_DIR/ref_data/engine_config.yaml"
 ```
 
-You should see a `symbols:` section and a `gateways:` section. This is the file
-you will customise in the next chapter.
+You should see a `symbols:` section and a `gateways:` section. This is the
+same *kind* of file you will author and deploy yourself in the next chapter —
+there, though, you will keep your own working copy under version control
+rather than editing this deployed one directly.
 
 :material-checkbox-blank-outline: **Checkpoint:** sample config contains symbols and gateways.
 
