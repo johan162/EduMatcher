@@ -1,3 +1,27 @@
+## [v0.19.1] - 2026-08-07
+
+Release Type: minor
+
+### 📋 Summary
+This release improves documentation quality and PDF usability across the User Guide and Exchange Intro outputs. It also expands training and finance learning material with new reference content and packaged presentation assets.
+
+### ✨ Additions
+- Added new finance introduction material for combo and implied orders
+- Added packaged training presentation PDFs for easier offline distribution
+
+### 🚀 Improvements
+- Improved internal markdown link rewriting in Pandoc PDF builds for User Guide chapters
+- Improved exchange-intro PDF link resolution to match user-guide behavior
+- Improved dark-theme PDF link color contrast for better readability
+- Improved training documentation coverage for configuration and API sections
+
+### 🐛 Bug Fixes
+- Fixed PDF chapter links that were emitted as literal markdown file links instead of internal document anchors
+
+### 📚 Documentation
+- Updated terminal GUI and TapeDeck related documentation and training content
+- Updated exchange-intro and user-guide narrative content for clearer onboarding
+
 ## [v0.19.0] - 2026-08-07
 
 ### 📋 Summary
