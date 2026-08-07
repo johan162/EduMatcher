@@ -92,34 +92,7 @@ for every match. They are required for realistic risk control and add measurable
   the reopening auction. Both Nasdaq and Xetra accept them into the call; here
   the uncross prices interest by book level, so unpriced interest has no level
   to sit at and would be invisible to `compute_equilibrium()`
-- The ACE expansion ladder is exchange-wide only (see below)
-
-
-## Possible Future Extensions
-
-**Per-symbol ACE expansion ladders.** A symbol may currently override the
-starting corridor (`initial_band_pct`), whether ACE applies at all, and the
-random-end bound — but not the expansion ladder itself, which is rejected on a
-symbol (`pm-cverifier` `S112`).
-
-The reasoning is that the starting corridor describes the *instrument* (a thin
-small-cap needs a wider reopening corridor than a liquid blue chip), while the
-escalation schedule describes the *venue's* willingness to keep an instrument
-suspended, and uniformity there is what makes halt durations comparable across
-the book.
-
-That line is defensible rather than airtight. `min_duration_ns` lives in the
-ladder and is arguably instrument-shaped: a thin name may need longer call
-phases simply for liquidity to arrive. Real venues disagree — Nasdaq varies
-nothing per security, while Deutsche Börse's ACE publishes corridor widths
-*and* durations per instrument in reference data.
-
-Lifting the restriction would mean: dropping the loader guard and `S112`;
-teaching the Config GUI a per-symbol ladder editor (a list of rungs does not
-fit a table cell, so it needs a dialog); and giving `pm-config-gen` a way to
-express a ladder that is not a comma-separated `--symbol-opts` value. The
-engine's merge already treats a symbol ladder as all-or-nothing, so the
-runtime side is close to free — the cost is almost entirely in the tooling.
+- The ACE expansion ladder is exchange-wide only
 
 
 ## Citation
