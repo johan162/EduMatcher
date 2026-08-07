@@ -675,7 +675,7 @@ config-gui/
 flowchart LR
     U[User in browser] -->|edits form| S[Zustand store: EngineConfigDraft]
     S -->|on change| D[diagnostics package\nrule engine]
-    D -->|Diagnostic[]| U
+    D -->|Diagnostic| U
     U -->|Import YAML| API1[POST /api/config/import]
     API1 -->|yaml-codec parse| S
     U -->|Download| API2[POST /api/config/generate]

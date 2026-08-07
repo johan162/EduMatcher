@@ -14,7 +14,7 @@
 \usepackage{array}
 \usepackage{amssymb}
 \usepackage{fancyhdr}
-
+\usepackage{soul}
 
 \PassOptionsToPackage{hyphens}{url}
 \usepackage{xurl}
