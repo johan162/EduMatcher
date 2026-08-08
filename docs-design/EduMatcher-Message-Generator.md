@@ -1597,7 +1597,7 @@ and 2 shipped and updated for Phase 3; update it after each subsequent phase.
 
 | # | Goal | Status |
 |---|---|---|
-| 1 | One canonical file per family; everything else generated | **partial** — true for `trade`; 1 family of ~15 specified |
+| 1 | One canonical file per family; everything else generated | **partial** — 2 families of ~15 (`trade`, `order`); 11 messages. `order` is complete except `order.combo`/`order.oco`, which §15 shows the IDL cannot express |
 | 2 | Generated Python: typed payload, validating constructor, parser, topic constant | **done**, plus `describe_*`, `FAMILY_TOPICS`, `make_*_unchecked`, `project_*`/`parse_*_calf` |
 | 3 | Generated C | **done** — text (4a) and binary (4b): typed struct, enum + `to_str`/`from_str`, parser, validator, `strerror`, for both CALF key-value lines and BALF fixed frames |
 | 4 | Generated documentation appendix | not started (Phase 6) |
@@ -1806,6 +1806,35 @@ Every one of the four was caught by executing something — a grep for callers, 
 timing loop, reading a handler's error paths, running `make`. None would have
 been caught by review.
 
+### 13.7 After Phase 5.1
+
+Three more instances of 13.6's pattern, all found by executing rather than
+reviewing, and all in the same direction — *the code knew something the design
+did not*:
+
+1. **The "two shapes" of `order.new` were one contract.** The fork dissolved on
+   reading `Order.from_dict`, which states its requirement field by field and
+   maps exactly onto the three presence regimes. The general rule that fell out
+   — *describe what the consumer requires, then reproduce the dominant
+   producer's bytes* — also explains why 5.1a and 5.1b reached opposite answers
+   on `omit_when_none` from the same principle.
+2. **`price` means ticks inbound and display money outbound.** Copying 5.1a's
+   field definitions into 5.1b would have typechecked and been wrong on the
+   wire. `unit:` exists precisely to make that visible, and it did.
+3. **The emitter's black reproduction had drifted, unmeasured.** Nothing checked
+   it until an eight-value enum pushed a line past 88 columns. The fix was not
+   to reproduce three more black rules but to remove the need for them (named
+   enum aliases), plus a test that runs black over the committed output.
+
+And one new item for the pattern itself: **two latent bugs were found by the
+post-phase holistic review, not by the build.** A one-value enum's `_VALUES`
+tuple would have been emitted as a plain string when split, and nothing
+prevented an alias name from colliding with a class name. Both would have
+produced valid, black-clean Python that passed `pm-msgen check` and meant
+something different. That is the failure mode this design is least protected
+against, and it argues for keeping the review step rather than treating a green
+build as sufficient.
+
 ## 14. Engine latency: where the added microsecond goes
 
 Phase 2 replaced the dict literal in `engine/main.py::_publish_trade` with a
@@ -1944,6 +1973,232 @@ timing is noisy. The shape it exists to catch is the one Phase 4b's review
 found: `make_*_unchecked` built on `from_dict`/dataclass/`to_dict` measured
 **4.03 µs**, over four times the literal, and that is what "unusable on a hot
 path" looks like.
+
+## 15. Where the IDL runs out: combo and OCO
+
+Phase 5.1c set out to specify four topics — `order.combo`, `order.combo_cancel`,
+`order.oco`, `order.oco_cancel` — and could only specify two. This section
+records why, because "we skipped it" and "it cannot be expressed" are very
+different statements about a design.
+
+### 15.1 What the two structure submissions carried, and what they carry now
+
+`order.combo` was `ComboOrder.to_dict()`, which is why it looked so hard:
+
+| Field | Shape | Expressible? | Status |
+|---|---|---|---|
+| `combo_id`, `gateway_id`, `combo_type`, `tif` | scalars | yes | kept |
+| `legs` | list of leg objects | needs `list[T]` + `nested` | kept |
+| `id`, `timestamp`, `status` | scalars | yes | **removed** — engine-assigned |
+| `child_order_ids` | list of strings | needs `list[T]` | **removed** — engine state |
+| `leg_fill_qty`, `leg_statuses` | maps, integer keys stringified | **no construct** | **removed** — engine state |
+
+`order.oco` carries two named leg objects, `leg1` and `leg2`, and no state.
+
+`SCALAR_TYPES` is `("string", "int", "float", "bool", "enum", "ticks")`.
+Appendix B names `nested` and `list[T]` as constructs the loader rejects
+explicitly rather than half-supporting.
+
+Two of the three obstacles have since been removed rather than accommodated —
+the units trap in 15.2, and the state-on-the-submission problem in 15.4. What
+remains is `nested` and `list[T]`, which is a normal feature request.
+
+The pattern is worth naming, because it recurred twice within one phase: **when
+the IDL cannot express a message, check whether the message is right before
+extending the IDL.** Both times the wire was wrong, and the schema's inability
+to describe it was the useful signal rather than the problem.
+
+### 15.2 The units trap — found here, then fixed
+
+Section 13.6 records "reasoning about what a consumer needs instead of reading
+what it does" as this design's recurring failure. Specifying combo and OCO
+surfaced a system-wide instance of it, which has since been fixed. The account
+below is kept because the *shape* of the problem is the reusable part.
+
+**What was there.** `to_ticks` returned an `int` argument unchanged, on the
+convention that "an integer is already ticks". The unit of a price was
+therefore carried by its runtime type, and the three inbound paths disagreed
+about which side of the convention they were on:
+
+| Path | Producer sent | Consumer did | Ambiguous? |
+|---|---|---|---|
+| `order.new` | ticks (all four gateways call `to_ticks`) | `if isinstance(price, float): to_ticks(...)` | yes |
+| `order.combo` | ticks (`build_combo_payload`) | `if isinstance(leg.price, float): to_ticks(...)` | yes |
+| `order.oco` | **display money** | `to_ticks(float(raw["price"]), ...)` — always | no |
+
+OCO was not the broken one. It was the only *unambiguous* one; it had simply
+picked the other unit. The genuine defect was that a display price of exactly
+`150` was indistinguishable from `150` ticks — a silent 100x mispricing on a
+two-decimal instrument, in either direction.
+
+**The resolution.** Ticks are now the sole engine-inbound unit, converting is
+the submitting gateway's job, and:
+
+1. `to_ticks`'s int passthrough is gone; the function is total, `float → int`.
+2. The three OCO gateways (`api_gateway`, `alf_console`, `alf_gwy`) convert
+   before publishing, as the `order.new` and combo paths already did.
+3. The two defensive `isinstance` blocks in `_handle_new_order` and
+   `_handle_combo_order` are deleted — with one unit there is nothing to sniff.
+4. `_handle_oco_order` **rejects** a non-integer leg price rather than
+   truncating it. A gateway that forgets to convert now gets a rejection, not a
+   position at 1/100th of the intended price.
+5. `tests/test_wire_price_units.py` drives the real producers and asserts the
+   invariant, and fails on any display float appearing in an engine-inbound leg
+   payload anywhere in the suite. 29 such payloads across eight test modules
+   were converted; they had passed only because the engine used to convert
+   them for free.
+
+### 15.3 What shipped in 5.1c
+
+`order.combo_cancel` and `order.oco_cancel` are flat `{id, gateway_id}` pairs,
+specified and adopted, which took the `order` family's topic-literal count to
+zero.
+
+`order.oco` followed once the IDL grew `nested`, and `order.combo` once it grew
+`list[T]` (15.5). **The whole of section 15 is now resolved**: every message in
+the `order` family is specified, and the family's topic-literal count is zero.
+
+A note on the guard that covered this. `test_the_nested_topics_are_deliberately_
+unspecified` asserted both topics were absent, and it **fired** when `order.oco`
+landed — correctly. Its stated condition was never "stay absent" but "if you
+appear, do it because the IDL grew a construct, not because the legs were
+flattened away", so the fix was to turn it into the positive assertion: the
+legs are still records. A guard that has to be updated when the thing it guards
+changes legitimately is doing its job; one that never fires is decoration.
+
+### 15.4 The maps were never needed — one serialiser was doing three jobs
+
+The map problem dissolved the same way the units problem did: by reading what
+the code does. `ComboOrder.to_dict()` was serving three unrelated contracts —
+the `order.combo` submission, the `combo.ack` event payload, and GTC
+persistence. The submission inherited the other two's fields as a result.
+
+A submitter fills in none of `id`, `status`, `child_order_ids`, `leg_fill_qty`
+or `leg_statuses`: the lists and maps are always empty and the status is always
+PENDING. And the `combo.ack` state dump turned out to be read by **nobody** —
+`alf_console`, `alf_gwy`, `pm-stats` and the api_gateway event stream all take
+only `combo_id`, `accepted` and `reason`.
+
+So the three roles are now three:
+
+* `to_submission_dict()` / `from_submission_dict()` — the wire shape, five
+  fields, no engine state. `id`, `timestamp` and `status` are assigned by the
+  engine, which also closes a small hole: a client could previously choose its
+  own internal combo id.
+* `combo.ack` carries three scalars. The state dump is gone.
+* `to_dict()` / `from_dict()` are persistence's alone, unchanged.
+
+**No map now reaches any wire**, and `tests/test_combo_wire_shapes.py` asserts
+it. The IDL therefore needs no map construct — which is the right outcome,
+because an integer-keyed side map is a denormalisation the wire should not have
+carried in the first place: `leg_fill_qty: {0: 5}` is only ever
+`legs[0].filled_qty = 5`, and the list index already is the key. Should a
+future `combo.ack` want per-leg fill state, it should carry it *on the legs*.
+
+Record this as a stated exclusion rather than an omission: **the IDL does not
+support maps, deliberately.** A spec that appears to need one is describing a
+message that should have been a list of records.
+
+### 15.5 `nested` (shipped) and `list[T]` (not yet)
+
+**`nested` is implemented**, for JSON bus payloads only. A family declares
+record types under a top-level `types:` block and a field references one by
+name:
+
+```yaml
+types:
+  OcoLeg:
+    fields:
+      - { name: side, type: enum, values: [BUY, SELL] }
+      - { name: price, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true }
+
+messages:
+  - name: order_oco
+    fields:
+      - { name: leg1, type: nested, ref: OcoLeg }
+      - { name: leg2, type: nested, ref: OcoLeg }
+```
+
+The generator emits one dataclass per type, before the messages that embed it,
+with the same `from_dict` / `to_dict` / `validate` trio a message gets. The
+implementation is small because a nested type is presented to the emitters *as*
+a topicless message (`_as_message`), so it borrows the existing machinery
+rather than duplicating it.
+
+Four deliberate restrictions, each an error in a spec file rather than a wrong
+answer in a committed binding:
+
+* **A record may not contain a record.** Nothing here needs deeper structure,
+  and the restriction keeps both generators non-recursive.
+* **No external transports.** A record inside a CALF key-value line or a fixed
+  BALF frame is an unsolved layout question; the loader rejects it outright.
+* **No `make_*_unchecked` for a message carrying a record.** That builder is a
+  dict literal and a record has no literal form. Neither OCO nor combo is a
+  measured hot path (section 14), so omitting it is more honest than emitting a
+  slow function under a name that promises speed. The omission is per-message:
+  `order.oco_cancel` in the same family still has one.
+* **An unreferenced type is an error**, since it generates a class nothing
+  constructs.
+
+**`list[T]` is implemented too**, under the same restrictions, and carries
+`min_items` / `max_items`:
+
+```yaml
+- name: legs
+  type: list
+  ref: ComboLeg
+  validate: { min_items: 2, max_items: 10 }
+```
+
+Three notes on how it landed:
+
+* **Two leg types, not one.** An earlier draft of this section claimed a single
+  shared `leg` type could serve both topics. It cannot, and the two generated
+  records show why: `ComboLeg` carries `symbol`, `quantity` and `smp_action`
+  per leg, `OcoLeg` carries `trail_offset` and takes symbol and quantity from
+  the OCO itself.
+* **The bounds were a wire rule enforced in one place.** `ComboRequest`
+  declared `min_length=2, max_length=10` in pydantic, so it held for
+  `api_gateway` and for nobody else — the ALF console and gateway could submit
+  a one-legged combo. Declaring it in the spec makes it a property of the
+  message rather than of one producer.
+* **The restrictions came for free.** `list` joined `nested` in `RECORD_TYPES`,
+  so the JSON-transport-only rule and the `make_*_unchecked` omission applied
+  to it without new code. That is the payoff for having written them as
+  properties of "a field that embeds a record" rather than of `nested`.
+
+**And a correction, found by the post-phase review rather than the build.** The
+JSON-transport-only rule did not work. It tested
+`set(message.encoding) & EXTERNAL_TRANSPORTS`, but `message.encoding` holds the
+*bus* encoding only — CALF and BALF live in `text_encoding` and
+`binary_encoding` — so the intersection was always empty and the guard never
+fired. It was written, documented in this section, and believed for a whole
+phase. It now reads `message.transport`, and a test asserts a record on a CALF
+transport is rejected.
+
+The lesson is narrow and worth stating: **a restriction with no test is a
+comment.** Every other rule in section 15.5 had a test; this one had prose in a
+design document, which is exactly the kind of thing this generator exists to
+stop being the source of truth.
+
+A second review find, same class: a `list` could be declared `nullable`, which
+generated a `to_dict` that iterates `None`. Lists are now non-nullable by
+construction — an empty list is how a list says it has nothing, and null would
+be a second spelling every reader would have to handle.
+
+### 15.6 The general rule this suggests
+
+A message whose meaning depends on a value's *runtime type* rather than its
+declared type is outside what a schema-first generator can describe. The right
+response is not to teach the IDL to express the ambiguity — it is to remove the
+ambiguity from the wire, which is what 15.2 did.
+
+Stated as a design rule: **a unit belongs in a field's declaration, never in its
+representation.** `unit:` exists for exactly this, and the generator can enforce
+it in both bindings. A convention that encodes meaning in int-vs-float cannot
+be enforced anywhere, which is why it survived undetected across three inbound
+paths and 29 test payloads.
 
 ## Appendix A — Phase 1 implementation starter
 

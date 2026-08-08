@@ -575,13 +575,13 @@ def make_volume_msg(
 
 def make_combo_order_msg(combo_dict: dict[str, Any]) -> list[bytes]:
     """Gateway → engine: submit a combo order."""
-    return encode("order.combo", combo_dict)
+    return encode(_gen_order.TOPIC_ORDER_COMBO, combo_dict)
 
 
 def make_combo_cancel_msg(combo_id: str, gateway_id: str) -> list[bytes]:
     """Gateway → engine: cancel a combo and all its child legs."""
     return encode(
-        "order.combo_cancel",
+        _gen_order.TOPIC_ORDER_COMBO_CANCEL,
         {
             "combo_id": combo_id,
             "gateway_id": gateway_id,
@@ -594,18 +594,19 @@ def make_combo_ack_msg(
     combo_id: str,
     accepted: bool,
     reason: str = "",
-    combo: dict[str, Any] | None = None,
 ) -> list[bytes]:
-    """Engine → gateway: combo accepted or rejected."""
+    """Engine → gateway: combo accepted or rejected.
+
+    Carried a full ``ComboOrder.to_dict()`` state dump until the submission,
+    event and persistence shapes were separated. No consumer ever read it —
+    alf_console, alf_gwy, pm-stats and the api_gateway event stream all take
+    only ``combo_id``, ``accepted`` and ``reason``.
+    """
     topic = f"combo.ack.{gateway_id}"
-    payload: dict[str, Any] = {
-        "combo_id": combo_id,
-        "accepted": accepted,
-        "reason": reason,
-    }
-    if combo:
-        payload["combo"] = combo
-    return encode(topic, payload)
+    return encode(
+        topic,
+        {"combo_id": combo_id, "accepted": accepted, "reason": reason},
+    )
 
 
 def make_combo_status_msg(
@@ -779,12 +780,15 @@ def make_auction_result_msg(
 
 def make_oco_order_msg(payload: dict[str, Any]) -> list[bytes]:
     """Gateway → engine: submit an OCO (One-Cancels-Other) pair."""
-    return encode("order.oco", payload)
+    return encode(_gen_order.TOPIC_ORDER_OCO, payload)
 
 
 def make_oco_cancel_msg(oco_id: str, gateway_id: str) -> list[bytes]:
     """Gateway → engine: cancel an OCO pair and both its legs."""
-    return encode("order.oco_cancel", {"oco_id": oco_id, "gateway_id": gateway_id})
+    return encode(
+        _gen_order.TOPIC_ORDER_OCO_CANCEL,
+        {"oco_id": oco_id, "gateway_id": gateway_id},
+    )
 
 
 def make_oco_ack_msg(

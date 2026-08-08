@@ -476,11 +476,15 @@ class TestComboMessages:
         assert topic == "combo.ack.GW01"
         assert payload["accepted"] is True
 
-    def test_make_combo_ack_with_combo(self) -> None:
-        topic, payload = _rt(
-            make_combo_ack_msg("GW01", "PAIR1", True, combo={"legs": 2})
-        )
-        assert payload["combo"] == {"legs": 2}
+    def test_make_combo_ack_carries_no_state_dump(self) -> None:
+        """The ack used to embed a whole ``ComboOrder.to_dict()``.
+
+        Nothing read it — alf_console, alf_gwy, pm-stats and the api_gateway
+        event stream all take only these three keys — and it was the last place
+        an index-keyed map reached a wire.
+        """
+        _topic, payload = _rt(make_combo_ack_msg("GW01", "PAIR1", True))
+        assert set(payload) == {"combo_id", "accepted", "reason"}
 
     def test_make_combo_status_msg(self) -> None:
         topic, payload = _rt(make_combo_status_msg("GW01", "PAIR1", "MATCHED"))

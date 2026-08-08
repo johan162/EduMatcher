@@ -29,6 +29,58 @@
 family: order
 version: 1
 
+# Record types shared by the messages below. Declared here rather than inline
+# so a type used by more than one message generates a single definition (see
+# design section 15.5).
+types:
+  OcoLeg:
+    doc: >
+      One side of an OCO pair. It has no symbol or quantity of its own: both
+      legs trade the same instrument in the same size, and the OCO carries
+      those. That is what makes it a different record from a combo leg, which
+      does own a symbol and a quantity.
+    fields:
+      - { name: side, type: enum, values: [BUY, SELL] }
+      - { name: order_type, type: enum,
+          values: [MARKET, LIMIT, STOP, STOP_LIMIT, FOK, ICEBERG, IOC,
+                   TRAILING_STOP] }
+      - { name: price, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "Limit price in engine ticks. Absent for a leg with none." }
+      - { name: stop_price, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true }
+      - { name: trail_offset, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true }
+
+  ComboLeg:
+    doc: >
+      One leg of a combo. Unlike an OcoLeg it owns a symbol and a quantity:
+      the legs of a combo trade different instruments, in sizes that need not
+      match. That is why the two are separate types rather than one shared
+      `leg` - an early draft of design section 15 assumed they could be merged
+      and was wrong.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: side, type: enum, values: [BUY, SELL] }
+      - { name: order_type, type: enum,
+          values: [MARKET, LIMIT, STOP, STOP_LIMIT, FOK, ICEBERG, IOC,
+                   TRAILING_STOP] }
+      - { name: quantity, type: int, unit: shares, validate: { gt: 0 } }
+      - { name: price, type: ticks, unit: ticks, required: false,
+          nullable: true,
+          doc: "Limit price in engine ticks; null for a leg with none." }
+      - { name: stop_price, type: ticks, unit: ticks, required: false,
+          nullable: true }
+      - name: smp_action
+        type: enum
+        values: [NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH]
+        required: false
+        nullable: true
+        doc: >
+          Null means the client did not specify SMP, which is distinct from an
+          explicit NONE. Combo-level in the ALF protocols, so every leg carries
+          the same value.
+
 messages:
   - name: execution_report
     # BALF-only: a private per-order fill sent to the owning gateway session.
@@ -461,5 +513,131 @@ messages:
       - { name: qty, type: int, unit: shares, required: false, nullable: true,
           omit_when_none: true,
           doc: "New quantity; absent means the quantity is unchanged." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  # --------------------------------------------------------------------------
+  # Phase 5.1c, part one: the two structure-cancel commands.
+  #
+  # order.combo and order.oco themselves are NOT here, and cannot be until the
+  # IDL grows `nested` and `list[T]` (design appendix B). Their payloads carry
+  # a list of leg objects, two named leg objects, a list of strings and two
+  # integer-keyed maps - none of which SCALAR_TYPES can describe. Specifying
+  # them as flat scalars would be a lie the generator would then enforce.
+  # See section 15 for the full finding and the units trap inside it.
+  #
+  # These two are flat, and identical in shape to order.cancel.
+  #
+  # PRESENCE follows the consumer, as in 5.1b - but the consumer here is
+  # lenient where order.cancel's was strict. _handle_combo_cancel and
+  # _handle_oco_cancel both read `payload.get("...", "")`, so the fields are
+  # `required: false` with an empty-string default rather than `required`.
+  # Declaring them required would be stricter than the engine and would make
+  # validate() reject a frame the engine handles today, which is a behaviour
+  # change this migration has no business making. Both builders always emit
+  # both keys, so the bytes are unchanged either way.
+  # --------------------------------------------------------------------------
+
+  - name: order_combo_cancel
+    topic: "order.combo_cancel"
+    transport: [engine_pub]
+    doc:
+      motivation: "Cancel a combo order and all of its resting child legs."
+      since: "1.0"
+      see_also: ["order.combo", "order.cancel"]
+    fields:
+      - { name: combo_id, type: string, required: false, default: "",
+          doc: "Client-supplied combo label, not the internal UUID.",
+          validate: { max_len: 64 } }
+      - { name: gateway_id, type: string, required: false, default: "",
+          validate: { max_len: 32 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_combo
+    topic: "order.combo"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Submit a combo: two or more orders on different instruments that the
+        engine posts together and tracks as one aggregate.
+      since: "1.0"
+      see_also: ["combo.ack.{GW_ID}", "order.combo_cancel"]
+      example_note: >
+        This is the message the whole of design section 15 is about. It was
+        unspecifiable for three separate reasons, and each turned out to be the
+        wire being wrong rather than the IDL being short: leg prices whose unit
+        depended on their runtime type (15.2), engine lifecycle state riding on
+        a client submission (15.4), and finally the ordinary need for `nested`
+        and `list[T]` (15.5). The payload below is `ComboOrder.
+        to_submission_dict()` and carries no engine state at all.
+    fields:
+      # As with order.oco, presence follows _handle_combo_order - which builds
+      # through ComboOrder.from_submission_dict, whose reads are strict.
+      - { name: combo_id, type: string, validate: { max_len: 64 },
+          doc: "Client-supplied tracking label, not the engine's internal id." }
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: combo_type, type: enum, values: [AON],
+          doc: "All-or-none: the combo completes only when every leg fills." }
+      - { name: tif, type: enum, values: [DAY, GTC, ATO, ATC] }
+      - name: legs
+        type: list
+        ref: ComboLeg
+        doc: >
+          The child orders. The bounds below were previously enforced only by
+          api_gateway's pydantic schema, which left the ALF console and gateway
+          free to submit a one-legged combo.
+        validate: { min_items: 2, max_items: 10 }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_oco
+    topic: "order.oco"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Submit a One-Cancels-Other pair: two orders on the same instrument, of
+        which a fill on either cancels the other.
+      since: "1.0"
+      see_also: ["oco.ack.{GW_ID}", "order.oco_cancel"]
+      example_note: >
+        The first message in any spec to use a nested record. Both legs are
+        `OcoLeg`, and their prices are engine ticks - the gateway converts.
+        A leg omits a price it does not have rather than sending null, which
+        is what the three producing gateways already do.
+    fields:
+      # PRESENCE follows _handle_oco_order, which reads every scalar with a
+      # `.get(k, default)` - so none of them is `required`, and the defaults
+      # below are the handler's own.
+      - { name: oco_id, type: string, required: false, default: "",
+          doc: "Client-supplied label for the pair.", validate: { max_len: 64 } }
+      - { name: gateway_id, type: string, required: false, default: "",
+          validate: { max_len: 32 } }
+      - { name: symbol, type: string, required: false, default: "",
+          doc: "Both legs trade this instrument.", validate: { max_len: 16 } }
+      - { name: quantity, type: int, unit: shares, required: false, default: 0,
+          doc: "Size of each leg; they are equal by construction." }
+      - { name: tif, type: enum, values: [DAY, GTC, ATO, ATC],
+          required: false, default: "DAY" }
+      # The legs are `required` even though the handler reads them with
+      # `.get(k, {})`: that empty default immediately fails `_parse_leg`, which
+      # rejects the OCO. Required is the honest description of the behaviour.
+      - { name: leg1, type: nested, ref: OcoLeg }
+      - { name: leg2, type: nested, ref: OcoLeg }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_oco_cancel
+    topic: "order.oco_cancel"
+    transport: [engine_pub]
+    doc:
+      motivation: "Cancel an OCO pair and both of its legs."
+      since: "1.0"
+      see_also: ["order.oco", "order.cancel"]
+    fields:
+      - { name: oco_id, type: string, required: false, default: "",
+          doc: "Client-supplied OCO label.", validate: { max_len: 64 } }
+      - { name: gateway_id, type: string, required: false, default: "",
+          validate: { max_len: 32 } }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }

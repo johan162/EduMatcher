@@ -23,7 +23,13 @@ import textwrap
 
 from typing import Any
 
-from edumatcher.msgen.spec import Family, Field, Message
+from edumatcher.msgen.spec import (
+    RECORD_TYPES,
+    Family,
+    Field,
+    Message,
+    NestedType,
+)
 
 #: Coerce-then-render, applied to a raw read out of the bus payload. Matches
 #: ``md_gateway/normaliser.py``: ``_as_decimal`` is ``str(raw)`` and
@@ -207,11 +213,17 @@ def _wrap(indent: str, body: str) -> list[str]:
         return [single]
     open_at, close_at = span
 
-    items = _split_items(body[open_at + 1 : close_at])
+    contents = body[open_at + 1 : close_at]
+    items = _split_items(contents)
     if not items:
         return [single]
+    # A lone item keeps a trailing comma only if it already had one. That comma
+    # is what makes ``(x,)`` a tuple rather than a parenthesised expression, so
+    # dropping it would silently change a one-value enum's _VALUES constant
+    # from a tuple into a string.
+    lone_comma = "," if contents.rstrip().endswith(",") else ""
     inner = (
-        [f"{indent}    {items[0]}"]
+        [f"{indent}    {items[0]}{lone_comma}"]
         if len(items) == 1
         else [f"{indent}    {item}," for item in items]
     )
@@ -261,6 +273,31 @@ def _payload_fields(message: Message) -> list[Field]:
             return [f for f in message.fields if f.name in keep]
     params = set(message.topic_params)
     return [f for f in message.fields if f.name not in params]
+
+
+def _as_message(nested: NestedType) -> Message:
+    """Present a nested type to the emitters as if it were a message.
+
+    A nested type needs exactly what a topicless message needs — a frozen
+    dataclass, ``from_dict``, ``to_dict``, ``validate``, and the enum and
+    pattern constants those rely on. Rather than duplicate the emitters with a
+    second set of signatures, it borrows them: with no topic, no encoding and
+    no transport, ``_payload_fields`` returns every field and none of the
+    topic, projection or binary blocks are reachable.
+
+    The name is snake_cased so ``_class_name`` recovers the declared CamelCase.
+    """
+    return Message(
+        name=_snake_case(nested.name),
+        topic=None,
+        transport=(),
+        fields=nested.fields,
+        doc={"motivation": nested.doc} if nested.doc else {},
+    )
+
+
+def _snake_case(name: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
 def _class_name(message: Message) -> str:
@@ -322,9 +359,30 @@ def _annotation(message: Message, f: Field) -> str:
 
 def _base_annotation(message: Message, f: Field) -> str:
     """The annotation before nullability is applied."""
+    if f.type == "nested":
+        assert f.ref is not None
+        return f.ref
+    if f.type == "list":
+        assert f.ref is not None
+        return f"list[{f.ref}]"
     if f.type != "enum":
         return _ANNOTATION[f.type]
     return _alias_name(message, f) if _uses_literal(f) else "str"
+
+
+def _to_dict_value(f: Field) -> str:
+    """The ``to_dict`` expression for one field.
+
+    A nested field holds a generated dataclass, so the payload wants its
+    ``to_dict()`` rather than the object.
+    """
+    if f.type == "list":
+        return f"[item.to_dict() for item in self.{f.name}]"
+    if f.type != "nested":
+        return f"self.{f.name}"
+    if f.nullable:
+        return f"None if self.{f.name} is None else self.{f.name}.to_dict()"
+    return f"self.{f.name}.to_dict()"
 
 
 def _narrow(message: Message, f: Field, expr: str) -> str:
@@ -398,8 +456,16 @@ def _read_expr(message: Message, f: Field, in_topic_only: bool = False) -> str:
     then a ``default`` on an optional field, then a strict subscript that
     raises ``KeyError`` exactly as the hand-written payloads do.
     """
-    coerce = _COERCE[f.type]
     key = _pystr(f.name)
+    if f.type == "list":
+        return f"[{f.ref}.from_dict(item) for item in p[{key}]]"
+    if f.type == "nested":
+        # The record coerces itself, so the rules declared on its fields apply
+        # wherever it is embedded rather than once per embedding message.
+        read = f"{f.ref}.from_dict(p[{key}])"
+        return f"None if p.get({key}) is None else {read}" if f.nullable else read
+
+    coerce = _COERCE[f.type]
     if in_topic_only:
         # Carried by the topic, not the body. `parse_*` fills it in from the
         # matched topic; `from_dict` on a bare payload cannot know it, and an
@@ -518,6 +584,33 @@ def _field_checks(message: Message, f: Field, indent: str) -> list[str]:
         out.extend(_call(f"{indent}    ", "raise MessageValidationError", msg))
 
     me = f"self.{f.name}"
+    if f.type == "list":
+        bounds: list[str] = []
+        if f.validate.min_items is not None:
+            bounds.append(f"{indent}if len({me}) < {f.validate.min_items}:")
+            bounds.extend(
+                _call(
+                    f"{indent}    ",
+                    "raise MessageValidationError",
+                    _pystr(f"{f.name}: fewer than {f.validate.min_items} item(s)"),
+                )
+            )
+        if f.validate.max_items is not None:
+            bounds.append(f"{indent}if len({me}) > {f.validate.max_items}:")
+            bounds.extend(
+                _call(
+                    f"{indent}    ",
+                    "raise MessageValidationError",
+                    _pystr(f"{f.name}: more than {f.validate.max_items} item(s)"),
+                )
+            )
+        bounds.append(f"{indent}for item in {me}:")
+        bounds.append(f"{indent}    item.validate()")
+        return bounds
+    if f.type == "nested":
+        if f.nullable:
+            return [f"{indent}if {me} is not None:", f"{indent}    {me}.validate()"]
+        return [f"{indent}{me}.validate()"]
     v = f.validate
     if True:  # keeps the original block indentation
         if f.type == "enum":
@@ -648,12 +741,12 @@ def _class_block(message: Message) -> list[str]:
     omitted = [f for f in fields if f.omit_when_none]
     if not omitted:
         out.append("        return {")
-        out += [f"            {_pystr(f.name)}: self.{f.name}," for f in always]
+        out += [f"            {_pystr(f.name)}: {_to_dict_value(f)}," for f in always]
         out.append("        }")
         return out
 
     out.append("        payload: dict[str, Any] = {")
-    out += [f"            {_pystr(f.name)}: self.{f.name}," for f in always]
+    out += [f"            {_pystr(f.name)}: {_to_dict_value(f)}," for f in always]
     out.append("        }")
     for f in omitted:
         out.append(f"        if self.{f.name} is not None:")
@@ -1174,7 +1267,8 @@ def _function_blocks(message: Message) -> list[list[str]]:
         ]
     )
 
-    blocks.append(_unchecked_block(message))
+    if not any(f.type in RECORD_TYPES for f in message.fields):
+        blocks.append(_unchecked_block(message))
 
     blocks.append(
         [f'def parse_{message.name}(frames: list[bytes]) -> "{cls}":']
@@ -1210,10 +1304,12 @@ def render_family(family: Family, spec_path: str) -> str:
     ``pm-msgen check`` diffs, so it has to be identical on every machine.
     """
     messages = family.messages
+    nested = [_as_message(n) for n in family.types]
+    scoped = list(messages) + nested
     needs_re = any(
-        f.validate.pattern is not None for m in messages for f in m.fields
+        f.validate.pattern is not None for m in scoped for f in m.fields
     ) or any(m.topic_params for m in messages)
-    needs_literal = any(_uses_literal(f) for m in messages for f in m.fields)
+    needs_literal = any(_uses_literal(f) for m in scoped for f in m.fields)
 
     header: list[str] = [
         f"# GENERATED FROM {spec_path} - DO NOT EDIT",
@@ -1278,6 +1374,14 @@ def render_family(family: Family, spec_path: str) -> str:
             f"FAMILY_VERSION = {family.version}",
         ]
     ]
+
+    # Record types first: a message that embeds one refers to it by name, and
+    # the dataclass has to exist by then.
+    for record in nested:
+        constants = _constant_block(record)
+        if constants:
+            blocks.append(constants)
+        blocks.append(_class_block(record))
 
     for message in messages:
         constants = _constant_block(message)

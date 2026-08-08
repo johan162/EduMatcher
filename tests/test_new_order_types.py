@@ -508,10 +508,10 @@ class TestTrailingStopEngine:
         """Engine computes initial stop_price when STOP= is omitted."""
         engine, pub_sock = eng
 
-        # Create a last trade at 100
-        sell = _make_order(side=Side.SELL, qty=10, price=100.0)
+        # Create a last trade at 100.00 — ticks on the wire, so 10000.
+        sell = _make_order(side=Side.SELL, qty=10, price=10000)
         engine._handle_new_order(sell.to_dict())
-        buy = _make_order(side=Side.BUY, qty=10, price=100.0)
+        buy = _make_order(side=Side.BUY, qty=10, price=10000)
         engine._handle_new_order(buy.to_dict())
         pub_sock.sent.clear()
 
@@ -522,7 +522,7 @@ class TestTrailingStopEngine:
             order_type=OrderType.TRAILING_STOP,
             quantity=5,
             gateway_id="TRADER01",
-            trail_offset=3.0,
+            trail_offset=300,
         )
         engine._handle_new_order(ts.to_dict())
 
@@ -637,10 +637,10 @@ class TestOCOEngine:
         tif="DAY",
         leg1_type="LIMIT",
         leg1_side="SELL",
-        leg1_price=110.0,
+        leg1_price=11000,
         leg2_type="STOP",
         leg2_side="SELL",
-        leg2_stop=90.0,
+        leg2_stop=9000,
         symbol="AAPL",
         gateway="TRADER01",
     ):
@@ -690,16 +690,16 @@ class TestOCOEngine:
         """When the limit leg fills, the stop leg is automatically cancelled."""
         engine, pub_sock = eng
 
-        # Leg 1: SELL LIMIT 110, Leg 2: SELL STOP 90
+        # Leg 1: SELL LIMIT 110.00, Leg 2: SELL STOP 90.00 — ticks on the wire.
         self._send_oco(
             engine,
             "OCO3",
             leg1_type="LIMIT",
             leg1_side="SELL",
-            leg1_price=110.0,
+            leg1_price=11000,
             leg2_type="STOP",
             leg2_side="SELL",
-            leg2_stop=90.0,
+            leg2_stop=9000,
         )
 
         oco_ack = next(
@@ -709,8 +709,8 @@ class TestOCOEngine:
         id2 = oco_ack["order_id_2"]  # STOP  leg
         pub_sock.sent.clear()
 
-        # Post a buyer above 110 so the LIMIT leg fills
-        buyer = _make_order(side=Side.BUY, qty=10, price=115.0, gateway_id="TRADER02")
+        # Post a buyer above 110.00 so the LIMIT leg fills
+        buyer = _make_order(side=Side.BUY, qty=10, price=11500, gateway_id="TRADER02")
         engine._handle_new_order(buyer.to_dict())
 
         topics = _topics(pub_sock)
@@ -771,8 +771,8 @@ class TestOCOEngine:
             "symbol": "AAPL",
             "quantity": 10,
             "tif": "DAY",
-            "leg1": {"side": "SELL", "order_type": "LIMIT", "price": 110.0},
-            "leg2": {"side": "SELL", "order_type": "STOP", "stop_price": 90.0},
+            "leg1": {"side": "SELL", "order_type": "LIMIT", "price": 11000},
+            "leg2": {"side": "SELL", "order_type": "STOP", "stop_price": 9000},
         }
         engine._handle_oco_order(payload)
 
@@ -791,8 +791,8 @@ class TestOCOEngine:
             "symbol": "NOSYM",
             "quantity": 10,
             "tif": "DAY",
-            "leg1": {"side": "SELL", "order_type": "LIMIT", "price": 110.0},
-            "leg2": {"side": "SELL", "order_type": "STOP", "stop_price": 90.0},
+            "leg1": {"side": "SELL", "order_type": "LIMIT", "price": 11000},
+            "leg2": {"side": "SELL", "order_type": "STOP", "stop_price": 9000},
         }
         engine._handle_oco_order(payload)
 
@@ -812,7 +812,7 @@ class TestOCOEngine:
             "quantity": 10,
             "tif": "DAY",
             "leg1": {"side": "SELL", "order_type": "LIMIT"},  # missing price
-            "leg2": {"side": "SELL", "order_type": "STOP", "stop_price": 90.0},
+            "leg2": {"side": "SELL", "order_type": "STOP", "stop_price": 9000},
         }
         engine._handle_oco_order(payload)
 
@@ -840,8 +840,8 @@ class TestOCOEngine:
             "symbol": "AAPL",
             "quantity": 10,
             "tif": "DAY",
-            "leg1": {"side": "SELL", "order_type": "LIMIT", "price": 120.0},
-            "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 85.0},
+            "leg1": {"side": "SELL", "order_type": "LIMIT", "price": 12000},
+            "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 8500},
         }
         engine._handle_oco_order(payload)
 

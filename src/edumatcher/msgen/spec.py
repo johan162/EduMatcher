@@ -63,6 +63,10 @@ PATTERNS = ("PUB", "SUB", "PUSH", "PULL", "TCP")
 #: Reserved external line/binary protocol names (design section B.4).
 EXTERNAL_TRANSPORTS = ("calf", "balf", "ralf")
 
+#: Field types that embed a record declared under the family's ``types:``.
+#: Both are generated for JSON bus payloads only (design section 15.5).
+RECORD_TYPES = ("nested", "list")
+
 #: External protocols carrying key=value text lines. Generated in Phase 4a.
 TEXT_TRANSPORTS = ("calf", "ralf")
 
@@ -118,6 +122,7 @@ class Validate:
     max_len: int | None = None
     min_len: int | None = None
     max_items: int | None = None
+    min_items: int | None = None
     pattern: str | None = None
 
 
@@ -143,6 +148,8 @@ class Field:
     #: (design section B.7.2).
     omit_when_none: bool = False
     values: tuple[str, ...] | None = None
+    #: For ``type: nested`` — the name of a family-level entry under ``types:``.
+    ref: str | None = None
     item: str | None = None
     validate: Validate = field(default_factory=Validate)
     deprecated_since: str | None = None
@@ -245,12 +252,31 @@ class Message:
 
 
 @dataclass(frozen=True)
+class NestedType:
+    """A record type declared once at family level and referenced by name.
+
+    Nested types are declared under ``types:`` rather than inline so that a
+    type used by more than one message generates a single definition. C needs a
+    named struct regardless, and two inline copies would be free to drift.
+
+    Its fields are scalars only: a nested type may not itself contain a
+    ``nested`` field. Nothing in this system needs deeper structure, and the
+    restriction keeps the generators non-recursive.
+    """
+
+    name: str
+    fields: tuple[Field, ...]
+    doc: str = ""
+
+
+@dataclass(frozen=True)
 class Family:
     """One family file (design section B.5)."""
 
     family: str
     version: int
     messages: tuple[Message, ...]
+    types: tuple[NestedType, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -290,6 +316,9 @@ _CHAR_ARRAY = re.compile(r"char\[(\d+)\]")
 #: design section B.3: a CALF/RALF wire key and MSGTYPE are SCREAMING_SNAKE.
 _KEY_NAME = re.compile(r"[A-Z][A-Z0-9_]*")
 _MSG_TYPE_TEXT = re.compile(r"[A-Z][A-Z0-9_]*")
+
+#: A family-level nested type name (design section B.7.3).
+_TYPE_NAME = re.compile(r"[A-Z][A-Za-z0-9]*")
 _TRANSPORT_KEYS = {"pattern", "subscriber_pattern", "address_config_key"}
 
 _UNSUPPORTED_MESSAGE_KEYS = {
@@ -364,7 +393,7 @@ def _load_validate(raw: Any, what: str) -> Validate:
     return Validate(**block)
 
 
-def _load_field(raw: Any, what: str) -> Field:
+def _load_field(raw: Any, what: str, *, allow_nested: bool = True) -> Field:
     block = _require_mapping(raw, what)
     if "name" not in block:
         raise SpecError(f"{what}: missing required key 'name'")
@@ -375,13 +404,42 @@ def _load_field(raw: Any, what: str) -> Field:
         raise SpecError(f"{where}: missing required key 'type'")
 
     ftype = block["type"]
-    if ftype not in SCALAR_TYPES:
-        near = _nearest(str(ftype), set(SCALAR_TYPES))
+    allowed = SCALAR_TYPES + (RECORD_TYPES if allow_nested else ())
+    if ftype not in allowed:
+        near = _nearest(str(ftype), set(allowed))
         hint = f" (did you mean {near!r}?)" if near else ""
-        raise SpecError(
-            f"{where}: type {ftype!r} is not one of {list(SCALAR_TYPES)}{hint}. "
-            "list[T] and nested are Appendix B constructs not yet generated."
+        detail = (
+            ". A nested type's fields are scalars only - it may not contain "
+            "another record, nor a list of them"
+            if ftype in RECORD_TYPES
+            else ""
         )
+        raise SpecError(
+            f"{where}: type {ftype!r} is not one of {list(allowed)}{hint}{detail}"
+        )
+
+    ref = block.get("ref")
+    if ftype in RECORD_TYPES:
+        if not ref:
+            raise SpecError(
+                f"{where}: a {ftype} field requires 'ref: <TypeName>' naming an "
+                "entry under the family's 'types:' block"
+            )
+        for key in ("values", "unit", "default", "parse_default"):
+            if block.get(key) is not None:
+                raise SpecError(
+                    f"{where}: {key!r} is not meaningful on a {ftype} field - "
+                    "declare it on the referenced type's own fields instead"
+                )
+        if ftype == "list" and (block.get("nullable") or block.get("omit_when_none")):
+            raise SpecError(
+                f"{where}: a list may not be nullable. An empty list is how a "
+                "list says it has nothing; null would be a second way to say "
+                "the same thing, and every reader would have to handle both. "
+                "Use 'validate: {min_items: 0}' if none is legal"
+            )
+    elif ref is not None:
+        raise SpecError(f"{where}: 'ref' is only meaningful for {list(RECORD_TYPES)}")
 
     values = block.get("values")
     if ftype == "enum":
@@ -441,6 +499,7 @@ def _load_field(raw: Any, what: str) -> Field:
         nullable=nullable or omit,
         omit_when_none=omit,
         values=tuple(values) if values else None,
+        ref=ref,
         item=block.get("item"),
         validate=_load_validate(block.get("validate"), where),
         deprecated_since=block.get("deprecated_since"),
@@ -980,7 +1039,7 @@ def load_family(path: Path, transports: dict[str, Transport]) -> Family:
     """Load and validate one ``spec/messages/<family>.yaml`` file."""
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     root = _require_mapping(raw, str(path))
-    _reject_unknown(root, {"family", "version", "messages"}, str(path))
+    _reject_unknown(root, {"family", "version", "messages", "types"}, str(path))
 
     name = root.get("family")
     if not name:
@@ -993,6 +1052,30 @@ def load_family(path: Path, transports: dict[str, Transport]) -> Family:
     if not isinstance(version, int):
         raise SpecError(f"{path}: 'version' is required and must be an integer")
 
+    raw_types = root.get("types") or {}
+    if not isinstance(raw_types, dict):
+        raise SpecError(f"{path}: 'types' must be a mapping of name to fields")
+    types: list[NestedType] = []
+    for type_name, raw_type in raw_types.items():
+        where = f"{path}: types[{type_name!r}]"
+        if not _TYPE_NAME.fullmatch(str(type_name)):
+            raise SpecError(f"{where}: a type name must be CamelCase")
+        block = _require_mapping(raw_type, where)
+        _reject_unknown(block, {"fields", "doc"}, where)
+        raw_fields = block.get("fields")
+        if not isinstance(raw_fields, list) or not raw_fields:
+            raise SpecError(f"{where}: 'fields' is required and must be non-empty")
+        types.append(
+            NestedType(
+                name=str(type_name),
+                fields=tuple(
+                    _load_field(f, f"{where}: fields[{i}]", allow_nested=False)
+                    for i, f in enumerate(raw_fields)
+                ),
+                doc=block.get("doc", ""),
+            )
+        )
+
     raw_messages = root.get("messages")
     if not isinstance(raw_messages, list) or not raw_messages:
         raise SpecError(f"{path}: 'messages' is required and must be non-empty")
@@ -1004,7 +1087,40 @@ def load_family(path: Path, transports: dict[str, Transport]) -> Family:
     dupes = sorted({n for n in names if names.count(n) > 1})
     if dupes:
         raise SpecError(f"{path}: duplicate message name(s) {dupes}")
-    return Family(family=name, version=version, messages=messages)
+
+    declared = {t.name for t in types}
+    for message in messages:
+        for f in message.fields:
+            if f.type not in RECORD_TYPES:
+                continue
+            if f.ref not in declared:
+                near = _nearest(str(f.ref), declared)
+                hint = f" (did you mean {near!r}?)" if near else ""
+                raise SpecError(
+                    f"{path}: {message.name}.{f.name} references unknown type "
+                    f"{f.ref!r}{hint}. Declare it under the family's 'types:'"
+                )
+        # `message.encoding` holds the bus encoding only; CALF and BALF live in
+        # `text_encoding`/`binary_encoding`. Reading it here meant this guard
+        # never fired. The declared transports are the reliable source.
+        external = sorted(set(message.transport) & set(EXTERNAL_TRANSPORTS))
+        if external and any(f.type in RECORD_TYPES for f in message.fields):
+            raise SpecError(
+                f"{path}: {message.name} carries a record field on {external}. "
+                "Records and lists are generated for JSON bus payloads only - "
+                "one inside a CALF key-value line or a fixed BALF frame is an "
+                "unsolved layout question, and half-supporting it would put a "
+                "wrong answer in a committed binding"
+            )
+
+    used = {f.ref for m in messages for f in m.fields if f.type in RECORD_TYPES}
+    unused = sorted(declared - used)
+    if unused:
+        raise SpecError(
+            f"{path}: type(s) {unused} are declared but never referenced. "
+            "An unused type generates a class nothing constructs"
+        )
+    return Family(family=name, version=version, messages=messages, types=tuple(types))
 
 
 def load_all(spec_root: Path) -> tuple[dict[str, Transport], list[Family]]:

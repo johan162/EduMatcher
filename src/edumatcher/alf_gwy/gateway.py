@@ -648,12 +648,16 @@ class AlfGateway:
             }
 
             if f"{prefix}PRICE" in fields:
-                leg["price"] = safe_float(fields[f"{prefix}PRICE"], f"{prefix}PRICE")
+                leg["price"] = to_ticks(
+                    safe_float(fields[f"{prefix}PRICE"], f"{prefix}PRICE"), symbol
+                )
             if f"{prefix}STOP" in fields:
-                leg["stop_price"] = safe_float(fields[f"{prefix}STOP"], f"{prefix}STOP")
+                leg["stop_price"] = to_ticks(
+                    safe_float(fields[f"{prefix}STOP"], f"{prefix}STOP"), symbol
+                )
             if f"{prefix}TRAIL" in fields:
-                leg["trail_offset"] = safe_float(
-                    fields[f"{prefix}TRAIL"], f"{prefix}TRAIL"
+                leg["trail_offset"] = to_ticks(
+                    safe_float(fields[f"{prefix}TRAIL"], f"{prefix}TRAIL"), symbol
                 )
             return leg
 
@@ -745,7 +749,7 @@ class AlfGateway:
             tif=tif,
             legs=legs,
         )
-        self._send_to_engine(make_combo_order_msg(combo.to_dict()))
+        self._send_to_engine(make_combo_order_msg(combo.to_submission_dict()))
 
     def _handle_amend(self, session: ClientSession, fields: dict[str, str]) -> None:
         order_id = self._required_str(fields, "ID")

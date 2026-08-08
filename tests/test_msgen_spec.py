@@ -614,8 +614,10 @@ class TestStrictness:
         self, tmp_path: Path, transports: dict[str, Any]
     ) -> None:
         fam = _minimal_family()
+        # ``nested`` and ``list`` are supported now; ``list[nested]`` is not a
+        # spelling of either, and the error must say what is.
         fam["messages"][0]["fields"][0]["type"] = "list[nested]"
-        with pytest.raises(SpecError, match="not yet generated"):
+        with pytest.raises(SpecError, match=r"is not one of \['string'"):
             load_family(_write(tmp_path, fam), transports)
 
     def test_deprecated_field_requires_a_doc(

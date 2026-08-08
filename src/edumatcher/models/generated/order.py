@@ -28,6 +28,201 @@ FAMILY = "order"
 FAMILY_VERSION = 1
 
 
+_OCO_LEG_SIDE_VALUES = ("BUY", "SELL")
+OcoLegSide = Literal["BUY", "SELL"]
+_OCO_LEG_ORDER_TYPE_VALUES = (
+    "MARKET",
+    "LIMIT",
+    "STOP",
+    "STOP_LIMIT",
+    "FOK",
+    "ICEBERG",
+    "IOC",
+    "TRAILING_STOP",
+)
+OcoLegOrderType = Literal[
+    "MARKET",
+    "LIMIT",
+    "STOP",
+    "STOP_LIMIT",
+    "FOK",
+    "ICEBERG",
+    "IOC",
+    "TRAILING_STOP",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class OcoLeg:
+    """One side of an OCO pair. It has no symbol or quantity of its own: both legs
+    trade the same instrument in the same size, and the OCO carries those. That is
+    what makes it a different record from a combo leg, which does own a symbol and
+    a quantity.
+    """
+
+    side: OcoLegSide
+    order_type: OcoLegOrderType
+    price: int | None = None  # unit: ticks
+    stop_price: int | None = None  # unit: ticks
+    trail_offset: int | None = None  # unit: ticks
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if self.side not in _OCO_LEG_SIDE_VALUES:
+            raise MessageValidationError(
+                f"side: {self.side!r} is not one of {_OCO_LEG_SIDE_VALUES!r}"
+            )
+        if self.order_type not in _OCO_LEG_ORDER_TYPE_VALUES:
+            raise MessageValidationError(
+                f"order_type: {self.order_type!r} is not one of {_OCO_LEG_ORDER_TYPE_VALUES!r}"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "OcoLeg":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            side=cast(OcoLegSide, str(p["side"])),
+            order_type=cast(OcoLegOrderType, str(p["order_type"])),
+            price=None if p.get("price") is None else int(p["price"]),
+            stop_price=None if p.get("stop_price") is None else int(p["stop_price"]),
+            trail_offset=(
+                None if p.get("trail_offset") is None else int(p["trail_offset"])
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "side": self.side,
+            "order_type": self.order_type,
+        }
+        if self.price is not None:
+            payload["price"] = self.price
+        if self.stop_price is not None:
+            payload["stop_price"] = self.stop_price
+        if self.trail_offset is not None:
+            payload["trail_offset"] = self.trail_offset
+        return payload
+
+
+_COMBO_LEG_SIDE_VALUES = ("BUY", "SELL")
+ComboLegSide = Literal["BUY", "SELL"]
+_COMBO_LEG_ORDER_TYPE_VALUES = (
+    "MARKET",
+    "LIMIT",
+    "STOP",
+    "STOP_LIMIT",
+    "FOK",
+    "ICEBERG",
+    "IOC",
+    "TRAILING_STOP",
+)
+ComboLegOrderType = Literal[
+    "MARKET",
+    "LIMIT",
+    "STOP",
+    "STOP_LIMIT",
+    "FOK",
+    "ICEBERG",
+    "IOC",
+    "TRAILING_STOP",
+]
+_COMBO_LEG_SMP_ACTION_VALUES = (
+    "NONE",
+    "CANCEL_AGGRESSOR",
+    "CANCEL_RESTING",
+    "CANCEL_BOTH",
+)
+ComboLegSmpAction = Literal["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]
+
+
+@dataclass(frozen=True, slots=True)
+class ComboLeg:
+    """One leg of a combo. Unlike an OcoLeg it owns a symbol and a quantity: the legs
+    of a combo trade different instruments, in sizes that need not match. That is
+    why the two are separate types rather than one shared `leg` - an early draft
+    of design section 15 assumed they could be merged and was wrong.
+    """
+
+    symbol: str
+    side: ComboLegSide
+    order_type: ComboLegOrderType
+    quantity: int  # unit: shares
+    price: int | None = None  # unit: ticks
+    stop_price: int | None = None  # unit: ticks
+    smp_action: ComboLegSmpAction | None = None
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.side not in _COMBO_LEG_SIDE_VALUES:
+            raise MessageValidationError(
+                f"side: {self.side!r} is not one of {_COMBO_LEG_SIDE_VALUES!r}"
+            )
+        if self.order_type not in _COMBO_LEG_ORDER_TYPE_VALUES:
+            raise MessageValidationError(
+                f"order_type: {self.order_type!r} is not one of {_COMBO_LEG_ORDER_TYPE_VALUES!r}"
+            )
+        if self.quantity <= 0:
+            raise MessageValidationError(f"quantity: {self.quantity!r} must be > 0")
+        if self.smp_action is not None:
+            if self.smp_action not in _COMBO_LEG_SMP_ACTION_VALUES:
+                raise MessageValidationError(
+                    f"smp_action: {self.smp_action!r} is not one of {_COMBO_LEG_SMP_ACTION_VALUES!r}"
+                )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "ComboLeg":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            symbol=str(p["symbol"]),
+            side=cast(ComboLegSide, str(p["side"])),
+            order_type=cast(ComboLegOrderType, str(p["order_type"])),
+            quantity=int(p["quantity"]),
+            price=None if p.get("price") is None else int(p["price"]),
+            stop_price=None if p.get("stop_price") is None else int(p["stop_price"]),
+            smp_action=cast(
+                ComboLegSmpAction | None,
+                None if p.get("smp_action") is None else str(p["smp_action"]),
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "symbol": self.symbol,
+            "side": self.side,
+            "order_type": self.order_type,
+            "quantity": self.quantity,
+            "price": self.price,
+            "stop_price": self.stop_price,
+            "smp_action": self.smp_action,
+        }
+
+
 _EXECUTION_REPORT_SYMBOL_RE = re.compile("^[A-Z0-9._]+$")
 _EXECUTION_REPORT_SIDE_VALUES = ("BUY", "SELL")
 ExecutionReportSide = Literal["BUY", "SELL"]
@@ -2559,6 +2754,609 @@ def describe_order_amend() -> tuple[dict[str, Any], ...]:
     return _ORDER_AMEND_FIELDS
 
 
+TOPIC_ORDER_COMBO_CANCEL = "order.combo_cancel"
+_TOPIC_ORDER_COMBO_CANCEL_BYTES = "order.combo_cancel".encode()
+
+
+_ORDER_COMBO_CANCEL_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "combo_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client-supplied combo label, not the internal UUID.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class OrderComboCancel:
+    """Cancel a combo order and all of its resting child legs."""
+
+    combo_id: str = ""
+    gateway_id: str = ""
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.combo_id) > 64:
+            raise MessageValidationError(
+                f"combo_id: length {len(self.combo_id)} exceeds max_len 64"
+            )
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "OrderComboCancel":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            combo_id=str(p.get("combo_id", "")),
+            gateway_id=str(p.get("gateway_id", "")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "combo_id": self.combo_id,
+            "gateway_id": self.gateway_id,
+        }
+
+
+def is_order_combo_cancel(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_ORDER_COMBO_CANCEL
+
+
+def make_order_combo_cancel(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = OrderComboCancel.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_ORDER_COMBO_CANCEL, obj.to_dict())
+
+
+def make_order_combo_cancel_unchecked(
+    *,
+    combo_id: str = "",
+    gateway_id: str = "",
+) -> list[bytes]:
+    """Identical frames to ``make_order_combo_cancel``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_ORDER_COMBO_CANCEL_BYTES,
+        _msg.dumps(
+            {
+                "combo_id": str(combo_id),
+                "gateway_id": str(gateway_id),
+            }
+        ),
+    ]
+
+
+def parse_order_combo_cancel(frames: list[bytes]) -> "OrderComboCancel":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = OrderComboCancel.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_order_combo_cancel() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _ORDER_COMBO_CANCEL_FIELDS
+
+
+TOPIC_ORDER_COMBO = "order.combo"
+_TOPIC_ORDER_COMBO_BYTES = "order.combo".encode()
+_ORDER_COMBO_COMBO_TYPE_VALUES = ("AON",)
+OrderComboComboType = Literal["AON"]
+_ORDER_COMBO_TIF_VALUES = ("DAY", "GTC", "ATO", "ATC")
+OrderComboTif = Literal["DAY", "GTC", "ATO", "ATC"]
+
+
+_ORDER_COMBO_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "combo_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "Client-supplied tracking label, not the engine's internal id.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "combo_type",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "All-or-none: the combo completes only when every leg fills.",
+        "values": _ORDER_COMBO_COMBO_TYPE_VALUES,
+    },
+    {
+        "name": "tif",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "values": _ORDER_COMBO_TIF_VALUES,
+    },
+    {
+        "name": "legs",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "The child orders. The bounds below were previously enforced only by api_gateway's pydantic schema, which left the ALF console and gateway free to submit a one-legged combo.",
+        "constraints": {"max_items": 10},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class OrderCombo:
+    """Submit a combo: two or more orders on different instruments that the engine
+    posts together and tracks as one aggregate.
+
+    This is the message the whole of design section 15 is about. It was unspecifiable
+    for three separate reasons, and each turned out to be the wire being wrong rather
+    than the IDL being short: leg prices whose unit depended on their runtime type
+    (15.2), engine lifecycle state riding on a client submission (15.4), and finally the
+    ordinary need for `nested` and `list[T]` (15.5). The payload below is `ComboOrder.
+    to_submission_dict()` and carries no engine state at all.
+    """
+
+    combo_id: str
+    gateway_id: str
+    combo_type: OrderComboComboType
+    tif: OrderComboTif
+    legs: list[ComboLeg]
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.combo_id) > 64:
+            raise MessageValidationError(
+                f"combo_id: length {len(self.combo_id)} exceeds max_len 64"
+            )
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if self.combo_type not in _ORDER_COMBO_COMBO_TYPE_VALUES:
+            raise MessageValidationError(
+                f"combo_type: {self.combo_type!r} is not one of {_ORDER_COMBO_COMBO_TYPE_VALUES!r}"
+            )
+        if self.tif not in _ORDER_COMBO_TIF_VALUES:
+            raise MessageValidationError(
+                f"tif: {self.tif!r} is not one of {_ORDER_COMBO_TIF_VALUES!r}"
+            )
+        if len(self.legs) < 2:
+            raise MessageValidationError("legs: fewer than 2 item(s)")
+        if len(self.legs) > 10:
+            raise MessageValidationError("legs: more than 10 item(s)")
+        for item in self.legs:
+            item.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "OrderCombo":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            combo_id=str(p["combo_id"]),
+            gateway_id=str(p["gateway_id"]),
+            combo_type=cast(OrderComboComboType, str(p["combo_type"])),
+            tif=cast(OrderComboTif, str(p["tif"])),
+            legs=[ComboLeg.from_dict(item) for item in p["legs"]],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "combo_id": self.combo_id,
+            "gateway_id": self.gateway_id,
+            "combo_type": self.combo_type,
+            "tif": self.tif,
+            "legs": [item.to_dict() for item in self.legs],
+        }
+
+
+def is_order_combo(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_ORDER_COMBO
+
+
+def make_order_combo(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = OrderCombo.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_ORDER_COMBO, obj.to_dict())
+
+
+def parse_order_combo(frames: list[bytes]) -> "OrderCombo":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = OrderCombo.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_order_combo() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _ORDER_COMBO_FIELDS
+
+
+TOPIC_ORDER_OCO = "order.oco"
+_TOPIC_ORDER_OCO_BYTES = "order.oco".encode()
+_ORDER_OCO_TIF_VALUES = ("DAY", "GTC", "ATO", "ATC")
+OrderOcoTif = Literal["DAY", "GTC", "ATO", "ATC"]
+
+
+_ORDER_OCO_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "oco_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client-supplied label for the pair.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Both legs trade this instrument.",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "quantity",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "Size of each leg; they are equal by construction.",
+    },
+    {
+        "name": "tif",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "values": _ORDER_OCO_TIF_VALUES,
+    },
+    {
+        "name": "leg1",
+        "type": "nested",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+    {
+        "name": "leg2",
+        "type": "nested",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class OrderOco:
+    """Submit a One-Cancels-Other pair: two orders on the same instrument, of which a
+    fill on either cancels the other.
+
+    The first message in any spec to use a nested record. Both legs are `OcoLeg`, and
+    their prices are engine ticks - the gateway converts. A leg omits a price it does
+    not have rather than sending null, which is what the three producing gateways
+    already do.
+    """
+
+    leg1: OcoLeg
+    leg2: OcoLeg
+    oco_id: str = ""
+    gateway_id: str = ""
+    symbol: str = ""
+    quantity: int = 0  # unit: shares
+    tif: OrderOcoTif = "DAY"
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.oco_id) > 64:
+            raise MessageValidationError(
+                f"oco_id: length {len(self.oco_id)} exceeds max_len 64"
+            )
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.tif not in _ORDER_OCO_TIF_VALUES:
+            raise MessageValidationError(
+                f"tif: {self.tif!r} is not one of {_ORDER_OCO_TIF_VALUES!r}"
+            )
+        self.leg1.validate()
+        self.leg2.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "OrderOco":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            oco_id=str(p.get("oco_id", "")),
+            gateway_id=str(p.get("gateway_id", "")),
+            symbol=str(p.get("symbol", "")),
+            quantity=int(p.get("quantity", 0)),
+            tif=cast(OrderOcoTif, str(p.get("tif", "DAY"))),
+            leg1=OcoLeg.from_dict(p["leg1"]),
+            leg2=OcoLeg.from_dict(p["leg2"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "oco_id": self.oco_id,
+            "gateway_id": self.gateway_id,
+            "symbol": self.symbol,
+            "quantity": self.quantity,
+            "tif": self.tif,
+            "leg1": self.leg1.to_dict(),
+            "leg2": self.leg2.to_dict(),
+        }
+
+
+def is_order_oco(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_ORDER_OCO
+
+
+def make_order_oco(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = OrderOco.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_ORDER_OCO, obj.to_dict())
+
+
+def parse_order_oco(frames: list[bytes]) -> "OrderOco":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = OrderOco.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_order_oco() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _ORDER_OCO_FIELDS
+
+
+TOPIC_ORDER_OCO_CANCEL = "order.oco_cancel"
+_TOPIC_ORDER_OCO_CANCEL_BYTES = "order.oco_cancel".encode()
+
+
+_ORDER_OCO_CANCEL_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "oco_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client-supplied OCO label.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class OrderOcoCancel:
+    """Cancel an OCO pair and both of its legs."""
+
+    oco_id: str = ""
+    gateway_id: str = ""
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.oco_id) > 64:
+            raise MessageValidationError(
+                f"oco_id: length {len(self.oco_id)} exceeds max_len 64"
+            )
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "OrderOcoCancel":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            oco_id=str(p.get("oco_id", "")),
+            gateway_id=str(p.get("gateway_id", "")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "oco_id": self.oco_id,
+            "gateway_id": self.gateway_id,
+        }
+
+
+def is_order_oco_cancel(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_ORDER_OCO_CANCEL
+
+
+def make_order_oco_cancel(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = OrderOcoCancel.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_ORDER_OCO_CANCEL, obj.to_dict())
+
+
+def make_order_oco_cancel_unchecked(
+    *,
+    oco_id: str = "",
+    gateway_id: str = "",
+) -> list[bytes]:
+    """Identical frames to ``make_order_oco_cancel``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_ORDER_OCO_CANCEL_BYTES,
+        _msg.dumps(
+            {
+                "oco_id": str(oco_id),
+                "gateway_id": str(gateway_id),
+            }
+        ),
+    ]
+
+
+def parse_order_oco_cancel(frames: list[bytes]) -> "OrderOcoCancel":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = OrderOcoCancel.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_order_oco_cancel() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _ORDER_OCO_CANCEL_FIELDS
+
+
 FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_ORDER_ACK,
     TOPIC_ORDER_FILL,
@@ -2568,4 +3366,8 @@ FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_ORDER_NEW,
     TOPIC_ORDER_CANCEL,
     TOPIC_ORDER_AMEND,
+    TOPIC_ORDER_COMBO_CANCEL,
+    TOPIC_ORDER_COMBO,
+    TOPIC_ORDER_OCO,
+    TOPIC_ORDER_OCO_CANCEL,
 )

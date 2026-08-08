@@ -17,6 +17,8 @@ rather than left to the spec comment:
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from edumatcher.models import message as M
@@ -144,6 +146,93 @@ class TestCancelAndAmend:
             G.make_order_amend_unchecked(order_id="O1", gateway_id="GW1")
         )
         assert field not in payload
+
+
+class TestStructureCancels:
+    """Phase 5.1c, part one: ``order.combo_cancel`` and ``order.oco_cancel``.
+
+    These two were the only members of the combo/OCO group the IDL could
+    describe at the time. ``order.oco`` and ``order.combo`` have since joined
+    them, once ``nested`` and ``list[T]`` landed. See design section 15.
+    """
+
+    def test_combo_cancel_is_byte_identical(self) -> None:
+        assert M.make_combo_cancel_msg("C1", "GW1") == (
+            G.make_order_combo_cancel_unchecked(combo_id="C1", gateway_id="GW1")
+        )
+
+    def test_oco_cancel_is_byte_identical(self) -> None:
+        assert M.make_oco_cancel_msg("X1", "GW1") == (
+            G.make_order_oco_cancel_unchecked(oco_id="X1", gateway_id="GW1")
+        )
+
+    @pytest.mark.parametrize(
+        "cls, key",
+        [(G.OrderComboCancel, "combo_id"), (G.OrderOcoCancel, "oco_id")],
+    )
+    def test_the_id_is_optional_because_the_engine_tolerates_it(
+        self, cls: Any, key: str
+    ) -> None:
+        """The consumer uses ``.get(k, "")``, so the spec must not be stricter.
+
+        Declaring these required would make ``validate()`` reject a frame the
+        engine handles today - a behaviour change this migration has no
+        business making. 5.1b's ``order.cancel`` *is* required, because
+        ``_handle_cancel`` subscripts it strictly. The spec follows each
+        consumer rather than imposing one rule on both.
+        """
+        assert getattr(cls.from_dict({}), key) == ""
+
+    def test_an_empty_payload_still_validates(self) -> None:
+        G.OrderComboCancel.from_dict({}).validate()
+        G.OrderOcoCancel.from_dict({}).validate()
+
+    def test_order_oco_arrived_with_its_legs_intact(self) -> None:
+        """This test used to assert ``order.oco`` was absent, and it fired.
+
+        The condition it guarded was never "stay absent" but "if you appear, do
+        it because the IDL grew ``nested`` — not because the legs were
+        flattened away". ``nested`` landed, so the assertion becomes the
+        positive one: the legs are still records.
+        """
+        assert hasattr(G, "TOPIC_ORDER_OCO")
+        assert hasattr(G, "OcoLeg")
+        declared = {f["name"] for f in G.describe_order_oco()}
+        assert {"leg1", "leg2"} <= declared
+
+    def test_order_combo_arrived_with_its_legs_as_a_list(self) -> None:
+        """The second guard in this class to fire, and for the same reason.
+
+        It asserted ``order.combo`` was absent until ``list[T]`` landed. It
+        has, so the assertion becomes what the guard was really protecting: the
+        legs are a list of records, not flattened into leg1/leg2 scalars.
+        """
+        assert hasattr(G, "TOPIC_ORDER_COMBO")
+        assert hasattr(G, "ComboLeg")
+        combo = G.OrderCombo.from_dict(
+            {
+                "combo_id": "C1",
+                "gateway_id": "GW1",
+                "combo_type": "AON",
+                "tif": "DAY",
+                "legs": [
+                    {
+                        "symbol": "AAPL",
+                        "side": "BUY",
+                        "order_type": "LIMIT",
+                        "quantity": 1,
+                    },
+                    {
+                        "symbol": "MSFT",
+                        "side": "SELL",
+                        "order_type": "LIMIT",
+                        "quantity": 1,
+                    },
+                ],
+            }
+        )
+        assert isinstance(combo.legs, list)
+        assert isinstance(combo.legs[0], G.ComboLeg)
 
 
 class TestUnits:

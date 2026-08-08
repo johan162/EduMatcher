@@ -1282,11 +1282,11 @@ class Gateway:
                 "order_type": kv[type_key],
             }
             if price_key in kv:
-                leg["price"] = float(kv[price_key])
+                leg["price"] = to_ticks(float(kv[price_key]), symbol)
             if stop_key in kv:
-                leg["stop_price"] = float(kv[stop_key])
+                leg["stop_price"] = to_ticks(float(kv[stop_key]), symbol)
             if trail_key in kv:
-                leg["trail_offset"] = float(kv[trail_key])
+                leg["trail_offset"] = to_ticks(float(kv[trail_key]), symbol)
             return leg
 
         leg1 = _parse_leg("LEG1_")
@@ -1410,7 +1410,7 @@ class Gateway:
             legs=legs,
         )
 
-        self.push_sock.send_multipart(make_combo_order_msg(combo.to_dict()))
+        self.push_sock.send_multipart(make_combo_order_msg(combo.to_submission_dict()))
         self._dbg_count("combo_submitted")
 
     @staticmethod

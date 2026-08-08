@@ -70,6 +70,10 @@ from edumatcher.models.combo import ComboOrder, ComboStatus, ComboType
 from edumatcher.models.clock import now_ns
 from edumatcher.models.generated.order import (
     TOPIC_ORDER_AMEND,
+    TOPIC_ORDER_COMBO,
+    TOPIC_ORDER_OCO,
+    TOPIC_ORDER_COMBO_CANCEL,
+    TOPIC_ORDER_OCO_CANCEL,
     TOPIC_ORDER_CANCEL,
     TOPIC_ORDER_NEW,
 )
@@ -188,10 +192,10 @@ _ORDER_TOPICS = frozenset(
         TOPIC_ORDER_NEW,
         TOPIC_ORDER_CANCEL,
         TOPIC_ORDER_AMEND,
-        "order.combo",
-        "order.combo_cancel",
-        "order.oco",
-        "order.oco_cancel",
+        TOPIC_ORDER_COMBO,
+        TOPIC_ORDER_COMBO_CANCEL,
+        TOPIC_ORDER_OCO,
+        TOPIC_ORDER_OCO_CANCEL,
     }
 )
 
@@ -919,14 +923,6 @@ class Engine:
     def _handle_new_order(self, payload: dict[str, Any]) -> None:
         order = Order.from_dict(payload)
         self._dbg_count("new_order_requests")
-
-        # Boundary conversion: inbound payload prices are display decimals.
-        if order.price is not None and isinstance(order.price, float):
-            order.price = to_ticks(order.price, order.symbol)
-        if order.stop_price is not None and isinstance(order.stop_price, float):
-            order.stop_price = to_ticks(order.stop_price, order.symbol)
-        if order.trail_offset is not None and isinstance(order.trail_offset, float):
-            order.trail_offset = to_ticks(order.trail_offset, order.symbol)
 
         # SMP=None means the client omitted it -- fall back to the gateway's
         # configured default (gateways.alf[].smp_action). An explicit value
@@ -3668,12 +3664,9 @@ class Engine:
 
         self._combos[combo.id] = combo
 
-        # Emit ACK after child creation so child_order_ids is populated
         if publish_ack:
             self.pub_sock.send_multipart(
-                make_combo_ack_msg(
-                    combo.gateway_id, combo.combo_id, True, combo=combo.to_dict()
-                )
+                make_combo_ack_msg(combo.gateway_id, combo.combo_id, True)
             )
 
         self._update_combo_status(combo)
@@ -3681,14 +3674,7 @@ class Engine:
 
     def _handle_combo_order(self, payload: dict[str, Any]) -> None:
         """Accept a combo, create child orders on respective books."""
-        combo = ComboOrder.from_dict(payload)
-
-        # Boundary conversion: combo legs may arrive in display price units.
-        for leg in combo.legs:
-            if leg.price is not None and isinstance(leg.price, float):
-                leg.price = to_ticks(leg.price, leg.symbol)
-            if leg.stop_price is not None and isinstance(leg.stop_price, float):
-                leg.stop_price = to_ticks(leg.stop_price, leg.symbol)
+        combo = ComboOrder.from_submission_dict(payload)
 
         # Gateway auth
         ok, reason = self._gateway_status(combo.gateway_id)
@@ -4171,8 +4157,8 @@ class Engine:
             "symbol":     str,    # both legs must be on the same symbol
             "quantity":   int,
             "tif":        str,
-            "leg1": {"side": str, "order_type": str, "price": float|null, "stop_price": float|null},
-            "leg2": {"side": str, "order_type": str, "price": float|null, "stop_price": float|null},
+            "leg1": {"side": str, "order_type": str, "price": int|null, "stop_price": int|null},
+            "leg2": {"side": str, "order_type": str, "price": int|null, "stop_price": int|null},
           }
         """
         gateway_id = str(payload.get("gateway_id", "")).upper()
@@ -4207,6 +4193,20 @@ class Engine:
         leg1_raw = payload.get("leg1", {})
         leg2_raw = payload.get("leg2", {})
 
+        def _leg_ticks(raw: dict[str, Any], key: str) -> int | None:
+            """Read one leg price. Ticks only.
+
+            A float here means a submitting gateway skipped its ``to_ticks``
+            conversion. Silently accepting it would price the leg 100x low on a
+            two-decimal instrument, so it is rejected as an invalid leg.
+            """
+            value = raw.get(key)
+            if value is None:
+                return None
+            if not isinstance(value, int):
+                raise ValueError(f"{key} must be integer ticks, not display money")
+            return value
+
         def _parse_leg(raw: dict[str, Any]) -> Order | None:
             try:
                 return Order.create(
@@ -4216,21 +4216,10 @@ class Engine:
                     quantity=quantity,
                     gateway_id=gateway_id,
                     tif=tif,
-                    price=(
-                        to_ticks(float(raw["price"]), symbol)
-                        if raw.get("price") is not None
-                        else None
-                    ),
-                    stop_price=(
-                        to_ticks(float(raw["stop_price"]), symbol)
-                        if raw.get("stop_price") is not None
-                        else None
-                    ),
-                    trail_offset=(
-                        to_ticks(float(raw["trail_offset"]), symbol)
-                        if raw.get("trail_offset") is not None
-                        else None
-                    ),
+                    # Ticks on the wire: the submitting gateway converted.
+                    price=_leg_ticks(raw, "price"),
+                    stop_price=_leg_ticks(raw, "stop_price"),
+                    trail_offset=_leg_ticks(raw, "trail_offset"),
                 )
             except (KeyError, ValueError):
                 return None
@@ -4926,13 +4915,13 @@ class Engine:
                 self._handle_cancel(payload)
             elif topic == TOPIC_ORDER_AMEND:
                 self._handle_amend(payload)
-            elif topic == "order.combo":
+            elif topic == TOPIC_ORDER_COMBO:
                 self._handle_combo_order(payload)
-            elif topic == "order.combo_cancel":
+            elif topic == TOPIC_ORDER_COMBO_CANCEL:
                 self._handle_combo_cancel(payload)
-            elif topic == "order.oco":
+            elif topic == TOPIC_ORDER_OCO:
                 self._handle_oco_order(payload)
-            elif topic == "order.oco_cancel":
+            elif topic == TOPIC_ORDER_OCO_CANCEL:
                 self._handle_oco_cancel(payload)
             elif topic == "quote.new":
                 self._handle_quote_new(payload)

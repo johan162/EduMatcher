@@ -366,3 +366,65 @@ class TestSpecErrorsSurfaceThroughTheCli:
 
     def test_lint_accepts_the_committed_spec(self) -> None:
         assert msgen_main(["lint", "--spec", str(SPEC_ROOT)]) == 0
+
+
+class TestTheWrappingRules:
+    """Found during Phase 5.1c's holistic review, not by a failing build.
+
+    ``_wrap`` reproduces black's right-hand split so the emitter never has to
+    run black (risk R9). Both cases below are silent-wrong-output failures: the
+    generated file would still be valid Python, still be black-clean, and still
+    pass ``pm-msgen check`` — it would just mean something different.
+    """
+
+    def test_a_one_value_enum_stays_a_tuple_when_split(self) -> None:
+        """``(x,)`` split badly becomes ``(x)`` — a string, not a tuple.
+
+        Reachable by any single-value enum whose value is long enough to push
+        the ``_VALUES`` constant past 88 columns. ``in`` would then match a
+        substring instead of a member, so ``validate()`` would accept values it
+        should reject.
+        """
+        from edumatcher.msgen.generators.python import _tuple_literal, _wrap
+
+        literal = _tuple_literal(['"' + "X" * 80 + '"'])
+        namespace: dict[str, object] = {}
+        exec("\n".join(_wrap("", f"C = {literal}")), namespace)
+        assert isinstance(namespace["C"], tuple)
+
+    def test_a_one_argument_call_gains_no_trailing_comma(self) -> None:
+        """The other half of the rule: black does not add one here."""
+        from edumatcher.msgen.generators.python import _wrap
+
+        name = "v" * 40
+        lines = _wrap("    ", f'"k": {name} if x else str({name}),')
+        assert len(lines) > 1, "the fixture must actually be too long"
+        assert lines[-2].strip() == name
+        assert not lines[-2].rstrip().endswith(",")
+
+    def test_no_generated_module_binds_a_name_twice(self) -> None:
+        """Enum aliases share a namespace with classes and constants.
+
+        ``OrderNewSide`` is derived from the message and field names, so a
+        message named ``order_new_side`` would collide with ``order_new``'s
+        ``side`` alias and one would silently overwrite the other.
+        """
+        import ast
+        from collections import Counter
+
+        for path in sorted(OUT_PYTHON.glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            names = [
+                target.id
+                for node in tree.body
+                if isinstance(node, ast.Assign)
+                for target in node.targets
+                if isinstance(target, ast.Name)
+            ]
+            names += [
+                node.name
+                for node in tree.body
+                if isinstance(node, (ast.FunctionDef, ast.ClassDef))
+            ]
+            duplicates = [n for n, count in Counter(names).items() if count > 1]
+            assert duplicates == [], f"{path.name} binds {duplicates} twice"

@@ -1156,7 +1156,9 @@ What it does not, and will not:
 | 5.0 | `pm-msgen grep-literals`; `trade` literals to zero | **done** |
 | 5.1a | the five engine→gateway `order.*` events | **done** |
 | 5.1b | inbound `order.new` / `order.cancel` / `order.amend` | **done** |
-| 5.1c | combo and OCO topics | not started |
+| 5.1c | `order.combo_cancel` / `order.oco_cancel` | **done** |
+| 5.1d | IDL `nested` + `order.oco` | **done** |
+| 5.1e | IDL `list[T]` + `order.combo` | **done** — the `order` family is complete |
 | 5.2+ | `book`/`depth`, `session`, `risk`, `index`, `log` | not started |
 | 6 | Generated `271-message-appendix.md` | not started |
 

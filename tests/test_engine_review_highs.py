@@ -354,8 +354,8 @@ class TestH3PositionLedgerCompleteness:
                 "symbol": SYMBOL,
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 100.0},
-                "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 120.0},
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 10000},
+                "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 12000},
             }
         )
 

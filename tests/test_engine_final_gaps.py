@@ -288,7 +288,7 @@ class TestOCOStopLimitValidation:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 95.0},
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
                 "leg2": {
                     "side": "BUY",
                     "order_type": "STOP_LIMIT",
@@ -388,8 +388,8 @@ class TestVerboseOCO:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 95.0},
-                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 105.0},
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
+                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
             }
         )
         assert "OCO" in caplog.text
@@ -405,8 +405,8 @@ class TestVerboseOCO:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 95.0},
-                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 105.0},
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
+                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
             }
         )
         caplog.clear()
@@ -471,8 +471,8 @@ class TestCancelOCOLeg:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 95.0},
-                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 105.0},
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
+                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
             }
         )
         order_ids = engine._oco_groups.get("OC_CASCADE", [])
