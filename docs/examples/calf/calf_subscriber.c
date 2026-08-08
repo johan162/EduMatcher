@@ -23,6 +23,7 @@
 
 #include "calf_parser.h"
 #include "calf_recovery.h"
+#include "edumatcher_trade.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -284,11 +285,44 @@ static void handle_message(int fd, const calf_message_t *msg) {
             set_field(book->last, sizeof(book->last), msg, "LAST");
             print_top(book);
         }
-    } else if (strcmp(msg->msg_type, "TRADE") == 0) {
-        const char *qty = calf_get_field(msg, "QTY");
-        const char *px = calf_get_field(msg, "PX");
-        const char *side = calf_get_field(msg, "SIDE");
-        printf("TRADE %-8s %6s @ %10s (%s)\n", symbol, qty ? qty : "?", px ? px : "?", side ? side : "?");
+    } else if (strcmp(msg->msg_type, EDU_TRADE_EXECUTED_CALF_MSGTYPE) == 0) {
+        /* Generated binding, from spec/messages/trade.yaml. Every other
+         * handler in this file re-derives its field names as string literals
+         * and converts each value by hand -- which is why a field rename on
+         * the publisher side never reaches a C client. Here the field names,
+         * their types and their constraints all come from the specification,
+         * so a rename is a compile error rather than a silent "?" on screen.
+         *
+         * Note the two-step: _parse coerces, _validate enforces the declared
+         * rules (price > 0, quantity > 0, SIDE one of BUY/SELL/AUCTION). A
+         * client that would rather display a questionable print than drop it
+         * can simply skip the second call -- see docs/developer/06-msgen.md. */
+        edu_trade_executed_calf_t trade;
+        char err[128];
+        int rc = edu_trade_executed_calf_parse(msg, &trade);
+        if (rc != EDU_MSG_OK) {
+            printf("TRADE %-8s <unparseable: %s>\n", symbol, edu_msg_strerror(rc));
+        } else if (edu_trade_executed_calf_validate(&trade, err, sizeof(err)) != EDU_MSG_OK) {
+            printf("TRADE %-8s <invalid: %s>\n", symbol, err);
+        } else {
+            /* Quantity and side are printed from the struct: an integer and an
+             * enum have exact representations, so nothing can be lost.
+             *
+             * PX is still printed as the raw wire string, deliberately. The
+             * struct does hold it as a double, and using that would mean
+             * choosing a decimal count to render it with -- which is the
+             * per-symbol REF= problem this client avoids by design (see the
+             * note at the top of this file). A typed binding removes the
+             * guesswork about field *names* and *types*; it does not remove the
+             * need to know an instrument's tick scale before reformatting its
+             * price. calf_subscriber.py shows the path that does parse prices. */
+            const char *px = calf_get_field(msg, "PX");
+            printf("TRADE %-8s %6lld @ %10s (%s)\n",
+                   symbol,
+                   (long long)trade.quantity,
+                   px ? px : "?",
+                   edu_trade_executed_aggressor_side_to_str(trade.aggressor_side));
+        }
     } else if (strcmp(channel, "STATE") == 0 &&
                (strcmp(msg->msg_type, "SNAP") == 0 || strcmp(msg->msg_type, "STATE") == 0)) {
         const char *session = calf_get_field(msg, "SESSION");

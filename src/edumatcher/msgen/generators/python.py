@@ -22,6 +22,32 @@ import textwrap
 
 from edumatcher.msgen.spec import Family, Field, Message
 
+#: Coerce-then-render, applied to a raw read out of the bus payload. Matches
+#: ``md_gateway/normaliser.py``: ``_as_decimal`` is ``str(raw)`` and
+#: ``_as_int_text`` is ``str(int(raw))``. An enum renders uppercase,
+#: reproducing ``normalise_trade``'s ``str(...).upper()`` — idempotent for any
+#: declared value, since B.3 requires enum names to be SCREAMING_SNAKE.
+#: The value is coerced to its declared type first, so the projection and the
+#: typed binding always agree (design section B.13).
+_TEXT_RENDER = {
+    "string": "str({expr})",
+    "int": "str(int({expr}))",
+    "ticks": "str(int({expr}))",
+    "float": "str(float({expr}))",
+    "bool": "str(bool({expr}))",
+    "enum": "str({expr}).upper()",
+}
+
+#: Reading a text field back into the typed value.
+_TEXT_READ = {
+    "string": "str({expr})",
+    "int": "int({expr})",
+    "ticks": "int({expr})",
+    "float": "float({expr})",
+    "bool": "bool({expr})",
+    "enum": "str({expr})",
+}
+
 #: Configured black/flake8 line length. Emission targets this directly.
 LINE_LENGTH = 88
 
@@ -422,6 +448,123 @@ def _unchecked_block(message: Message) -> list[str]:
     return out
 
 
+def _text_projection_blocks(message: Message) -> list[list[str]]:
+    """Emit ``project_*_<transport>`` and ``parse_*_<transport>``.
+
+    The projection carries **only** the included payload fields. Envelope keys
+    (``CH``/``SYM``/``SEQ``/``TS``) are the gateway's, not the projection's —
+    the two gateways inject them in different positions, so a projection that
+    tried to own them could not serve both (design section B.13).
+    """
+    cls = _class_name(message)
+    blocks: list[list[str]] = []
+
+    for transport in sorted(message.text_encoding):
+        enc = message.text_encoding[transport]
+        const = f"MSGTYPE_{_const_name(message)}_{transport.upper()}"
+        blocks.append([f"{const} = {_pystr(enc.msg_type)}"])
+
+        body = [
+            f"def project_{message.name}_{transport}(",
+            "    payload: Mapping[str, Any],",
+            ") -> dict[str, str]:",
+        ]
+        body += _docstring(
+            "    ",
+            f"Project a bus payload onto the {transport.upper()} "
+            f"{enc.msg_type} field map.",
+            [
+                "Reads **only** the fields this transport carries, so a caller "
+                "needs nothing the projection does not use. That is what makes "
+                "this a projection rather than a rename of the whole message: "
+                "a gateway feeding this transport should not have to hold "
+                "fields the transport drops (design section 4.6).",
+                "Values are coerced to their declared types first, so this and "
+                "the typed binding never disagree. "
+                + (
+                    "The gateway supplies "
+                    + ", ".join(enc.gateway_injected)
+                    + " in its own envelope; they are not payload keys."
+                    if enc.gateway_injected
+                    else "There are no gateway-injected keys."
+                ),
+            ],
+        )
+        body.append("    return {")
+        for name in enc.include:
+            spec_field = message.field_by_name(name)
+            raw = _payload_read(spec_field)
+            rendered = _TEXT_RENDER[spec_field.type].format(expr=raw)
+            for key in enc.keys[name]:
+                body.append(f"        {_pystr(key)}: {rendered},")
+        body.append("    }")
+        blocks.append(body)
+
+        reader = [
+            f"def parse_{message.name}_{transport}(",
+            "    fields: Mapping[str, str],",
+            f') -> "{cls}":',
+        ]
+        reader += _docstring(
+            "    ",
+            f"Rebuild this message from a {transport.upper()} payload field map.",
+            [
+                "Only the projected fields can be recovered; anything this "
+                "transport does not carry takes its declared default. Coerces "
+                "without validating, like ``from_dict`` (design section 5.1.1).",
+            ],
+        )
+        reader.append(f"    return {cls}(")
+        for spec_field in message.fields:
+            if spec_field.name in enc.include:
+                key = enc.keys[spec_field.name][0]
+                expr = _TEXT_READ[spec_field.type].format(expr=f"fields[{_pystr(key)}]")
+            elif spec_field.has_parse_default:
+                expr = _pyval(spec_field.parse_default)
+            elif not spec_field.required:
+                expr = _pyval(spec_field.default)
+            else:
+                expr = _absent_placeholder(spec_field)
+            reader.append(f"        {spec_field.name}={expr},")
+        reader.append("    )")
+        blocks.append(reader)
+
+    return blocks
+
+
+def _payload_read(f: Field) -> str:
+    """Read one field out of a bus payload mapping, uncoerced.
+
+    Same precedence as ``from_dict`` (design section B.7.1): ``parse_default``,
+    then an optional field's ``default``, then a strict subscript. Keeping the
+    two identical is what makes ``project_*(payload)`` and
+    ``project_*(obj.to_dict())`` interchangeable.
+    """
+    key = _pystr(f.name)
+    if f.has_parse_default:
+        return f"payload.get({key}, {_pyval(f.parse_default)})"
+    if not f.required:
+        return f"payload.get({key}, {_pyval(f.default)})"
+    return f"payload[{key}]"
+
+
+def _absent_placeholder(f: Field) -> str:
+    """Value for a required field this transport does not carry.
+
+    A text projection is a genuine subset (design section 4.6): CALF's TRADE
+    print carries no ``id`` or ``symbol``. Rebuilding a full message from one
+    therefore cannot recover them, and inventing a plausible-looking value would
+    be worse than an obviously empty one.
+    """
+    if f.type in ("int", "ticks"):
+        return "0"
+    if f.type == "float":
+        return "0.0"
+    if f.type == "bool":
+        return "False"
+    return '""'
+
+
 def _function_blocks(message: Message) -> list[list[str]]:
     """Every module-level function for one message, as separate blocks."""
     cls = _class_name(message)
@@ -588,6 +731,7 @@ def render_family(family: Family, spec_path: str) -> str:
         blocks.append(_describe_block(message))
         blocks.append(_class_block(message))
         blocks.extend(_function_blocks(message))
+        blocks.extend(_text_projection_blocks(message))
 
     topics = [f"TOPIC_{_const_name(m)}" for m in messages]
     blocks.append([f"FAMILY_TOPICS: tuple[str, ...] = {_tuple_literal(topics)}"])

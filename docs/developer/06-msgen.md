@@ -13,15 +13,18 @@
     - What `pm-msgen check` guarantees, and why generation must be
       byte-for-byte deterministic for that guarantee to be worth anything
 
-!!! info "Current status: Phase 2"
-    The generator emits the **Python** binding for the **`trade`** family, and
-    that binding is now **live**: `models/message.py::make_trade_msg` delegates
-    to it, `engine/main.py::_publish_trade` publishes through it, and `pm-stats`
-    subscribes with its topic constant. Everything on this page about Python is
-    real and tested today. The CI drift check (Phase 3), C generation (Phase 4)
-    and the documentation appendix (Phase 6) are not built yet and are marked as
-    such. The full plan lives in
-    `docs-design/EduMatcher-Message-Generator.md`.
+!!! info "Current status: Phase 4a"
+    For the **`trade`** family the generator emits the **Python** binding *and*
+    the **C** binding for its CALF projection. Both are live: `make_trade_msg`,
+    `engine/main.py::_publish_trade`, `pm-stats` and
+    `md_gateway/normaliser.py` use the Python side, and
+    `docs/examples/calf/calf_subscriber.c` parses trade prints with the
+    generated C struct. The drift check runs in CI and `make check`. A compiled
+    round-trip test proves the two languages agree on the wire.
+
+    Not built yet, and marked as such below: **BALF binary** layout (Phase 4b),
+    the remaining families (Phase 5) and the documentation appendix (Phase 6).
+    The full plan lives in `docs-design/EduMatcher-Message-Generator.md`.
 
 ## The problem
 
@@ -65,11 +68,44 @@ poetry run pm-msgen generate   # write the generated files
 poetry run pm-msgen check      # fail if committed output differs from the spec
 ```
 
+Or through the Makefile, which is what `make check` and CI use:
+
+```bash
+make msgen          # regenerate — run this after editing a spec file
+make msgen-check    # verify the committed bindings match spec/  [stamp-cached]
+```
+
 Exit codes follow the `pm-cverifier` convention: `0` success, `1` drift
-detected, `2` the spec itself is broken.
+detected, `2` the spec itself is broken. The distinction matters for a build
+gate: `1` means "you forgot to regenerate", `2` means "your spec is wrong".
 
 Both `generate` and `check` accept `--spec DIR` and `--out-python DIR`, which is
-mostly useful in tests. The defaults are the repository layout.
+mostly useful in tests. The defaults are relative to the repository root, so run
+them from there.
+
+### The normal edit loop
+
+```bash
+$ vim spec/messages/trade.yaml     # add a field, change a constraint
+$ make msgen                       # regenerate
+$ git add spec/ src/edumatcher/models/generated/
+```
+
+Forgetting the middle step is what `make check` and CI now catch:
+
+```
+$ make check
+- Checking generated messages match the spec (pm-msgen)...
+pm-msgen check: generated output is out of date with the spec.
+Run `pm-msgen generate` and commit the result.
+
+--- generated/trade.py (committed)
++++ generated/trade.py (from spec)
+@@ -156,7 +156,7 @@
+-        if self.tick_decimals > 8:
++        if self.tick_decimals > 6:
+✗ Generated message bindings are out of date. Run 'make msgen' ...
+```
 
 ## Writing a specification
 
@@ -175,12 +211,217 @@ transports:
 what keeps ports out of generated code. `pm-msgen lint` rejects anything that
 looks like `tcp://...`.
 
-!!! info "External protocols are Phase 4"
-    `calf`, `balf` and `ralf` are reserved names for the external line and
-    binary protocols. Listing one in `transport:` is currently **rejected** with
-    a clear message, because nothing generates their projections yet. Declaring
-    a spec block that no generator reads would be an unexercised code path
-    pretending to be a contract.
+!!! info "`balf` is Phase 4b"
+    `calf` and `ralf` (text line protocols) are generated today. `balf` (binary
+    frames) is **rejected** with a clear message until Phase 4b, because
+    declaring a spec block that no generator reads would be an unexercised code
+    path pretending to be a contract.
+
+## Projections: one event, several shapes
+
+The three client-facing encodings of a trade are **not the same fields under
+three names**. They are different *projections* of the engine's payload — a
+subset of fields, each renamed, some supplied by the gateway rather than the
+message:
+
+| Field (bus `trade.executed`) | bus JSON | CALF `TRADE` | RALF `EXEC` |
+|---|---|---|---|
+| `id` | `id` | — not on the public feed | `EXEC_ID`, `MATCH_ID` |
+| `symbol` | `symbol` | `SYM` (gateway) | `SYM` (gateway) |
+| `buy_order_id` | `buy_order_id` | — | `BUY_ORDER_ID` |
+| `price` | `price` | `PX` | `PX` |
+| `quantity` | `quantity` | `QTY` | `QTY` |
+| `aggressor_side` | `aggressor_side` | `SIDE` | `SIDE` |
+| `timestamp` | `timestamp` | `TS` (gateway) | `TS` (gateway) |
+| `tick_decimals` | `tick_decimals` | — | — |
+
+A transport is declared with three keys:
+
+```yaml
+      calf:
+        msg_type: TRADE
+        include: [price, quantity, aggressor_side]   # what this feed carries
+        keys: { price: PX, quantity: QTY, aggressor_side: SIDE }
+        gateway_injected: [CH, SYM, SEQ, TS]         # documentation only
+```
+
+`keys` may map one field to several wire names (RALF's
+`id: [EXEC_ID, MATCH_ID]`).
+
+The generated Python side is a pair of functions per transport:
+
+```python
+from edumatcher.models.generated.trade import (
+    project_trade_executed_calf,   # bus payload  -> {PX, QTY, SIDE}
+    parse_trade_executed_calf,     # {PX, QTY, SIDE} -> TradeExecuted
+)
+
+project_trade_executed_calf(payload)
+# {'PX': '101.5', 'QTY': '300', 'SIDE': 'BUY'}
+```
+
+`project_*` takes a **payload mapping and reads only the fields this transport
+carries**. That matters more than it looks: a CALF gateway holds a trade with
+three relevant fields, and requiring it to supply `id`, `buy_order_id` and the
+rest — which CALF drops — would re-couple exactly the surfaces the projection
+model separates. A projection is a subset, so it depends on a subset.
+
+```python
+# Everything CALF drops may be absent:
+project_trade_executed_calf({
+    "symbol": "AAPL", "price": 151.5, "quantity": 25, "aggressor_side": "BUY",
+})
+# {'PX': '151.5', 'QTY': '25', 'SIDE': 'BUY'}
+```
+
+Values are coerced to their declared types first, so
+`project_*(payload)` and `project_*(msg.to_dict())` always agree.
+
+!!! warning "`gateway_injected` is documentation, not behaviour"
+    The generated projection emits **only the included payload fields**. It
+    never emits `CH`/`SYM`/`SEQ`/`TS`, and their order in the spec means
+    nothing.
+
+    This is not an arbitrary choice. `md_gateway`'s `_emit_stream_event` puts
+    `{CH, SYM, SEQ, TS}` *before* the payload; `ralf_gateway`'s `_emit_event`
+    appends `SEQ` *after* it. No single "injected keys go here" rule can
+    describe both. The envelope belongs to the gateway, the payload map to the
+    generator — which is the boundary the design draws anyway.
+
+## Generated C
+
+For every declared text projection the generator emits a typed struct and a
+parser into `docs/examples/generated/`:
+
+```
+docs/examples/generated/
+    edumatcher_msg.h/.c        hand-written: error codes + edu_msg_strerror
+    edumatcher_trade.h/.c      generated from spec/messages/trade.yaml
+```
+
+`edumatcher_msg.h` is the C counterpart of `_runtime.py` — the one file there
+that is *not* generated.
+
+### What a projection looks like in C
+
+```c
+typedef enum {
+    EDU_TRADE_EXECUTED_AGGRESSOR_SIDE_BUY = 1,
+    EDU_TRADE_EXECUTED_AGGRESSOR_SIDE_SELL = 2,
+    EDU_TRADE_EXECUTED_AGGRESSOR_SIDE_AUCTION = 3
+} edu_trade_executed_aggressor_side_t;
+
+typedef struct {
+    double   price;                                       /* PX,  display_price */
+    int64_t  quantity;                                    /* QTY, shares        */
+    edu_trade_executed_aggressor_side_t aggressor_side;   /* SIDE               */
+} edu_trade_executed_calf_t;
+
+int edu_trade_executed_calf_parse(const calf_message_t *in,
+                                  edu_trade_executed_calf_t *out);
+int edu_trade_executed_calf_validate(const edu_trade_executed_calf_t *m,
+                                     char *err, size_t errlen);
+const char *edu_trade_executed_aggressor_side_to_str(
+    edu_trade_executed_aggressor_side_t v);
+```
+
+Three fields, not eleven: **a C struct mirrors what its transport carries**, not
+the internal bus payload. C clients speak CALF and never see the bus.
+
+Fixed-size buffers, no allocation, `int` returns — matching the hand-written
+example clients, so generated code drops in beside them. A `string` field
+becomes `char name[max_len + 1]`, which is why `validate.max_len` is mandatory
+for any string reaching an external transport.
+
+### Example 7 — reading a trade in C
+
+```c
+#include "edumatcher_trade.h"
+
+calf_message_t msg;
+if (calf_parse_line(line, &msg) != 0) return;          /* hand-written tokeniser */
+
+edu_trade_executed_calf_t trade;
+char err[128];
+
+int rc = edu_trade_executed_calf_parse(&msg, &trade);
+if (rc != EDU_MSG_OK) {
+    fprintf(stderr, "TRADE: %s\n", edu_msg_strerror(rc));
+    return;
+}
+if (edu_trade_executed_calf_validate(&trade, err, sizeof(err)) != EDU_MSG_OK) {
+    fprintf(stderr, "TRADE rejected: %s\n", err);       /* e.g. "price must be > 0" */
+    return;
+}
+
+printf("%lld @ %g (%s)\n",
+       (long long)trade.quantity, trade.price,
+       edu_trade_executed_aggressor_side_to_str(trade.aggressor_side));
+```
+
+Note the **two steps**, mirroring `from_dict` and `validate()` in Python: `parse`
+coerces and reports a missing or unparseable field; `validate` enforces the
+declared rules. A client that would rather display a questionable print than
+drop it simply skips the second call. That is the same coercion/validation split
+[described above](#coercion-and-validation-are-different-jobs), in a second
+language.
+
+### Building against the generated headers
+
+```make
+GEN_DIR := ../generated
+CFLAGS  := -std=c11 -Wall -Wextra -I. -I$(GEN_DIR)
+
+SRC := your_client.c calf_parser.c \
+       $(GEN_DIR)/edumatcher_trade.c $(GEN_DIR)/edumatcher_msg.c
+```
+
+`-I.` is needed as well as `-I$(GEN_DIR)`: the generated header includes
+`"calf_parser.h"`, which lives with the CALF example rather than beside it.
+
+### Error codes
+
+| Code | Constant | Meaning |
+|---|---|---|
+| `0` | `EDU_MSG_OK` | success |
+| `-1` | `EDU_MSG_ERR_SHORT` | frame or line too short |
+| `-2` | `EDU_MSG_ERR_MAGIC` | bad magic byte (binary only) |
+| `-3` | `EDU_MSG_ERR_VERSION` | unsupported version (binary only) |
+| `-4` | `EDU_MSG_ERR_MSGTYPE` | unknown or unexpected `msg_type` |
+| `-5` | `EDU_MSG_ERR_LENGTH` | length mismatch (binary only) |
+| `-6` | `EDU_MSG_ERR_FIELD` | field missing, unparseable, or rule failed |
+| `-7` | `EDU_MSG_ERR_OVERFLOW` | value exceeds a fixed-size buffer |
+
+`-1`..`-5` mirror `balf_parser.c`'s `parse_header`/`split_frame`, whose logic the
+generated BALF parser will reimplement in Phase 4b.
+
+!!! danger "A return code is a per-function contract, not a global registry"
+    `calf_parser.c`'s hand-written `calf_parse_line` **also** returns `-1`..`-6`,
+    with entirely different meanings — its `-4` is "too many fields", not
+    "unknown msg_type", and its `-6` is "empty field key".
+
+    So check each call's result against the function you called, and use
+    `edu_msg_strerror` only for functions declared in a generated header. The
+    design originally claimed there was a single convention in the tree to reuse;
+    there never was.
+
+## How the two bindings are kept honest
+
+`tests/test_msgen_calf_roundtrip.py` compiles the **committed generated C** —
+the same files `docs/examples/calf` links against — with
+`-Wall -Wextra -pedantic -Werror`, feeds it lines built by the **committed
+generated Python** projection, and compares field by field. It also asserts
+that C and Python reject the same values.
+
+This is the property no test in this repository could previously state: not
+"the generator works", but "a C client and a Python publisher read the same
+bytes the same way".
+
+It follows `test_alf_examples.py` — `shutil.which("cc")` plus `pytest.skip`, no
+new dependency and no marker. The design originally proposed a `cffi` harness, a
+`msgen_c` marker and an `apt-get install build-essential` CI step; none was
+needed. `cffi` is not a dependency, the skip pattern makes a marker redundant,
+and `ubuntu-latest` ships a compiler.
 
 ## Using a generated binding
 
@@ -570,12 +811,30 @@ Run `pm-msgen generate` and commit the result.
     than not having it.
 
     The emitter therefore walks spec declaration order everywhere, never
-    iterates a `set`, and puts no timestamp or absolute path in the banner. Three
+    iterates a `set`, and puts no timestamp or absolute path in the banner. Five
     tests assert this, including one that regenerates under three different
-    `PYTHONHASHSEED` values in separate processes.
+    `PYTHONHASHSEED` values in separate processes, and one that generates twice
+    to two directories and compares the files byte for byte.
 
-Wiring the check into `make _check` and `ci.yml` is **Phase 3** and has not been
-done yet.
+### Where it runs
+
+| Place | Command | Notes |
+|---|---|---|
+| `make check` / `make pre-commit` | `make msgen-check` | stamp-cached on `spec/*.yaml` and `src/**/*.py`, so it is free when nothing changed |
+| CI, `code-check` job | `PYTHONPATH=src poetry run python -m edumatcher.msgen.cli check` | alongside black / flake8 / mypy |
+
+!!! note "Why CI invokes the module, not the `pm-msgen` script"
+    The `code-check` job installs with `install-root: 'false'` (`--no-root`), so
+    the project's console scripts are not on `PATH` — only its dependencies are.
+    `pyyaml` is a main dependency and *is* installed, so the module form works.
+    "Simplifying" that step to `poetry run pm-msgen check` would fail with
+    `command not found` instead of a drift report;
+    `tests/test_msgen_ci_wiring.py` asserts against exactly that.
+
+The wiring itself is tested. `tests/test_msgen_ci_wiring.py` parses the
+`Makefile` and `ci.yml` and fails if `msgen-check` drops out of `_check`, or if
+the CI step disappears. A guarantee that can be deleted by an unrelated
+refactor without anything noticing is not a guarantee.
 
 ## Why the generated file looks the way it does
 
@@ -636,6 +895,9 @@ the divergence so it cannot be quietly forgotten.
 | `tests/test_msgen_python.py` | determinism, drift detection, parameterised topics, every `validate` rule |
 | `tests/test_msgen_trade_wire_compat.py` | wire compatibility, and exactly what Phase 2 adoption changed |
 | `tests/test_msgen_trade_perf.py` | hot-path budget (marker `perf`, deselected by default) |
+| `tests/test_msgen_ci_wiring.py` | that the drift check is actually wired into the build |
+| `tests/test_msgen_calf_roundtrip.py` | compiled C vs Python over the CALF wire (skips without `cc`) |
+| `tests/test_msgen_calf_adoption.py` | what `normalise_trade` adoption changed, and what it did not |
 
 Two tests in the wire-compat file are worth knowing about because they will
 fail if you change the wrong thing:
@@ -658,12 +920,17 @@ What it does not, and will not:
 - **The wire formats.** It describes what already flows. CALF text and BALF
   binary are pedagogical artefacts that students read and parse by hand;
   replacing them with Protobuf would remove the teaching value.
-- **Stateful normalisation.** `md_gateway/normaliser.py` keeps its top-of-book
-  cache and delta suppression; `ralf_gateway` keeps its per-symbol execution
-  counts. In Phase 4 they will call the generated projection instead of
-  hand-coding a `{"PX": ..., "QTY": ...}` literal, but the business logic stays
-  hand-written. Drawing the line here is what keeps this a message-shape tool
-  rather than a second gateway.
+- **Stateful normalisation.** `normalise_trade` now calls the generated
+  projection for its `{PX, QTY, SIDE}` map, but the top-of-book cache it
+  updates on every trade, and the delta suppression around it, stay
+  hand-written — as do `ralf_gateway`'s per-symbol execution counts. Drawing
+  the line at "the generator owns the field map, the gateway owns the state"
+  is what keeps this a message-shape tool rather than a second gateway.
+- **How a client should render a value.** The generated struct gives
+  `calf_subscriber.c` a typed `double price`, and that client still prints the
+  raw wire string, deliberately: choosing a decimal count means knowing the
+  instrument's tick scale. A typed binding removes guesswork about field names
+  and types, not about market-data semantics.
 - **Engine business logic**, and anything needing a validation language rich
   enough to express the risk rules — that would be a second implementation of
   the engine.
@@ -674,16 +941,22 @@ What it does not, and will not:
 |---|---|---|
 | 1 | Generator + `trade.yaml` + Python binding, committed unused | **done** |
 | 2 | Adopt for `trade`: `make_trade_msg`, `_publish_trade`, `pm-stats` topics | **done** |
-| 3 | `pm-msgen check` in `make _check` and `ci.yml` | not started |
-| 4 | C generation; CALF/BALF/RALF projections; cffi round-trip harness | not started |
+| 3 | `pm-msgen check` in `make _check` and `ci.yml` | **done** |
+| 4a | CALF text projection: Python + C, adopted, compiled round-trip | **done** |
+| 4b | BALF binary layout; `order.yaml` with `execution_report` | not started |
 | 5 | Remaining families, one per change | not started |
 | 6 | Generated `271-message-appendix.md` | not started |
 
-!!! warning "Phase 3 is the one that matters most, and it is not done"
-    Until `pm-msgen check` runs in CI, nothing stops someone hand-editing
-    `models/generated/trade.py` and having it merge. The generator is currently
-    a scaffolder with a good test suite; the check is what makes it a
-    guarantee. Run `poetry run pm-msgen check` before committing until then.
+!!! success "The guarantee is live"
+    For every family in `spec/`, the committed bindings provably match the
+    spec on `main`. A spec change without a regeneration, or a hand-edit to a
+    generated file, now fails the build rather than merging quietly.
+
+!!! warning "It only covers what is specified"
+    One family of roughly fifteen has a spec. Everything else is still
+    hand-written and still drifts exactly as it did before — the check cannot
+    protect a message it has never been told about. `"trade.executed"` also
+    remains a string literal in 14 modules that subscribe to it (Phase 5).
 
 ## See also
 

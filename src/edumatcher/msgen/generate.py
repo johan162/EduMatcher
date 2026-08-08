@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from edumatcher.msgen import spec as spec_mod
+from edumatcher.msgen.generators import c as c_gen
 from edumatcher.msgen.generators import python as py_gen
 
 
@@ -35,20 +36,45 @@ def _spec_label(spec_root: Path, family_name: str) -> str:
     return f"{spec_root.name}/messages/{family_name}.yaml"
 
 
-def build_artifacts(spec_root: Path, out_python: Path) -> list[Artifact]:
-    """Load every spec under ``spec_root`` and render the Python target.
+def build_artifacts(
+    spec_root: Path, out_python: Path, out_c: Path | None = None
+) -> list[Artifact]:
+    """Load every spec under ``spec_root`` and render each target.
+
+    A family contributes a C header and source only when it declares at least
+    one text projection; generating an empty header for a bus-only family would
+    be a file with nothing in it that ``check`` then has to keep in step.
 
     Returns artifacts sorted by path so the sequence is deterministic.
     """
     _transports, families = spec_mod.load_all(spec_root)
-    artifacts = [
-        Artifact(
-            path=out_python / f"{family.family}.py",
-            content=py_gen.render_family(family, _spec_label(spec_root, family.family)),
-            label=f"{out_python.name}/{family.family}.py",
+    artifacts: list[Artifact] = []
+    for family in families:
+        label = _spec_label(spec_root, family.family)
+        artifacts.append(
+            Artifact(
+                path=out_python / f"{family.family}.py",
+                content=py_gen.render_family(family, label),
+                label=f"{out_python.name}/{family.family}.py",
+            )
         )
-        for family in families
-    ]
+        if out_c is None or not any(m.text_encoding for m in family.messages):
+            continue
+        stem = f"edumatcher_{family.family}"
+        artifacts.append(
+            Artifact(
+                path=out_c / f"{stem}.h",
+                content=c_gen.render_header(family, label),
+                label=f"{out_c.name}/{stem}.h",
+            )
+        )
+        artifacts.append(
+            Artifact(
+                path=out_c / f"{stem}.c",
+                content=c_gen.render_source(family, label),
+                label=f"{out_c.name}/{stem}.c",
+            )
+        )
     return sorted(artifacts, key=lambda a: a.path.as_posix())
 
 

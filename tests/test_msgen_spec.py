@@ -111,6 +111,143 @@ class TestRealSpec:
         assert field.parse_default not in field.values
 
 
+def _with_calf(**encoding_overrides: Any) -> dict[str, Any]:
+    """A family carrying a CALF text projection, for the Phase 4a rules."""
+    calf: dict[str, Any] = {
+        "msg_type": "THING",
+        "include": ["how_many"],
+        "keys": {"how_many": "QTY"},
+        "gateway_injected": ["CH", "SYM"],
+    }
+    calf.update(encoding_overrides)
+    return _minimal_family(
+        transport=["engine_pub", "calf"],
+        encoding={"engine_pub": {"include": "all"}, "calf": calf},
+    )
+
+
+class TestTextEncoding:
+    """Phase 4a: the CALF/RALF projection block (design section B.13)."""
+
+    def test_real_trade_spec_declares_a_calf_projection(self) -> None:
+        _registry, families = load_all(SPEC_ROOT)
+        (msg,) = families[0].messages
+        calf = msg.text_encoding["calf"]
+        assert calf.msg_type == "TRADE"
+        assert calf.include == ("price", "quantity", "aggressor_side")
+        assert calf.keys == {
+            "price": ("PX",),
+            "quantity": ("QTY",),
+            "aggressor_side": ("SIDE",),
+        }
+        assert calf.gateway_injected == ("CH", "SYM", "SEQ", "TS")
+
+    def test_the_calf_projection_is_a_strict_subset(self) -> None:
+        """Design section 4.6: a projection is a subset, not a rename of all."""
+        _registry, families = load_all(SPEC_ROOT)
+        (msg,) = families[0].messages
+        carried = set(msg.text_encoding["calf"].include)
+        assert "id" not in carried
+        assert "symbol" not in carried
+        assert "tick_decimals" not in carried
+
+    def test_loads_a_minimal_projection(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = load_family(_write(tmp_path, _with_calf()), transports)
+        calf = fam.messages[0].text_encoding["calf"]
+        assert calf.keys == {"how_many": ("QTY",)}
+
+    def test_one_field_may_map_to_several_wire_keys(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        """RALF's ``id: [EXEC_ID, MATCH_ID]`` shape."""
+        fam = _with_calf(keys={"how_many": ["QTY", "SHARES"]})
+        loaded = load_family(_write(tmp_path, fam), transports)
+        assert loaded.messages[0].text_encoding["calf"].keys == {
+            "how_many": ("QTY", "SHARES")
+        }
+
+    def test_missing_encoding_block_is_rejected(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        """`keys` has no defensible default; nothing can infer a wire name."""
+        fam = _minimal_family(transport=["engine_pub", "calf"])
+        with pytest.raises(SpecError, match="requires an 'encoding.calf' block"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_msg_type_is_required(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_calf()
+        del fam["messages"][0]["encoding"]["calf"]["msg_type"]
+        with pytest.raises(SpecError, match="'msg_type' is required"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_lowercase_msg_type_is_rejected(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        with pytest.raises(SpecError, match="SCREAMING_SNAKE"):
+            load_family(_write(tmp_path, _with_calf(msg_type="thing")), transports)
+
+    def test_keys_must_cover_every_included_field(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_calf(include=["who", "how_many"], keys={"how_many": "QTY"})
+        with pytest.raises(SpecError, match="no wire name for included field"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_keys_may_not_name_an_excluded_field(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_calf(keys={"how_many": "QTY", "who": "WHO"})
+        with pytest.raises(SpecError, match="that 'include' omits"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_a_wire_key_may_not_collide_with_a_gateway_injected_key(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_calf(keys={"how_many": "SYM"})
+        with pytest.raises(SpecError, match="collides with a gateway_injected"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_two_fields_may_not_produce_the_same_wire_key(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_calf(
+            include=["who", "how_many"], keys={"who": "QTY", "how_many": "QTY"}
+        )
+        with pytest.raises(SpecError, match="produced by both"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_a_string_reaching_a_text_transport_needs_max_len(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        """B.18 rule 8: the C binding must size a fixed buffer for it."""
+        fam = _with_calf(include=["who"], keys={"who": "WHO"})
+        del fam["messages"][0]["fields"][0]["validate"]
+        with pytest.raises(SpecError, match="needs validate.max_len"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_unknown_encoding_key_is_rejected(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_calf()
+        fam["messages"][0]["encoding"]["calf"]["gateway_injcted"] = ["TS"]
+        with pytest.raises(SpecError, match="unknown key"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_a_text_only_message_must_omit_its_topic(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        """B.6; text-only messages are Phase 4b."""
+        fam = _with_calf()
+        fam["messages"][0]["transport"] = ["calf"]
+        del fam["messages"][0]["encoding"]["engine_pub"]
+        with pytest.raises(SpecError, match="must omit 'topic'"):
+            load_family(_write(tmp_path, fam), transports)
+
+
 class TestStrictness:
     """Every one of these must raise, not be quietly accepted."""
 
@@ -158,11 +295,11 @@ class TestStrictness:
         with pytest.raises(SpecError, match="absent from"):
             load_family(_write(tmp_path, fam), transports)
 
-    def test_external_transport_is_rejected_until_phase_4(
+    def test_binary_transport_is_rejected_until_phase_4b(
         self, tmp_path: Path, transports: dict[str, Any]
     ) -> None:
-        fam = _minimal_family(transport=["engine_pub", "calf"])
-        with pytest.raises(SpecError, match="external protocol"):
+        fam = _minimal_family(transport=["engine_pub", "balf"])
+        with pytest.raises(SpecError, match="binary protocol"):
             load_family(_write(tmp_path, fam), transports)
 
     def test_unknown_unit_is_rejected(
@@ -282,6 +419,22 @@ class TestStrictness:
         )
         with pytest.raises(SpecError, match="looks like a literal"):
             load_transports(path)
+
+    def test_duplicate_message_name_across_families_is_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        """Generated C symbols are message-scoped and would collide."""
+        (tmp_path / "messages").mkdir()
+        (tmp_path / "transports.yaml").write_text(
+            (SPEC_ROOT / "transports.yaml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        for index, name in enumerate(("alpha", "beta")):
+            fam = _minimal_family(topic=f"thing.happened{index}")
+            fam["family"] = name
+            _write(tmp_path / "messages", fam, name=name)
+        with pytest.raises(SpecError, match="generated C symbols"):
+            load_all(tmp_path)
 
     def test_duplicate_topic_across_families_is_rejected(self, tmp_path: Path) -> None:
         """B.18 rule 14: topics are unique across the whole tree."""

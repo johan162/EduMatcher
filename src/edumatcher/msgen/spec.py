@@ -17,6 +17,7 @@ are rejected with a clear message rather than silently accepted.
 from __future__ import annotations
 
 import dataclasses
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -61,6 +62,12 @@ PATTERNS = ("PUB", "SUB", "PUSH", "PULL", "TCP")
 
 #: Reserved external line/binary protocol names (design section B.4).
 EXTERNAL_TRANSPORTS = ("calf", "balf", "ralf")
+
+#: External protocols carrying key=value text lines. Generated in Phase 4a.
+TEXT_TRANSPORTS = ("calf", "ralf")
+
+#: External protocols carrying fixed binary frames. Phase 4b.
+BINARY_TRANSPORTS = ("balf",)
 
 #: Tokens allowed in a bus ``frames`` list (design section B.13).
 FRAME_TOKENS = ("topic", "json_payload")
@@ -113,6 +120,26 @@ class BusEncoding:
 
 
 @dataclass(frozen=True)
+class TextEncoding:
+    """A CALF/RALF line projection (design section B.13).
+
+    ``keys`` maps each included field to one or more wire keys; a field may
+    feed several (RALF's ``id: [EXEC_ID, MATCH_ID]``).
+
+    ``gateway_injected`` is **documentation only**. The generated projection
+    never emits these keys — the gateway supplies them in its own envelope, and
+    the two gateways do so in different positions, so their order here carries
+    no meaning (design section B.13, corrected in 1.8.0).
+    """
+
+    transport: str
+    msg_type: str
+    include: tuple[str, ...]
+    keys: dict[str, tuple[str, ...]]
+    gateway_injected: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Message:
     """One message within a family (design section B.6)."""
 
@@ -122,11 +149,19 @@ class Message:
     fields: tuple[Field, ...]
     doc: dict[str, Any] = field(default_factory=dict)
     encoding: dict[str, BusEncoding] = field(default_factory=dict)
+    text_encoding: dict[str, TextEncoding] = field(default_factory=dict)
 
     @property
     def topic_params(self) -> tuple[str, ...]:
         """The ``{param}`` names in ``topic``, in order of appearance."""
         return tuple(_topic_params(self.topic)) if self.topic else ()
+
+    def field_by_name(self, name: str) -> Field:
+        """Return the declared field called ``name``."""
+        for candidate in self.fields:
+            if candidate.name == name:
+                return candidate
+        raise KeyError(name)
 
 
 @dataclass(frozen=True)
@@ -167,6 +202,11 @@ _MESSAGE_KEYS = {
 }
 _DOC_KEYS = {"motivation", "since", "see_also", "example_note"}
 _BUS_ENCODING_KEYS = {"frames", "include"}
+_TEXT_ENCODING_KEYS = {"msg_type", "include", "keys", "gateway_injected"}
+
+#: design section B.3: a CALF/RALF wire key and MSGTYPE are SCREAMING_SNAKE.
+_KEY_NAME = re.compile(r"[A-Z][A-Z0-9_]*")
+_MSG_TYPE_TEXT = re.compile(r"[A-Z][A-Z0-9_]*")
 _TRANSPORT_KEYS = {"pattern", "subscriber_pattern", "address_config_key"}
 
 _UNSUPPORTED_MESSAGE_KEYS = {
@@ -344,6 +384,104 @@ def _load_bus_encoding(
     return BusEncoding(transport=transport, frames=tuple(frames), include=resolved)
 
 
+def _load_text_encoding(
+    transport: str, raw: Any, fields: tuple[Field, ...], what: str
+) -> TextEncoding:
+    """Load a CALF/RALF encoding block and enforce B.18 rules 4, 6 and 8."""
+    block = _require_mapping(raw, what)
+    _reject_unknown(block, _TEXT_ENCODING_KEYS, what)
+
+    msg_type = block.get("msg_type")
+    if not msg_type or not isinstance(msg_type, str):
+        raise SpecError(f"{what}: 'msg_type' is required for a text encoding")
+    if not _MSG_TYPE_TEXT.fullmatch(msg_type):
+        raise SpecError(
+            f"{what}: msg_type {msg_type!r} must be SCREAMING_SNAKE "
+            "(design section B.3)"
+        )
+
+    field_names = [f.name for f in fields]
+    include = block.get("include", "all")
+    if include == "all":
+        resolved = tuple(field_names)
+    elif isinstance(include, list):
+        for name in include:
+            if name not in field_names:
+                near = _nearest(str(name), set(field_names))
+                hint = f" (did you mean {near!r}?)" if near else ""
+                raise SpecError(
+                    f"{what}: include names undeclared field {name!r}{hint}"
+                )
+        resolved = tuple(include)
+    else:
+        raise SpecError(f"{what}: 'include' must be 'all' or a list of field names")
+
+    injected = block.get("gateway_injected") or []
+    if not isinstance(injected, list):
+        raise SpecError(f"{what}: 'gateway_injected' must be a list of key names")
+    for key in injected:
+        if not isinstance(key, str) or not _KEY_NAME.fullmatch(key):
+            raise SpecError(
+                f"{what}: gateway_injected key {key!r} must be SCREAMING_SNAKE"
+            )
+
+    raw_keys = _require_mapping(block.get("keys") or {}, f"{what}: keys")
+    # B.18 rule 6: keys covers exactly the included fields, no more, no fewer.
+    missing = [name for name in resolved if name not in raw_keys]
+    if missing:
+        raise SpecError(
+            f"{what}: 'keys' has no wire name for included field(s) {missing}"
+        )
+    extra = [name for name in raw_keys if name not in resolved]
+    if extra:
+        raise SpecError(f"{what}: 'keys' names field(s) {extra} that 'include' omits")
+
+    keys: dict[str, tuple[str, ...]] = {}
+    seen: dict[str, str] = {}
+    for name in resolved:
+        target = raw_keys[name]
+        wire = (target,) if isinstance(target, str) else tuple(target)
+        if not wire:
+            raise SpecError(f"{what}: field {name!r} maps to an empty key list")
+        for key in wire:
+            if not isinstance(key, str) or not _KEY_NAME.fullmatch(key):
+                raise SpecError(f"{what}: wire key {key!r} must be SCREAMING_SNAKE")
+            if key in seen:
+                raise SpecError(
+                    f"{what}: wire key {key!r} is produced by both "
+                    f"{seen[key]!r} and {name!r}"
+                )
+            # B.18 rule 6: an injected key must not collide with a payload key,
+            # or the gateway envelope and the projection would fight over it.
+            if key in injected:
+                raise SpecError(
+                    f"{what}: wire key {key!r} for field {name!r} collides with a "
+                    "gateway_injected key"
+                )
+            seen[key] = name
+        keys[name] = wire
+
+    # B.18 rule 8: a string reaching an external transport needs max_len, since
+    # the C binding must size a fixed buffer for it.
+    by_name = {f.name: f for f in fields}
+    for name in resolved:
+        spec_field = by_name[name]
+        if spec_field.type == "string" and spec_field.validate.max_len is None:
+            raise SpecError(
+                f"{what}: field {name!r} is a string reaching transport "
+                f"{transport!r} and needs validate.max_len so the C binding can "
+                "size its buffer"
+            )
+
+    return TextEncoding(
+        transport=transport,
+        msg_type=msg_type,
+        include=resolved,
+        keys=keys,
+        gateway_injected=tuple(injected),
+    )
+
+
 def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Message:
     block = _require_mapping(raw, what)
     if "name" not in block:
@@ -371,11 +509,13 @@ def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Mess
     if not isinstance(raw_transport, list) or not raw_transport:
         raise SpecError(f"{where}: 'transport' is required and must be non-empty")
     for tname in raw_transport:
-        if tname in EXTERNAL_TRANSPORTS:
+        if tname in BINARY_TRANSPORTS:
             raise SpecError(
-                f"{where}: transport {tname!r} is an external protocol; its "
-                "projection is not generated yet (Phase 4)."
+                f"{where}: transport {tname!r} is a binary protocol; its layout "
+                "is not generated yet (Phase 4b)."
             )
+        if tname in TEXT_TRANSPORTS:
+            continue
         if tname not in transports:
             near = _nearest(str(tname), set(transports))
             hint = f" (did you mean {near!r}?)" if near else ""
@@ -384,9 +524,15 @@ def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Mess
                 f"spec/transports.yaml{hint}"
             )
 
+    bus_transports = [t for t in raw_transport if t not in TEXT_TRANSPORTS]
     topic = block.get("topic")
     if topic is None:
         raise SpecError(f"{where}: 'topic' is required for a bus message")
+    if not bus_transports:
+        raise SpecError(
+            f"{where}: a message with no bus transport must omit 'topic' "
+            "(design section B.6) - text-only messages are Phase 4b"
+        )
     if not isinstance(topic, str) or not topic:
         raise SpecError(f"{where}: 'topic' must be a non-empty string")
     for param in _topic_params(topic):
@@ -412,6 +558,15 @@ def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Mess
                 f"{where}.encoding: {tname!r} is not listed in this message's "
                 "'transport'"
             )
+    # A text transport's block is REQUIRED: `keys` and `msg_type` have no
+    # defensible default, since nothing can infer a wire key name (B.6).
+    for tname in raw_transport:
+        if tname in TEXT_TRANSPORTS and tname not in raw_encoding:
+            raise SpecError(
+                f"{where}: transport {tname!r} requires an 'encoding.{tname}' "
+                "block declaring msg_type and keys"
+            )
+
     encoding = {
         tname: _load_bus_encoding(
             tname,
@@ -419,7 +574,17 @@ def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Mess
             field_names,
             f"{where}.encoding.{tname}",
         )
+        for tname in bus_transports
+    }
+    text_encoding = {
+        tname: _load_text_encoding(
+            tname,
+            raw_encoding[tname],
+            fields,
+            f"{where}.encoding.{tname}",
+        )
         for tname in raw_transport
+        if tname in TEXT_TRANSPORTS
     }
 
     # B.18 rule 5: every required field must reach the authoritative bus
@@ -441,6 +606,7 @@ def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Mess
         fields=fields,
         doc=dict(doc),
         encoding=encoding,
+        text_encoding=text_encoding,
     )
 
 
@@ -536,4 +702,19 @@ def load_all(spec_root: Path) -> tuple[dict[str, Transport], list[Family]]:
                     f"and {fam.family!r} (B.18 rule 14)"
                 )
             seen[msg.topic] = fam.family
+
+    # C has one flat namespace. Generated symbols are named after the message
+    # (edu_<message>_calf_parse), not the family, so two families sharing a
+    # message name would emit colliding externs the moment a client included
+    # both headers. Catch it in the spec rather than in someone's linker.
+    seen_names: dict[str, str] = {}
+    for fam in families:
+        for msg in fam.messages:
+            if msg.name in seen_names:
+                raise SpecError(
+                    f"message name {msg.name!r} is declared in both "
+                    f"{seen_names[msg.name]!r} and {fam.family!r}; generated C "
+                    "symbols are message-scoped and would collide"
+                )
+            seen_names[msg.name] = fam.family
     return transports, families

@@ -318,4 +318,52 @@ def describe_trade_executed() -> tuple[dict[str, Any], ...]:
     return _TRADE_EXECUTED_FIELDS
 
 
+MSGTYPE_TRADE_EXECUTED_CALF = "TRADE"
+
+
+def project_trade_executed_calf(
+    payload: Mapping[str, Any],
+) -> dict[str, str]:
+    """Project a bus payload onto the CALF TRADE field map.
+
+    Reads **only** the fields this transport carries, so a caller needs nothing the
+    projection does not use. That is what makes this a projection rather than a rename
+    of the whole message: a gateway feeding this transport should not have to hold
+    fields the transport drops (design section 4.6).
+
+    Values are coerced to their declared types first, so this and the typed binding
+    never disagree. The gateway supplies CH, SYM, SEQ, TS in its own envelope; they are
+    not payload keys.
+    """
+    return {
+        "PX": str(float(payload["price"])),
+        "QTY": str(int(payload["quantity"])),
+        "SIDE": str(payload.get("aggressor_side", "")).upper(),
+    }
+
+
+def parse_trade_executed_calf(
+    fields: Mapping[str, str],
+) -> "TradeExecuted":
+    """Rebuild this message from a CALF payload field map.
+
+    Only the projected fields can be recovered; anything this transport does not carry
+    takes its declared default. Coerces without validating, like ``from_dict`` (design
+    section 5.1.1).
+    """
+    return TradeExecuted(
+        id="",
+        symbol="",
+        buy_order_id="",
+        sell_order_id="",
+        buy_gateway_id="",
+        sell_gateway_id="",
+        price=float(fields["PX"]),
+        quantity=int(fields["QTY"]),
+        aggressor_side=str(fields["SIDE"]),
+        timestamp=0.0,
+        tick_decimals=2,
+    )
+
+
 FAMILY_TOPICS: tuple[str, ...] = (TOPIC_TRADE_EXECUTED,)

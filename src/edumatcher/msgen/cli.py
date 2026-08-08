@@ -25,6 +25,7 @@ _EXIT_ERROR = 2
 
 _DEFAULT_SPEC = Path("spec")
 _DEFAULT_OUT_PYTHON = Path("src/edumatcher/models/generated")
+_DEFAULT_OUT_C = Path("docs/examples/generated")
 
 
 def _add_common(parser: argparse.ArgumentParser, *, with_out: bool) -> None:
@@ -42,6 +43,13 @@ def _add_common(parser: argparse.ArgumentParser, *, with_out: bool) -> None:
             default=_DEFAULT_OUT_PYTHON,
             metavar="DIR",
             help=f"Python output directory (default: {_DEFAULT_OUT_PYTHON})",
+        )
+        parser.add_argument(
+            "--out-c",
+            type=Path,
+            default=_DEFAULT_OUT_C,
+            metavar="DIR",
+            help=f"C output directory (default: {_DEFAULT_OUT_C})",
         )
 
 
@@ -77,12 +85,21 @@ def main(argv: list[str] | None = None) -> int:
             )
             return _EXIT_OK
 
-        artifacts = gen.build_artifacts(args.spec, args.out_python)
+        artifacts = gen.build_artifacts(args.spec, args.out_python, args.out_c)
     except SpecError as exc:
         print(f"pm-msgen: spec error: {exc}", file=sys.stderr)
         return _EXIT_ERROR
     except FileNotFoundError as exc:
+        # The defaults are repo-root-relative, so the overwhelmingly likely
+        # cause is a wrong working directory. Say so: this runs in CI, where a
+        # bare "No such file or directory" costs someone a debugging round.
         print(f"pm-msgen: {exc}", file=sys.stderr)
+        if not args.spec.exists():
+            print(
+                f"pm-msgen: spec directory {str(args.spec)!r} not found. Run from "
+                "the repository root, or pass --spec.",
+                file=sys.stderr,
+            )
         return _EXIT_ERROR
 
     if args.command == "generate":

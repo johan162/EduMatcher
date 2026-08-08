@@ -1,6 +1,39 @@
-Version: 1.6.0
+Version: 1.8.0
 
-Date: 2026-08-07
+Date: 2026-08-08
+
+Changes in 1.8.0 — Phase 4 is split into **4a (text/CALF)** and **4b
+(binary/BALF)**, and 4a is implemented. Five corrections, all found by reading
+the C and gateway code the design describes:
+
+- **§B.13's text key-ordering rule — which 1.5.0 introduced — was wrong.** CALF
+  injects `{CH,SYM,SEQ,TS}` before the payload; RALF appends `SEQ` *after* it.
+  No single ordering rule covers both. It was also unnecessary: the generated
+  projection emits only payload fields, so envelope order is not its problem.
+- **§5.2's error-code table.** The claim that generated code "reuses the
+  convention rather than inventing a second one" was already false:
+  `calf_parser.c` uses `-1`..`-6` with meanings unrelated to `balf_parser.c`'s.
+  Codes are now defined as per-function contracts, and every family emits a
+  `strerror`.
+- **§8 Phase 4's acceptance test was unwritable** — it compared against a
+  "hand-written struct" that §1.4 says does not exist.
+- **`execution_report` is filed under `order`, not `trade`** (§4.1 and §5.2
+  contradicted each other).
+- **cffi, the `msgen_c` marker and the `build-essential` CI step are all
+  dropped** in favour of the compiled-test pattern `test_alf_examples.py`
+  already uses.
+
+Changes in 1.7.0 — Phase 3 is implemented. `pm-msgen check` now runs in
+`make check` and in CI's `code-check` job, so §7.2's guarantee is live rather
+than aspirational; §13.3 is rewritten to say so.
+
+One correction, again found only by running it: **§7.2's CI snippet was wrong.**
+It said `run: poetry run pm-msgen check`, which fails in the `code-check` job
+because that job installs with `--no-root` and therefore has no console
+scripts on `PATH`. §7.2 now carries the working invocation and an explanation,
+because a wrong snippet in the normative section is worse than no snippet — it
+gets copied. This is the third phase running in which the design was right
+about structure and wrong about behaviour (§13.6).
 
 Changes in 1.6.0 — Phases 1 and 2 are implemented; these are the two
 corrections implementation forced, both recorded in §8:
@@ -738,8 +771,48 @@ convention rather than inventing a second one:
 | `-6` | required field missing (CALF) or validation rule failed |
 | `-7` | field value exceeds a fixed-size buffer (`max_len`/`max_items`) |
 
-Codes `-6`/`-7` are new — negotiated once in Phase 1 and then fixed, since a
-generated header is a contract every hand-written C client compiles against.
+Codes `-6`/`-7` are new — negotiated once and then fixed, since a generated
+header is a contract every hand-written C client compiles against.
+
+**Correction (1.8.0): there was already more than one convention.** The
+paragraph above cites `balf_parser.c`, whose `parse_header`/`split_frame` do
+return `-1`..`-5` with exactly these meanings. But `calf_parser.c`'s
+`calf_parse_line` also returns `-1`..`-6`, with entirely unrelated ones:
+
+| Code | `calf_parse_line` | generated functions |
+|---|---|---|
+| `-1` | null argument | frame/line too short |
+| `-2` | no first token | bad magic (BALF) |
+| `-3` | invalid `MSGTYPE` | bad version (BALF) |
+| `-4` | too many fields | unknown `msg_type` |
+| `-5` | field token without `=` | length mismatch (BALF) |
+| `-6` | empty field key | required field missing / rule failed |
+
+So "reuse the convention rather than invent a second one" was already false when
+written. Two things follow, and both are normative:
+
+1. **A return code is a per-function contract, not a global registry.** The
+   table in this section defines what the *generated* functions return. It does
+   not redefine `calf_parse_line`, which keeps its own codes. A caller checks
+   each call's result against the function it called — which is what callers do
+   anyway, since the two are invoked in sequence on different arguments.
+2. **Every generated family emits a `strerror`.** Because a bare `-4` is now
+   genuinely ambiguous to a reader scanning a log, the generator emits
+   `const char *edu_<family>_strerror(int rc)` returning a human-readable
+   string. Generated code should be printed with it rather than as a number:
+
+   ```c
+   int rc = edu_trade_executed_calf_parse(&msg, &trade);
+   if (rc != 0) {
+       fprintf(stderr, "TRADE parse failed: %s\n", edu_trade_strerror(rc));
+       return;
+   }
+   ```
+
+Renumbering the generated codes into a disjoint range (`-20`..`-27`) was
+considered and rejected: the generated BALF parser reimplements exactly what
+`split_frame` does, and giving the same failure a different number in the
+generated version would be its own kind of confusion.
 
 ### 5.3 Documentation
 
@@ -837,16 +910,31 @@ The real `Makefile` names its checks `format` (black), `lint` (flake8),
 through `make`. Add a matching target and wire it into both:
 
 ```make
-# Makefile
-msgen-check: ; poetry run pm-msgen check
+# Makefile — stamp-cached like the other checks, on spec/*.yaml + src/**/*.py
+msgen-check: $(MSGEN_STAMP)
 _check: format lint typecheck typecheck-pyright msgen-check
 ```
 
 ```yaml
 # .github/workflows/ci.yml, alongside the existing black/flake8/mypy steps
-- name: msgen check
-  run: poetry run pm-msgen check
+- name: Message spec drift check
+  run: PYTHONPATH=src poetry run python -m edumatcher.msgen.cli check
 ```
+
+**The CI invocation is not `poetry run pm-msgen check`, and that matters.**
+v1.6.0 of this document said it was. The `code-check` job passes
+`install-root: 'false'` to the shared setup action, which becomes
+`poetry install --no-root`: dependencies are installed, the project itself is
+not, and therefore none of its `[tool.poetry.scripts]` console scripts exist on
+`PATH`. `poetry run pm-msgen check` fails there with `command not found` — which
+looks like a broken tool rather than a missing regeneration, and would most
+likely be "fixed" by deleting the step. Invoking the module with `PYTHONPATH=src`
+works because `pyyaml`, the only thing the generator needs, is a main
+dependency. `tests/test_msgen_ci_wiring.py` asserts this so the next person to
+tidy that workflow finds out from a test rather than from a red build.
+
+The `make` path has the opposite constraint: it runs against a fully installed
+environment, so the console script is the right thing to use there.
 
 ### 7.3 Spec linting
 
@@ -1165,11 +1253,62 @@ families.
 
 ### Phase 4 — C generation adopted
 
-Regenerate the CALF and BALF example clients against generated headers.
+Split into **4a (text/CALF)** and **4b (binary/BALF)** in 1.8.0. The two share
+almost no emitter code — one produces `strtod`/`strcmp` over a key-value bag,
+the other fixed-offset `memcpy` over a byte frame — and binary is where R4
+(buffer truncation) and R7 (layout change breaks deployed clients) live. Each
+half is independently shippable and independently verifiable, which is the rule
+§8 applies to everything else.
 
-*Test:* the existing C example builds and connects (the `test_alf_examples.py`
-pattern); a golden-file test asserts the generated parser produces the same
-struct as the hand-written one for a captured message corpus.
+#### Phase 4a — text projection and C structs for CALF
+
+Spec gains a `calf:` encoding for `trade_executed`. The generator emits: the
+Python projection (`project_*_calf` / `parse_*_calf`), and a C header + impl
+with a typed struct, an enum with `to_str`/`from_str`, a parser over
+`calf_message_t`, a validator, and `strerror`.
+
+Adopted in two places: `md_gateway/normaliser.py::normalise_trade` builds its
+field map through the generated projection instead of a dict literal, and
+`calf_subscriber.c`'s TRADE handler reads the typed struct instead of
+`calf_get_field` plus per-field conversion.
+
+*Test:* the generated C compiles and a round-trip harness — Python projects a
+payload, writes the CALF line, the compiled C parses it, and the values are
+compared field by field — proves the two bindings agree on the wire. This is
+capstone assertion 4 at one message's scale.
+
+#### Phase 4b — binary layout for BALF
+
+`execution_report`, with the full `layout`/`repr`/`offset`/`scale`/`enum_map`
+machinery, in `spec/messages/order.yaml` (see below). Capstone assertion 5.
+
+#### Corrections in 1.8.0
+
+**The stated acceptance test was unwritable.** v1.7.0 said "a golden-file test
+asserts the generated parser produces the same struct as the hand-written one
+for a captured message corpus". There is no hand-written struct to compare
+against — §1.4 is precisely the observation that *the C surface has no message
+types at all*. The comparison that exists, and the one that matters, is
+**generated C against generated Python**, which is what the capstone always
+specified. The golden-corpus wording is replaced by the round-trip above.
+
+**`execution_report` belongs to `order`, not `trade`.** §4.1 shows it inside
+`trade.yaml`; §5.2's banner says `spec/messages/order.yaml`. The banner is
+right: it is a private per-order fill sent to one gateway session, not a public
+trade print, and filing it under the family named for public prints would
+reproduce in the spec exactly the conflation §4.6/R13 warns against. Phase 4b
+creates `order.yaml` containing only this message; Phase 5 fills in the rest of
+the family. §4.1's placement is illustrative and is marked as such.
+
+**No `cffi`, no `msgen_c` marker, no CI toolchain step.** A.7 proposed a cffi
+harness and the capstone proposed a marker plus an `apt-get install
+build-essential` step. All three are unnecessary: `cffi` is not a dependency
+and adding one contradicts §12.5's reasoning; `tests/test_alf_examples.py`
+already establishes this repository's pattern for compiled tests —
+`shutil.which("cc")`, `subprocess`, and `pytest.skip` when the toolchain is
+absent — which needs no marker because it self-skips; and `ubuntu-latest` ships
+a C compiler, so nothing needs installing. R11 is closed by using the pattern
+that already works here rather than importing one that does not.
 
 *Ships:* C clients gain typed structs; a field rename now reaches them.
 
@@ -1219,14 +1358,13 @@ bus payload, a CALF trade round-trips `{PX, QTY, SIDE}` while a BALF
 execution_report round-trips its own fields — neither is forced to carry the
 other's.
 
-They also require a C compiler in CI, which `.github/workflows/ci.yml` does
-not install today (only `graphviz`, for docs, via `apt-get`). Add a
-`build-essential` (or equivalent) install step to the job that runs the
-capstone test, gated behind a marker (`pytest -m msgen_c`) so the rest of
-the suite doesn't pay for a C toolchain it doesn't need. Because the repo runs
-pytest with `--strict-markers` and registers only `perf` today, `msgen_c` must
-be added to `[tool.pytest.ini_options] markers` in `pyproject.toml` or the
-tests fail at collection.
+They require a C compiler at test time. **No CI change and no marker are needed
+for that** (corrected in 1.8.0): `tests/test_alf_examples.py` already compiles
+and runs C from the suite using `shutil.which("cc")` plus `pytest.skip`, so the
+test self-skips where no toolchain exists and needs no `-m` selector; and
+`ubuntu-latest` ships a compiler, so there is nothing to `apt-get install`.
+Using the pattern already proven in this repository closes R11 without adding a
+dependency, a marker, or a workflow step.
 
 
 
@@ -1391,19 +1529,19 @@ inside `generators/`, not a change to the spec model.
 
 §1 opened by measuring the problem. This section measures the progress against
 it honestly, including where the answer is "not yet". Written after Phases 1
-and 2 shipped; update it after each subsequent phase.
+and 2 shipped and updated for Phase 3; update it after each subsequent phase.
 
 ### 13.1 Against the §2 goals
 
 | # | Goal | Status |
 |---|---|---|
 | 1 | One canonical file per family; everything else generated | **partial** — true for `trade`; 1 family of ~15 specified |
-| 2 | Generated Python: typed payload, validating constructor, parser, topic constant | **done**, plus `describe_*`, `FAMILY_TOPICS`, `make_*_unchecked` |
-| 3 | Generated C | not started (Phase 4) |
+| 2 | Generated Python: typed payload, validating constructor, parser, topic constant | **done**, plus `describe_*`, `FAMILY_TOPICS`, `make_*_unchecked`, `project_*`/`parse_*_calf` |
+| 3 | Generated C | **text done (4a)** — typed struct, enum + `to_str`/`from_str`, parser, validator, `strerror`; binary is 4b |
 | 4 | Generated documentation appendix | not started (Phase 6) |
-| 5 | Validation declared once, enforced by *both* bindings | **half** — enforced in Python; no C binding to agree with yet |
-| 6 | Documentation-only metadata that never reaches the wire | **done** — `doc.motivation`/`since`/`see_also`/`example_note`, surfaced through `describe_*` |
-| 7 | **A CI check that fails on drift** | **not started (Phase 3)** — see 13.3 |
+| 5 | Validation declared once, enforced by *both* bindings | **done for CALF** — `price > 0` and `quantity > 0` are enforced in Python and in C from one declaration, and a test asserts the two reject the same values |
+| 6 | Documentation-only metadata that never reaches the wire | **done** — `doc.motivation`/`since`/`see_also`/`example_note`, surfaced through `describe_*` and the generated C block comments |
+| 7 | **A CI check that fails on drift** | **done** — `make check` and CI; see 13.3 |
 
 ### 13.2 Against the §1 measurements
 
@@ -1412,7 +1550,7 @@ and 2 shipped; update it after each subsequent phase.
 | 1.1 Payload shape typed for 7 of 92 messages | 7 typed by hand | 1 of those 7 now *generated* from a declared spec with units and constraints; the other 6 unchanged |
 | 1.2 Topic names duplicated as literals in subscribers | `"trade.executed"` in 17 modules | **14 modules, 26 occurrences** — Phase 2 removed 3 modules (`engine/main.py`, `stats/main.py`, `models/message.py`) |
 | 1.3 Documentation drifts in both directions | unchanged | unchanged — Phase 6 |
-| 1.4 The C surface has no message types | unchanged | unchanged — Phase 4 |
+| 1.4 The C surface has no message types | a generic `calf_field_t` bag; every client re-derives field names as literals | **`trade.executed`'s CALF projection now has a typed struct**, a real enum, a parser and a validator, all generated. `calf_subscriber.c` uses them. The bag remains for every other message. |
 
 The 1.2 number is the honest one to watch. Phase 2 adopted the *producer* side
 of `trade.executed` completely, and three of seventeen consumers. A publisher-side
@@ -1421,19 +1559,38 @@ rename is therefore still silent for `ralf_gateway`, `board`, `api_gateway`,
 `ai_trader`, `md_gateway` and `mm_bot`. Driving that count to zero is what
 §7.4's `pm-msgen grep-literals` exists to measure, and it is Phase 5 work.
 
-### 13.3 The one thing that is not yet true
+### 13.3 The guarantee is live (Phase 3, done)
 
 §7.2 says it plainly: *"Without the check, the generator is merely a scaffolder
-and §1 recurs within a release."*
+and §1 recurs within a release."* As of Phase 3 that sentence no longer
+describes this repository.
 
-That is the current state. `pm-msgen check` exists and works, and is exercised
-by four tests, but **it does not run in CI**. Nothing today stops someone
-hand-editing `models/generated/trade.py` and merging it. Until Phase 3 lands,
-the alignment rests on a test suite and reviewer attention — better than before,
-but not the guarantee this design is built around.
+`pm-msgen check` runs in two places:
 
-Phase 3 is small (a Makefile target and a CI step) and should not be left
-sitting behind Phase 4 or 5. It is the highest value-per-line remaining.
+| Place | Invocation |
+|---|---|
+| `make check` → `_check` → `msgen-check` | `poetry run pm-msgen check`, stamp-cached on `spec/*.yaml` + `src/**/*.py` |
+| `ci.yml`, `code-check` job | `PYTHONPATH=src poetry run python -m edumatcher.msgen.cli check` |
+
+The CI job installs with `--no-root`, so the `pm-msgen` console script is not on
+`PATH` there; only its dependencies are. Hence the module invocation. `pyyaml`
+is a main dependency and is present. This is a footgun for whoever next tidies
+that workflow, so `tests/test_msgen_ci_wiring.py` asserts it explicitly.
+
+All three A.6 criteria were verified by running the real build, not by
+inspection: a hand-edit to `trade.py` fails `make msgen-check` with a diff and
+leaves no stamp; a `le: 8 → le: 6` spec edit without regeneration fails the same
+way; `make msgen` fixes both.
+
+**The wiring itself is tested.** `tests/test_msgen_ci_wiring.py` parses the
+`Makefile` and `ci.yml` and fails if `msgen-check` drops out of `_check` or the
+CI step disappears. This is not paranoia for its own sake: a guarantee that can
+be removed by an unrelated refactor with nothing noticing is not a guarantee,
+and this design's entire value proposition rests on this one check.
+
+**What it does not cover.** The check protects *specified* families. One family
+of roughly fifteen has a spec, so everything else still drifts exactly as §1
+describes. The gate is now in place; filling it is Phase 5.
 
 ### 13.4 A duplicate this created, and why it was left
 
@@ -1453,6 +1610,26 @@ create a cycle whose safety depends on statement order inside `feed_schema.py`.
 That is worth doing deliberately, and it is the same decision as open question 2
 (should `feed_schema` be generated?) — which Phase 5 should now answer *yes* to,
 since the generator has proven it can reproduce these payloads exactly.
+
+### 13.4a What Phase 4a actually proved
+
+The headline is not "C generation works". It is that **one declaration now
+produces enforcement in two languages, and a test says so.**
+`validate: { gt: 0 }` on `price` in `trade.yaml` becomes
+`raise MessageValidationError("price: ... must be > 0")` in Python and
+`snprintf(err, errlen, "price must be > 0")` in C, and
+`test_c_and_python_reject_the_same_values` asserts the two agree. That is design
+goal 5, and before this phase there was no C binding for it to be half of.
+
+Two smaller results worth recording:
+
+- **The C compiles under `-Wall -Wextra -pedantic -Werror`.** The round-trip
+  test builds it that way deliberately, so "generated" never becomes an excuse
+  for code the project would not accept if a person had written it.
+- **The example client got *better*, not just different.** Its TRADE handler
+  previously printed `?` for any field it could not find and had no way to
+  notice a zero price at all; it now reports `<unparseable: ...>` or
+  `<invalid: price must be > 0>`.
 
 ### 13.5 What went better than the design predicted
 
@@ -1479,10 +1656,45 @@ right about both, but had not measured its behaviour.**
 - §8.2: routing `_unchecked` through the dataclass *looked* free; it was 4×.
 - §8.1: pm-stats *looked* like a parser; it is a recorder, and its tolerance was
   load-bearing.
+- §7.2 (Phase 3): the CI snippet *looked* obviously right — it is the same
+  command the Makefile uses — but the `code-check` job installs with
+  `--no-root`, so that command does not exist there.
+- §B.13 (Phase 4a): the text key-ordering rule *looked* necessary, because
+  gateways emit ordered lines. Reading both emitters showed they order
+  differently and that the projection never emits envelope keys at all.
+- §5.2 (Phase 4a): "reuse the existing convention" *looked* like one
+  convention. `calf_parser.c` had a second one all along.
+- Phase 4a adoption: adopting the typed struct in `calf_subscriber.c` *looked*
+  like it should replace every `calf_get_field`, including `PX`. The file's own
+  header comment explains it never reparses prices on purpose — reformatting a
+  decimal needs the per-symbol tick scale. A first attempt at this change broke
+  that and had to be reverted to printing `PX` from the wire string.
+- Phase 4a projection: taking a constructed message *looked* like the typed,
+  obvious signature. It forced a CALF gateway to hold eleven fields to emit
+  three, and only the full test suite said so — eight `md_gateway` tests failed
+  with `KeyError: 'id'`. See §B.13.
+
+**The one that keeps recurring.** Three of these — §8.1 (pm-stats), the
+`normalise_trade` failure mode, and the projection signature — are the same
+error: *reasoning about what a consumer needs instead of reading what it
+actually does.* §8.1 even states the rule, and the projection signature broke it
+two phases later in the same file it was written about.
+
+The concrete guard is cheap and should be used from Phase 4b onwards: **before
+adopting a generated artefact in a module, read that module's existing tests.**
+They encode the contract its callers actually rely on, which is more reliable
+than either the design or the implementation. In this instance the eight failing
+tests were not obstacles to work around — they were the specification, and the
+code was wrong.
 
 The lesson for Phases 4–6: before adopting a generated artefact in a module,
-read what that module actually does with the message, and measure the path if
-it is hot. The design is a good map; it is not the territory.
+read what that module actually does with the message, and measure or run the
+path rather than reasoning about it. The design is a good map; it is not the
+territory.
+
+Every one of the four was caught by executing something — a grep for callers, a
+timing loop, reading a handler's error paths, running `make`. None would have
+been caught by review.
 
 ## Appendix A — Phase 1 implementation starter
 
@@ -1800,11 +2012,14 @@ generated file, Phase 1 is done.
   full existing suite passes unchanged; **both** wire assertions of §8 Phase 2
   hold (byte-identity factory-vs-factory, payload+key-set equality
   engine-vs-factory); a `perf`-marked test shows no hot-path regression.
-- [ ] **Phase 3** `pm-msgen check` added to `_check` and `ci.yml`; a
+- [x] **Phase 3** `pm-msgen check` added to `_check` and `ci.yml`; a
   deliberate hand-edit to `trade.py` fails CI; a spec edit without regen fails
   CI; generation proven deterministic (`generate` twice → identical bytes).
-- [ ] **Phase 4** C generation + the cffi round-trip harness (below); `msgen_c`
-  marker registered; toolchain step added to the C-test job.
+- [x] **Phase 4a** `calf:` encoding on `trade_executed`; Python projection and
+  C header/impl generated; `normalise_trade` and `calf_subscriber.c`'s TRADE
+  handler adopt them; a compiled round-trip test proves Python and C agree.
+- [ ] **Phase 4b** BALF `layout` support; `order.yaml` with `execution_report`;
+  capstone assertion 5.
 - [ ] **Phase 5** one family per PR, each with its own wire-compat test;
   `grep-literals` count for the family driven to zero.
 - [ ] **Phase 6** `271-message-appendix.md` generated and wired into
@@ -2051,23 +2266,73 @@ A `keys` entry MAY map one source field to several wire keys (RALF
 `id: [EXEC_ID, MATCH_ID]`). `gateway_injected` keys MUST NOT collide with any
 `keys` value.
 
-**Key emission order (normative).** A text projection is an *ordered* mapping,
-because the gateways emit their lines key-by-key and a reordered line is a
-different line. The generated projection MUST emit, in this order:
+**Key emission order (normative; corrected in 1.8.0).** The generated text
+projection emits **only the included payload fields, in `include` order** (or
+`fields` declaration order when `include: all`), each expanded to its `keys`
+targets in declaration order. `gateway_injected` keys are **documentation
+only** — the projection never emits them, and their order in the spec carries
+no meaning.
 
-1. every `gateway_injected` key, in declaration order;
-2. then every included field, in `include` order (or `fields` declaration order
-   when `include: all`), each expanded to its `keys` targets in declaration
-   order.
+v1.5.0 stated the opposite: that the projection emits `gateway_injected` keys
+first, then the payload. That rule was both unnecessary and unsatisfiable.
 
-This matches the existing hand-written emitters and is what makes a generated
-line comparable to today's. `ralf_gateway/gateway.py:459-478` builds
-`{CH, SYM, TS, EXEC_ID, MATCH_ID, BUY_ORDER_ID, …}` — injected keys first,
-payload keys after — and `md_gateway/normaliser.py:194-198` builds
-`{PX, QTY, SIDE}` with `CH`/`SYM`/`SEQ`/`TS` added by the frame envelope
-outside the field map. Without this rule the `include` list order in §4.1 would
-produce `EXEC_ID` before `CH` and the projection could not be substituted for
-the hand-written dict.
+*Unnecessary*, because §4.6 N1 already draws the line: the generator owns the
+payload field map, and the gateway owns the envelope around it.
+`md_gateway/normaliser.py::normalise_trade` returns `{PX, QTY, SIDE}` and
+nothing else; `CH`/`SYM`/`SEQ`/`TS` are added by
+`md_gateway/gateway.py::_emit_stream_event`, which the generator does not
+replace. The projection is never responsible for envelope keys, so it never has
+to order them.
+
+*Unsatisfiable*, because the two gateways inject in different positions and no
+single rule covers both:
+
+| Gateway | Code | Resulting order |
+|---|---|---|
+| CALF | `md_gateway/gateway.py:735-755` — builds `{CH, SYM, SEQ, TS}` then `.update(payload_fields)` | injected **first**, payload after |
+| RALF | `ralf_gateway/gateway.py:513-519` — `merged = dict(fields)` (already carrying `CH`, `SYM`, `TS`) then `merged["SEQ"] = str(seq)` | `SEQ` **last**, after the payload |
+
+Any rule that put all injected keys in one block would produce a line RALF does
+not produce. Since the projection emits none of them, the question does not
+arise — which is the correct resolution rather than a workaround.
+
+**A projection takes a payload mapping, not a fully-built message (normative).**
+`project_<msg>_<transport>(payload: Mapping[str, Any]) -> dict[str, str]` reads
+**only the included fields**, with the same read precedence as `from_dict`
+(§B.7.1), and coerces each to its declared type before rendering.
+
+The first Phase 4a implementation took a constructed message object instead, so
+`normalise_trade` had to build a whole `TradeExecuted` — eleven fields — in
+order to emit three. Eight existing `md_gateway` tests failed with
+`KeyError: 'id'`, and they were right to: every one of them passes exactly the
+fields the CALF feed carries.
+
+The rule this fixes is worth stating plainly, because it is the projection model
+of §4.6 applied to the code rather than to the documentation: **a projection is
+a subset, so it must depend on a subset.** A gateway feeding one transport must
+never be required to hold fields that transport drops. If it were, the spec
+would have re-coupled exactly the surfaces the projection model exists to
+separate.
+
+`project_*(payload)` and `project_*(msg.to_dict())` are interchangeable, and a
+test asserts it.
+
+**Enum values are emitted uppercase.** For a field of `type: enum` the text
+projection emits `str(value).upper()`. This is idempotent for any value in the
+declared `values` (§B.3 requires SCREAMING_SNAKE enum names), and it reproduces
+`normalise_trade`'s existing `str(payload.get("aggressor_side", "")).upper()`
+exactly, so adoption is wire-compatible by construction.
+
+**Numeric text formatting.** `int`/`ticks` emit `str(int(v))`, `float` emits
+`str(v)`, `string` emits `str(v)`. These match `md_gateway/normaliser.py`'s
+`_as_int_text` and `_as_decimal` (both trivial: `str(int(raw))` and `str(raw)`).
+One consequence worth stating: because the projection is applied to a *coerced*
+message, a `float` field always formats through Python's float repr — a payload
+carrying an integer `price` of `150` yields `"150.0"`, where the hand-written
+normaliser fed the raw value and produced `"150"`. Engine-published trades have
+carried a float `price` since Phase 2 adopted the generated constructor, so this
+is unreachable for live data; it is noted because a replayed pre-Phase-2 capture
+could hit it.
 
 **Binary** (`balf`):
 

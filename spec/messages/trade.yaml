@@ -1,12 +1,11 @@
 # Canonical specification for the `trade` message family.
 #
-# Phase 1 scope (see docs-design/EduMatcher-Message-Generator.md section 8):
-# this file specifies the bus projection only, and only the Python binding is
-# generated from it. The CALF and RALF projections of trade.executed are real
-# and documented in section 4.6 of the design, but their `encoding` blocks are
-# deliberately NOT declared here yet: nothing generates from them in Phase 1,
-# and an unexercised spec block is an unexercised loader path. They arrive with
-# the gateway adoption that consumes them.
+# Scope (see docs-design/EduMatcher-Message-Generator.md section 8): the bus
+# projection (Phases 1-3) and the CALF projection (Phase 4a) are specified here.
+# The RALF projection of trade.executed is real and documented in section 4.6 of
+# the design, but its `encoding` block is deliberately NOT declared yet: nothing
+# generates from it, and an unexercised spec block is an unexercised loader
+# path. It arrives with the ralf_gateway adoption that consumes it.
 #
 # Field order below is authoritative and matches
 # models/feed_schema.TradeExecutedPayload.to_dict() exactly. It deliberately
@@ -20,7 +19,7 @@ version: 1
 messages:
   - name: trade_executed
     topic: "trade.executed"
-    transport: [engine_pub]
+    transport: [engine_pub, calf]
 
     doc:
       motivation: >
@@ -128,3 +127,21 @@ messages:
         # here would double-stamp it.
         frames: [topic, json_payload]
         include: all
+
+      calf:
+        # Public market-data print on the CALF TRADE channel.
+        # md_gateway/normaliser.py::normalise_trade emits ONLY these three keys;
+        # CH/SYM/SEQ/TS are added by gateway.py::_emit_stream_event as the frame
+        # envelope, not by the payload projection. The engine trade `id` is
+        # deliberately absent from the public feed.
+        #
+        # gateway_injected is documentation only - the generated projection
+        # never emits those keys, and their order here carries no meaning
+        # (design section B.13, corrected in 1.8.0).
+        msg_type: TRADE
+        include: [price, quantity, aggressor_side]
+        keys:
+          price: PX
+          quantity: QTY
+          aggressor_side: SIDE
+        gateway_injected: [CH, SYM, SEQ, TS]
