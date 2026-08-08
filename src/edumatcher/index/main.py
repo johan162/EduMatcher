@@ -42,6 +42,7 @@ from edumatcher.models.message import (
     make_index_rebalance_ack_msg,
     make_index_update_msg,
 )
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
@@ -82,7 +83,7 @@ class IndexProcess:
 
         self._sub_sock = make_subscriber(
             ENGINE_PUB_ADDR,
-            "trade.executed",
+            TOPIC_TRADE_EXECUTED,
             "session.state",
             "system.eod",
         )
@@ -730,7 +731,7 @@ class IndexProcess:
                     log.warning("malformed sub frame: %s", exc)
                 else:
                     self._dbg_count("sub_messages")
-                    if topic == "trade.executed":
+                    if topic == TOPIC_TRADE_EXECUTED:
                         self._handle_trade(payload)
                     elif topic == "session.state":
                         self._handle_session_state(payload)

@@ -5,12 +5,20 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.order import (
+    PREFIX_ORDER_ACK,
+    PREFIX_ORDER_AMENDED,
+    PREFIX_ORDER_CANCELLED,
+    PREFIX_ORDER_EXPIRED,
+    PREFIX_ORDER_FILL,
+)
 
-ORDER_ACK_PREFIX = "order.ack."
-ORDER_FILL_PREFIX = "order.fill."
-ORDER_AMENDED_PREFIX = "order.amended."
-ORDER_CANCELLED_PREFIX = "order.cancelled."
-ORDER_EXPIRED_PREFIX = "order.expired."
+ORDER_ACK_PREFIX = PREFIX_ORDER_ACK
+ORDER_FILL_PREFIX = PREFIX_ORDER_FILL
+ORDER_AMENDED_PREFIX = PREFIX_ORDER_AMENDED
+ORDER_CANCELLED_PREFIX = PREFIX_ORDER_CANCELLED
+ORDER_EXPIRED_PREFIX = PREFIX_ORDER_EXPIRED
 SYSTEM_SYMBOLS_PREFIX = "system.symbols."
 
 #: Synthetic admin-monitor-only event (see models.message.make_admin_action_msg).
@@ -77,7 +85,7 @@ def websocket_type(topic: str) -> str:
         return "admin.action"
     if topic.startswith("risk.kill_switch_ack."):
         return "mass_cancel.ack"
-    if topic == "trade.executed":
+    if topic == TOPIC_TRADE_EXECUTED:
         return "trade"
     if topic.startswith("book."):
         return "book"

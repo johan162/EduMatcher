@@ -29,6 +29,7 @@ from edumatcher.md_gateway.sequencer import SequenceAllocator
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
 from edumatcher.models.price import DEFAULT_TICK_DECIMALS
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 _ALLOWED_CHANNELS = frozenset(
     {"TOP", "TRADE", "STATE", "INDEX", "DEPTH", "AUCTION", "CB"}
@@ -93,7 +94,7 @@ class MarketDataGateway:
         self._sub_sock = make_subscriber(
             config.engine_pub_addr,
             "book.",
-            "trade.executed",
+            TOPIC_TRADE_EXECUTED,
             "session.state",
             "circuit_breaker.halt.",
             "circuit_breaker.resume.",
@@ -799,7 +800,7 @@ class MarketDataGateway:
                         )
                     continue
 
-                if topic == "trade.executed":
+                if topic == TOPIC_TRADE_EXECUTED:
                     self._dbg_count("trade_topics")
                     sym, trade_fields = self._normaliser.normalise_trade(payload)
                     if sym:

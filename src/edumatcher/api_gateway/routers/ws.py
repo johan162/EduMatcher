@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from edumatcher.api_gateway.events import market_data_symbol, now_iso
 from edumatcher.api_gateway.schemas import ALWAYS_ON_CHANNELS, MarketDataControl
 from edumatcher.api_gateway.sessions import SessionRegistry
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 router = APIRouter(prefix="/api/v1", tags=["websockets"])
 
@@ -371,7 +372,7 @@ def _topic_from_event(event: dict[str, Any]) -> str:
     if event_type == "depth" and symbol:
         return f"depth.{symbol}"
     if event_type == "trade":
-        return "trade.executed"
+        return TOPIC_TRADE_EXECUTED
     if event_type == "session":
         return "session.state"
     if event_type == "circuit_breaker":

@@ -96,6 +96,14 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
 )
 from edumatcher.models.price import register_tick_decimals
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.order import (
+    PREFIX_ORDER_ACK,
+    PREFIX_ORDER_AMENDED,
+    PREFIX_ORDER_CANCELLED,
+    PREFIX_ORDER_EXPIRED,
+    PREFIX_ORDER_FILL,
+)
 
 log = logging.getLogger(__name__)
 
@@ -225,7 +233,7 @@ class BalfGateway:
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
             "session.state",
-            "trade.executed",
+            TOPIC_TRADE_EXECUTED,
         )
 
         self._global_stats: dict[str, int] = {
@@ -895,15 +903,15 @@ class BalfGateway:
         if session is None:
             return
 
-        if topic.startswith("order.ack."):
+        if topic.startswith(PREFIX_ORDER_ACK):
             self._handle_order_ack_event(session, payload)
-        elif topic.startswith("order.fill."):
+        elif topic.startswith(PREFIX_ORDER_FILL):
             self._handle_fill_event(session, payload)
-        elif topic.startswith("order.cancelled."):
+        elif topic.startswith(PREFIX_ORDER_CANCELLED):
             self._handle_cancelled_event(session, payload)
-        elif topic.startswith("order.amended."):
+        elif topic.startswith(PREFIX_ORDER_AMENDED):
             self._handle_amended_event(session, payload)
-        elif topic.startswith("order.expired."):
+        elif topic.startswith(PREFIX_ORDER_EXPIRED):
             self._handle_expired_event(session, payload)
 
     def _handle_gateway_auth(self, gw_id: str, payload: dict[str, Any]) -> None:

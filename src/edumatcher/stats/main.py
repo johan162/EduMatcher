@@ -116,6 +116,13 @@ from edumatcher.stats.trading_day import (
     trading_date,
     trading_day_bounds,
 )
+from edumatcher.models.generated.order import (
+    PREFIX_ORDER_ACK,
+    PREFIX_ORDER_AMENDED,
+    PREFIX_ORDER_CANCELLED,
+    PREFIX_ORDER_EXPIRED,
+    PREFIX_ORDER_FILL,
+)
 
 _CLIENT_NAME = "pm-stats"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -880,11 +887,11 @@ class StatsProcess:
                 "book.",
                 "system.eod",
                 "system.symbols.STATS",
-                "order.ack.",
-                "order.fill.",
-                "order.amended.",
-                "order.cancelled.",
-                "order.expired.",
+                PREFIX_ORDER_ACK,
+                PREFIX_ORDER_FILL,
+                PREFIX_ORDER_AMENDED,
+                PREFIX_ORDER_CANCELLED,
+                PREFIX_ORDER_EXPIRED,
                 "combo.ack.",
                 "combo.status.",
                 "oco.ack.",
@@ -1826,11 +1833,11 @@ class StatsProcess:
 def _is_order_event_topic(topic: str) -> bool:
     return topic.startswith(
         (
-            "order.ack.",
-            "order.fill.",
-            "order.amended.",
-            "order.cancelled.",
-            "order.expired.",
+            PREFIX_ORDER_ACK,
+            PREFIX_ORDER_FILL,
+            PREFIX_ORDER_AMENDED,
+            PREFIX_ORDER_CANCELLED,
+            PREFIX_ORDER_EXPIRED,
             "combo.ack.",
             "combo.status.",
             "oco.ack.",
@@ -1876,15 +1883,15 @@ def _event_type_from_topic(topic: str, payload: dict[str, Any]) -> str:
     ``oco.cancelled`` under ``OCO``, where no cancel-oriented filter could
     find it.
     """
-    if topic.startswith("order.ack."):
+    if topic.startswith(PREFIX_ORDER_ACK):
         return _accept_reject(topic, payload, "ACK", "REJECT")
-    if topic.startswith("order.fill."):
+    if topic.startswith(PREFIX_ORDER_FILL):
         return "FILL"
-    if topic.startswith("order.amended."):
+    if topic.startswith(PREFIX_ORDER_AMENDED):
         return "AMEND"
-    if topic.startswith("order.cancelled."):
+    if topic.startswith(PREFIX_ORDER_CANCELLED):
         return "CANCEL"
-    if topic.startswith("order.expired."):
+    if topic.startswith(PREFIX_ORDER_EXPIRED):
         return "EXPIRE"
     if topic.startswith("combo.ack."):
         return _accept_reject(topic, payload, "COMBO_ACK", "COMBO_REJECT")

@@ -40,6 +40,7 @@ from edumatcher.models.feed_schema import (
 # the other's contents until call time. Importing `make_trade_executed` by name
 # instead would raise ImportError whenever the generated module happened to be
 # imported first.
+from edumatcher.models.generated import order as _gen_order
 from edumatcher.models.generated import trade as _gen_trade
 
 # PERF improvement #6: Use orjson instead of stdlib json.
@@ -162,16 +163,14 @@ def make_amended_msg(
     remaining_qty: int,
     priority_reset: bool,
 ) -> list[bytes]:
-    topic = f"order.amended.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "order_id": order_id,
-            "price": price,
-            "qty": qty,
-            "remaining_qty": remaining_qty,
-            "priority_reset": priority_reset,
-        },
+    """Generated from ``spec/messages/order.yaml``. Byte-identical to before."""
+    return _gen_order.make_order_amended_unchecked(
+        gateway_id=gateway_id,
+        order_id=order_id,
+        price=price,
+        qty=qty,
+        remaining_qty=remaining_qty,
+        priority_reset=priority_reset,
     )
 
 
@@ -204,27 +203,28 @@ def make_ack_msg(
     reason: str = "",
     order: dict[str, Any] | None = None,
 ) -> list[bytes]:
-    topic = f"order.ack.{gateway_id}"
-    payload: dict[str, Any] = {
-        "order_id": order_id,
-        "accepted": accepted,
-        "reason": reason,
-    }
-    if order:
-        payload.update(
-            {
-                "symbol": order.get("symbol"),
-                "side": order.get("side"),
-                "order_type": order.get("order_type"),
-                "tif": order.get("tif"),
-                "qty": order.get("quantity"),
-                "price": order.get("price"),
-            }
-        )
-        if order.get("client_tag") is not None:
-            payload["client_tag"] = order["client_tag"]
-        payload.update(group_ids(order))
-    return encode(topic, payload)
+    """Generated from ``spec/messages/order.yaml``.
+
+    One wire change against the hand-written builder it replaces: a MARKET
+    order's ack no longer carries ``"price": null``, because the spec declares
+    ``price`` omitted-when-none like every other optional field. Invisible to
+    readers, which all use ``.get`` - see design section B.7.2.
+    """
+    detail = order or {}
+    return _gen_order.make_order_ack_unchecked(
+        gateway_id=gateway_id,
+        order_id=order_id,
+        accepted=accepted,
+        reason=reason,
+        symbol=detail.get("symbol"),
+        side=detail.get("side"),
+        order_type=detail.get("order_type"),
+        tif=detail.get("tif"),
+        qty=detail.get("quantity"),
+        price=detail.get("price"),
+        client_tag=detail.get("client_tag"),
+        **group_ids(order),
+    )
 
 
 def make_fill_msg(
@@ -236,29 +236,28 @@ def make_fill_msg(
     status: str,
     order: dict[str, Any] | None = None,
 ) -> list[bytes]:
-    topic = f"order.fill.{gateway_id}"
-    payload: dict[str, Any] = {
-        "order_id": order_id,
-        "fill_qty": fill_qty,
-        "fill_price": fill_price,
-        "remaining_qty": remaining_qty,
-        "status": status,
-    }
-    if order:
-        payload.update(
-            {
-                "symbol": order.get("symbol"),
-                "side": order.get("side"),
-                "order_type": order.get("order_type"),
-                "tif": order.get("tif"),
-                "qty": order.get("quantity"),
-                "price": order.get("price"),
-            }
-        )
-        if order.get("client_tag") is not None:
-            payload["client_tag"] = order["client_tag"]
-        payload.update(group_ids(order))
-    return encode(topic, payload)
+    """Generated from ``spec/messages/order.yaml``.
+
+    Same one wire change as ``make_ack_msg``: a MARKET order's fill no longer
+    carries ``"price": null``.
+    """
+    detail = order or {}
+    return _gen_order.make_order_fill_unchecked(
+        gateway_id=gateway_id,
+        order_id=order_id,
+        fill_qty=fill_qty,
+        fill_price=fill_price,
+        remaining_qty=remaining_qty,
+        status=status,
+        symbol=detail.get("symbol"),
+        side=detail.get("side"),
+        order_type=detail.get("order_type"),
+        tif=detail.get("tif"),
+        qty=detail.get("quantity"),
+        price=detail.get("price"),
+        client_tag=detail.get("client_tag"),
+        **group_ids(order),
+    )
 
 
 def make_cancelled_msg(
@@ -267,12 +266,13 @@ def make_cancelled_msg(
     client_tag: str | None = None,
     order: dict[str, Any] | None = None,
 ) -> list[bytes]:
-    topic = f"order.cancelled.{gateway_id}"
-    payload: dict[str, Any] = {"order_id": order_id}
-    if client_tag is not None:
-        payload["client_tag"] = client_tag
-    payload.update(group_ids(order))
-    return encode(topic, payload)
+    """Generated from ``spec/messages/order.yaml``. Byte-identical to before."""
+    return _gen_order.make_order_cancelled_unchecked(
+        gateway_id=gateway_id,
+        order_id=order_id,
+        client_tag=client_tag,
+        **group_ids(order),
+    )
 
 
 def make_expired_msg(
@@ -281,12 +281,13 @@ def make_expired_msg(
     client_tag: str | None = None,
     order: dict[str, Any] | None = None,
 ) -> list[bytes]:
-    topic = f"order.expired.{gateway_id}"
-    payload: dict[str, Any] = {"order_id": order_id}
-    if client_tag is not None:
-        payload["client_tag"] = client_tag
-    payload.update(group_ids(order))
-    return encode(topic, payload)
+    """Generated from ``spec/messages/order.yaml``. Byte-identical to before."""
+    return _gen_order.make_order_expired_unchecked(
+        gateway_id=gateway_id,
+        order_id=order_id,
+        client_tag=client_tag,
+        **group_ids(order),
+    )
 
 
 def make_trade_msg(trade_dict: dict[str, Any]) -> list[bytes]:

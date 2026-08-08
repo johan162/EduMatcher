@@ -74,6 +74,7 @@ from edumatcher.models.feed_schema import (
 from edumatcher.models.message import decode
 from edumatcher.models.price import to_ticks
 from edumatcher.models.trade import Trade
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 FLUSH_SIZE: int = 100
 FLUSH_INTERVAL_SEC: float = 5.0
@@ -348,7 +349,7 @@ class ClearingProcess:
 
         sub = make_subscriber(
             self._pub_addr,
-            "trade.executed",
+            TOPIC_TRADE_EXECUTED,
             "system.eod",
             # Session-phase transitions — recorded as PHASE rows in
             # session_events (finding CL-M7) so operators can bucket activity by
@@ -420,7 +421,7 @@ class ClearingProcess:
 
             self._dbg_count("messages_received")
 
-            if topic == "trade.executed":
+            if topic == TOPIC_TRADE_EXECUTED:
                 try:
                     trade = _trade_from_payload(payload)
                 except Exception as exc:

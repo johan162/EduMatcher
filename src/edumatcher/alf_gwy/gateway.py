@@ -54,6 +54,14 @@ from edumatcher.models.message import (
 )
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.price import register_tick_decimals, to_ticks
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.order import (
+    PREFIX_ORDER_ACK,
+    PREFIX_ORDER_AMENDED,
+    PREFIX_ORDER_CANCELLED,
+    PREFIX_ORDER_EXPIRED,
+    PREFIX_ORDER_FILL,
+)
 
 _MAX_LINE_BYTES = 4096
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
@@ -125,7 +133,7 @@ class AlfGateway:
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
             "session.state",
-            "trade.executed",
+            TOPIC_TRADE_EXECUTED,
             "circuit_breaker.halt.",
             "circuit_breaker.resume.",
         )
@@ -925,7 +933,7 @@ class AlfGateway:
                 )
                 continue
 
-            if topic == "trade.executed":
+            if topic == TOPIC_TRADE_EXECUTED:
                 self._broadcast(
                     "TRADE",
                     {
@@ -1252,7 +1260,7 @@ class AlfGateway:
         fields: dict[str, str] | None = None
         msg_type: str | None = None
 
-        if topic.startswith("order.ack."):
+        if topic.startswith(PREFIX_ORDER_ACK):
             msg_type = "ACK"
             fields = {
                 "ORDER_ID": str(payload.get("order_id", "")),
@@ -1262,7 +1270,7 @@ class AlfGateway:
                 "SIDE": str(payload.get("side", "")),
                 "TYPE": str(payload.get("order_type", "")),
             }
-        elif topic.startswith("order.fill."):
+        elif topic.startswith(PREFIX_ORDER_FILL):
             msg_type = "FILL"
             fields = {
                 "ORDER_ID": str(payload.get("order_id", "")),
@@ -1271,7 +1279,7 @@ class AlfGateway:
                 "REMAINING": str(payload.get("remaining_qty", "")),
                 "STATUS": str(payload.get("status", "")),
             }
-        elif topic.startswith("order.amended."):
+        elif topic.startswith(PREFIX_ORDER_AMENDED):
             msg_type = "AMENDED"
             fields = {
                 "ORDER_ID": str(payload.get("order_id", "")),
@@ -1286,10 +1294,10 @@ class AlfGateway:
                     "TRUE" if bool(payload.get("priority_reset", False)) else "FALSE"
                 ),
             }
-        elif topic.startswith("order.cancelled."):
+        elif topic.startswith(PREFIX_ORDER_CANCELLED):
             msg_type = "CANCELLED"
             fields = {"ORDER_ID": str(payload.get("order_id", ""))}
-        elif topic.startswith("order.expired."):
+        elif topic.startswith(PREFIX_ORDER_EXPIRED):
             msg_type = "EXPIRED"
             fields = {"ORDER_ID": str(payload.get("order_id", ""))}
         elif topic.startswith("quote.ack."):

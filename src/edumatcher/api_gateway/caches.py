@@ -14,6 +14,7 @@ from edumatcher.api_gateway.events import (
     ORDER_FILL_PREFIX,
     SYSTEM_SYMBOLS_PREFIX,
 )
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 #: Statuses after which an order can no longer change. Only these are eligible
 #: for eviction — a resting order is live state whatever its age.
@@ -95,7 +96,7 @@ class SessionCaches:
                     self.known_symbols[sym] = (
                         details if isinstance(details, dict) else {}
                     )
-        elif topic == "trade.executed":
+        elif topic == TOPIC_TRADE_EXECUTED:
             symbol = str(payload.get("symbol", ""))
             price = payload.get("price")
             if symbol and isinstance(price, (int, float)):

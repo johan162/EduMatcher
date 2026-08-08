@@ -1,10 +1,18 @@
 # Canonical specification for the `order` message family.
 #
-# Phase 4b scope (docs-design/EduMatcher-Message-Generator.md section 8): this
-# file currently specifies ONLY the BALF execution report, which is the vehicle
-# for binary layout generation. The rest of the order family - order.new,
-# order.ack.{gateway_id}, order.fill.{gateway_id} and the others - is Phase 5
-# and is deliberately absent rather than half-specified.
+# Scope (docs-design/EduMatcher-Message-Generator.md section 8):
+#   Phase 4b - execution_report, the BALF binary frame.
+#   Phase 5.1a - the five engine -> gateway order events below.
+# The inbound commands (order.new, order.cancel, order.amend) and the
+# combo/OCO topics are 5.1b/5.1c and are deliberately absent rather than
+# half-specified.
+#
+# PRESENCE. These events are the reason section B.7.2 exists. They carry three
+# kinds of field: always present; present but nullable; and absent entirely
+# when unset. The last is `omit_when_none`, and it is used wherever the
+# hand-written code omitted a key - which models/message.py::group_ids
+# documents as deliberate: "an ordinary single order carries none of these,
+# and its events should not grow four empty fields to say so".
 #
 # LAYOUT AUTHORITY. Every offset, size and enum value below comes from
 # docs/user-guide/910-app-balf-protocol.md, which declares itself "the normative
@@ -129,3 +137,168 @@ messages:
           - { field: status,          repr: u8,      offset: 49, enum_map: { PARTIAL: 1, FILLED: 2 } }
           # "Must be zero" per the normative reference.
           - { reserved: 6, offset: 50 }
+
+  # --------------------------------------------------------------------------
+  # Phase 5.1a: engine -> gateway order events.
+  #
+  # All five share a parameterised topic keyed on the destination gateway, and
+  # all five carry the group identifiers that tie an order to the structure it
+  # belongs to (GROUP_ID_FIELDS in models/message.py).
+  # --------------------------------------------------------------------------
+
+  - name: order_ack
+    topic: "order.ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Acknowledge acceptance or rejection of a new order, addressed to the
+        gateway that submitted it.
+      since: "1.0"
+      see_also: ["order.fill.{GW_ID}", "order.new"]
+      example_note: >
+        The order-detail fields are present only when the engine had the order
+        to hand; on a rejection before lookup they are absent. reason is empty
+        on an acceptance.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          doc: "Rejection detail; empty when accepted.", validate: { max_len: 256 } }
+      - { name: symbol, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 16 } }
+      - { name: side, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 8 } }
+      - { name: order_type, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 16 } }
+      - { name: tif, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 8 } }
+      - { name: qty, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: shares }
+      - { name: price, type: float, required: false, nullable: true,
+          omit_when_none: true, unit: display_price,
+          doc: "Absent for a MARKET order, which has no limit price." }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: oco_group_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: combo_parent_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: quote_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: leg_index, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: dimensionless }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_fill
+    topic: "order.fill.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Private fill notification for one order, addressed to the gateway that
+        owns it. The public counterpart is trade.executed.
+      since: "1.0"
+      see_also: ["trade.executed"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: fill_qty, type: int, unit: shares }
+      - { name: fill_price, type: float, unit: display_price }
+      - { name: remaining_qty, type: int, unit: shares }
+      - { name: status, type: string, validate: { max_len: 16 } }
+      - { name: symbol, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 16 } }
+      - { name: side, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 8 } }
+      - { name: order_type, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 16 } }
+      - { name: tif, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 8 } }
+      - { name: qty, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: shares }
+      - { name: price, type: float, required: false, nullable: true,
+          omit_when_none: true, unit: display_price }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: oco_group_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: combo_parent_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: quote_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: leg_index, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: dimensionless }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_cancelled
+    topic: "order.cancelled.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Confirm that a resting order has been cancelled."
+      since: "1.0"
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: oco_group_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: combo_parent_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: quote_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: leg_index, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: dimensionless }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_expired
+    topic: "order.expired.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        A DAY order that never filled has expired at session end. Same shape as
+        order.cancelled - the difference is who ended the order, not what the
+        consumer needs to know about it.
+      since: "1.0"
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: oco_group_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: combo_parent_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: quote_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: leg_index, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: dimensionless }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_amended
+    topic: "order.amended.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Confirm an accepted amendment and report the resulting order."
+      since: "1.0"
+      example_note: >
+        price is nullable but always present: a MARKET order has no limit
+        price, and the field says so with null rather than by being absent.
+        This is the one message in the group that emits null rather than
+        omitting - it is what the hand-written builder did.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: price, type: float, required: false, nullable: true,
+          unit: display_price,
+          doc: "New limit price, or null for an order that has none." }
+      - { name: qty, type: int, unit: shares }
+      - { name: remaining_qty, type: int, unit: shares }
+      - { name: priority_reset, type: bool,
+          doc: "True when the amendment lost the order its time priority." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }

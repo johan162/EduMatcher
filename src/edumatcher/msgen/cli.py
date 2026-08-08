@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 from edumatcher.msgen import generate as gen
+from edumatcher.msgen import literals as lit
 from edumatcher.msgen.spec import SpecError, load_all
 
 _EXIT_OK = 0
@@ -26,6 +27,7 @@ _EXIT_ERROR = 2
 _DEFAULT_SPEC = Path("spec")
 _DEFAULT_OUT_PYTHON = Path("src/edumatcher/models/generated")
 _DEFAULT_OUT_C = Path("docs/examples/generated")
+_DEFAULT_SRC = Path("src")
 
 
 def _add_common(parser: argparse.ArgumentParser, *, with_out: bool) -> None:
@@ -69,6 +71,19 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         with_out=True,
     )
     _add_common(sub.add_parser("lint", help="Validate the spec only"), with_out=False)
+
+    grep = sub.add_parser(
+        "grep-literals",
+        help="List topic string literals a generated constant should replace",
+    )
+    _add_common(grep, with_out=False)
+    grep.add_argument(
+        "--src",
+        type=Path,
+        default=_DEFAULT_SRC,
+        metavar="DIR",
+        help=f"Source tree to scan (default: {_DEFAULT_SRC})",
+    )
     return parser.parse_args(argv)
 
 
@@ -76,6 +91,12 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
     try:
+        if args.command == "grep-literals":
+            _transports, families = load_all(args.spec)
+            hits = lit.scan([args.src], families)
+            print(lit.format_report(hits, families, Path.cwd()))
+            return _EXIT_OK
+
         if args.command == "lint":
             _transports, families = load_all(args.spec)
             count = sum(len(f.messages) for f in families)

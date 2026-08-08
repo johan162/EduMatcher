@@ -275,7 +275,7 @@ class TestBinaryEncoding:
     def test_real_order_spec_declares_the_normative_layout(self) -> None:
         _registry, families = load_all(SPEC_ROOT)
         order = [f for f in families if f.family == "order"][0]
-        (msg,) = order.messages
+        (msg,) = [m for m in order.messages if m.name == "execution_report"]
         balf = msg.binary_encoding["balf"]
         assert msg.topic is None
         assert balf.msg_type == 0x20
@@ -563,7 +563,7 @@ class TestStrictness:
     ) -> None:
         fam = _minimal_family()
         fam["messages"][0]["fields"][0]["required"] = False
-        with pytest.raises(SpecError, match="must declare a 'default'"):
+        with pytest.raises(SpecError, match="must say what happens when it is unset"):
             load_family(_write(tmp_path, fam), transports)
 
     def test_duplicate_field_name_is_rejected(

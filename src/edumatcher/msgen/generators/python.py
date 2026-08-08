@@ -144,6 +144,31 @@ def _call(indent: str, head: str, arg: str) -> list[str]:
     return [f"{indent}{head}(", f"{indent}    {arg}", f"{indent})"]
 
 
+def _coerce_arg(f: Field) -> str:
+    """Coerce a keyword argument in the hot-path builder.
+
+    A nullable field keeps ``None``: coercing it would turn "not set" into the
+    string ``"None"`` or raise on ``float(None)``.
+    """
+    call = f"{_COERCE[f.type]}({f.name})"
+    return f"None if {f.name} is None else {call}" if f.nullable else call
+
+
+def _payload_fields(message: Message) -> list[Field]:
+    """Fields the bus payload carries.
+
+    A topic parameter is excluded when the message's bus projection excludes
+    it: `order.ack.{gateway_id}` names the gateway in the topic, and the
+    hand-written builder never repeated it in the body.
+    """
+    for enc in message.encoding.values():
+        if enc.include is not None:
+            keep = set(enc.include)
+            return [f for f in message.fields if f.name in keep]
+    params = set(message.topic_params)
+    return [f for f in message.fields if f.name not in params]
+
+
 def _class_name(message: Message) -> str:
     return "".join(part.title() for part in message.name.split("_"))
 
@@ -170,6 +195,12 @@ def _annotation(f: Field) -> str:
     type a lie that every call site has to silence with a ``type: ignore``.
     Narrowing is ``validate()``'s job, not the annotation's.
     """
+    base = _base_annotation(f)
+    return f"{base} | None" if f.nullable else base
+
+
+def _base_annotation(f: Field) -> str:
+    """The annotation before nullability is applied."""
     if f.type != "enum":
         return _ANNOTATION[f.type]
     assert f.values is not None
@@ -191,9 +222,9 @@ def _narrow(f: Field, expr: str) -> str:
     whose job is not to check. A field whose ``parse_default`` is outside its
     values is annotated ``str`` instead and needs no cast (see ``_annotation``).
     """
-    annotation = _annotation(f)
-    if f.type == "enum" and annotation.startswith("Literal"):
-        return f"cast({annotation}, {expr})"
+    base = _base_annotation(f)
+    if f.type == "enum" and base.startswith("Literal") and not f.nullable:
+        return f"cast({base}, {expr})"
     return expr
 
 
@@ -218,8 +249,13 @@ def _kwarg_lines(indent: str, name: str, expr: str) -> list[str]:
     arguments fit on one continuation line.
     """
     single = f"{indent}{name}={expr},"
-    if len(single) <= LINE_LENGTH or not expr.startswith("cast("):
+    if len(single) <= LINE_LENGTH:
         return [single]
+    if not expr.startswith("cast("):
+        # Black wraps any other over-long argument in parentheses on its own
+        # line. The nullable read (`None if ... else ...`) is the case that
+        # reaches here.
+        return [f"{indent}{name}=(", f"{indent}    {expr}", f"{indent}),"]
     # Split on the comma separating cast's two arguments, not on one inside
     # ``Literal["A", "B"]`` — which a naive split(", ", 1) hits first.
     annotation, inner = _split_top_level(expr[len("cast(") : -1])
@@ -234,7 +270,7 @@ def _kwarg_lines(indent: str, name: str, expr: str) -> list[str]:
     ]
 
 
-def _read_expr(f: Field) -> str:
+def _read_expr(f: Field, in_topic_only: bool = False) -> str:
     """Return the ``from_dict`` read expression for one field.
 
     Precedence is normative (design section B.7.1): ``parse_default`` first,
@@ -243,6 +279,19 @@ def _read_expr(f: Field) -> str:
     """
     coerce = _COERCE[f.type]
     key = _pystr(f.name)
+    if in_topic_only:
+        # Carried by the topic, not the body. `parse_*` fills it in from the
+        # matched topic; `from_dict` on a bare payload cannot know it, and an
+        # empty string is a visibly-missing value rather than a plausible one.
+        return (
+            f'{coerce}(p.get({key}, ""))'
+            if f.type in ("string", "enum")
+            else (f"{coerce}(p.get({key}, 0))")
+        )
+    if f.nullable:
+        # None must survive the read: coercing it would turn "absent" into
+        # "None" (str(None) == "None"), which is a value, not an absence.
+        return f"None if p.get({key}) is None else {coerce}(p[{key}])"
     if f.has_parse_default:
         return _narrow(f, f"{coerce}(p.get({key}, {_pyval(f.parse_default)}))")
     if not f.required:
@@ -332,17 +381,17 @@ def _describe_block(message: Message) -> list[str]:
     return out
 
 
-def _validate_body(message: Message) -> list[str]:
-    """Return the body of ``validate()``, in spec declaration order."""
+def _field_checks(message: Message, f: Field, indent: str) -> list[str]:
+    """Every declared rule for one field, at ``indent``."""
     out: list[str] = []
 
     def check(cond: str, msg: str) -> None:
-        out.append(f"        if {cond}:")
-        out.extend(_call("            ", "raise MessageValidationError", msg))
+        out.append(f"{indent}if {cond}:")
+        out.extend(_call(f"{indent}    ", "raise MessageValidationError", msg))
 
-    for f in message.fields:
-        me = f"self.{f.name}"
-        v = f.validate
+    me = f"self.{f.name}"
+    v = f.validate
+    if True:  # keeps the original block indentation
         if f.type == "enum":
             const = _values_const(message, f)
             check(
@@ -381,6 +430,25 @@ def _validate_body(message: Message) -> list[str]:
                 f'f"{f.name}: {{{me}!r}} does not match {{{rx}.pattern!r}}"',
             )
 
+    return out
+
+
+def _validate_body(message: Message) -> list[str]:
+    """Return the body of ``validate()``, in spec declaration order.
+
+    A nullable field's rules are guarded by a ``is not None`` test: ``None``
+    means "not set", not "set to an invalid value", so applying ``gt: 0`` to it
+    would reject every message that legitimately omits the field.
+    """
+    out: list[str] = []
+    for f in message.fields:
+        if f.nullable:
+            checks = _field_checks(message, f, "            ")
+            if checks:
+                out.append(f"        if self.{f.name} is not None:")
+                out += checks
+            continue
+        out += _field_checks(message, f, "        ")
     return out or ["        return None"]
 
 
@@ -401,7 +469,7 @@ def _class_block(message: Message) -> list[str]:
     for f in ordered:
         line = f"    {f.name}: {_annotation(f)}"
         if not f.required:
-            line += f" = {_pyval(f.default)}"
+            line += " = None" if f.omit_when_none else f" = {_pyval(f.default)}"
         out.append(line + (f"  # unit: {f.unit}" if f.unit else ""))
 
     out += ["", "    def validate(self) -> None:"]
@@ -431,8 +499,11 @@ def _class_block(message: Message) -> list[str]:
         ],
     )
     out.append("        return cls(")
+    carried = {f.name for f in _payload_fields(message)}
     for f in message.fields:
-        out += _kwarg_lines("            ", f.name, _read_expr(f))
+        out += _kwarg_lines(
+            "            ", f.name, _read_expr(f, f.name not in carried)
+        )
     out.append("        )")
 
     out += ["", "    def to_dict(self) -> dict[str, Any]:"]
@@ -441,9 +512,22 @@ def _class_block(message: Message) -> list[str]:
         "Return the bus payload, in the spec's declared field order.",
         [],
     )
-    out.append("        return {")
-    out += [f"            {_pystr(f.name)}: self.{f.name}," for f in message.fields]
+    fields = _payload_fields(message)
+    always = [f for f in fields if not f.omit_when_none]
+    omitted = [f for f in fields if f.omit_when_none]
+    if not omitted:
+        out.append("        return {")
+        out += [f"            {_pystr(f.name)}: self.{f.name}," for f in always]
+        out.append("        }")
+        return out
+
+    out.append("        payload: dict[str, Any] = {")
+    out += [f"            {_pystr(f.name)}: self.{f.name}," for f in always]
     out.append("        }")
+    for f in omitted:
+        out.append(f"        if self.{f.name} is not None:")
+        out.append(f"            payload[{_pystr(f.name)}] = self.{f.name}")
+    out.append("        return payload")
     return out
 
 
@@ -505,11 +589,31 @@ def _unchecked_block(message: Message) -> list[str]:
             "byte-identical frames.",
         ],
     )
-    out += ["    return [", f"        {topic_expr},", "        _msg.dumps("]
-    out.append("            {")
-    for f in message.fields:
-        out.append(f"                {_pystr(f.name)}: {_COERCE[f.type]}({f.name}),")
-    out += ["            }", "        ),", "    ]"]
+    payload_fields = _payload_fields(message)
+    always = [f for f in payload_fields if not f.omit_when_none]
+    omitted = [f for f in payload_fields if f.omit_when_none]
+
+    if not omitted:
+        out += ["    return [", f"        {topic_expr},", "        _msg.dumps("]
+        out.append("            {")
+        for f in always:
+            out.append(f"                {_pystr(f.name)}: {_coerce_arg(f)},")
+        out += ["            }", "        ),", "    ]"]
+        return out
+
+    out.append("    payload: dict[str, Any] = {")
+    for f in always:
+        out.append(f"        {_pystr(f.name)}: {_coerce_arg(f)},")
+    out.append("    }")
+    for f in omitted:
+        out.append(f"    if {f.name} is not None:")
+        out.append(f"        payload[{_pystr(f.name)}] = {_COERCE[f.type]}({f.name})")
+    out += [
+        "    return [",
+        f"        {topic_expr},",
+        "        _msg.dumps(payload),",
+        "    ]",
+    ]
     return out
 
 
@@ -805,6 +909,47 @@ def _absent_placeholder(f: Field) -> str:
     return '""'
 
 
+def _parse_body(message: Message, cls: str) -> list[str]:
+    """Body of ``parse_*``: decode, recover topic parameters, build, validate.
+
+    A topic parameter is carried by the topic rather than the payload, so it
+    has to be read back out of the topic — otherwise ``parse_order_ack`` would
+    return a message whose ``gateway_id`` is empty, which is exactly the sort
+    of quietly-wrong value this generator exists to prevent.
+    """
+    params = message.topic_params
+    if not params:
+        # Underscore-prefixed: with no topic parameters the topic is not read,
+        # and pyright's reportUnusedVariable is right to say so.
+        return [
+            "    _topic, payload = _msg.decode(frames)",
+            f"    obj = {cls}.from_dict(payload)",
+            "    obj.validate()",
+            "    return obj",
+        ]
+
+    out = ["    topic, payload = _msg.decode(frames)"]
+    const = _const_name(message)
+    out.append(f"    matched = match_{message.name}(topic)")
+    out.append("    if matched is None:")
+    out.extend(
+        _call(
+            "        ",
+            "raise MessageValidationError",
+            f'f"topic {{topic!r}} is not {{TOPIC_{const}!r}}"',
+        )
+    )
+    if len(params) == 1:
+        out.append(f"    payload = {{**payload, {_pystr(params[0])}: matched}}")
+    else:
+        out.append("    payload = {**payload, **matched}")
+    return out + [
+        f"    obj = {cls}.from_dict(payload)",
+        "    obj.validate()",
+        "    return obj",
+    ]
+
+
 def _function_blocks(message: Message) -> list[list[str]]:
     """Every module-level function for one message, as separate blocks.
 
@@ -904,12 +1049,7 @@ def _function_blocks(message: Message) -> list[list[str]]:
                 "without validating.",
             ],
         )
-        + [
-            "    _topic, payload = _msg.decode(frames)",
-            f"    obj = {cls}.from_dict(payload)",
-            "    obj.validate()",
-            "    return obj",
-        ]
+        + _parse_body(message, cls)
     )
 
     blocks.append(
@@ -1019,6 +1159,14 @@ def render_family(family: Family, spec_path: str) -> str:
     # legitimately empty (design section B.6).
     topics = [f"TOPIC_{_const_name(m)}" for m in messages if m.topic is not None]
     literal = _tuple_literal(topics) if topics else "()"
-    blocks.append([f"FAMILY_TOPICS: tuple[str, ...] = {literal}"])
+    single = f"FAMILY_TOPICS: tuple[str, ...] = {literal}"
+    if len(single) <= LINE_LENGTH:
+        blocks.append([single])
+    else:
+        blocks.append(
+            ["FAMILY_TOPICS: tuple[str, ...] = ("]
+            + [f"    {name}," for name in topics]
+            + [")"]
+        )
 
     return "\n\n\n".join("\n".join(b) for b in blocks) + "\n"

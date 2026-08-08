@@ -17,6 +17,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, cast
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 # ---------------------------------------------------------------------------
 # Line format
@@ -323,7 +324,7 @@ def _summarise(entry: AuditEntry) -> str:
     """Return a short human-readable summary of an audit entry."""
     p = entry.payload
     t = entry.topic
-    if t == "trade.executed":
+    if t == TOPIC_TRADE_EXECUTED:
         return f"{p.get('symbol', '')} {p.get('quantity', '')}@{p.get('price', '')}"
     if t.startswith("order.fill"):
         fq = p.get("filled_qty", p.get("quantity", ""))
@@ -417,7 +418,7 @@ def query_trades(
 
     for entry in iter_entries(
         log_files,
-        topic_prefix="trade.executed",
+        topic_prefix=TOPIC_TRADE_EXECUTED,
         symbol=symbol,
         from_dt=from_dt,
         to_dt=to_dt,
@@ -556,7 +557,7 @@ def query_gateways(
                 orders[gw] = orders.get(gw, 0) + 1
             elif entry.topic.startswith("order.fill"):
                 fills[gw] = fills.get(gw, 0) + 1
-            elif entry.topic == "trade.executed":
+            elif entry.topic == TOPIC_TRADE_EXECUTED:
                 trades[gw] = trades.get(gw, 0) + 1
 
     rows = [

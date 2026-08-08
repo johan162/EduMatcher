@@ -23,6 +23,7 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
 )
 from edumatcher.mm_bot.pricer import QuotePricer
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 log = logging.getLogger(__name__)
 
@@ -182,7 +183,7 @@ class MMBot:
             f"system.quote_bootstrap.{self.gateway_id}",
             f"system.quote_legs.{self.gateway_id}",
             f"book.{self.symbol}",
-            "trade.executed",
+            TOPIC_TRADE_EXECUTED,
             f"order.fill.{self.gateway_id}",
             f"order.cancelled.{self.gateway_id}",
             f"quote.ack.{self.gateway_id}",
@@ -328,7 +329,7 @@ class MMBot:
             self._session_state = str(payload.get("state", "")).upper()
         elif topic == f"book.{self.symbol}":
             self._handle_book(payload)
-        elif topic == "trade.executed":
+        elif topic == TOPIC_TRADE_EXECUTED:
             self._handle_trade(payload)
 
     def _try_adopt_from_bootstrap(self, boot_payload: dict[str, Any] | None) -> bool:
@@ -632,7 +633,7 @@ class MMBot:
                 self._debug("drift detected — repricing")
                 self._set_state(BotState.REPRICING)
                 self._cancel_and_reissue()
-        elif topic == "trade.executed":
+        elif topic == TOPIC_TRADE_EXECUTED:
             self._handle_trade(payload)
         elif topic == f"quote.ack.{self.gateway_id}":
             self._handle_quote_ack(payload)

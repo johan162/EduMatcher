@@ -42,6 +42,7 @@ from edumatcher.log_srv.config import (
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 console = Console()
 log = logging.getLogger(__name__)
@@ -186,7 +187,7 @@ def main() -> None:
         debug_last_summary = now
 
     # Subscribe to all book snapshots and trade feed
-    sub = make_subscriber(ENGINE_PUB_ADDR, "book.", "trade.executed")
+    sub = make_subscriber(ENGINE_PUB_ADDR, "book.", TOPIC_TRADE_EXECUTED)
 
     # symbol → aggregated data
     symbols: dict[str, dict[str, Any]] = {}
@@ -251,7 +252,7 @@ def main() -> None:
                         ):
                             entry["first_price"] = entry["last_price"]
 
-                    elif topic_str == "trade.executed":
+                    elif topic_str == TOPIC_TRADE_EXECUTED:
                         _dbg_count("incoming_trade")
                         trade_sym: str | None = payload.get("symbol")
                         if trade_sym:

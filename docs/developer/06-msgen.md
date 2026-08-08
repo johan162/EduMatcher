@@ -13,21 +13,24 @@
     - What `pm-msgen check` guarantees, and why generation must be
       byte-for-byte deterministic for that guarantee to be worth anything
 
-!!! info "Current status: Phase 4b"
-    For the **`trade`** family the generator emits the **Python** binding *and*
-    the **C** binding for its CALF projection. Both are live: `make_trade_msg`,
-    `engine/main.py::_publish_trade`, `pm-stats` and
-    `md_gateway/normaliser.py` use the Python side, and
-    `docs/examples/calf/calf_subscriber.c` parses trade prints with the
-    generated C struct. The drift check runs in CI and `make check`. A compiled
-    round-trip test proves the two languages agree on the wire.
+!!! info "Current status: Phase 5.1a"
+    **Two families are specified.** `trade.executed` has a Python binding and a
+    C binding for its CALF projection; `order` has the five engine→gateway
+    events (`ack`, `fill`, `cancelled`, `expired`, `amended`) plus the BALF
+    `execution_report` frame in Python and C.
 
-    **BALF binary frames** are generated too, for `order.execution_report`:
-    Python `serialise`/`parse` and a C struct + frame parser, proven
-    byte-identical to `balf_gwy/codec.py`.
+    All of it is live. `models/message.py`'s builders delegate to the generated
+    code, `engine/main.py::_publish_trade` publishes through it,
+    `md_gateway/normaliser.py` projects through it, and the CALF and BALF
+    example clients parse with the generated structs. **No topic of either
+    family appears as a string literal anywhere in `src/`** — `pm-msgen
+    grep-literals` reports zero, and a test keeps it that way.
 
-    Not built yet, and marked as such below: the remaining families (Phase 5)
-    and the documentation appendix (Phase 6). The full plan lives in
+    The drift check runs in CI and `make check`; compiled round-trip tests prove
+    Python and C agree on both the text and binary wires.
+
+    Not built yet: the rest of the `order` family (5.1b/c), the other families
+    (5.2+), and the documentation appendix (Phase 6). The full plan lives in
     `docs-design/EduMatcher-Message-Generator.md`.
 
 ## The problem
@@ -70,6 +73,10 @@ matches the spec.
 poetry run pm-msgen lint       # validate the spec only
 poetry run pm-msgen generate   # write the generated files
 poetry run pm-msgen check      # fail if committed output differs from the spec
+```
+
+```bash
+poetry run pm-msgen grep-literals   # which topics are still hard-coded
 ```
 
 Or through the Makefile, which is what `make check` and CI use:
@@ -142,8 +149,10 @@ topic constant.
 |---|---|
 | `name` | snake_case identifier, unique within the message |
 | `type` | `string`, `int`, `float`, `bool`, `enum`, `ticks` |
-| `required` | default `true`. A `required: false` field **must** declare a `default` |
+| `required` | default `true`. A `required: false` field **must** say which presence regime it means — see below |
 | `default` | what a *producer* gets when it omits the field. Must be a legal value |
+| `nullable` | the value may be `None`; the key is still always emitted, as `null` |
+| `omit_when_none` | implies `nullable`, and **omits the key entirely** when the value is `None` |
 | `parse_default` | what `from_dict` substitutes when the key is missing from an *inbound* payload. Need not be legal — see [Coercion vs validation](#coercion-and-validation-are-different-jobs) |
 | `unit` | required on every numeric field. One of `display_price`, `ticks`, `shares`, `epoch_seconds`, `epoch_nanos`, `percent`, `dimensionless`, `money` |
 | `doc` | prose for the generated documentation and the `describe_*()` table |
@@ -161,6 +170,45 @@ topic constant.
     A silently-ignored `requird: true` would disable a field with no error,
     which is precisely the class of bug the generator exists to kill. Tolerating
     it here would defeat the whole tool.
+
+### Presence: three regimes, stated explicitly
+
+An optional field is one of three things on the wire, and the loader will not
+guess which:
+
+```yaml
+      # always present, "" when the producer omits it
+      - { name: reason, type: string, required: false, default: "" }
+
+      # always present, null when unset
+      - { name: price, type: float, required: false, nullable: true,
+          unit: display_price }
+
+      # absent entirely when unset
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+```
+
+```python
+>>> _topic, payload = decode(make_cancelled_msg("GW1", "O1"))
+>>> payload
+{'order_id': 'O1'}                       # no client_tag key at all
+```
+
+!!! tip "Why omission is modelled rather than replaced by `null`"
+    `models/message.py` states the reason: *"an ordinary single order carries
+    none of these, and its events should not grow four empty fields to say
+    so."* Emitting `null` would have been simpler grammar and a worse wire.
+
+    One flag is enough because **absence and `null` are indistinguishable to
+    every reader here** — verified, not assumed: the engine's amend handler
+    does `payload.get("price")` and tests `is None`, never `in payload`. A
+    protocol where presence itself carried meaning would need a third state,
+    and this one does not.
+
+`validate()` rules apply only when a nullable field is set — `None` means "not
+set", not "set to something invalid", so a `max_len` on an absent `client_tag`
+does not fire.
 
 ### Why `unit` is mandatory on numbers
 
@@ -745,6 +793,30 @@ against a reversion to the 4× shape. Its threshold is deliberately loose — 3�
 against a measured 1.5× — because it is a guard, not a benchmark, and CI timing
 is noisy.
 
+!!! question "Could the generated code be as fast as the hand-written literal?"
+    **No, and the reason is structural rather than a shortcoming of the
+    emitter.** §14 of the design decomposes it; the short version:
+
+    - **~53 % of the original call was already `orjson`** — 0.51 µs of 0.96.
+      That half is untouched either way.
+    - **+0.165 µs is the cost of having a function at all**: a frame push and
+      eleven keyword bindings, versus a literal the compiler inlines at the call
+      site. A shared definition is a call; a copied one is not. This is the
+      floor for any generated builder.
+    - **+0.393 µs is coercion**, and it is *call overhead* (~36 ns × 11), not
+      conversion work — `str()` on a `str` returns the argument unchanged.
+
+    One real optimisation remains: coercing only the numeric fields halves the
+    overhead to +0.27 µs, because a type checker already rejects `int`-where-`str`
+    and `float`-where-`int`; it cannot reject `int`-where-`float` or
+    `bool`-where-`int`. It is not applied because it weakens `_unchecked`'s
+    "byte-identical for any input" promise to "for input a type checker has
+    seen" — `make_*_unchecked(**payload_dict)` defeats it. §14.3 has the full
+    trade-off.
+
+    Also measured and worth knowing: replacing the coercion call with a
+    `price.__class__ is float` test is **slower**, not faster.
+
 ## What adoption looks like
 
 Phase 2 wired the `trade` family in. Three changes, each a different kind:
@@ -954,6 +1026,45 @@ message reads `{_TRADE_EXECUTED_ID_RE.pattern!r}` rather than embedding the
 pattern text, because a spec pattern may contain quotes or braces — either of
 which would break the f-string that carried it.
 
+## Migrating a family's topic literals
+
+§1.2 of the design counted **108 topic string literals across 25 files**. Each
+one is a place where a publisher-side rename goes unnoticed: the subscriber
+keeps compiling, keeps running, and simply stops receiving. Nothing errors.
+
+`pm-msgen grep-literals` measures the remaining ones, per family:
+
+```
+$ poetry run pm-msgen grep-literals
+trade: 26 literal(s) in 14 module(s)
+    src/edumatcher/ai_trader/main.py:113: "trade.executed",
+    src/edumatcher/ai_trader/main.py:273: if topic == "trade.executed":
+    ...
+26 literal(s) remaining across 14 module(s)
+```
+
+Migrating them is mechanical — the literal becomes the generated constant:
+
+```python
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+
+sub = make_subscriber(ENGINE_PUB_ADDR, TOPIC_TRADE_EXECUTED, "book.")
+...
+if topic == TOPIC_TRADE_EXECUTED:
+```
+
+**A family is migrated when its count reaches zero**, and
+`tests/test_msgen_literals.py` is what keeps it there: add the family to that
+file's `MIGRATED` tuple and a reintroduced literal fails the suite rather than
+merging quietly. `trade` and `order` are at zero today.
+
+!!! tip "Why the constant and not just a shared string"
+    Both give you one definition. Only the generated constant is *checked
+    against the spec* — rename the topic in `trade.yaml`, regenerate, and every
+    subscriber picks it up; forget to regenerate and `pm-msgen check` fails the
+    build. A hand-written `TRADE_TOPIC = "trade.executed"` in some constants
+    module would drift from the spec exactly like the literals did.
+
 ## Adding a family
 
 1. Write `spec/messages/<family>.yaml`. Run `pm-msgen lint` until it passes.
@@ -994,6 +1105,8 @@ the divergence so it cannot be quietly forgotten.
 | `tests/test_msgen_calf_roundtrip.py` | compiled C vs Python over the CALF wire (skips without `cc`) |
 | `tests/test_msgen_calf_adoption.py` | what `normalise_trade` adoption changed, and what it did not |
 | `tests/test_msgen_balf_roundtrip.py` | binary frames: byte-identity with `codec.py`, compiled C round-trip, and the example-parser frame-size guard |
+| `tests/test_msgen_literals.py` | the Phase 5 acceptance gate: a migrated family's topics appear nowhere as literals |
+| `tests/test_msgen_order_events.py` | the five order events, the three presence regimes, and the one accepted wire change |
 
 Two tests in the wire-compat file are worth knowing about because they will
 fail if you change the wrong thing:
@@ -1040,7 +1153,10 @@ What it does not, and will not:
 | 3 | `pm-msgen check` in `make _check` and `ci.yml` | **done** |
 | 4a | CALF text projection: Python + C, adopted, compiled round-trip | **done** |
 | 4b | BALF binary layout; `order.yaml` with `execution_report` | **done** |
-| 5 | Remaining families, one per change | not started |
+| 5.0 | `pm-msgen grep-literals`; `trade` literals to zero | **done** |
+| 5.1a | the five engine→gateway `order.*` events | **done** |
+| 5.1b/c | inbound order commands; combo and OCO | not started |
+| 5.2+ | `book`/`depth`, `session`, `risk`, `index`, `log` | not started |
 | 6 | Generated `271-message-appendix.md` | not started |
 
 !!! success "The guarantee is live"

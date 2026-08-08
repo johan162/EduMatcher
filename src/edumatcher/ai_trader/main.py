@@ -34,6 +34,7 @@ from edumatcher.models.message import (
     make_order_new_msg,
     make_symbols_request_msg,
 )
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-ai-trader"
@@ -110,7 +111,7 @@ class AITraderBot:
             f"order.cancelled.{self.gateway_id}",
             f"order.expired.{self.gateway_id}",
             "book.",
-            "trade.executed",
+            TOPIC_TRADE_EXECUTED,
         )
 
     def _log(self, text: str) -> None:
@@ -270,7 +271,7 @@ class AITraderBot:
             self._on_book(topic.split(".", 1)[1].upper(), payload)
             return
 
-        if topic == "trade.executed":
+        if topic == TOPIC_TRADE_EXECUTED:
             self._on_trade(payload)
             return
 

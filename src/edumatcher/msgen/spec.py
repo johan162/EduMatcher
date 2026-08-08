@@ -134,6 +134,14 @@ class Field:
     parse_default: Any = None
     unit: str | None = None
     doc: str = ""
+    #: The value may be ``None``. Affects the Python annotation only; the key
+    #: is still always emitted (design section B.7.2).
+    nullable: bool = False
+    #: Implies ``nullable``. ``to_dict`` **omits the key entirely** when the
+    #: value is None, rather than emitting ``null``. Use where absence and null
+    #: mean the same thing to every reader, which in this system is everywhere
+    #: (design section B.7.2).
+    omit_when_none: bool = False
     values: tuple[str, ...] | None = None
     item: str | None = None
     validate: Validate = field(default_factory=Validate)
@@ -398,13 +406,28 @@ def _load_field(raw: Any, what: str) -> Field:
     if block.get("deprecated_since") and not block.get("doc"):
         raise SpecError(f"{where}: a deprecated field requires a non-empty 'doc'")
 
-    # An optional field with no default would have to generate as `X | None`,
-    # and every rule in validate() would then need a None guard. No Phase 1
-    # spec needs that, so require the default rather than generate the
-    # Optional machinery speculatively.
-    if not block.get("required", True) and "default" not in block:
+    # `required: false` must say which of the two it means, because they are
+    # different on the wire: a default is always emitted, an omitted field is
+    # not. Leaving it implicit is how a spec ends up saying something its
+    # author did not intend (design section B.7.2).
+    nullable = bool(block.get("nullable", False))
+    omit = bool(block.get("omit_when_none", False))
+    if omit and not nullable:
         raise SpecError(
-            f"{where}: a field with 'required: false' must declare a 'default'"
+            f"{where}: 'omit_when_none' requires 'nullable: true' - a field that "
+            "cannot be None can never be omitted"
+        )
+    if not block.get("required", True) and "default" not in block and not nullable:
+        raise SpecError(
+            f"{where}: a field with 'required: false' must say what happens when "
+            "it is unset - 'default: X' (always emitted as X), 'nullable: true' "
+            "(always emitted as null), or 'nullable: true, omit_when_none: true' "
+            "(absent). The three differ on the wire"
+        )
+    if omit and block.get("required", True):
+        raise SpecError(
+            f"{where}: 'omit_when_none' means the field may be absent, so it "
+            "must also declare 'required: false'"
         )
 
     return Field(
@@ -415,6 +438,8 @@ def _load_field(raw: Any, what: str) -> Field:
         parse_default=block.get("parse_default"),
         unit=unit,
         doc=block.get("doc", ""),
+        nullable=nullable or omit,
+        omit_when_none=omit,
         values=tuple(values) if values else None,
         item=block.get("item"),
         validate=_load_validate(block.get("validate"), where),
@@ -887,7 +912,15 @@ def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Mess
     for enc in encoding.values():
         if enc.include is None:
             continue
-        missing = [f.name for f in fields if f.required and f.name not in enc.include]
+        # A topic parameter is carried BY the topic, so excluding it from the
+        # payload loses nothing - `order.ack.{gateway_id}` already names the
+        # gateway. Requiring it in both would force every ack to repeat it.
+        params = set(_topic_params(topic)) if topic else set()
+        missing = [
+            f.name
+            for f in fields
+            if f.required and f.name not in enc.include and f.name not in params
+        ]
         if missing:
             raise SpecError(
                 f"{where}.encoding.{enc.transport}: required field(s) {missing} "

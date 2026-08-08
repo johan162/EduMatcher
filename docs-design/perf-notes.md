@@ -48,19 +48,26 @@ the target is ≥1% of wall time (review finding P6).
     - The alternative was leaving the field list hand-written, which is what
       let `book.{SYMBOL}` gain `tick_decimals` in three surfaces and the C
       clients in none.
-    - The **coercion** in the generated builder accounts for ~0.34 µs of the
-      0.6. It is kept because dropping it makes
+    - The **coercion** in the generated builder accounts for ~0.39 µs of the
+      0.55. It is kept because dropping it makes
       `make_trade_executed_unchecked(price=100)` put an int on the wire where
       `make_trade_executed` puts a float, and mypy does not catch that — `int`
       is promotable to `float`. A silent wire divergence between two functions
-      documented as identical is worth more than 0.34 µs.
+      documented as identical is worth more than 0.39 µs.
     - The `_unchecked` variant exists precisely so this path skips validation;
       the validating `make_trade_executed` measures ~4.8 µs and is used
       everywhere else.
+    - **Half the original call was already `orjson`** — 0.51 µs of the 0.96.
+      The generated form's irreducible floor is ~1.13 µs, because a shared
+      definition is a function call and a copied definition is not.
     - Do not "optimise" this back into a literal without reading
-      `docs-design/EduMatcher-Message-Generator.md` §8.2. `tests/
-      test_msgen_trade_perf.py` (marker `perf`) guards against a reversion to
-      the 4× shape.
+      `docs-design/EduMatcher-Message-Generator.md` **§14**, which decomposes
+      the cost and evaluates every remaining optimisation. Two results worth
+      knowing before trying: a `__class__` type test instead of a coercion call
+      is **slower**, and coercing only the numeric fields would halve the
+      overhead to +0.27 µs but weakens `_unchecked`'s byte-identity guarantee to
+      typed call sites only. `tests/test_msgen_trade_perf.py` (marker `perf`)
+      guards against a reversion to the 4× shape.
 
 - **Pre-built `frozenset` for the fill-status check** avoids allocating a
   temporary tuple on every iteration of the events loop.

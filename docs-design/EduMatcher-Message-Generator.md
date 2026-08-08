@@ -1,6 +1,26 @@
-Version: 1.9.0
+Version: 1.10.0
 
 Date: 2026-08-08
+
+Changes in 1.10.0 — Phase 5.0 and 5.1a.
+
+- **`pm-msgen grep-literals`** (§7.4) built; `trade`'s 26 topic literals across
+  14 subscribers driven to **zero**, closing §1.2 for that family.
+- **Two new field keys, `nullable` and `omit_when_none`** (§B.7.0). The
+  `order.*` events omit keys rather than defaulting them, and the IDL could not
+  say so. Verified before adding: absence and `null` are indistinguishable to
+  every consumer in this system, so one flag suffices and no tri-state is
+  needed.
+- **§B.18 rule 5 refined**: a topic parameter need not appear in the bus
+  payload. `order.ack.{gateway_id}` names the gateway in the topic, and the
+  hand-written builder never repeated it in the body.
+- **`parse_*` now recovers topic parameters from the topic.** Without it,
+  `parse_order_ack` returned a message with an empty `gateway_id` — found by a
+  test written for 5.1a.
+- **One accepted wire change**: a MARKET order's `order.ack`/`order.fill` no
+  longer carries `"price": null`. Semantically invisible; see §B.7.0.
+- **§14 added**: a full decomposition of the engine latency the generator adds,
+  what is irreducible, and which optimisations remain.
 
 Changes in 1.9.0 — Phase 4b (BALF binary) is implemented, and it began by
 finding a live defect that this design had propagated:
@@ -1590,7 +1610,7 @@ and 2 shipped and updated for Phase 3; update it after each subsequent phase.
 | §1 finding | Then | Now |
 |---|---|---|
 | 1.1 Payload shape typed for 7 of 92 messages | 7 typed by hand | 1 of those 7 now *generated* from a declared spec with units and constraints; the other 6 unchanged |
-| 1.2 Topic names duplicated as literals in subscribers | `"trade.executed"` in 17 modules | **14 modules, 26 occurrences** — Phase 2 removed 3 modules (`engine/main.py`, `stats/main.py`, `models/message.py`) |
+| 1.2 Topic names duplicated as literals in subscribers | `"trade.executed"` in 17 modules | **zero.** Phase 2 removed 3 (`engine/main.py`, `stats/main.py`, `models/message.py`); Phase 5 removed the remaining 26 across 14 subscribers. `pm-msgen grep-literals` reports `trade: 0 literals - migrated`, and `tests/test_msgen_literals.py` fails the suite if one returns. |
 | 1.3 Documentation drifts in both directions | unchanged | unchanged — Phase 6 |
 | 1.4 The C surface has no message types | a generic `calf_field_t` bag; every client re-derives field names as literals | **Two messages now have typed C structs** — `trade.executed`'s CALF projection and `execution_report`'s BALF frame — with real enums, parsers, validators and a shared `strerror`. `calf_subscriber.c` and `balf_parser.c` use them. The bag remains for every other message. |
 | — (found in 4b) | `docs/examples/balf` disagreed with the gateway on **6 of 12 frame sizes**, undetected | corrected, and guarded by a test comparing the examples' table against `codec.py` |
@@ -1785,6 +1805,145 @@ territory.
 Every one of the four was caught by executing something — a grep for callers, a
 timing loop, reading a handler's error paths, running `make`. None would have
 been caught by review.
+
+## 14. Engine latency: where the added microsecond goes
+
+Phase 2 replaced the dict literal in `engine/main.py::_publish_trade` with a
+generated constructor, and that made the engine's trade-publication path
+measurably slower. This section answers three questions properly, because a
+trading engine is the wrong place to wave a hand: **how much**, **why**, and
+**how much of it could be recovered.**
+
+All figures below are `min` of 7 repeats × 400 000 iterations, CPython with
+`orjson`, one machine. Absolute values will differ elsewhere; the *ratios* and
+the *decomposition* are the point.
+
+### 14.1 The measurement
+
+| Construction | µs/call | vs. hand-written | of which orjson |
+|---|---|---|---|
+| `orjson.dumps` of an already-built dict | 0.511 | −0.444 | 100 % |
+| hand-written inline dict literal (pre-Phase-2) | 0.955 | — | 53 % |
+| generated, no coercion | 1.133 | **+0.178** | 45 % |
+| generated, numeric coercion only | 1.225 | **+0.270** | 42 % |
+| **generated, full coercion (ships today)** | **1.507** | **+0.551** | 34 % |
+
+Decomposed, the +0.551 µs is:
+
+| Component | Cost | Recoverable? |
+|---|---|---|
+| Call shape: keyword parameters + a dict built in a callee, versus a literal inlined at the call site | +0.165 µs | **No** — not while the builder is a function |
+| Coercion: eleven `str()`/`int()`/`float()` calls | +0.393 µs | **Partly** — see §14.3 |
+
+### 14.2 What is irreducible, and why
+
+**Roughly half of the *original* call was never ours.** `orjson.dumps` alone is
+0.511 µs of the hand-written 0.955. Whatever the generator does, that half
+stands. Framing the change as "+58 % slower" is arithmetically true and
+misleading; the honest framing is that a fixed 0.51 µs of serialisation now
+carries 0.72 µs of Python around it instead of 0.44 µs.
+
+**The +0.165 µs call-shape cost is structural.** A dict literal written inline
+compiles to `BUILD_MAP` over constants already on the stack in the caller's
+frame. Routing the same values through a function costs a frame push, keyword
+binding for eleven parameters, and the return — and buys the thing the whole
+design exists for: the field list lives in one place. There is no way to have a
+generated *function* and not pay for the function. The only constructions that
+avoid it are ones that put the literal back at the call site, which is precisely
+what was removed.
+
+So: **no, the generated code cannot be made as fast as the hand-written literal**,
+and the reason is not inefficiency in what was generated. It is that a shared
+definition is a call and a copied definition is not. The floor for any generated
+builder here is ~1.13 µs against 0.96.
+
+### 14.3 What could still be recovered — and what it would cost
+
+Coercion is the +0.393 µs, and the surprise is that it is almost entirely
+**call overhead, not conversion work**: ~36 ns × 11 fields. `str()` on a `str`
+and `float()` on a `float` return the argument unchanged; CPython still pays for
+the call.
+
+Three things were measured, one of which is counter-intuitive:
+
+**(a) Binding `dumps` and the builtins to locals: ~0.03 µs.** Replacing
+`_msg.dumps(...)` with a name bound at import removes one attribute lookup per
+call, and binding `str`/`int`/`float` to module globals or default arguments
+removes a builtins-dict lookup each. Measured saving is at the edge of noise
+(0.028 µs) and the default-argument variant was *slower*. **Not worth the
+readability cost of a generated file full of `_s(...)`, `_i(...)`.**
+
+**(b) A type test instead of a call is slower.** The natural idea —
+`price if price.__class__ is float else float(price)` — measured **1.370 µs
+against 1.507**, saving less than skipping coercion entirely, and it is *worse*
+than the numeric-only option below while being much harder to read. `LOAD_ATTR
+__class__` plus `IS_OP` plus a branch is not cheaper than a builtin call in
+modern CPython. Recorded because it looks like an obvious win and is not.
+
+**(c) Coercing only the numeric fields: +0.270 µs instead of +0.551 — a real
+halving.** This is the one genuine optimisation available, and it rests on a
+precise observation about what a type checker can and cannot catch:
+
+| Declared | A caller could wrongly pass | Does mypy reject it? |
+|---|---|---|
+| `str` (string, enum) | `42` | **Yes** — `int` is not `str` |
+| `int` / `ticks` | `1.5` | **Yes** — `float` is not `int` |
+| `int` / `ticks` | `True` | **No** — `bool` subclasses `int`; would serialise as `true` |
+| `float` | `100` | **No** — the numeric tower promotes `int` to `float`; would serialise as `100` |
+
+`make_*_unchecked` takes explicit keyword-only typed parameters, so a static
+checker already guards the rows it can. Only the two rows it *cannot* guard need
+a runtime call. For `trade` that is four fields instead of eleven, and the
+measured overhead falls from +0.551 to +0.270 µs — a 51 % reduction — while
+still fixing `price=100` → `100.0` and `quantity=True` → `1`.
+
+**Why it is not applied.** One caller shape defeats it:
+`make_*_unchecked(**payload)` where `payload` is a `dict[str, Any]`. A type
+checker gives up on `**`-unpacking, so a string field would go out as a JSON
+*number* rather than a string — a silent change of wire *type*, which is worse
+than the value-formatting difference full coercion prevents. `_unchecked`
+currently promises frames byte-identical to `make_*` **for any input**; option
+(c) weakens that to "for input a type checker has seen".
+
+That is a defensible trade — 0.28 µs of engine latency against a guarantee that
+only holds at typed call sites — but it is a **deliberate change to a documented
+contract, not a micro-optimisation**, and it should be taken (if at all) with a
+measurement showing the trade path actually needs it. The engine currently calls
+with explicit keyword arguments, so it would be safe *today*; the risk is the
+next caller.
+
+### 14.4 If this ever needs to be free
+
+Two routes remove the cost entirely rather than shrinking it, and both are
+larger changes than the problem currently justifies:
+
+1. **Generate the call site, not just the callee.** If the spec also emitted the
+   publisher's inline dict literal — a generated fragment inlined into
+   `_publish_trade` — there would be no call and no coercion, and the field list
+   would still come from one place. It trades a clean function boundary for
+   generated code embedded in hand-written code, which is much harder to review
+   and to keep `pm-msgen check`-able.
+2. **Stop building a `dict` at all.** The payload is serialised immediately, so
+   a generated function could emit the JSON bytes directly with pre-encoded key
+   fragments and `bytes.join`, skipping both the dict and orjson. That could
+   plausibly beat the *hand-written* version, since it removes the 0.511 µs
+   floor — but it means owning a JSON serialiser, which §2's non-goals rule out
+   for good reason.
+
+Neither is recommended now. They are recorded so the question does not have to
+be re-derived: the answer to "can it be free?" is *yes, by generating past the
+function boundary or past orjson*, and both cost more in review surface than
+0.55 µs is worth on a path that publishes once per match.
+
+### 14.5 Guard
+
+`tests/test_msgen_trade_perf.py` (marker `perf`) bounds the generated
+constructor at 3× the hand-written literal — deliberately loose, because it is a
+guard against an order-of-magnitude regression rather than a benchmark, and CI
+timing is noisy. The shape it exists to catch is the one Phase 4b's review
+found: `make_*_unchecked` built on `from_dict`/dataclass/`to_dict` measured
+**4.03 µs**, over four times the literal, and that is what "unusable on a hot
+path" looks like.
 
 ## Appendix A — Phase 1 implementation starter
 
@@ -2113,6 +2272,17 @@ generated file, Phase 1 is done.
   the wrong example parsers corrected and guarded.
 - [ ] **Phase 5** one family per PR, each with its own wire-compat test;
   `grep-literals` count for the family driven to zero.
+  - [x] **5.0** `pm-msgen grep-literals` built (§7.4); `trade`'s 26 literals
+    across 14 subscribers driven to zero; `tests/test_msgen_literals.py` keeps
+    it there.
+  - [ ] **5.1** `order.*` — the largest and most duplicated family.
+    - [x] **5.1a** the five engine→gateway events (`ack`, `fill`, `cancelled`,
+      `expired`, `amended`): `nullable`/`omit_when_none` added, all five
+      specified and adopted in `models/message.py`, 30 prefix literals across
+      4 modules driven to zero.
+    - [ ] **5.1b** inbound commands (`order.new`, `order.cancel`, `order.amend`).
+    - [ ] **5.1c** combo and OCO topics.
+  - [ ] **5.2** `book` / `depth`, then `session`, `risk`, `index`, `log`.
 - [ ] **Phase 6** `271-message-appendix.md` generated and wired into
   `mkdocs.yml` nav.
 
@@ -2231,6 +2401,52 @@ messages: [ <message>, ... ]    # REQUIRED; non-empty
 | `validate` | OPTIONAL | validate-map (§B.12) | `{}` | |
 | `deprecated_since` | OPTIONAL | version-str | — | see §B.17 |
 | `removed_after` | OPTIONAL | version-str | — | generator refuses to delete the field before this family version |
+
+#### B.7.0 Presence: the three regimes (normative)
+
+A field is one of three things on the wire, and `required: false` alone does
+not say which. The spec must:
+
+| Declaration | Wire | Python |
+|---|---|---|
+| `required: true` | always present | `T` |
+| `required: false` + `default: X` | always present, `X` when unset | `T = X` |
+| `required: false` + `nullable: true` | always present, `null` when unset | `T \| None = None` |
+| `required: false` + `nullable: true` + `omit_when_none: true` | **absent** when unset | `T \| None = None` |
+
+`omit_when_none` implies `nullable`; declaring it without is a lint error, as
+is `required: false` that states none of the three — the loader refuses to
+guess, because the three differ on the wire and a silent choice is how a spec
+comes to say something its author did not mean.
+
+**Why `omit_when_none` exists rather than "just emit null".** It was added in
+1.10.0 for the `order.*` events, which omit keys deliberately. The alternative
+was to emit `null` and accept a wire change; that was rejected because
+`models/message.py` documents the omission as a decision:
+
+> *Absent keys are omitted rather than emitted as `null`: an ordinary single
+> order carries none of these, and its events should not grow four empty
+> fields to say so.*
+
+**Why one flag is enough — the thing worth checking before adding more.**
+Absence and `null` are indistinguishable to every reader in this system, which
+was verified rather than assumed: `engine/main.py::_handle_amend` does
+`payload.get("price")` and then tests `is None`, never `in payload`;
+`Order.from_dict` uses `.get`; no consumer and no test distinguishes them.
+So the omission is a wire-size choice, not a semantic one, and nothing here
+needs the tri-state (`absent` ≠ `null` ≠ value) that a PATCH-style protocol
+would. Had any consumer tested presence, one flag would have been the wrong
+model and this table would need a fourth row.
+
+**The block regime that was deliberately not modelled.** `order.ack` and
+`order.fill` had a third shape: six enrichment fields present *together* or
+absent together, with `price: null` emitted for a MARKET order. Reproducing
+that exactly would have meant a `block`/`group` construct in the IDL, existing
+only to preserve bytes no consumer reads. Phase 5.1a instead applies
+`omit_when_none` uniformly and accepts one byte change — a MARKET order's ack
+and fill no longer carry `"price": null`. That is the same judgement as
+`aggressor_side` in Phase 1: do not ratify an accident by encoding it in the
+specification language.
 
 #### B.7.1 `default` vs `parse_default` (normative)
 

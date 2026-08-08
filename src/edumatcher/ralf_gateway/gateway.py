@@ -23,6 +23,7 @@ from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
 from edumatcher.ralf_gateway.config import RalfGatewayConfig
 from edumatcher.ralf_gateway.protocol import RalfFrame, build_line, iso_utc, parse_line
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 _ALLOWED_CHANNELS = frozenset({"CLEARING", "DROP_COPY", "AUDIT"})
 
@@ -82,7 +83,7 @@ class RalfGateway:
         self._server: socket.socket | None = None
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
-            "trade.executed",
+            TOPIC_TRADE_EXECUTED,
             "system.eod",
         )
         self._last_heartbeat = time.monotonic()
@@ -444,7 +445,7 @@ class RalfGateway:
             except Exception:
                 log.warning("decode error on engine SUB event", exc_info=True)
                 continue
-            if topic == "trade.executed":
+            if topic == TOPIC_TRADE_EXECUTED:
                 self._handle_trade(payload)
             elif topic == "system.eod":
                 self._handle_eod(payload)

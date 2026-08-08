@@ -124,6 +124,7 @@ from .display import (
     print_status,
     print_symbols_table,
 )
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-alf-console"
@@ -277,7 +278,7 @@ class Gateway:
             f"system.quote_bootstrap.{self.gateway_id}",
             f"system.session_status.{self.gateway_id}",
             f"system.gateway_auth.{self.gateway_id}",
-            "trade.executed",
+            TOPIC_TRADE_EXECUTED,
         )
         self._index_sub_sock = make_subscriber(
             INDEX_PUB_CONNECT_ADDR,
@@ -858,7 +859,7 @@ class Gateway:
                     f"[{ts}] [red]KILL REJ[/red]  {payload.get('reason', '')}"
                 )
 
-        elif "trade.executed" in topic:
+        elif TOPIC_TRADE_EXECUTED in topic:
             # Track last price per symbol for unrealized P&L
             symbol = payload.get("symbol")
             price = payload.get("price")
