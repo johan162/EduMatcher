@@ -57,6 +57,7 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
     make_volume_request_msg,
 )
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 
 # Topics this client ever needs to receive from the engine PUB socket.
 # Extend this list when adding new commands that carry acks.
@@ -70,7 +71,7 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     "risk.kill_switch_ack.",
     "quote.ack.",
     "book.",
-    "session.state",
+    TOPIC_SESSION_STATE,
     "system.symbols.",
     "order.orders.",
     "system.quote_bootstrap.",
@@ -555,7 +556,7 @@ class ExchangeCommandClient:
         Check ``result["state"]`` to verify the transition was accepted.
         """
         self._send(make_session_transition_msg(to_state.upper()))
-        return self._recv("session.state")
+        return self._recv(TOPIC_SESSION_STATE)
 
     def session_status(self) -> dict[str, Any]:
         """

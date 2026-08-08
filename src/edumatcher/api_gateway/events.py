@@ -13,6 +13,7 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
 )
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 
 ORDER_ACK_PREFIX = PREFIX_ORDER_ACK
 ORDER_FILL_PREFIX = PREFIX_ORDER_FILL
@@ -91,7 +92,7 @@ def websocket_type(topic: str) -> str:
         return "book"
     if topic.startswith("depth."):
         return "depth"
-    if topic == "session.state":
+    if topic == TOPIC_SESSION_STATE:
         return "session"
     if topic.startswith("circuit_breaker."):
         return "circuit_breaker"

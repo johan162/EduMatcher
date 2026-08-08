@@ -370,7 +370,7 @@ def _base_annotation(message: Message, f: Field) -> str:
     return _alias_name(message, f) if _uses_literal(f) else "str"
 
 
-def _to_dict_value(f: Field) -> str:
+def _to_dict_value(f: Field, *, guarded: bool = False) -> str:
     """The ``to_dict`` expression for one field.
 
     A nested field holds a generated dataclass, so the payload wants its
@@ -380,7 +380,7 @@ def _to_dict_value(f: Field) -> str:
         return f"[item.to_dict() for item in self.{f.name}]"
     if f.type != "nested":
         return f"self.{f.name}"
-    if f.nullable:
+    if f.nullable and not guarded:
         return f"None if self.{f.name} is None else self.{f.name}.to_dict()"
     return f"self.{f.name}.to_dict()"
 
@@ -482,6 +482,11 @@ def _read_expr(message: Message, f: Field, in_topic_only: bool = False) -> str:
         return _narrow(message, f, nullable_read)
     if f.has_parse_default:
         return _narrow(message, f, f"{coerce}(p.get({key}, {_pyval(f.parse_default)}))")
+    if f.omit_when_empty:
+        # Absent and "" are the same thing to this regime, so the read has no
+        # declared `default:` to fall back on — the empty string *is* the
+        # absence, and reading it back that way round-trips exactly.
+        return _narrow(message, f, f'{coerce}(p.get({key}, ""))')
     if not f.required:
         return _narrow(message, f, f"{coerce}(p.get({key}, {_pyval(f.default)}))")
     return _narrow(message, f, f"{coerce}(p[{key}])")
@@ -518,7 +523,7 @@ def _constant_block(message: Message) -> list[str]:
         prefix = message.topic[: message.topic.index("{")]
         regex = _topic_regex(message.topic, params)
         out.append(f"PREFIX_{const} = {_pystr(prefix)}")
-        out.append(f"_{const}_RE = re.compile({_pystr(regex)})")
+        out += _wrap("", f"_{const}_RE = re.compile({_pystr(regex)})")
     else:
         out.append(f"TOPIC_{const} = {_pystr(message.topic)}")
         # Pre-encoded once at import, matching the engine's own _TRADE_TOPIC
@@ -528,9 +533,10 @@ def _constant_block(message: Message) -> list[str]:
 
     for f in message.fields:
         if f.validate.pattern is not None:
-            out.append(
+            out += _wrap(
+                "",
                 f"{_pattern_const(message, f)} = "
-                f"re.compile({_pystr(f.validate.pattern)})"
+                f"re.compile({_pystr(f.validate.pattern)})",
             )
         if f.type == "enum":
             assert f.values is not None
@@ -608,8 +614,9 @@ def _field_checks(message: Message, f: Field, indent: str) -> list[str]:
         bounds.append(f"{indent}    item.validate()")
         return bounds
     if f.type == "nested":
-        if f.nullable:
-            return [f"{indent}if {me} is not None:", f"{indent}    {me}.validate()"]
+        # No ``is not None`` guard here: ``_validate_body`` already wraps a
+        # nullable field's checks in one, and emitting a second made pyright
+        # rightly report the inner condition as always true.
         return [f"{indent}{me}.validate()"]
     v = f.validate
     if True:  # keeps the original block indentation
@@ -690,7 +697,12 @@ def _class_block(message: Message) -> list[str]:
     for f in ordered:
         line = f"{f.name}: {_annotation(message, f)}"
         if not f.required:
-            line += " = None" if f.omit_when_none else f" = {_pyval(f.default)}"
+            if f.omit_when_none:
+                line += " = None"
+            elif f.omit_when_empty:
+                line += ' = ""'
+            else:
+                line += f" = {_pyval(f.default)}"
         wrapped = _wrap("    ", line)
         if f.unit:
             wrapped[-1] += f"  # unit: {f.unit}"
@@ -737,8 +749,8 @@ def _class_block(message: Message) -> list[str]:
         [],
     )
     fields = _payload_fields(message)
-    always = [f for f in fields if not f.omit_when_none]
-    omitted = [f for f in fields if f.omit_when_none]
+    always = [f for f in fields if not (f.omit_when_none or f.omit_when_empty)]
+    omitted = [f for f in fields if f.omit_when_none or f.omit_when_empty]
     if not omitted:
         out.append("        return {")
         out += [f"            {_pystr(f.name)}: {_to_dict_value(f)}," for f in always]
@@ -749,8 +761,12 @@ def _class_block(message: Message) -> list[str]:
     out += [f"            {_pystr(f.name)}: {_to_dict_value(f)}," for f in always]
     out.append("        }")
     for f in omitted:
-        out.append(f"        if self.{f.name} is not None:")
-        out.append(f"            payload[{_pystr(f.name)}] = self.{f.name}")
+        # An omit-when-empty field tests falsy; an omit-when-none field tests
+        # None. They are different regimes and 0 / "" are legal values of one.
+        test = "" if f.omit_when_empty else " is not None"
+        out.append(f"        if self.{f.name}{test}:")
+        value = _to_dict_value(f, guarded=True)
+        out += _wrap("            ", f"payload[{_pystr(f.name)}] = {value}")
     out.append("        return payload")
     return out
 
@@ -819,8 +835,8 @@ def _unchecked_block(message: Message) -> list[str]:
         ],
     )
     payload_fields = _payload_fields(message)
-    always = [f for f in payload_fields if not f.omit_when_none]
-    omitted = [f for f in payload_fields if f.omit_when_none]
+    always = [f for f in payload_fields if not (f.omit_when_none or f.omit_when_empty)]
+    omitted = [f for f in payload_fields if f.omit_when_none or f.omit_when_empty]
 
     if not omitted:
         out += ["    return [", f"        {topic_expr},", "        _msg.dumps("]
@@ -835,7 +851,8 @@ def _unchecked_block(message: Message) -> list[str]:
         out += _dict_entry("        ", _pystr(f.name), _coerce_arg(f))
     out.append("    }")
     for f in omitted:
-        out.append(f"    if {f.name} is not None:")
+        test = "" if f.omit_when_empty else " is not None"
+        out.append(f"    if {f.name}{test}:")
         out.append(f"        payload[{_pystr(f.name)}] = {_COERCE[f.type]}({f.name})")
     out += [
         "    return [",

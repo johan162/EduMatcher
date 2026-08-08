@@ -1159,7 +1159,8 @@ What it does not, and will not:
 | 5.1c | `order.combo_cancel` / `order.oco_cancel` | **done** |
 | 5.1d | IDL `nested` + `order.oco` | **done** |
 | 5.1e | IDL `list[T]` + `order.combo` | **done** — the `order` family is complete |
-| 5.2+ | `book`/`depth`, `session`, `risk`, `index`, `log` | not started |
+| 5.2a | IDL `omit_when_empty` + the `session` family | **done** |
+| 5.2b+ | `book`/`depth`, `risk`, `index`, `log` | not started |
 | 6 | Generated `271-message-appendix.md` | not started |
 
 !!! success "The guarantee is live"

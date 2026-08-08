@@ -83,6 +83,7 @@ from edumatcher.models.message import (
 )
 from edumatcher.engine.config_loader import DEFAULT_COUNTRY, ScheduleConfig
 from edumatcher.models.session import VALID_TRANSITIONS, SessionState
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 
 _CLIENT_NAME = "pm-scheduler"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -404,7 +405,10 @@ def _confirm_transition(
             topic, payload = decode(confirm_sock.recv_multipart())
         except Exception:
             continue
-        if topic == "session.state" and str(payload.get("state", "")) == expected_state:
+        if (
+            topic == TOPIC_SESSION_STATE
+            and str(payload.get("state", "")) == expected_state
+        ):
             return True
     return False
 
@@ -912,7 +916,7 @@ def main() -> None:
             if not args.no_confirm:
                 confirm_sock = make_subscriber(
                     ENGINE_PUB_ADDR,
-                    "session.state",
+                    TOPIC_SESSION_STATE,
                     f"system.session_status.{SCHEDULER_GATEWAY_ID}",
                 )
                 # Let the SUB subscription take effect before the state query

@@ -62,6 +62,7 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
 )
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 
 _MAX_LINE_BYTES = 4096
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
@@ -132,7 +133,7 @@ class AlfGateway:
         self._push: zmq.Socket[bytes] = make_pusher(config.engine_pull_addr)
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
-            "session.state",
+            TOPIC_SESSION_STATE,
             TOPIC_TRADE_EXECUTED,
             "circuit_breaker.halt.",
             "circuit_breaker.resume.",
@@ -907,7 +908,7 @@ class AlfGateway:
                 self._handle_session_status_response(gateway_id, payload)
                 continue
 
-            if topic == "session.state":
+            if topic == TOPIC_SESSION_STATE:
                 self._broadcast(
                     "SESSION",
                     {

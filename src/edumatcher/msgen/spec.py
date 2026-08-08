@@ -142,6 +142,11 @@ class Field:
     #: The value may be ``None``. Affects the Python annotation only; the key
     #: is still always emitted (design section B.7.2).
     nullable: bool = False
+    #: ``to_dict`` omits the key when the value is the empty string. A fourth
+    #: presence regime alongside the three in B.7.0, and the one the codebase
+    #: already used most: 27 hand-written builders drop a key with ``if x:``.
+    #: Strings only — on a number it would silently drop a legitimate zero.
+    omit_when_empty: bool = False
     #: Implies ``nullable``. ``to_dict`` **omits the key entirely** when the
     #: value is None, rather than emitting ``null``. Use where absence and null
     #: mean the same thing to every reader, which in this system is everywhere
@@ -475,13 +480,44 @@ def _load_field(raw: Any, what: str, *, allow_nested: bool = True) -> Field:
             f"{where}: 'omit_when_none' requires 'nullable: true' - a field that "
             "cannot be None can never be omitted"
         )
-    if not block.get("required", True) and "default" not in block and not nullable:
+    if (
+        not block.get("required", True)
+        and "default" not in block
+        and not nullable
+        and not block.get("omit_when_empty", False)
+    ):
         raise SpecError(
             f"{where}: a field with 'required: false' must say what happens when "
             "it is unset - 'default: X' (always emitted as X), 'nullable: true' "
             "(always emitted as null), or 'nullable: true, omit_when_none: true' "
             "(absent). The three differ on the wire"
         )
+    empty = bool(block.get("omit_when_empty", False))
+    if empty:
+        if ftype != "string":
+            raise SpecError(
+                f"{where}: 'omit_when_empty' applies to strings only; this is "
+                f"a {ftype!r} field. On a number it would silently drop a "
+                "legitimate zero, and an enum's empty value is not a declared "
+                "one"
+            )
+        if "default" in block:
+            raise SpecError(
+                f"{where}: 'omit_when_empty' and 'default' contradict each "
+                "other - the empty string *is* the absence for this regime, so "
+                "there is nothing for a default to supply. Declaring one would "
+                "read back a value the field can never emit"
+            )
+        if omit or nullable:
+            raise SpecError(
+                f"{where}: 'omit_when_empty' and 'omit_when_none' are two "
+                'different regimes - a field omits on "" or on null, not both'
+            )
+        if block.get("required", True):
+            raise SpecError(
+                f"{where}: 'omit_when_empty' means the field may be absent, so "
+                "it must also declare 'required: false'"
+            )
     if omit and block.get("required", True):
         raise SpecError(
             f"{where}: 'omit_when_none' means the field may be absent, so it "
@@ -498,6 +534,7 @@ def _load_field(raw: Any, what: str, *, allow_nested: bool = True) -> Field:
         doc=block.get("doc", ""),
         nullable=nullable or omit,
         omit_when_none=omit,
+        omit_when_empty=empty,
         values=tuple(values) if values else None,
         ref=ref,
         item=block.get("item"),

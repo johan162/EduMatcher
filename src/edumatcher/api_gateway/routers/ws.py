@@ -12,6 +12,7 @@ from edumatcher.api_gateway.events import market_data_symbol, now_iso
 from edumatcher.api_gateway.schemas import ALWAYS_ON_CHANNELS, MarketDataControl
 from edumatcher.api_gateway.sessions import SessionRegistry
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 
 router = APIRouter(prefix="/api/v1", tags=["websockets"])
 
@@ -374,7 +375,7 @@ def _topic_from_event(event: dict[str, Any]) -> str:
     if event_type == "trade":
         return TOPIC_TRADE_EXECUTED
     if event_type == "session":
-        return "session.state"
+        return TOPIC_SESSION_STATE
     if event_type == "circuit_breaker":
         return "circuit_breaker.event"
     if event_type == "auction" and symbol:

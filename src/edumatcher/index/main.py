@@ -43,6 +43,7 @@ from edumatcher.models.message import (
     make_index_update_msg,
 )
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 
 log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
@@ -84,7 +85,7 @@ class IndexProcess:
         self._sub_sock = make_subscriber(
             ENGINE_PUB_ADDR,
             TOPIC_TRADE_EXECUTED,
-            "session.state",
+            TOPIC_SESSION_STATE,
             "system.eod",
         )
         self._pull_sock = make_puller(INDEX_PULL_ADDR)
@@ -733,7 +734,7 @@ class IndexProcess:
                     self._dbg_count("sub_messages")
                     if topic == TOPIC_TRADE_EXECUTED:
                         self._handle_trade(payload)
-                    elif topic == "session.state":
+                    elif topic == TOPIC_SESSION_STATE:
                         self._handle_session_state(payload)
                     elif topic == "system.eod":
                         self._finalize_eod()

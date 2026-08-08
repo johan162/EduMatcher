@@ -64,10 +64,10 @@ from edumatcher.log_srv.config import (
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.clock import now_ns  # used in _flush
+from edumatcher.models.generated.session import SessionState, TOPIC_SESSION_STATE
 from edumatcher.models.feed_schema import (
     GatewayAuthPayload,
     GatewayByePayload,
-    SessionStatePayload,
     SystemEodPayload,
     TradeExecutedPayload,
 )
@@ -354,7 +354,7 @@ class ClearingProcess:
             # Session-phase transitions — recorded as PHASE rows in
             # session_events (finding CL-M7) so operators can bucket activity by
             # session phase and the advertised PHASE filter is real.
-            "session.state",
+            TOPIC_SESSION_STATE,
             # The engine broadcasts gateway lifecycle on PUB as
             # ``system.gateway_auth.{id}`` (models/message.py make_gateway_auth_msg,
             # engine/main.py _handle_gateway_connect).  ``system.gateway_connect``
@@ -453,7 +453,7 @@ class ClearingProcess:
                 self._dbg_count("eod_topics")
                 self._handle_eod(payload)
 
-            elif topic == "session.state":
+            elif topic == TOPIC_SESSION_STATE:
                 self._dbg_count("phase_topics")
                 self._handle_session_state(payload)
 
@@ -717,7 +717,7 @@ class ClearingProcess:
         activity with the session phase it occurred in.
         """
         try:
-            typed = SessionStatePayload.from_dict(payload)
+            typed = SessionState.from_dict(payload)
             state = typed.state.upper()
             if not state:
                 return

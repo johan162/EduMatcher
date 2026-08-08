@@ -24,6 +24,7 @@ from edumatcher.models.message import (
 )
 from edumatcher.mm_bot.pricer import QuotePricer
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 
 log = logging.getLogger(__name__)
 
@@ -188,7 +189,7 @@ class MMBot:
             f"order.cancelled.{self.gateway_id}",
             f"quote.ack.{self.gateway_id}",
             f"quote.status.{self.gateway_id}",
-            "session.state",
+            TOPIC_SESSION_STATE,
             f"circuit_breaker.halt.{self.symbol}",
             f"circuit_breaker.resume.{self.symbol}",
         )
@@ -235,7 +236,7 @@ class MMBot:
                     self._log(f"auth rejected: {reason}")
                 return accepted
             # Also capture session.state that arrives during auth
-            if topic == "session.state":
+            if topic == TOPIC_SESSION_STATE:
                 self._session_state = str(payload.get("state", "")).upper()
                 self._debug(f"session state (during auth): {self._session_state}")
 
@@ -272,7 +273,7 @@ class MMBot:
                         except (TypeError, ValueError):
                             self._mm_max_spread_ticks = None
                 return symbols
-            if topic == "session.state":
+            if topic == TOPIC_SESSION_STATE:
                 self._session_state = str(payload.get("state", "")).upper()
 
         self._log("symbols request timed out")
@@ -325,7 +326,7 @@ class MMBot:
 
     def _buffer_event(self, topic: str, payload: dict[str, Any]) -> None:
         """Buffer events received during startup waits."""
-        if topic == "session.state":
+        if topic == TOPIC_SESSION_STATE:
             self._session_state = str(payload.get("state", "")).upper()
         elif topic == f"book.{self.symbol}":
             self._handle_book(payload)
@@ -414,7 +415,7 @@ class MMBot:
             if self._sub_sock not in socks:
                 continue
             topic, payload = decode(self._sub_sock.recv_multipart())
-            if topic == "session.state":
+            if topic == TOPIC_SESSION_STATE:
                 self._session_state = str(payload.get("state", "")).upper()
                 return True
             self._buffer_event(topic, payload)
@@ -643,7 +644,7 @@ class MMBot:
             self._handle_order_fill(payload)
         elif topic == f"order.cancelled.{self.gateway_id}":
             self._handle_order_cancelled(payload)
-        elif topic == "session.state":
+        elif topic == TOPIC_SESSION_STATE:
             self._handle_session_state(payload)
         elif topic == f"circuit_breaker.halt.{self.symbol}":
             self._handle_circuit_breaker_halt()

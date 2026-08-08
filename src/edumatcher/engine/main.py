@@ -68,6 +68,7 @@ from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_puller, make_publisher
 from edumatcher.models.combo import ComboOrder, ComboStatus, ComboType
 from edumatcher.models.clock import now_ns
+from edumatcher.models.generated.session import TOPIC_SESSION_TRANSITION
 from edumatcher.models.generated.order import (
     TOPIC_ORDER_AMEND,
     TOPIC_ORDER_COMBO,
@@ -3842,8 +3843,9 @@ class Engine:
         broadcast. An operator issuing a manual transition does supply one,
         and previously received nothing at all when the request was discarded.
         """
-        command_id = str(payload.get("command_id", ""))
-        gateway_id = str(payload.get("gateway_id", ""))
+        reply_to = payload.get("reply_to") or {}
+        command_id = str(reply_to.get("command_id", ""))
+        gateway_id = str(reply_to.get("gateway_id", ""))
         if not command_id or not gateway_id:
             return
         self.pub_sock.send_multipart(
@@ -3917,8 +3919,9 @@ class Engine:
         # target has stopped being a fact about anything. Leaving it would
         # count a terminal down to a transition nobody is going to perform,
         # which is the failure this field exists to avoid (T-M6).
-        self._next_session_state = str(payload.get("next_state", ""))
-        self._next_session_at = str(payload.get("next_at", ""))
+        upcoming = payload.get("next") or {}
+        self._next_session_state = str(upcoming.get("state", ""))
+        self._next_session_at = str(upcoming.get("at", ""))
 
         # --- Uncrossing on exit from auction / no-matching phases ---
         needs_uncross = not is_matching_enabled(from_state) and (
@@ -4961,7 +4964,7 @@ class Engine:
                 self._handle_symbol_resume(payload)
             elif topic == "risk.cancel_symbol":
                 self._handle_cancel_symbol(payload)
-            elif topic == "session.transition":
+            elif topic == TOPIC_SESSION_TRANSITION:
                 self._handle_session_transition(payload)
             elif topic == "system.session_state_request":
                 self._handle_session_state_request(payload)

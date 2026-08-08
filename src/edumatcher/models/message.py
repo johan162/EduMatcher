@@ -29,7 +29,6 @@ from typing import Any
 from edumatcher.models.feed_schema import (
     GatewayAuthPayload,
     GatewayByePayload,
-    SessionStatePayload,
     SystemEodPayload,
 )
 
@@ -41,6 +40,7 @@ from edumatcher.models.feed_schema import (
 # instead would raise ImportError whenever the generated module happened to be
 # imported first.
 from edumatcher.models.generated import order as _gen_order
+from edumatcher.models.generated import session as _gen_session
 from edumatcher.models.generated import trade as _gen_trade
 
 # PERF improvement #6: Use orjson instead of stdlib json.
@@ -654,13 +654,14 @@ def make_session_transition_msg(
     ``session.state`` broadcast already tells it what happened.
     """
     payload: dict[str, Any] = {"to_state": to_state}
+    # Both-or-neither, expressed as a record rather than a pair of keys: a
+    # phase without a time cannot be counted down to, and a time without a
+    # phase does not say what happens.
     if next_state and next_at:
-        payload["next_state"] = next_state
-        payload["next_at"] = next_at
+        payload["next"] = {"state": next_state, "at": next_at}
     if command_id and gateway_id:
-        payload["command_id"] = command_id
-        payload["gateway_id"] = gateway_id
-    return encode("session.transition", payload)
+        payload["reply_to"] = {"command_id": command_id, "gateway_id": gateway_id}
+    return encode(_gen_session.TOPIC_SESSION_TRANSITION, payload)
 
 
 def make_session_transition_ack_msg(
@@ -682,15 +683,12 @@ def make_session_transition_ack_msg(
     of any kind, so a caller saw only a timeout and could not tell a rejected
     request from a slow one.
     """
-    topic = f"session.transition_ack.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "command_id": command_id,
-            "accepted": accepted,
-            "to_state": to_state,
-            "reason": reason,
-        },
+    return _gen_session.make_session_transition_ack_unchecked(
+        gateway_id=gateway_id,
+        command_id=command_id,
+        accepted=accepted,
+        to_state=to_state,
+        reason=reason,
     )
 
 
@@ -698,10 +696,14 @@ def make_session_state_msg(
     state: str, prev_state: str = "", next_state: str = "", next_at: str = ""
 ) -> list[bytes]:
     """Engine → all: broadcast current session state."""
-    typed = SessionStatePayload(
-        state=state, prev_state=prev_state, next_state=next_state, next_at=next_at
+    # The validating constructor, not an ``_unchecked`` one: a message with a
+    # nested record has no dict-literal fast path (design section 15.5), and a
+    # session transition happens a handful of times a day.
+    return _gen_session.make_session_state(
+        state=state,
+        prev_state=prev_state,
+        next=({"state": next_state, "at": next_at} if next_state and next_at else None),
     )
-    return encode("session.state", typed.to_dict())
 
 
 def make_auction_indicative_msg(

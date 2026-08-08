@@ -30,6 +30,7 @@ from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
 from edumatcher.models.price import DEFAULT_TICK_DECIMALS
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 
 _ALLOWED_CHANNELS = frozenset(
     {"TOP", "TRADE", "STATE", "INDEX", "DEPTH", "AUCTION", "CB"}
@@ -95,7 +96,7 @@ class MarketDataGateway:
             config.engine_pub_addr,
             "book.",
             TOPIC_TRADE_EXECUTED,
-            "session.state",
+            TOPIC_SESSION_STATE,
             "circuit_breaker.halt.",
             "circuit_breaker.resume.",
             "circuit_breaker.extend.",
@@ -814,7 +815,7 @@ class MarketDataGateway:
                         )
                     continue
 
-                if topic == "session.state":
+                if topic == TOPIC_SESSION_STATE:
                     self._dbg_count("session_state_topics")
                     sym, state_fields = self._normaliser.normalise_session_state(
                         payload

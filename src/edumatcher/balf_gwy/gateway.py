@@ -104,6 +104,7 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
 )
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 
 log = logging.getLogger(__name__)
 
@@ -232,7 +233,7 @@ class BalfGateway:
         self._push: zmq.Socket[bytes] = make_pusher(config.engine_pull_addr)
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
-            "session.state",
+            TOPIC_SESSION_STATE,
             TOPIC_TRADE_EXECUTED,
         )
 

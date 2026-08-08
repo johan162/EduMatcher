@@ -58,7 +58,6 @@ from edumatcher.models.message import (
 from edumatcher.models.feed_schema import (
     GatewayAuthPayload,
     GatewayByePayload,
-    SessionStatePayload,
     SystemEodPayload,
     TradeExecutedPayload,
 )
@@ -436,9 +435,14 @@ class TestSessionMessages:
         topic, payload = _rt(make_session_state_msg("CONTINUOUS", "OPENING_AUCTION"))
         assert payload["prev_state"] == "OPENING_AUCTION"
 
-    def test_make_session_state_msg_matches_feed_schema(self) -> None:
+    def test_make_session_state_msg_matches_the_generated_class(self) -> None:
+        """Was ``SessionStatePayload``, a hand-written copy of what is now
+        generated. Keeping both would have been two definitions of one wire
+        shape, free to drift."""
+        from edumatcher.models.generated.session import SessionState
+
         topic, payload = _rt(make_session_state_msg("CONTINUOUS", "OPENING_AUCTION"))
-        typed = SessionStatePayload.from_dict(payload)
+        typed = SessionState.from_dict(payload)
         assert topic == "session.state"
         assert typed.state == "CONTINUOUS"
         assert typed.prev_state == "OPENING_AUCTION"

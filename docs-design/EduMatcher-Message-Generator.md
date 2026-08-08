@@ -2200,6 +2200,100 @@ it in both bindings. A convention that encodes meaning in int-vs-float cannot
 be enforced anywhere, which is why it survived undetected across three inbound
 paths and 29 test payloads.
 
+## 16. Presence, finished: the fourth regime and the pair that was a record
+
+Phase 5.2a specified `session`, and found the last two presence shapes the IDL
+could not describe. One became a construct; the other became a record.
+
+### 16.1 `omit_when_empty` — the regime the codebase used most
+
+`SessionStatePayload.to_dict` dropped `prev_state` with `if self.prev_state:` —
+on the **empty string**, not on null. B.7.0's three regimes all key on `None`,
+so none of them could say it.
+
+This is not a session quirk. **27 hand-written builders in `models/message.py`
+omit a key the same way.** It is the most common presence rule in the system and
+the one the remaining families will lean on hardest.
+
+It is deliberately narrow:
+
+* **Strings only.** On a number, falsy-omit would silently drop a legitimate
+  zero; on an enum, `""` is not a declared value.
+* **Mutually exclusive with `omit_when_none`.** A field omits on `""` or on
+  null, not both — two regimes, one field.
+* **Implies `required: false`**, like the others.
+
+`from_dict` reads it as `str(p.get(key, ""))`: absent and `""` are the same
+thing to this regime, so it round-trips exactly.
+
+That read is also why `omit_when_empty` and `default:` are rejected together —
+a finding from this phase's holistic review rather than from the build. The
+read ignores a declared default entirely, so a spec carrying both said one
+thing while the generated code did another, silently. The empty string *is* the
+absence here; there is nothing left for a default to supply.
+
+### 16.2 The pair that was a record
+
+Two field groups travelled together or not at all:
+
+```python
+if next_state and next_at:        # in two builders
+if command_id and gateway_id:
+```
+
+The obvious move was a `co_present: [a, b]` constraint. **The IDL grew nothing.**
+Those pairs are records that had been flattened into `a_b` names for want of
+one, and `nested` had landed in 5.1d.
+
+The reasons, in the order they mattered:
+
+1. **A constraint describes a symptom; a record describes the thing.**
+   `co_present` says "these keys travel together" and leaves *why* to a
+   comment. A nullable `NextTransition` says "there is either a next transition
+   or there isn't", and the co-presence is a consequence.
+2. **Illegal states become unconstructible, not merely detected.** With
+   `co_present` the half-set payload can be built and is rejected afterwards.
+   With a record it cannot be built. This is the same move as §15.2's: replace
+   a convention that must be checked with a type that cannot be wrong.
+3. **It composes.** A record can be reused, nested, validated once and
+   documented in one place. A constraint must be restated at every message that
+   carries the pair, and two statements of it are free to differ.
+4. **C decides it.** `co_present` in C is two struct members plus a `has_next`
+   flag the caller must remember to test — the sentinel problem §15.2 spent a
+   phase removing from prices. A nested record is a named struct and a null
+   pointer, which is self-describing.
+
+The naming argument is not decorative: `reply_to` says what
+`command_id`+`gateway_id` *is* — a return address — where the flat pair could
+only be described as "if both of these happen to be set, someone wants an
+answer".
+
+### 16.3 The first deliberate shape change
+
+Every family before this was byte-identical to the code it replaced. `session`
+is not: `{"next_state": ..., "next_at": ...}` became `{"next": {...}}`.
+
+That is worth flagging as a precedent rather than letting it pass. The rule it
+follows is §15.6's, widened by one word: **a unit belongs in a field's
+declaration, never in its representation — and so does a relationship between
+fields.** `next_state`/`next_at` encoded "these belong together" in a shared
+name prefix, which is a convention no generator can enforce, in exactly the way
+int-vs-float encoded a price's unit in its runtime type.
+
+The migration cost was 21 literals across 10 modules plus three consumers, and
+`tests/test_command_correlation.py` — which pins the old flat shape — is where
+the change was visible. Those tests were updated, not deleted: they still
+assert the *behaviour* (both or neither, scheduler gets no reply address), only
+the shape moved.
+
+### 16.4 A duplicate definition removed
+
+`SessionStatePayload` in `models/feed_schema.py` was a hand-written copy of what
+the generator now emits. Both were deleted down to one: `clearing` reads the
+generated `SessionState`. Keeping both would have been two definitions of one
+wire shape, free to drift — which is the failure this whole design exists to
+remove, and it had been sitting in the repo the entire time.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first
