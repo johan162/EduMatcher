@@ -144,6 +144,100 @@ def _call(indent: str, head: str, arg: str) -> list[str]:
     return [f"{indent}{head}(", f"{indent}    {arg}", f"{indent})"]
 
 
+_PAIRS = {"(": ")", "[": "]", "{": "}"}
+
+
+def _last_bracket_group(text: str) -> tuple[int, int] | None:
+    """Return the span of the last top-level bracket group in ``text``."""
+    depth = 0
+    start = -1
+    found: tuple[int, int] | None = None
+    for index, char in enumerate(text):
+        if char in _PAIRS:
+            if depth == 0:
+                start = index
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+            if depth == 0:
+                found = (start, index)
+    return found
+
+
+def _split_items(inner: str) -> list[str]:
+    """Split a bracket's contents at its top-level commas."""
+    items: list[str] = []
+    depth = 0
+    current = ""
+    for char in inner:
+        if char in _PAIRS:
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        if char == "," and depth == 0:
+            items.append(current.strip())
+            current = ""
+            continue
+        current += char
+    if current.strip():
+        items.append(current.strip())
+    return items
+
+
+def _wrap(indent: str, body: str) -> list[str]:
+    """Emit ``body`` at ``indent``, split the way black would if it is too long.
+
+    Black tries the construct on one line and, failing that, performs a "right
+    hand split": the contents of the enclosing bracket move to their own
+    indented lines and the closing bracket goes on a line of its own. A
+    collection of several elements gains a magic trailing comma; a lone element
+    - a one-argument call - does not.
+
+    Reproducing the rule here rather than shelling out to black is what keeps
+    the generated file byte-stable across black versions (risk R9). It stayed
+    unexercised until an enum with eight values first pushed a line past the
+    limit; ``test_generated_files_are_black_clean`` is what caught it.
+    """
+    single = f"{indent}{body}"
+    if len(single) <= LINE_LENGTH:
+        return [single]
+
+    span = _last_bracket_group(body)
+    if span is None:
+        return [single]
+    open_at, close_at = span
+
+    items = _split_items(body[open_at + 1 : close_at])
+    if not items:
+        return [single]
+    inner = (
+        [f"{indent}    {items[0]}"]
+        if len(items) == 1
+        else [f"{indent}    {item}," for item in items]
+    )
+    return [
+        f"{indent}{body[: open_at + 1]}",
+        *inner,
+        f"{indent}{body[close_at:]}",
+    ]
+
+
+def _dict_entry(indent: str, key: str, value: str) -> list[str]:
+    """Emit one ``"key": value,`` dict entry the way black would.
+
+    Black splits an over-long entry by parenthesising the value when that value
+    is a conditional expression, and by right-hand-splitting it when it is a
+    plain call. Only the nullable coercions ``None if x is None else str(x)``
+    are ever long enough to reach the first case.
+    """
+    body = f"{key}: {value},"
+    if len(indent) + len(body) <= LINE_LENGTH:
+        return [f"{indent}{body}"]
+    if " if " in value:
+        return [f"{indent}{key}: (", f"{indent}    {value}", f"{indent}),"]
+    return _wrap(indent, body)
+
+
 def _coerce_arg(f: Field) -> str:
     """Coerce a keyword argument in the hot-path builder.
 
@@ -185,31 +279,55 @@ def _pattern_const(message: Message, f: Field) -> str:
     return f"_{_const_name(message)}_{f.name.upper()}_RE"
 
 
-def _annotation(f: Field) -> str:
-    """Return the Python annotation for a field.
+def _alias_name(message: Message, f: Field) -> str:
+    """Name of the module-level ``Literal`` alias for an enum field.
 
-    An enum normally becomes a ``Literal`` of its declared values. It does
-    **not** when the field declares a ``parse_default`` outside those values:
-    ``from_dict`` can then legitimately produce a value the ``Literal``
-    forbids (design section B.7.1), and annotating it anyway would make the
-    type a lie that every call site has to silence with a ``type: ignore``.
-    Narrowing is ``validate()``'s job, not the annotation's.
+    Enums are emitted once as a named alias rather than inlined at every use
+    site. The reason is mechanical: ``order.new``'s eight-value ``order_type``
+    pushed an inline ``Literal[...]`` past 88 columns in three different
+    constructs, each of which black splits by a different rule (parenthesised
+    union, nested ``cast``, dataclass field). Naming the type makes every use
+    site short enough that none of those rules can ever apply, which is a
+    smaller and far more durable thing to get right than reproducing them.
     """
-    base = _base_annotation(f)
-    return f"{base} | None" if f.nullable else base
+    field = "".join(part.title() for part in f.name.split("_"))
+    return f"{_class_name(message)}{field}"
 
 
-def _base_annotation(f: Field) -> str:
-    """The annotation before nullability is applied."""
+def _uses_literal(f: Field) -> bool:
+    """Whether this field is annotated by a ``Literal`` alias.
+
+    False for an enum whose ``parse_default`` falls outside its declared
+    values: ``from_dict`` can then legitimately produce a value the ``Literal``
+    forbids (design section B.7.1), so the field is annotated ``str`` and the
+    annotation stays honest. Narrowing is ``validate()``'s job.
+    """
     if f.type != "enum":
-        return _ANNOTATION[f.type]
+        return False
     assert f.values is not None
-    if f.has_parse_default and f.parse_default not in f.values:
-        return "str"
+    return not (f.has_parse_default and f.parse_default not in f.values)
+
+
+def _literal_literal(f: Field) -> str:
+    """The inline ``Literal[...]`` an alias is defined as."""
+    assert f.values is not None
     return "Literal[" + ", ".join(_pystr(v) for v in f.values) + "]"
 
 
-def _narrow(f: Field, expr: str) -> str:
+def _annotation(message: Message, f: Field) -> str:
+    """Return the Python annotation for a field."""
+    base = _base_annotation(message, f)
+    return f"{base} | None" if f.nullable else base
+
+
+def _base_annotation(message: Message, f: Field) -> str:
+    """The annotation before nullability is applied."""
+    if f.type != "enum":
+        return _ANNOTATION[f.type]
+    return _alias_name(message, f) if _uses_literal(f) else "str"
+
+
+def _narrow(message: Message, f: Field, expr: str) -> str:
     """Wrap a coerced value in ``cast`` when the field is annotated ``Literal``.
 
     ``from_dict`` coerces with ``str()`` and does not validate, so a type
@@ -219,13 +337,16 @@ def _narrow(f: Field, expr: str) -> str:
     ``cast`` is the honest way to say so: it is a no-op at runtime, it keeps the
     ``Literal`` on the dataclass where it does catch a bad constructor call, and
     it confines the "we have not checked yet" admission to the one function
-    whose job is not to check. A field whose ``parse_default`` is outside its
-    values is annotated ``str`` instead and needs no cast (see ``_annotation``).
+    whose job is not to check.
+
+    The cast target is the full annotation, ``| None`` included: a nullable
+    enum coerces to ``str | None``, which is just as much a widening as the
+    non-nullable case. ``smp_action`` on ``order.new`` was the first nullable
+    enum in any spec and mypy caught the omission immediately.
     """
-    base = _base_annotation(f)
-    if f.type == "enum" and base.startswith("Literal") and not f.nullable:
-        return f"cast({base}, {expr})"
-    return expr
+    if not _uses_literal(f):
+        return expr
+    return f"cast({_annotation(message, f)}, {expr})"
 
 
 def _split_top_level(text: str) -> tuple[str, str]:
@@ -270,7 +391,7 @@ def _kwarg_lines(indent: str, name: str, expr: str) -> list[str]:
     ]
 
 
-def _read_expr(f: Field, in_topic_only: bool = False) -> str:
+def _read_expr(message: Message, f: Field, in_topic_only: bool = False) -> str:
     """Return the ``from_dict`` read expression for one field.
 
     Precedence is normative (design section B.7.1): ``parse_default`` first,
@@ -291,12 +412,13 @@ def _read_expr(f: Field, in_topic_only: bool = False) -> str:
     if f.nullable:
         # None must survive the read: coercing it would turn "absent" into
         # "None" (str(None) == "None"), which is a value, not an absence.
-        return f"None if p.get({key}) is None else {coerce}(p[{key}])"
+        nullable_read = f"None if p.get({key}) is None else {coerce}(p[{key}])"
+        return _narrow(message, f, nullable_read)
     if f.has_parse_default:
-        return _narrow(f, f"{coerce}(p.get({key}, {_pyval(f.parse_default)}))")
+        return _narrow(message, f, f"{coerce}(p.get({key}, {_pyval(f.parse_default)}))")
     if not f.required:
-        return _narrow(f, f"{coerce}(p.get({key}, {_pyval(f.default)}))")
-    return _narrow(f, f"{coerce}(p[{key}])")
+        return _narrow(message, f, f"{coerce}(p.get({key}, {_pyval(f.default)}))")
+    return _narrow(message, f, f"{coerce}(p[{key}])")
 
 
 def _topic_regex(topic: str, params: tuple[str, ...]) -> str:
@@ -347,7 +469,13 @@ def _constant_block(message: Message) -> list[str]:
         if f.type == "enum":
             assert f.values is not None
             literals = [_pystr(v) for v in f.values]
-            out.append(f"{_values_const(message, f)} = {_tuple_literal(literals)}")
+            out.extend(
+                _wrap("", f"{_values_const(message, f)} = {_tuple_literal(literals)}")
+            )
+            if _uses_literal(f):
+                out.extend(
+                    _wrap("", f"{_alias_name(message, f)} = {_literal_literal(f)}")
+                )
     return out
 
 
@@ -467,10 +595,13 @@ def _class_block(message: Message) -> list[str]:
     ordered = [f for f in message.fields if f.required]
     ordered += [f for f in message.fields if not f.required]
     for f in ordered:
-        line = f"    {f.name}: {_annotation(f)}"
+        line = f"{f.name}: {_annotation(message, f)}"
         if not f.required:
             line += " = None" if f.omit_when_none else f" = {_pyval(f.default)}"
-        out.append(line + (f"  # unit: {f.unit}" if f.unit else ""))
+        wrapped = _wrap("    ", line)
+        if f.unit:
+            wrapped[-1] += f"  # unit: {f.unit}"
+        out += wrapped
 
     out += ["", "    def validate(self) -> None:"]
     out += _docstring(
@@ -502,7 +633,7 @@ def _class_block(message: Message) -> list[str]:
     carried = {f.name for f in _payload_fields(message)}
     for f in message.fields:
         out += _kwarg_lines(
-            "            ", f.name, _read_expr(f, f.name not in carried)
+            "            ", f.name, _read_expr(message, f, f.name not in carried)
         )
     out.append("        )")
 
@@ -565,8 +696,13 @@ def _unchecked_block(message: Message) -> list[str]:
 
     required = [f for f in message.fields if f.required]
     optional = [f for f in message.fields if not f.required]
-    sig = [f"    {f.name}: {_annotation(f)}," for f in required]
-    sig += [f"    {f.name}: {_annotation(f)} = {_pyval(f.default)}," for f in optional]
+    sig: list[str] = []
+    for f in required:
+        sig.extend(_wrap("    ", f"{f.name}: {_annotation(message, f)},"))
+    for f in optional:
+        sig.extend(
+            _wrap("    ", f"{f.name}: {_annotation(message, f)} = {_pyval(f.default)},")
+        )
 
     if params:
         topic_expr = f"topic_{message.name}({', '.join(params)}).encode()"
@@ -597,13 +733,13 @@ def _unchecked_block(message: Message) -> list[str]:
         out += ["    return [", f"        {topic_expr},", "        _msg.dumps("]
         out.append("            {")
         for f in always:
-            out.append(f"                {_pystr(f.name)}: {_coerce_arg(f)},")
+            out += _dict_entry("                ", _pystr(f.name), _coerce_arg(f))
         out += ["            }", "        ),", "    ]"]
         return out
 
     out.append("    payload: dict[str, Any] = {")
     for f in always:
-        out.append(f"        {_pystr(f.name)}: {_coerce_arg(f)},")
+        out += _dict_entry("        ", _pystr(f.name), _coerce_arg(f))
     out.append("    }")
     for f in omitted:
         out.append(f"    if {f.name} is not None:")
@@ -688,15 +824,16 @@ def _text_projection_blocks(message: Message) -> list[list[str]]:
             if spec_field.name in enc.include:
                 key = enc.keys[spec_field.name][0]
                 expr = _narrow(
+                    message,
                     spec_field,
                     _TEXT_READ[spec_field.type].format(expr=f"fields[{_pystr(key)}]"),
                 )
             elif spec_field.has_parse_default:
-                expr = _narrow(spec_field, _pyval(spec_field.parse_default))
+                expr = _narrow(message, spec_field, _pyval(spec_field.parse_default))
             elif not spec_field.required:
-                expr = _narrow(spec_field, _pyval(spec_field.default))
+                expr = _narrow(message, spec_field, _pyval(spec_field.default))
             else:
-                expr = _narrow(spec_field, _absent_placeholder(spec_field))
+                expr = _narrow(message, spec_field, _absent_placeholder(spec_field))
             reader += _kwarg_lines("        ", spec_field.name, expr)
         reader.append("    )")
         blocks.append(reader)
@@ -866,7 +1003,8 @@ def _binary_parse(
         if entry.enum_map:
             # An unmapped wire byte yields "" rather than an exception: parse
             # coerces, validate() rejects (design section 5.1.1).
-            expr = _narrow(f, f'_{prefix}_{f.name.upper()}_FROM_WIRE.get({f.name}, "")')
+            wire = f'_{prefix}_{f.name.upper()}_FROM_WIRE.get({f.name}, "")'
+            expr = _narrow(message, f, wire)
         elif _CHAR_ARRAY_RE.fullmatch(entry.repr or ""):
             expr = f'{f.name}.split(b"\\x00")[0].decode()'
         elif entry.scale:
@@ -1075,11 +1213,7 @@ def render_family(family: Family, spec_path: str) -> str:
     needs_re = any(
         f.validate.pattern is not None for m in messages for f in m.fields
     ) or any(m.topic_params for m in messages)
-    needs_literal = any(
-        f.type == "enum" and _annotation(f).startswith("Literal")
-        for m in messages
-        for f in m.fields
-    )
+    needs_literal = any(_uses_literal(f) for m in messages for f in m.fields)
 
     header: list[str] = [
         f"# GENERATED FROM {spec_path} - DO NOT EDIT",

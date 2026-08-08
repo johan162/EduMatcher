@@ -17,6 +17,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, cast
+from edumatcher.models.generated.order import TOPIC_ORDER_CANCEL, TOPIC_ORDER_NEW
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 
 # ---------------------------------------------------------------------------
@@ -334,9 +335,9 @@ def _summarise(entry: AuditEntry) -> str:
         return (
             f"ACK {p.get('status', '')} {p.get('order_type', '')} {p.get('side', '')}"
         )
-    if t.startswith("order.new"):
+    if t.startswith(TOPIC_ORDER_NEW):
         return f"{p.get('order_type', '')} {p.get('side', '')} {p.get('quantity', '')}@{p.get('price', '')}"
-    if t.startswith("order.cancel"):
+    if t.startswith(TOPIC_ORDER_CANCEL):
         return f"CANCEL {p.get('status', '')}"
     if t.startswith("session."):
         return str(p.get("state", p.get("phase", "")))
@@ -553,7 +554,7 @@ def query_gateways(
                 first_seen[gw] = entry.timestamp
             last_seen[gw] = entry.timestamp
 
-            if entry.topic.startswith("order.new"):
+            if entry.topic.startswith(TOPIC_ORDER_NEW):
                 orders[gw] = orders.get(gw, 0) + 1
             elif entry.topic.startswith("order.fill"):
                 fills[gw] = fills.get(gw, 0) + 1

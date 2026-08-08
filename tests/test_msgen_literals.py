@@ -27,10 +27,10 @@ SRC = REPO_ROOT / "src"
 #: Add a family here the moment `grep-literals` reports it at zero — that is
 #: what makes the migration stick.
 #:
-#: ``order`` counts only the topics specified so far: Phase 5.1a covers the five
-#: engine→gateway events, and the scanner only knows about declared topics, so
-#: "zero" here means "zero for what is specified". The inbound commands and the
-#: combo/OCO topics join the count when 5.1b/5.1c specify them.
+#: ``order`` counts only the topics specified so far: 5.1a covers the five
+#: engine→gateway events and 5.1b the three inbound commands. The scanner only
+#: knows about declared topics, so "zero" here means "zero for what is
+#: specified"; the combo/OCO topics join the count when 5.1c specifies them.
 MIGRATED = ("trade", "order")
 
 

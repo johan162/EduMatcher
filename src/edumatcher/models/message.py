@@ -113,7 +113,7 @@ def dumps(payload: dict[str, Any]) -> bytes:
 
 
 def make_order_new_msg(order_dict: dict[str, Any]) -> list[bytes]:
-    return encode("order.new", order_dict)
+    return encode(_gen_order.TOPIC_ORDER_NEW, order_dict)
 
 
 def make_gateway_connect_msg(gateway_id: str) -> list[bytes]:
@@ -138,7 +138,10 @@ def make_gateway_auth_msg(
 
 
 def make_order_cancel_msg(order_id: str, gateway_id: str) -> list[bytes]:
-    return encode("order.cancel", {"order_id": order_id, "gateway_id": gateway_id})
+    return encode(
+        _gen_order.TOPIC_ORDER_CANCEL,
+        {"order_id": order_id, "gateway_id": gateway_id},
+    )
 
 
 def make_order_amend_msg(
@@ -152,7 +155,7 @@ def make_order_amend_msg(
         payload["price"] = price
     if qty is not None:
         payload["qty"] = qty
-    return encode("order.amend", payload)
+    return encode(_gen_order.TOPIC_ORDER_AMEND, payload)
 
 
 def make_amended_msg(

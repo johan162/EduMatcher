@@ -1155,7 +1155,8 @@ What it does not, and will not:
 | 4b | BALF binary layout; `order.yaml` with `execution_report` | **done** |
 | 5.0 | `pm-msgen grep-literals`; `trade` literals to zero | **done** |
 | 5.1a | the five engine→gateway `order.*` events | **done** |
-| 5.1b/c | inbound order commands; combo and OCO | not started |
+| 5.1b | inbound `order.new` / `order.cancel` / `order.amend` | **done** |
+| 5.1c | combo and OCO topics | not started |
 | 5.2+ | `book`/`depth`, `session`, `risk`, `index`, `log` | not started |
 | 6 | Generated `271-message-appendix.md` | not started |
 
@@ -1169,6 +1170,96 @@ What it does not, and will not:
     hand-written and still drifts exactly as it did before — the check cannot
     protect a message it has never been told about. `"trade.executed"` also
     remains a string literal in 14 modules that subscribe to it (Phase 5).
+
+## What Phase 5.1b found
+
+### One contract, not two shapes
+
+`order.new` is published by four modules, and two of them build the payload
+differently: `api_gateway`, `alf_console` and `alf_gwy` all send
+`Order.to_dict()` — 23 fields, always present, many null — while
+`balf_gwy/translate.py` builds a dict by hand and omits nine of them.
+
+That looked like a fork: which shape does the spec describe? It was not one.
+The consumer settles it. `models/order.py::Order.from_dict` states its contract
+field by field, and all 23 fall onto the three presence regimes exactly:
+
+| How `from_dict` reads it | Regime | Count |
+|---|---|---|
+| `d["x"]` | `required: true` | 10 |
+| `d.get("x")` | `nullable: true` | 11 |
+| `d.get("x", <non-None>)` | `required: false` + `default:` | 2 |
+
+For the middle group absent and null are the same value to that reader —
+`from_dict`'s own comment on `smp_action` says so: *"Absent key or explicit
+null both mean 'client did not specify'"*. So the two producers were never two
+contracts, only two points inside this one.
+
+**The rule, stated generally:** describe what the *consumer* requires; then,
+where producers still differ, reproduce the bytes of the dominant one. Producer
+disagreement is a real fork only when it changes what some reader sees.
+
+That is why 5.1b uses `nullable` **without** `omit_when_none` while 5.1a used
+`omit_when_none` throughout. Same rule, opposite answers — in 5.1a the
+hand-written builders omitted, here the dominant builder emits.
+
+### A second consumer that is *not* indifferent
+
+`audit/query.py` renders `p.get('price', '')`. Absent gives `LIMIT BUY 10@`;
+null gives `LIMIT BUY 10@None`. So the two producers already wrote different
+audit summaries. Always-emitting makes `balf_gwy`'s summaries match everyone
+else's — a fix, not a regression, and the reason to check every consumer rather
+than only the structural one.
+
+### `price` means two different things
+
+On `order.new` — inbound — `price`, `stop_price` and `trail_offset` are engine
+**ticks** (`int`). On `order.ack` and `order.amended` — outbound — `price` is
+**display money** (`float`). `balf_gwy` calls `to_ticks()` before publishing.
+Copying the 5.1a field definitions would have typechecked and been wrong on the
+wire, which is what `unit:` exists to make visible.
+
+### Enums are named types now
+
+`order_type` has eight values, and an inline `Literal[...]` of eight values does
+not fit in 88 columns. Black splits each over-long construct by a *different*
+rule — a parenthesised union for `X | None = None`, a right-hand split inside
+`cast(...)`, another for a dataclass field — and the emitter reproduces black
+rather than running it (risk R9).
+
+Rather than teach it three more rules, each a fresh chance to drift, the
+generator now emits one alias per enum:
+
+```python
+OrderNewOrderType = Literal[
+    "MARKET",
+    "LIMIT",
+    ...
+]
+
+@dataclass(slots=True)
+class OrderNew:
+    order_type: OrderNewOrderType
+```
+
+Every use site is short, so no wrapping rule can ever apply — however many
+values a future enum grows. The aliases are public and usable by callers who
+want to type their own variables. `test_generated_files_are_black_clean` now
+runs black over the committed output, which is the right place for that
+dependency: a version bump failing a test is a true report that the emitter
+needs updating, where the same bump at generation time would silently change
+committed bytes.
+
+`smp_action` was also the first **nullable** enum in any spec, and mypy caught
+that `from_dict`'s nullable read bypassed the `cast` entirely.
+
+### What was deliberately *not* adopted
+
+`Order.from_dict` is a measured hot path — `object.__new__` plus direct slot
+writes, ~1400 ns down to ~1000 ns, documented in the code. Section 14's analysis
+says a generated parser would land above that, so 5.1b adopts the **topic
+constants and the field contract only** and leaves the parse path alone.
+`make_order_new_msg` stays a pass-through of an arbitrary dict.
 
 ## What Phase 4b found
 

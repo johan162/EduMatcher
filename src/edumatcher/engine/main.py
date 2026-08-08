@@ -68,6 +68,11 @@ from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_puller, make_publisher
 from edumatcher.models.combo import ComboOrder, ComboStatus, ComboType
 from edumatcher.models.clock import now_ns
+from edumatcher.models.generated.order import (
+    TOPIC_ORDER_AMEND,
+    TOPIC_ORDER_CANCEL,
+    TOPIC_ORDER_NEW,
+)
 from edumatcher.models.generated.trade import make_trade_executed_unchecked
 from edumatcher.models.message import (
     dumps,
@@ -180,9 +185,9 @@ _PERSIST_INTERVAL_SEC = 5.0
 #: that is not an order is worse than silence.
 _ORDER_TOPICS = frozenset(
     {
-        "order.new",
-        "order.cancel",
-        "order.amend",
+        TOPIC_ORDER_NEW,
+        TOPIC_ORDER_CANCEL,
+        TOPIC_ORDER_AMEND,
         "order.combo",
         "order.combo_cancel",
         "order.oco",
@@ -4915,11 +4920,11 @@ class Engine:
         """
         fills_before = self._fills_published
         try:
-            if topic == "order.new":
+            if topic == TOPIC_ORDER_NEW:
                 self._handle_new_order(payload)
-            elif topic == "order.cancel":
+            elif topic == TOPIC_ORDER_CANCEL:
                 self._handle_cancel(payload)
-            elif topic == "order.amend":
+            elif topic == TOPIC_ORDER_AMEND:
                 self._handle_amend(payload)
             elif topic == "order.combo":
                 self._handle_combo_order(payload)

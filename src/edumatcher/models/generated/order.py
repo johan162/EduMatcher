@@ -30,7 +30,9 @@ FAMILY_VERSION = 1
 
 _EXECUTION_REPORT_SYMBOL_RE = re.compile("^[A-Z0-9._]+$")
 _EXECUTION_REPORT_SIDE_VALUES = ("BUY", "SELL")
+ExecutionReportSide = Literal["BUY", "SELL"]
 _EXECUTION_REPORT_STATUS_VALUES = ("PARTIAL", "FILLED")
+ExecutionReportStatus = Literal["PARTIAL", "FILLED"]
 
 
 _EXECUTION_REPORT_FIELDS: tuple[dict[str, Any], ...] = (
@@ -124,8 +126,8 @@ class ExecutionReport:
     remaining_qty: int  # unit: shares
     timestamp_ns: int  # unit: epoch_nanos
     symbol: str
-    side: Literal["BUY", "SELL"]
-    status: Literal["PARTIAL", "FILLED"]
+    side: ExecutionReportSide
+    status: ExecutionReportStatus
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -179,8 +181,8 @@ class ExecutionReport:
             remaining_qty=int(p["remaining_qty"]),
             timestamp_ns=int(p["timestamp_ns"]),
             symbol=str(p["symbol"]),
-            side=cast(Literal["BUY", "SELL"], str(p["side"])),
-            status=cast(Literal["PARTIAL", "FILLED"], str(p["status"])),
+            side=cast(ExecutionReportSide, str(p["side"])),
+            status=cast(ExecutionReportStatus, str(p["status"])),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -279,10 +281,10 @@ def parse_execution_report_balf(frame: bytes) -> "ExecutionReport":
         timestamp_ns=timestamp_ns,
         symbol=symbol.split(b"\x00")[0].decode(),
         side=cast(
-            Literal["BUY", "SELL"], _EXECUTION_REPORT_BALF_SIDE_FROM_WIRE.get(side, "")
+            ExecutionReportSide, _EXECUTION_REPORT_BALF_SIDE_FROM_WIRE.get(side, "")
         ),
         status=cast(
-            Literal["PARTIAL", "FILLED"],
+            ExecutionReportStatus,
             _EXECUTION_REPORT_BALF_STATUS_FROM_WIRE.get(status, ""),
         ),
     )
@@ -1744,10 +1746,826 @@ def describe_order_amended() -> tuple[dict[str, Any], ...]:
     return _ORDER_AMENDED_FIELDS
 
 
+TOPIC_ORDER_NEW = "order.new"
+_TOPIC_ORDER_NEW_BYTES = "order.new".encode()
+_ORDER_NEW_SIDE_VALUES = ("BUY", "SELL")
+OrderNewSide = Literal["BUY", "SELL"]
+_ORDER_NEW_ORDER_TYPE_VALUES = (
+    "MARKET",
+    "LIMIT",
+    "STOP",
+    "STOP_LIMIT",
+    "FOK",
+    "ICEBERG",
+    "IOC",
+    "TRAILING_STOP",
+)
+OrderNewOrderType = Literal[
+    "MARKET",
+    "LIMIT",
+    "STOP",
+    "STOP_LIMIT",
+    "FOK",
+    "ICEBERG",
+    "IOC",
+    "TRAILING_STOP",
+]
+_ORDER_NEW_TIF_VALUES = ("DAY", "GTC", "ATO", "ATC")
+OrderNewTif = Literal["DAY", "GTC", "ATO", "ATC"]
+_ORDER_NEW_STATUS_VALUES = (
+    "NEW",
+    "PARTIAL",
+    "FILLED",
+    "CANCELLED",
+    "REJECTED",
+    "EXPIRED",
+)
+OrderNewStatus = Literal["NEW", "PARTIAL", "FILLED", "CANCELLED", "REJECTED", "EXPIRED"]
+_ORDER_NEW_SMP_ACTION_VALUES = (
+    "NONE",
+    "CANCEL_AGGRESSOR",
+    "CANCEL_RESTING",
+    "CANCEL_BOTH",
+)
+OrderNewSmpAction = Literal["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]
+_ORDER_NEW_ORIGIN_VALUES = ("ORDER", "QUOTE", "IMPLIED")
+OrderNewOrigin = Literal["ORDER", "QUOTE", "IMPLIED"]
+
+
+_ORDER_NEW_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "Engine order id; a UUID string.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "side",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "values": _ORDER_NEW_SIDE_VALUES,
+    },
+    {
+        "name": "order_type",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "values": _ORDER_NEW_ORDER_TYPE_VALUES,
+    },
+    {
+        "name": "tif",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "values": _ORDER_NEW_TIF_VALUES,
+    },
+    {
+        "name": "quantity",
+        "type": "int",
+        "unit": "shares",
+        "required": True,
+        "doc": "Total original quantity.",
+        "constraints": {"gt": 0},
+    },
+    {
+        "name": "remaining_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": True,
+        "doc": "Quantity yet to be filled; equals quantity on submission.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "trail_offset",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "TRAILING_STOP: fixed distance to trail the market price.",
+    },
+    {
+        "name": "oco_group_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "timestamp",
+        "type": "int",
+        "unit": "epoch_nanos",
+        "required": True,
+        "doc": "Client-supplied submission time. NOT what the book uses for time priority - see arrival_seq. BALF has no timestamp field on NEW_ORDER, so balf_gwy stamps one at ingress.",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "status",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "Always NEW on submission; the enum is the full lifecycle.",
+        "values": _ORDER_NEW_STATUS_VALUES,
+    },
+    {
+        "name": "price",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "Limit price in ticks. Null for MARKET, which has none.",
+    },
+    {
+        "name": "stop_price",
+        "type": "ticks",
+        "unit": "ticks",
+        "required": False,
+        "doc": "STOP / STOP_LIMIT / TRAILING_STOP trigger.",
+    },
+    {
+        "name": "visible_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "ICEBERG: fixed peak size.",
+    },
+    {
+        "name": "displayed_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "ICEBERG: current visible slice on the book.",
+    },
+    {
+        "name": "smp_action",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "Self-match prevention. Null means the client did not specify SMP at all, which is distinct from an explicit NONE: the engine resolves null to the gateway's configured default. See SmpAction's docstring.",
+        "values": _ORDER_NEW_SMP_ACTION_VALUES,
+    },
+    {
+        "name": "combo_parent_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "leg_index",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "Position in the parent combo's legs, 0-based.",
+    },
+    {
+        "name": "origin",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "Defaulted rather than nullable: from_dict supplies ORDER.",
+        "values": _ORDER_NEW_ORIGIN_VALUES,
+    },
+    {
+        "name": "quote_id",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "client_tag",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": "Client correlation tag, echoed on every lifecycle event.",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "arrival_seq",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": False,
+        "doc": "Engine-assigned monotonic arrival sequence; time priority is keyed on this, not on timestamp, so a back-dated payload cannot jump the queue. Zero means unassigned, which is what a submission carries.",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class OrderNew:
+    """Submit a new order to the matching engine. Sent over PUSH/PULL rather than the
+    pub bus, but it carries a topic so the audit log can classify it alongside
+    everything else.
+
+    The payload is exactly Order.to_dict(). Eleven fields are nullable and are emitted
+    as null when unset rather than omitted - a MARKET order carries "price": null. The
+    engine's Order.from_dict reads absent and null alike, so a producer that omits them
+    is still accepted.
+    """
+
+    id: str
+    symbol: str
+    side: OrderNewSide
+    order_type: OrderNewOrderType
+    tif: OrderNewTif
+    quantity: int  # unit: shares
+    remaining_qty: int  # unit: shares
+    gateway_id: str
+    timestamp: int  # unit: epoch_nanos
+    status: OrderNewStatus
+    trail_offset: int | None = None  # unit: ticks
+    oco_group_id: str | None = None
+    price: int | None = None  # unit: ticks
+    stop_price: int | None = None  # unit: ticks
+    visible_qty: int | None = None  # unit: shares
+    displayed_qty: int | None = None  # unit: shares
+    smp_action: OrderNewSmpAction | None = None
+    combo_parent_id: str | None = None
+    leg_index: int | None = None  # unit: dimensionless
+    origin: OrderNewOrigin = "ORDER"
+    quote_id: str | None = None
+    client_tag: str | None = None
+    arrival_seq: int = 0  # unit: dimensionless
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.id) > 64:
+            raise MessageValidationError(
+                f"id: length {len(self.id)} exceeds max_len 64"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.side not in _ORDER_NEW_SIDE_VALUES:
+            raise MessageValidationError(
+                f"side: {self.side!r} is not one of {_ORDER_NEW_SIDE_VALUES!r}"
+            )
+        if self.order_type not in _ORDER_NEW_ORDER_TYPE_VALUES:
+            raise MessageValidationError(
+                f"order_type: {self.order_type!r} is not one of {_ORDER_NEW_ORDER_TYPE_VALUES!r}"
+            )
+        if self.tif not in _ORDER_NEW_TIF_VALUES:
+            raise MessageValidationError(
+                f"tif: {self.tif!r} is not one of {_ORDER_NEW_TIF_VALUES!r}"
+            )
+        if self.quantity <= 0:
+            raise MessageValidationError(f"quantity: {self.quantity!r} must be > 0")
+        if self.remaining_qty < 0:
+            raise MessageValidationError(
+                f"remaining_qty: {self.remaining_qty!r} must be >= 0"
+            )
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if self.oco_group_id is not None:
+            if len(self.oco_group_id) > 64:
+                raise MessageValidationError(
+                    f"oco_group_id: length {len(self.oco_group_id)} exceeds max_len 64"
+                )
+        if self.timestamp < 0:
+            raise MessageValidationError(f"timestamp: {self.timestamp!r} must be >= 0")
+        if self.status not in _ORDER_NEW_STATUS_VALUES:
+            raise MessageValidationError(
+                f"status: {self.status!r} is not one of {_ORDER_NEW_STATUS_VALUES!r}"
+            )
+        if self.smp_action is not None:
+            if self.smp_action not in _ORDER_NEW_SMP_ACTION_VALUES:
+                raise MessageValidationError(
+                    f"smp_action: {self.smp_action!r} is not one of {_ORDER_NEW_SMP_ACTION_VALUES!r}"
+                )
+        if self.combo_parent_id is not None:
+            if len(self.combo_parent_id) > 64:
+                raise MessageValidationError(
+                    f"combo_parent_id: length {len(self.combo_parent_id)} exceeds max_len 64"
+                )
+        if self.origin not in _ORDER_NEW_ORIGIN_VALUES:
+            raise MessageValidationError(
+                f"origin: {self.origin!r} is not one of {_ORDER_NEW_ORIGIN_VALUES!r}"
+            )
+        if self.quote_id is not None:
+            if len(self.quote_id) > 64:
+                raise MessageValidationError(
+                    f"quote_id: length {len(self.quote_id)} exceeds max_len 64"
+                )
+        if self.client_tag is not None:
+            if len(self.client_tag) > 64:
+                raise MessageValidationError(
+                    f"client_tag: length {len(self.client_tag)} exceeds max_len 64"
+                )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "OrderNew":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            id=str(p["id"]),
+            symbol=str(p["symbol"]),
+            side=cast(OrderNewSide, str(p["side"])),
+            order_type=cast(OrderNewOrderType, str(p["order_type"])),
+            tif=cast(OrderNewTif, str(p["tif"])),
+            quantity=int(p["quantity"]),
+            remaining_qty=int(p["remaining_qty"]),
+            gateway_id=str(p["gateway_id"]),
+            trail_offset=(
+                None if p.get("trail_offset") is None else int(p["trail_offset"])
+            ),
+            oco_group_id=(
+                None if p.get("oco_group_id") is None else str(p["oco_group_id"])
+            ),
+            timestamp=int(p["timestamp"]),
+            status=cast(OrderNewStatus, str(p["status"])),
+            price=None if p.get("price") is None else int(p["price"]),
+            stop_price=None if p.get("stop_price") is None else int(p["stop_price"]),
+            visible_qty=None if p.get("visible_qty") is None else int(p["visible_qty"]),
+            displayed_qty=(
+                None if p.get("displayed_qty") is None else int(p["displayed_qty"])
+            ),
+            smp_action=cast(
+                OrderNewSmpAction | None,
+                None if p.get("smp_action") is None else str(p["smp_action"]),
+            ),
+            combo_parent_id=(
+                None if p.get("combo_parent_id") is None else str(p["combo_parent_id"])
+            ),
+            leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
+            origin=cast(OrderNewOrigin, str(p.get("origin", "ORDER"))),
+            quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
+            client_tag=None if p.get("client_tag") is None else str(p["client_tag"]),
+            arrival_seq=int(p.get("arrival_seq", 0)),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "id": self.id,
+            "symbol": self.symbol,
+            "side": self.side,
+            "order_type": self.order_type,
+            "tif": self.tif,
+            "quantity": self.quantity,
+            "remaining_qty": self.remaining_qty,
+            "gateway_id": self.gateway_id,
+            "trail_offset": self.trail_offset,
+            "oco_group_id": self.oco_group_id,
+            "timestamp": self.timestamp,
+            "status": self.status,
+            "price": self.price,
+            "stop_price": self.stop_price,
+            "visible_qty": self.visible_qty,
+            "displayed_qty": self.displayed_qty,
+            "smp_action": self.smp_action,
+            "combo_parent_id": self.combo_parent_id,
+            "leg_index": self.leg_index,
+            "origin": self.origin,
+            "quote_id": self.quote_id,
+            "client_tag": self.client_tag,
+            "arrival_seq": self.arrival_seq,
+        }
+
+
+def is_order_new(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_ORDER_NEW
+
+
+def make_order_new(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = OrderNew.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_ORDER_NEW, obj.to_dict())
+
+
+def make_order_new_unchecked(
+    *,
+    id: str,
+    symbol: str,
+    side: OrderNewSide,
+    order_type: OrderNewOrderType,
+    tif: OrderNewTif,
+    quantity: int,
+    remaining_qty: int,
+    gateway_id: str,
+    timestamp: int,
+    status: OrderNewStatus,
+    trail_offset: int | None = None,
+    oco_group_id: str | None = None,
+    price: int | None = None,
+    stop_price: int | None = None,
+    visible_qty: int | None = None,
+    displayed_qty: int | None = None,
+    smp_action: OrderNewSmpAction | None = None,
+    combo_parent_id: str | None = None,
+    leg_index: int | None = None,
+    origin: OrderNewOrigin = "ORDER",
+    quote_id: str | None = None,
+    client_tag: str | None = None,
+    arrival_seq: int = 0,
+) -> list[bytes]:
+    """Identical frames to ``make_order_new``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_ORDER_NEW_BYTES,
+        _msg.dumps(
+            {
+                "id": str(id),
+                "symbol": str(symbol),
+                "side": str(side),
+                "order_type": str(order_type),
+                "tif": str(tif),
+                "quantity": int(quantity),
+                "remaining_qty": int(remaining_qty),
+                "gateway_id": str(gateway_id),
+                "trail_offset": None if trail_offset is None else int(trail_offset),
+                "oco_group_id": None if oco_group_id is None else str(oco_group_id),
+                "timestamp": int(timestamp),
+                "status": str(status),
+                "price": None if price is None else int(price),
+                "stop_price": None if stop_price is None else int(stop_price),
+                "visible_qty": None if visible_qty is None else int(visible_qty),
+                "displayed_qty": None if displayed_qty is None else int(displayed_qty),
+                "smp_action": None if smp_action is None else str(smp_action),
+                "combo_parent_id": (
+                    None if combo_parent_id is None else str(combo_parent_id)
+                ),
+                "leg_index": None if leg_index is None else int(leg_index),
+                "origin": str(origin),
+                "quote_id": None if quote_id is None else str(quote_id),
+                "client_tag": None if client_tag is None else str(client_tag),
+                "arrival_seq": int(arrival_seq),
+            }
+        ),
+    ]
+
+
+def parse_order_new(frames: list[bytes]) -> "OrderNew":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = OrderNew.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_order_new() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _ORDER_NEW_FIELDS
+
+
+TOPIC_ORDER_CANCEL = "order.cancel"
+_TOPIC_ORDER_CANCEL_BYTES = "order.cancel".encode()
+
+
+_ORDER_CANCEL_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "order_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class OrderCancel:
+    """Request cancellation of one resting order by id."""
+
+    order_id: str
+    gateway_id: str
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.order_id) > 64:
+            raise MessageValidationError(
+                f"order_id: length {len(self.order_id)} exceeds max_len 64"
+            )
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "OrderCancel":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            order_id=str(p["order_id"]),
+            gateway_id=str(p["gateway_id"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "order_id": self.order_id,
+            "gateway_id": self.gateway_id,
+        }
+
+
+def is_order_cancel(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_ORDER_CANCEL
+
+
+def make_order_cancel(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = OrderCancel.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_ORDER_CANCEL, obj.to_dict())
+
+
+def make_order_cancel_unchecked(
+    *,
+    order_id: str,
+    gateway_id: str,
+) -> list[bytes]:
+    """Identical frames to ``make_order_cancel``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_ORDER_CANCEL_BYTES,
+        _msg.dumps(
+            {
+                "order_id": str(order_id),
+                "gateway_id": str(gateway_id),
+            }
+        ),
+    ]
+
+
+def parse_order_cancel(frames: list[bytes]) -> "OrderCancel":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = OrderCancel.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_order_cancel() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _ORDER_CANCEL_FIELDS
+
+
+TOPIC_ORDER_AMEND = "order.amend"
+_TOPIC_ORDER_AMEND_BYTES = "order.amend".encode()
+
+
+_ORDER_AMEND_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "order_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 64},
+    },
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "price",
+        "type": "float",
+        "unit": "display_price",
+        "required": False,
+        "doc": "New limit price; absent means the price is unchanged.",
+    },
+    {
+        "name": "qty",
+        "type": "int",
+        "unit": "shares",
+        "required": False,
+        "doc": "New quantity; absent means the quantity is unchanged.",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class OrderAmend:
+    """Request a price and/or quantity change to a resting order.
+
+    price and qty are omitted when not being changed, and the engine reads that absence
+    as "leave this alone" - so unlike order.new these two DO take omit_when_none.
+    tests/test_messages.py pins the omission directly. price here is display money, not
+    the ticks that order.new carries.
+    """
+
+    order_id: str
+    gateway_id: str
+    price: float | None = None  # unit: display_price
+    qty: int | None = None  # unit: shares
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.order_id) > 64:
+            raise MessageValidationError(
+                f"order_id: length {len(self.order_id)} exceeds max_len 64"
+            )
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "OrderAmend":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            order_id=str(p["order_id"]),
+            gateway_id=str(p["gateway_id"]),
+            price=None if p.get("price") is None else float(p["price"]),
+            qty=None if p.get("qty") is None else int(p["qty"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "order_id": self.order_id,
+            "gateway_id": self.gateway_id,
+        }
+        if self.price is not None:
+            payload["price"] = self.price
+        if self.qty is not None:
+            payload["qty"] = self.qty
+        return payload
+
+
+def is_order_amend(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_ORDER_AMEND
+
+
+def make_order_amend(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = OrderAmend.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_ORDER_AMEND, obj.to_dict())
+
+
+def make_order_amend_unchecked(
+    *,
+    order_id: str,
+    gateway_id: str,
+    price: float | None = None,
+    qty: int | None = None,
+) -> list[bytes]:
+    """Identical frames to ``make_order_amend``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    payload: dict[str, Any] = {
+        "order_id": str(order_id),
+        "gateway_id": str(gateway_id),
+    }
+    if price is not None:
+        payload["price"] = float(price)
+    if qty is not None:
+        payload["qty"] = int(qty)
+    return [
+        _TOPIC_ORDER_AMEND_BYTES,
+        _msg.dumps(payload),
+    ]
+
+
+def parse_order_amend(frames: list[bytes]) -> "OrderAmend":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = OrderAmend.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_order_amend() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _ORDER_AMEND_FIELDS
+
+
 FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_ORDER_ACK,
     TOPIC_ORDER_FILL,
     TOPIC_ORDER_CANCELLED,
     TOPIC_ORDER_EXPIRED,
     TOPIC_ORDER_AMENDED,
+    TOPIC_ORDER_NEW,
+    TOPIC_ORDER_CANCEL,
+    TOPIC_ORDER_AMEND,
 )
