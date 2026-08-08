@@ -18,7 +18,10 @@ output must be:
 
 from __future__ import annotations
 
+import re
 import textwrap
+
+from typing import Any
 
 from edumatcher.msgen.spec import Family, Field, Message
 
@@ -175,6 +178,62 @@ def _annotation(f: Field) -> str:
     return "Literal[" + ", ".join(_pystr(v) for v in f.values) + "]"
 
 
+def _narrow(f: Field, expr: str) -> str:
+    """Wrap a coerced value in ``cast`` when the field is annotated ``Literal``.
+
+    ``from_dict`` coerces with ``str()`` and does not validate, so a type
+    checker cannot know the result is one of the declared values — and it might
+    not be, which is exactly the point of the coercion/validation split.
+
+    ``cast`` is the honest way to say so: it is a no-op at runtime, it keeps the
+    ``Literal`` on the dataclass where it does catch a bad constructor call, and
+    it confines the "we have not checked yet" admission to the one function
+    whose job is not to check. A field whose ``parse_default`` is outside its
+    values is annotated ``str`` instead and needs no cast (see ``_annotation``).
+    """
+    annotation = _annotation(f)
+    if f.type == "enum" and annotation.startswith("Literal"):
+        return f"cast({annotation}, {expr})"
+    return expr
+
+
+def _split_top_level(text: str) -> tuple[str, str]:
+    """Split ``text`` at its first comma outside any bracket."""
+    depth = 0
+    for index, char in enumerate(text):
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == "," and depth == 0:
+            return text[:index], text[index + 1 :].lstrip()
+    raise ValueError(f"no top-level comma in {text!r}")
+
+
+def _kwarg_lines(indent: str, name: str, expr: str) -> list[str]:
+    """Emit ``name=expr,`` the way black would, wrapping a long ``cast``.
+
+    Only ``cast`` needs this: it is the one generated expression that can be
+    long enough to wrap, and black has two forms for it depending on whether the
+    arguments fit on one continuation line.
+    """
+    single = f"{indent}{name}={expr},"
+    if len(single) <= LINE_LENGTH or not expr.startswith("cast("):
+        return [single]
+    # Split on the comma separating cast's two arguments, not on one inside
+    # ``Literal["A", "B"]`` — which a naive split(", ", 1) hits first.
+    annotation, inner = _split_top_level(expr[len("cast(") : -1])
+    joined = f"{indent}    {annotation}, {inner}"
+    if len(joined) <= LINE_LENGTH:
+        return [f"{indent}{name}=cast(", joined, f"{indent}),"]
+    return [
+        f"{indent}{name}=cast(",
+        f"{indent}    {annotation},",
+        f"{indent}    {inner},",
+        f"{indent}),",
+    ]
+
+
 def _read_expr(f: Field) -> str:
     """Return the ``from_dict`` read expression for one field.
 
@@ -185,10 +244,10 @@ def _read_expr(f: Field) -> str:
     coerce = _COERCE[f.type]
     key = _pystr(f.name)
     if f.has_parse_default:
-        return f"{coerce}(p.get({key}, {_pyval(f.parse_default)}))"
+        return _narrow(f, f"{coerce}(p.get({key}, {_pyval(f.parse_default)}))")
     if not f.required:
-        return f"{coerce}(p.get({key}, {_pyval(f.default)}))"
-    return f"{coerce}(p[{key}])"
+        return _narrow(f, f"{coerce}(p.get({key}, {_pyval(f.default)}))")
+    return _narrow(f, f"{coerce}(p[{key}])")
 
 
 def _topic_regex(topic: str, params: tuple[str, ...]) -> str:
@@ -209,17 +268,22 @@ def _topic_regex(topic: str, params: tuple[str, ...]) -> str:
 
 def _constant_block(message: Message) -> list[str]:
     """Module-level constants for one message: topic, patterns, enum values."""
-    assert message.topic is not None
     const = _const_name(message)
     params = message.topic_params
 
-    out = [f"TOPIC_{const} = {_pystr(message.topic)}"]
-    if params:
+    out: list[str] = []
+    if message.topic is None:
+        # An external-only message (BALF's execution_report) has no bus
+        # endpoint, so there is no topic constant to emit (design section B.6).
+        pass
+    elif params:
+        out.append(f"TOPIC_{const} = {_pystr(message.topic)}")
         prefix = message.topic[: message.topic.index("{")]
         regex = _topic_regex(message.topic, params)
         out.append(f"PREFIX_{const} = {_pystr(prefix)}")
         out.append(f"_{const}_RE = re.compile({_pystr(regex)})")
     else:
+        out.append(f"TOPIC_{const} = {_pystr(message.topic)}")
         # Pre-encoded once at import, matching the engine's own _TRADE_TOPIC
         # optimisation (docs-design/perf-notes.md, "Engine / publication").
         # A parameterised topic cannot be pre-encoded; it is built per call.
@@ -367,7 +431,8 @@ def _class_block(message: Message) -> list[str]:
         ],
     )
     out.append("        return cls(")
-    out += [f"            {f.name}={_read_expr(f)}," for f in message.fields]
+    for f in message.fields:
+        out += _kwarg_lines("            ", f.name, _read_expr(f))
     out.append("        )")
 
     out += ["", "    def to_dict(self) -> dict[str, Any]:"]
@@ -518,18 +583,193 @@ def _text_projection_blocks(message: Message) -> list[list[str]]:
         for spec_field in message.fields:
             if spec_field.name in enc.include:
                 key = enc.keys[spec_field.name][0]
-                expr = _TEXT_READ[spec_field.type].format(expr=f"fields[{_pystr(key)}]")
+                expr = _narrow(
+                    spec_field,
+                    _TEXT_READ[spec_field.type].format(expr=f"fields[{_pystr(key)}]"),
+                )
             elif spec_field.has_parse_default:
-                expr = _pyval(spec_field.parse_default)
+                expr = _narrow(spec_field, _pyval(spec_field.parse_default))
             elif not spec_field.required:
-                expr = _pyval(spec_field.default)
+                expr = _narrow(spec_field, _pyval(spec_field.default))
             else:
-                expr = _absent_placeholder(spec_field)
-            reader.append(f"        {spec_field.name}={expr},")
+                expr = _narrow(spec_field, _absent_placeholder(spec_field))
+            reader += _kwarg_lines("        ", spec_field.name, expr)
         reader.append("    )")
         blocks.append(reader)
 
     return blocks
+
+
+_CHAR_ARRAY_RE = re.compile(r"char\[(\d+)\]")
+
+#: ``repr`` token -> struct format code (little-endian; see design section B.10).
+_STRUCT_CODE = {
+    "u8": "B",
+    "i8": "b",
+    "u16": "H",
+    "i16": "h",
+    "u32": "I",
+    "i32": "i",
+    "u64": "Q",
+    "i64": "q",
+    "f32": "f",
+    "f64": "d",
+}
+
+
+def _binary_blocks(message: Message) -> list[list[str]]:
+    """Emit ``serialise_*_<transport>`` and ``parse_*_<transport>`` for a frame.
+
+    One ``struct`` format string per message, built from the layout in offset
+    order, so packing and unpacking are a single call rather than a field loop.
+    The 8-byte header is prepended here: it is implicit in the spec and the
+    generator owns it (design section B.13).
+    """
+    cls = _class_name(message)
+    const = _const_name(message)
+    blocks: list[list[str]] = []
+
+    for transport in sorted(message.binary_encoding):
+        enc = message.binary_encoding[transport]
+        prefix = f"{const}_{transport.upper()}"
+        placed = sorted(enc.layout, key=lambda e: e.offset)
+
+        fmt = "<"
+        names: list[str] = []
+        for entry in placed:
+            if entry.is_reserved:
+                fmt += f"{entry.size}x"
+                continue
+            assert entry.repr is not None and entry.field is not None
+            match = _CHAR_ARRAY_RE.fullmatch(entry.repr)
+            fmt += f"{match.group(1)}s" if match else _STRUCT_CODE[entry.repr]
+            names.append(entry.field)
+
+        consts = [
+            f"MSGTYPE_{prefix} = {enc.msg_type:#04x}",
+            f"FRAME_SIZE_{prefix} = {enc.frame_size}",
+            f"_{prefix}_FMT = {_pystr(fmt)}",
+            f"_{prefix}_STRUCT = _struct.Struct(_{prefix}_FMT)",
+        ]
+        if enc.price_scale is not None:
+            consts.append(f"PRICE_SCALE_{prefix} = {enc.price_scale}")
+        for entry in placed:
+            if entry.enum_map:
+                assert entry.field is not None
+                pairs = ", ".join(
+                    f"{_pystr(k)}: {v}" for k, v in entry.enum_map.items()
+                )
+                name = f"_{prefix}_{entry.field.upper()}"
+                consts.append(f"{name}_TO_WIRE = {{{pairs}}}")
+                comprehension = f"v: k for k, v in {name}_TO_WIRE.items()"
+                single = f"{name}_FROM_WIRE = {{{comprehension}}}"
+                if len(single) <= LINE_LENGTH:
+                    consts.append(single)
+                else:
+                    consts += [
+                        f"{name}_FROM_WIRE = {{",
+                        f"    {comprehension}",
+                        "}",
+                    ]
+        blocks.append(consts)
+
+        blocks.append(_binary_serialise(message, transport, enc, prefix, placed))
+        blocks.append(_binary_parse(message, cls, transport, enc, prefix, names))
+
+    return blocks
+
+
+def _binary_pack_expr(entry: Any, prefix: str) -> str:
+    """Value expression fed to ``struct.pack`` for one laid-out field."""
+    assert entry.field is not None
+    raw = f"payload[{_pystr(entry.field)}]"
+    if entry.enum_map:
+        return f"_{prefix}_{entry.field.upper()}_TO_WIRE[str({raw})]"
+    match = _CHAR_ARRAY_RE.fullmatch(entry.repr or "")
+    if match:
+        return f"str({raw}).encode()"
+    if entry.scale:
+        return f"round(float({raw}) * {entry.scale})"
+    if entry.repr in ("f32", "f64"):
+        return f"float({raw})"
+    return f"int({raw})"
+
+
+def _binary_serialise(
+    message: Message, transport: str, enc: Any, prefix: str, placed: list[Any]
+) -> list[str]:
+    out = [
+        f"def serialise_{message.name}_{transport}(",
+        "    payload: Mapping[str, Any],",
+        "    *,",
+        "    seq_no: int,",
+        "    flags: int = 0,",
+        ") -> bytes:",
+    ]
+    out += _docstring(
+        "    ",
+        f"Serialise a payload into one {transport.upper()} frame.",
+        [
+            f"Returns exactly FRAME_SIZE_{prefix} bytes: the fixed "
+            "8-byte header followed by the body laid out in the spec. The "
+            "header is the generator's, not the spec's — it must not be "
+            "declared in `layout` (design section B.13).",
+            "Reads only the laid-out fields, and coerces each to its declared "
+            "type, so this and the typed binding never disagree.",
+        ],
+    )
+    out.append("    return _msg_header(")
+    out.append(f"        MSGTYPE_{prefix}, seq_no, flags")
+    out.append(f"    ) + _{prefix}_STRUCT.pack(")
+    for entry in placed:
+        if not entry.is_reserved:
+            out.append(f"        {_binary_pack_expr(entry, prefix)},")
+    out.append("    )")
+    return out
+
+
+def _binary_parse(
+    message: Message, cls: str, transport: str, enc: Any, prefix: str, names: list[str]
+) -> list[str]:
+    out = [
+        f'def parse_{message.name}_{transport}(frame: bytes) -> "{cls}":',
+    ]
+    out += _docstring(
+        "    ",
+        f"Parse one {transport.upper()} frame into this message.",
+        [
+            "Validates the header (magic, version, msg_type) and the frame "
+            "length, because a wrong-length frame is not this message and "
+            "reading it as one would silently produce nonsense. Field values "
+            "are coerced but their declared rules are not checked — call "
+            "``validate()`` for that (design section 5.1.1).",
+            "Raises MessageValidationError on a header or length mismatch.",
+        ],
+    )
+    out.append(f"    _check_frame(frame, MSGTYPE_{prefix}, FRAME_SIZE_{prefix})")
+    single = f"    ({', '.join(names)},) = _{prefix}_STRUCT.unpack_from(frame, 8)"
+    if len(single) <= LINE_LENGTH:
+        out.append(single)
+    else:
+        out.append("    (")
+        out += [f"        {name}," for name in names]
+        out.append(f"    ) = _{prefix}_STRUCT.unpack_from(frame, 8)")
+    out.append(f"    return {cls}(")
+    by_offset = {e.field: e for e in enc.layout if not e.is_reserved}
+    for f in message.fields:
+        entry = by_offset[f.name]
+        expr = f.name
+        if entry.enum_map:
+            # An unmapped wire byte yields "" rather than an exception: parse
+            # coerces, validate() rejects (design section 5.1.1).
+            expr = _narrow(f, f'_{prefix}_{f.name.upper()}_FROM_WIRE.get({f.name}, "")')
+        elif _CHAR_ARRAY_RE.fullmatch(entry.repr or ""):
+            expr = f'{f.name}.split(b"\\x00")[0].decode()'
+        elif entry.scale:
+            expr = f"{f.name} / {entry.scale}"
+        out += _kwarg_lines("        ", f.name, expr)
+    out.append("    )")
+    return out
 
 
 def _payload_read(f: Field) -> str:
@@ -566,11 +806,27 @@ def _absent_placeholder(f: Field) -> str:
 
 
 def _function_blocks(message: Message) -> list[list[str]]:
-    """Every module-level function for one message, as separate blocks."""
+    """Every module-level function for one message, as separate blocks.
+
+    A message with no bus transport gets only ``describe_*``: ``make_*`` and
+    ``parse_*`` build and read bus frames, which an external-only message never
+    has (design section B.6).
+    """
     cls = _class_name(message)
     const = _const_name(message)
     params = message.topic_params
     blocks: list[list[str]] = []
+
+    if message.topic is None:
+        return [
+            [f"def describe_{message.name}() -> tuple[dict[str, Any], ...]:"]
+            + _docstring(
+                "    ",
+                "Return field metadata, for spy tools and runtime pretty-printing.",
+                [],
+            )
+            + [f"    return _{const}_FIELDS"]
+        ]
 
     if not params:
         blocks.append(
@@ -701,17 +957,40 @@ def render_family(family: Family, spec_path: str) -> str:
         ],
     )
 
+    needs_binary = any(m.binary_encoding for m in messages)
+    needs_bus = any(m.topic is not None for m in messages)
+
     imports = ["from __future__ import annotations", ""]
     if needs_re:
         imports.append("import re")
+    if needs_binary:
+        imports.append("import struct as _struct")
     imports.append("from dataclasses import dataclass")
-    typing_names = ["Any"] + (["Literal"] if needs_literal else []) + ["Mapping"]
-    imports += [
-        f"from typing import {', '.join(typing_names)}",
-        "",
-        "from edumatcher.models import message as _msg",
-        "from edumatcher.models.generated._runtime import MessageValidationError",
-    ]
+    typing_names = ["Any"]
+    if needs_literal:
+        typing_names.append("Literal")
+    typing_names.append("Mapping")
+    if needs_literal:
+        typing_names.append("cast")
+    imports.append(f"from typing import {', '.join(typing_names)}")
+    imports.append("")
+    if needs_bus:
+        imports.append("from edumatcher.models import message as _msg")
+    runtime_names = ["MessageValidationError"]
+    if needs_binary:
+        runtime_names = [
+            "MessageValidationError",
+            "balf_header as _msg_header",
+            "check_balf_frame as _check_frame",
+        ]
+    if len(runtime_names) == 1:
+        imports.append(
+            "from edumatcher.models.generated._runtime import MessageValidationError"
+        )
+    else:
+        imports.append("from edumatcher.models.generated._runtime import (")
+        imports += [f"    {name}," for name in runtime_names]
+        imports.append(")")
 
     # Black wants exactly one blank line after the import block, so the module
     # preamble and the family constants are one emitted block.
@@ -727,13 +1006,19 @@ def render_family(family: Family, spec_path: str) -> str:
     ]
 
     for message in messages:
-        blocks.append(_constant_block(message))
+        constants = _constant_block(message)
+        if constants:
+            blocks.append(constants)
         blocks.append(_describe_block(message))
         blocks.append(_class_block(message))
         blocks.extend(_function_blocks(message))
         blocks.extend(_text_projection_blocks(message))
+        blocks.extend(_binary_blocks(message))
 
-    topics = [f"TOPIC_{_const_name(m)}" for m in messages]
-    blocks.append([f"FAMILY_TOPICS: tuple[str, ...] = {_tuple_literal(topics)}"])
+    # Only bus messages have a topic; an external-only family's registry is
+    # legitimately empty (design section B.6).
+    topics = [f"TOPIC_{_const_name(m)}" for m in messages if m.topic is not None]
+    literal = _tuple_literal(topics) if topics else "()"
+    blocks.append([f"FAMILY_TOPICS: tuple[str, ...] = {literal}"])
 
     return "\n\n\n".join("\n".join(b) for b in blocks) + "\n"

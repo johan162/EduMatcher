@@ -1,6 +1,23 @@
-Version: 1.8.0
+Version: 1.9.0
 
 Date: 2026-08-08
+
+Changes in 1.9.0 — Phase 4b (BALF binary) is implemented, and it began by
+finding a live defect that this design had propagated:
+
+- **§4.1's `execution_report` layout was wrong** — `frame_size: 72`,
+  `order_id` as `char[16]`, everything after it shifted eight bytes. It was
+  taken from `docs/examples/balf/balf_parser.py`, which disagrees with the
+  normative protocol reference, the gateway codec and the gateway's tests. The
+  example is eight bytes too large on **all six messages carrying an
+  `order_id`**, because it models that field as a sixteen-byte string where the
+  protocol defines a `u64`. §4.1 now follows
+  `docs/user-guide/910-app-balf-protocol.md`.
+- **§12.4 listed the old layout as verified.** The verification was real; the
+  source was wrong. Withdrawn, with the reasoning kept — see §13.6, where it is
+  the clearest evidence in this document that the problem §1 describes is real.
+- The example parsers are corrected as part of this phase, and a test now
+  asserts their frame-size table against `codec.py`'s.
 
 Changes in 1.8.0 — Phase 4 is split into **4a (text/CALF)** and **4b
 (binary/BALF)**, and 4a is implemented. Five corrections, all found by reading
@@ -343,8 +360,11 @@ messages:
 ```
 
 BALF is illustrated by a message that genuinely lives there. The layout,
-`msg_type`, sizes and the fixed price scale are all taken from
-`docs/examples/balf/balf_parser.py`, not invented:
+`msg_type`, sizes and the fixed price scale are taken from
+`docs/user-guide/910-app-balf-protocol.md` — which declares itself "the
+**normative reference** for BALF `1.0.0`" — and cross-checked against
+`src/edumatcher/balf_gwy/codec.py`, the gateway that actually emits these
+frames. See the correction note below.
 
 ```yaml
   - name: execution_report
@@ -354,35 +374,53 @@ BALF is illustrated by a message that genuinely lives there. The layout,
     transport: [balf]
 
     fields:
-      - { name: client_order_id, type: int,    required: true }
-      - { name: order_id,        type: string, required: true, validate: { max_len: 16 } }
+      - { name: client_order_id, type: int,    required: true, unit: dimensionless }
+      - { name: order_id,        type: int,    required: true, unit: dimensionless }
       - { name: fill_price,      type: float,  required: true, unit: display_price, validate: { gt: 0 } }
       - { name: fill_qty,        type: int,    required: true, unit: shares }
       - { name: remaining_qty,   type: int,    required: true, unit: shares }
       - { name: timestamp_ns,    type: int,    required: true, unit: epoch_nanos }
       - { name: symbol,          type: string, required: true, validate: { max_len: 8 } }
       - { name: side,            type: enum,   values: [BUY, SELL], required: true }
-      - { name: status,          type: enum,   values: [NEW, PARTIAL, FILLED, CANCELLED], required: true }
+      - { name: status,          type: enum,   values: [PARTIAL, FILLED], required: true }
 
     encoding:
       balf:
-        msg_type: 0x20                 # MSG_EXECUTION_REPORT in balf_parser.py
-        frame_size: 72                 # header(8) + body(64); MUST equal FRAME_SIZES[0x20]
+        msg_type: 0x20                 # MSG_EXECUTION_REPORT
+        frame_size: 64                 # header(8) + body(56); MUST equal codec.FRAME_SIZE[0x20]
         # Fixed 8-byte header (magic=0xBA, version=0x01, msg_type, flags,
         # seq_no u32 LE) is prepended automatically by the generator.
         price_scale: 100000000         # PRICE_SCALE = 1e8, FIXED for all BALF prices — never tick_decimals
         layout:                        # little-endian, offsets relative to body
-          - { field: client_order_id, repr: u64,      offset: 0  }
-          - { field: order_id,        repr: char[16], offset: 8  }
-          - { field: fill_price,      repr: i64,       offset: 24, scale: price_scale }
-          - { field: fill_qty,        repr: u32,       offset: 32 }
-          - { field: remaining_qty,   repr: u32,       offset: 36 }
-          - { field: timestamp_ns,    repr: u64,       offset: 40 }
-          - { field: symbol,          repr: char[8],   offset: 48 }
-          - { field: side,            repr: u8,        offset: 56, enum_map: { BUY: 1, SELL: 2 } }
-          - { field: status,          repr: u8,        offset: 57 }
-        # bytes 58..63 are reserved padding to reach the 64-byte body.
+          - { field: client_order_id, repr: u64,     offset: 0  }
+          - { field: order_id,        repr: u64,     offset: 8  }
+          - { field: fill_price,      repr: i64,     offset: 16, scale: price_scale }
+          - { field: fill_qty,        repr: u32,     offset: 24 }
+          - { field: remaining_qty,   repr: u32,     offset: 28 }
+          - { field: timestamp_ns,    repr: u64,     offset: 32 }
+          - { field: symbol,          repr: char[8], offset: 40 }
+          - { field: side,            repr: u8,      offset: 48, enum_map: { BUY: 1, SELL: 2 } }
+          - { field: status,          repr: u8,      offset: 49, enum_map: { PARTIAL: 1, FILLED: 2 } }
+          - { reserved: 6, offset: 50 }  # must be zero; pads the body to 56
 ```
+
+> **Correction (1.9.0). Versions up to 1.8.0 printed this example with
+> `frame_size: 72`, `order_id` as `char[16]`, and every field after it shifted
+> by eight bytes.** That layout was taken from
+> `docs/examples/balf/balf_parser.py`, which is wrong. The example parser models
+> `order_id` as a sixteen-byte string where the protocol defines a `u64`, and it
+> is consequently eight bytes too large on **every one of the six messages that
+> carries an `order_id`** — `ORDER_ACK`, `CANCEL_ORDER`, `CANCEL_ACK`,
+> `AMEND_ORDER`, `AMEND_ACK` and `EXECUTION_REPORT`. The normative document, the
+> gateway codec and the gateway's unit tests (which assert `side` at body offset
+> 48) all agree with each other and against the example.
+>
+> §12.4 of this document listed the old layout under "claims that checked out",
+> having verified it against `balf_parser.py:139-161`. The verification was
+> real; the source was wrong. That is worth more than an erratum — it is this
+> design's own thesis demonstrated on itself. One message described in four
+> places, no declared authority, and the copy a customer is pointed at is the
+> broken one. See §13.6.
 
 A second, shorter fragment shows the two type-table entries the example above
 never exercises — `nested` and `list[T]` — using the real `book.{SYMBOL}`
@@ -1502,10 +1540,14 @@ Recorded so they are not re-investigated:
   exactly: `normalise_trade` emits `{PX, QTY, SIDE}` and nothing else.
 - §4.6's RALF projection matches `ralf_gateway/gateway.py:452-478`, including
   `id` feeding both `EXEC_ID` and `MATCH_ID`.
-- §4.1's BALF `execution_report` layout matches
-  `docs/examples/balf/balf_parser.py:139-161` byte-for-byte: `frame_size 72`
-  = `FRAME_SIZES[0x20]`, 64-byte body, offsets 0/8/24/32/36/40/48/56/57,
-  `PRICE_SCALE = 100_000_000`, `magic 0xBA`, `version 0x01`.
+- ~~§4.1's BALF `execution_report` layout matches
+  `docs/examples/balf/balf_parser.py:139-161` byte-for-byte.~~ **Withdrawn in
+  1.9.0.** It did match that file, and that file is wrong. The normative
+  reference (`910-app-balf-protocol.md`), `balf_gwy/codec.py` and
+  `tests/test_balf_gwy_unit.py` all say `frame_size 64`, a 56-byte body, and
+  `order_id` as `u64`. Only `PRICE_SCALE = 100_000_000`, `magic 0xBA` and
+  `version 0x01` survive from the original claim. See the correction note in
+  §4.1 and the lesson in §13.6.
 - §4.1's note that `encode()` returns two frames and `SequencedPublisher` adds
   the third matches `models/message.py:69-71` and `messaging/bus.py:42-72`.
 - §7.1's claim that `pyproject.toml` has only `dev` and `docs` groups, and no
@@ -1537,7 +1579,7 @@ and 2 shipped and updated for Phase 3; update it after each subsequent phase.
 |---|---|---|
 | 1 | One canonical file per family; everything else generated | **partial** — true for `trade`; 1 family of ~15 specified |
 | 2 | Generated Python: typed payload, validating constructor, parser, topic constant | **done**, plus `describe_*`, `FAMILY_TOPICS`, `make_*_unchecked`, `project_*`/`parse_*_calf` |
-| 3 | Generated C | **text done (4a)** — typed struct, enum + `to_str`/`from_str`, parser, validator, `strerror`; binary is 4b |
+| 3 | Generated C | **done** — text (4a) and binary (4b): typed struct, enum + `to_str`/`from_str`, parser, validator, `strerror`, for both CALF key-value lines and BALF fixed frames |
 | 4 | Generated documentation appendix | not started (Phase 6) |
 | 5 | Validation declared once, enforced by *both* bindings | **done for CALF** — `price > 0` and `quantity > 0` are enforced in Python and in C from one declaration, and a test asserts the two reject the same values |
 | 6 | Documentation-only metadata that never reaches the wire | **done** — `doc.motivation`/`since`/`see_also`/`example_note`, surfaced through `describe_*` and the generated C block comments |
@@ -1550,7 +1592,8 @@ and 2 shipped and updated for Phase 3; update it after each subsequent phase.
 | 1.1 Payload shape typed for 7 of 92 messages | 7 typed by hand | 1 of those 7 now *generated* from a declared spec with units and constraints; the other 6 unchanged |
 | 1.2 Topic names duplicated as literals in subscribers | `"trade.executed"` in 17 modules | **14 modules, 26 occurrences** — Phase 2 removed 3 modules (`engine/main.py`, `stats/main.py`, `models/message.py`) |
 | 1.3 Documentation drifts in both directions | unchanged | unchanged — Phase 6 |
-| 1.4 The C surface has no message types | a generic `calf_field_t` bag; every client re-derives field names as literals | **`trade.executed`'s CALF projection now has a typed struct**, a real enum, a parser and a validator, all generated. `calf_subscriber.c` uses them. The bag remains for every other message. |
+| 1.4 The C surface has no message types | a generic `calf_field_t` bag; every client re-derives field names as literals | **Two messages now have typed C structs** — `trade.executed`'s CALF projection and `execution_report`'s BALF frame — with real enums, parsers, validators and a shared `strerror`. `calf_subscriber.c` and `balf_parser.c` use them. The bag remains for every other message. |
+| — (found in 4b) | `docs/examples/balf` disagreed with the gateway on **6 of 12 frame sizes**, undetected | corrected, and guarded by a test comparing the examples' table against `codec.py` |
 
 The 1.2 number is the honest one to watch. Phase 2 adopted the *producer* side
 of `trade.executed` completely, and three of seventeen consumers. A publisher-side
@@ -1631,6 +1674,34 @@ Two smaller results worth recording:
   notice a zero price at all; it now reports `<unparseable: ...>` or
   `<invalid: price must be > 0>`.
 
+### 13.4b What Phase 4b actually proved
+
+The capstone is complete: assertions 4 and 5 both hold, for a text projection
+and for a binary frame, against compiled C. But the result worth recording is
+narrower and sharper.
+
+**The generated binary binding is byte-identical to the production gateway.**
+`serialise_execution_report_balf(payload, seq_no=7)` equals
+`codec.build_execution_report(...)` for every case tested, including the
+extremes (`order_id = 2^64-1`, `fill_price = 1e-8`, `remaining_qty = 2^32-1`).
+That is what makes the spec trustworthy: it was written from the normative
+document, and the gateway is the thing that actually reaches a client, so
+agreement between the two is the only evidence that the reading was right.
+
+**The layout-coverage rule (B.18 r10) is the rule that pays.** Requiring every
+body byte to be covered exactly once, with gaps as explicit `reserved` runs, is
+what turns "eight bytes short of `frame_size`" from an invisible defect into a
+load-time error naming the uncovered range. The wrong example parser had
+exactly that shape.
+
+**`-Werror` caught two real generator bugs** that a human reviewer plausibly
+would not have: readers emitted in alphabetical order, so `edu_rd_i64` called
+`edu_rd_u64` before its declaration; and a `ge: 0` rule emitted as
+`unsigned < 0`, which gcc rejects as always-false. The second is interesting —
+the rule is genuinely vacuous on an unsigned wire type, so the generator now
+omits it in C and keeps it in Python, where the value is signed and the check
+means something.
+
 ### 13.5 What went better than the design predicted
 
 - **R1 (generated output silently diverges during migration)** did not
@@ -1673,6 +1744,25 @@ right about both, but had not measured its behaviour.**
   obvious signature. It forced a CALF gateway to hold eleven fields to emit
   three, and only the full test suite said so — eight `md_gateway` tests failed
   with `KeyError: 'id'`. See §B.13.
+
+- Phase 4b (§4.1): the BALF layout *looked* verified — §12.4 said so, against a
+  file called "Reference BALF parser" that the user guide offers customers. It
+  disagrees with the normative specification on six of twelve frame sizes.
+
+**The Phase 4b finding deserves its own note**, because it is this design's
+argument made against the design itself. §1 says a message is described in
+several places with no authority and that the copies drift. `EXECUTION_REPORT`
+is described in four: the normative appendix, the gateway codec, the gateway's
+tests, and the customer reference parser. Three agree. The fourth — the one a
+customer is told to copy — is wrong, and has been wrong on six message types by
+exactly eight bytes each, because it models `order_id` as a sixteen-byte string
+where the protocol defines a `u64`.
+
+Nobody noticed because nothing compared them. The example has a self-test, and
+it passes: it checks the parser against frames the *same file* built. That is
+the failure mode §7.2 exists to close, and it is why the capstone's
+cross-language assertion is the one that matters — a binding that only agrees
+with itself proves nothing.
 
 **The one that keeps recurring.** Three of these — §8.1 (pm-stats), the
 `normalise_trade` failure mode, and the projection signature — are the same
@@ -2018,8 +2108,9 @@ generated file, Phase 1 is done.
 - [x] **Phase 4a** `calf:` encoding on `trade_executed`; Python projection and
   C header/impl generated; `normalise_trade` and `calf_subscriber.c`'s TRADE
   handler adopt them; a compiled round-trip test proves Python and C agree.
-- [ ] **Phase 4b** BALF `layout` support; `order.yaml` with `execution_report`;
-  capstone assertion 5.
+- [x] **Phase 4b** BALF `layout` support; `order.yaml` with `execution_report`;
+  capstone assertion 5; generated frames byte-identical to `balf_gwy/codec.py`;
+  the wrong example parsers corrected and guarded.
 - [ ] **Phase 5** one family per PR, each with its own wire-compat test;
   `grep-literals` count for the family driven to zero.
 - [ ] **Phase 6** `271-message-appendix.md` generated and wired into

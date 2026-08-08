@@ -190,7 +190,7 @@ class TestGeneratedModuleIsUsable:
         from edumatcher.models.generated import trade
 
         _registry, families = load_all(SPEC_ROOT)
-        (msg,) = families[0].messages
+        (msg,) = [f for f in families if f.family == "trade"][0].messages
         described = trade.describe_trade_executed()
         assert [d["name"] for d in described] == [f.name for f in msg.fields]
         assert [d["unit"] for d in described] == [f.unit for f in msg.fields]

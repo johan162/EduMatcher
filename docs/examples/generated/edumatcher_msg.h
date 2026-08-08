@@ -12,6 +12,22 @@
 #ifndef EDUMATCHER_MSG_H
 #define EDUMATCHER_MSG_H
 
+/* The fixed BALF frame header, shared by every binary message:
+ *
+ *   offset 0  magic     u8   always 0xBA
+ *   offset 1  version   u8   protocol-wide, currently 0x01
+ *   offset 2  msg_type  u8   selects the body layout and the frame length
+ *   offset 3  flags     u8
+ *   offset 4  seq_no    u32  little-endian, per session
+ *
+ * `version` is a single PROTOCOL-WIDE byte, not a per-family number. Bumping a
+ * family's version in the spec does not change it, and changing it is a
+ * deliberate protocol-wide decision (design risk R7).
+ */
+#define EDU_BALF_MAGIC 0xBAu
+#define EDU_BALF_VERSION 0x01u
+#define EDU_BALF_HEADER_SIZE 8
+
 /* Return codes for generated parse/validate functions.
  *
  * -1..-5 mirror docs/examples/balf/balf_parser.c's parse_header/split_frame,

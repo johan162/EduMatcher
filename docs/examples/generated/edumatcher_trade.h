@@ -3,7 +3,7 @@
  * Regenerate with:  make msgen  (or: poetry run pm-msgen generate)
  *
  * Typed C bindings for the 'trade' message family, one struct
- * per declared text projection. A struct mirrors what its transport
+ * per declared external projection. A struct mirrors what its transport
  * actually carries, not the internal bus payload - see design section 5.2.
  */
 #ifndef EDUMATCHER_TRADE_H

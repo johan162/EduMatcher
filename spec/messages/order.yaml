@@ -1,0 +1,131 @@
+# Canonical specification for the `order` message family.
+#
+# Phase 4b scope (docs-design/EduMatcher-Message-Generator.md section 8): this
+# file currently specifies ONLY the BALF execution report, which is the vehicle
+# for binary layout generation. The rest of the order family - order.new,
+# order.ack.{gateway_id}, order.fill.{gateway_id} and the others - is Phase 5
+# and is deliberately absent rather than half-specified.
+#
+# LAYOUT AUTHORITY. Every offset, size and enum value below comes from
+# docs/user-guide/910-app-balf-protocol.md, which declares itself "the normative
+# reference for BALF 1.0.0", and is cross-checked against
+# src/edumatcher/balf_gwy/codec.py (the gateway that emits these frames) and
+# tests/test_balf_gwy_unit.py (which asserts side at body offset 48).
+#
+# It deliberately does NOT follow docs/examples/balf/balf_parser.py, which was
+# the source for this design's original example and is wrong: it models
+# `order_id` as a 16-byte string where the protocol defines a u64, making it
+# eight bytes too large on every message that carries one. See section 4.1's
+# correction note.
+
+family: order
+version: 1
+
+messages:
+  - name: execution_report
+    # BALF-only: a private per-order fill sent to the owning gateway session.
+    # No `topic:` - this message never travels on the internal bus. It is NOT
+    # the public trade.executed print; see section 4.6 and risk R13 on why the
+    # two are separate messages rather than one message on two transports.
+    transport: [balf]
+
+    doc:
+      motivation: >
+        Private per-order fill notification, sent to the gateway session that
+        owns the order. Both sides of a match receive their own report.
+      since: "1.0"
+      see_also: ["trade.executed"]
+      example_note: >
+        Sent for every partial or full fill, so a single order may produce
+        several. remaining_qty reaching zero is what marks the order done;
+        status FILLED says the same thing and the two must agree.
+
+    fields:
+      - name: client_order_id
+        type: int
+        required: true
+        unit: dimensionless
+        doc: Echoed from the original NEW_ORDER so a client can correlate.
+
+      - name: order_id
+        type: int
+        required: true
+        unit: dimensionless
+        doc: >
+          Session-scoped BALF order id assigned by the gateway. A u64 on the
+          wire, not a string - this is the field the reference example got
+          wrong.
+
+      - name: fill_price
+        type: float
+        required: true
+        unit: display_price
+        doc: >
+          Execution price in display money. On the wire it is an i64 scaled by
+          the fixed BALF PRICE_SCALE of 10^8, never by the instrument's
+          tick_decimals.
+        validate: { gt: 0 }
+
+      - name: fill_qty
+        type: int
+        required: true
+        unit: shares
+        doc: Quantity matched in this event, not cumulatively.
+        validate: { gt: 0 }
+
+      - name: remaining_qty
+        type: int
+        required: true
+        unit: shares
+        doc: Unfilled quantity after this fill; zero means the order is done.
+        validate: { ge: 0 }
+
+      - name: timestamp_ns
+        type: int
+        required: true
+        unit: epoch_nanos
+        doc: Trade time in nanoseconds since the Unix epoch.
+        validate: { ge: 0 }
+
+      - name: symbol
+        type: string
+        required: true
+        doc: Instrument, echoed for convenience; matches the original order.
+        validate: { max_len: 8, pattern: '^[A-Z0-9._]+$' }
+
+      - name: side
+        type: enum
+        values: [BUY, SELL]
+        required: true
+        doc: Side of the filled order.
+
+      - name: status
+        type: enum
+        values: [PARTIAL, FILLED]
+        required: true
+        doc: >
+          Whether this fill completed the order. Only these two values exist on
+          BALF - there is no NEW or CANCELLED execution report.
+
+    encoding:
+      balf:
+        msg_type: 0x20
+        # Total bytes on the wire = 8-byte header + 56-byte body. MUST equal
+        # codec.FRAME_SIZE[0x20]; a test asserts it.
+        frame_size: 64
+        # Fixed for every BALF price. The 8-byte header (magic 0xBA,
+        # version 0x01, msg_type, flags, seq_no u32 LE) is prepended by the
+        # generator and must not appear in `layout`.
+        price_scale: 100000000
+        layout:
+          - { field: client_order_id, repr: u64,     offset: 0 }
+          - { field: order_id,        repr: u64,     offset: 8 }
+          - { field: fill_price,      repr: i64,     offset: 16, scale: price_scale }
+          - { field: fill_qty,        repr: u32,     offset: 24 }
+          - { field: remaining_qty,   repr: u32,     offset: 28 }
+          - { field: timestamp_ns,    repr: u64,     offset: 32 }
+          - { field: symbol,          repr: "char[8]", offset: 40 }
+          - { field: side,            repr: u8,      offset: 48, enum_map: { BUY: 1, SELL: 2 } }
+          - { field: status,          repr: u8,      offset: 49, enum_map: { PARTIAL: 1, FILLED: 2 } }
+          # "Must be zero" per the normative reference.
+          - { reserved: 6, offset: 50 }

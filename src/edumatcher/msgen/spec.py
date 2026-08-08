@@ -72,6 +72,40 @@ BINARY_TRANSPORTS = ("balf",)
 #: Tokens allowed in a bus ``frames`` list (design section B.13).
 FRAME_TOKENS = ("topic", "json_payload")
 
+#: The fixed BALF header: magic, version, msg_type, flags, seq_no u32 LE.
+#: Implicit in every binary layout — the generator writes it, the spec must not
+#: declare it (design section B.13).
+HEADER_SIZE = 8
+
+#: Width in bytes of each scalar ``repr`` (design section B.10). ``char[N]`` is
+#: handled separately because its width is in the token.
+REPR_SIZE = {
+    "u8": 1,
+    "i8": 1,
+    "u16": 2,
+    "i16": 2,
+    "u32": 4,
+    "i32": 4,
+    "u64": 8,
+    "i64": 8,
+    "f32": 4,
+    "f64": 8,
+}
+
+#: Spec types each ``repr`` may carry.
+_REPR_TYPES = {
+    "u8": ("int", "ticks", "bool", "enum"),
+    "i8": ("int", "ticks"),
+    "u16": ("int", "ticks", "enum"),
+    "i16": ("int", "ticks"),
+    "u32": ("int", "ticks"),
+    "i32": ("int", "ticks"),
+    "u64": ("int", "ticks"),
+    "i64": ("int", "ticks", "float"),
+    "f32": ("float",),
+    "f64": ("float",),
+}
+
 
 @dataclass(frozen=True)
 class Validate:
@@ -140,6 +174,43 @@ class TextEncoding:
 
 
 @dataclass(frozen=True)
+class LayoutEntry:
+    """One placed field, or one explicit padding run, in a binary body."""
+
+    offset: int
+    size: int
+    field: str | None = None
+    repr: str | None = None
+    scale: int | None = None
+    enum_map: dict[str, int] | None = None
+
+    @property
+    def is_reserved(self) -> bool:
+        return self.field is None
+
+
+@dataclass(frozen=True)
+class BinaryEncoding:
+    """A BALF frame layout (design section B.13).
+
+    ``frame_size`` is the total on the wire, header included. Offsets in
+    ``layout`` are relative to the **body**, so byte 0 is the first byte after
+    the 8-byte header. The header is implicit: the generator writes it and the
+    spec must not declare it.
+    """
+
+    transport: str
+    msg_type: int
+    frame_size: int
+    layout: tuple[LayoutEntry, ...]
+    price_scale: int | None = None
+
+    @property
+    def body_size(self) -> int:
+        return self.frame_size - HEADER_SIZE
+
+
+@dataclass(frozen=True)
 class Message:
     """One message within a family (design section B.6)."""
 
@@ -150,6 +221,7 @@ class Message:
     doc: dict[str, Any] = field(default_factory=dict)
     encoding: dict[str, BusEncoding] = field(default_factory=dict)
     text_encoding: dict[str, TextEncoding] = field(default_factory=dict)
+    binary_encoding: dict[str, BinaryEncoding] = field(default_factory=dict)
 
     @property
     def topic_params(self) -> tuple[str, ...]:
@@ -203,6 +275,9 @@ _MESSAGE_KEYS = {
 _DOC_KEYS = {"motivation", "since", "see_also", "example_note"}
 _BUS_ENCODING_KEYS = {"frames", "include"}
 _TEXT_ENCODING_KEYS = {"msg_type", "include", "keys", "gateway_injected"}
+_BINARY_ENCODING_KEYS = {"msg_type", "frame_size", "price_scale", "layout"}
+_LAYOUT_KEYS = {"field", "repr", "offset", "scale", "enum_map"}
+_CHAR_ARRAY = re.compile(r"char\[(\d+)\]")
 
 #: design section B.3: a CALF/RALF wire key and MSGTYPE are SCREAMING_SNAKE.
 _KEY_NAME = re.compile(r"[A-Z][A-Z0-9_]*")
@@ -482,6 +557,217 @@ def _load_text_encoding(
     )
 
 
+def _repr_size(token: str, what: str) -> int:
+    """Return the byte width of a ``repr`` token (design section B.10)."""
+    if token in REPR_SIZE:
+        return REPR_SIZE[token]
+    match = _CHAR_ARRAY.fullmatch(token)
+    if match:
+        return int(match.group(1))
+    near = _nearest(token, set(REPR_SIZE))
+    hint = f" (did you mean {near!r}?)" if near else ""
+    raise SpecError(f"{what}: unknown repr {token!r}{hint}")
+
+
+def _load_layout_entry(
+    raw: Any, fields: tuple[Field, ...], price_scale: int | None, what: str
+) -> LayoutEntry:
+    block = _require_mapping(raw, what)
+
+    if "reserved" in block:
+        _reject_unknown(block, {"reserved", "offset"}, what)
+        size = block["reserved"]
+        offset = block.get("offset")
+        if not isinstance(size, int) or size <= 0:
+            raise SpecError(f"{what}: 'reserved' must be a positive byte count")
+        if not isinstance(offset, int) or offset < 0:
+            raise SpecError(f"{what}: a reserved run needs a non-negative 'offset'")
+        return LayoutEntry(offset=offset, size=size)
+
+    _reject_unknown(block, _LAYOUT_KEYS, what)
+    name = block.get("field")
+    if not name:
+        raise SpecError(f"{what}: a layout entry needs 'field' or 'reserved'")
+    by_name = {f.name: f for f in fields}
+    if name not in by_name:
+        near = _nearest(str(name), set(by_name))
+        hint = f" (did you mean {near!r}?)" if near else ""
+        raise SpecError(f"{what}: layout names undeclared field {name!r}{hint}")
+    spec_field = by_name[name]
+
+    token = block.get("repr")
+    if not isinstance(token, str):
+        raise SpecError(f"{what}: field {name!r} needs a 'repr'")
+    size = _repr_size(token, what)
+    offset = block.get("offset")
+    if not isinstance(offset, int) or offset < 0:
+        raise SpecError(f"{what}: field {name!r} needs a non-negative 'offset'")
+
+    char_match = _CHAR_ARRAY.fullmatch(token)
+    if char_match:
+        if spec_field.type != "string":
+            raise SpecError(
+                f"{what}: {token} carries field {name!r}, which is "
+                f"{spec_field.type!r}, not a string"
+            )
+        # B.18 rule 8/10: the buffer is the declared max_len, so the two must
+        # agree or a legal value would not fit the frame the spec describes.
+        if spec_field.validate.max_len != size:
+            raise SpecError(
+                f"{what}: {token} for field {name!r} must equal its "
+                f"validate.max_len ({spec_field.validate.max_len!r})"
+            )
+    else:
+        allowed = _REPR_TYPES[token]
+        if spec_field.type not in allowed:
+            raise SpecError(
+                f"{what}: repr {token!r} cannot carry a {spec_field.type!r} field "
+                f"({name!r}); it accepts {list(allowed)}"
+            )
+
+    raw_scale = block.get("scale")
+    scale: int | None = None
+    if raw_scale is not None:
+        if raw_scale == "price_scale":
+            if price_scale is None:
+                raise SpecError(
+                    f"{what}: field {name!r} uses 'scale: price_scale' but the "
+                    "balf block declares no price_scale"
+                )
+            scale = price_scale
+        elif isinstance(raw_scale, int) and raw_scale > 0:
+            scale = raw_scale
+        else:
+            raise SpecError(
+                f"{what}: 'scale' must be a positive integer or the token "
+                "'price_scale'"
+            )
+
+    enum_map = block.get("enum_map")
+    if spec_field.type == "enum":
+        # B.18 rule 7: a binary enum needs a complete map. A missing name is a
+        # value that cannot be encoded, discovered at runtime rather than here.
+        if not isinstance(enum_map, dict) or not enum_map:
+            raise SpecError(
+                f"{what}: enum field {name!r} on a binary transport requires an "
+                "'enum_map'"
+            )
+        assert spec_field.values is not None
+        missing = [v for v in spec_field.values if v not in enum_map]
+        if missing:
+            raise SpecError(f"{what}: enum_map for {name!r} omits {missing}")
+        extra = [v for v in enum_map if v not in spec_field.values]
+        if extra:
+            raise SpecError(
+                f"{what}: enum_map for {name!r} names undeclared value(s) {extra}"
+            )
+        for value, code in enum_map.items():
+            if not isinstance(code, int) or not 0 <= code < 256**size:
+                raise SpecError(
+                    f"{what}: enum_map[{value!r}] = {code!r} does not fit {token}"
+                )
+        enum_map = {v: int(enum_map[v]) for v in spec_field.values}
+    elif enum_map is not None:
+        raise SpecError(f"{what}: 'enum_map' is only meaningful for an enum field")
+
+    return LayoutEntry(
+        offset=offset,
+        size=size,
+        field=name,
+        repr=token,
+        scale=scale,
+        enum_map=enum_map,
+    )
+
+
+def _load_binary_encoding(
+    transport: str, raw: Any, fields: tuple[Field, ...], what: str
+) -> BinaryEncoding:
+    block = _require_mapping(raw, what)
+    _reject_unknown(block, _BINARY_ENCODING_KEYS, what)
+
+    msg_type = block.get("msg_type")
+    if not isinstance(msg_type, int) or not 0 <= msg_type <= 0xFF:
+        raise SpecError(f"{what}: 'msg_type' must be a byte in 0x00-0xFF")
+
+    frame_size = block.get("frame_size")
+    if not isinstance(frame_size, int) or frame_size < HEADER_SIZE:
+        raise SpecError(
+            f"{what}: 'frame_size' is required and must be at least the "
+            f"{HEADER_SIZE}-byte header"
+        )
+
+    price_scale = block.get("price_scale")
+    if price_scale is not None and (
+        not isinstance(price_scale, int) or price_scale <= 0
+    ):
+        raise SpecError(f"{what}: 'price_scale' must be a positive integer")
+
+    raw_layout = block.get("layout")
+    if not isinstance(raw_layout, list) or not raw_layout:
+        raise SpecError(f"{what}: 'layout' is required and must be non-empty")
+    entries = tuple(
+        _load_layout_entry(item, fields, price_scale, f"{what}.layout[{index}]")
+        for index, item in enumerate(raw_layout)
+    )
+
+    body_size = frame_size - HEADER_SIZE
+    # B.18 rule 10: every body byte is covered exactly once. Gaps must be
+    # explicit `reserved` runs, so a hole is always a decision rather than an
+    # oversight — this is the rule that would have caught the eight-byte drift
+    # in docs/examples/balf/balf_parser.py.
+    covered: dict[int, str] = {}
+    for entry in entries:
+        label = entry.field or f"reserved@{entry.offset}"
+        end = entry.offset + entry.size
+        if end > body_size:
+            raise SpecError(
+                f"{what}: {label} occupies bytes [{entry.offset}, {end}) which "
+                f"overruns the {body_size}-byte body implied by frame_size "
+                f"{frame_size}"
+            )
+        for byte in range(entry.offset, end):
+            if byte in covered:
+                raise SpecError(
+                    f"{what}: byte {byte} is claimed by both {covered[byte]!r} "
+                    f"and {label!r}"
+                )
+            covered[byte] = label
+    uncovered = [byte for byte in range(body_size) if byte not in covered]
+    if uncovered:
+        raise SpecError(
+            f"{what}: body byte(s) {_runs(uncovered)} are not covered by any "
+            "layout entry; add an explicit 'reserved' run"
+        )
+
+    laid_out = [e.field for e in entries if e.field]
+    missing = [f.name for f in fields if f.name not in laid_out]
+    if missing:
+        raise SpecError(f"{what}: field(s) {missing} have no layout entry")
+
+    return BinaryEncoding(
+        transport=transport,
+        msg_type=msg_type,
+        frame_size=frame_size,
+        layout=entries,
+        price_scale=price_scale,
+    )
+
+
+def _runs(values: list[int]) -> str:
+    """Render a sorted int list as compact ranges, for readable diagnostics."""
+    out: list[str] = []
+    start = prev = values[0]
+    for value in values[1:]:
+        if value == prev + 1:
+            prev = value
+            continue
+        out.append(str(start) if start == prev else f"{start}-{prev}")
+        start = prev = value
+    out.append(str(start) if start == prev else f"{start}-{prev}")
+    return ", ".join(out)
+
+
 def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Message:
     block = _require_mapping(raw, what)
     if "name" not in block:
@@ -509,12 +795,7 @@ def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Mess
     if not isinstance(raw_transport, list) or not raw_transport:
         raise SpecError(f"{where}: 'transport' is required and must be non-empty")
     for tname in raw_transport:
-        if tname in BINARY_TRANSPORTS:
-            raise SpecError(
-                f"{where}: transport {tname!r} is a binary protocol; its layout "
-                "is not generated yet (Phase 4b)."
-            )
-        if tname in TEXT_TRANSPORTS:
+        if tname in EXTERNAL_TRANSPORTS:
             continue
         if tname not in transports:
             near = _nearest(str(tname), set(transports))
@@ -524,25 +805,29 @@ def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Mess
                 f"spec/transports.yaml{hint}"
             )
 
-    bus_transports = [t for t in raw_transport if t not in TEXT_TRANSPORTS]
+    # B.6: `topic` is present iff the message lists at least one bus transport.
+    # An external-only message (BALF's execution_report) never travels on the
+    # bus, so giving it a topic would invent an endpoint nobody publishes to.
+    bus_transports = [t for t in raw_transport if t not in EXTERNAL_TRANSPORTS]
     topic = block.get("topic")
-    if topic is None:
+    if bus_transports and topic is None:
         raise SpecError(f"{where}: 'topic' is required for a bus message")
-    if not bus_transports:
+    if not bus_transports and topic is not None:
         raise SpecError(
             f"{where}: a message with no bus transport must omit 'topic' "
-            "(design section B.6) - text-only messages are Phase 4b"
+            "(design section B.6)"
         )
-    if not isinstance(topic, str) or not topic:
-        raise SpecError(f"{where}: 'topic' must be a non-empty string")
-    for param in _topic_params(topic):
-        if param not in field_names:
-            near = _nearest(param, set(field_names))
-            hint = f" (did you mean {near!r}?)" if near else ""
-            raise SpecError(
-                f"{where}: topic parameter {{{param}}} is not a field of "
-                f"this message{hint}"
-            )
+    if topic is not None:
+        if not isinstance(topic, str) or not topic:
+            raise SpecError(f"{where}: 'topic' must be a non-empty string")
+        for param in _topic_params(topic):
+            if param not in field_names:
+                near = _nearest(param, set(field_names))
+                hint = f" (did you mean {near!r}?)" if near else ""
+                raise SpecError(
+                    f"{where}: topic parameter {{{param}}} is not a field of "
+                    f"this message{hint}"
+                )
 
     doc = block.get("doc") or {}
     doc = _require_mapping(doc, f"{where}.doc")
@@ -558,13 +843,13 @@ def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Mess
                 f"{where}.encoding: {tname!r} is not listed in this message's "
                 "'transport'"
             )
-    # A text transport's block is REQUIRED: `keys` and `msg_type` have no
-    # defensible default, since nothing can infer a wire key name (B.6).
+    # An external transport's block is REQUIRED: nothing can infer a wire key
+    # name or a byte offset, so there is no defensible default (B.6).
     for tname in raw_transport:
-        if tname in TEXT_TRANSPORTS and tname not in raw_encoding:
+        if tname in EXTERNAL_TRANSPORTS and tname not in raw_encoding:
             raise SpecError(
                 f"{where}: transport {tname!r} requires an 'encoding.{tname}' "
-                "block declaring msg_type and keys"
+                "block declaring its wire layout"
             )
 
     encoding = {
@@ -585,6 +870,16 @@ def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Mess
         )
         for tname in raw_transport
         if tname in TEXT_TRANSPORTS
+    }
+    binary_encoding = {
+        tname: _load_binary_encoding(
+            tname,
+            raw_encoding[tname],
+            fields,
+            f"{where}.encoding.{tname}",
+        )
+        for tname in raw_transport
+        if tname in BINARY_TRANSPORTS
     }
 
     # B.18 rule 5: every required field must reach the authoritative bus
@@ -607,6 +902,7 @@ def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Mess
         doc=dict(doc),
         encoding=encoding,
         text_encoding=text_encoding,
+        binary_encoding=binary_encoding,
     )
 
 
@@ -702,6 +998,21 @@ def load_all(spec_root: Path) -> tuple[dict[str, Transport], list[Family]]:
                     f"and {fam.family!r} (B.18 rule 14)"
                 )
             seen[msg.topic] = fam.family
+
+    # B.18 rule 11: a binary msg_type is the only thing a receiver has to tell
+    # frames apart, so two messages sharing one on the same transport would be
+    # undecodable.
+    seen_types: dict[tuple[str, int], str] = {}
+    for fam in families:
+        for msg in fam.messages:
+            for transport, enc in sorted(msg.binary_encoding.items()):
+                key = (transport, enc.msg_type)
+                if key in seen_types:
+                    raise SpecError(
+                        f"{transport} msg_type 0x{enc.msg_type:02X} is declared by "
+                        f"both {seen_types[key]!r} and {msg.name!r}"
+                    )
+                seen_types[key] = msg.name
 
     # C has one flat namespace. Generated symbols are named after the message
     # (edu_<message>_calf_parse), not the family, so two families sharing a

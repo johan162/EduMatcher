@@ -58,7 +58,10 @@ def build_artifacts(
                 label=f"{out_python.name}/{family.family}.py",
             )
         )
-        if out_c is None or not any(m.text_encoding for m in family.messages):
+        has_external = any(
+            m.text_encoding or m.binary_encoding for m in family.messages
+        )
+        if out_c is None or not has_external:
             continue
         stem = f"edumatcher_{family.family}"
         artifacts.append(

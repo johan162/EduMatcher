@@ -45,6 +45,12 @@ def _minimal_family(**message_overrides: Any) -> dict[str, Any]:
     return {"family": "sample", "version": 1, "messages": [message]}
 
 
+def _trade_family() -> Any:
+    """The committed trade family; `order` also lives under spec/ now."""
+    _registry, families = load_all(SPEC_ROOT)
+    return [f for f in families if f.family == "trade"][0]
+
+
 @pytest.fixture(scope="module")
 def transports() -> dict[str, Any]:
     return load_transports(SPEC_ROOT / "transports.yaml")
@@ -65,10 +71,12 @@ class TestRealSpec:
         assert transports["ralf"].pattern == "TCP"
         assert transports["ralf"].is_bus is False
 
-    def test_trade_family_loads(self) -> None:
+    def test_families_load(self) -> None:
         _registry, families = load_all(SPEC_ROOT)
-        assert [f.family for f in families] == ["trade"]
-        (trade,) = families
+        assert sorted(f.family for f in families) == ["order", "trade"]
+
+    def test_trade_family_loads(self) -> None:
+        trade = _trade_family()
         assert trade.version == 1
         (msg,) = trade.messages
         assert msg.name == "trade_executed"
@@ -83,8 +91,7 @@ class TestRealSpec:
         """
         from edumatcher.models.feed_schema import TradeExecutedPayload
 
-        _registry, families = load_all(SPEC_ROOT)
-        (msg,) = families[0].messages
+        (msg,) = _trade_family().messages
         hand = TradeExecutedPayload(
             id="1",
             symbol="A",
@@ -101,8 +108,7 @@ class TestRealSpec:
 
     def test_aggressor_side_declares_a_parse_default(self) -> None:
         """Strict contract, lenient reader — design section B.7.1."""
-        _registry, families = load_all(SPEC_ROOT)
-        (msg,) = families[0].messages
+        (msg,) = _trade_family().messages
         (field,) = [f for f in msg.fields if f.name == "aggressor_side"]
         assert field.required is True
         assert field.values == ("BUY", "SELL", "AUCTION")
@@ -130,8 +136,7 @@ class TestTextEncoding:
     """Phase 4a: the CALF/RALF projection block (design section B.13)."""
 
     def test_real_trade_spec_declares_a_calf_projection(self) -> None:
-        _registry, families = load_all(SPEC_ROOT)
-        (msg,) = families[0].messages
+        (msg,) = _trade_family().messages
         calf = msg.text_encoding["calf"]
         assert calf.msg_type == "TRADE"
         assert calf.include == ("price", "quantity", "aggressor_side")
@@ -144,8 +149,7 @@ class TestTextEncoding:
 
     def test_the_calf_projection_is_a_strict_subset(self) -> None:
         """Design section 4.6: a projection is a subset, not a rename of all."""
-        _registry, families = load_all(SPEC_ROOT)
-        (msg,) = families[0].messages
+        (msg,) = _trade_family().messages
         carried = set(msg.text_encoding["calf"].include)
         assert "id" not in carried
         assert "symbol" not in carried
@@ -248,6 +252,219 @@ class TestTextEncoding:
             load_family(_write(tmp_path, fam), transports)
 
 
+def _with_balf(**encoding_overrides: Any) -> dict[str, Any]:
+    """A BALF-only family, for the Phase 4b layout rules."""
+    balf: dict[str, Any] = {
+        "msg_type": 0x77,
+        "frame_size": 24,  # header 8 + body 16
+        "layout": [
+            {"field": "who", "repr": "char[8]", "offset": 0},
+            {"field": "how_many", "repr": "u32", "offset": 8},
+            {"reserved": 4, "offset": 12},
+        ],
+    }
+    balf.update(encoding_overrides)
+    fam = _minimal_family(transport=["balf"], encoding={"balf": balf})
+    del fam["messages"][0]["topic"]
+    return fam
+
+
+class TestBinaryEncoding:
+    """Phase 4b: the BALF layout block (design sections B.10, B.13, B.18)."""
+
+    def test_real_order_spec_declares_the_normative_layout(self) -> None:
+        _registry, families = load_all(SPEC_ROOT)
+        order = [f for f in families if f.family == "order"][0]
+        (msg,) = order.messages
+        balf = msg.binary_encoding["balf"]
+        assert msg.topic is None
+        assert balf.msg_type == 0x20
+        assert balf.frame_size == 64
+        assert balf.body_size == 56
+        assert balf.price_scale == 100_000_000
+        placed = {e.field: (e.offset, e.repr) for e in balf.layout if e.field}
+        assert placed == {
+            "client_order_id": (0, "u64"),
+            "order_id": (8, "u64"),
+            "fill_price": (16, "i64"),
+            "fill_qty": (24, "u32"),
+            "remaining_qty": (28, "u32"),
+            "timestamp_ns": (32, "u64"),
+            "symbol": (40, "char[8]"),
+            "side": (48, "u8"),
+            "status": (49, "u8"),
+        }
+
+    def test_loads_a_minimal_layout(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = load_family(_write(tmp_path, _with_balf()), transports)
+        balf = fam.messages[0].binary_encoding["balf"]
+        assert balf.body_size == 16
+        assert [e.offset for e in balf.layout] == [0, 8, 12]
+
+    def test_a_gap_in_the_body_is_rejected(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        """The rule that would have caught the example parser's 8-byte drift."""
+        fam = _with_balf(
+            layout=[
+                {"field": "who", "repr": "char[8]", "offset": 0},
+                {"field": "how_many", "repr": "u32", "offset": 8},
+            ]
+        )
+        with pytest.raises(SpecError, match="not covered by any layout entry"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_overlapping_fields_are_rejected(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_balf(
+            layout=[
+                {"field": "who", "repr": "char[8]", "offset": 0},
+                {"field": "how_many", "repr": "u32", "offset": 6},
+                {"reserved": 6, "offset": 10},
+            ]
+        )
+        with pytest.raises(SpecError, match="claimed by both"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_a_field_overrunning_the_body_is_rejected(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_balf(frame_size=16)
+        with pytest.raises(SpecError, match="overruns"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_every_field_needs_a_layout_entry(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_balf(
+            layout=[
+                {"field": "how_many", "repr": "u32", "offset": 0},
+                {"reserved": 12, "offset": 4},
+            ]
+        )
+        with pytest.raises(SpecError, match="have no layout entry"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_char_array_must_match_max_len(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        """B.18 rules 8/10: a legal value must fit the frame the spec describes."""
+        fam = _with_balf(
+            layout=[
+                {"field": "who", "repr": "char[4]", "offset": 0},
+                {"field": "how_many", "repr": "u32", "offset": 4},
+                {"reserved": 8, "offset": 8},
+            ]
+        )
+        with pytest.raises(SpecError, match="must equal its validate.max_len"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_a_repr_that_cannot_carry_the_type_is_rejected(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_balf(
+            layout=[
+                {"field": "who", "repr": "u64", "offset": 0},
+                {"field": "how_many", "repr": "u32", "offset": 8},
+                {"reserved": 4, "offset": 12},
+            ]
+        )
+        with pytest.raises(SpecError, match="cannot carry"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_unknown_repr_is_rejected(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_balf(
+            layout=[
+                {"field": "who", "repr": "char[8]", "offset": 0},
+                {"field": "how_many", "repr": "u34", "offset": 8},
+                {"reserved": 4, "offset": 12},
+            ]
+        )
+        with pytest.raises(SpecError, match="unknown repr"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_an_enum_on_a_binary_transport_needs_an_enum_map(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_balf()
+        fam["messages"][0]["fields"].append(
+            {"name": "state", "type": "enum", "values": ["ON", "OFF"]}
+        )
+        fam["messages"][0]["encoding"]["balf"]["layout"] = [
+            {"field": "who", "repr": "char[8]", "offset": 0},
+            {"field": "how_many", "repr": "u32", "offset": 8},
+            {"field": "state", "repr": "u8", "offset": 12},
+            {"reserved": 3, "offset": 13},
+        ]
+        with pytest.raises(SpecError, match="requires an 'enum_map'"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_an_incomplete_enum_map_is_rejected(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        """B.18 rule 7: a missing name is a value that cannot be encoded."""
+        fam = _with_balf()
+        fam["messages"][0]["fields"].append(
+            {"name": "state", "type": "enum", "values": ["ON", "OFF"]}
+        )
+        fam["messages"][0]["encoding"]["balf"]["layout"] = [
+            {"field": "who", "repr": "char[8]", "offset": 0},
+            {"field": "how_many", "repr": "u32", "offset": 8},
+            {"field": "state", "repr": "u8", "offset": 12, "enum_map": {"ON": 1}},
+            {"reserved": 3, "offset": 13},
+        ]
+        with pytest.raises(SpecError, match=r"omits \['OFF'\]"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_scale_price_scale_requires_a_declared_price_scale(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_balf(
+            layout=[
+                {"field": "who", "repr": "char[8]", "offset": 0},
+                {
+                    "field": "how_many",
+                    "repr": "u32",
+                    "offset": 8,
+                    "scale": "price_scale",
+                },
+                {"reserved": 4, "offset": 12},
+            ]
+        )
+        with pytest.raises(SpecError, match="declares no price_scale"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_a_binary_only_message_must_omit_its_topic(
+        self, tmp_path: Path, transports: dict[str, Any]
+    ) -> None:
+        fam = _with_balf()
+        fam["messages"][0]["topic"] = "thing.happened"
+        with pytest.raises(SpecError, match="must omit 'topic'"):
+            load_family(_write(tmp_path, fam), transports)
+
+    def test_a_duplicate_msg_type_across_families_is_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        """B.18 rule 11: msg_type is all a receiver has to tell frames apart."""
+        (tmp_path / "messages").mkdir()
+        (tmp_path / "transports.yaml").write_text(
+            (SPEC_ROOT / "transports.yaml").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        for index, name in enumerate(("alpha", "beta")):
+            fam = _with_balf()
+            fam["family"] = name
+            fam["messages"][0]["name"] = f"thing_{index}"
+            _write(tmp_path / "messages", fam, name=name)
+        with pytest.raises(SpecError, match="msg_type 0x77 is declared by both"):
+            load_all(tmp_path)
+
+
 class TestStrictness:
     """Every one of these must raise, not be quietly accepted."""
 
@@ -295,11 +512,12 @@ class TestStrictness:
         with pytest.raises(SpecError, match="absent from"):
             load_family(_write(tmp_path, fam), transports)
 
-    def test_binary_transport_is_rejected_until_phase_4b(
+    def test_an_external_transport_without_an_encoding_block_is_rejected(
         self, tmp_path: Path, transports: dict[str, Any]
     ) -> None:
+        """Nothing can infer a wire key name or a byte offset."""
         fam = _minimal_family(transport=["engine_pub", "balf"])
-        with pytest.raises(SpecError, match="binary protocol"):
+        with pytest.raises(SpecError, match="requires an 'encoding.balf' block"):
             load_family(_write(tmp_path, fam), transports)
 
     def test_unknown_unit_is_rejected(

@@ -13,7 +13,7 @@
     - What `pm-msgen check` guarantees, and why generation must be
       byte-for-byte deterministic for that guarantee to be worth anything
 
-!!! info "Current status: Phase 4a"
+!!! info "Current status: Phase 4b"
     For the **`trade`** family the generator emits the **Python** binding *and*
     the **C** binding for its CALF projection. Both are live: `make_trade_msg`,
     `engine/main.py::_publish_trade`, `pm-stats` and
@@ -22,9 +22,13 @@
     generated C struct. The drift check runs in CI and `make check`. A compiled
     round-trip test proves the two languages agree on the wire.
 
-    Not built yet, and marked as such below: **BALF binary** layout (Phase 4b),
-    the remaining families (Phase 5) and the documentation appendix (Phase 6).
-    The full plan lives in `docs-design/EduMatcher-Message-Generator.md`.
+    **BALF binary frames** are generated too, for `order.execution_report`:
+    Python `serialise`/`parse` and a C struct + frame parser, proven
+    byte-identical to `balf_gwy/codec.py`.
+
+    Not built yet, and marked as such below: the remaining families (Phase 5)
+    and the documentation appendix (Phase 6). The full plan lives in
+    `docs-design/EduMatcher-Message-Generator.md`.
 
 ## The problem
 
@@ -211,11 +215,102 @@ transports:
 what keeps ports out of generated code. `pm-msgen lint` rejects anything that
 looks like `tcp://...`.
 
-!!! info "`balf` is Phase 4b"
-    `calf` and `ralf` (text line protocols) are generated today. `balf` (binary
-    frames) is **rejected** with a clear message until Phase 4b, because
-    declaring a spec block that no generator reads would be an unexercised code
-    path pretending to be a contract.
+All three external protocols are generated: `calf` and `ralf` (key-value text
+lines) and `balf` (fixed binary frames).
+
+## Binary messages
+
+A BALF message declares a byte layout instead of wire keys:
+
+```yaml
+  - name: execution_report
+    transport: [balf]          # no `topic:` — it never touches the bus
+    fields:
+      - { name: order_id, type: int, unit: dimensionless }
+      - { name: fill_price, type: float, unit: display_price, validate: { gt: 0 } }
+      - { name: symbol, type: string, validate: { max_len: 8 } }
+      - name: side
+        type: enum
+        values: [BUY, SELL]
+    encoding:
+      balf:
+        msg_type: 0x20
+        frame_size: 64          # 8-byte header + 56-byte body
+        price_scale: 100000000
+        layout:
+          - { field: order_id,   repr: u64,       offset: 8 }
+          - { field: fill_price, repr: i64,       offset: 16, scale: price_scale }
+          - { field: symbol,     repr: "char[8]", offset: 40 }
+          - { field: side,       repr: u8,        offset: 48, enum_map: { BUY: 1, SELL: 2 } }
+          - { reserved: 6, offset: 50 }
+```
+
+Note `repr: "char[8]"` is **quoted**: unquoted, YAML reads `[` as the start of
+a flow sequence.
+
+### Rules the loader enforces
+
+| Rule | Why |
+|---|---|
+| Every body byte is covered exactly once | A gap must be an explicit `reserved` run, so a hole is a decision rather than an oversight |
+| Offsets may not overlap or overrun `frame_size - 8` | Two fields sharing a byte is undecodable |
+| Every field needs a layout entry | A field with nowhere to go would silently never be sent |
+| `char[N]` must equal the field's `max_len` | Otherwise a legal value would not fit the frame the spec describes |
+| A binary enum needs a complete `enum_map` | A missing name is a value that cannot be encoded — discovered at runtime otherwise |
+| `msg_type` is unique per transport across all families | It is all a receiver has to tell frames apart |
+| A `repr` must be able to carry the field's type | `u64` cannot hold a string |
+
+!!! tip "The coverage rule is the one that earns its keep"
+    It is what would have caught the defect described at the bottom of this
+    page: a layout eight bytes short of its declared `frame_size` fails to load
+    with `body byte(s) 48-55 are not covered by any layout entry`.
+
+### Using it
+
+```python
+from edumatcher.models.generated.order import (
+    serialise_execution_report_balf,
+    parse_execution_report_balf,
+    FRAME_SIZE_EXECUTION_REPORT_BALF,   # 64
+)
+
+frame = serialise_execution_report_balf(payload, seq_no=session.next_seq())
+sock.sendall(frame)                      # exactly 64 bytes
+
+report = parse_execution_report_balf(frame)
+report.fill_price     # 150.0 — the i64/1e8 scaling is undone for you
+report.side           # "BUY"
+```
+
+The **8-byte header is the generator's**, not the spec's: magic `0xBA`,
+version, `msg_type`, flags and a `u32` sequence number. It must not appear in
+`layout`, and `parse_*` validates all of it plus the frame length before
+reading a single field.
+
+!!! warning "Why length is checked before anything else"
+    BALF frames are fixed-size per `msg_type`. A frame of the wrong length is
+    *not this message*, and unpacking it anyway would read neighbouring bytes
+    as field values and hand back a plausible-looking result. That is the "no
+    error, just wrong" failure this generator exists to remove, so both
+    bindings refuse rather than guess.
+
+In C the same message is a struct whose types say what the values *are*, not
+what carries them — a scaled `i64` price becomes a `double`, an enum byte
+becomes an enum:
+
+```c
+edu_execution_report_balf_t er;
+int rc = edu_execution_report_balf_parse(frame, len, &er);
+if (rc != EDU_MSG_OK) { fprintf(stderr, "%s\n", edu_msg_strerror(rc)); return; }
+
+er.fill_price;   /* double, already divided by 1e8 */
+er.order_id;     /* uint64_t */
+edu_execution_report_side_to_str(er.side);   /* "BUY" */
+```
+
+Values are read byte-wise rather than through a cast, because BALF bodies are
+packed rather than aligned — `side` sits at body offset 48 with no padding —
+and a misaligned cast is undefined behaviour.
 
 ## Projections: one event, several shapes
 
@@ -898,6 +993,7 @@ the divergence so it cannot be quietly forgotten.
 | `tests/test_msgen_ci_wiring.py` | that the drift check is actually wired into the build |
 | `tests/test_msgen_calf_roundtrip.py` | compiled C vs Python over the CALF wire (skips without `cc`) |
 | `tests/test_msgen_calf_adoption.py` | what `normalise_trade` adoption changed, and what it did not |
+| `tests/test_msgen_balf_roundtrip.py` | binary frames: byte-identity with `codec.py`, compiled C round-trip, and the example-parser frame-size guard |
 
 Two tests in the wire-compat file are worth knowing about because they will
 fail if you change the wrong thing:
@@ -943,7 +1039,7 @@ What it does not, and will not:
 | 2 | Adopt for `trade`: `make_trade_msg`, `_publish_trade`, `pm-stats` topics | **done** |
 | 3 | `pm-msgen check` in `make _check` and `ci.yml` | **done** |
 | 4a | CALF text projection: Python + C, adopted, compiled round-trip | **done** |
-| 4b | BALF binary layout; `order.yaml` with `execution_report` | not started |
+| 4b | BALF binary layout; `order.yaml` with `execution_report` | **done** |
 | 5 | Remaining families, one per change | not started |
 | 6 | Generated `271-message-appendix.md` | not started |
 
@@ -957,6 +1053,44 @@ What it does not, and will not:
     hand-written and still drifts exactly as it did before — the check cannot
     protect a message it has never been told about. `"trade.executed"` also
     remains a string literal in 14 modules that subscribe to it (Phase 5).
+
+## What Phase 4b found
+
+Writing the BALF spec meant reading the layout from an authoritative source.
+There were four candidates, and they did not agree:
+
+| Source | `EXECUTION_REPORT` | `order_id` |
+|---|---|---|
+| `docs/user-guide/910-app-balf-protocol.md` — "the **normative reference**" | 64 bytes | `u64` |
+| `src/edumatcher/balf_gwy/codec.py` — the gateway that emits the frames | 64 bytes | `u64` |
+| `tests/test_balf_gwy_unit.py` — asserts `side` at body offset 48 | 64 bytes | `u64` |
+| `docs/examples/balf/balf_parser.{py,c}` — "a customer reference implementation" | **72 bytes** | **`char[16]`** |
+
+The example was wrong, and not only for that message. Modelling `order_id` as a
+sixteen-byte string where the protocol defines a `u64` made it exactly eight
+bytes too large on **all six messages that carry one** — `ORDER_ACK`,
+`CANCEL_ORDER`, `CANCEL_ACK`, `AMEND_ORDER`, `AMEND_ACK` and
+`EXECUTION_REPORT`. A customer writing a client from it would mis-parse every
+one.
+
+**Why nothing caught it.** The example has a self-test, and it passed: it
+checks its parser against frames the *same file* builds. It agreed with itself
+perfectly while disagreeing with the gateway. A binding that only round-trips
+against itself proves nothing — which is exactly why the tests here compare the
+generated code against `codec.py` and against a *different language*, never
+against itself.
+
+Phase 4b corrected both example parsers, adopted the generated binding for
+`EXECUTION_REPORT` in `balf_parser.c`, and added
+`TestTheExampleParsersMatchTheGateway` so the two can never drift again.
+
+!!! note "This design propagated the bug"
+    `docs-design/EduMatcher-Message-Generator.md` §4.1 used the wrong layout as
+    its worked BALF example, because it was written from the example parser.
+    Worse, §12.4 listed it under "claims that checked out" — the verification
+    was real, the source was wrong. Both are corrected, and the episode is kept
+    in §13.6 rather than tidied away: it is the clearest evidence in the whole
+    document that the problem §1 describes is not hypothetical.
 
 ## See also
 
