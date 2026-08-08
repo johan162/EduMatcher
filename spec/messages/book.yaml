@@ -1,0 +1,156 @@
+# Canonical specification for the `book` message family.
+#
+# Phase 5.2b. The first family whose payloads are *mostly* records: a book
+# snapshot is two ladders and a trade tape, which before 5.1d/5.1e could not
+# have been described at all.
+#
+# UNITS. Everything a subscriber sees here is display money, not ticks - the
+# opposite of the engine-inbound convention section 15.2 settled. That is not
+# an inconsistency: `order.new` carries ticks because the gateway converts and
+# the engine must not round, while a book snapshot is for reading, and
+# `tick_decimals` travels with it so a subscriber that stores prices exactly
+# (pm-stats) can convert back without guessing. `depth` carries both, and says
+# which is which in the field name.
+#
+# WHY depth.{symbol} AND NOT book.depth.{symbol}. The two drifted apart once
+# already: make_depth_msg published `book.depth.X` while the engine published
+# `depth.X` inline. Worse, `book.depth.X` matches a `book.` prefix
+# subscription, so pm-stats - which derives the symbol as everything after the
+# first dot - recorded a phantom instrument named `depth.AAPL`. Declaring both
+# topics in one spec file is what stops that recurring.
+
+family: book
+version: 1
+
+types:
+  BookLevel:
+    doc: >
+      One aggregated price level. Iceberg orders contribute only their
+      displayed quantity, so `qty` is what a viewer should show rather than
+      what is actually resting.
+    fields:
+      - { name: price, type: float, unit: display_price }
+      - { name: qty, type: int, unit: shares,
+          doc: "Aggregate visible size at this level." }
+      - { name: count, type: int, unit: dimensionless,
+          doc: "How many orders make up the level." }
+
+  RecentTrade:
+    doc: >
+      One entry of the book's trade tape. A trimmed view of the public
+      trade.executed print - the last five, carried with the snapshot so a
+      viewer that has just subscribed has some history to draw.
+    fields:
+      - { name: id, type: string, validate: { max_len: 64 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: buy_order_id, type: string, validate: { max_len: 64 } }
+      - { name: sell_order_id, type: string, validate: { max_len: 64 } }
+      - { name: buy_gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: sell_gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: price, type: float, unit: display_price }
+      - { name: quantity, type: int, unit: shares }
+      - { name: timestamp, type: float, unit: epoch_seconds,
+          doc: "Seconds, not nanoseconds: the snapshot divides by 1e9." }
+
+messages:
+  - name: book_snapshot
+    topic: "book.{symbol}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Broadcast an aggregated view of one instrument's order book, on a
+        timer. What every viewer and terminal renders.
+      since: "1.0"
+      see_also: ["depth.{SYMBOL}", "book.snapshot_request"]
+      example_note: >
+        Every key is always present; the four last_* fields carry null on a
+        book that has not traded. The payload is OrderBook.snapshot() exactly.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - name: tick_decimals
+        type: int
+        unit: dimensionless
+        doc: >
+          The tick scale the display prices here were produced at. Subscribers
+          that store prices exactly need it to convert back to integer ticks;
+          without it they must guess, and guessing 2 for a 4-decimal symbol
+          rounds the price away.
+      - { name: bids, type: list, ref: BookLevel,
+          doc: "Descending by price." }
+      - { name: asks, type: list, ref: BookLevel,
+          doc: "Ascending by price." }
+      - { name: last_price, type: float, unit: display_price,
+          required: false, nullable: true,
+          doc: "Null until the instrument has traded." }
+      - { name: last_qty, type: int, unit: shares,
+          required: false, nullable: true }
+      - { name: last_buy_price, type: float, unit: display_price,
+          required: false, nullable: true }
+      - { name: last_sell_price, type: float, unit: display_price,
+          required: false, nullable: true }
+      - { name: recent_trades, type: list, ref: RecentTrade,
+          doc: "The last five prints, oldest first." }
+    encoding:
+      # `symbol` is named in the topic AND carried in the body. A topic
+      # parameter is dropped from the payload by default (that is what
+      # order.ack.{gateway_id} wants), but OrderBook.snapshot() emits it and
+      # every subscriber reads it from the body, so it is listed explicitly.
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [symbol, tick_decimals, bids, asks, last_price, last_qty,
+                  last_buy_price, last_sell_price, recent_trades]
+
+  - name: book_snapshot_request
+    topic: "book.snapshot_request"
+    transport: [engine_pub]
+    doc:
+      motivation: "Ask the engine to publish one symbol's book immediately."
+      since: "1.0"
+      see_also: ["book.{SYMBOL}"]
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: depth
+    topic: "depth.{symbol}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Book-depth metrics within a tolerance band of the last trade: how much
+        size sits nearby, which way it leans, and what it costs to move.
+      since: "1.0"
+      see_also: ["book.{SYMBOL}"]
+      example_note: >
+        Not published at all for a book with no last trade - depth_snapshot
+        returns an empty dict and the engine skips it - so every field here is
+        required rather than nullable.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: mid_price_ticks, type: ticks, unit: ticks,
+          doc: "The last trade price, in ticks; the band is centred here." }
+      - { name: mid_price, type: float, unit: display_price }
+      - { name: tolerance_ticks, type: ticks, unit: ticks,
+          doc: "Half-width of the band, in ticks." }
+      - { name: bid_depth, type: int, unit: shares,
+          doc: "Total resting size between mid - tolerance and mid." }
+      - { name: ask_depth, type: int, unit: shares,
+          doc: "Total resting size between mid and mid + tolerance." }
+      - { name: imbalance, type: float, unit: dimensionless,
+          doc: "(bid - ask) / total, in [-1, 1]; positive means more bids.",
+          validate: { ge: -1, le: 1 } }
+      - { name: microprice, type: float, unit: display_price,
+          doc: "Imbalance-weighted mid; falls back to mid_price." }
+      - name: cost_to_move
+        type: float
+        unit: money
+        doc: >
+          Display notional a buyer must spend to sweep every ask in the band.
+          Summed in ticks and converted once, not per level.
+    encoding:
+      # As above: depth_snapshot() puts `symbol` in the body as well as the
+      # topic, so it must be included rather than treated as topic-only.
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [symbol, mid_price_ticks, mid_price, tolerance_ticks,
+                  bid_depth, ask_depth, imbalance, microprice, cost_to_move]

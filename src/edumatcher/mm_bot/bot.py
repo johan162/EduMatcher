@@ -25,6 +25,7 @@ from edumatcher.models.message import (
 from edumatcher.mm_bot.pricer import QuotePricer
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 
 log = logging.getLogger(__name__)
 
@@ -159,7 +160,7 @@ class MMBot:
 
     @staticmethod
     def _topic_family(topic: str) -> str:
-        if topic.startswith("book."):
+        if topic.startswith(PREFIX_BOOK_SNAPSHOT):
             return "book"
         if topic.startswith("trade."):
             return "trade"

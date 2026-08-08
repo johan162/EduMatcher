@@ -73,7 +73,12 @@ class TestRealSpec:
 
     def test_families_load(self) -> None:
         _registry, families = load_all(SPEC_ROOT)
-        assert sorted(f.family for f in families) == ["order", "session", "trade"]
+        assert sorted(f.family for f in families) == [
+            "book",
+            "order",
+            "session",
+            "trade",
+        ]
 
     def test_trade_family_loads(self) -> None:
         trade = _trade_family()

@@ -31,10 +31,12 @@ from edumatcher.models.message import decode
 from edumatcher.models.price import DEFAULT_TICK_DECIMALS
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 
 _ALLOWED_CHANNELS = frozenset(
     {"TOP", "TRADE", "STATE", "INDEX", "DEPTH", "AUCTION", "CB"}
 )
+
 # Channels that may be combined with SYM=* on a single SUB line (CALF 1.0.0,
 # see EduMatcher-CALF-Extensions.md §5; AUCTION added by
 # EduMatcher-CALF-auction-cb.md §6.4). INDEX, DEPTH, and CB are deliberately
@@ -94,7 +96,7 @@ class MarketDataGateway:
 
         self._sub_sock = make_subscriber(
             config.engine_pub_addr,
-            "book.",
+            PREFIX_BOOK_SNAPSHOT,
             TOPIC_TRADE_EXECUTED,
             TOPIC_SESSION_STATE,
             "circuit_breaker.halt.",
@@ -785,7 +787,7 @@ class MarketDataGateway:
             try:
                 now_seconds = _extract_ts(payload)
 
-                if topic.startswith("book."):
+                if topic.startswith(PREFIX_BOOK_SNAPSHOT):
                     self._dbg_count("book_topics")
                     sym = topic[5:].upper()
                     self._known_symbols.add(sym)

@@ -2983,8 +2983,8 @@ class OrderCombo:
             raise MessageValidationError("legs: fewer than 2 item(s)")
         if len(self.legs) > 10:
             raise MessageValidationError("legs: more than 10 item(s)")
-        for item in self.legs:
-            item.validate()
+        for legs_item in self.legs:
+            legs_item.validate()
 
     @classmethod
     def from_dict(cls, p: Mapping[str, Any]) -> "OrderCombo":

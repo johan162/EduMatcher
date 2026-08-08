@@ -35,9 +35,11 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
 )
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-ai-trader"
+
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 log = logging.getLogger(__name__)
@@ -110,7 +112,7 @@ class AITraderBot:
             f"order.fill.{self.gateway_id}",
             f"order.cancelled.{self.gateway_id}",
             f"order.expired.{self.gateway_id}",
-            "book.",
+            PREFIX_BOOK_SNAPSHOT,
             TOPIC_TRADE_EXECUTED,
         )
 
@@ -148,7 +150,7 @@ class AITraderBot:
 
     @staticmethod
     def _topic_family(topic: str) -> str:
-        if topic.startswith("book."):
+        if topic.startswith(PREFIX_BOOK_SNAPSHOT):
             return "book"
         if topic.startswith("trade."):
             return "trade"
@@ -267,7 +269,7 @@ class AITraderBot:
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         self._dbg_count("incoming_total")
         self._dbg_count(f"incoming_topic_{self._topic_family(topic)}")
-        if topic.startswith("book."):
+        if topic.startswith(PREFIX_BOOK_SNAPSHOT):
             self._on_book(topic.split(".", 1)[1].upper(), payload)
             return
 

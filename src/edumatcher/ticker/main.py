@@ -58,12 +58,14 @@ from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
 from edumatcher.stats.query import resolve_session_timezone
 from edumatcher.stats.trading_day import resolve_timezone, trading_date
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 
 # ---------------------------------------------------------------------------
 # Defaults
 # ---------------------------------------------------------------------------
 
 _DB_REFRESH_DEFAULT = 900  # seconds between daily_stats re-queries (15 min)
+
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 _SCROLL_FPS = 12  # marquee refresh rate
@@ -321,7 +323,7 @@ class TickerProcess:
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = time.monotonic()
 
-        self.sub = make_subscriber(ENGINE_PUB_ADDR, "book.")
+        self.sub = make_subscriber(ENGINE_PUB_ADDR, PREFIX_BOOK_SNAPSHOT)
 
     def _dbg_count(self, key: str, amount: int = 1) -> None:
         if not log.isEnabledFor(logging.DEBUG):
@@ -405,7 +407,7 @@ class TickerProcess:
                 self._dbg_count("receive_decode_errors")
                 continue
 
-            if topic.startswith("book."):
+            if topic.startswith(PREFIX_BOOK_SNAPSHOT):
                 symbol = topic.split(".", 1)[1]
                 bids = payload.get("bids", [])
                 asks = payload.get("asks", [])

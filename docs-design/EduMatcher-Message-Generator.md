@@ -2294,6 +2294,62 @@ generated `SessionState`. Keeping both would have been two definitions of one
 wire shape, free to drift — which is the failure this whole design exists to
 remove, and it had been sitting in the repo the entire time.
 
+## 17. `book` and `depth`: records at scale, and three review finds
+
+Phase 5.2b specified the first family whose payloads are *mostly* records — a
+book snapshot is two price ladders and a trade tape, three lists in one
+message. It was unspecifiable in any earlier phase.
+
+### 17.1 A topic parameter is not automatically topic-only
+
+`book.{symbol}` names the symbol in its topic **and** carries it in the body:
+`OrderBook.snapshot()` emits `"symbol"`, and every subscriber reads it from
+there. The default projection rule drops a topic parameter from the payload —
+which is right for `order.ack.{gateway_id}`, whose hand-written builder never
+repeated it — so the first generated binding silently lost the key.
+
+The fix is an explicit `include:` list, which §4.6's projection model already
+supports. The lesson is that "named in the topic" and "absent from the body"
+are two different facts, and only the second is a wire property. A default that
+conflates them is fine as long as it can be overridden per message.
+
+### 17.2 The two topics that drifted, now declared together
+
+`make_depth_msg` published `book.depth.{symbol}` while the engine published
+`depth.{symbol}` inline. Worse, `book.depth.X` matches a `book.` prefix
+subscription, and pm-stats derives the symbol as everything after the first
+dot — so it recorded a phantom instrument literally named `depth.AAPL`.
+
+Both topics are now in one spec file, and a test asserts `depth.{symbol}` does
+*not* match `PREFIX_BOOK_SNAPSHOT`. That is the whole argument for a single
+canonical file stated in miniature: the two definitions could disagree because
+they were two definitions.
+
+### 17.3 Three bugs, none found by a test
+
+Worth recording because the pattern is now consistent — the build catches what
+the tests do not.
+
+1. **Two lists in one `validate()` shared a loop name.** Every list emitted
+   `for item in ...`, so two lists of different record types bound `item` to
+   the first — Python has no block scope — and **mypy** rejected the second.
+   The loop variable is now named after its field.
+2. **Black splits an over-long ternary at its own keywords.** A nullable
+   `float` read inside a parenthesised argument exceeded 88 columns even after
+   parenthesising, and the emitter had no rule for the next split. Caught by
+   `test_generated_files_are_black_clean`.
+3. **List bounds were never checked for sanity.** `min_items: 5, max_items: 2`
+   loaded, generated, passed `pm-msgen check` — and would have failed *every*
+   message at runtime with nothing pointing at the rule. Negative bounds were
+   accepted too. Found by the post-phase review probing the loader with specs
+   nobody had written yet.
+
+The third is the one to generalise: **a validation rule can itself be invalid,
+and the loader is the only place that can say so.** Every rule the IDL grows
+should be asked whether it has an unsatisfiable configuration, and if it does,
+that configuration belongs in the loader's rejection set rather than in a
+runtime failure.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first

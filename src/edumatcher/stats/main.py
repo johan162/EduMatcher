@@ -123,6 +123,7 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
 )
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 
 _CLIENT_NAME = "pm-stats"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -884,7 +885,7 @@ class StatsProcess:
             self.sub = make_subscriber(
                 ENGINE_PUB_ADDR,
                 TOPIC_TRADE_EXECUTED,
-                "book.",
+                PREFIX_BOOK_SNAPSHOT,
                 "system.eod",
                 "system.symbols.STATS",
                 PREFIX_ORDER_ACK,
@@ -1675,7 +1676,7 @@ class StatsProcess:
         if topic.startswith(TOPIC_TRADE_EXECUTED):
             self._dbg_count("trade_topics")
             self._on_trade(payload)
-        elif topic.startswith("book."):
+        elif topic.startswith(PREFIX_BOOK_SNAPSHOT):
             self._dbg_count("book_topics")
             symbol = topic.split(".", 1)[1]
             # A `book.` subscription also matches any sub-topic such as

@@ -395,7 +395,22 @@ def _load_validate(raw: Any, what: str) -> Validate:
         return Validate()
     block = _require_mapping(raw, f"{what}: validate")
     _reject_unknown(block, _VALIDATE_KEYS, f"{what}: validate")
-    return Validate(**block)
+    rules = Validate(**block)
+
+    # An unsatisfiable or meaningless list bound is worse than a wrong one: the
+    # spec loads, the binding generates, and every message fails validate() at
+    # runtime with no hint that the rule itself is the problem.
+    for name in ("min_items", "max_items"):
+        bound = getattr(rules, name)
+        if bound is not None and bound < 0:
+            raise SpecError(f"{what}: validate.{name} must not be negative")
+    low, high = rules.min_items, rules.max_items
+    if low is not None and high is not None and low > high:
+        raise SpecError(
+            f"{what}: validate.min_items {low} exceeds max_items {high}, so no "
+            "list can satisfy both and every message would be rejected"
+        )
+    return rules
 
 
 def _load_field(raw: Any, what: str, *, allow_nested: bool = True) -> Field:

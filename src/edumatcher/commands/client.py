@@ -58,6 +58,7 @@ from edumatcher.models.message import (
     make_volume_request_msg,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 
 # Topics this client ever needs to receive from the engine PUB socket.
 # Extend this list when adding new commands that carry acks.
@@ -70,7 +71,7 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     "risk.cancel_symbol_ack.",
     "risk.kill_switch_ack.",
     "quote.ack.",
-    "book.",
+    PREFIX_BOOK_SNAPSHOT,
     TOPIC_SESSION_STATE,
     "system.symbols.",
     "order.orders.",

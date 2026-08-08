@@ -434,7 +434,20 @@ def _kwarg_lines(indent: str, name: str, expr: str) -> list[str]:
         # Black wraps any other over-long argument in parentheses on its own
         # line. The nullable read (`None if ... else ...`) is the case that
         # reaches here.
-        return [f"{indent}{name}=(", f"{indent}    {expr}", f"{indent}),"]
+        inner = f"{indent}    {expr}"
+        if len(inner) <= LINE_LENGTH:
+            return [f"{indent}{name}=(", inner, f"{indent}),"]
+        # Still too long inside the parentheses: black then breaks the
+        # conditional at its own keywords, one clause per line.
+        head, rest = expr.split(" if ", 1)
+        cond, alt = rest.rsplit(" else ", 1)
+        return [
+            f"{indent}{name}=(",
+            f"{indent}    {head}",
+            f"{indent}    if {cond}",
+            f"{indent}    else {alt}",
+            f"{indent}),",
+        ]
     # Split on the comma separating cast's two arguments, not on one inside
     # ``Literal["A", "B"]`` — which a naive split(", ", 1) hits first.
     annotation, inner = _split_top_level(expr[len("cast(") : -1])
@@ -610,8 +623,12 @@ def _field_checks(message: Message, f: Field, indent: str) -> list[str]:
                     _pystr(f"{f.name}: more than {f.validate.max_items} item(s)"),
                 )
             )
-        bounds.append(f"{indent}for item in {me}:")
-        bounds.append(f"{indent}    item.validate()")
+        # A per-field loop name: Python has no block scope, so two lists in
+        # one ``validate()`` sharing ``item`` bind it to the first record type
+        # and a type checker rejects the second.
+        each = f"{f.name}_item"
+        bounds.append(f"{indent}for {each} in {me}:")
+        bounds.append(f"{indent}    {each}.validate()")
         return bounds
     if f.type == "nested":
         # No ``is not None`` guard here: ``_validate_body`` already wraps a

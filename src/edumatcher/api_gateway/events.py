@@ -14,6 +14,7 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_FILL,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT, PREFIX_DEPTH
 
 ORDER_ACK_PREFIX = PREFIX_ORDER_ACK
 ORDER_FILL_PREFIX = PREFIX_ORDER_FILL
@@ -88,9 +89,9 @@ def websocket_type(topic: str) -> str:
         return "mass_cancel.ack"
     if topic == TOPIC_TRADE_EXECUTED:
         return "trade"
-    if topic.startswith("book."):
+    if topic.startswith(PREFIX_BOOK_SNAPSHOT):
         return "book"
-    if topic.startswith("depth."):
+    if topic.startswith(PREFIX_DEPTH):
         return "depth"
     if topic == TOPIC_SESSION_STATE:
         return "session"
@@ -145,7 +146,7 @@ def envelope(
 
 def market_data_symbol(topic: str, payload: dict[str, Any]) -> str | None:
     """Find the symbol associated with a public market-data event."""
-    if topic.startswith("book.") or topic.startswith("depth."):
+    if topic.startswith(PREFIX_BOOK_SNAPSHOT) or topic.startswith(PREFIX_DEPTH):
         return topic.split(".", 1)[1]
     if topic.startswith("auction.result."):
         return topic[len("auction.result.") :].upper()

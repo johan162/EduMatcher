@@ -39,6 +39,7 @@ from edumatcher.models.feed_schema import (
 # the other's contents until call time. Importing `make_trade_executed` by name
 # instead would raise ImportError whenever the generated module happened to be
 # imported first.
+from edumatcher.models.generated import book as _gen_book
 from edumatcher.models.generated import order as _gen_order
 from edumatcher.models.generated import session as _gen_session
 from edumatcher.models.generated import trade as _gen_trade
@@ -322,7 +323,7 @@ def make_orders_msg(gateway_id: str, orders: list[dict[str, Any]]) -> list[bytes
 
 
 def make_book_snapshot_request_msg(symbol: str) -> list[bytes]:
-    return encode("book.snapshot_request", {"symbol": symbol})
+    return encode(_gen_book.TOPIC_BOOK_SNAPSHOT_REQUEST, {"symbol": symbol})
 
 
 def make_eod_msg(books: list[dict[str, Any]]) -> list[bytes]:

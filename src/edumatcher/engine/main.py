@@ -157,6 +157,7 @@ from edumatcher.models.session import (
     is_matching_enabled,
 )
 from edumatcher.models.trade import Trade
+from edumatcher.models.generated.book import TOPIC_BOOK_SNAPSHOT_REQUEST
 
 # Kept for backward compatibility (e.g. tests that reference it).  The hot path
 # uses the monotonic now_ns() for event timestamps (M9), not this raw source.
@@ -4940,7 +4941,7 @@ class Engine:
                 self._handle_reference_request(payload)
             elif topic == "system.reference_reload":
                 self._handle_reference_reload(payload)
-            elif topic == "book.snapshot_request":
+            elif topic == TOPIC_BOOK_SNAPSHOT_REQUEST:
                 self._handle_book_snapshot_request(payload)
             elif topic == "order.orders_request":
                 self._handle_orders_request(payload)
