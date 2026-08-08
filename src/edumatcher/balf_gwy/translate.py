@@ -28,6 +28,7 @@ from edumatcher.balf_gwy.protocol import (
     validate_symbol,
     validate_tif,
 )
+from edumatcher.models.clock import now_ns
 from edumatcher.models.price import to_ticks
 
 # ---------------------------------------------------------------------------
@@ -95,6 +96,8 @@ def build_engine_new_order(
         "quantity": quantity,
         "remaining_qty": quantity,
         "gateway_id": gateway_id,
+        # BALF NEW_ORDER has no timestamp field; stamp at gateway ingress.
+        "timestamp": now_ns(),
         "smp_action": smp_str,
         "status": "NEW",
     }

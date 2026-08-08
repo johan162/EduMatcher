@@ -92,6 +92,7 @@ from edumatcher.balf_gwy.translate import (
     engine_side_to_balf,
     new_engine_order_id,
 )
+from edumatcher.models.order import Order
 from edumatcher.models.price import clear_tick_registry
 
 # ---------------------------------------------------------------------------
@@ -1046,6 +1047,13 @@ class TestBuildEngineNewOrder:
         }
         order = build_engine_new_order(parsed, "GW1", "uuid-9")
         assert order.get("visible_qty") == 20
+
+    def test_translated_order_round_trips_into_order_model(self):
+        order_dict = build_engine_new_order(self._limit_parsed(), "GW1", "uuid-10")
+        restored = Order.from_dict(order_dict)
+        assert restored.id == "uuid-10"
+        assert isinstance(restored.timestamp, int)
+        assert restored.timestamp > 0
 
 
 class TestEngineEventTranslations:
