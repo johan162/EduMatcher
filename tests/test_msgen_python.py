@@ -196,6 +196,38 @@ class TestGeneratedModuleIsUsable:
         assert [d["unit"] for d in described] == [f.unit for f in msg.fields]
         assert [d["required"] for d in described] == [f.required for f in msg.fields]
 
+    def test_no_generated_local_is_bound_but_never_read(self) -> None:
+        """Pyright's reportUnusedVariable, checked here so it fails fast.
+
+        The generated ``parse_*`` binds the decoded topic. A message with no
+        topic parameters never reads it, so the name must be underscore-
+        prefixed — and only then. Getting this wrong slipped past black,
+        flake8 and mypy and was caught by pyright after the fact.
+        """
+        import ast
+
+        for path in sorted(OUT_PYTHON.glob("*.py")):
+            if path.name.startswith("_"):
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for func in [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]:
+                assigned = {
+                    t.id
+                    for node in ast.walk(func)
+                    if isinstance(node, ast.Assign)
+                    for t in ast.walk(node.targets[0])
+                    if isinstance(t, ast.Name) and not t.id.startswith("_")
+                }
+                read = {
+                    n.id
+                    for n in ast.walk(func)
+                    if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
+                }
+                unused = assigned - read
+                assert (
+                    not unused
+                ), f"{path.name}::{func.name} binds but never reads {unused}"
+
     def test_is_topic_helper(self) -> None:
         from edumatcher.models.generated import trade
 
