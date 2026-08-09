@@ -101,6 +101,21 @@ def _pystr(value: str) -> str:
     return f"{quote}{escaped}{quote}"
 
 
+def _assignment(indent: str, name: str, value: str) -> list[str]:
+    """Emit ``name = value``, parenthesised when it would be too long.
+
+    Black cannot split a single string literal, so it wraps the right-hand
+    side in parentheses on its own line instead. Reached first by
+    ``risk.circuit_breaker_resume_all_ack.{gateway_id}`` — the longest topic
+    in any spec, and one character past the limit once assigned to a constant
+    named after it.
+    """
+    line = f"{indent}{name} = {value}"
+    if len(line) <= LINE_LENGTH:
+        return [line]
+    return [f"{indent}{name} = (", f"{indent}    {value}", f"{indent})"]
+
+
 def _pyval(value: object) -> str:
     """Return a Python literal for a spec scalar."""
     if isinstance(value, bool):
@@ -578,13 +593,13 @@ def _constant_block(message: Message) -> list[str]:
         # endpoint, so there is no topic constant to emit (design section B.6).
         pass
     elif params:
-        out.append(f"TOPIC_{const} = {_pystr(message.topic)}")
+        out += _assignment("", f"TOPIC_{const}", _pystr(message.topic))
         prefix = message.topic[: message.topic.index("{")]
         regex = _topic_regex(message.topic, params)
-        out.append(f"PREFIX_{const} = {_pystr(prefix)}")
+        out += _assignment("", f"PREFIX_{const}", _pystr(prefix))
         out += _wrap("", f"_{const}_RE = re.compile({_pystr(regex)})")
     else:
-        out.append(f"TOPIC_{const} = {_pystr(message.topic)}")
+        out += _assignment("", f"TOPIC_{const}", _pystr(message.topic))
         # Pre-encoded once at import, matching the engine's own _TRADE_TOPIC
         # optimisation (docs-design/perf-notes.md, "Engine / publication").
         # A parameterised topic cannot be pre-encoded; it is built per call.

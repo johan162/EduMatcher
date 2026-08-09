@@ -103,6 +103,11 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_CANCELLED,
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
+    topic_order_ack,
+    topic_order_amended,
+    topic_order_cancelled,
+    topic_order_expired,
+    topic_order_fill,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 
@@ -1327,11 +1332,11 @@ class BalfGateway:
         return (
             f"system.gateway_auth.{gw_id}",
             f"system.symbols.{gw_id}",
-            f"order.ack.{gw_id}",
-            f"order.fill.{gw_id}",
-            f"order.cancelled.{gw_id}",
-            f"order.amended.{gw_id}",
-            f"order.expired.{gw_id}",
+            topic_order_ack(gw_id),
+            topic_order_fill(gw_id),
+            topic_order_cancelled(gw_id),
+            topic_order_amended(gw_id),
+            topic_order_expired(gw_id),
         )
 
     def _gateway_in_use(self, gw_id: str) -> bool:

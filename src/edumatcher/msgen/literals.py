@@ -40,19 +40,34 @@ def _patterns(families: list[Family]) -> list[tuple[str, str, re.Pattern[str]]]:
 
     A parameterised topic is searched by its literal prefix, since that is what
     a subscriber hard-codes: ``"order.ack."`` rather than the whole pattern.
+
+    **The prefix is matched without requiring a closing quote**, and that is the
+    whole point. Requiring one — which this did until 5.3b — meant an f-string
+    never matched, because ``f"order.fill.{gateway_id}"`` continues with ``{``
+    rather than ``"``. The report therefore said ``order: 0 literals -
+    migrated`` while forty hard-coded parameterised topics sat in eight
+    modules, and had said so since 5.1e. A gate that cannot see the most common
+    way of writing the thing it gates is worse than no gate, because it is
+    believed.
+
+    Dropping the anchor is safe here precisely because a parameterised needle
+    ends in ``.``: ``"risk.kill_switch_ack.`` cannot match inside
+    ``f"risk.kill_switch_gateway_ack.{gw}"``, since the quote must sit
+    immediately before the needle. A non-parameterised topic keeps the closing
+    quote, without which ``"risk.kill_switch"`` would match
+    ``"risk.kill_switch_gateway"``.
     """
     out: list[tuple[str, str, re.Pattern[str]]] = []
     for family in families:
         for message in family.messages:
             if message.topic is None:
                 continue
-            params = message.topic_params
-            needle = (
-                message.topic[: message.topic.index("{")] if params else message.topic
-            )
-            out.append(
-                (family.family, message.topic, re.compile(f'"{re.escape(needle)}"'))
-            )
+            if message.topic_params:
+                needle = message.topic[: message.topic.index("{")]
+                source = f"['\"]{re.escape(needle)}"
+            else:
+                source = f"['\"]{re.escape(message.topic)}['\"]"
+            out.append((family.family, message.topic, re.compile(source)))
     return out
 
 

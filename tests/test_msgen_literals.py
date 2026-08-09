@@ -17,7 +17,7 @@ import pytest
 
 from edumatcher.msgen import literals as lit
 from edumatcher.msgen.cli import main as msgen_main
-from edumatcher.msgen.spec import load_all
+from edumatcher.msgen.spec import Family, Message, load_all
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SPEC_ROOT = REPO_ROOT / "spec"
@@ -27,11 +27,12 @@ SRC = REPO_ROOT / "src"
 #: Add a family here the moment `grep-literals` reports it at zero — that is
 #: what makes the migration stick.
 #:
-#: ``order`` counts only the topics specified so far: 5.1a covers the five
-#: engine→gateway events and 5.1b the three inbound commands. The scanner only
-#: knows about declared topics, so "zero" here means "zero for what is
-#: specified"; the combo/OCO topics join the count when 5.1c specifies them.
-MIGRATED = ("trade", "order", "index")
+#: "Zero" means zero for what is *specified* — the scanner only knows declared
+#: topics. Every family here is now fully specified, so it also means zero
+#: outright. Until 5.3b that distinction hid a second one: the scanner could
+#: not see f-string topics at all, so a family could read as migrated with
+#: parameterised topics still hard-coded. See TestTheDetectorSeesFStrings.
+MIGRATED = ("trade", "order", "session", "book", "log", "index", "risk")
 
 
 @pytest.fixture(scope="module")
@@ -89,8 +90,6 @@ class TestTheScannerItself:
 
     def test_it_finds_a_parameterised_topic_by_prefix(self, tmp_path: Path) -> None:
         """A subscriber hard-codes ``"order.ack."``, not the whole pattern."""
-        from edumatcher.msgen.spec import Family, Message
-
         family = Family(
             family="fake",
             version=1,
@@ -144,3 +143,73 @@ class TestTheCliReport:
         for family in MIGRATED:
             assert f"{family}: 0 literals - migrated" in out
         assert "no topic literals remain" in out
+
+
+class TestTheDetectorSeesFStrings:
+    """The hole 5.3b closed, and the reason it went unnoticed for six phases.
+
+    ``_patterns`` built ``re.compile(f'"{needle}"')`` — a closing quote
+    immediately after the prefix. An f-string never has one:
+    ``f"order.fill.{gateway_id}"`` continues with ``{``. So the report said
+    ``order: 0 literals - migrated`` while forty hard-coded parameterised
+    topics sat in eight modules, and had said so since 5.1e.
+
+    Every family migrated before this was migrated correctly *anyway*, because
+    each phase grepped by hand as well — which is exactly why nobody noticed
+    the tool was not the thing finding them. A gate that cannot see the most
+    common way of writing what it gates is worse than no gate, because it is
+    believed.
+    """
+
+    def _family(self, topic: str) -> list[Family]:
+        return [
+            Family(
+                family="fake",
+                version=1,
+                messages=(
+                    Message(
+                        name="m",
+                        topic=topic,
+                        transport=("engine_pub",),
+                        fields=(),
+                    ),
+                ),
+            )
+        ]
+
+    def test_an_f_string_parameterised_topic_is_found(self, tmp_path: Path) -> None:
+        (tmp_path / "sub.py").write_text(
+            'sock.subscribe(f"order.ack.{gateway_id}")\n', encoding="utf-8"
+        )
+        assert len(lit.scan([tmp_path], self._family("order.ack.{gateway_id}"))) == 1
+
+    def test_a_plain_prefix_is_still_found(self, tmp_path: Path) -> None:
+        """The behaviour that already worked must not regress."""
+        (tmp_path / "sub.py").write_text('sock.subscribe("order.ack.")\n', "utf-8")
+        assert len(lit.scan([tmp_path], self._family("order.ack.{gateway_id}"))) == 1
+
+    def test_a_fully_hard_coded_instance_is_found(self, tmp_path: Path) -> None:
+        (tmp_path / "sub.py").write_text('if topic == "order.ack.GW1":\n', "utf-8")
+        assert len(lit.scan([tmp_path], self._family("order.ack.{gateway_id}"))) == 1
+
+    def test_a_longer_sibling_topic_is_not_a_false_positive(
+        self, tmp_path: Path
+    ) -> None:
+        """Dropping the closing quote must not make prefixes swallow each other.
+
+        Safe because a parameterised needle ends in ``.``: the quote has to sit
+        immediately before it, so ``risk.kill_switch_gateway_ack.`` cannot
+        match a ``risk.kill_switch_ack.`` needle.
+        """
+        (tmp_path / "sub.py").write_text(
+            'topic = f"risk.kill_switch_gateway_ack.{gw}"\n', "utf-8"
+        )
+        found = lit.scan([tmp_path], self._family("risk.kill_switch_ack.{gateway_id}"))
+        assert found == []
+
+    def test_a_non_parameterised_topic_keeps_its_closing_quote(
+        self, tmp_path: Path
+    ) -> None:
+        """Without the anchor ``"risk.kill_switch"`` would match its siblings."""
+        (tmp_path / "sub.py").write_text('topic = "risk.kill_switch_global"\n', "utf-8")
+        assert lit.scan([tmp_path], self._family("risk.kill_switch")) == []

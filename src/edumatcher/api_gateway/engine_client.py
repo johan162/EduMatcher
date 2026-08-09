@@ -55,6 +55,10 @@ from edumatcher.models.message import (
 )
 from edumatcher.models.order import Order
 from edumatcher.models.price import register_tick_decimals
+from edumatcher.models.generated.risk import topic_kill_switch_ack
+from edumatcher.models.generated.session import (
+    topic_session_transition_ack,
+)
 
 log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
@@ -611,7 +615,7 @@ class EngineClient:
         command_id = new_command_id()
         self.send_mass_cancel(gateway_id, symbol, command_id=command_id)
         return await self.await_event(
-            f"risk.kill_switch_ack.{gateway_id}",
+            topic_kill_switch_ack(gateway_id),
             match={"command_id": command_id},
             timeout=timeout,
         )
@@ -626,7 +630,7 @@ class EngineClient:
         and the caller saw nothing at all.
         """
         command_id = new_command_id()
-        topic = f"session.transition_ack.{gateway_id}"
+        topic = topic_session_transition_ack(gateway_id)
         future = self._register_future(topic, match={"command_id": command_id})
         try:
             self._send(

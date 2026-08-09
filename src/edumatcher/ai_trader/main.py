@@ -36,6 +36,12 @@ from edumatcher.models.message import (
 )
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
+from edumatcher.models.generated.order import (
+    topic_order_ack,
+    topic_order_cancelled,
+    topic_order_expired,
+    topic_order_fill,
+)
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-ai-trader"
@@ -108,10 +114,10 @@ class AITraderBot:
             ENGINE_PUB_ADDR,
             f"system.gateway_auth.{self.gateway_id}",
             f"system.symbols.{self.gateway_id}",
-            f"order.ack.{self.gateway_id}",
-            f"order.fill.{self.gateway_id}",
-            f"order.cancelled.{self.gateway_id}",
-            f"order.expired.{self.gateway_id}",
+            topic_order_ack(self.gateway_id),
+            topic_order_fill(self.gateway_id),
+            topic_order_cancelled(self.gateway_id),
+            topic_order_expired(self.gateway_id),
             PREFIX_BOOK_SNAPSHOT,
             TOPIC_TRADE_EXECUTED,
         )
@@ -287,7 +293,7 @@ class AITraderBot:
                 self._known_symbols = all_syms
             return
 
-        if topic == f"order.ack.{self.gateway_id}":
+        if topic == topic_order_ack(self.gateway_id):
             if payload.get("accepted", False):
                 self.metrics.acknowledged += 1
             else:
@@ -297,7 +303,7 @@ class AITraderBot:
                 self._on_reject(reason)
             return
 
-        if topic == f"order.fill.{self.gateway_id}":
+        if topic == topic_order_fill(self.gateway_id):
             self.metrics.filled += 1
             symbol = str(payload.get("symbol", "")).upper()
             side = str(payload.get("side", "")).upper()
@@ -310,8 +316,8 @@ class AITraderBot:
             return
 
         if topic in {
-            f"order.cancelled.{self.gateway_id}",
-            f"order.expired.{self.gateway_id}",
+            topic_order_cancelled(self.gateway_id),
+            topic_order_expired(self.gateway_id),
         }:
             self.metrics.cancelled += 1
             return

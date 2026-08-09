@@ -252,37 +252,165 @@ class TestTheEmitterQuotesLikeBlack:
         assert docs == ['Scope to one instrument; "" cancels across all of them.']
 
 
-class TestTheFamilyIsOnlyHalfSpecified:
-    """5.3a declares six of sixteen topics, and the report can mislead.
+class TestTheFamilyIsCompleteNow:
+    """Both halves are in. These three guards moved when 5.3b landed.
 
-    ``pm-msgen grep-literals`` counts literals of *declared* topics, so a
-    half-specified family reports "0 literals - migrated" while ten topics of
-    it are still hard-coded. That is literally true and easy to misread, which
-    is why ``risk`` stays out of ``MIGRATED`` in test_msgen_literals.py until
-    5.3b lands.
+    They asserted the *half-specified* state in 5.3a — six topics declared,
+    the instrument-scoped ten absent, and ``risk`` deliberately kept out of
+    ``MIGRATED`` because ``grep-literals`` counts literals of declared topics
+    only and would otherwise have reported a family as migrated while ten of
+    its topics were still hard-coded.
+
+    That window is closed, so each now asserts the finished boundary rather
+    than the interim one. Keeping them pointed at the interim state would have
+    made them fail on the very change they existed to gate.
     """
 
-    def test_six_topics_are_declared(self) -> None:
-        assert len(G.FAMILY_TOPICS) == 6
+    def test_all_sixteen_topics_are_declared(self) -> None:
+        assert len(G.FAMILY_TOPICS) == 16
 
-    def test_the_instrument_scoped_half_is_not_here_yet(self) -> None:
+    def test_the_instrument_scoped_half_is_here(self) -> None:
         declared = set(G.FAMILY_TOPICS)
-        for absent in (
+        for topic in (
             "risk.symbol_halt",
             "risk.symbol_resume",
             "risk.cancel_symbol",
             "risk.circuit_breaker_halt_all",
             "risk.circuit_breaker_resume_all",
         ):
-            assert absent not in declared
+            assert topic in declared
 
-    def test_risk_is_not_yet_claimed_as_migrated(self) -> None:
+    def test_risk_is_claimed_as_migrated_now(self) -> None:
         from pathlib import Path
 
         source = (
             Path(__file__).resolve().parents[1] / "tests/test_msgen_literals.py"
         ).read_text(encoding="utf-8")
-        assert 'MIGRATED = ("trade", "order", "index")' in source
+        assert '"risk"' in source
+
+
+class TestTheInstrumentScopedHalf:
+    """Phase 5.3b: three per-symbol commands and the two market-wide sweeps."""
+
+    def test_symbol_halt_round_trips(self) -> None:
+        assert M.make_symbol_halt_msg(
+            "ADM", "acme", level="l1", note="n", command_id="C1"
+        ) == G.make_symbol_halt(
+            gateway_id="ADM", symbol="ACME", level="L1", note="n", command_id="C1"
+        )
+
+    def test_the_builder_upper_cases_symbol_and_level(self) -> None:
+        """Both are matched case-sensitively by the engine, so the wire is upper."""
+        _topic, payload = M.decode(M.make_symbol_halt_msg("ADM", "acme", level="l1"))
+        assert payload["symbol"] == "ACME"
+        assert payload["level"] == "L1"
+
+    def test_an_absent_level_means_an_indefinite_halt(self) -> None:
+        """Regime 4: the handler reads ``payload.get("level")`` as truthy-or-None.
+
+        Without a level the halt runs no circuit-breaker state machine, gets no
+        ``resume_at_ns``, and is cleared only by an explicit resume — so the
+        key's absence is the whole difference between two behaviours.
+        """
+        _topic, payload = M.decode(M.make_symbol_halt_msg("ADM", "ACME"))
+        assert "level" not in payload
+
+    def test_symbol_resume_carries_no_counters(self) -> None:
+        """A resume cancels nothing, so its ack is the one with no counter."""
+        _topic, payload = M.decode(M.make_symbol_resume_ack_msg("ADM", "ACME", True))
+        assert "cancelled_quotes" not in payload
+        assert "cancelled_orders" not in payload
+
+    def test_cancel_symbol_ack_carries_both_counters(self) -> None:
+        _topic, payload = M.decode(
+            M.make_cancel_symbol_ack_msg(
+                "ADM", "ACME", True, cancelled_orders=7, cancelled_quotes=1
+            )
+        )
+        assert payload["cancelled_orders"] == 7
+        assert payload["cancelled_quotes"] == 1
+
+    def test_the_symbol_acks_are_told_apart_by_symbol(self) -> None:
+        """Why these needed no command_id where the kill switches did.
+
+        Two concurrent halt acks for one gateway differ in the body; two
+        concurrent kill-switch acks did not, which is what section 22.2's
+        command_id exists for.
+        """
+        for frames in (
+            M.make_symbol_halt_ack_msg("ADM", "ACME", True),
+            M.make_symbol_resume_ack_msg("ADM", "ACME", True),
+            M.make_cancel_symbol_ack_msg("ADM", "ACME", True),
+        ):
+            assert M.decode(frames)[1]["symbol"] == "ACME"
+
+    def test_the_two_sweeps_carry_only_a_gateway_id(self) -> None:
+        for frames in (
+            M.make_circuit_breaker_halt_all_msg("ADM"),
+            M.make_circuit_breaker_resume_all_msg("ADM"),
+        ):
+            assert M.decode(frames)[1] == {"gateway_id": "ADM"}
+
+    def test_the_sweep_acks_report_different_things(self) -> None:
+        """Two shapes, not one shape with a field left at zero.
+
+        Halting pulls quotes and reports how many symbols it reached; resuming
+        pulls nothing. The asymmetry is the messages being honest about what
+        each operation does.
+        """
+        _t, halt = M.decode(
+            M.make_circuit_breaker_halt_all_ack_msg(
+                "ADM", True, halted_symbols=12, cancelled_quotes=3
+            )
+        )
+        _t, resume = M.decode(
+            M.make_circuit_breaker_resume_all_ack_msg("ADM", True, resumed_symbols=12)
+        )
+        assert set(halt) == {"accepted", "reason", "halted_symbols", "cancelled_quotes"}
+        assert set(resume) == {"accepted", "reason", "resumed_symbols"}
+
+
+class TestTheCorrelationGapIsRealAndLeftAlone:
+    """The two sweeps carry no note and no command_id, on either side.
+
+    Unlike ``risk.kill_switch``'s note (section 22.2), this is not a consumer
+    reading a field no producer sends: the handlers read only ``gateway_id``,
+    so both halves agree. Adding correlation would be a feature rather than a
+    repair, and section 23.2 records the gap instead.
+    """
+
+    def test_the_handlers_read_only_the_gateway_id(self) -> None:
+        import inspect
+
+        from edumatcher.engine.main import Engine
+
+        for name in (
+            "_handle_circuit_breaker_halt_all",
+            "_handle_circuit_breaker_resume_all",
+        ):
+            source = inspect.getsource(getattr(Engine, name))
+            assert 'payload.get("command_id"' not in source, name
+            assert 'payload.get("note"' not in source, name
+
+    def test_the_spec_declares_neither(self) -> None:
+        for describe in (
+            G.describe_circuit_breaker_halt_all,
+            G.describe_circuit_breaker_resume_all,
+        ):
+            names = {f["name"] for f in describe()}
+            assert names == {"gateway_id"}
+
+    def test_the_six_per_symbol_topics_do_carry_command_id(self) -> None:
+        """The contrast that makes the gap visible rather than assumed."""
+        for describe in (
+            G.describe_symbol_halt,
+            G.describe_symbol_resume,
+            G.describe_cancel_symbol,
+            G.describe_symbol_halt_ack,
+            G.describe_symbol_resume_ack,
+            G.describe_cancel_symbol_ack,
+        ):
+            assert "command_id" in {f["name"] for f in describe()}
 
 
 class TestTheTopicHelpers:

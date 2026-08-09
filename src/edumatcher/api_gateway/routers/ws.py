@@ -13,6 +13,10 @@ from edumatcher.api_gateway.schemas import ALWAYS_ON_CHANNELS, MarketDataControl
 from edumatcher.api_gateway.sessions import SessionRegistry
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.book import (
+    topic_book_snapshot,
+    topic_depth,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["websockets"])
 
@@ -369,9 +373,9 @@ def _topic_from_event(event: dict[str, Any]) -> str:
     data = event.get("data", {})
     symbol = str(data.get("symbol", "")) if isinstance(data, dict) else ""
     if event_type == "book" and symbol:
-        return f"book.{symbol}"
+        return topic_book_snapshot(symbol)
     if event_type == "depth" and symbol:
-        return f"depth.{symbol}"
+        return topic_depth(symbol)
     if event_type == "trade":
         return TOPIC_TRADE_EXECUTED
     if event_type == "session":

@@ -71,12 +71,15 @@ from edumatcher.models.clock import now_ns
 from edumatcher.models.generated.session import TOPIC_SESSION_TRANSITION
 from edumatcher.models.generated.order import (
     TOPIC_ORDER_AMEND,
-    TOPIC_ORDER_COMBO,
-    TOPIC_ORDER_OCO,
-    TOPIC_ORDER_COMBO_CANCEL,
-    TOPIC_ORDER_OCO_CANCEL,
     TOPIC_ORDER_CANCEL,
+    TOPIC_ORDER_COMBO,
+    TOPIC_ORDER_COMBO_CANCEL,
     TOPIC_ORDER_NEW,
+    TOPIC_ORDER_OCO,
+    TOPIC_ORDER_OCO_CANCEL,
+    topic_order_ack,
+    topic_order_cancelled,
+    topic_order_fill,
 )
 from edumatcher.models.generated.trade import make_trade_executed_unchecked
 from edumatcher.models.message import (
@@ -159,9 +162,14 @@ from edumatcher.models.session import (
 from edumatcher.models.trade import Trade
 from edumatcher.models.generated.book import TOPIC_BOOK_SNAPSHOT_REQUEST
 from edumatcher.models.generated.risk import (
+    TOPIC_CANCEL_SYMBOL,
+    TOPIC_CIRCUIT_BREAKER_HALT_ALL,
+    TOPIC_CIRCUIT_BREAKER_RESUME_ALL,
     TOPIC_KILL_SWITCH,
     TOPIC_KILL_SWITCH_GATEWAY,
     TOPIC_KILL_SWITCH_GLOBAL,
+    TOPIC_SYMBOL_HALT,
+    TOPIC_SYMBOL_RESUME,
 )
 
 # Kept for backward compatibility (e.g. tests that reference it).  The hot path
@@ -1180,9 +1188,9 @@ class Engine:
         ack_topic = _tc.get(_gw)
         if ack_topic is None:
             # First order from this gateway — populate the three hot topics
-            _tc[_gw] = f"order.ack.{_gw}".encode()
-            _tc[f"fill.{_gw}"] = f"order.fill.{_gw}".encode()
-            _tc[f"cancel.{_gw}"] = f"order.cancelled.{_gw}".encode()
+            _tc[_gw] = topic_order_ack(_gw).encode()
+            _tc[f"fill.{_gw}"] = topic_order_fill(_gw).encode()
+            _tc[f"cancel.{_gw}"] = topic_order_cancelled(_gw).encode()
             ack_topic = _tc[_gw]
         _pub = self.pub_sock
         _fill_topic = _tc[f"fill.{_gw}"]  # guaranteed set by ack-topic setup above
@@ -1272,7 +1280,7 @@ class Engine:
                             if evt.gateway_id == _gw
                             else (
                                 _tc.get(f"fill.{evt.gateway_id}")
-                                or f"order.fill.{evt.gateway_id}".encode()
+                                or topic_order_fill(evt.gateway_id).encode()
                             )
                         ),
                         dumps(
@@ -1386,7 +1394,7 @@ class Engine:
                 _pub.send_multipart(
                     [
                         _tc.get(f"cancel.{evt.gateway_id}")
-                        or f"order.cancelled.{evt.gateway_id}".encode(),
+                        or topic_order_cancelled(evt.gateway_id).encode(),
                         dumps({"order_id": evt.id, "client_tag": evt.client_tag}),
                     ]
                 )
@@ -3274,12 +3282,12 @@ class Engine:
         matching level (the previous behaviour), the halt is indefinite —
         cleared only by an explicit resume.
         """
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        symbol = str(payload.get("symbol", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        symbol = _clamp_wire_id(payload.get("symbol", ""), 16)
         level_name_raw = payload.get("level")
         level_name = str(level_name_raw).upper() if level_name_raw else None
         note = str(payload.get("note", ""))
-        command_id = str(payload.get("command_id", ""))
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
 
         def _reject(reason: str) -> None:
             self.pub_sock.send_multipart(
@@ -3405,10 +3413,10 @@ class Engine:
 
     def _handle_symbol_resume(self, payload: dict[str, Any]) -> None:
         """Resume a single symbol that was halted by a per-symbol or global halt (ADMIN only)."""
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        symbol = str(payload.get("symbol", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        symbol = _clamp_wire_id(payload.get("symbol", ""), 16)
         note = str(payload.get("note", ""))
-        command_id = str(payload.get("command_id", ""))
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
 
         def _reject(reason: str) -> None:
             self.pub_sock.send_multipart(
@@ -3471,11 +3479,11 @@ class Engine:
 
     def _handle_cancel_symbol(self, payload: dict[str, Any]) -> None:
         """Cancel all resting orders for a symbol across every gateway (ADMIN only)."""
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        symbol = str(payload.get("symbol", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        symbol = _clamp_wire_id(payload.get("symbol", ""), 16)
 
         note = str(payload.get("note", ""))
-        command_id = str(payload.get("command_id", ""))
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
 
         def _reject(reason: str) -> None:
             self.pub_sock.send_multipart(
@@ -4999,15 +5007,15 @@ class Engine:
                 self._handle_kill_switch_gateway(payload)
             elif topic == TOPIC_KILL_SWITCH_GLOBAL:
                 self._handle_kill_switch_global(payload)
-            elif topic == "risk.circuit_breaker_halt_all":
+            elif topic == TOPIC_CIRCUIT_BREAKER_HALT_ALL:
                 self._handle_circuit_breaker_halt_all(payload)
-            elif topic == "risk.circuit_breaker_resume_all":
+            elif topic == TOPIC_CIRCUIT_BREAKER_RESUME_ALL:
                 self._handle_circuit_breaker_resume_all(payload)
-            elif topic == "risk.symbol_halt":
+            elif topic == TOPIC_SYMBOL_HALT:
                 self._handle_symbol_halt(payload)
-            elif topic == "risk.symbol_resume":
+            elif topic == TOPIC_SYMBOL_RESUME:
                 self._handle_symbol_resume(payload)
-            elif topic == "risk.cancel_symbol":
+            elif topic == TOPIC_CANCEL_SYMBOL:
                 self._handle_cancel_symbol(payload)
             elif topic == TOPIC_SESSION_TRANSITION:
                 self._handle_session_transition(payload)

@@ -61,9 +61,17 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_CANCELLED,
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
+    topic_order_ack,
+    topic_order_amended,
+    topic_order_cancelled,
+    topic_order_expired,
+    topic_order_fill,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
-from edumatcher.models.generated.risk import PREFIX_KILL_SWITCH_ACK
+from edumatcher.models.generated.risk import (
+    PREFIX_KILL_SWITCH_ACK,
+    topic_kill_switch_ack,
+)
 
 _MAX_LINE_BYTES = 4096
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
@@ -1651,11 +1659,11 @@ class AlfGateway:
     def _gateway_topics(self, gateway_id: str) -> tuple[str, ...]:
         return (
             f"system.gateway_auth.{gateway_id}",
-            f"order.ack.{gateway_id}",
-            f"order.fill.{gateway_id}",
-            f"order.amended.{gateway_id}",
-            f"order.cancelled.{gateway_id}",
-            f"order.expired.{gateway_id}",
+            topic_order_ack(gateway_id),
+            topic_order_fill(gateway_id),
+            topic_order_amended(gateway_id),
+            topic_order_cancelled(gateway_id),
+            topic_order_expired(gateway_id),
             f"order.orders.{gateway_id}",
             f"quote.ack.{gateway_id}",
             f"quote.status.{gateway_id}",
@@ -1663,7 +1671,7 @@ class AlfGateway:
             f"combo.status.{gateway_id}",
             f"oco.ack.{gateway_id}",
             f"oco.cancelled.{gateway_id}",
-            f"risk.kill_switch_ack.{gateway_id}",
+            topic_kill_switch_ack(gateway_id),
             f"system.symbols.{gateway_id}",
             f"system.quote_bootstrap.{gateway_id}",
             f"system.session_status.{gateway_id}",

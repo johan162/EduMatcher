@@ -58,8 +58,24 @@ from edumatcher.models.message import (
     make_volume_request_msg,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
-from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
-from edumatcher.models.generated.risk import PREFIX_KILL_SWITCH_ACK
+from edumatcher.models.generated.book import (
+    PREFIX_BOOK_SNAPSHOT,
+    topic_book_snapshot,
+)
+from edumatcher.models.generated.risk import (
+    PREFIX_CANCEL_SYMBOL_ACK,
+    PREFIX_CIRCUIT_BREAKER_HALT_ALL_ACK,
+    PREFIX_CIRCUIT_BREAKER_RESUME_ALL_ACK,
+    PREFIX_KILL_SWITCH_ACK,
+    PREFIX_SYMBOL_HALT_ACK,
+    PREFIX_SYMBOL_RESUME_ACK,
+    topic_cancel_symbol_ack,
+    topic_circuit_breaker_halt_all_ack,
+    topic_circuit_breaker_resume_all_ack,
+    topic_kill_switch_ack,
+    topic_symbol_halt_ack,
+    topic_symbol_resume_ack,
+)
 from edumatcher.models.generated.index import (
     PREFIX_INDEX_CONSTITUENT_CHANGE_ACK,
     PREFIX_INDEX_CORP_ACTION_ACK,
@@ -75,11 +91,11 @@ from edumatcher.models.generated.index import (
 # Extend this list when adding new commands that carry acks.
 _ACK_SUB_PREFIXES: tuple[str, ...] = (
     "system.gateway_auth.",
-    "risk.circuit_breaker_halt_all_ack.",
-    "risk.circuit_breaker_resume_all_ack.",
-    "risk.symbol_halt_ack.",
-    "risk.symbol_resume_ack.",
-    "risk.cancel_symbol_ack.",
+    PREFIX_CIRCUIT_BREAKER_HALT_ALL_ACK,
+    PREFIX_CIRCUIT_BREAKER_RESUME_ALL_ACK,
+    PREFIX_SYMBOL_HALT_ACK,
+    PREFIX_SYMBOL_RESUME_ACK,
+    PREFIX_CANCEL_SYMBOL_ACK,
     PREFIX_KILL_SWITCH_ACK,
     "quote.ack.",
     PREFIX_BOOK_SNAPSHOT,
@@ -330,7 +346,7 @@ class ExchangeCommandClient:
         ``cancelled_quotes``.
         """
         self._send(make_circuit_breaker_halt_all_msg(self._gw_id))
-        return self._recv(f"risk.circuit_breaker_halt_all_ack.{self._gw_id}")
+        return self._recv(topic_circuit_breaker_halt_all_ack(self._gw_id))
 
     def resume_all(self) -> dict[str, Any]:
         """
@@ -343,7 +359,7 @@ class ExchangeCommandClient:
         dict with keys: ``accepted``, ``reason``, ``resumed_symbols``.
         """
         self._send(make_circuit_breaker_resume_all_msg(self._gw_id))
-        return self._recv(f"risk.circuit_breaker_resume_all_ack.{self._gw_id}")
+        return self._recv(topic_circuit_breaker_resume_all_ack(self._gw_id))
 
     # ------------------------------------------------------------------
     # Risk controls — any connected gateway
@@ -363,7 +379,7 @@ class ExchangeCommandClient:
         ``cancelled_quotes``.
         """
         self._send(make_kill_switch_msg(target_gw.upper(), symbol.upper()))
-        return self._recv(f"risk.kill_switch_ack.{target_gw.upper()}")
+        return self._recv(topic_kill_switch_ack(target_gw.upper()))
 
     def mass_cancel(self, target_gw: str, symbol: str) -> dict[str, Any]:
         """
@@ -410,7 +426,7 @@ class ExchangeCommandClient:
         ``last_qty``, ``recent_trades``.
         """
         self._send(make_book_snapshot_request_msg(symbol.upper()))
-        return self._recv(f"book.{symbol.upper()}")
+        return self._recv(topic_book_snapshot(symbol.upper()))
 
     def order_list(self, target_gw: str) -> list[dict[str, Any]]:
         """
@@ -640,7 +656,7 @@ class ExchangeCommandClient:
         ``cancelled_quotes``.
         """
         self._send(make_symbol_halt_msg(self._gw_id, symbol.upper()))
-        return self._recv(f"risk.symbol_halt_ack.{self._gw_id}")
+        return self._recv(topic_symbol_halt_ack(self._gw_id))
 
     def symbol_resume(self, symbol: str) -> dict[str, Any]:
         """
@@ -654,7 +670,7 @@ class ExchangeCommandClient:
         dict with keys: ``accepted``, ``symbol``, ``reason``.
         """
         self._send(make_symbol_resume_msg(self._gw_id, symbol.upper()))
-        return self._recv(f"risk.symbol_resume_ack.{self._gw_id}")
+        return self._recv(topic_symbol_resume_ack(self._gw_id))
 
     def cancel_symbol(self, symbol: str) -> dict[str, Any]:
         """
@@ -671,4 +687,4 @@ class ExchangeCommandClient:
         ``cancelled_orders``, ``cancelled_quotes``.
         """
         self._send(make_cancel_symbol_msg(self._gw_id, symbol.upper()))
-        return self._recv(f"risk.cancel_symbol_ack.{self._gw_id}")
+        return self._recv(topic_cancel_symbol_ack(self._gw_id))

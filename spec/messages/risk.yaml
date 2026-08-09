@@ -200,3 +200,224 @@ messages:
           omit_when_empty: true, validate: { max_len: 64 } }
     encoding:
       engine_pub: { frames: [topic, json_payload] }
+
+  # --------------------------------------------------------------------------
+  # Phase 5.3b: acting on INSTRUMENTS rather than on a gateway's exposure.
+  # Three per-symbol commands and the two market-wide circuit-breaker sweeps.
+  #
+  # THE ASYMMETRY IS REAL, AND LEFT ALONE. The six per-symbol topics carry
+  # `note` and `command_id`; the two sweeps carry neither, on either side -
+  # their handlers read only gateway_id and their acks have no identifier at
+  # all, so two concurrent halt-alls for one gateway are indistinguishable
+  # exactly as two kill switches once were. Unlike risk.kill_switch's `note`
+  # (section 22.2), no consumer here reads a field no producer sends: both
+  # halves agree. Adding correlation would be a feature, not a repair, so the
+  # spec describes what is there and section 23.2 records the gap.
+  # --------------------------------------------------------------------------
+
+  - name: symbol_halt
+    topic: "risk.symbol_halt"
+    transport: [engine_pub]
+    doc:
+      motivation: "ADMIN to engine: halt trading on one instrument."
+      since: "1.0"
+      see_also: ["risk.symbol_resume", "risk.circuit_breaker_halt_all"]
+      example_note: >
+        With `level` naming one of the symbol's configured
+        circuit_breaker.levels, the halt runs through the same
+        CircuitBreakerState.activate() state machine a price-triggered halt
+        uses - so it gets a real resume_at_ns and ACE corridor, and the normal
+        circuit-breaker tick resumes it. Without one the halt is indefinite,
+        cleared only by an explicit risk.symbol_resume. The engine rejects a
+        level for a symbol that has no circuit breaker configured.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: level, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 32 },
+          doc: "A configured circuit-breaker level; omitted halts indefinitely." }
+      - { name: note, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 256 } }
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: symbol_halt_ack
+    topic: "risk.symbol_halt_ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Engine to ADMIN: the per-symbol halt's outcome."
+      since: "1.0"
+      example_note: >
+        `symbol` is echoed in the body. It is what tells two concurrent halt
+        acks for one gateway apart - the reason risk.kill_switch needed a
+        command_id and this did not.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: accepted, type: bool }
+      - { name: symbol, type: string, required: false, default: "",
+          validate: { max_len: 16 } }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+      - { name: cancelled_quotes, type: int, unit: dimensionless,
+          required: false, default: 0, validate: { ge: 0 },
+          doc: "Quotes pulled because the instrument stopped trading." }
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: symbol_resume
+    topic: "risk.symbol_resume"
+    transport: [engine_pub]
+    doc:
+      motivation: "ADMIN to engine: resume trading on one halted instrument."
+      since: "1.0"
+      see_also: ["risk.symbol_halt"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: note, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 256 } }
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: symbol_resume_ack
+    topic: "risk.symbol_resume_ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Engine to ADMIN: the per-symbol resume's outcome."
+      since: "1.0"
+      example_note: >
+        No counters: a resume cancels nothing. The one ack in this family
+        that carries only an outcome and the symbol it applies to.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: accepted, type: bool }
+      - { name: symbol, type: string, required: false, default: "",
+          validate: { max_len: 16 } }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: cancel_symbol
+    topic: "risk.cancel_symbol"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        ADMIN to engine: cancel every resting order for one instrument, across
+        every gateway.
+      since: "1.0"
+      see_also: ["risk.symbol_halt", "risk.kill_switch"]
+      example_note: >
+        The instrument-scoped counterpart to risk.kill_switch's
+        gateway-scoped sweep: that one cancels one gateway across all symbols,
+        this one cancels one symbol across all gateways. Neither halts
+        anything - trading may resume immediately.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: note, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 256 } }
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: cancel_symbol_ack
+    topic: "risk.cancel_symbol_ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Engine to ADMIN: what the symbol-wide mass cancel removed."
+      since: "1.0"
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: accepted, type: bool }
+      - { name: symbol, type: string, required: false, default: "",
+          validate: { max_len: 16 } }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+      - { name: cancelled_orders, type: int, unit: dimensionless,
+          required: false, default: 0, validate: { ge: 0 } }
+      - { name: cancelled_quotes, type: int, unit: dimensionless,
+          required: false, default: 0, validate: { ge: 0 } }
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: circuit_breaker_halt_all
+    topic: "risk.circuit_breaker_halt_all"
+    transport: [engine_pub]
+    doc:
+      motivation: "ADMIN to engine: halt trading on every known symbol."
+      since: "1.0"
+      see_also: ["risk.circuit_breaker_resume_all", "risk.kill_switch_global"]
+      example_note: >
+        Halts, and leaves resting orders in place. risk.kill_switch_global is
+        the other market-wide stop and does the opposite - it cancels
+        everything and halts nothing. The pair is the reason both exist.
+
+        Carries no note and no command_id, on either side. See the block
+        comment above this group.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: circuit_breaker_halt_all_ack
+    topic: "risk.circuit_breaker_halt_all_ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Engine to ADMIN: how wide the market-wide halt reached."
+      since: "1.0"
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+      - { name: halted_symbols, type: int, unit: dimensionless,
+          required: false, default: 0, validate: { ge: 0 } }
+      - { name: cancelled_quotes, type: int, unit: dimensionless,
+          required: false, default: 0, validate: { ge: 0 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: circuit_breaker_resume_all
+    topic: "risk.circuit_breaker_resume_all"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        ADMIN to engine: resume every symbol halted by the market-wide halt.
+      since: "1.0"
+      see_also: ["risk.circuit_breaker_halt_all"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: circuit_breaker_resume_all_ack
+    topic: "risk.circuit_breaker_resume_all_ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Engine to ADMIN: how many symbols came back."
+      since: "1.0"
+      example_note: >
+        No cancelled_quotes counterpart: resuming pulls nothing. The halt ack
+        and the resume ack are deliberately different shapes because they
+        report different things, not one shape with a field left at zero.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+      - { name: resumed_symbols, type: int, unit: dimensionless,
+          required: false, default: 0, validate: { ge: 0 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }

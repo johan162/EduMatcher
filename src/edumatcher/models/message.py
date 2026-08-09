@@ -314,7 +314,7 @@ def make_trade_msg(trade_dict: dict[str, Any]) -> list[bytes]:
 
 
 def make_book_msg(symbol: str, book_snapshot: dict[str, Any]) -> list[bytes]:
-    return encode(f"book.{symbol}", book_snapshot)
+    return encode(_gen_book.topic_book_snapshot(symbol), book_snapshot)
 
 
 def make_orders_request_msg(gateway_id: str) -> list[bytes]:
@@ -959,7 +959,7 @@ def make_kill_switch_ack_msg(
 
 def make_circuit_breaker_halt_all_msg(gateway_id: str) -> list[bytes]:
     """Admin → engine: halt trading for all known symbols."""
-    return encode("risk.circuit_breaker_halt_all", {"gateway_id": gateway_id})
+    return _gen_risk.make_circuit_breaker_halt_all(gateway_id=gateway_id)
 
 
 def make_circuit_breaker_halt_all_ack_msg(
@@ -970,21 +970,18 @@ def make_circuit_breaker_halt_all_ack_msg(
     cancelled_quotes: int = 0,
 ) -> list[bytes]:
     """Engine → admin: global circuit-breaker halt result summary."""
-    topic = f"risk.circuit_breaker_halt_all_ack.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "accepted": accepted,
-            "reason": reason,
-            "halted_symbols": halted_symbols,
-            "cancelled_quotes": cancelled_quotes,
-        },
+    return _gen_risk.make_circuit_breaker_halt_all_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        halted_symbols=halted_symbols,
+        cancelled_quotes=cancelled_quotes,
     )
 
 
 def make_circuit_breaker_resume_all_msg(gateway_id: str) -> list[bytes]:
     """Admin → engine: resume trading for all symbols halted by global CB halt."""
-    return encode("risk.circuit_breaker_resume_all", {"gateway_id": gateway_id})
+    return _gen_risk.make_circuit_breaker_resume_all(gateway_id=gateway_id)
 
 
 def make_circuit_breaker_resume_all_ack_msg(
@@ -994,14 +991,11 @@ def make_circuit_breaker_resume_all_ack_msg(
     resumed_symbols: int = 0,
 ) -> list[bytes]:
     """Engine → admin: global circuit-breaker resume result summary."""
-    topic = f"risk.circuit_breaker_resume_all_ack.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "accepted": accepted,
-            "reason": reason,
-            "resumed_symbols": resumed_symbols,
-        },
+    return _gen_risk.make_circuit_breaker_resume_all_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        resumed_symbols=resumed_symbols,
     )
 
 
@@ -1026,14 +1020,13 @@ def make_symbol_halt_msg(
     unmatched, the halt falls back to the previous behaviour: an indefinite
     halt with no timed resume, cleared only by an explicit resume.
     """
-    payload: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol.upper()}
-    if level:
-        payload["level"] = level.upper()
-    if note:
-        payload["note"] = note
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("risk.symbol_halt", payload)
+    return _gen_risk.make_symbol_halt(
+        gateway_id=gateway_id,
+        symbol=symbol.upper(),
+        level=(level or "").upper(),
+        note=note,
+        command_id=command_id,
+    )
 
 
 def make_symbol_halt_ack_msg(
@@ -1045,27 +1038,26 @@ def make_symbol_halt_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → admin: per-symbol halt result."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "symbol": symbol,
-        "reason": reason,
-        "cancelled_quotes": cancelled_quotes,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(f"risk.symbol_halt_ack.{gateway_id}", payload)
+    return _gen_risk.make_symbol_halt_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        symbol=symbol,
+        reason=reason,
+        cancelled_quotes=cancelled_quotes,
+        command_id=command_id,
+    )
 
 
 def make_symbol_resume_msg(
     gateway_id: str, symbol: str, note: str = "", command_id: str = ""
 ) -> list[bytes]:
     """Admin → engine: resume trading on a single halted symbol (ADMIN role required)."""
-    payload: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol.upper()}
-    if note:
-        payload["note"] = note
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("risk.symbol_resume", payload)
+    return _gen_risk.make_symbol_resume(
+        gateway_id=gateway_id,
+        symbol=symbol.upper(),
+        note=note,
+        command_id=command_id,
+    )
 
 
 def make_symbol_resume_ack_msg(
@@ -1076,14 +1068,13 @@ def make_symbol_resume_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → admin: per-symbol resume result."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "symbol": symbol,
-        "reason": reason,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(f"risk.symbol_resume_ack.{gateway_id}", payload)
+    return _gen_risk.make_symbol_resume_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        symbol=symbol,
+        reason=reason,
+        command_id=command_id,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1095,12 +1086,12 @@ def make_cancel_symbol_msg(
     gateway_id: str, symbol: str, note: str = "", command_id: str = ""
 ) -> list[bytes]:
     """Admin → engine: cancel all resting orders for *symbol* across every gateway."""
-    payload: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol.upper()}
-    if note:
-        payload["note"] = note
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("risk.cancel_symbol", payload)
+    return _gen_risk.make_cancel_symbol(
+        gateway_id=gateway_id,
+        symbol=symbol.upper(),
+        note=note,
+        command_id=command_id,
+    )
 
 
 def make_cancel_symbol_ack_msg(
@@ -1113,16 +1104,15 @@ def make_cancel_symbol_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → admin: symbol-level mass-cancel result."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "symbol": symbol,
-        "reason": reason,
-        "cancelled_orders": cancelled_orders,
-        "cancelled_quotes": cancelled_quotes,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(f"risk.cancel_symbol_ack.{gateway_id}", payload)
+    return _gen_risk.make_cancel_symbol_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        symbol=symbol,
+        reason=reason,
+        cancelled_orders=cancelled_orders,
+        cancelled_quotes=cancelled_quotes,
+        command_id=command_id,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1530,7 +1520,7 @@ def make_depth_msg(symbol: str, depth: dict[str, Any]) -> list[bytes]:
     first dot, so it recorded a phantom instrument literally named
     ``depth.AAPL`` into daily_stats.
     """
-    return encode(f"depth.{symbol}", depth)
+    return encode(_gen_book.topic_depth(symbol), depth)
 
 
 # ---------------------------------------------------------------------------

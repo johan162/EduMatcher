@@ -25,7 +25,14 @@ from edumatcher.models.message import (
 from edumatcher.mm_bot.pricer import QuotePricer
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
-from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
+from edumatcher.models.generated.book import (
+    PREFIX_BOOK_SNAPSHOT,
+    topic_book_snapshot,
+)
+from edumatcher.models.generated.order import (
+    topic_order_cancelled,
+    topic_order_fill,
+)
 
 log = logging.getLogger(__name__)
 
@@ -184,10 +191,10 @@ class MMBot:
             f"system.symbols.{self.gateway_id}",
             f"system.quote_bootstrap.{self.gateway_id}",
             f"system.quote_legs.{self.gateway_id}",
-            f"book.{self.symbol}",
+            topic_book_snapshot(self.symbol),
             TOPIC_TRADE_EXECUTED,
-            f"order.fill.{self.gateway_id}",
-            f"order.cancelled.{self.gateway_id}",
+            topic_order_fill(self.gateway_id),
+            topic_order_cancelled(self.gateway_id),
             f"quote.ack.{self.gateway_id}",
             f"quote.status.{self.gateway_id}",
             TOPIC_SESSION_STATE,
@@ -329,7 +336,7 @@ class MMBot:
         """Buffer events received during startup waits."""
         if topic == TOPIC_SESSION_STATE:
             self._session_state = str(payload.get("state", "")).upper()
-        elif topic == f"book.{self.symbol}":
+        elif topic == topic_book_snapshot(self.symbol):
             self._handle_book(payload)
         elif topic == TOPIC_TRADE_EXECUTED:
             self._handle_trade(payload)
@@ -623,7 +630,7 @@ class MMBot:
         """Route an incoming message to the appropriate handler."""
         self._dbg_count("incoming_total")
         self._dbg_count(f"incoming_topic_{self._topic_family(topic)}")
-        if topic == f"book.{self.symbol}":
+        if topic == topic_book_snapshot(self.symbol):
             self._handle_book(payload)
             # Check drift while quoting
             if (
@@ -641,9 +648,9 @@ class MMBot:
             self._handle_quote_ack(payload)
         elif topic == f"quote.status.{self.gateway_id}":
             self._handle_quote_status(payload)
-        elif topic == f"order.fill.{self.gateway_id}":
+        elif topic == topic_order_fill(self.gateway_id):
             self._handle_order_fill(payload)
-        elif topic == f"order.cancelled.{self.gateway_id}":
+        elif topic == topic_order_cancelled(self.gateway_id):
             self._handle_order_cancelled(payload)
         elif topic == TOPIC_SESSION_STATE:
             self._handle_session_state(payload)

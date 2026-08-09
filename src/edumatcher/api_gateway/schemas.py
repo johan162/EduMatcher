@@ -208,10 +208,22 @@ class SessionTransitionRequest(StrictModel):
     to_state: SessionState
 
 
+#: Bounds that mirror the `risk` spec's `max_len` on the fields these become.
+#: They are load-bearing, not cosmetic: since 5.3a/5.3b the builders validate,
+#: so an unbounded value here reaches a generated constructor and raises —
+#: turning a client's bad input into a 500 where FastAPI would otherwise have
+#: returned a 422 naming the offending field. Bound at the edge, where the
+#: error can still say what was wrong.
+_MAX_SYMBOL = 16
+_MAX_GATEWAY_ID = 32
+_MAX_CB_LEVEL = 32
+_MAX_REASON = 256
+
+
 class CircuitBreakerTriggerRequest(StrictModel):
-    symbol: str = Field(min_length=1)
-    level: str | None = None
-    reason: str | None = None
+    symbol: str = Field(min_length=1, max_length=_MAX_SYMBOL)
+    level: str | None = Field(default=None, max_length=_MAX_CB_LEVEL)
+    reason: str | None = Field(default=None, max_length=_MAX_REASON)
 
     @field_validator("symbol")
     @classmethod
@@ -220,8 +232,8 @@ class CircuitBreakerTriggerRequest(StrictModel):
 
 
 class CircuitBreakerResumeRequest(StrictModel):
-    symbol: str = Field(min_length=1)
-    reason: str | None = None
+    symbol: str = Field(min_length=1, max_length=_MAX_SYMBOL)
+    reason: str | None = Field(default=None, max_length=_MAX_REASON)
 
     @field_validator("symbol")
     @classmethod
@@ -230,8 +242,8 @@ class CircuitBreakerResumeRequest(StrictModel):
 
 
 class SymbolCancelRequest(StrictModel):
-    symbol: str = Field(min_length=1)
-    reason: str | None = None
+    symbol: str = Field(min_length=1, max_length=_MAX_SYMBOL)
+    reason: str | None = Field(default=None, max_length=_MAX_REASON)
 
     @field_validator("symbol")
     @classmethod
@@ -240,8 +252,8 @@ class SymbolCancelRequest(StrictModel):
 
 
 class KillSwitchGatewayRequest(StrictModel):
-    target_gateway_id: str = Field(min_length=1)
-    reason: str | None = None
+    target_gateway_id: str = Field(min_length=1, max_length=_MAX_GATEWAY_ID)
+    reason: str | None = Field(default=None, max_length=_MAX_REASON)
 
     @field_validator("target_gateway_id")
     @classmethod
@@ -250,7 +262,7 @@ class KillSwitchGatewayRequest(StrictModel):
 
 
 class KillSwitchGlobalRequest(StrictModel):
-    reason: str | None = None
+    reason: str | None = Field(default=None, max_length=_MAX_REASON)
 
 
 class IndexRebalanceUpdate(StrictModel):

@@ -130,6 +130,14 @@ from edumatcher.models.generated.index import (
     topic_index_error,
     topic_index_history,
 )
+from edumatcher.models.generated.risk import topic_kill_switch_ack
+from edumatcher.models.generated.order import (
+    topic_order_ack,
+    topic_order_amended,
+    topic_order_cancelled,
+    topic_order_expired,
+    topic_order_fill,
+)
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-alf-console"
@@ -266,11 +274,11 @@ class Gateway:
         # Subscribe to all order events for this gateway + trade feed for last prices
         self.sub_sock = make_subscriber(
             ENGINE_PUB_ADDR,
-            f"order.ack.{self.gateway_id}",
-            f"order.fill.{self.gateway_id}",
-            f"order.amended.{self.gateway_id}",
-            f"order.cancelled.{self.gateway_id}",
-            f"order.expired.{self.gateway_id}",
+            topic_order_ack(self.gateway_id),
+            topic_order_fill(self.gateway_id),
+            topic_order_amended(self.gateway_id),
+            topic_order_cancelled(self.gateway_id),
+            topic_order_expired(self.gateway_id),
             f"order.orders.{self.gateway_id}",
             f"combo.ack.{self.gateway_id}",
             f"combo.status.{self.gateway_id}",
@@ -278,7 +286,7 @@ class Gateway:
             f"oco.cancelled.{self.gateway_id}",
             f"quote.ack.{self.gateway_id}",
             f"quote.status.{self.gateway_id}",
-            f"risk.kill_switch_ack.{self.gateway_id}",
+            topic_kill_switch_ack(self.gateway_id),
             f"system.symbols.{self.gateway_id}",
             f"system.quote_bootstrap.{self.gateway_id}",
             f"system.session_status.{self.gateway_id}",

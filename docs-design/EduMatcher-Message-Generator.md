@@ -2998,6 +2998,129 @@ rule is that every changed line traces to the request; a bulk substitution
 makes it cheap to violate that without noticing, so the count a script reports
 is worth reading rather than skimming.
 
+## 23. `risk`, part two — and the gate that could not see
+
+Phase 5.3b specified and adopted the ten instrument-scoped topics, completing
+`risk` and with it every specified family. The migration itself was
+unremarkable: eleven wire shapes verified byte-identical, ten builders
+delegated, presence regimes 1 and 4 throughout, no IDL change.
+
+Then the holistic review found that the acceptance gate had been wrong for six
+phases.
+
+### 23.1 A gate that could not see the common case
+
+`literals.py` built its needle as `re.compile(f'"{needle}"')` — the topic
+prefix with a **closing quote immediately after it**. A parameterised topic
+hard-coded as an f-string never has one:
+
+```python
+f"order.fill.{gateway_id}"     # continues with `{`, not `"`
+```
+
+So `grep-literals` reported `order: 0 literals - migrated` while **forty
+hard-coded parameterised topics sat in eight modules**, and had reported it
+since 5.1e. `book` had six, `session` one. Forty-six in all.
+
+The uncomfortable part is why it went unnoticed. Every family migrated before
+this *was* migrated correctly — because each phase also grepped by hand, found
+the f-strings that way, and fixed them. The tool was never the thing finding
+them; it was the thing agreeing afterwards. A gate that only ever confirms what
+you already did cannot tell you when you have missed something, and it looked
+green the entire time.
+
+Stated generally: **a check that has never disagreed with you has not been
+tested.** §15.5 said a restriction with no test is a comment; this is the same
+claim about the acceptance gate itself. The fix is four lines — drop the
+closing anchor for parameterised prefixes, keep it for exact topics so
+`"risk.kill_switch"` cannot match `"risk.kill_switch_gateway"` — and five tests
+now pin both halves, including the false-positive case that makes dropping the
+anchor safe (a parameterised needle ends in `.`, and the quote must sit
+immediately before it).
+
+### 23.2 The correlation gap that is not a defect
+
+The two circuit-breaker sweeps carry no `note` and no `command_id`, where the
+six per-symbol topics carry both. Their acks therefore have no identifier at
+all, so two concurrent halt-alls for one gateway are indistinguishable —
+exactly the problem §22.2's `command_id` was added to `risk.kill_switch` to
+solve.
+
+It is nevertheless **not the same finding**, and the difference is worth being
+precise about. `risk.kill_switch`'s handler *read* a `note` that no producer
+could send: a half-wire, where one side believed in a field the other could not
+supply. Here both handlers read only `gateway_id`, both builders send only
+`gateway_id`, and the acks carry no identifier. The two halves agree. Adding
+correlation would be a feature request, not a repair.
+
+So the spec describes what is there and this section records the gap. The test
+that pins it asserts the contrast rather than the absence — the six per-symbol
+topics *do* declare `command_id` — so the asymmetry stays visible rather than
+becoming folklore.
+
+### 23.3 The audit found a submission this time
+
+§21.2's rule had been applied to *acks*: fields the engine echoes back. Probing
+the adopted builders with inputs no test sends found the other direction.
+
+`CircuitBreakerTriggerRequest.level` is `str | None` with no `max_length`.
+`symbol` had `min_length=1` and no maximum. `reason` had neither. All three
+reach `make_symbol_halt_msg`, which since this phase validates against
+`max_len` 32, 16 and 256. An API client posting a five-thousand-character
+`level` would therefore have turned a bad request into a **500**, where FastAPI
+would otherwise have returned a 422 naming the field.
+
+Five request models are bounded now, at the edge where the error can still say
+what was wrong. The widened rule: **when adoption makes a builder validate,
+audit both directions** — every field the process echoes outward, and every
+field it accepts inward from a boundary that did not previously constrain it.
+
+### 23.4 What a bulk edit cost
+
+Forty-six sites across twelve modules is more than is comfortable by hand, so
+the migration was scripted. Three defects came straight back out of that
+decision, and all three are the same mistake in different clothes: a regular
+expression does not know what it is editing.
+
+1. **A topic that was never declared.** The substitution table included
+   `order.orders.` — which no spec declares. `topic_order_orders` does not
+   exist, so five modules stopped importing. Caught immediately by mypy, but
+   the substitution table should have been derived from the loader's own topic
+   list rather than typed out.
+2. **A documented invariant, violated.** The script added a *by-name* import
+   from a generated module to `models/message.py` — whose own header comment
+   explains, at length, that the two modules import each other and that binding
+   them by name "would raise ImportError whenever the generated module happened
+   to be imported first". The file said exactly what not to do and the edit did
+   it anyway.
+3. **Nested parentheses.** The revert used `\\(([^)]+)\\)`, which stops at the
+   first `)`, so `topic_order_orders(target_gw.upper())` came back as
+   `f"order.orders.{target_gw.upper(}")`. A syntax error, so harmless — but it
+   is the same class as (1) and (2) and it was the third in one sitting.
+
+None of these survived; the toolchain caught all three within a minute. The
+lesson is not "do not script bulk edits" — forty-six sites by hand would have
+its own error rate. It is that **a scripted edit needs the same reading a
+hand-written one gets**: check what it matched, not just how many. §22.6
+recorded a two-line version of this in the previous phase; this is the same
+rule failing at larger scale, which suggests it is worth stating as a habit
+rather than an anecdote.
+
+### 23.5 A formatting rule, again from the longest name
+
+`risk.circuit_breaker_resume_all_ack.{gateway_id}` is the longest topic in any
+spec, and assigning it to a constant named after it runs one character past 88
+columns. Black cannot split a string literal, so it parenthesises the
+right-hand side instead; the emitter had no rule for a long module-level
+assignment.
+
+That is the fifth formatting defect found by `test_generated_files_are_black_
+clean` and the second in two phases traceable to `risk`'s name lengths. Both
+fixes are byte-neutral for every previously committed family, which is the
+cheapest available evidence that a formatting change did not quietly reformat
+the tree — and worth re-checking each time, because the alternative is
+discovering it through a diff nobody reads.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first

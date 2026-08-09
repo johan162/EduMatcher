@@ -13,24 +13,25 @@
     - What `pm-msgen check` guarantees, and why generation must be
       byte-for-byte deterministic for that guarantee to be worth anything
 
-!!! info "Current status: Phase 5.1a"
-    **Two families are specified.** `trade.executed` has a Python binding and a
-    C binding for its CALF projection; `order` has the five engine→gateway
-    events (`ack`, `fill`, `cancelled`, `expired`, `amended`) plus the BALF
-    `execution_report` frame in Python and C.
+!!! info "Current status: Phase 5.3b"
+    **Seven families are specified and adopted**, covering 61 messages and 9
+    record types: `trade`, `order`, `session`, `book`, `log`, `index` and
+    `risk`. Each has a Python binding; `trade` and `order` also have C bindings
+    for their CALF projections and the BALF `execution_report` frame.
 
     All of it is live. `models/message.py`'s builders delegate to the generated
-    code, `engine/main.py::_publish_trade` publishes through it,
+    code, the engine, pm-index and pm-log-srv publish through it,
     `md_gateway/normaliser.py` projects through it, and the CALF and BALF
-    example clients parse with the generated structs. **No topic of either
-    family appears as a string literal anywhere in `src/`** — `pm-msgen
-    grep-literals` reports zero, and a test keeps it that way.
+    example clients parse with the generated structs. **No topic of any
+    specified family appears as a literal anywhere in `src/`** — including
+    parameterised topics written as f-strings, which `grep-literals` could not
+    see until 5.3b.
 
     The drift check runs in CI and `make check`; compiled round-trip tests prove
     Python and C agree on both the text and binary wires.
 
-    Not built yet: the rest of the `order` family (5.1b/c), the other families
-    (5.2+), and the documentation appendix (Phase 6). The full plan lives in
+    Not built yet: the unspecified families (`quote`, `system` and the rest) and
+    the documentation appendix (Phase 6). The full plan lives in
     `docs-design/EduMatcher-Message-Generator.md`.
 
 ## The problem
@@ -1312,7 +1313,7 @@ What it does not, and will not:
 | 5.2e | IDL `omit_when_empty` on lists + `index.yaml` and its binding | **done** — committed unused |
 | 5.2f | adopt `index`: the builders, the `day` record, literals to zero | **done** — the `index` family is complete |
 | 5.3a | `risk` part one: the three kill switches (6 topics) | **done** |
-| 5.3b | `risk` part two: symbol halt/resume/cancel + the two circuit-breaker sweeps (10 topics) | not started |
+| 5.3b | `risk` part two: symbol halt/resume/cancel + the two circuit-breaker sweeps (10 topics); `grep-literals` learns to see f-string topics, and the 46 they were hiding are migrated | **done** — every specified family is complete |
 | 6 | Generated `271-message-appendix.md` | not started |
 
 !!! success "The guarantee is live"
@@ -1322,20 +1323,17 @@ What it does not, and will not:
 
 !!! warning "It only covers what is specified"
     Seven families of roughly fifteen have a spec — `trade`, `order`,
-    `session`, `book`, `log`, `index` and now `risk`. Everything unspecified
-    still drifts exactly as it did before: the check cannot protect a message
-    it has never been told about.
+    `session`, `book`, `log`, `index` and `risk`. Everything unspecified still
+    drifts exactly as it did before: the check cannot protect a message it has
+    never been told about.
 
-    Six of the seven are complete and at zero topic literals. **`risk` is
-    half-specified**: 5.3a declared its three kill switches, and the ten
-    instrument-scoped topics — `symbol_halt`, `symbol_resume`,
-    `cancel_symbol` and the two circuit-breaker sweeps — land in 5.3b.
-
-    `grep-literals` reports a per-family count over *declared* topics, so a
-    half-specified family reads `risk: 0 literals - migrated` while ten of its
-    topics are still hard-coded. That is literally true and easy to misread,
-    which is why `risk` stays out of `MIGRATED` in
-    `tests/test_msgen_literals.py` until 5.3b lands.
+    All seven are complete, adopted, and at zero topic literals — and since
+    5.3b that count means what it says. `grep-literals` could not previously
+    see a **parameterised topic written as an f-string**: its pattern required
+    a closing quote right after the prefix, which `f"order.fill.{gateway_id}"`
+    does not have. It reported `order: 0 literals - migrated` while forty such
+    f-strings sat in eight modules. The detector was fixed and all 46 migrated;
+    `MIGRATED` in `tests/test_msgen_literals.py` now lists every family.
 
     Where a family *is* specified, its topic literals are at zero. Adding a
     family to `MIGRATED` in `tests/test_msgen_literals.py` is what makes that

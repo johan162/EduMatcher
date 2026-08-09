@@ -29,6 +29,13 @@ from edumatcher.api_gateway.schemas import (
     SymbolCancelRequest,
 )
 from edumatcher.api_gateway.sessions import Session, auth, require_admin
+from edumatcher.models.generated.risk import (
+    topic_cancel_symbol_ack,
+    topic_kill_switch_gateway_ack,
+    topic_kill_switch_global_ack,
+    topic_symbol_halt_ack,
+    topic_symbol_resume_ack,
+)
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -231,7 +238,7 @@ async def circuit_breaker_trigger(  # pyright: ignore[reportUnusedFunction]
     )
     ack = await _await_ack(
         request,
-        f"risk.symbol_halt_ack.{gateway_id}",
+        topic_symbol_halt_ack(gateway_id),
         match={"symbol": body.symbol},
     )
     return _require_accepted(ack)
@@ -251,7 +258,7 @@ async def circuit_breaker_resume(  # pyright: ignore[reportUnusedFunction]
     )
     ack = await _await_ack(
         request,
-        f"risk.symbol_resume_ack.{gateway_id}",
+        topic_symbol_resume_ack(gateway_id),
         match={"symbol": body.symbol},
     )
     return _require_accepted(ack)
@@ -371,7 +378,7 @@ async def kill_switch_symbol(  # pyright: ignore[reportUnusedFunction]
     )
     ack = await _await_ack(
         request,
-        f"risk.cancel_symbol_ack.{gateway_id}",
+        topic_cancel_symbol_ack(gateway_id),
         match={"symbol": body.symbol},
     )
     return _require_accepted(ack)
@@ -399,7 +406,7 @@ async def kill_switch_gateway(  # pyright: ignore[reportUnusedFunction]
     )
     ack = await _await_ack(
         request,
-        f"risk.kill_switch_gateway_ack.{gateway_id}",
+        topic_kill_switch_gateway_ack(gateway_id),
         match={"command_id": command_id},
     )
     return _require_accepted(ack)
@@ -424,7 +431,7 @@ async def kill_switch_global(  # pyright: ignore[reportUnusedFunction]
     )
     ack = await _await_ack(
         request,
-        f"risk.kill_switch_global_ack.{gateway_id}",
+        topic_kill_switch_global_ack(gateway_id),
         match={"command_id": command_id},
     )
     return _require_accepted(ack)
