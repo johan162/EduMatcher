@@ -32,7 +32,16 @@ SRC = REPO_ROOT / "src"
 #: outright. Until 5.3b that distinction hid a second one: the scanner could
 #: not see f-string topics at all, so a family could read as migrated with
 #: parameterised topics still hard-coded. See TestTheDetectorSeesFStrings.
-MIGRATED = ("trade", "order", "session", "book", "log", "index", "risk")
+MIGRATED = (
+    "trade",
+    "order",
+    "session",
+    "book",
+    "log",
+    "index",
+    "risk",
+    "structure",
+)
 
 
 @pytest.fixture(scope="module")

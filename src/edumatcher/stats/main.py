@@ -125,6 +125,12 @@ from edumatcher.models.generated.order import (
 )
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 from edumatcher.models.generated.index import TOPIC_INDEX_UPDATE
+from edumatcher.models.generated.structure import (
+    PREFIX_COMBO_ACK,
+    PREFIX_COMBO_STATUS,
+    PREFIX_OCO_ACK,
+    PREFIX_OCO_CANCELLED,
+)
 
 _CLIENT_NAME = "pm-stats"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -894,10 +900,10 @@ class StatsProcess:
                 PREFIX_ORDER_AMENDED,
                 PREFIX_ORDER_CANCELLED,
                 PREFIX_ORDER_EXPIRED,
-                "combo.ack.",
-                "combo.status.",
-                "oco.ack.",
-                "oco.cancelled.",
+                PREFIX_COMBO_ACK,
+                PREFIX_COMBO_STATUS,
+                PREFIX_OCO_ACK,
+                PREFIX_OCO_CANCELLED,
                 "quote.ack.",
                 "quote.status.",
                 rcvhwm=_SUB_RCVHWM,
@@ -1845,10 +1851,10 @@ def _is_order_event_topic(topic: str) -> bool:
             PREFIX_ORDER_AMENDED,
             PREFIX_ORDER_CANCELLED,
             PREFIX_ORDER_EXPIRED,
-            "combo.ack.",
-            "combo.status.",
-            "oco.ack.",
-            "oco.cancelled.",
+            PREFIX_COMBO_ACK,
+            PREFIX_COMBO_STATUS,
+            PREFIX_OCO_ACK,
+            PREFIX_OCO_CANCELLED,
             "quote.ack.",
             "quote.status.",
         )
@@ -1900,13 +1906,13 @@ def _event_type_from_topic(topic: str, payload: dict[str, Any]) -> str:
         return "CANCEL"
     if topic.startswith(PREFIX_ORDER_EXPIRED):
         return "EXPIRE"
-    if topic.startswith("combo.ack."):
+    if topic.startswith(PREFIX_COMBO_ACK):
         return _accept_reject(topic, payload, "COMBO_ACK", "COMBO_REJECT")
-    if topic.startswith("combo.status."):
+    if topic.startswith(PREFIX_COMBO_STATUS):
         return "COMBO_STATUS"
-    if topic.startswith("oco.ack."):
+    if topic.startswith(PREFIX_OCO_ACK):
         return _accept_reject(topic, payload, "OCO_ACK", "OCO_REJECT")
-    if topic.startswith("oco.cancelled."):
+    if topic.startswith(PREFIX_OCO_CANCELLED):
         return "OCO_CANCEL"
     if topic.startswith("quote.ack."):
         return _accept_reject(topic, payload, "QUOTE_ACK", "QUOTE_REJECT")

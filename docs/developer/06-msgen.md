@@ -13,11 +13,11 @@
     - What `pm-msgen check` guarantees, and why generation must be
       byte-for-byte deterministic for that guarantee to be worth anything
 
-!!! info "Current status: Phase 5.3b"
-    **Seven families are specified and adopted**, covering 61 messages and 9
-    record types: `trade`, `order`, `session`, `book`, `log`, `index` and
-    `risk`. Each has a Python binding; `trade` and `order` also have C bindings
-    for their CALF projections and the BALF `execution_report` frame.
+!!! info "Current status: Phase 6.1a"
+    **Eight families are specified and adopted**, covering 65 messages and 9
+    record types: `trade`, `order`, `session`, `book`, `log`, `index`, `risk`
+    and `structure`. Each has a Python binding; `trade` and `order` also have C
+    bindings for their CALF projections and the BALF `execution_report` frame.
 
     All of it is live. `models/message.py`'s builders delegate to the generated
     code, the engine, pm-index and pm-log-srv publish through it,
@@ -30,8 +30,9 @@
     The drift check runs in CI and `make check`; compiled round-trip tests prove
     Python and C agree on both the text and binary wires.
 
-    Not built yet: the unspecified families (`quote`, `system` and the rest) and
-    the documentation appendix (Phase 6). The full plan lives in
+    Not built yet: roughly 41 topics across `quote`, `circuit_breaker`,
+    `auction`, `drop_copy`, `admin` and `system` (Phase 6.1b–f), and the
+    documentation appendix (6.2). The full plan lives in
     `docs-design/EduMatcher-Message-Generator.md`.
 
 ## The problem
@@ -1314,7 +1315,12 @@ What it does not, and will not:
 | 5.2f | adopt `index`: the builders, the `day` record, literals to zero | **done** — the `index` family is complete |
 | 5.3a | `risk` part one: the three kill switches (6 topics) | **done** |
 | 5.3b | `risk` part two: symbol halt/resume/cancel + the two circuit-breaker sweeps (10 topics); `grep-literals` learns to see f-string topics, and the 46 they were hiding are migrated | **done** — every specified family is complete |
-| 6 | Generated `271-message-appendix.md` | not started |
+| 6.1a | `structure`: the combo/OCO events; `combo.status`'s `details` map becomes a field | **done** |
+| 6.1b | `quote` (4 topics) | not started |
+| 6.1c | `circuit_breaker` + `auction` (5 topics) | not started |
+| 6.1d | `drop_copy` + `admin` (3 topics) | not started |
+| 6.1e–f | `system` (29 topics, two sessions) | not started |
+| 6.2 | Generated `271-message-appendix.md` | not started |
 
 !!! success "The guarantee is live"
     For every family in `spec/`, the committed bindings provably match the

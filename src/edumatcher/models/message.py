@@ -46,6 +46,7 @@ from edumatcher.models.generated import log as _gen_log
 from edumatcher.models.generated import order as _gen_order
 from edumatcher.models.generated import risk as _gen_risk
 from edumatcher.models.generated import session as _gen_session
+from edumatcher.models.generated import structure as _gen_structure
 from edumatcher.models.generated import trade as _gen_trade
 
 # PERF improvement #6: Use orjson instead of stdlib json.
@@ -607,10 +608,11 @@ def make_combo_ack_msg(
     alf_console, alf_gwy, pm-stats and the api_gateway event stream all take
     only ``combo_id``, ``accepted`` and ``reason``.
     """
-    topic = f"combo.ack.{gateway_id}"
-    return encode(
-        topic,
-        {"combo_id": combo_id, "accepted": accepted, "reason": reason},
+    return _gen_structure.make_combo_ack(
+        gateway_id=gateway_id,
+        combo_id=combo_id,
+        accepted=accepted,
+        reason=reason,
     )
 
 
@@ -618,17 +620,22 @@ def make_combo_status_msg(
     gateway_id: str,
     combo_id: str,
     status: str,
-    details: dict[str, Any] | None = None,
+    reason: str = "",
 ) -> list[bytes]:
-    """Engine → gateway: combo status transition (MATCHED / FAILED / etc.)."""
-    topic = f"combo.status.{gateway_id}"
-    payload: dict[str, Any] = {
-        "combo_id": combo_id,
-        "status": status,
-    }
-    if details:
-        payload["details"] = details
-    return encode(topic, payload)
+    """Engine → gateway: combo status transition (MATCHED / FAILED / etc.).
+
+    ``reason`` replaced a ``details`` mapping that only ever carried one key,
+    always ``"reason"`` — and which both consumers unwrapped on arrival with
+    ``details.get("reason")``. Design section 15.4 excludes maps because a
+    spec that appears to need one is describing a message that should have
+    been simpler; this was the thinnest possible instance of that.
+    """
+    return _gen_structure.make_combo_status(
+        gateway_id=gateway_id,
+        combo_id=combo_id,
+        status=status,
+        reason=reason,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -807,29 +814,25 @@ def make_oco_ack_msg(
     order_id_2: str = "",
 ) -> list[bytes]:
     """Engine → gateway: OCO pair accepted or rejected."""
-    topic = f"oco.ack.{gateway_id}"
-    payload: dict[str, Any] = {
-        "oco_id": oco_id,
-        "accepted": accepted,
-        "reason": reason,
-        "order_id_1": order_id_1,
-        "order_id_2": order_id_2,
-    }
-    return encode(topic, payload)
+    return _gen_structure.make_oco_ack(
+        gateway_id=gateway_id,
+        oco_id=oco_id,
+        accepted=accepted,
+        reason=reason,
+        order_id_1=order_id_1,
+        order_id_2=order_id_2,
+    )
 
 
 def make_oco_cancelled_msg(
     gateway_id: str, oco_id: str, cancelled_order_id: str, reason: str = ""
 ) -> list[bytes]:
     """Engine → gateway: OCO sibling cancelled because the other leg was actioned."""
-    topic = f"oco.cancelled.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "oco_id": oco_id,
-            "cancelled_order_id": cancelled_order_id,
-            "reason": reason,
-        },
+    return _gen_structure.make_oco_cancelled(
+        gateway_id=gateway_id,
+        oco_id=oco_id,
+        cancelled_order_id=cancelled_order_id,
+        reason=reason,
     )
 
 

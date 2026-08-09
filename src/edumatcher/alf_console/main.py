@@ -138,6 +138,12 @@ from edumatcher.models.generated.order import (
     topic_order_expired,
     topic_order_fill,
 )
+from edumatcher.models.generated.structure import (
+    topic_combo_ack,
+    topic_combo_status,
+    topic_oco_ack,
+    topic_oco_cancelled,
+)
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-alf-console"
@@ -280,10 +286,10 @@ class Gateway:
             topic_order_cancelled(self.gateway_id),
             topic_order_expired(self.gateway_id),
             f"order.orders.{self.gateway_id}",
-            f"combo.ack.{self.gateway_id}",
-            f"combo.status.{self.gateway_id}",
-            f"oco.ack.{self.gateway_id}",
-            f"oco.cancelled.{self.gateway_id}",
+            topic_combo_ack(self.gateway_id),
+            topic_combo_status(self.gateway_id),
+            topic_oco_ack(self.gateway_id),
+            topic_oco_cancelled(self.gateway_id),
             f"quote.ack.{self.gateway_id}",
             f"quote.status.{self.gateway_id}",
             topic_kill_switch_ack(self.gateway_id),
@@ -768,8 +774,7 @@ class Gateway:
         elif "combo.status" in topic:
             cid = payload.get("combo_id", "?")
             status = payload.get("status", "?")
-            details = payload.get("details", {})
-            reason = details.get("reason", "") if details else ""
+            reason = payload.get("reason", "")
             colour_map = {
                 "MATCHED": "bright_green",
                 "PARTIALLY_MATCHED": "yellow",

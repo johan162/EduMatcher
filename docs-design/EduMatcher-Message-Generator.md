@@ -3121,6 +3121,92 @@ cheapest available evidence that a formatting change did not quietly reformat
 the tree — and worth re-checking each time, because the alternative is
 discovering it through a diff nobody reads.
 
+## 24. `structure`: the map that was one field in a costume
+
+Phase 6.1a specified the four events that report what became of a multi-leg
+structure — `combo.ack`, `combo.status`, `oco.ack`, `oco.cancelled`. Three
+were byte-identical; one carried the last map on any wire in this system.
+
+### 24.1 Phase 6.1 is six phases
+
+Worth recording as a planning correction rather than burying it. "The
+unspecified families" sounded like one phase and is about **45 topics across
+seven roots**: `combo`/`oco` (4), `quote` (4), `circuit_breaker` (3),
+`auction` (2), `drop_copy` (2), `admin` (1) and `system` (29). At the rate
+`index` and `risk` set — ten to sixteen topics per two sessions — that is five
+or six.
+
+The ordering follows value per topic rather than size. `combo`/`oco` came
+first because it closes a genuine half-conversation: `order.combo` and
+`order.oco` have been specified since 5.1c/5.1d while what happens to them was
+not, which is the same asymmetry §20.6 refused to ship inside a single family.
+`system` goes last because 29 request/reply pairs is the one group that
+benefits from every lesson the others produce.
+
+### 24.2 A map with exactly one key, ever
+
+`combo.status` carried `details: dict[str, Any] | None`. §15.4 excludes maps
+from the IDL on the grounds that *a spec appearing to need one is describing a
+message that should have been something simpler* — usually a list of records,
+as §19.2's `log.notify` levels turned out to be.
+
+This was the thinnest instance the project has found. Not a list of anything:
+**one string in a dict.** The single producer that populates it does
+
+```python
+details={"reason": reason} if reason else None
+```
+
+and both consumers immediately take it back out — `alf_console` with
+`details.get("reason", "") if details else ""`, `alf_gwy` with an
+`isinstance(details, dict)` guard around the same call. Six lines across two
+modules to move one string through a wrapper nobody wanted.
+
+`reason` is a top-level `omit_when_empty` string now, and reads like every
+other reason in the tree. The `if reason else None` guard became the presence
+regime it always was.
+
+The generalisation is §15.4's, unchanged and now three-for-three: every map
+this project has met was the wire being wrong. `leg_fill_qty` was a
+denormalised list index, `log.notify`'s `levels` was a list of records with
+the key as a field, and `details` was a field with a box around it. **The IDL
+still has no map construct and has never needed one** — which is the outcome
+that makes the exclusion a design decision rather than a gap.
+
+### 24.3 The third field one side believed in alone
+
+Counting: `shares_outstanding` on the ADD_CONSTITUENT audit record (§20.7),
+`note` on `risk.kill_switch` (§22.2), and now `details` — with the twist that
+`details` was *half*-supplied. Two of its three producers pass nothing, so
+`combo.status` events for MATCHED and PARTIALLY_MATCHED never carried it, and
+only the terminal-status path did.
+
+The three differ in what was wrong and therefore in the fix, which is the part
+worth keeping:
+
+| Case | What was true | Fix |
+|---|---|---|
+| §20.7 `shares_outstanding` | producer had the value and dropped it | record it |
+| §22.2 `note` | consumer read a field the message could not carry | add it to the message |
+| §24.2 `details` | both sides agreed, and the shape was wrong | flatten it |
+
+Only reading each one settled which. A rule that said "a field read but not
+written is a bug, add it" would have been right once out of three.
+
+### 24.4 A family is named after its topic root
+
+`combo.*` and `oco.*` events could have been appended to `order.yaml` — the
+submissions they answer live there. They are a separate family because a
+family file's name is its **topic root**, and that is what `FAMILY_TOPICS` and
+the literal scanner key on. Folding them into `order` would have made that
+family's registry advertise topics it does not own, so a router built from
+`order.FAMILY_TOPICS` would subscribe to four topics `order` never publishes.
+
+The two are related by `see_also` instead, which costs nothing and says the
+same thing without lying to a registry. A test pins it: `order.FAMILY_TOPICS`
+contains `order.combo` and `order.oco` and nothing starting `combo.` or
+`oco.`.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first

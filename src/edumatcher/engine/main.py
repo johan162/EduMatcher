@@ -3870,7 +3870,7 @@ class Engine:
                 combo.gateway_id,
                 combo.combo_id,
                 terminal_status.value,
-                details={"reason": reason} if reason else None,
+                reason=reason,
             )
         )
         log.info(

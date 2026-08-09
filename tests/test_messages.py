@@ -525,11 +525,25 @@ class TestComboMessages:
         assert topic == "combo.status.GW01"
         assert payload["status"] == "MATCHED"
 
-    def test_make_combo_status_msg_with_details(self) -> None:
-        topic, payload = _rt(
-            make_combo_status_msg("GW01", "PAIR1", "FAILED", details={"reason": "x"})
+    def test_make_combo_status_msg_with_a_reason(self) -> None:
+        """The ``details`` map became a top-level ``reason`` in 6.1a.
+
+        It only ever carried one key, always "reason", and both consumers
+        unwrapped it on arrival with ``details.get("reason")``. Design section
+        15.4 excludes maps because a spec appearing to need one is describing
+        a message that should have been simpler; this was the thinnest
+        possible instance.
+        """
+        _topic, payload = _rt(
+            make_combo_status_msg("GW01", "PAIR1", "FAILED", reason="x")
         )
-        assert payload["details"] == {"reason": "x"}
+        assert payload["reason"] == "x"
+        assert "details" not in payload
+
+    def test_make_combo_status_msg_omits_an_empty_reason(self) -> None:
+        """What the old ``if details:`` guard did, said as a presence regime."""
+        _topic, payload = _rt(make_combo_status_msg("GW01", "PAIR1", "MATCHED"))
+        assert "reason" not in payload
 
 
 class TestOcoMessages:

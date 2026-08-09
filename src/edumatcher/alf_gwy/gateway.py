@@ -72,6 +72,16 @@ from edumatcher.models.generated.risk import (
     PREFIX_KILL_SWITCH_ACK,
     topic_kill_switch_ack,
 )
+from edumatcher.models.generated.structure import (
+    PREFIX_COMBO_ACK,
+    PREFIX_COMBO_STATUS,
+    PREFIX_OCO_ACK,
+    PREFIX_OCO_CANCELLED,
+    topic_combo_ack,
+    topic_combo_status,
+    topic_oco_ack,
+    topic_oco_cancelled,
+)
 
 _MAX_LINE_BYTES = 4096
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
@@ -1330,25 +1340,22 @@ class AlfGateway:
                 "STATUS": str(payload.get("status", "")),
                 "REASON": str(payload.get("reason", "")),
             }
-        elif topic.startswith("combo.ack."):
+        elif topic.startswith(PREFIX_COMBO_ACK):
             msg_type = "COMBO_ACK"
             fields = {
                 "COMBO_ID": str(payload.get("combo_id", "")),
                 "ACCEPTED": "TRUE" if bool(payload.get("accepted", False)) else "FALSE",
                 "REASON": str(payload.get("reason", "")),
             }
-        elif topic.startswith("combo.status."):
+        elif topic.startswith(PREFIX_COMBO_STATUS):
             msg_type = "COMBO_STATUS"
-            details = payload.get("details")
-            reason = ""
-            if isinstance(details, dict):
-                reason = str(details.get("reason", ""))
+            reason = str(payload.get("reason", ""))
             fields = {
                 "COMBO_ID": str(payload.get("combo_id", "")),
                 "STATUS": str(payload.get("status", "")),
                 "REASON": reason,
             }
-        elif topic.startswith("oco.ack."):
+        elif topic.startswith(PREFIX_OCO_ACK):
             msg_type = "OCO_ACK"
             fields = {
                 "OCO_ID": str(payload.get("oco_id", "")),
@@ -1357,7 +1364,7 @@ class AlfGateway:
                 "LEG2_ID": str(payload.get("order_id_2", "")),
                 "REASON": str(payload.get("reason", "")),
             }
-        elif topic.startswith("oco.cancelled."):
+        elif topic.startswith(PREFIX_OCO_CANCELLED):
             msg_type = "OCO_CANCELLED"
             fields = {
                 "OCO_ID": str(payload.get("oco_id", "")),
@@ -1667,10 +1674,10 @@ class AlfGateway:
             f"order.orders.{gateway_id}",
             f"quote.ack.{gateway_id}",
             f"quote.status.{gateway_id}",
-            f"combo.ack.{gateway_id}",
-            f"combo.status.{gateway_id}",
-            f"oco.ack.{gateway_id}",
-            f"oco.cancelled.{gateway_id}",
+            topic_combo_ack(gateway_id),
+            topic_combo_status(gateway_id),
+            topic_oco_ack(gateway_id),
+            topic_oco_cancelled(gateway_id),
             topic_kill_switch_ack(gateway_id),
             f"system.symbols.{gateway_id}",
             f"system.quote_bootstrap.{gateway_id}",
