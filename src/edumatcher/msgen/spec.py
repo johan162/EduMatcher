@@ -413,7 +413,7 @@ def _load_validate(raw: Any, what: str) -> Validate:
     return rules
 
 
-def _load_field(raw: Any, what: str, *, allow_nested: bool = True) -> Field:
+def _load_field(raw: Any, what: str) -> Field:
     block = _require_mapping(raw, what)
     if "name" not in block:
         raise SpecError(f"{what}: missing required key 'name'")
@@ -428,16 +428,11 @@ def _load_field(raw: Any, what: str, *, allow_nested: bool = True) -> Field:
     # there must be of scalars (checked below). The rule the restriction exists
     # for is "the generators stay non-recursive" — a list of strings is flat,
     # so it was never the thing being excluded.
-    allowed = SCALAR_TYPES + (RECORD_TYPES if allow_nested else ("list",))
+    allowed = SCALAR_TYPES + RECORD_TYPES
     if ftype not in allowed:
         near = _nearest(str(ftype), set(allowed))
         hint = f" (did you mean {near!r}?)" if near else ""
-        detail = (
-            ". A nested type's fields are scalars only - it may not contain "
-            "another record, nor a list of them"
-            if ftype in RECORD_TYPES
-            else ""
-        )
+        detail = ""
         raise SpecError(
             f"{where}: type {ftype!r} is not one of {list(allowed)}{hint}{detail}"
         )
@@ -471,12 +466,6 @@ def _load_field(raw: Any, what: str, *, allow_nested: bool = True) -> Field:
                 "a record with 'ref:' if the elements need rules"
             )
     elif ftype in RECORD_TYPES:
-        if not allow_nested:
-            raise SpecError(
-                f"{where}: a nested type's fields are scalars only, or a list "
-                "of scalars via 'item:'. A record inside a record - or a list "
-                "of them - is what keeps the generators non-recursive"
-            )
         if not ref:
             options = (
                 "'ref: <TypeName>' for a list of records, or 'item: <scalar>' "
@@ -1145,6 +1134,51 @@ def load_transports(path: Path) -> dict[str, Transport]:
     return result
 
 
+def _record_refs(fields: tuple[Field, ...]) -> list[str]:
+    """Names of the record types these fields embed, in declaration order."""
+    return [f.ref for f in fields if f.type in RECORD_TYPES and f.ref is not None]
+
+
+def _order_types(types: list[NestedType], where: str) -> tuple[NestedType, ...]:
+    """Return the types in dependency order, rejecting reference cycles.
+
+    A record may embed another record: ``log.status`` carries a subscription,
+    and a subscription carries its filter. What the generators cannot survive
+    is a *cycle*, not depth — so the loader checks for one rather than
+    forbidding the nesting outright (design section 19.1).
+
+    Emission order matters because the generated dataclasses reference each
+    other by name at class-definition time, so a type must be written after
+    everything it embeds.
+    """
+    by_name = {each.name: each for each in types}
+    ordered: list[NestedType] = []
+    done: set[str] = set()
+    path: list[str] = []
+
+    def visit(name: str) -> None:
+        if name in done:
+            return
+        if name in path:
+            cycle = " -> ".join(path[path.index(name) :] + [name])
+            raise SpecError(
+                f"{where}: types form a reference cycle ({cycle}). A record may "
+                "embed another, but not itself - directly or otherwise, since "
+                "no finite payload could satisfy it"
+            )
+        path.append(name)
+        for ref in _record_refs(by_name[name].fields):
+            if ref in by_name:
+                visit(ref)
+        path.pop()
+        done.add(name)
+        ordered.append(by_name[name])
+
+    for each in types:
+        visit(each.name)
+    return tuple(ordered)
+
+
 def load_family(path: Path, transports: dict[str, Transport]) -> Family:
     """Load and validate one ``spec/messages/<family>.yaml`` file."""
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -1179,7 +1213,7 @@ def load_family(path: Path, transports: dict[str, Transport]) -> Family:
             NestedType(
                 name=str(type_name),
                 fields=tuple(
-                    _load_field(f, f"{where}: fields[{i}]", allow_nested=False)
+                    _load_field(f, f"{where}: fields[{i}]")
                     for i, f in enumerate(raw_fields)
                 ),
                 doc=block.get("doc", ""),
@@ -1198,7 +1232,16 @@ def load_family(path: Path, transports: dict[str, Transport]) -> Family:
     if dupes:
         raise SpecError(f"{path}: duplicate message name(s) {dupes}")
 
-    declared = {t.name for t in types}
+    declared = {each.name for each in types}
+    for holder in types:
+        for ref in _record_refs(holder.fields):
+            if ref not in declared:
+                near = _nearest(ref, declared)
+                hint = f" (did you mean {near!r}?)" if near else ""
+                raise SpecError(
+                    f"{path}: type {holder.name!r} references unknown type "
+                    f"{ref!r}{hint}. Declare it under the family's 'types:'"
+                )
     for message in messages:
         for f in message.fields:
             if f.type not in RECORD_TYPES or f.ref is None:
@@ -1223,19 +1266,20 @@ def load_family(path: Path, transports: dict[str, Transport]) -> Family:
                 "wrong answer in a committed binding"
             )
 
-    used = {
-        f.ref
-        for m in messages
-        for f in m.fields
-        if f.type in RECORD_TYPES and f.ref is not None
-    }
+    used = {ref for m in messages for ref in _record_refs(m.fields)}
+    used |= {ref for holder in types for ref in _record_refs(holder.fields)}
     unused = sorted(declared - used)
     if unused:
         raise SpecError(
             f"{path}: type(s) {unused} are declared but never referenced. "
             "An unused type generates a class nothing constructs"
         )
-    return Family(family=name, version=version, messages=messages, types=tuple(types))
+    return Family(
+        family=name,
+        version=version,
+        messages=messages,
+        types=_order_types(types, str(path)),
+    )
 
 
 def load_all(spec_root: Path) -> tuple[dict[str, Transport], list[Family]]:

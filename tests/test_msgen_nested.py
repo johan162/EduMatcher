@@ -121,9 +121,14 @@ class TestWhatNestedDeliberatelyDoesNot:
         path.write_text(body, encoding="utf-8")
         load_family(path, transports)
 
-    def test_a_record_may_not_contain_a_record(self, tmp_path: Path) -> None:
-        """No recursion: the generators stay non-recursive by construction."""
-        with pytest.raises(SpecError, match="scalars only"):
+    def test_a_record_may_contain_a_record(self, tmp_path: Path) -> None:
+        """5.2d narrowed this: what breaks the generators is a cycle, not depth.
+
+        ``log.status`` carries a subscription, which carries its own filter.
+        Forbidding depth was a rule broader than its reason, so the loader now
+        rejects reference cycles and emits types in dependency order.
+        """
+        if True:
             self._family(
                 tmp_path,
                 """
@@ -415,8 +420,9 @@ messages:
 """,
             )
 
-    def test_a_list_may_not_live_inside_a_record(self, tmp_path: Path) -> None:
-        with pytest.raises(SpecError, match="scalars only"):
+    def test_a_list_of_records_may_live_inside_a_record(self, tmp_path: Path) -> None:
+        """Also narrowed in 5.2d, for the same reason."""
+        if True:
             self._family(
                 tmp_path,
                 """
@@ -438,8 +444,12 @@ messages:
             )
 
     def test_a_type_may_not_reference_itself(self, tmp_path: Path) -> None:
-        """The recursion the non-recursive generators would not survive."""
-        with pytest.raises(SpecError, match="scalars only"):
+        """The recursion the non-recursive generators would not survive.
+
+        Still rejected after 5.2d — only the reason moved from "depth" to
+        "cycle", and the message says so.
+        """
+        with pytest.raises(SpecError, match="cycle"):
             self._family(
                 tmp_path,
                 """

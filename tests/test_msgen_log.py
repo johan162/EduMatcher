@@ -61,11 +61,12 @@ class TestAListOfScalars:
 
 
 class TestARecordMayHoldAScalarList:
-    """The restriction was narrowed, not lifted.
+    """The restriction was narrowed twice, and both times to its reason.
 
-    "A nested type's fields are scalars only" existed to keep both generators
-    non-recursive. A list of strings is flat, so it was never the thing being
-    excluded — a record, or a list of records, still is.
+    5.2c allowed a list of *scalars* inside a record: it is flat, so it was
+    never what "non-recursive" excluded. 5.2d went further and allowed records
+    too, because what the generators cannot survive is a **cycle** rather than
+    depth. The cycle check lives in ``test_msgen_log_server.py``.
     """
 
     def _load(self, tmp_path: Any, field: str, extra: str = "") -> None:
@@ -101,19 +102,20 @@ messages:
         """This is the narrowing: a list of strings is flat, not recursive."""
         self._load(tmp_path, "{ name: names, type: list, item: string }")
 
-    def test_a_record_list_inside_a_record_is_still_rejected(
+    def test_a_record_list_inside_a_record_is_allowed_since_5_2d(
         self, tmp_path: Any
     ) -> None:
-        from edumatcher.msgen.spec import SpecError
+        """This class asserted "still rejected" until ``log.status`` needed it.
 
-        with pytest.raises(SpecError, match="scalars only"):
-            self._load(tmp_path, "{ name: kids, type: list, ref: Inner }", self._INNER)
+        The narrowing went one step further in 5.2d: depth is fine, cycles are
+        not. Both cases below now load.
+        """
+        self._load(tmp_path, "{ name: kids, type: list, ref: Inner }", self._INNER)
 
-    def test_a_record_inside_a_record_is_still_rejected(self, tmp_path: Any) -> None:
-        from edumatcher.msgen.spec import SpecError
-
-        with pytest.raises(SpecError, match="scalars only"):
-            self._load(tmp_path, "{ name: kid, type: nested, ref: Inner }", self._INNER)
+    def test_a_record_inside_a_record_is_allowed_since_5_2d(
+        self, tmp_path: Any
+    ) -> None:
+        self._load(tmp_path, "{ name: kid, type: nested, ref: Inner }", self._INNER)
 
 
 class TestSpecStrictness:

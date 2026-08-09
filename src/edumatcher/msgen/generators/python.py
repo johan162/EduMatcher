@@ -250,6 +250,16 @@ def _dict_entry(indent: str, key: str, value: str) -> list[str]:
     return _wrap(indent, body)
 
 
+def _unchecked_default(f: Field) -> str:
+    """The default for one keyword of a hot-path builder.
+
+    An ``omit_when_empty`` field declares no ``default:`` — the empty string is
+    its absence — so ``f.default`` is None and would emit ``= None`` against a
+    ``str`` annotation.
+    """
+    return '""' if f.omit_when_empty else _pyval(f.default)
+
+
 def _coerce_arg(f: Field) -> str:
     """Coerce a keyword argument in the hot-path builder.
 
@@ -787,12 +797,14 @@ def _class_block(message: Message) -> list[str]:
     omitted = [f for f in fields if f.omit_when_none or f.omit_when_empty]
     if not omitted:
         out.append("        return {")
-        out += [f"            {_pystr(f.name)}: {_to_dict_value(f)}," for f in always]
+        for each in always:
+            out += _dict_entry("            ", _pystr(each.name), _to_dict_value(each))
         out.append("        }")
         return out
 
     out.append("        payload: dict[str, Any] = {")
-    out += [f"            {_pystr(f.name)}: {_to_dict_value(f)}," for f in always]
+    for each in always:
+        out += _dict_entry("            ", _pystr(each.name), _to_dict_value(each))
     out.append("        }")
     for f in omitted:
         # An omit-when-empty field tests falsy; an omit-when-none field tests
@@ -844,7 +856,10 @@ def _unchecked_block(message: Message) -> list[str]:
         sig.extend(_wrap("    ", f"{f.name}: {_annotation(message, f)},"))
     for f in optional:
         sig.extend(
-            _wrap("    ", f"{f.name}: {_annotation(message, f)} = {_pyval(f.default)},")
+            _wrap(
+                "    ",
+                f"{f.name}: {_annotation(message, f)} = {_unchecked_default(f)},",
+            )
         )
 
     if params:

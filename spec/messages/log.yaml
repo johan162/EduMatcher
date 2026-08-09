@@ -48,6 +48,63 @@ types:
           doc: "Substring the message must contain." }
       - { name: exceptions_only, type: bool, required: false, default: false }
 
+  LevelCount:
+    doc: >
+      How many rows of one level a NOTIFY subscription has buffered.
+
+      This was a map on the wire - {"INFO": 3, "ERROR": 1} - which the IDL
+      excludes deliberately (design section 15.4). The key was a value, and a
+      list of records says so: the level is a field, not a key.
+    fields:
+      - { name: level, type: string, validate: { max_len: 16 } }
+      - { name: count, type: int, unit: dimensionless, validate: { ge: 0 } }
+
+  LogRow:
+    doc: >
+      One persisted log line, exactly the columns log_events stores. Carried
+      by both log.event (live) and log.backfill (history) so a viewer sees one
+      row shape at the seam between them.
+    fields:
+      - { name: seq, type: int, unit: dimensionless,
+          doc: "Monotonic server sequence; the cursor for backfill." }
+      - { name: client_ts, type: float, unit: epoch_seconds }
+      - { name: server_ts, type: float, unit: epoch_seconds }
+      - { name: process, type: string, validate: { max_len: 64 } }
+      - { name: instance, type: string, validate: { max_len: 64 } }
+      - { name: pid, type: int, unit: dimensionless }
+      - { name: host, type: string, validate: { max_len: 128 } }
+      - { name: session, type: string, validate: { max_len: 64 } }
+      - { name: level, type: string, validate: { max_len: 16 } }
+      - { name: logger, type: string, validate: { max_len: 128 } }
+      - { name: module, type: string, validate: { max_len: 128 } }
+      - { name: line, type: int, unit: dimensionless }
+      - { name: has_exception, type: bool }
+      - { name: truncated, type: bool }
+      - { name: message, type: string }
+
+  SubscriptionStatus:
+    doc: >
+      One subscription's live counters, reported by log.status.
+
+      This is the record that motivated allowing a record inside a record: it
+      carries the subscription's own LogFilter. Flattening that into
+      filter_min_level and friends is the `a_b` flattening section 16.2 argued
+      against, and forbidding depth was a rule broader than its reason - what
+      the generators cannot survive is a cycle, not a level.
+    fields:
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: mode, type: enum, values: [STREAM, NOTIFY] }
+      - { name: filter, type: nested, ref: LogFilter }
+      - { name: lease_sec, type: float, unit: dimensionless }
+      - { name: lease_remaining_sec, type: float, unit: dimensionless }
+      - { name: age_sec, type: float, unit: dimensionless }
+      - { name: pending_rows, type: int, unit: dimensionless }
+      - { name: pending_count, type: int, unit: dimensionless }
+      - { name: sent_rows, type: int, unit: dimensionless }
+      - { name: sent_messages, type: int, unit: dimensionless }
+      - { name: dropped_rows, type: int, unit: dimensionless }
+      - { name: renewals, type: int, unit: dimensionless }
+
 messages:
   - name: log_subscribe
     topic: "log.subscribe"
@@ -135,6 +192,248 @@ messages:
       see_also: ["log.status.{SUB_ID}"]
     fields:
       - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  # --------------------------------------------------------------------------
+  # Phase 5.2d: pm-log-srv -> subscriber. Built inline in log_srv/pubsub.py,
+  # which holds the lease deadlines, cursors and counters these report; the
+  # spec takes the shape and the topic constants, not the construction.
+  # --------------------------------------------------------------------------
+
+  - name: log_subscribe_ack
+    topic: "log.subscribe_ack.{sub_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Confirm a subscription and echo the terms the server chose."
+      since: "1.0"
+      example_note: >
+        The filter comes back parsed rather than as sent, so a subscriber can
+        see what the server actually understood - which is where a lenient
+        filter parse would otherwise hide a typo.
+    fields:
+      - { name: accepted, type: bool }
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: proto, type: string, validate: { max_len: 16 } }
+      - { name: server, type: string, validate: { max_len: 64 } }
+      - { name: mode, type: enum, values: [STREAM, NOTIFY] }
+      - { name: filter, type: nested, ref: LogFilter }
+      - { name: lease_sec, type: float, unit: dimensionless }
+      - { name: renew_before_sec, type: float, unit: dimensionless,
+          doc: "Renew sooner than this; half the lease." }
+      - { name: notify_interval_ms, type: int, unit: dimensionless }
+      - { name: last_seq, type: int, unit: dimensionless }
+      - { name: backfill_request_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [accepted, sub_id, proto, server, mode, filter, lease_sec,
+                  renew_before_sec, notify_interval_ms, last_seq,
+                  backfill_request_id, timestamp]
+
+  - name: log_renew_ack
+    topic: "log.renew_ack.{sub_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Confirm a keepalive and say how long the lease now has."
+      since: "1.0"
+    fields:
+      - { name: accepted, type: bool }
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: lease_sec, type: float, unit: dimensionless }
+      - { name: expires_in_sec, type: float, unit: dimensionless }
+      - { name: last_seq, type: int, unit: dimensionless }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [accepted, sub_id, lease_sec, expires_in_sec, last_seq,
+                  timestamp]
+
+  - name: log_unsubscribe_ack
+    topic: "log.unsubscribe_ack.{sub_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Confirm a close, or say there was nothing to close."
+      since: "1.0"
+    fields:
+      - { name: accepted, type: bool }
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: reason, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 256 } }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [accepted, sub_id, reason, timestamp]
+
+  - name: log_status
+    topic: "log.status.{sub_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Server and subscription diagnostics, on request."
+      since: "1.0"
+      example_note: >
+        subscription is null when the requester has no live subscription -
+        asking for status is legal without one, and null says "you have none"
+        where an absent key would say "the server declined to tell you".
+    fields:
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: server, type: string, validate: { max_len: 64 } }
+      - { name: proto, type: string, validate: { max_len: 16 } }
+      - { name: subscribers, type: int, unit: dimensionless }
+      - { name: active_backfills, type: int, unit: dimensionless }
+      - { name: last_seq, type: int, unit: dimensionless }
+      - { name: inbox_dropped, type: int, unit: dimensionless }
+      - { name: subscription, type: nested, ref: SubscriptionStatus,
+          required: false, nullable: true }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [sub_id, server, proto, subscribers, active_backfills,
+                  last_seq, inbox_dropped, subscription, timestamp]
+
+  - name: log_backfill
+    topic: "log.backfill.{sub_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "One chunk of replayed history for a subscription."
+      since: "1.0"
+      see_also: ["log.backfill_request", "log.event.{SUB_ID}"]
+      example_note: >
+        Chunked because a backfill can be far larger than one message: done
+        marks the last chunk, and truncated says the server stopped at max_rows
+        rather than at the end of history. The two are different answers to
+        "why did it stop".
+    fields:
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: request_id, type: string, validate: { max_len: 64 } }
+      - { name: chunk, type: int, unit: dimensionless }
+      - { name: rows, type: list, ref: LogRow }
+      - { name: row_count, type: int, unit: dimensionless }
+      - { name: done, type: bool }
+      - { name: total_sent, type: int, unit: dimensionless }
+      - { name: truncated, type: bool }
+      - { name: last_seq, type: int, unit: dimensionless }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [sub_id, request_id, chunk, rows, row_count, done, total_sent,
+                  truncated, last_seq, timestamp]
+
+  - name: log_event
+    topic: "log.event.{sub_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "A batch of live rows for a STREAM subscription."
+      since: "1.0"
+      see_also: ["log.notify.{SUB_ID}"]
+    fields:
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: rows, type: list, ref: LogRow, validate: { min_items: 1 },
+          doc: "Never empty; the server skips a flush with nothing to send." }
+      - { name: row_count, type: int, unit: dimensionless }
+      - { name: seq_from, type: int, unit: dimensionless }
+      - { name: seq_to, type: int, unit: dimensionless }
+      - { name: server_last_seq, type: int, unit: dimensionless }
+      - { name: dropped, type: int, unit: dimensionless,
+          doc: "Lifetime rows dropped for this subscription, not this batch." }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [sub_id, rows, row_count, seq_from, seq_to, server_last_seq,
+                  dropped, timestamp]
+
+  - name: log_notify
+    topic: "log.notify.{sub_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Periodic counts for a NOTIFY subscription: how much happened, without
+        the rows.
+      since: "1.0"
+      example_note: >
+        levels was a map keyed by level name. It is a list of records now - the
+        key was a value, and design section 15.4 says a spec that appears to
+        need a map is describing a message that should have been this.
+    fields:
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: count, type: int, unit: dimensionless }
+      - { name: levels, type: list, ref: LevelCount }
+      - { name: last_seq, type: int, unit: dimensionless }
+      - { name: server_last_seq, type: int, unit: dimensionless }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [sub_id, count, levels, last_seq, server_last_seq, timestamp]
+
+  - name: log_lease_expired
+    topic: "log.lease_expired.{sub_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        The subscription was reaped for want of a renew.
+      since: "1.0"
+      example_note: >
+        Published on the off-chance the subscriber is alive but wedged: nothing
+        about a crashed process is visible on a PUB socket, so this tells a
+        client that is in fact listening that it must re-subscribe rather than
+        wait for rows that will never come.
+    fields:
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: reason, type: string, validate: { max_len: 256 } }
+      - { name: lease_sec, type: float, unit: dimensionless }
+      - { name: dropped_rows, type: int, unit: dimensionless }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [sub_id, reason, lease_sec, dropped_rows, timestamp]
+
+  - name: log_error
+    topic: "log.error.{sub_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "A control request was rejected, with a machine-readable code."
+      since: "1.0"
+    fields:
+      - { name: accepted, type: bool,
+          doc: "Always false; present so every reply has the same first key." }
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: code, type: string, validate: { max_len: 32 } }
+      - { name: reason, type: string, validate: { max_len: 512 } }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [accepted, sub_id, code, reason, timestamp]
+
+  - name: log_server_state
+    topic: "log.server_state"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Periodic server heartbeat and configuration, broadcast to everyone
+        rather than addressed - it is how a viewer finds the server at all.
+      since: "1.0"
+    fields:
+      - { name: server, type: string, validate: { max_len: 64 } }
+      - { name: state, type: enum, values: [UP, DOWN] }
+      - { name: proto, type: string, validate: { max_len: 16 } }
+      - { name: pub_addr, type: string, validate: { max_len: 128 } }
+      - { name: pull_addr, type: string, validate: { max_len: 128 } }
+      - { name: subscribers, type: int, unit: dimensionless }
+      - { name: active_backfills, type: int, unit: dimensionless }
+      - { name: last_seq, type: int, unit: dimensionless }
+      - { name: inbox_dropped, type: int, unit: dimensionless }
+      - { name: default_lease_sec, type: float, unit: dimensionless }
       - { name: timestamp, type: float, unit: epoch_seconds }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }

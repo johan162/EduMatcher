@@ -323,7 +323,7 @@ committed binding:
 
 | Rejected | Why |
 |---|---|
-| a record inside a record, or a **list of records** inside one | keeps both generators non-recursive. A list of *scalars* inside a record is fine — it is flat |
+| a **cycle** in the type graph (`A` embeds `B` embeds `A`) | no finite payload could satisfy it. Depth is fine: a record may embed another to any depth, and types are emitted in dependency order |
 | a record or list on `calf` / `balf` | a record inside a key-value line or a fixed binary frame is an unsolved layout question |
 | a `nullable` list | an empty list already says "nothing"; null would be a second spelling every reader must handle |
 | a type nothing references | it would generate a class nothing constructs |
@@ -1298,7 +1298,8 @@ What it does not, and will not:
 | 5.2a | IDL `omit_when_empty` + the `session` family | **done** |
 | 5.2b | the `book`/`depth` family | **done** |
 | 5.2c | IDL `list` of scalars + the `log` control messages | **done** |
-| 5.2d+ | `log` server-side topics, `index`, `risk` | not started |
+| 5.2d | records to any depth + `log` server-side topics | **done** |
+| 5.2e+ | `index`, `risk` | not started |
 | 6 | Generated `271-message-appendix.md` | not started |
 
 !!! success "The guarantee is live"

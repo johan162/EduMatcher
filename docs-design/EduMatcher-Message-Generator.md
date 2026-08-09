@@ -2403,6 +2403,73 @@ second** — the loader is one function, but its branches are not.
 Scalar rules (`max_len`, `gt`, `pattern`, …) on a list are now rejected too:
 they silently did nothing, which is worse than either enforcing or refusing.
 
+## 19. `log` server-side: two exclusions, two different answers
+
+Phase 5.2d specified pm-log-srv's ten outbound topics. Two of the IDL's
+declared exclusions stood in the way, and asking about each separately is what
+kept the answers from being the same.
+
+### 19.1 Depth was a rule broader than its reason
+
+`log.status` carries a subscription, and a subscription carries its own filter
+— a record two levels deep, which "a nested type's fields are scalars only"
+forbade.
+
+That rule's stated justification was keeping both generators non-recursive. But
+`SubscriptionStatus` embedding `LogFilter` is not recursion: it is one more
+level, statically known, with no cycle. **What the generators cannot survive is
+a cycle, not depth.**
+
+So the restriction became a cycle check:
+
+* A record may embed another record, or a list of them, to any depth.
+* The loader walks the reference graph and **rejects cycles**, naming the path:
+  `types form a reference cycle (Outer -> Inner -> Outer)`.
+* Types are emitted in **dependency order**, not declaration order, since the
+  generated dataclasses reference each other by name at class-definition time.
+  A spec may therefore declare its types top-down and read naturally.
+
+The alternative was flattening — `subscription_filter_min_level` and friends —
+which is precisely the `a_b` flattening §16.2 argued against. This is now the
+third time the same narrowing has happened (§18.2 for scalar lists, §15.2 for
+units), and the pattern is worth stating plainly: **when a restriction blocks
+something, check whether it blocks it for the stated reason.** Twice out of
+three times the rule was simply written more broadly than its justification.
+
+### 19.2 The map was the wire being wrong
+
+`log.notify` carried `levels: {"INFO": 3, "ERROR": 1}`. §15.4 already recorded
+maps as a deliberate exclusion, with the reasoning that a spec appearing to
+need one is describing a message that should have been a list of records.
+
+That was exactly true here: the key was a *value* — the level name — so
+`[{"level": "INFO", "count": 3}, ...]` says the same thing with the level as a
+field. The server now emits that shape, and `test_log_srv_pubsub.py` was
+updated rather than deleted: it still asserts the counts, only the traversal
+changed.
+
+The contrast with 19.1 is the useful part. Both were exclusions; one was the
+rule being wrong and one was the wire being wrong, and only reading each case
+told them apart.
+
+### 19.3 Two more emitter bugs, both from the toolchain
+
+1. **An `omit_when_empty` field defaulted to `None` in the hot-path builder's
+   signature**, against a `str` annotation — it declares no `default:`, since
+   the empty string is its absence, so `f.default` was None. Caught by mypy.
+2. **An always-emitted nullable record's `to_dict` entry was not wrapped**, so
+   a long one exceeded 88 columns. The omitted branch wrapped; the always
+   branch did not. Caught by `test_generated_files_are_black_clean`.
+
+### 19.4 Five guards fired, and all five were updated
+
+The depth narrowing broke five tests written in 5.1d and 5.2c that asserted
+"a record may not contain a record". Every one was **updated rather than
+deleted**, and each now asserts the new boundary — depth allowed, cycles
+rejected — with a docstring saying when and why it moved. A guard that fails
+when the rule it guards changes deliberately is doing its job; the discipline
+is to move it rather than remove it.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first

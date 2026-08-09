@@ -77,6 +77,18 @@ from edumatcher.models.generated.log import (
     TOPIC_LOG_SUBSCRIBE,
     TOPIC_LOG_UNSUBSCRIBE,
 )
+from edumatcher.models.generated.log import (
+    TOPIC_LOG_SERVER_STATE,
+    topic_log_backfill,
+    topic_log_error,
+    topic_log_event,
+    topic_log_lease_expired,
+    topic_log_notify,
+    topic_log_renew_ack,
+    topic_log_status,
+    topic_log_subscribe_ack,
+    topic_log_unsubscribe_ack,
+)
 
 log = logging.getLogger(__name__)
 
@@ -472,7 +484,7 @@ class LogPubSubHub:
         if not self._started:
             return
         self._publish(
-            "log.server_state",
+            TOPIC_LOG_SERVER_STATE,
             {
                 "server": self._server_name,
                 "state": "DOWN",
@@ -647,7 +659,7 @@ class LogPubSubHub:
         self._subs[sub_id] = sub
 
         self._publish(
-            f"log.subscribe_ack.{sub_id}",
+            topic_log_subscribe_ack(sub_id),
             {
                 "accepted": True,
                 "sub_id": sub_id,
@@ -684,7 +696,7 @@ class LogPubSubHub:
             return
         sub.renew(now)
         self._publish(
-            f"log.renew_ack.{sub_id}",
+            topic_log_renew_ack(sub_id),
             {
                 "accepted": True,
                 "sub_id": sub_id,
@@ -699,7 +711,7 @@ class LogPubSubHub:
         existed = self._subs.pop(sub_id, None) is not None
         self._backfills.pop(sub_id, None)
         self._publish(
-            f"log.unsubscribe_ack.{sub_id}",
+            topic_log_unsubscribe_ack(sub_id),
             {
                 "accepted": existed,
                 "sub_id": sub_id,
@@ -723,7 +735,7 @@ class LogPubSubHub:
             "subscription": sub.status(now) if sub is not None else None,
             "timestamp": time.time(),
         }
-        self._publish(f"log.status.{sub_id}", payload)
+        self._publish(topic_log_status(sub_id), payload)
 
     # ------------------------------------------------------------------
     # Backfill
@@ -845,7 +857,7 @@ class LogPubSubHub:
             done = len(rows) < limit or truncated
 
             self._publish(
-                f"log.backfill.{sub_id}",
+                topic_log_backfill(sub_id),
                 {
                     "sub_id": sub_id,
                     "request_id": job.request_id,
@@ -943,11 +955,15 @@ class LogPubSubHub:
             if now - sub.last_notify_at < sub.notify_interval_sec:
                 continue
             self._publish(
-                f"log.notify.{sub.sub_id}",
+                topic_log_notify(sub.sub_id),
                 {
                     "sub_id": sub.sub_id,
                     "count": sub.pending_count,
-                    "levels": dict(sub.pending_levels),
+                    # A list of records, not a map: the key was a value.
+                    "levels": [
+                        {"level": level, "count": count}
+                        for level, count in sub.pending_levels.items()
+                    ],
                     "last_seq": sub.pending_last_seq,
                     "server_last_seq": self._last_seq,
                     "timestamp": time.time(),
@@ -966,7 +982,7 @@ class LogPubSubHub:
             del sub.pending_rows[: len(chunk)]
             dropped = sub.dropped_rows
             self._publish(
-                f"log.event.{sub.sub_id}",
+                topic_log_event(sub.sub_id),
                 {
                     "sub_id": sub.sub_id,
                     "rows": chunk,
@@ -1002,7 +1018,7 @@ class LogPubSubHub:
             self._subs.pop(sub_id, None)
             self._backfills.pop(sub_id, None)
             self._publish(
-                f"log.lease_expired.{sub_id}",
+                topic_log_lease_expired(sub_id),
                 {
                     "sub_id": sub_id,
                     "reason": "lease expired; no log.renew received in time",
@@ -1023,7 +1039,7 @@ class LogPubSubHub:
             return
         self._last_state_at = now
         self._publish(
-            "log.server_state",
+            TOPIC_LOG_SERVER_STATE,
             {
                 "server": self._server_name,
                 "state": "UP",
@@ -1081,7 +1097,7 @@ class LogPubSubHub:
     def _error(self, sub_id: str, code: str, msg: str) -> None:
         log.debug("LALF-PS error to sub_id=%s code=%s msg=%s", sub_id, code, msg)
         self._publish(
-            f"log.error.{sub_id}",
+            topic_log_error(sub_id),
             {
                 "accepted": False,
                 "sub_id": sub_id,

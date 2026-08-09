@@ -314,8 +314,19 @@ def test_notify_mode_coalesces_into_counts(harness: _PubSubHarness) -> None:
     # batch boundaries fall relative to notify_interval_ms; only the totals are
     # deterministic, and only the totals are what a subscriber acts on.
     assert sum(n["count"] for n in notes) == 3
-    assert {lvl for n in notes for lvl in n["levels"]} == {"ERROR"}
-    assert sum(n["levels"]["ERROR"] for n in notes) == 3
+    # `levels` became a list of {level, count} records in Phase 5.2d: it was a
+    # map keyed by level name, and the key was a value. The counts it reports
+    # are unchanged.
+    assert {each["level"] for n in notes for each in n["levels"]} == {"ERROR"}
+    assert (
+        sum(
+            each["count"]
+            for n in notes
+            for each in n["levels"]
+            if each["level"] == "ERROR"
+        )
+        == 3
+    )
     assert notes[-1]["last_seq"] > 0
     # A notify carries no row bodies at all — that is what makes it cheap.
     assert all("rows" not in n for n in notes)
