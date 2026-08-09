@@ -3472,6 +3472,217 @@ is a *sample payload*. Both are things no test asserts and no reader can
 falsify without going to the source — which is the argument for 6.2 generating
 the reference appendix from the spec rather than maintaining it by hand.
 
+## 27. `drop_copy` and `admin`: the last two maps
+
+Phase 6.1d specified and adopted three topics. Both families carried a map,
+which is the construct §15.4 excluded from the IDL on the grounds that a spec
+appearing to need one is describing a message that should have been something
+simpler. That claim was three-for-three at §24.2. It is now five-for-five, and
+the two new cases resolved in *opposite* directions — which is the part worth
+keeping, because it means the rule is not "always flatten".
+
+### 27.1 One map became a record, the other became a signature
+
+| | What the map held | What it is now |
+|---|---|---|
+| `admin.action.scope` | seven keys, six actions, closed set | a declared `AdminActionScope` record, still nested |
+| `drop_copy` `**payload` | five keys, one caller, one event type | nine flat fields and a typed publisher method |
+
+`scope` stayed nested because the box means something: the envelope
+(`command_id`, `initiator_gateway_id`, `action`, `accepted`, `reason`) is what
+every admin action has, and `scope` is what this particular one acted on. A
+monitor renders the first and displays the second. §24.2 flattened
+`combo.status`'s `details` because it was one string in a box and the box said
+nothing; the test is whether the grouping survives being named, and this one
+does — imperfectly, since three of the seven keys are outcome counts rather
+than scope, which is recorded in the type's own docstring rather than fixed.
+
+`drop_copy`'s did not survive that test, because there was no grouping at all:
+`**payload` was splatted flat into the message beside four fixed keys, so the
+"map" never had a boundary on the wire in the first place. It was a signature
+being generic, not a message being nested.
+
+The general form, replacing "every map is the wire being wrong": **a map is
+either a record that was never declared or a signature that was never
+narrowed, and reading the producers tells you which.** Both are still the
+wire being wrong. Neither needs a map construct, and the IDL still has none.
+
+### 27.2 Adoption forced the drop-copy question rather than raising it
+
+The typed signature is not tidiness. `from_dict` reads *declared keys only*,
+so a generic `**payload` routed through a generated builder **silently drops**
+anything the spec does not declare: the publisher returns normally, the
+recipient receives a well-formed message, and a field is simply missing.
+
+```python
+>>> _topic, payload = decode(make_admin_action_msg(
+...     "A", "c", "kill_switch.self", {"index_id": "EDU100"}, True))
+>>> payload["scope"]
+{}
+```
+
+That is §1's failure class, and adopting a builder underneath the old
+signature would have *introduced* it — the first time in this project that
+adoption would have made a wire less safe rather than more. So
+`DropCopyPublisher.publish(gateway_id, event_type, payload)` is
+`publish_fill(gateway_id, *, order_id, symbol, fill_qty, fill_price,
+liquidity_flag)`, and `DropCopyMessage` holds named fields instead of a dict.
+
+`admin.action` has the same hazard and could not take the same fix: twelve
+call sites build `scope` as a dict literal, and typing the parameter would be
+a twelve-site change to remove a developer error rather than a runtime one.
+`test_msgen_admin.py` walks the engine's AST instead and fails on an
+undeclared key — a static gate, no runtime cost, and one that will disagree
+the first time somebody adds an eighth key. It also asserts it found twelve
+call sites, because a scan that matched nothing would pass for the wrong
+reason: §23.1's rule applied to a check written in the same commit as the
+thing it checks.
+
+### 27.3 Two capabilities that existed only in prose
+
+Specifying a family means reading every producer, and that turned up two
+documented behaviours with no implementation behind them.
+
+* **`drop_copy.replay_request`.** `engine/drop_copy.py`'s module docstring
+  described a participant sending one with `from_seq=N`. No producer, no
+  subscriber, no handler, no spec — and `dc_gateway`'s own header says the
+  opposite in plain terms: "`DropCopyPublisher.replay()` is in-process only,
+  not reachable [by any protocol]". Two files in the same subsystem
+  disagreeing about whether a message exists.
+* **`DropCopyPublisher.publish`'s "every fill and cancel".** Only fills exist.
+  One call site, one `event_type`.
+
+Both are §26.6's shape — documentation believing in something the wire does
+not carry — and both are now corrected in place rather than implemented. A
+cancel drop-copy event is a real gap and a real feature; inventing one while
+specifying the family would be the speculative work §15.5's restrictions
+exist to prevent. What the spec does instead is make the gap *cost something
+to ignore*: `event_type` is an enum of one value, so a second event type is a
+spec change with a regenerated binding rather than a new dict key no reader
+knows about.
+
+### 27.4 The tests were the reason the map looked open
+
+This is the finding that would have changed the answer if it had been trusted.
+
+The old `publish` was exercised with `{"order_id": "X1", "qty": 100}`,
+`{"n": 1}`, `{"i": i}` and event types `"a"` and `"b"`. **None of those keys
+or values has ever been on the wire.** `qty`, `n` and `i` are test inventions;
+the single producer has always sent the same five fields.
+
+So the evidence for "this payload is genuinely open" came entirely from the
+tests of the thing itself. §20.5 recorded the inverse — a documented
+capability with no spec exercising it is a comment — and this is the mirror:
+**a capability exercised only by its own tests is not a capability the system
+has.** The tests were testing the transport's genericity, and the transport
+had no reason to be generic.
+
+They are migrated rather than deleted: every assertion — two frames, the
+topic, the monotone sequence, the buffer bound, the replay window — was about
+publisher behaviour and still is. Only the payloads changed, to real fills.
+`engine_harness.FakeDropCopy` moved with them and kept recording
+`(gateway_id, event_type, payload)`, so the M13 liquidity-flag assertions that
+read `events[i][2]["liquidity_flag"]` are untouched: the double is a spy on
+the wire shape, and the wire shape did not change.
+
+### 27.5 The audit found a third failure mode
+
+§21.2 found a crash. §22.3 found a silent non-answer. This phase found the one
+in between, and it is the worst of the three to debug.
+
+`scope.note` is bounded at 256 by the spec and was read unbounded:
+`note = str(payload.get("note", ""))`, six handlers. The API gateway maps
+`body.reason` (bounded 256) onto it, so a client going through FastAPI is
+fine; a raw PUSH client is not, and §22.3 already recorded that the engine's
+PULL socket is a boundary of its own.
+
+What makes it different is the **ordering**. `_handle_kill_switch` publishes
+the ack and *then* the monitor record:
+
+```python
+self.pub_sock.send_multipart(make_kill_switch_ack_msg(...))   # accepted: true
+self._publish_admin_action(gateway_id, command_id, "kill_switch.self", {...})
+```
+
+So an over-long note does not crash the engine and does not withhold the
+answer. The kill switch **runs**, the caller is told `accepted: true`, and the
+audit record of a privileged action vanishes into a logged exception. For a
+feed whose entire purpose is being the uniform record of admin commands, a
+missing entry that nobody is waiting on is worse than either previous
+outcome — nothing is blocked, so nothing prompts anyone to look.
+
+Stated as the rule this adds to §21.2 and §22.3: **the consequence of an
+unbounded field depends on where in the handler the validating builder sits.**
+Before the reply it is a dropped answer; after it, it is a lost record of work
+that actually happened. The six reads clamp now, and the constant's docstring
+says why the bound is load-bearing rather than tidy.
+
+The inward direction was clean this time, which is itself worth noting after
+§23.3: `note` has no API request model to bound because §22.2 deliberately
+declined to invent one, so the engine's own clamp is not merely the best place
+for it but the only one.
+
+### 27.6 Smaller corrections, all of the same kind
+
+* `make_admin_action_msg`'s docstring offered `index_id` as an example of what
+  `scope` might carry. No producer has ever sent it, and index rebalance
+  emits no `admin.action` at all — which `260-api-gateway.md` correctly says
+  in a note four lines below the sample that shows `scope`. The docstring was
+  describing a design, not the code beneath it.
+* `pm-dc-spy` printed `f"drop_copy.event.{gateway}"` as the subscription it
+  had made, next to a client that subscribes `EVENT_TOPIC_PREFIX + gateway`.
+  The same string twice, so the banner could report a subscription the process
+  had not made. It reads the option object now, which removed the literal and
+  the possibility together — the one case this phase where `grep-literals`
+  pointing at what looked like display text was pointing at a real drift.
+
+None of these three is a bug in the running system. All three are the
+documentation surface of §1's triangle drifting from the other two, which is
+the argument for 6.2 generating the reference appendix rather than
+maintaining it — now four phases running.
+
+### 27.7 Two more emitter defects, both from firsts in the spec
+
+`test_generated_files_are_black_clean` is now **six for six**: every
+formatting defect this generator has had was found by running black over the
+committed output, never by a test in the generator's own suite. Both of this
+phase's came from a spec construct no previous family had used.
+
+1. **An all-omitting record emitted an empty dict across two lines.**
+   `AdminActionScope`'s seven fields are every one of them optional, so
+   `to_dict` starts from nothing — and the emitter wrote
+
+   ```python
+   payload: dict[str, Any] = {
+   }
+   ```
+
+   where black writes `{}`. The branch had existed since the first
+   `omit_when_none` field and had never been reachable, because until now
+   every message and record in the tree had at least one field that is
+   always emitted. Fixed in both places that build a payload incrementally,
+   `to_dict` and `make_*_unchecked`.
+
+2. **`_pystr` tested for a quote instead of counting them.** §22.4 taught the
+   emitter that black switches to single quotes rather than escaping a `"`.
+   The rule it learned was *presence*: a string containing `"` and no `'`.
+   `drop_copy.event_type`'s doc is the first text in any spec containing
+   **both** — two `"` and one `'` — so the presence test picked double quotes
+   and escaped twice where black picks single and escapes once. Black keeps
+   whichever spelling needs fewer escapes and prefers double on a tie, which
+   is a count.
+
+Both are §20.2's habit and §18.3's rule meeting: a rule written for the case
+that prompted it, then reached by a case that satisfies its letter and not its
+reason. The presence test was *correct* for every string in the tree when it
+was written, and stayed correct for four phases.
+
+Both fixes are byte-neutral for the fifteen previously committed bindings —
+regenerating rewrote `admin.py` and `drop_copy.py` and nothing else, which is
+the cheapest available proof that a formatting change did not quietly reformat
+the tree. §23.5 asks for that check each time and this is the third phase it
+has been worth doing.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first

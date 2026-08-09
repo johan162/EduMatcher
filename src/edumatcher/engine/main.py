@@ -261,6 +261,12 @@ def _compiled_engine_config() -> "EngineConfig | None":
 _MAX_WIRE_ID_LEN = 32
 #: Longest command_id echoed back, matching the spec's bound.
 _MAX_WIRE_COMMAND_ID_LEN = 64
+#: Longest operator note echoed into an admin.action monitor record, matching
+#: the `max_len` the admin spec declares for `scope.note`. Load-bearing for a
+#: reason worth stating: the ack is sent *before* the monitor record, so an
+#: unbounded note lets a kill switch run, answer "accepted", and then lose its
+#: own audit entry to a validation error nobody sees. Design section 27.5.
+_MAX_WIRE_NOTE_LEN = 256
 #: Longest circuit-breaker level name quoted back in a rejection, matching the
 #: `max_len` circuit_breaker.halt declares for `level`. Same load-bearing
 #: reasoning as ``_clamp_wire_id``: an unknown level is quoted verbatim into a
@@ -2257,16 +2263,13 @@ class Engine:
                 (trade.buy_gateway_id, trade.buy_order_id, "BUY"),
                 (trade.sell_gateway_id, trade.sell_order_id, "SELL"),
             ):
-                self._drop_copy.publish(
+                self._drop_copy.publish_fill(
                     gateway_id=_gw,
-                    event_type="order.fill",
-                    payload={
-                        "order_id": _oid,
-                        "symbol": trade.symbol,
-                        "fill_qty": trade.quantity,
-                        "fill_price": _trade_px,
-                        "liquidity_flag": "TAKER" if _sd == _agg else "MAKER",
-                    },
+                    order_id=_oid,
+                    symbol=trade.symbol,
+                    fill_qty=trade.quantity,
+                    fill_price=_trade_px,
+                    liquidity_flag="TAKER" if _sd == _agg else "MAKER",
                 )
 
         # Circuit breaker monitor — check if this fill triggered a halt.
@@ -2912,7 +2915,7 @@ class Engine:
         # Echoed on the ack so concurrent mass cancels for one gateway can be
         # told apart. Absent for callers that do not supply it.
         command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
-        note = str(payload.get("note", ""))
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
@@ -2993,7 +2996,7 @@ class Engine:
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         target_gateway_id = _clamp_wire_id(payload.get("target_gateway_id", ""))
         command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
-        note = str(payload.get("note", ""))
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
 
         def _reject(reason: str) -> None:
             self.pub_sock.send_multipart(
@@ -3081,7 +3084,7 @@ class Engine:
         """
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
-        note = str(payload.get("note", ""))
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
 
         def _reject(reason: str) -> None:
             self.pub_sock.send_multipart(
@@ -3301,7 +3304,7 @@ class Engine:
             if level_name_raw
             else None
         )
-        note = str(payload.get("note", ""))
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
         command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
 
         def _reject(reason: str) -> None:
@@ -3427,7 +3430,7 @@ class Engine:
         """Resume a single symbol that was halted by a per-symbol or global halt (ADMIN only)."""
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         symbol = _clamp_wire_id(payload.get("symbol", ""), 16)
-        note = str(payload.get("note", ""))
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
         command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
 
         def _reject(reason: str) -> None:
@@ -3491,7 +3494,7 @@ class Engine:
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         symbol = _clamp_wire_id(payload.get("symbol", ""), 16)
 
-        note = str(payload.get("note", ""))
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
         command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
 
         def _reject(reason: str) -> None:

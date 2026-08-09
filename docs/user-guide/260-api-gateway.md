@@ -958,11 +958,25 @@ to know each command's own ack shape:
 
 `action` is one of `circuit_breaker.trigger`, `circuit_breaker.resume`,
 `kill_switch.self`, `kill_switch.symbol`, `kill_switch.gateway`,
-`kill_switch.global`. `scope` varies by `action` — it carries whatever
-identifies what the command acted on (symbol, target gateway, cancelled
-counts) plus the request's `reason` field under the key `note`. This event
-is admin-monitor-only: it never reaches a trading gateway's private stream or
-the public market-data stream, regardless of which gateway initiated it.
+`kill_switch.global`. `scope` carries what the command acted on and what it
+did, and every key is optional because each `action` uses a different subset.
+The set is closed — since phase 6.1d it is a declared record, and a key
+outside it cannot reach the wire:
+
+| Key                 | Type  | Present on                                    |
+|---------------------|-------|-----------------------------------------------|
+| `symbol`            | str   | the per-symbol actions                        |
+| `target_gateway_id` | str   | `kill_switch.gateway`                         |
+| `level`             | str   | `circuit_breaker.trigger`                     |
+| `note`              | str   | any action carrying the request's `reason`    |
+| `cancelled_orders`  | int   | accepted kill switches                        |
+| `cancelled_quotes`  | int   | accepted kill switches                        |
+| `affected_gateways` | int   | an accepted `kill_switch.global`              |
+
+A key whose value is unset is **absent** rather than `null`, and `scope` is
+`{}` on a rejection that named nothing. This event is admin-monitor-only: it
+never reaches a trading gateway's private stream or the public market-data
+stream, regardless of which gateway initiated it.
 
 !!! note "Index rebalance does not emit `admin.action`"
     `POST /admin/indexes/{id}/rebalance` talks to `pm-index`, a separate

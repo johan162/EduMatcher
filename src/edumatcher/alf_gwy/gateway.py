@@ -68,6 +68,7 @@ from edumatcher.models.generated.order import (
     topic_order_fill,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.drop_copy import PREFIX_DROP_COPY_EVENT
 from edumatcher.models.generated.circuit_breaker import (
     PREFIX_CIRCUIT_BREAKER_HALT,
     PREFIX_CIRCUIT_BREAKER_RESUME,
@@ -98,7 +99,7 @@ _MAX_ENGINE_EVENTS_PER_LOOP = 1000
 _MAX_DC_EVENTS_PER_LOOP = 1000
 # Topic prefix used by edumatcher.engine.drop_copy.DropCopyPublisher for live
 # (non-replay) fill events -- see docs/user-guide/200-drop-copy.md.
-_DC_EVENT_TOPIC_PREFIX = "drop_copy.event."
+_DC_EVENT_TOPIC_PREFIX = PREFIX_DROP_COPY_EVENT
 
 log = logging.getLogger(__name__)
 

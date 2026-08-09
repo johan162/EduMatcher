@@ -40,6 +40,7 @@ from edumatcher.models.feed_schema import (
 # the other's contents until call time. Importing `make_trade_executed` by name
 # instead would raise ImportError whenever the generated module happened to be
 # imported first.
+from edumatcher.models.generated import admin as _gen_admin
 from edumatcher.models.generated import auction as _gen_auction
 from edumatcher.models.generated import book as _gen_book
 from edumatcher.models.generated import index as _gen_index
@@ -1222,19 +1223,23 @@ def make_admin_action_msg(
 
     ``gateway_id`` is the initiator (the ADMIN caller), ``action`` names the
     command (e.g. ``"circuit_breaker.trigger"``, ``"kill_switch.global"``),
-    and ``scope`` carries whatever identifies what it acted on (symbol,
-    target_gateway_id, index_id, ...) — shape varies by ``action``.
+    and ``scope`` says what it acted on and what it did.
+
+    ``scope`` is a declared record, not the open map it used to be: the twelve
+    producer sites draw on a closed set of seven keys and never anything else.
+    A key outside that set is silently dropped by ``from_dict`` rather than
+    rejected, so ``test_msgen_admin.py`` walks the engine's ``scope=`` literals
+    and fails on an undeclared one. The docstring here used to offer
+    ``index_id`` as an example and no producer has ever sent it.
     """
-    return encode(
-        f"admin.action.{gateway_id}",
-        {
-            "command_id": command_id,
-            "initiator_gateway_id": gateway_id,
-            "action": action,
-            "scope": scope,
-            "accepted": accepted,
-            "reason": reason,
-        },
+    return _gen_admin.make_admin_action(
+        gateway_id=gateway_id,
+        command_id=command_id,
+        initiator_gateway_id=gateway_id,
+        action=action,
+        scope=scope,
+        accepted=accepted,
+        reason=reason,
     )
 
 

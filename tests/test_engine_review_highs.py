@@ -82,8 +82,37 @@ class _FakeDropCopy:
 
     events: list[tuple[str, str, dict[str, Any]]] = field(default_factory=list)
 
-    def publish(self, gateway_id: str, event_type: str, payload: dict) -> None:
-        self.events.append((gateway_id, event_type, payload))
+    def publish_fill(
+        self,
+        gateway_id: str,
+        *,
+        order_id: str,
+        symbol: str,
+        fill_qty: int,
+        fill_price: float,
+        liquidity_flag: str,
+    ) -> None:
+        """Mirrors DropCopyPublisher.publish_fill — a second copy of the
+        double in engine_harness.py, kept in step with it by hand.
+
+        The recorded tuple is unchanged, so the H4 assertions that read
+        ``events[i][0]`` and ``[2]["symbol"]`` still hold: the double spies on
+        the wire shape and the wire shape did not change, only the signature
+        that produces it.
+        """
+        self.events.append(
+            (
+                gateway_id,
+                "order.fill",
+                {
+                    "order_id": order_id,
+                    "symbol": symbol,
+                    "fill_qty": fill_qty,
+                    "fill_price": fill_price,
+                    "liquidity_flag": liquidity_flag,
+                },
+            )
+        )
 
     def close(self) -> None:  # pragma: no cover - interface parity
         pass

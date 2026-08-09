@@ -242,10 +242,37 @@ class TestTheEmitterQuotesLikeBlack:
 
         assert _pystr("plain") == '"plain"'
 
-    def test_a_doc_with_both_quote_kinds_escapes_the_double(self) -> None:
+    def test_a_doc_with_both_quote_kinds_takes_the_fewer_escapes(self) -> None:
+        """Moved in 6.1d. This asserted the *presence* rule 5.3a wrote — that
+        a string containing both quote kinds is double-quoted and escapes the
+        doubles — and black does not do that. It counts.
+
+        ``it's "both"`` is two double quotes against one single, so single
+        quoting escapes once and double quoting twice, and black keeps the
+        cheaper spelling. The old expectation was never checked against black
+        itself, because no spec text had both kinds until
+        ``drop_copy.event_type``'s doc in 6.1d — at which point
+        ``test_generated_files_are_black_clean`` failed and this test passed,
+        which is the pair of results that says the test is the wrong one.
+        Section 27.7.
+        """
         from edumatcher.msgen.generators.python import _pystr
 
-        assert _pystr('it\'s "both"') == '"it\'s \\"both\\""'
+        assert _pystr('it\'s "both"') == "'it\\'s \"both\"'"
+
+    def test_a_tie_prefers_double(self) -> None:
+        """The case that makes it a count rather than a comparison of any-ness.
+
+        Equal numbers of each cost the same either way, and black's preference
+        for double quotes decides it. Verified against black rather than
+        reasoned about: it rewrites the two-versus-one case and leaves this
+        one alone.
+        """
+        from edumatcher.msgen.generators.python import _pystr
+
+        assert (
+            _pystr("two \"d\" and two 's' here") == '"two \\"d\\" and two \'s\' here"'
+        )
 
     def test_the_committed_binding_carries_the_quoted_doc(self) -> None:
         docs = [f["doc"] for f in G.describe_kill_switch() if f["name"] == "symbol"]

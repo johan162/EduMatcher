@@ -13,12 +13,13 @@
     - What `pm-msgen check` guarantees, and why generation must be
       byte-for-byte deterministic for that guarantee to be worth anything
 
-!!! info "Current status: Phase 6.1c"
-    **Eleven families are specified and adopted**, covering 74 messages and 9
-    record types: `trade`, `order`, `session`, `book`, `log`, `index`, `risk`,
-    `structure`, `quote`, `circuit_breaker` and `auction`. Each has a Python
-    binding; `trade` and `order` also have C bindings for their CALF
-    projections and the BALF `execution_report` frame.
+!!! info "Current status: Phase 6.1d"
+    **Thirteen families are specified and adopted**, covering 77 messages and
+    10 record types: `trade`, `order`, `session`, `book`, `log`, `index`,
+    `risk`, `structure`, `quote`, `circuit_breaker`, `auction`, `drop_copy`
+    and `admin`. Each has a Python binding; `trade` and `order` also have C
+    bindings for their CALF projections and the BALF `execution_report`
+    frame.
 
     All of it is live. `models/message.py`'s builders delegate to the generated
     code, the engine, pm-index and pm-log-srv publish through it,
@@ -31,9 +32,9 @@
     The drift check runs in CI and `make check`; compiled round-trip tests prove
     Python and C agree on both the text and binary wires.
 
-    Not built yet: roughly 32 topics across `drop_copy`, `admin` and `system`
-    (Phase 6.1d–f), and the documentation appendix (6.2). The full plan lives
-    in `docs-design/EduMatcher-Message-Generator.md`.
+    Not built yet: the 29 `system` topics (Phase 6.1e–f) and the
+    documentation appendix (6.2). The full plan lives in
+    `docs-design/EduMatcher-Message-Generator.md`.
 
 ## The problem
 
@@ -1318,7 +1319,7 @@ What it does not, and will not:
 | 6.1a | `structure`: the combo/OCO events; `combo.status`'s `details` map becomes a field | **done** |
 | 6.1b | `quote` (4 topics); quote prices join the ticks rule §15.2 set | **done** |
 | 6.1c | `circuit_breaker` + `auction` (5 topics); the halt corridor fork resolved by presence regime, `imbalance_side` becomes an omitting enum | **done** |
-| 6.1d | `drop_copy` + `admin` (3 topics) | not started |
+| 6.1d | `drop_copy` + `admin` (3 topics); the last two maps become a typed publisher and a declared record | **done** |
 | 6.1e–f | `system` (29 topics, two sessions) | not started |
 | 6.2 | Generated `271-message-appendix.md` | not started |
 

@@ -44,6 +44,8 @@ MIGRATED = (
     "quote",
     "circuit_breaker",
     "auction",
+    "drop_copy",
+    "admin",
 )
 
 

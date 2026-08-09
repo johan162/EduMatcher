@@ -4,3 +4,4 @@
 
 2. there is no surface for the kill-switch `note` in the messsage
 
+3. test_engine_review_highs.py keeps a second copy of FakeDropCopy alongside the one in engine_harness.py. I updated both, but the duplication is pre-existing and worth collapsing sometime — I left it rather than refactor outside the request.

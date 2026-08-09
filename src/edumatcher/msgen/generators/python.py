@@ -89,8 +89,15 @@ def _pystr(value: str) -> str:
     what avoids a backslash: a string containing ``"`` and no ``'`` is emitted
     single-quoted rather than escaped. Reached first by ``risk``'s
     ``kill_switch.symbol`` doc, which quotes the empty string.
+
+    The test is a *count*, not presence, and that distinction is the whole of
+    a defect found in 6.1d. ``drop_copy.event_type``'s doc is the first text
+    in any spec containing both quote characters — two ``"`` and one ``'`` —
+    and the presence test picked double quotes and escaped twice where black
+    picks single and escapes once. Black keeps whichever spelling needs fewer
+    escapes and prefers double on a tie, which is exactly this.
     """
-    quote = "'" if '"' in value and "'" not in value else '"'
+    quote = "'" if value.count('"') > value.count("'") else '"'
     escaped = (
         value.replace("\\", "\\\\")
         .replace(quote, "\\" + quote)
@@ -842,10 +849,17 @@ def _class_block(message: Message) -> list[str]:
         out.append("        }")
         return out
 
-    out.append("        payload: dict[str, Any] = {")
-    for each in always:
-        out += _dict_entry("            ", _pystr(each.name), _to_dict_value(each))
-    out.append("        }")
+    if always:
+        out.append("        payload: dict[str, Any] = {")
+        for each in always:
+            out += _dict_entry("            ", _pystr(each.name), _to_dict_value(each))
+        out.append("        }")
+    else:
+        # Every field omits, so the payload starts empty. Emitted on one line
+        # because black collapses `{`/`}` with nothing between them, and the
+        # committed output has to be what black would write. First reached by
+        # `admin`'s AdminActionScope, whose seven fields all omit.
+        out.append("        payload: dict[str, Any] = {}")
     for f in omitted:
         # An omit-when-empty field tests falsy; an omit-when-none field tests
         # None. They are different regimes and 0 / "" are legal values of one.
@@ -959,10 +973,14 @@ def _unchecked_block(message: Message) -> list[str]:
         out += ["            }", "        ),", "    ]"]
         return out
 
-    out.append("    payload: dict[str, Any] = {")
-    for f in always:
-        out += _dict_entry("        ", _pystr(f.name), _coerce_arg(f))
-    out.append("    }")
+    if always:
+        out.append("    payload: dict[str, Any] = {")
+        for f in always:
+            out += _dict_entry("        ", _pystr(f.name), _coerce_arg(f))
+        out.append("    }")
+    else:
+        # As in ``to_dict`` above: nothing is unconditionally emitted.
+        out.append("    payload: dict[str, Any] = {}")
     for f in omitted:
         test = "" if f.omit_when_empty else " is not None"
         out.append(f"    if {f.name}{test}:")

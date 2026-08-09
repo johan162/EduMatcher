@@ -130,6 +130,7 @@ from edumatcher.models.generated.index import (
     topic_index_error,
     topic_index_history,
 )
+from edumatcher.models.generated.drop_copy import topic_drop_copy_event
 from edumatcher.models.generated.risk import topic_kill_switch_ack
 from edumatcher.models.generated.order import (
     topic_order_ack,
@@ -314,7 +315,7 @@ class Gateway:
         # just a different topic namespace. No topic is subscribed until
         # DC|ON (or --drop-copy at startup) -- see _set_drop_copy().
         self._dc_sub_sock = make_subscriber(DROP_COPY_PUB_ADDR)
-        self._dc_topic = f"drop_copy.event.{self.gateway_id}".encode()
+        self._dc_topic = topic_drop_copy_event(self.gateway_id).encode()
         self._auth_reason: str = ""
         self._auth_description: str = ""
         self._debug_counts: defaultdict[str, int] = defaultdict(int)

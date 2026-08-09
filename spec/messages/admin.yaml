@@ -1,0 +1,171 @@
+# Canonical specification for the `admin` message family.
+#
+# Phase 6.1d. One topic: the uniform record of an admin-gated command, so
+# `/admin/monitor` has a single shape to watch regardless of which command
+# ran. Published *alongside* each command's own ack, never instead of it --
+# the ack is what the calling gateway correlates on.
+#
+# THE MAP THAT WAS A RECORD -- THE FIFTH, AND THE FIRST THAT STAYED NESTED.
+# `scope` was `dict[str, Any]`, and the builder's docstring said its shape
+# "varies by action". Twelve producer sites say otherwise: six actions, each
+# with an accepted and a rejected shape, drawing on a closed set of **seven**
+# keys and never anything else. It is a record, and it is declared as one.
+#
+# Section 24.2 flattened `combo.status`'s `details` because it was one string
+# in a box. This one stays nested, and the difference is that the box means
+# something: the envelope (`command_id`, `initiator_gateway_id`, `action`,
+# `accepted`, `reason`) is what every admin action has, and `scope` is what
+# this particular action acted on. A monitor renders the first and displays
+# the second. See design section 27.1.
+#
+# WHAT THE SPEC STILL CANNOT SAY, and section 20.3's limitation a second
+# time: which subset of the seven a given `action` uses. `kill_switch.global`
+# carries none of the identifiers; `circuit_breaker.trigger` carries `symbol`
+# and `level`; only the accepted paths carry the outcome counts. That is a
+# discriminated union on `action`, the IDL has no variant construct, and one
+# more caller is still not evidence for building one. The rule stays in the
+# handlers.
+
+family: admin
+version: 1
+
+types:
+  AdminActionScope:
+    doc: >
+      What one admin command acted on, and what it did. Every field is
+      optional because every action uses a different subset -- see the family
+      header on why that is a stated limitation rather than a variant type.
+
+      The name is inherited from the wire key rather than chosen: three of the
+      seven fields are outcome counts rather than scope, which makes
+      "AdminActionScope" a slightly generous reading of its own contents. It
+      was kept because renaming the key is a wire change for every
+      `/admin/monitor` client and buys nothing a reader can use.
+    fields:
+      - name: symbol
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 16 }
+        doc: >
+          The instrument, when the command named one. `kill_switch.self` used
+          to emit this as an explicit `null` when unscoped while its siblings
+          omitted the key -- two spellings of one absence, and this is now the
+          second.
+      - name: target_gateway_id
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 32 }
+        doc: "The participant acted upon, for `kill_switch.gateway`."
+      - name: level
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 32 }
+        doc: >
+          The circuit-breaker rung, for `circuit_breaker.trigger`. Not an
+          enum: the ladder is per-symbol configuration, so the value set
+          differs per deployment. Bounded to match
+          `circuit_breaker.halt.level`, which carries the same name onward.
+      - name: note
+        type: string
+        required: false
+        omit_when_empty: true
+        validate: { max_len: 256 }
+        doc: >
+          The operator's free-text reason, when one was supplied. Regime 4 to
+          match `risk.kill_switch`'s own `note`, which is where this value
+          arrives from -- a field that omits on one message and emits `""` on
+          the next would be two answers to one question.
+      - name: cancelled_orders
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: dimensionless
+        validate: { ge: 0 }
+        doc: "Outcome, on accepted kill-switch actions only."
+      - name: cancelled_quotes
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: dimensionless
+        validate: { ge: 0 }
+        doc: "Outcome, on accepted kill-switch actions only."
+      - name: affected_gateways
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: dimensionless
+        validate: { ge: 0 }
+        doc: "Outcome, on an accepted `kill_switch.global` only."
+
+messages:
+  - name: admin_action
+    topic: "admin.action.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to the admin monitor: one admin-gated command ran, who ran it,
+        what it acted on, and whether it was accepted.
+      since: "1.0"
+      see_also:
+        ["risk.kill_switch", "risk.symbol_halt", "circuit_breaker.halt.{SYMBOL}"]
+      example_note: >
+        This is the one topic in the system addressed to a gateway that is
+        **not** for that gateway. The suffix names the ADMIN caller so a
+        monitor can filter by operator, but the event must never reach that
+        caller's own private trading stream -- `EngineClient._handle_event`
+        checks the prefix before the private/market-data split for exactly
+        that reason, and `ADMIN_ACTION_PREFIX` is deliberately absent from
+        `PRIVATE_PREFIXES`.
+
+        `initiator_gateway_id` repeats the topic suffix in the body. That is
+        redundant on the live wire and load-bearing off it: an event stored,
+        forwarded or rendered without its topic still says who ran the
+        command.
+
+        Publishing is a no-op without a `command_id` — with nothing to
+        correlate against, a monitor record is an entry no client can tie to
+        a request.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "The ADMIN caller. Topic-only; the body says the same thing as
+                `initiator_gateway_id`." }
+      - { name: command_id, type: string, validate: { max_len: 64 } }
+      - { name: initiator_gateway_id, type: string, validate: { max_len: 32 } }
+      - name: action
+        type: enum
+        values:
+          - kill_switch.self
+          - kill_switch.gateway
+          - kill_switch.global
+          - kill_switch.symbol
+          - circuit_breaker.trigger
+          - circuit_breaker.resume
+        doc: >
+          Which command ran. The six the engine publishes, enumerated rather
+          than left a free string: a seventh admin command that forgets to
+          declare itself here fails loudly at its first invocation, which is
+          better than appearing in the monitor as a value no client renders.
+
+          The values look like topics and are not: `circuit_breaker.trigger`
+          is the action behind `risk.symbol_halt`, and there is no
+          `circuit_breaker.trigger` topic anywhere.
+      - { name: scope, type: nested, ref: AdminActionScope }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 },
+          doc: "Why it was rejected; \"\" on an accepted action." }
+    encoding:
+      # No `include` list: the default drops the topic parameter, and
+      # `gateway_id` is genuinely topic-only here. The body's copy travels
+      # under the different name `initiator_gateway_id`, which is an ordinary
+      # field and is kept.
+      engine_pub: { frames: [topic, json_payload] }

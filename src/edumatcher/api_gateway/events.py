@@ -16,6 +16,7 @@ from edumatcher.models.generated.order import (
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT, PREFIX_DEPTH
 from edumatcher.models.generated.auction import PREFIX_AUCTION_RESULT
+from edumatcher.models.generated.admin import PREFIX_ADMIN_ACTION
 from edumatcher.models.generated.risk import PREFIX_KILL_SWITCH_ACK
 from edumatcher.models.generated.structure import (
     PREFIX_COMBO_ACK,
@@ -41,7 +42,7 @@ SYSTEM_SYMBOLS_PREFIX = "system.symbols."
 #: never reach that gateway's own private stream. EngineClient._handle_event
 #: checks this prefix before the private/market-data split so it only ever
 #: reaches admin monitor sinks.
-ADMIN_ACTION_PREFIX = "admin.action."
+ADMIN_ACTION_PREFIX = PREFIX_ADMIN_ACTION
 
 PRIVATE_PREFIXES = (
     ORDER_ACK_PREFIX,

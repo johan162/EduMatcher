@@ -22,6 +22,10 @@ from typing import Any
 
 import zmq
 
+from edumatcher.models.generated.drop_copy import (
+    PREFIX_DROP_COPY_EVENT,
+    PREFIX_DROP_COPY_REPLAY,
+)
 from edumatcher.models.message import decode
 
 log = logging.getLogger(__name__)
@@ -30,8 +34,8 @@ _DEFAULT_ADDR = "tcp://127.0.0.1:5557"
 _RECV_TIMEOUT_MS = 500  # poll interval so Ctrl-C / max_messages is responsive
 
 # Topic prefixes used by DropCopyPublisher (engine/drop_copy.py).
-EVENT_TOPIC_PREFIX = "drop_copy.event."
-REPLAY_TOPIC_PREFIX = "drop_copy.replay."
+EVENT_TOPIC_PREFIX = PREFIX_DROP_COPY_EVENT
+REPLAY_TOPIC_PREFIX = PREFIX_DROP_COPY_REPLAY
 
 
 class DcSpyConnectionError(RuntimeError):
