@@ -78,6 +78,7 @@ class TestRealSpec:
             "index",
             "log",
             "order",
+            "risk",
             "session",
             "trade",
         ]

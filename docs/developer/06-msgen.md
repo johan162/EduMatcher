@@ -1311,7 +1311,8 @@ What it does not, and will not:
 | 5.2d | records to any depth + `log` server-side topics | **done** |
 | 5.2e | IDL `omit_when_empty` on lists + `index.yaml` and its binding | **done** — committed unused |
 | 5.2f | adopt `index`: the builders, the `day` record, literals to zero | **done** — the `index` family is complete |
-| 5.3 | `risk` — 30 topics, planned as two sessions | not started |
+| 5.3a | `risk` part one: the three kill switches (6 topics) | **done** |
+| 5.3b | `risk` part two: symbol halt/resume/cancel + the two circuit-breaker sweeps (10 topics) | not started |
 | 6 | Generated `271-message-appendix.md` | not started |
 
 !!! success "The guarantee is live"
@@ -1320,12 +1321,21 @@ What it does not, and will not:
     generated file, now fails the build rather than merging quietly.
 
 !!! warning "It only covers what is specified"
-    Six families of roughly fifteen have a spec — `trade`, `order`, `session`,
-    `book`, `log` and `index` — and `risk` does not. Everything unspecified
+    Seven families of roughly fifteen have a spec — `trade`, `order`,
+    `session`, `book`, `log`, `index` and now `risk`. Everything unspecified
     still drifts exactly as it did before: the check cannot protect a message
     it has never been told about.
 
-    All six are adopted, and all six are at zero topic literals.
+    Six of the seven are complete and at zero topic literals. **`risk` is
+    half-specified**: 5.3a declared its three kill switches, and the ten
+    instrument-scoped topics — `symbol_halt`, `symbol_resume`,
+    `cancel_symbol` and the two circuit-breaker sweeps — land in 5.3b.
+
+    `grep-literals` reports a per-family count over *declared* topics, so a
+    half-specified family reads `risk: 0 literals - migrated` while ten of its
+    topics are still hard-coded. That is literally true and easy to misread,
+    which is why `risk` stays out of `MIGRATED` in
+    `tests/test_msgen_literals.py` until 5.3b lands.
 
     Where a family *is* specified, its topic literals are at zero. Adding a
     family to `MIGRATED` in `tests/test_msgen_literals.py` is what makes that

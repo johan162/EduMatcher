@@ -63,6 +63,7 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_FILL,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.risk import PREFIX_KILL_SWITCH_ACK
 
 _MAX_LINE_BYTES = 4096
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
@@ -1355,7 +1356,7 @@ class AlfGateway:
                 "CANCELLED_ID": str(payload.get("cancelled_order_id", "")),
                 "REASON": str(payload.get("reason", "")),
             }
-        elif topic.startswith("risk.kill_switch_ack."):
+        elif topic.startswith(PREFIX_KILL_SWITCH_ACK):
             msg_type = "KILL_ACK"
             fields = {
                 "ACCEPTED": "TRUE" if bool(payload.get("accepted", False)) else "FALSE",

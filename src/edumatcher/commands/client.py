@@ -59,6 +59,7 @@ from edumatcher.models.message import (
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
+from edumatcher.models.generated.risk import PREFIX_KILL_SWITCH_ACK
 from edumatcher.models.generated.index import (
     PREFIX_INDEX_CONSTITUENT_CHANGE_ACK,
     PREFIX_INDEX_CORP_ACTION_ACK,
@@ -79,7 +80,7 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     "risk.symbol_halt_ack.",
     "risk.symbol_resume_ack.",
     "risk.cancel_symbol_ack.",
-    "risk.kill_switch_ack.",
+    PREFIX_KILL_SWITCH_ACK,
     "quote.ack.",
     PREFIX_BOOK_SNAPSHOT,
     TOPIC_SESSION_STATE,

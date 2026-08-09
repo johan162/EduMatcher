@@ -2851,6 +2851,153 @@ consumer:
   small reminder that "the same three field names" is not the same thing as
   "the same three fields".
 
+## 22. `risk`, part one: the audit that ran before adoption
+
+Phase 5.3a specified and adopted the three kill switches — `risk.kill_switch`,
+`risk.kill_switch_gateway`, `risk.kill_switch_global` and their acks. Six
+topics of sixteen; the other ten are 5.3b.
+
+### 22.1 Where the family splits, and why that boundary
+
+`risk` divides by **what the command acts on**:
+
+* a gateway's *exposure* — the three kill switches, at three scopes: the
+  caller's own, one named participant (ADMIN only), everyone.
+* an *instrument* — `symbol_halt`, `symbol_resume`, `cancel_symbol`, and the
+  two circuit-breaker sweeps.
+
+The two groups share nothing but `gateway_id` and `reason`. That is the
+property that matters for a two-session phase: either half can land complete,
+with its builders delegating and its literals at zero, without leaving the
+other half in the state §20.6 warned about — a tree where `pm-msgen check`
+passes while consumers read keys the producer no longer sends.
+
+Splitting by *direction* — all eight submissions, then all eight acks — would
+have had exactly that defect. A submission whose ack is still hand-written is
+half a conversation.
+
+Nothing in the IDL had to grow, which was known before the phase started:
+§20.1 grepped all thirty of this family's guards while deciding whether
+`DaySummary` was the third paired-presence group or merely the third of many.
+Every one is single-key. The family is presence regimes 1 and 4 throughout —
+no records, no lists, no variants.
+
+### 22.2 A field the handler read and no producer could send
+
+`_handle_kill_switch` did this, and had for a long time:
+
+```python
+note = str(payload.get("note", ""))
+...
+self._publish_admin_action(gateway_id, command_id, "kill_switch.self",
+                           {"symbol": ..., "note": note, ...})
+```
+
+`make_kill_switch_msg` had no `note` parameter, and none of its four producers
+— api_gateway, alf_console, commands/client, alf_gwy — sent one. So the value
+was always `""`, and `kill_switch.self` was the one admin action whose note was
+permanently blank while `kill_switch.gateway` and `kill_switch.global` both
+recorded a real one.
+
+This is §20.7's shape a second time, and the second time it was worth checking
+rather than filing as cosmetic: the admin monitor exists, by its own comment,
+so that `/admin/monitor` has *one uniform shape to watch regardless of which
+command ran*. A permanently blank field in one of three sibling actions is a
+gap in that uniformity, not a rendering quirk.
+
+The message carries `note` now, `omit_when_empty` like its two siblings.
+Deliberately **not** done: inventing an API parameter for it. The
+self-kill-switch route is `/orders`' mass-cancel, which has no reason field,
+and threading one through would be speculative surface. The field exists on the
+wire and any producer with a note can send it; giving an operator somewhere to
+type one is a separate, non-message change.
+
+### 22.3 The §21.2 audit, run before adoption rather than after
+
+§21.2's rule — *when adoption makes a builder validate, list every field whose
+value originates outside the process and check the spec's bound against the
+source's bound* — was written after the fact in 5.2f. This is the first phase
+to run it up front, and it found the same class of defect again:
+
+`_gateway_status` builds `f"Gateway not configured: {gw_id}"` from the inbound
+`gateway_id`, unbounded, and that lands in an ack whose `reason` the spec
+bounds at 512 characters.
+
+**But the consequence is different, and only reading the dispatch showed
+that.** pm-index had no exception guard, so the equivalent input killed the
+process. The engine's `_dispatch_pull_message` wraps every branch in a
+try/except — so no crash. What it does instead is worse in a quieter way:
+`_reject_after_error` returns early for any topic outside `_ORDER_TOPICS`, and
+the risk topics are outside it. So the handler's exception is logged and
+counted, no ack is sent, and the caller waits for a timeout — where before
+adoption it received a real, if oversized, answer.
+
+A silent non-answer on the path whose entire job is answering is not obviously
+better than a crash. The three handlers clamp their identifiers now, and
+`_gateway_status` carries a docstring note saying why the bound matters, since
+the coupling is not local: an unbounded id reaching that line becomes a
+validation error two calls away, inside a generated constructor.
+
+The generalisation worth keeping: **"is it guarded?" is not the same question
+as "is it safe?"** A guard converts a crash into a dropped reply, and whether
+that is an improvement depends entirely on what the caller does next.
+
+### 22.4 The emitter learned black's quoting rule
+
+`kill_switch.symbol`'s doc is the first text in any spec containing a double
+quote — *`"" cancels across all of them`*. The emitter escaped it, producing
+`"\"\" cancels..."`. Black would rather switch the outer quotes than escape:
+a string containing `"` and no `'` is emitted single-quoted.
+
+Caught by `test_generated_files_are_black_clean`, which is now four for four
+across phases — every formatting defect this generator has had was found by
+running black over the committed output rather than by any test in the
+generator's own suite. That is the right division: the emitter reproduces
+black's rules (risk R9), so the check that it did so correctly has to be black
+itself.
+
+Worth recording how nearly it was missed. A blanket `black src/ tests/` during
+verification *reformatted the generated file*, which turned one clear failure
+into three confusing ones — `pm-msgen check` reporting drift, the
+reproducibility test failing, and the black-clean test failing — none of which
+named the actual cause. **Never run a formatter across `src/` while verifying
+a generator**: it repairs the evidence. Format the hand-written tree, and let
+the committed bindings be checked, not fixed.
+
+### 22.5 A report that is true and misleading
+
+`pm-msgen grep-literals` counts literals of *declared* topics, per family. With
+six of sixteen topics declared it prints:
+
+```
+risk: 0 literals - migrated
+```
+
+while ten `risk.*` topics are still hard-coded in four modules. Every word of
+that is accurate and the line as a whole is not, because "migrated" has meant
+"this family is done" in every previous phase.
+
+No code changed for this — the count is correct and a half-specified family is
+a new situation, not a bug. What changed is that `risk` stays out of `MIGRATED`
+in `tests/test_msgen_literals.py` until 5.3b, and both this document and
+`06-msgen.md` say why. A test asserts the omission, so finishing 5.3b without
+adding it fails rather than passing quietly.
+
+### 22.6 Two lines that should not have been touched
+
+A scripted edit matched `gateway_id = ...upper()` three times where two were
+intended, and clamped `_handle_quote_bootstrap_request` and
+`_handle_quote_legs_request` — the `quote` family, nothing to do with this
+phase. Caught by checking which handlers the replacement had actually hit
+rather than trusting the count it printed, and reverted.
+
+Harmless as code and still wrong as a change: those handlers' acks are not
+generated, so the clamp would have been dead defensive code sitting in an
+unrelated family, waiting to confuse whoever specified `quote`. The working
+rule is that every changed line traces to the request; a bulk substitution
+makes it cheap to violate that without noticing, so the count a script reports
+is worth reading rather than skimming.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first

@@ -158,6 +158,11 @@ from edumatcher.models.session import (
 )
 from edumatcher.models.trade import Trade
 from edumatcher.models.generated.book import TOPIC_BOOK_SNAPSHOT_REQUEST
+from edumatcher.models.generated.risk import (
+    TOPIC_KILL_SWITCH,
+    TOPIC_KILL_SWITCH_GATEWAY,
+    TOPIC_KILL_SWITCH_GLOBAL,
+)
 
 # Kept for backward compatibility (e.g. tests that reference it).  The hot path
 # uses the monotonic now_ns() for event timestamps (M9), not this raw source.
@@ -232,6 +237,37 @@ def _compiled_engine_config() -> "EngineConfig | None":
 
     compiled = load_compiled_config()
     return None if compiled is None else compiled.engine
+
+
+#: Longest identifier the engine will echo from an inbound payload back into a
+#: reply. Matches the `max_len` the risk spec declares for gateway_id and
+#: target_gateway_id.
+_MAX_WIRE_ID_LEN = 32
+#: Longest command_id echoed back, matching the spec's bound.
+_MAX_WIRE_COMMAND_ID_LEN = 64
+
+
+def _clamp_wire_id(value: object, limit: int = _MAX_WIRE_ID_LEN) -> str:
+    """Normalise an identifier arriving from the wire, bounded and upper-cased.
+
+    The bound is load-bearing rather than tidy. Every rejection path quotes the
+    gateway it could not resolve — ``_gateway_status`` builds
+    ``f"Gateway not configured: {gw_id}"`` — and since 5.3a those replies are
+    generated constructors that validate, with ``reason`` bounded at 512
+    characters. An inbound gateway_id of five thousand characters would
+    therefore raise MessageValidationError inside the ack builder.
+
+    The engine survives that where pm-index did not: ``_dispatch_pull_message``
+    wraps every branch in a try/except. But ``_reject_after_error`` returns
+    early for anything outside ``_ORDER_TOPICS``, so a risk command would send
+    **no ack at all** and leave its caller waiting for a timeout — where before
+    adoption it got a real, if oversized, answer. Clamping keeps the answer.
+
+    Truncating loses nothing: an id longer than the spec allows cannot name a
+    gateway that exists, so a clamped one fails the same lookup with the same
+    reason.
+    """
+    return str(value).upper()[:limit]
 
 
 class Engine:
@@ -464,7 +500,15 @@ class Engine:
         self._debug_last_summary = now
 
     def _gateway_status(self, gateway_id: str) -> tuple[bool, str]:
-        """Return (is_allowed_and_connected, reason_if_not)."""
+        """Return (is_allowed_and_connected, reason_if_not).
+
+        The reason interpolates the gateway id, and callers put that reason on
+        an ack whose ``reason`` the risk spec bounds at 512 characters — so
+        the id has to be bounded before it gets here. Handlers clamp on the
+        way in (``_clamp_wire_id``); this note exists because the coupling is
+        not local: an unbounded id reaching this line becomes a validation
+        error two calls away, in a generated ack constructor.
+        """
         gw_id = gateway_id.upper()
         if self._allowed_fix_gateways is None:
             return True, ""
@@ -2838,11 +2882,11 @@ class Engine:
                         self._cancel_order_by_id(order.id)
 
     def _handle_kill_switch(self, payload: dict[str, Any]) -> None:
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        symbol_filter = str(payload.get("symbol", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        symbol_filter = _clamp_wire_id(payload.get("symbol", ""), 16)
         # Echoed on the ack so concurrent mass cancels for one gateway can be
         # told apart. Absent for callers that do not supply it.
-        command_id = str(payload.get("command_id", ""))
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
         note = str(payload.get("note", ""))
 
         ok, reason = self._gateway_status(gateway_id)
@@ -2921,9 +2965,9 @@ class Engine:
         allowed to differ — this is one admin acting on another participant's
         exposure, not a gateway acting on its own.
         """
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        target_gateway_id = str(payload.get("target_gateway_id", "")).upper()
-        command_id = str(payload.get("command_id", ""))
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        target_gateway_id = _clamp_wire_id(payload.get("target_gateway_id", ""))
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
         note = str(payload.get("note", ""))
 
         def _reject(reason: str) -> None:
@@ -3010,8 +3054,8 @@ class Engine:
         ``risk.circuit_breaker_halt_all``, which halts trading but leaves
         resting orders in place — this cancels them outright.
         """
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        command_id = str(payload.get("command_id", ""))
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
         note = str(payload.get("note", ""))
 
         def _reject(reason: str) -> None:
@@ -4949,11 +4993,11 @@ class Engine:
                 self._handle_quote_bootstrap_request(payload)
             elif topic == "system.quote_legs_request":
                 self._handle_quote_legs_request(payload)
-            elif topic == "risk.kill_switch":
+            elif topic == TOPIC_KILL_SWITCH:
                 self._handle_kill_switch(payload)
-            elif topic == "risk.kill_switch_gateway":
+            elif topic == TOPIC_KILL_SWITCH_GATEWAY:
                 self._handle_kill_switch_gateway(payload)
-            elif topic == "risk.kill_switch_global":
+            elif topic == TOPIC_KILL_SWITCH_GLOBAL:
                 self._handle_kill_switch_global(payload)
             elif topic == "risk.circuit_breaker_halt_all":
                 self._handle_circuit_breaker_halt_all(payload)

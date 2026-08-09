@@ -44,6 +44,7 @@ from edumatcher.models.generated import book as _gen_book
 from edumatcher.models.generated import index as _gen_index
 from edumatcher.models.generated import log as _gen_log
 from edumatcher.models.generated import order as _gen_order
+from edumatcher.models.generated import risk as _gen_risk
 from edumatcher.models.generated import session as _gen_session
 from edumatcher.models.generated import trade as _gen_trade
 
@@ -913,7 +914,7 @@ def make_gateway_bye_msg(gateway_id: str, reason: str = "") -> list[bytes]:
 
 
 def make_kill_switch_msg(
-    gateway_id: str, symbol: str = "", command_id: str = ""
+    gateway_id: str, symbol: str = "", command_id: str = "", note: str = ""
 ) -> list[bytes]:
     """Gateway/admin → engine: cancel open risk-bearing exposure.
 
@@ -922,11 +923,19 @@ def make_kill_switch_msg(
     kill-switch ack has no natural identifier, so two concurrent mass cancels
     for one gateway were previously indistinguishable once both acks were in
     flight. Supplying it is optional; without it the ack is unchanged.
+
+    ``note`` is free text recorded on the admin monitor. The engine's handler
+    had always read one, but this builder had no parameter for it and none of
+    the four producers sent one — so ``kill_switch.self`` was the only admin
+    action whose note was permanently blank, while its two siblings recorded
+    a real one (design section 22.2).
     """
-    payload: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol}
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("risk.kill_switch", payload)
+    return _gen_risk.make_kill_switch(
+        gateway_id=gateway_id,
+        symbol=symbol,
+        note=note,
+        command_id=command_id,
+    )
 
 
 def make_kill_switch_ack_msg(
@@ -938,16 +947,14 @@ def make_kill_switch_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → gateway/admin: kill-switch result summary."""
-    topic = f"risk.kill_switch_ack.{gateway_id}"
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "reason": reason,
-        "cancelled_orders": cancelled_orders,
-        "cancelled_quotes": cancelled_quotes,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(topic, payload)
+    return _gen_risk.make_kill_switch_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        cancelled_orders=cancelled_orders,
+        cancelled_quotes=cancelled_quotes,
+        command_id=command_id,
+    )
 
 
 def make_circuit_breaker_halt_all_msg(gateway_id: str) -> list[bytes]:
@@ -1134,15 +1141,12 @@ def make_kill_switch_gateway_msg(
     ack topic); ``target_gateway_id`` is whose exposure gets cancelled —
     unlike ``risk.kill_switch``, these are allowed to differ.
     """
-    payload: dict[str, Any] = {
-        "gateway_id": gateway_id,
-        "target_gateway_id": target_gateway_id.upper(),
-    }
-    if note:
-        payload["note"] = note
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("risk.kill_switch_gateway", payload)
+    return _gen_risk.make_kill_switch_gateway(
+        gateway_id=gateway_id,
+        target_gateway_id=target_gateway_id.upper(),
+        note=note,
+        command_id=command_id,
+    )
 
 
 def make_kill_switch_gateway_ack_msg(
@@ -1155,28 +1159,26 @@ def make_kill_switch_gateway_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → ADMIN: gateway-targeted kill-switch result."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "target_gateway_id": target_gateway_id,
-        "reason": reason,
-        "cancelled_orders": cancelled_orders,
-        "cancelled_quotes": cancelled_quotes,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(f"risk.kill_switch_gateway_ack.{gateway_id}", payload)
+    return _gen_risk.make_kill_switch_gateway_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        target_gateway_id=target_gateway_id,
+        reason=reason,
+        cancelled_orders=cancelled_orders,
+        cancelled_quotes=cancelled_quotes,
+        command_id=command_id,
+    )
 
 
 def make_kill_switch_global_msg(
     gateway_id: str, note: str = "", command_id: str = ""
 ) -> list[bytes]:
     """ADMIN → engine: cancel every resting order/quote for every gateway."""
-    payload: dict[str, Any] = {"gateway_id": gateway_id}
-    if note:
-        payload["note"] = note
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("risk.kill_switch_global", payload)
+    return _gen_risk.make_kill_switch_global(
+        gateway_id=gateway_id,
+        note=note,
+        command_id=command_id,
+    )
 
 
 def make_kill_switch_global_ack_msg(
@@ -1189,16 +1191,15 @@ def make_kill_switch_global_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → ADMIN: market-wide kill-switch result."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "reason": reason,
-        "cancelled_orders": cancelled_orders,
-        "cancelled_quotes": cancelled_quotes,
-        "affected_gateways": affected_gateways,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(f"risk.kill_switch_global_ack.{gateway_id}", payload)
+    return _gen_risk.make_kill_switch_global_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        cancelled_orders=cancelled_orders,
+        cancelled_quotes=cancelled_quotes,
+        affected_gateways=affected_gateways,
+        command_id=command_id,
+    )
 
 
 # ---------------------------------------------------------------------------

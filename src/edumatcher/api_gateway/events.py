@@ -15,6 +15,7 @@ from edumatcher.models.generated.order import (
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT, PREFIX_DEPTH
+from edumatcher.models.generated.risk import PREFIX_KILL_SWITCH_ACK
 
 ORDER_ACK_PREFIX = PREFIX_ORDER_ACK
 ORDER_FILL_PREFIX = PREFIX_ORDER_FILL
@@ -44,7 +45,7 @@ PRIVATE_PREFIXES = (
     "oco.cancelled.",
     "quote.ack.",
     "quote.status.",
-    "risk.kill_switch_ack.",
+    PREFIX_KILL_SWITCH_ACK,
     "system.gateway_auth.",
     SYSTEM_SYMBOLS_PREFIX,
     "system.quote_bootstrap.",
@@ -85,7 +86,7 @@ def websocket_type(topic: str) -> str:
     """Translate an engine topic to the stable public WebSocket type."""
     if topic.startswith(ADMIN_ACTION_PREFIX):
         return "admin.action"
-    if topic.startswith("risk.kill_switch_ack."):
+    if topic.startswith(PREFIX_KILL_SWITCH_ACK):
         return "mass_cancel.ack"
     if topic == TOPIC_TRADE_EXECUTED:
         return "trade"

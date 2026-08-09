@@ -83,15 +83,22 @@ _ANNOTATION = {
 
 
 def _pystr(value: str) -> str:
-    """Return ``value`` as a double-quoted Python string literal."""
+    """Return ``value`` as a Python string literal, quoted the way black does.
+
+    Black prefers double quotes, but switches to single quotes when that is
+    what avoids a backslash: a string containing ``"`` and no ``'`` is emitted
+    single-quoted rather than escaped. Reached first by ``risk``'s
+    ``kill_switch.symbol`` doc, which quotes the empty string.
+    """
+    quote = "'" if '"' in value and "'" not in value else '"'
     escaped = (
         value.replace("\\", "\\\\")
-        .replace('"', '\\"')
+        .replace(quote, "\\" + quote)
         .replace("\n", "\\n")
         .replace("\t", "\\t")
         .replace("\r", "\\r")
     )
-    return f'"{escaped}"'
+    return f"{quote}{escaped}{quote}"
 
 
 def _pyval(value: object) -> str:
