@@ -1,0 +1,413 @@
+# Canonical specification for the `index` message family.
+#
+# Phase 5.2e. Ten topics: one broadcast (index.update), four operator
+# submissions, four addressed acks and one addressed error. pm-index is both
+# a publisher and a request/reply service, so the family carries both
+# directions.
+#
+# THE THIRD PAIRED-PRESENCE GROUP, AND THE LAST. make_index_update_msg had
+#
+#     if day_open is not None:
+#         payload["day_open"] = day_open
+#         payload["day_high"] = day_high
+#         payload["day_low"] = day_low
+#
+# - three keys, one guard, all-or-nothing. Design section 16.2 settled this
+# shape for session's next_state/next_at and command_id/gateway_id: an
+# `a_b`-prefixed group of fields sharing one guard is a record that was
+# flattened for want of one. DaySummary is the third and, on the evidence,
+# the final instance - every guard across risk's 30 topics is single-key.
+#
+# THE FIRST LIST THAT OMITS WHEN EMPTY. HistoryRecord is a union of five
+# archived shapes, and only two of them carry a list. A list is always
+# emitted, so a single record would have put `"constituents": []` and
+# `"symbols": []` onto four record types that have neither - a change to
+# already-written JSONL. `omit_when_empty` was strings-only for reasons that
+# do not apply to a list (design section 20.2), so it now covers lists too and
+# the archive round-trips byte for byte.
+#
+# ADOPTION IS TOPIC CONSTANTS AND THE FIELD CONTRACT. The ten builders in
+# models/message.py delegate; index/main.py, the CLIs and the four subscribers
+# take the generated topic helpers. index.corp_action's action-specific
+# parameters stay flat - see section 20.3 for why the IDL did not grow a
+# variant type to say them.
+
+family: index
+version: 1
+
+types:
+  DaySummary:
+    doc: >
+      The session's open, high and low index level.
+
+      All three arrive together or not at all: _update_day_ohlc sets open,
+      high and low in one branch and _reset_for_new_session clears all three,
+      so there has never been a state where one is known and another is not.
+      As three flat keys under one guard that was a convention; as a nullable
+      record it is unrepresentable otherwise, which is design section 16.2's
+      whole argument.
+    fields:
+      - { name: open, type: float, unit: dimensionless,
+          doc: "The first level computed this session." }
+      - { name: high, type: float, unit: dimensionless }
+      - { name: low, type: float, unit: dimensionless }
+
+  HistoryRecord:
+    doc: >
+      One structural audit entry, replayed verbatim from pm-index's append-only
+      JSONL archive.
+
+      This is a union of five shapes discriminated by `type`, and the IDL has
+      no variant construct (section 20.3). Every field the five do not share is
+      therefore optional, and the spec cannot state "a CORP_ACTION always
+      carries action and detail" - that rule lives in _handle_corp_action.
+      What it can state is the field set, the units and the types, which is
+      what every consumer needs: all six read the records with `.get(key,
+      default)` and dispatch on `type`.
+
+      The optional fields omit rather than null because the archive omits: a
+      record written before this spec existed must read back and re-emit
+      unchanged, or specifying the family would rewrite history.
+    fields:
+      - name: type
+        type: enum
+        values: [INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST, REBALANCE]
+        doc: >
+          The discriminator. IndexHistory.query drops any other value with a
+          warning, so an unknown type never reaches the wire.
+      - { name: timestamp, type: float, unit: epoch_seconds }
+      - { name: index_id, type: string, validate: { max_len: 32 } }
+      - { name: level, type: float, unit: dimensionless,
+          doc: "The index level immediately after the event was applied." }
+      - { name: symbol, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 16 },
+          doc: "CORP_ACTION, ADD_CONSTITUENT and DELIST." }
+      - { name: action, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 32 }, doc: "CORP_ACTION only." }
+      - { name: detail, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 128 },
+          doc: "CORP_ACTION only; a rendered summary such as 'shares=1000'." }
+      - { name: old_divisor, type: float, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true, doc: "Every type but INIT." }
+      - { name: new_divisor, type: float, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true, doc: "Every type but INIT." }
+      - { name: base_value, type: float, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true, doc: "INIT only." }
+      - name: divisor
+        type: float
+        unit: dimensionless
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          INIT only, and the odd one out: every other type reports the divisor
+          as an old/new pair. Kept as written rather than normalised, because
+          the archive on disk already says this.
+      - { name: constituents, type: list, item: string, required: false,
+          omit_when_empty: true, doc: "INIT only." }
+      - name: shares_outstanding
+        type: int
+        unit: shares
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          ADD_CONSTITUENT only, and absent on records written before 5.2e: the
+          handler used the share count to weight the constituent and then
+          dropped it from the audit entry, so what a constituent was added
+          with was durably recorded nowhere. Optional rather than required
+          because the archive on disk still holds records without it.
+      - { name: reference_price, type: float, unit: display_price,
+          required: false, nullable: true, omit_when_none: true,
+          doc: "ADD_CONSTITUENT only." }
+      - { name: symbols, type: list, item: string, required: false,
+          omit_when_empty: true,
+          doc: "REBALANCE only: the symbols the batch actually applied to." }
+
+  RebalanceUpdate:
+    doc: >
+      One entry of a rebalance batch. Mechanically a SHARES_ISSUANCE corporate
+      action, applied to every named existing constituent as one batch with a
+      single recompute and publish rather than one round-trip per symbol.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: new_shares_outstanding, type: int, unit: shares,
+          validate: { gt: 0 } }
+
+messages:
+  - name: index_update
+    topic: "index.update"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        pm-index to subscribers: the current level of one index, published on
+        every constituent trade subject to a rate limit, and forced on a
+        structural change or at end of day.
+      since: "1.0"
+      see_also: ["session.state"]
+      example_note: >
+        `day` is absent before the first level of a session is computed and
+        after _reset_for_new_session clears it. All three consumers -
+        alf_console's display, pm-stats' snapshot writer and md_gateway's CALF
+        normaliser - read it with `.get` and test `is not None`, so absent and
+        null are the same thing to every one of them.
+    fields:
+      - { name: index_id, type: string, validate: { max_len: 32 } }
+      - { name: level, type: float, unit: dimensionless }
+      - { name: aggregate_cap, type: float, unit: money,
+          doc: "Sum of constituent market capitalisations." }
+      - { name: divisor, type: float, unit: dimensionless,
+          doc: "Level = aggregate_cap / divisor." }
+      - { name: session_state, type: string, validate: { max_len: 32 },
+          doc: "Mirrors session.state; a plain string there and here." }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+      - { name: day, type: nested, ref: DaySummary, required: false,
+          nullable: true, omit_when_none: true }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: index_history_request
+    topic: "index.history_request"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Gateway or operator to pm-index: replay the structural audit log.
+      since: "1.0"
+      see_also: ["index.history.{GW_ID}", "index.error.{GW_ID}"]
+      example_note: >
+        pm-index's history is structural only - index creation, corporate
+        actions, constituent changes, rebalances. Level and end-of-day
+        time-series history lives in pm-stats.
+
+        `types` is omitted when unset rather than sent as a default. The
+        hand-written builder defaulted it to four of the five structural types
+        and silently dropped REBALANCE from every reply that took the default;
+        the server's own default is the full set, and it cannot tell an
+        omitted `types` from a deliberate one. `max_records` keeps its default
+        because the builder's value and the server's agree.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: index_id, type: string, validate: { max_len: 32 } }
+      - { name: from_ts, type: float, unit: epoch_seconds }
+      - { name: to_ts, type: float, unit: epoch_seconds }
+      - { name: types, type: list, item: string, required: false,
+          omit_when_empty: true,
+          doc: "Record types to include; omitted means all structural types." }
+      - { name: max_records, type: int, unit: dimensionless, required: false,
+          default: 10000, validate: { gt: 0 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: index_history
+    topic: "index.history.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "pm-index to requestor: the matching audit records."
+      since: "1.0"
+      see_also: ["index.history_request"]
+      example_note: >
+        `warnings` reports lines the archive could not parse and record types
+        it did not recognise. It is omitted when there are none, which is what
+        the hand-written builder's `if warnings:` did.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: index_id, type: string, validate: { max_len: 32 } }
+      - { name: records, type: list, ref: HistoryRecord }
+      - { name: warnings, type: list, item: string, required: false,
+          omit_when_empty: true }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: index_corp_action
+    topic: "index.corp_action"
+    transport: [engine_pub]
+    doc:
+      motivation: "Operator to pm-index: apply a corporate action."
+      since: "1.0"
+      see_also: ["index.corp_action_ack.{GW_ID}", "index.error.{GW_ID}"]
+      example_note: >
+        The four parameters are action-specific and flat: SPLIT reads the two
+        ratio fields, CASH_DIVIDEND reads dividend_per_share, SHARES_ISSUANCE
+        reads new_shares_outstanding, and each is read with `.get(key, 0)`
+        inside its own branch of _handle_corp_action. A discriminated union
+        would say that properly and the IDL has none - see design section 20.3
+        for why one was not built for a single family.
+    fields:
+      - name: action
+        type: enum
+        values: [SPLIT, CASH_DIVIDEND, SHARES_ISSUANCE]
+      - { name: index_id, type: string, validate: { max_len: 32 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: ratio_numerator, type: int, unit: dimensionless,
+          required: false, nullable: true, omit_when_none: true,
+          validate: { gt: 0 }, doc: "SPLIT." }
+      - { name: ratio_denominator, type: int, unit: dimensionless,
+          required: false, nullable: true, omit_when_none: true,
+          validate: { gt: 0 }, doc: "SPLIT." }
+      - { name: dividend_per_share, type: float, unit: money,
+          required: false, nullable: true, omit_when_none: true,
+          validate: { gt: 0 }, doc: "CASH_DIVIDEND." }
+      - { name: new_shares_outstanding, type: int, unit: shares,
+          required: false, nullable: true, omit_when_none: true,
+          validate: { gt: 0 }, doc: "SHARES_ISSUANCE." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: index_constituent_change
+    topic: "index.constituent_change"
+    transport: [engine_pub]
+    doc:
+      motivation: "Operator to pm-index: add or delist a constituent."
+      since: "1.0"
+      see_also: ["index.constituent_change_ack.{GW_ID}"]
+      example_note: >
+        Both parameters belong to ADD and neither to DELIST, and the
+        hand-written builder omitted each independently rather than as a pair
+        - so unlike DaySummary they are two guards, not one, and stay flat.
+    fields:
+      - name: change_type
+        type: enum
+        values: [ADD, DELIST]
+      - { name: index_id, type: string, validate: { max_len: 32 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: shares_outstanding, type: int, unit: shares, required: false,
+          nullable: true, omit_when_none: true, validate: { gt: 0 },
+          doc: "ADD." }
+      - { name: initial_price, type: float, unit: display_price,
+          required: false, nullable: true, omit_when_none: true,
+          validate: { gt: 0 }, doc: "ADD." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: index_rebalance
+    topic: "index.rebalance"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        ADMIN to pm-index: set shares outstanding for several constituents in
+        one batch.
+      since: "1.0"
+      see_also: ["index.rebalance_ack.{GW_ID}"]
+      example_note: >
+        The whole batch is validated before any of it is applied, so an
+        invalid entry anywhere rejects all of it - the all-or-nothing
+        guarantee the single-action handlers get for free by only ever doing
+        one mutation.
+    fields:
+      - { name: index_id, type: string, validate: { max_len: 32 } }
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: updates, type: list, ref: RebalanceUpdate,
+          validate: { min_items: 1 },
+          doc: "Never empty; the handler rejects an empty batch." }
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 },
+          doc: "Echoed on the ack so a caller can correlate." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: index_corp_action_ack
+    topic: "index.corp_action_ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "pm-index to requestor: the corporate action's outcome."
+      since: "1.0"
+      example_note: >
+        level and divisor are the recomputed values and are present only on
+        acceptance; index_id is absent on the paths that reject before
+        resolving one. reason is always emitted, as "" on success, because the
+        hand-written builder put it in the base payload rather than under a
+        guard.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+      - { name: index_id, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 32 } }
+      - { name: level, type: float, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true }
+      - { name: divisor, type: float, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: index_constituent_change_ack
+    topic: "index.constituent_change_ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "pm-index to requestor: the constituent change's outcome."
+      since: "1.0"
+      example_note: >
+        Field for field the same payload as index.corp_action_ack, on its own
+        topic. Two topics rather than one because a caller waits on the
+        specific reply to the command it sent, and commands/client.py names
+        that topic when it registers the future.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+      - { name: index_id, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 32 } }
+      - { name: level, type: float, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true }
+      - { name: divisor, type: float, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: index_rebalance_ack
+    topic: "index.rebalance_ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "pm-index to ADMIN: the batch's outcome."
+      since: "1.0"
+      example_note: >
+        updated_symbols is always emitted, as 0 on rejection: the builder puts
+        it in the base payload beside accepted and reason, and a rejected
+        batch applied nothing.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+      - { name: updated_symbols, type: int, unit: dimensionless,
+          required: false, default: 0, validate: { ge: 0 } }
+      - { name: index_id, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 32 } }
+      - { name: level, type: float, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true }
+      - { name: divisor, type: float, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true }
+      - { name: command_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: index_error
+    topic: "index.error.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        pm-index to requestor: the request could not be routed to an index at
+        all.
+      since: "1.0"
+      example_note: >
+        Distinct from a rejecting ack. An unknown index_id means pm-index
+        cannot know which ack topic the caller is waiting on, so it answers on
+        the one topic every index caller subscribes to. Once the index is
+        known, a bad symbol or parameter comes back as accepted: false on the
+        specific ack instead.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: accepted, type: bool,
+          doc: "Always false; present so every reply has the same first key." }
+      - { name: reason, type: string, validate: { max_len: 512 } }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }

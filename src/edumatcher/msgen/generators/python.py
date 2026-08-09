@@ -253,11 +253,29 @@ def _dict_entry(indent: str, key: str, value: str) -> list[str]:
 def _unchecked_default(f: Field) -> str:
     """The default for one keyword of a hot-path builder.
 
-    An ``omit_when_empty`` field declares no ``default:`` — the empty string is
+    An ``omit_when_empty`` field declares no ``default:`` — the empty value is
     its absence — so ``f.default`` is None and would emit ``= None`` against a
-    ``str`` annotation.
+    ``str`` or ``list`` annotation.
+
+    A list's default is a literal ``[]`` rather than a factory: this is a
+    function parameter, not a dataclass field, and the body only ever iterates
+    it into a new list, so the shared-mutable-default trap does not apply.
     """
+    if f.type == "list":
+        return "[]"
     return '""' if f.omit_when_empty else _pyval(f.default)
+
+
+def _coerce_value(f: Field) -> str:
+    """Coerce one hot-path argument, without any nullable guard.
+
+    A scalar list coerces element-wise, exactly as ``from_dict`` reads it. A
+    list of *records* never reaches here: a message carrying one gets no
+    hot-path builder at all.
+    """
+    if f.type == "list" and f.item is not None:
+        return f"[{_COERCE[f.item]}(item) for item in {f.name}]"
+    return f"{_COERCE[f.type]}({f.name})"
 
 
 def _coerce_arg(f: Field) -> str:
@@ -266,7 +284,7 @@ def _coerce_arg(f: Field) -> str:
     A nullable field keeps ``None``: coercing it would turn "not set" into the
     string ``"None"`` or raise on ``float(None)``.
     """
-    call = f"{_COERCE[f.type]}({f.name})"
+    call = _coerce_value(f)
     return f"None if {f.name} is None else {call}" if f.nullable else call
 
 
@@ -817,12 +835,36 @@ def _class_block(message: Message) -> list[str]:
     return out
 
 
-def _encode_return(message: Message) -> str:
+def _def_signature(name: str, params: list[str], returns: str) -> list[str]:
+    """Emit one ``def`` line, exploded across lines when it would be too long.
+
+    Black splits an over-long signature by putting each parameter on its own
+    line with a trailing comma, and it keeps the return annotation on the
+    closing line. Reached first by ``parse_index_constituent_change_ack``,
+    whose name alone leaves too little room for ``frames: list[bytes]``.
+    """
+    line = f"def {name}({', '.join(params)}) -> {returns}:"
+    if len(line) <= LINE_LENGTH:
+        return [line]
+    return [f"def {name}("] + [f"    {p}," for p in params] + [f") -> {returns}:"]
+
+
+def _encode_return(message: Message) -> list[str]:
+    """Emit ``make_*``'s return, wrapping the call when it would be too long.
+
+    Black right-hand-splits a call whose arguments do not fit, one argument per
+    line. A parameterised topic on a long message name reaches that: the topic
+    builder and ``obj.to_dict()`` together overrun 88 columns.
+    """
     params = message.topic_params
     if not params:
-        return f"    return _msg.encode(TOPIC_{_const_name(message)}, obj.to_dict())"
+        return [f"    return _msg.encode(TOPIC_{_const_name(message)}, obj.to_dict())"]
     args = ", ".join(f"obj.{p}" for p in params)
-    return f"    return _msg.encode(topic_{message.name}({args}), obj.to_dict())"
+    call = f"topic_{message.name}({args})"
+    line = f"    return _msg.encode({call}, obj.to_dict())"
+    if len(line) <= LINE_LENGTH:
+        return [line]
+    return ["    return _msg.encode(", f"        {call}, obj.to_dict()", "    )"]
 
 
 def _unchecked_block(message: Message) -> list[str]:
@@ -902,7 +944,7 @@ def _unchecked_block(message: Message) -> list[str]:
     for f in omitted:
         test = "" if f.omit_when_empty else " is not None"
         out.append(f"    if {f.name}{test}:")
-        out.append(f"        payload[{_pystr(f.name)}] = {_COERCE[f.type]}({f.name})")
+        out.append(f"        payload[{_pystr(f.name)}] = {_coerce_value(f)}")
     out += [
         "    return [",
         f"        {topic_expr},",
@@ -1329,8 +1371,8 @@ def _function_blocks(message: Message) -> list[list[str]]:
         + [
             f"    obj = {cls}.from_dict(kw)",
             "    obj.validate()",
-            _encode_return(message),
         ]
+        + _encode_return(message)
     )
 
     # A scalar list carries no record, so it keeps its hot-path builder.
@@ -1338,7 +1380,7 @@ def _function_blocks(message: Message) -> list[list[str]]:
         blocks.append(_unchecked_block(message))
 
     blocks.append(
-        [f'def parse_{message.name}(frames: list[bytes]) -> "{cls}":']
+        _def_signature(f"parse_{message.name}", ["frames: list[bytes]"], f'"{cls}"')
         + _docstring(
             "    ",
             "Decode bus frames into a validated message.",

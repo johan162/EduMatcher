@@ -502,6 +502,17 @@ def _load_field(raw: Any, what: str) -> Field:
                     "nothing on a list. Use min_items/max_items for the list, "
                     "or declare a record with 'ref:' if the elements need rules"
                 )
+        if "parse_default" in block:
+            # A list reads through `p.get(key, [])` before any of the
+            # parse_default machinery, so a declared one is never substituted.
+            # Same objection as the scalar rules above: silently doing nothing
+            # is worse than either enforcing or refusing.
+            raise SpecError(
+                f"{where}: 'parse_default' does nothing on a list - absent and "
+                "empty are already the same thing to a list, so a missing key "
+                "reads back as [] and there is no third state for a parse "
+                "fallback to describe"
+            )
     if ftype == "list" and ref is None and item is None:
         raise SpecError(
             f"{where}: a list needs 'ref: <TypeName>' for records or "
@@ -556,17 +567,32 @@ def _load_field(raw: Any, what: str) -> Field:
         )
     empty = bool(block.get("omit_when_empty", False))
     if empty:
-        if ftype != "string":
+        # Strings and lists, not "strings only". The restriction's reason is
+        # that falsy-omit would silently drop a legitimate zero on a number,
+        # and that "" is not a declared value of an enum. Neither applies to a
+        # list: absent and empty are already the same thing to a list on the
+        # read side (`p.get(key, [])`), so omitting on empty is exactly
+        # symmetric with the read and round-trips byte for byte.
+        if ftype not in ("string", "list"):
             raise SpecError(
-                f"{where}: 'omit_when_empty' applies to strings only; this is "
-                f"a {ftype!r} field. On a number it would silently drop a "
-                "legitimate zero, and an enum's empty value is not a declared "
+                f"{where}: 'omit_when_empty' applies to strings and lists only; "
+                f"this is a {ftype!r} field. On a number it would silently drop "
+                "a legitimate zero, and an enum's empty value is not a declared "
                 "one"
             )
+        if ftype == "list":
+            min_items = _load_validate(block.get("validate"), where).min_items
+            if min_items:
+                raise SpecError(
+                    f"{where}: 'omit_when_empty' and validate.min_items "
+                    f"{min_items} contradict each other - a list that must carry "
+                    "an item can never be empty, so the omission could never "
+                    "fire and the field would silently always be present"
+                )
         if "default" in block:
             raise SpecError(
                 f"{where}: 'omit_when_empty' and 'default' contradict each "
-                "other - the empty string *is* the absence for this regime, so "
+                "other - the empty value *is* the absence for this regime, so "
                 "there is nothing for a default to supply. Declaring one would "
                 "read back a value the field can never emit"
             )

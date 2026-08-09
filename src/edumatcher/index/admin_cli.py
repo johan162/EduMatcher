@@ -434,11 +434,17 @@ def _resolve_delta(
         detail = str(rec.get("detail", ""))
         shares: int | None = None
         if rec.get("type") == "ADD_CONSTITUENT":
-            # ADD_CONSTITUENT records don't carry shares_outstanding in the
-            # history payload (only reference_price) — skip; SHARES_ISSUANCE
-            # corp-action records are the authoritative source once applied.
-            continue
-        if rec.get("type") == "CORP_ACTION" and detail.startswith("shares="):
+            # Records written before shares_outstanding was added to the
+            # ADD_CONSTITUENT audit entry carry only reference_price; for those
+            # a SHARES_ISSUANCE corp-action record is still the only source.
+            raw_shares = rec.get("shares_outstanding")
+            if raw_shares is None:
+                continue
+            try:
+                shares = int(raw_shares)
+            except (TypeError, ValueError):
+                shares = None
+        elif rec.get("type") == "CORP_ACTION" and detail.startswith("shares="):
             try:
                 shares = int(detail.split("=", 1)[1])
             except ValueError:

@@ -127,10 +127,22 @@ class TestTheScannerItself:
 
 class TestTheCliReport:
     def test_it_runs_and_exits_zero(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """The report names what is left, and every migrated family is at zero.
+
+        This asserted ``no topic literals remain`` until Phase 5.2e, which
+        holds only while *every* specified family is also adopted. ``index``
+        broke that: its spec and binding are committed and its 23 literals are
+        still literals, because the ``day`` record is a wire change whose
+        adoption is its own phase (design section 20.6). The boundary moved
+        from "nothing is left" to "nothing is left in a family that claims to
+        be migrated", which is what MIGRATED above states and what
+        TestMigratedFamiliesHaveNoLiterals enforces.
+        """
         code = msgen_main(
             ["grep-literals", "--spec", str(SPEC_ROOT), "--src", str(SRC)]
         )
         out = capsys.readouterr().out
         assert code == 0
         assert "trade: 0 literals - migrated" in out
-        assert "no topic literals remain" in out
+        for family in MIGRATED:
+            assert f"{family}: 0 literals - migrated" in out

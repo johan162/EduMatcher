@@ -542,6 +542,7 @@ class IndexProcess:
                 event_type = "ADD_CONSTITUENT"
                 event_payload = {
                     "symbol": symbol,
+                    "shares_outstanding": shares,
                     "reference_price": initial_price,
                     "old_divisor": old_divisor,
                     "new_divisor": idx.calc.divisor,

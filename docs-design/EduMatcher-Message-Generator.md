@@ -2470,6 +2470,256 @@ rejected — with a docstring saying when and why it moved. A guard that fails
 when the rule it guards changes deliberately is doing its job; the discipline
 is to move it rather than remove it.
 
+## 20. `index`: the last flattened record, and a rule narrowed a fourth time
+
+Phase 5.2e specified the `index` family's ten topics. The spec and the binding
+are committed; **adoption is deliberately a separate phase** (5.2f), for the
+reason §20.6 gives.
+
+### 20.1 The third paired-presence group, and the evidence that it is the last
+
+`make_index_update_msg` carried the shape §16.2 named:
+
+```python
+if day_open is not None:
+    payload["day_open"] = day_open
+    payload["day_high"] = day_high
+    payload["day_low"] = day_low
+```
+
+Three keys, one guard, all-or-nothing — the same thing as `session`'s
+`next_state`/`next_at` and `command_id`/`gateway_id`, one field wider. It is
+now a nullable `DaySummary { open, high, low }`, and the producer confirms the
+reading rather than merely permitting it: `_update_day_ohlc` sets all three in
+one branch and `_reset_for_new_session` clears all three, so no state has ever
+existed where one is known and another is not.
+
+Three instances is enough to state the rule generally: **an `a_b`-prefixed
+group of fields sharing one guard is a record that was flattened for want of
+one.**
+
+It is also, on the evidence, the last one. §20's investigation grepped
+`risk`'s 30 topics before locking the shape, precisely because three instances
+suggested a fourth. There is none: every guard across the whole `risk` family
+is single-key — `if command_id:`, `if note:`, `if level:` — which is regime 4,
+not a flattened record. Checking cost one grep and removed the possibility of
+discovering a fourth instance mid-`risk`.
+
+### 20.2 `omit_when_empty` was narrower than its reason — the fourth time
+
+`index.history` replays a five-shape union from an append-only JSONL archive:
+INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST, REBALANCE. Two of the five carry a
+list — INIT's `constituents`, REBALANCE's `symbols` — and a list is always
+emitted, so one `HistoryRecord` would have added `"constituents": []` and
+`"symbols": []` to the four record types that have neither.
+
+That is a change to **already-written data**. The archive is the wire here:
+`IndexHistory.query` reads JSONL off disk and passes the dicts straight
+through. Specifying the family would have rewritten history.
+
+`omit_when_empty` was strings-only. Its stated reasons are that falsy-omit
+would silently drop a legitimate zero on a number, and that `""` is not a
+declared value of an enum. **Neither applies to a list.** §18.3 had already
+established the opposite for the read side: absent and empty are the same
+thing to a list, which is why an optional list reads through `p.get(key, [])`.
+A list that omits when empty is therefore exactly symmetric with its own read,
+and round-trips byte for byte.
+
+So the rule was narrowed to its justification rather than carved out around.
+This is the fourth time (§15.2 units, §18.2 scalar lists in records, §19.1
+depth), and the tally is now worth stating as a habit rather than an
+observation: **when a restriction blocks something, check whether it blocks it
+for the stated reason.** Three of the four times, the rule was simply written
+more broadly than its reason.
+
+Two new rejections came with it. The first is of §17.3's class:
+`omit_when_empty` together with a positive `min_items` is a loader error. A
+list that must carry an item can never be empty, so the omission could never
+fire and the field would silently always be present. `min_items: 0` is fine —
+it says nothing.
+
+The second came from the holistic review rather than the build, and is §18.3's
+regression shape a second time. **`parse_default` on a list loaded, generated
+and did nothing.** A list reads through `p.get(key, [])` in a branch that
+returns before any of the `parse_default` machinery, so a declared
+`parse_default: ["SENTINEL"]` never appeared in the emitted read. It had been
+rejected all along — but only on the `ref:` branch, so a scalar list slipped
+past exactly as the nullable rule did in 5.2c. It is now rejected for every
+list, with the same objection §18.1 made to scalar `validate` rules: silently
+doing nothing is worse than either enforcing or refusing.
+
+Both are worth noting as evidence for §18.3's rule rather than as bugs:
+**when a construct grows a second form, every rule about the first form needs
+re-asking against the second.** That has now caught three defects across two
+phases, all in the same six lines of the loader.
+
+### 20.3 The variant type that was not built
+
+`index.corp_action` is a discriminated union in all but name: `action` selects
+which of three parameter groups the payload carries — `ratio_numerator` +
+`ratio_denominator` for SPLIT, `dividend_per_share` for CASH_DIVIDEND,
+`new_shares_outstanding` for SHARES_ISSUANCE — and `_handle_corp_action` reads
+each with `.get(key, 0)` inside its own branch. `HistoryRecord` is the same
+shape again, with five variants instead of three.
+
+The IDL has no variant construct and did not grow one. The reasoning, against
+§15.1's rule that the message should be checked before the IDL is extended:
+
+* **The message is right.** Unlike the map in §19.2, there is no better flat
+  shape hiding here. A corporate action genuinely has action-specific
+  parameters, and the archive genuinely has five record shapes.
+* **But one family is not evidence.** `risk`'s 30 topics contain no variant
+  (§20.1's grep), so `index` would be the only user. A construct built for one
+  caller is the abstraction §15.5's restrictions exist to avoid.
+* **The cost is bounded and visible.** Flat optional fields describe the field
+  set, the types and the units correctly — which is everything all six
+  consumers need, since every one of them is a `.get`-dispatcher on the
+  discriminant. What the spec cannot say is "a SPLIT requires both ratio
+  fields". That rule stays in the handler.
+
+Recorded as a **stated limitation rather than an omission**, the way §15.4
+recorded maps — with the difference that maps were the wire being wrong and
+this is the IDL being incomplete. `test_the_spec_cannot_say_a_split_needs_both_
+ratio_fields` asserts the gap so it stays a known one. If `risk` or a later
+family produces a second genuine variant, that is the point to build it.
+
+### 20.4 A default that silently dropped a record type
+
+`make_index_history_request_msg` defaulted `types` to `["INIT", "CORP_ACTION",
+"ADD_CONSTITUENT", "DELIST"]`. `IndexHistory.query`'s own default is
+`sorted(STRUCTURAL_RECORD_TYPES)`, which is those four **plus `REBALANCE`**.
+
+So every caller taking the builder's default silently never saw a rebalance
+record, and nothing errored — the request was well-formed, the reply was
+well-formed, and one record type was missing from it. That is §1's failure
+class exactly, in a default value rather than a field name.
+
+The spec omits `types` when unset instead, which is what `log.subscribe` does
+with `lease_sec` and for the same reason: the server applies its own default
+and cannot tell an omitted value from one that happens to equal it. Declaring
+the client's copy of a server-side default is how the two drift.
+`max_records` keeps its default, because there the two agree.
+
+`test_the_five_structural_types_agree_with_the_server` pins the enum against
+`STRUCTURAL_RECORD_TYPES` so the two cannot part again.
+
+### 20.5 A documented behaviour that had never been executed
+
+§18.1 stated that a scalar list keeps its `make_*_unchecked` "since it embeds
+no record". True as a decision, false as code: `_coerce_arg` looked up
+`_COERCE["list"]` and raised `KeyError` at generation time.
+
+Nothing caught it because **no committed spec had ever put a scalar list on a
+message**. `log`'s three are inside `LogFilter`, and a record gets no hot-path
+builder, so the branch was unreachable from every spec in the tree.
+`index.history_request.types` is the first, and it crashed the generator on
+the first `generate`.
+
+This is §15.5's "a restriction with no test is a comment" pointing the other
+way: a *capability* with no spec exercising it is equally a comment. The
+narrow lesson is that the emitter's per-type branches need a spec that reaches
+each of them, and the roadmap's families are not a plan for that — they are a
+plan for the system's messages, which is a different coverage question.
+
+Two more emitter defects came from the same message set, both from
+`index_constituent_change_ack` being the longest message name in any spec and
+both caught by the toolchain rather than by a test:
+
+1. **`make_*`'s return exceeded 88 columns** when a parameterised topic
+   builder and `obj.to_dict()` shared the line. Caught by
+   `test_generated_files_are_black_clean`.
+2. **`parse_*`'s signature exceeded 88 columns** on its own, with no wrapping
+   rule for a `def` line. Same test.
+
+Both wrapping helpers are byte-neutral for the five previously-committed
+families — regenerating rewrote `index.py` and nothing else, which is the
+cheapest available proof that a formatting change did not quietly reformat
+the tree.
+
+### 20.6 Why adoption is a separate phase
+
+Every family before this was specified and adopted in one phase. `index` is
+not, and the reason is worth recording rather than treating as a shortfall.
+
+The `day` record is the second deliberate wire change in the project (§16.3
+was the first), and its blast radius is larger than `session`'s: three
+consumers read the flat triple — `alf_console/display.py`, `stats/main.py`'s
+snapshot writer and `md_gateway/normaliser.py`'s CALF projection — and
+`day_open` appears across six test modules and three user-guide chapters.
+Adoption is a coherent piece of work, and half of it is worse than none: a
+tree where `pm-msgen check` passes while three consumers read a key the
+producer no longer sends is precisely the "no error, just wrong" state §1
+describes.
+
+So 5.2e ships the Phase 1 shape — **spec and binding committed, nothing
+importing them** — and 5.2f does the ten builders, the three consumers and
+the 23 literals as one change. The roadmap and the status warning in
+`06-msgen.md` both say so, because a specified-but-unadopted family looks
+exactly like an adopted one from the outside, and that is the misreading most
+worth preventing.
+
+### 20.7 The audit record that dropped its own input
+
+`index/admin_cli.py`'s history renderer reads `rec.get('shares_outstanding')`
+for an ADD_CONSTITUENT record, and the column had always printed empty. The
+first reading was "a renderer reads a key nobody writes" — a cosmetic defect,
+unrelated to this phase. That was the wrong way round, and the difference is
+§13.6's recurring failure again: reasoning about the symptom instead of
+reading the producer.
+
+`_handle_constituent_change` does this:
+
+```python
+shares = int(payload.get("shares_outstanding", 0))
+initial_price = float(payload.get("initial_price", 0.0))
+idx.calc.add_constituent(symbol, shares, initial_price)   # shares used here
+...
+event_payload = {"symbol": symbol, "reference_price": initial_price, ...}
+```
+
+The share count does the work that determines the constituent's weight and is
+then dropped from the audit entry. It is not a renderer reading a missing
+key; it is **the structural audit log failing to record the input to a
+structural change.** Three things followed from it, all real:
+
+* The renderer printed `shares=` blank on every ADD row, while `index/cli.py`
+  renders the same records and only prints `ref_price=`. Two renderers
+  disagreeing about a record's contents is §17.2 in miniature.
+* `pm-index-admin-cli shares --delta` could not resolve a baseline for a
+  constituent added but never re-issued: `_resolve_delta` skipped
+  ADD_CONSTITUENT records *because* they carried no count, and failed with
+  "pass --new-shares instead" — for a symbol whose share count the operator
+  had supplied one command earlier.
+* The count was durably recorded nowhere. The calculator holds it in
+  `_outstanding_shares`, `_persist_state` does not write it, and the only
+  durable trace of any later change is a CORP_ACTION `detail="shares=1000"`
+  string — a rendered summary, not a field.
+
+So it was fixed here rather than deferred, which is §15.1's rule applying
+cleanly: the IDL surfaced a wire that was wrong, and it is cheaper to correct
+the record while `HistoryRecord` is being written than to specify the gap and
+add the field in a later phase. The handler now records `shares_outstanding`,
+the spec carries it as **optional** — the archive on disk holds records
+without it, and requiring it would make the spec reject the very history it
+exists to describe — and `_resolve_delta` reads it when present, falling back
+to the SHARES_ISSUANCE path for older records.
+
+The guard that pinned the old behaviour,
+`test_delta_resolution_ignores_add_constituent_records`, stated its condition
+as a general fact about ADD records. It is now
+`..._ignores_legacy_add_constituent_records`, covering the pre-5.2e shape,
+with a companion asserting `--delta` resolves from the new one. Same
+discipline as §19.4: the guard moved to the new boundary rather than being
+deleted, with a docstring saying when and why.
+
+The wider point is about how the finding was nearly lost. It was written up
+as "a find left alone, per the rule that a change should trace to the
+request" — a correct-sounding application of a good rule to a misdiagnosis.
+The surgical-change rule protects against scope creep; it is not a reason to
+leave a defect undiagnosed, and "unrelated to this phase" is a conclusion that
+has to be earned by reading the producer rather than assumed from the
+consumer.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first

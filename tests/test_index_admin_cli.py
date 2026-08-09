@@ -542,9 +542,17 @@ class TestCmdShares:
         captured = capsys.readouterr()
         assert "no prior shares_outstanding" in captured.err
 
-    def test_delta_resolution_ignores_add_constituent_records(self) -> None:
-        """ADD_CONSTITUENT history records carry reference_price, not
-        shares_outstanding — they must not be mistaken for a share count."""
+    def test_delta_resolution_ignores_legacy_add_constituent_records(self) -> None:
+        """A pre-5.2e ADD_CONSTITUENT record carries no share count at all.
+
+        The boundary moved in 5.2e. Until then the handler used the submitted
+        shares_outstanding to weight the constituent and then dropped it from
+        the audit entry, so *every* ADD record looked like this and --delta
+        could never resolve from one. It is now written, and the companion
+        test below covers the new shape; this one keeps the archive's older
+        records readable, where reference_price must still not be mistaken for
+        a share count.
+        """
         client, push = _client(
             recv_queue=_q(
                 make_index_history_msg(
@@ -572,6 +580,46 @@ class TestCmdShares:
         ok = admin_cli._cmd_shares(client, args)
         assert ok is False
         assert len(push.sent) == 1  # only the history request
+
+    def test_delta_resolves_from_an_add_constituent_record(self) -> None:
+        """The point of recording the share count on the ADD entry.
+
+        Before 5.2e a constituent that had been added but never re-issued had
+        no resolvable baseline, so ``shares --delta`` failed with "pass
+        --new-shares instead" — for a symbol whose share count the operator
+        had supplied themselves one command earlier.
+        """
+        client, push = _client(
+            recv_queue=_q(
+                make_index_history_msg(
+                    gateway_id="OPS01",
+                    index_id="TECH10",
+                    records=[
+                        {
+                            "type": "ADD_CONSTITUENT",
+                            "timestamp": 50.0,
+                            "index_id": "TECH10",
+                            "symbol": "AAPL",
+                            "shares_outstanding": 1000,
+                            "reference_price": 118.5,
+                        }
+                    ],
+                ),
+                make_index_corp_action_ack_msg(
+                    "OPS01", accepted=True, index_id="TECH10", level=101.0, divisor=1.0
+                ),
+            )
+        )
+        args = _ns(
+            command="shares",
+            index="tech10",
+            sym="aapl",
+            new_shares=None,
+            delta=-100,
+        )
+        assert admin_cli._cmd_shares(client, args) is True
+        _topic, payload = decode(push.sent[-1])
+        assert payload["new_shares_outstanding"] == 900
 
 
 # ---------------------------------------------------------------------------

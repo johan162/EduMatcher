@@ -155,7 +155,7 @@ topic constant.
 | `default` | what a *producer* gets when it omits the field. Must be a legal value |
 | `nullable` | the value may be `None`; the key is still always emitted, as `null` |
 | `omit_when_none` | implies `nullable`, and **omits the key entirely** when the value is `None` |
-| `omit_when_empty` | strings only. Omits the key when the value is `""` |
+| `omit_when_empty` | strings and lists. Omits the key when the value is `""` / `[]` |
 | `parse_default` | what `from_dict` substitutes when the key is missing from an *inbound* payload. Need not be legal — see [Coercion vs validation](#coercion-and-validation-are-different-jobs) |
 | `unit` | required on every numeric field. One of `display_price`, `ticks`, `shares`, `epoch_seconds`, `epoch_nanos`, `percent`, `dimensionless`, `money` |
 | `doc` | prose for the generated documentation and the `describe_*()` table |
@@ -191,18 +191,28 @@ guess which:
       - { name: client_tag, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
 
-      # 4. absent when the string is empty (strings only)
+      # 4. absent when the value is empty (strings and lists only)
       - { name: prev_state, type: string, required: false,
           omit_when_empty: true, validate: { max_len: 32 } }
 ```
 
 Regime 4 keys on `""` rather than on `None`, and it is the one the codebase
 used most before any of this existed: 27 hand-written builders drop a key with
-`if x:`. It is deliberately narrow — **strings only**, since on a number it
-would silently drop a legitimate zero — and it cannot be combined with either
-`omit_when_none` (a field omits on one or the other, not both) or `default`
-(the empty string *is* the absence here, so there is nothing for a default to
-supply). Both combinations are loader errors.
+`if x:`. It is deliberately narrow — **strings and lists only**, since on a
+number it would silently drop a legitimate zero and `""` is not a declared
+value of an enum — and it cannot be combined with either `omit_when_none` (a
+field omits on one or the other, not both) or `default` (the empty value *is*
+the absence here, so there is nothing for a default to supply). Both
+combinations are loader errors.
+
+On a list it is exactly symmetric with the read: an optional list already
+reads back through `p.get(key, [])`, so absent and `[]` are the same value to
+every reader, and omitting one is the same statement as emitting the other.
+That makes it the regime for a field that only some variants of a record
+carry — `index`'s `HistoryRecord` is five archived shapes in one record, and
+without it four of them would grow an `"constituents": []` they never had. A
+`min_items` above zero contradicts it and is a loader error: a list that must
+carry an item can never be empty, so the omission could never fire.
 
 ```python
 >>> _topic, payload = decode(make_cancelled_msg("GW1", "O1"))
@@ -1299,7 +1309,9 @@ What it does not, and will not:
 | 5.2b | the `book`/`depth` family | **done** |
 | 5.2c | IDL `list` of scalars + the `log` control messages | **done** |
 | 5.2d | records to any depth + `log` server-side topics | **done** |
-| 5.2e+ | `index`, `risk` | not started |
+| 5.2e | IDL `omit_when_empty` on lists + `index.yaml` and its binding | **done** — committed unused |
+| 5.2f | adopt `index`: the ten builders, the `day` record, literals to zero | not started |
+| 5.3 | `risk` — 30 topics, planned as two sessions | not started |
 | 6 | Generated `271-message-appendix.md` | not started |
 
 !!! success "The guarantee is live"
@@ -1308,10 +1320,17 @@ What it does not, and will not:
     generated file, now fails the build rather than merging quietly.
 
 !!! warning "It only covers what is specified"
-    Four families of roughly fifteen have a spec — `trade`, `order`, `session`
-    and `book` — covering 20 messages and 6 record types. `log`, `index` and
-    `risk` do not, and everything unspecified still drifts exactly as it did
-    before: the check cannot protect a message it has never been told about.
+    Six families of roughly fifteen have a spec — `trade`, `order`, `session`,
+    `book`, `log` and `index` — and `risk` does not. Everything unspecified
+    still drifts exactly as it did before: the check cannot protect a message
+    it has never been told about.
+
+    `index` is specified but **not yet adopted**: its binding is committed and
+    checked against the spec, and nothing imports it. Its 23 topic literals
+    across 8 modules are still literals, and `index.update` still puts
+    `day_open`/`day_high`/`day_low` on the wire flat rather than as the
+    `day` record the spec declares. That is Phase 5.2f, and until it lands
+    `index` is a description of the wire rather than a producer of it.
 
     Where a family *is* specified, its topic literals are at zero. Adding a
     family to `MIGRATED` in `tests/test_msgen_literals.py` is what makes that
