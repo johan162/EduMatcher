@@ -70,6 +70,13 @@ from edumatcher.log_srv.writer import LogEventRow
 from edumatcher.logclient.protocol import iso_utc
 from edumatcher.messaging.bus import get_context
 from edumatcher.models.message import decode, encode
+from edumatcher.models.generated.log import (
+    TOPIC_LOG_BACKFILL_REQUEST,
+    TOPIC_LOG_RENEW,
+    TOPIC_LOG_STATUS_REQUEST,
+    TOPIC_LOG_SUBSCRIBE,
+    TOPIC_LOG_UNSUBSCRIBE,
+)
 
 log = logging.getLogger(__name__)
 
@@ -571,15 +578,15 @@ class LogPubSubHub:
     def _dispatch_control(
         self, topic: str, sub_id: str, payload: dict[str, Any], now: float
     ) -> None:
-        if topic == "log.subscribe":
+        if topic == TOPIC_LOG_SUBSCRIBE:
             self._handle_subscribe(sub_id, payload, now)
-        elif topic == "log.renew":
+        elif topic == TOPIC_LOG_RENEW:
             self._handle_renew(sub_id, now)
-        elif topic == "log.unsubscribe":
+        elif topic == TOPIC_LOG_UNSUBSCRIBE:
             self._handle_unsubscribe(sub_id)
-        elif topic == "log.backfill_request":
+        elif topic == TOPIC_LOG_BACKFILL_REQUEST:
             self._handle_backfill_request(sub_id, payload, now)
-        elif topic == "log.status_request":
+        elif topic == TOPIC_LOG_STATUS_REQUEST:
             self._handle_status_request(sub_id, now)
         else:
             self._error(sub_id, ERR_BAD_REQUEST, f"unsupported topic: {topic}")

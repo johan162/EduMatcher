@@ -2350,6 +2350,59 @@ should be asked whether it has an unsatisfiable configuration, and if it does,
 that configuration belongs in the loader's rejection set rather than in a
 runtime failure.
 
+## 18. `log`: lists of scalars, and a rule that moved house
+
+Phase 5.2c specified the five subscriber to pm-log-srv control messages.
+
+### 18.1 `list` learned `item:`
+
+`LogFilter`'s `processes`, `loggers` and `sessions` are lists of plain strings.
+`list` required `ref:` naming a declared record, so it could not describe them.
+
+This is an ordinary feature gap, not a wire problem: `["engine", "gateway"]` is
+a list of names, not a flattened record. So `list` now takes **either**
+`ref: <TypeName>` for records or `item: <scalar>` for scalars, and exactly one
+of the two. `enum` and `ticks` are excluded as element types — an enum needs
+`values:` per element, and a tick list has no use here; a record is the answer
+if the elements need rules.
+
+A scalar list keeps its `make_*_unchecked`, since it embeds no record.
+
+### 18.2 The record restriction was narrowed, not lifted
+
+"A nested type's fields are scalars only" (15.5) existed to keep both
+generators non-recursive. A list of *strings* is flat, so it was never the
+thing being excluded — the rule was simply written more broadly than its
+reason. A record may now hold a scalar list; a record, or a list of records,
+inside a record is still rejected.
+
+Worth generalising: **when a restriction blocks something, check whether it
+blocks it for the stated reason.** This one did not, and the fix was to narrow
+the rule to its justification rather than to carve out an exception.
+
+### 18.3 Three bugs, and one of them was a regression
+
+1. **`default: []` on a list did not import.** Python rejects a mutable
+   dataclass default outright, so the generated module raised `ValueError` at
+   class creation. The emitter now uses `field(default_factory=list)`, and the
+   loader rejects any non-empty list default — a value nobody chose would
+   otherwise appear on the wire as if they had.
+2. **An optional list read through a strict subscript.** `p["loggers"]` raised
+   on a payload that simply had nothing to say. Absent and empty are the same
+   thing to a list, so it reads `p.get(key, [])`.
+3. **A regression, found by the review.** The "a list may not be nullable"
+   rule from 15.5 lived inside the loader's *record* branch. When `list` learned
+   `item:`, a scalar list took a different branch and slipped past it. The rule
+   was still tested — but only for record lists, so nothing noticed.
+
+The third is the one to remember, and it sharpens 17.3's lesson. A tested rule
+is not a safe rule if the test only covers one path into it. **When a construct
+grows a second form, every rule about the first form needs re-asking against the
+second** — the loader is one function, but its branches are not.
+
+Scalar rules (`max_len`, `gt`, `pattern`, …) on a list are now rejected too:
+they silently did nothing, which is worse than either enforcing or refusing.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first

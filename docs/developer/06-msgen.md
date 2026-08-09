@@ -148,16 +148,19 @@ topic constant.
 | Key | Meaning |
 |---|---|
 | `name` | snake_case identifier, unique within the message |
-| `type` | `string`, `int`, `float`, `bool`, `enum`, `ticks` |
+| `type` | `string`, `int`, `float`, `bool`, `enum`, `ticks`, `nested`, `list` |
+| `ref` | for `nested`, and for a `list` **of records**: the name of a family-level entry under `types:` |
+| `item` | for a `list` **of scalars**: the element type. Exactly one of `ref` / `item` |
 | `required` | default `true`. A `required: false` field **must** say which presence regime it means — see below |
 | `default` | what a *producer* gets when it omits the field. Must be a legal value |
 | `nullable` | the value may be `None`; the key is still always emitted, as `null` |
 | `omit_when_none` | implies `nullable`, and **omits the key entirely** when the value is `None` |
+| `omit_when_empty` | strings only. Omits the key when the value is `""` |
 | `parse_default` | what `from_dict` substitutes when the key is missing from an *inbound* payload. Need not be legal — see [Coercion vs validation](#coercion-and-validation-are-different-jobs) |
 | `unit` | required on every numeric field. One of `display_price`, `ticks`, `shares`, `epoch_seconds`, `epoch_nanos`, `percent`, `dimensionless`, `money` |
 | `doc` | prose for the generated documentation and the `describe_*()` table |
 | `values` | required for `type: enum`; declaration order is authoritative |
-| `validate` | `gt`, `ge`, `lt`, `le`, `max_len`, `min_len`, `max_items`, `pattern` |
+| `validate` | `gt`, `ge`, `lt`, `le`, `max_len`, `min_len`, `min_items`, `max_items`, `pattern` |
 
 !!! warning "The loader is strict, on purpose"
     An unknown key **raises**. It is not ignored, and it is not warned about.
@@ -171,23 +174,35 @@ topic constant.
     which is precisely the class of bug the generator exists to kill. Tolerating
     it here would defeat the whole tool.
 
-### Presence: three regimes, stated explicitly
+### Presence: four regimes, stated explicitly
 
-An optional field is one of three things on the wire, and the loader will not
+An optional field is one of four things on the wire, and the loader will not
 guess which:
 
 ```yaml
-      # always present, "" when the producer omits it
+      # 1. always present, "" when the producer omits it
       - { name: reason, type: string, required: false, default: "" }
 
-      # always present, null when unset
+      # 2. always present, null when unset
       - { name: price, type: float, required: false, nullable: true,
           unit: display_price }
 
-      # absent entirely when unset
+      # 3. absent entirely when unset
       - { name: client_tag, type: string, required: false, nullable: true,
           omit_when_none: true, validate: { max_len: 64 } }
+
+      # 4. absent when the string is empty (strings only)
+      - { name: prev_state, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 32 } }
 ```
+
+Regime 4 keys on `""` rather than on `None`, and it is the one the codebase
+used most before any of this existed: 27 hand-written builders drop a key with
+`if x:`. It is deliberately narrow — **strings only**, since on a number it
+would silently drop a legitimate zero — and it cannot be combined with either
+`omit_when_none` (a field omits on one or the other, not both) or `default`
+(the empty string *is* the absence here, so there is nothing for a default to
+supply). Both combinations are loader errors.
 
 ```python
 >>> _topic, payload = decode(make_cancelled_msg("GW1", "O1"))
@@ -224,6 +239,107 @@ Declaring it makes it reviewable.
         unit: display_price      # not ticks; the publisher already converted
         validate: { gt: 0 }
 ```
+
+### Records: `types:`, `nested` and `list`
+
+A family may declare record types once, at the top of its file, and reference
+them by name. This is how `order.oco` carries two legs and how a book snapshot
+carries two price ladders and a trade tape.
+
+```yaml
+family: book
+version: 1
+
+types:
+  BookLevel:
+    doc: "One aggregated price level."
+    fields:
+      - { name: price, type: float, unit: display_price }
+      - { name: qty,   type: int,   unit: shares }
+      - { name: count, type: int,   unit: dimensionless }
+
+messages:
+  - name: book_snapshot
+    topic: "book.{symbol}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Aggregated view of one instrument's order book."
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: bids, type: list, ref: BookLevel }
+      - { name: asks, type: list, ref: BookLevel }
+```
+
+The generator emits one `@dataclass` per type, **before** the messages that
+embed it, with the same `from_dict` / `to_dict` / `validate` trio a message
+gets. Rules declared on a record's fields therefore apply everywhere it is
+embedded, which is the point of declaring it once:
+
+```python
+>>> snap = BookSnapshot.from_dict(payload)
+>>> snap.bids[0].price          # a real BookLevel, not a dict
+95.0
+>>> snap.validate()             # walks every level of both ladders
+```
+
+A `nested` field holds one record; combine it with `nullable` +
+`omit_when_none` to say **both-or-neither** for a group of fields that only
+make sense together:
+
+```yaml
+      - { name: next, type: nested, ref: NextTransition, required: false,
+          nullable: true, omit_when_none: true }
+```
+
+That is why the IDL has no `co_present: [a, b]` constraint. A pair of keys that
+must travel together is a record that was flattened into `a_b` names, and a
+nullable record makes the half-set state *unrepresentable* rather than merely
+invalid. `session.state` is the worked example — see design section 16.2.
+
+A `list` takes `min_items` / `max_items`, which are ordinary `validate:` rules
+enforced in both bindings:
+
+```yaml
+      - { name: legs, type: list, ref: ComboLeg,
+          validate: { min_items: 2, max_items: 10 } }
+```
+
+A list of **scalars** uses `item:` instead of `ref:`:
+
+```yaml
+      - { name: processes, type: list, item: string, required: false }
+```
+
+Absent and empty are the same thing to a list, so an optional one reads back as
+`[]` and needs no `default:` — declaring a non-empty one is an error, since it
+would put a value nobody chose on the wire. Scalar rules (`max_len`, `gt`,
+`pattern`, …) are rejected on a list: they would silently do nothing. A scalar
+list keeps its `make_*_unchecked`, since it embeds no record.
+
+#### What records deliberately do not do
+
+Each of these is an error in a spec file rather than a wrong answer in a
+committed binding:
+
+| Rejected | Why |
+|---|---|
+| a record inside a record, or a **list of records** inside one | keeps both generators non-recursive. A list of *scalars* inside a record is fine — it is flat |
+| a record or list on `calf` / `balf` | a record inside a key-value line or a fixed binary frame is an unsolved layout question |
+| a `nullable` list | an empty list already says "nothing"; null would be a second spelling every reader must handle |
+| a type nothing references | it would generate a class nothing constructs |
+| `min_items` above `max_items`, or a negative bound | no list could satisfy it, so *every* message would fail `validate()` at runtime |
+
+A message containing a record or a list also gets **no `make_*_unchecked`**.
+That builder is a dict literal and a record has no literal form; neither combo,
+OCO nor a book snapshot is a measured hot path, so omitting it is more honest
+than emitting a slow function under a name that promises speed. The omission is
+per message — a flat message in the same family still has one.
+
+!!! note "Maps are not supported, deliberately"
+    A spec that appears to need one is usually describing a message that should
+    have been a list of records. `leg_fill_qty: {0: 5}` only ever meant
+    `legs[0].filled_qty = 5`, and the list index was already the key. See
+    design section 15.4.
 
 ### Topics with parameters
 
@@ -390,6 +506,26 @@ A transport is declared with three keys:
 
 `keys` may map one field to several wire names (RALF's
 `id: [EXEC_ID, MATCH_ID]`).
+
+!!! warning "A topic parameter is dropped from the bus payload by default"
+    `order.ack.{gateway_id}` names the gateway in its topic and does **not**
+    repeat it in the body, which is what the hand-written builder did — so that
+    is the default.
+
+    `book.{symbol}` is the other case: `OrderBook.snapshot()` puts `symbol` in
+    the body *as well*, and every subscriber reads it from there. Say so with
+    an explicit `include:` that lists the parameter:
+
+    ```yaml
+        engine_pub:
+          frames: [topic, json_payload]
+          include: [symbol, tick_decimals, bids, asks, ...]
+    ```
+
+    "Named in the topic" and "absent from the body" are two different facts,
+    and only the second is a property of the wire. The first generated
+    `book.{symbol}` binding silently lost the key because the default conflated
+    them.
 
 The generated Python side is a pair of functions per transport:
 
@@ -580,7 +716,7 @@ Everything below uses the committed `trade` family. Import from
 | `is_trade_executed(topic)` | topic test, for messages with no parameters |
 | `topic_*()` / `PREFIX_*` / `match_*()` | build, subscribe and destructure a *parameterised* topic |
 | `make_trade_executed(**kw)` | coerce, validate, return the two bus frames |
-| `make_trade_executed_unchecked(**kw)` | identical frames, no validation — hot paths only |
+| `make_trade_executed_unchecked(**kw)` | identical frames, no validation — hot paths only. **Not emitted** for a message carrying a `nested` or `list` field |
 | `parse_trade_executed(frames)` | frames to a validated object |
 | `.from_dict()` / `.to_dict()` | interop with existing dict-based code |
 | `.validate()` | standalone strictness check |
@@ -1161,7 +1297,8 @@ What it does not, and will not:
 | 5.1e | IDL `list[T]` + `order.combo` | **done** — the `order` family is complete |
 | 5.2a | IDL `omit_when_empty` + the `session` family | **done** |
 | 5.2b | the `book`/`depth` family | **done** |
-| 5.2c+ | `log`, `index`, `risk` | not started |
+| 5.2c | IDL `list` of scalars + the `log` control messages | **done** |
+| 5.2d+ | `log` server-side topics, `index`, `risk` | not started |
 | 6 | Generated `271-message-appendix.md` | not started |
 
 !!! success "The guarantee is live"
@@ -1170,10 +1307,15 @@ What it does not, and will not:
     generated file, now fails the build rather than merging quietly.
 
 !!! warning "It only covers what is specified"
-    One family of roughly fifteen has a spec. Everything else is still
-    hand-written and still drifts exactly as it did before — the check cannot
-    protect a message it has never been told about. `"trade.executed"` also
-    remains a string literal in 14 modules that subscribe to it (Phase 5).
+    Four families of roughly fifteen have a spec — `trade`, `order`, `session`
+    and `book` — covering 20 messages and 6 record types. `log`, `index` and
+    `risk` do not, and everything unspecified still drifts exactly as it did
+    before: the check cannot protect a message it has never been told about.
+
+    Where a family *is* specified, its topic literals are at zero. Adding a
+    family to `MIGRATED` in `tests/test_msgen_literals.py` is what makes that
+    stick — a new literal for one of its topics then fails the suite instead of
+    merging quietly.
 
 ## What Phase 5.1b found
 

@@ -424,7 +424,11 @@ def _load_field(raw: Any, what: str, *, allow_nested: bool = True) -> Field:
         raise SpecError(f"{where}: missing required key 'type'")
 
     ftype = block["type"]
-    allowed = SCALAR_TYPES + (RECORD_TYPES if allow_nested else ())
+    # Inside a nested type, `list` is allowed but `nested` is not, and a list
+    # there must be of scalars (checked below). The rule the restriction exists
+    # for is "the generators stay non-recursive" — a list of strings is flat,
+    # so it was never the thing being excluded.
+    allowed = SCALAR_TYPES + (RECORD_TYPES if allow_nested else ("list",))
     if ftype not in allowed:
         near = _nearest(str(ftype), set(allowed))
         hint = f" (did you mean {near!r}?)" if near else ""
@@ -439,27 +443,81 @@ def _load_field(raw: Any, what: str, *, allow_nested: bool = True) -> Field:
         )
 
     ref = block.get("ref")
-    if ftype in RECORD_TYPES:
-        if not ref:
+    item = block.get("item")
+    if ftype == "list" and item is not None:
+        # A list of scalars: `item:` names the element type, where `ref:` names
+        # a record. Exactly one of the two - they are different kinds of list.
+        if ref is not None:
             raise SpecError(
-                f"{where}: a {ftype} field requires 'ref: <TypeName>' naming an "
-                "entry under the family's 'types:' block"
+                f"{where}: a list declares 'ref: <TypeName>' for records or "
+                "'item: <scalar>' for scalars, not both"
             )
+        if item not in SCALAR_TYPES:
+            raise SpecError(
+                f"{where}: list item type {item!r} is not one of "
+                f"{list(SCALAR_TYPES)}. A list of records uses 'ref:' instead"
+            )
+        default = block.get("default")
+        if default is not None and default != []:
+            raise SpecError(
+                f"{where}: the only default a list may declare is [], and it is "
+                "the implied one. A non-empty default would be a value the "
+                "producer never chose appearing on the wire as if it had"
+            )
+        if item in ("enum", "ticks"):
+            raise SpecError(
+                f"{where}: a list of {item!r} is not generated - an enum needs "
+                "'values:' per element and a tick list has no use here. Declare "
+                "a record with 'ref:' if the elements need rules"
+            )
+    elif ftype in RECORD_TYPES:
+        if not allow_nested:
+            raise SpecError(
+                f"{where}: a nested type's fields are scalars only, or a list "
+                "of scalars via 'item:'. A record inside a record - or a list "
+                "of them - is what keeps the generators non-recursive"
+            )
+        if not ref:
+            options = (
+                "'ref: <TypeName>' for a list of records, or 'item: <scalar>' "
+                "for a list of scalars"
+                if ftype == "list"
+                else "'ref: <TypeName>' naming an entry under 'types:'"
+            )
+            raise SpecError(f"{where}: a {ftype} field requires {options}")
         for key in ("values", "unit", "default", "parse_default"):
             if block.get(key) is not None:
                 raise SpecError(
                     f"{where}: {key!r} is not meaningful on a {ftype} field - "
                     "declare it on the referenced type's own fields instead"
                 )
-        if ftype == "list" and (block.get("nullable") or block.get("omit_when_none")):
+    elif ref is not None:
+        raise SpecError(f"{where}: 'ref' is only meaningful for {list(RECORD_TYPES)}")
+    if item is not None and ftype != "list":
+        raise SpecError(f"{where}: 'item' is only meaningful for type: list")
+    if ftype == "list":
+        # These apply to every list, records and scalars alike. They lived
+        # inside the record branch until a scalar list slipped past them.
+        if block.get("nullable") or block.get("omit_when_none"):
             raise SpecError(
                 f"{where}: a list may not be nullable. An empty list is how a "
                 "list says it has nothing; null would be a second way to say "
                 "the same thing, and every reader would have to handle both. "
                 "Use 'validate: {min_items: 0}' if none is legal"
             )
-    elif ref is not None:
-        raise SpecError(f"{where}: 'ref' is only meaningful for {list(RECORD_TYPES)}")
+        scalar_rules = _require_mapping(block.get("validate") or {}, where)
+        for rule in ("max_len", "min_len", "gt", "ge", "lt", "le", "pattern"):
+            if scalar_rules.get(rule) is not None:
+                raise SpecError(
+                    f"{where}: validate.{rule} is a scalar rule and does "
+                    "nothing on a list. Use min_items/max_items for the list, "
+                    "or declare a record with 'ref:' if the elements need rules"
+                )
+    if ftype == "list" and ref is None and item is None:
+        raise SpecError(
+            f"{where}: a list needs 'ref: <TypeName>' for records or "
+            "'item: <scalar>' for scalars"
+        )
 
     values = block.get("values")
     if ftype == "enum":
@@ -552,7 +610,7 @@ def _load_field(raw: Any, what: str, *, allow_nested: bool = True) -> Field:
         omit_when_empty=empty,
         values=tuple(values) if values else None,
         ref=ref,
-        item=block.get("item"),
+        item=item,
         validate=_load_validate(block.get("validate"), where),
         deprecated_since=block.get("deprecated_since"),
         removed_after=block.get("removed_after"),
@@ -1143,7 +1201,7 @@ def load_family(path: Path, transports: dict[str, Transport]) -> Family:
     declared = {t.name for t in types}
     for message in messages:
         for f in message.fields:
-            if f.type not in RECORD_TYPES:
+            if f.type not in RECORD_TYPES or f.ref is None:
                 continue
             if f.ref not in declared:
                 near = _nearest(str(f.ref), declared)
@@ -1165,7 +1223,12 @@ def load_family(path: Path, transports: dict[str, Transport]) -> Family:
                 "wrong answer in a committed binding"
             )
 
-    used = {f.ref for m in messages for f in m.fields if f.type in RECORD_TYPES}
+    used = {
+        f.ref
+        for m in messages
+        for f in m.fields
+        if f.type in RECORD_TYPES and f.ref is not None
+    }
     unused = sorted(declared - used)
     if unused:
         raise SpecError(

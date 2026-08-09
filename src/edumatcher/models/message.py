@@ -40,6 +40,7 @@ from edumatcher.models.feed_schema import (
 # instead would raise ImportError whenever the generated module happened to be
 # imported first.
 from edumatcher.models.generated import book as _gen_book
+from edumatcher.models.generated import log as _gen_log
 from edumatcher.models.generated import order as _gen_order
 from edumatcher.models.generated import session as _gen_session
 from edumatcher.models.generated import trade as _gen_trade
@@ -1550,17 +1551,21 @@ def make_log_subscribe_msg(
         payload["lease_sec"] = lease_sec
     if notify_interval_ms is not None:
         payload["notify_interval_ms"] = notify_interval_ms
-    return encode("log.subscribe", payload)
+    return encode(_gen_log.TOPIC_LOG_SUBSCRIBE, payload)
 
 
 def make_log_renew_msg(sub_id: str) -> list[bytes]:
     """Subscriber → pm-log-srv: lease keepalive; the liveness signal."""
-    return encode("log.renew", {"sub_id": sub_id, "timestamp": time.time()})
+    return encode(
+        _gen_log.TOPIC_LOG_RENEW, {"sub_id": sub_id, "timestamp": time.time()}
+    )
 
 
 def make_log_unsubscribe_msg(sub_id: str) -> list[bytes]:
     """Subscriber → pm-log-srv: close a subscription immediately."""
-    return encode("log.unsubscribe", {"sub_id": sub_id, "timestamp": time.time()})
+    return encode(
+        _gen_log.TOPIC_LOG_UNSUBSCRIBE, {"sub_id": sub_id, "timestamp": time.time()}
+    )
 
 
 def make_log_backfill_request_msg(
@@ -1575,9 +1580,11 @@ def make_log_backfill_request_msg(
         payload["filter"] = log_filter
     if max_rows is not None:
         payload["max_rows"] = max_rows
-    return encode("log.backfill_request", payload)
+    return encode(_gen_log.TOPIC_LOG_BACKFILL_REQUEST, payload)
 
 
 def make_log_status_request_msg(sub_id: str) -> list[bytes]:
     """Subscriber → pm-log-srv: request subscription/server diagnostics."""
-    return encode("log.status_request", {"sub_id": sub_id, "timestamp": time.time()})
+    return encode(
+        _gen_log.TOPIC_LOG_STATUS_REQUEST, {"sub_id": sub_id, "timestamp": time.time()}
+    )

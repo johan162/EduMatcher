@@ -1,0 +1,140 @@
+# Canonical specification for the `log` message family (LALF-PS).
+#
+# Phase 5.2c, part one: the five subscriber -> pm-log-srv control messages.
+# These are the half that already had hand-written builders in
+# models/message.py; the server's outbound topics are built inline in
+# log_srv/pubsub.py, which holds the lease deadlines, cursors and counters
+# those payloads report, and they join in part two.
+#
+# THE FIRST LIST OF SCALARS. LogFilter's `processes`, `loggers` and `sessions`
+# are lists of plain strings, not of records. `list` previously required
+# `ref:` naming a declared type, so this family is why it also accepts
+# `item: <scalar>`. That is an ordinary feature gap rather than a wire problem:
+# ["engine", "gateway"] is not a flattened record, it is a list of names.
+#
+# ADOPTION IS TOPIC CONSTANTS ONLY. The builders keep passing `filter` through
+# as a raw dict. The server parses it with LogFilter.from_payload, which is
+# deliberately lenient - it accepts a bare string where a list is expected -
+# and routing the builder through the generated record would narrow that
+# without anyone asking. Same call as order.new in 5.1b: take the constants
+# and the declared contract, leave the path alone.
+
+family: log
+version: 1
+
+types:
+  LogFilter:
+    doc: >
+      A row predicate, applied two ways by the server: evaluated in Python
+      against a freshly persisted row on the live path, and compiled to a
+      parameterised SQL WHERE clause for backfill. One definition with two
+      evaluators is what guarantees a subscriber's backfill and its subsequent
+      live stream contain the same kind of rows - a mismatch would show up as
+      rows appearing or vanishing at the seam.
+
+      Every field is optional; an empty filter matches everything.
+    fields:
+      - { name: min_level, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 16 },
+          doc: "Lowest level to include, e.g. WARNING." }
+      - { name: processes, type: list, item: string, required: false,
+          default: [], doc: "Process names to include; empty means all." }
+      - { name: loggers, type: list, item: string, required: false,
+          default: [], doc: "Logger names to include; empty means all." }
+      - { name: sessions, type: list, item: string, required: false,
+          default: [], doc: "Session ids to include; empty means all." }
+      - { name: contains, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 256 },
+          doc: "Substring the message must contain." }
+      - { name: exceptions_only, type: bool, required: false, default: false }
+
+messages:
+  - name: log_subscribe
+    topic: "log.subscribe"
+    transport: [engine_pub]
+    doc:
+      motivation: "Subscriber to pm-log-srv: open or replace a leased stream."
+      since: "1.0"
+      see_also: ["log.renew", "log.unsubscribe"]
+      example_note: >
+        Everything past sub_id and mode is omitted when unset rather than sent
+        as a default, which is what the hand-written builder did - the server
+        applies its own defaults and cannot tell an omitted lease_sec from one
+        that happens to equal the default.
+    fields:
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: mode, type: enum, values: [STREAM, NOTIFY], default: "STREAM",
+          required: false,
+          doc: "STREAM pushes every row; NOTIFY pushes periodic counts." }
+      - { name: filter, type: nested, ref: LogFilter, required: false,
+          nullable: true, omit_when_none: true }
+      - { name: backfill_minutes, type: int, unit: dimensionless,
+          required: false, nullable: true, omit_when_none: true,
+          doc: "Replay this many minutes before the live stream starts." }
+      - { name: lease_sec, type: int, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "How long the subscription survives without a renew." }
+      - { name: notify_interval_ms, type: int, unit: dimensionless,
+          required: false, nullable: true, omit_when_none: true }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: log_renew
+    topic: "log.renew"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Lease keepalive. The liveness signal: a subscriber that stops renewing
+        is dropped, which is how the server reclaims a viewer that went away
+        without unsubscribing.
+      since: "1.0"
+      see_also: ["log.lease_expired.{SUB_ID}"]
+    fields:
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: log_unsubscribe
+    topic: "log.unsubscribe"
+    transport: [engine_pub]
+    doc:
+      motivation: "Close a subscription immediately rather than letting it lapse."
+      since: "1.0"
+    fields:
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: log_backfill_request
+    topic: "log.backfill_request"
+    transport: [engine_pub]
+    doc:
+      motivation: "Replay the last N minutes of history for one subscription."
+      since: "1.0"
+      see_also: ["log.backfill.{SUB_ID}"]
+    fields:
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: minutes, type: int, unit: dimensionless,
+          validate: { gt: 0 } }
+      - { name: filter, type: nested, ref: LogFilter, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "Defaults to the subscription's own filter when omitted." }
+      - { name: max_rows, type: int, unit: dimensionless, required: false,
+          nullable: true, omit_when_none: true }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: log_status_request
+    topic: "log.status_request"
+    transport: [engine_pub]
+    doc:
+      motivation: "Ask for subscription and server diagnostics."
+      since: "1.0"
+      see_also: ["log.status.{SUB_ID}"]
+    fields:
+      - { name: sub_id, type: string, validate: { max_len: 64 } }
+      - { name: timestamp, type: float, unit: epoch_seconds }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }

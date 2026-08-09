@@ -363,6 +363,8 @@ def _base_annotation(message: Message, f: Field) -> str:
         assert f.ref is not None
         return f.ref
     if f.type == "list":
+        if f.item is not None:
+            return f"list[{_ANNOTATION[f.item]}]"
         assert f.ref is not None
         return f"list[{f.ref}]"
     if f.type != "enum":
@@ -377,6 +379,9 @@ def _to_dict_value(f: Field, *, guarded: bool = False) -> str:
     ``to_dict()`` rather than the object.
     """
     if f.type == "list":
+        # A scalar list needs no per-item conversion; a record list does.
+        if f.item is not None:
+            return f"self.{f.name}"
         return f"[item.to_dict() for item in self.{f.name}]"
     if f.type != "nested":
         return f"self.{f.name}"
@@ -471,7 +476,13 @@ def _read_expr(message: Message, f: Field, in_topic_only: bool = False) -> str:
     """
     key = _pystr(f.name)
     if f.type == "list":
-        return f"[{f.ref}.from_dict(item) for item in p[{key}]]"
+        # An optional list reads through `.get(key, [])`: absent and empty are
+        # the same thing to a list, and a strict subscript would raise on a
+        # payload that simply had nothing to say.
+        source = f"p[{key}]" if f.required else f"p.get({key}, [])"
+        if f.item is not None:
+            return f"[{_COERCE[f.item]}(item) for item in {source}]"
+        return f"[{f.ref}.from_dict(item) for item in {source}]"
     if f.type == "nested":
         # The record coerces itself, so the rules declared on its fields apply
         # wherever it is embedded rather than once per embedding message.
@@ -627,8 +638,10 @@ def _field_checks(message: Message, f: Field, indent: str) -> list[str]:
         # one ``validate()`` sharing ``item`` bind it to the first record type
         # and a type checker rejects the second.
         each = f"{f.name}_item"
-        bounds.append(f"{indent}for {each} in {me}:")
-        bounds.append(f"{indent}    {each}.validate()")
+        # Scalars have no validate(); only a record list is walked.
+        if f.item is None:
+            bounds.append(f"{indent}for {each} in {me}:")
+            bounds.append(f"{indent}    {each}.validate()")
         return bounds
     if f.type == "nested":
         # No ``is not None`` guard here: ``_validate_body`` already wraps a
@@ -714,7 +727,11 @@ def _class_block(message: Message) -> list[str]:
     for f in ordered:
         line = f"{f.name}: {_annotation(message, f)}"
         if not f.required:
-            if f.omit_when_none:
+            if f.type == "list":
+                # A list default must be a factory: Python rejects a mutable
+                # class attribute outright, so `= []` does not even import.
+                line += " = field(default_factory=list)"
+            elif f.omit_when_none:
                 line += " = None"
             elif f.omit_when_empty:
                 line += ' = ""'
@@ -1301,7 +1318,8 @@ def _function_blocks(message: Message) -> list[list[str]]:
         ]
     )
 
-    if not any(f.type in RECORD_TYPES for f in message.fields):
+    # A scalar list carries no record, so it keeps its hot-path builder.
+    if not any(f.type in RECORD_TYPES and f.ref for f in message.fields):
         blocks.append(_unchecked_block(message))
 
     blocks.append(
@@ -1369,7 +1387,14 @@ def render_family(family: Family, spec_path: str) -> str:
         imports.append("import re")
     if needs_binary:
         imports.append("import struct as _struct")
-    imports.append("from dataclasses import dataclass")
+    needs_field = any(
+        f.type == "list" and not f.required for m in scoped for f in m.fields
+    )
+    imports.append(
+        "from dataclasses import dataclass, field"
+        if needs_field
+        else "from dataclasses import dataclass"
+    )
     typing_names = ["Any"]
     if needs_literal:
         typing_names.append("Literal")
