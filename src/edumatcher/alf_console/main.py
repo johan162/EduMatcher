@@ -125,6 +125,11 @@ from .display import (
     print_symbols_table,
 )
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.index import (
+    TOPIC_INDEX_UPDATE,
+    topic_index_error,
+    topic_index_history,
+)
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-alf-console"
@@ -282,9 +287,9 @@ class Gateway:
         )
         self._index_sub_sock = make_subscriber(
             INDEX_PUB_CONNECT_ADDR,
-            "index.update",
-            f"index.history.{self.gateway_id}",
-            f"index.error.{self.gateway_id}",
+            TOPIC_INDEX_UPDATE,
+            topic_index_history(self.gateway_id),
+            topic_index_error(self.gateway_id),
         )
         # Separate SUB socket for the engine's drop-copy feed (:5557),
         # distinct from sub_sock (:5556) -- a different ZMQ PUB address, not
@@ -866,20 +871,20 @@ class Gateway:
             if symbol and price:
                 self._last_prices[symbol] = price
 
-        elif topic == "index.update":
+        elif topic == TOPIC_INDEX_UPDATE:
             self._last_index_update = payload
             index_id = payload.get("index_id")
             if isinstance(index_id, str) and index_id:
                 self._default_index_id = index_id.upper()
 
-        elif topic == f"index.history.{self.gateway_id}":
+        elif topic == topic_index_history(self.gateway_id):
             records = payload.get("records", [])
             if isinstance(records, list):
                 print_index_history(records)
             else:
                 console.print("[red]Malformed index history response.[/red]")
 
-        elif topic == f"index.error.{self.gateway_id}":
+        elif topic == topic_index_error(self.gateway_id):
             reason = payload.get("reason", "")
             console.print(f"[{ts}] [red]INDEX ERROR[/red] {reason}")
 

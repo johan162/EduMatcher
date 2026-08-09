@@ -432,8 +432,15 @@ def print_current_index(last_index_update: dict[str, Any] | None) -> None:
     level = float(payload.get("level", 0.0))
     session_state = str(payload.get("session_state", "?"))
 
+    # `day` is one nullable record where day_open/day_high/day_low were three
+    # flat keys (design section 16.2). The three-way isinstance check below
+    # collapses to one: the record either travelled whole or did not travel.
+    day = payload.get("day") or {}
+    day_open = day.get("open")
+    day_high = day.get("high")
+    day_low = day.get("low")
+
     change_txt = ""
-    day_open = payload.get("day_open")
     if isinstance(day_open, (int, float)) and day_open > 0.0:
         delta = level - float(day_open)
         pct = (delta / float(day_open)) * 100
@@ -441,8 +448,6 @@ def print_current_index(last_index_update: dict[str, Any] | None) -> None:
         change_txt = f" [{colour}]{delta:+.2f} {pct:+.2f}%[/{colour}]"
 
     ohlc_txt = ""
-    day_high = payload.get("day_high")
-    day_low = payload.get("day_low")
     if (
         isinstance(day_open, (int, float))
         and isinstance(day_high, (int, float))

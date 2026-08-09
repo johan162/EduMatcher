@@ -456,6 +456,68 @@ class TestTheCorpActionParametersStayFlat:
             ).validate()
 
 
+class TestAdoptionDidNotMakeAMalformedRequestFatal:
+    """The one regression 5.2f's adoption could have shipped.
+
+    Every rejection path in pm-index quotes the identifier it could not
+    resolve, and ``gateway_id`` / ``index_id`` arrive unbounded from the wire
+    while ``reason`` is declared ``max_len: 512``. Before adoption an
+    over-long id merely produced an oversized reason; after it, ``make_*``
+    validates, so the same input raised MessageValidationError out of a
+    handler with no exception guard and out of the run loop — taking pm-index
+    down while answering a malformed request.
+
+    Found by probing the adopted builders with inputs no test sends, not by
+    the suite. The handlers clamp their identifiers now.
+    """
+
+    def test_an_over_long_reason_is_still_rejected_by_the_spec(self) -> None:
+        """The bound is real, which is why the producer has to respect it."""
+        with pytest.raises(MessageValidationError, match="max_len"):
+            G.make_index_error(
+                gateway_id="GW1",
+                accepted=False,
+                reason="X" * 600,
+                timestamp=1700000000.0,
+            )
+
+    def test_the_handlers_clamp_what_they_echo_back(self) -> None:
+        from edumatcher.index.main import _MAX_ID_LEN, _clamp_id
+
+        assert _clamp_id("x" * 5000) == "X" * _MAX_ID_LEN
+        assert _clamp_id("edu100") == "EDU100"
+
+    def test_a_hostile_index_id_still_produces_a_valid_reply(self) -> None:
+        from edumatcher.index.main import _clamp_id
+
+        from edumatcher.models.message import make_index_error_msg
+
+        frames = make_index_error_msg(
+            _clamp_id("gw1"), f"Unknown index_id '{_clamp_id('X' * 5000)}'"
+        )
+        assert frames[0] == b"index.error.GW1"
+
+    def test_every_rejection_path_reads_its_ids_through_the_clamp(self) -> None:
+        """A grep, because the risk is a handler added later that forgets.
+
+        The clamp only helps where it is actually called, and the failure mode
+        if one is missed is a crash rather than a wrong value.
+        """
+        import inspect
+
+        from edumatcher.index.main import IndexProcess
+
+        for name in (
+            "_handle_history_request",
+            "_handle_corp_action",
+            "_handle_constituent_change",
+            "_handle_rebalance",
+        ):
+            source = inspect.getsource(getattr(IndexProcess, name))
+            assert "_clamp_id(payload.get(" in source, name
+            assert 'str(payload.get("gateway_id", "")).upper()' not in source, name
+
+
 class TestTheTopicsAreAllDeclared:
     def test_the_family_declares_ten(self) -> None:
         assert len(G.FAMILY_TOPICS) == 10

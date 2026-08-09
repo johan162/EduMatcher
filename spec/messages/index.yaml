@@ -26,11 +26,19 @@
 # do not apply to a list (design section 20.2), so it now covers lists too and
 # the archive round-trips byte for byte.
 #
-# ADOPTION IS TOPIC CONSTANTS AND THE FIELD CONTRACT. The ten builders in
-# models/message.py delegate; index/main.py, the CLIs and the four subscribers
-# take the generated topic helpers. index.corp_action's action-specific
-# parameters stay flat - see section 20.3 for why the IDL did not grow a
-# variant type to say them.
+# ADOPTION, WITH ONE EXCEPTION. Nine of the ten builders in models/message.py
+# delegate to the generated constructors; index/main.py, the CLIs and the four
+# subscribers take the generated topic helpers, and the family is at zero
+# topic literals.
+#
+# make_index_history_msg takes the topic constant only. Its `records` are
+# replayed verbatim from an append-only JSONL archive, so coercing them
+# through HistoryRecord would make one legacy row missing a required field
+# raise inside a handler that has no exception guard - taking pm-index down
+# while serving history. Same call as log's filter in 5.2c.
+#
+# index.corp_action's action-specific parameters stay flat - see section 20.3
+# for why the IDL did not grow a variant type to say them.
 
 family: index
 version: 1

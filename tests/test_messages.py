@@ -72,15 +72,37 @@ class TestIndexMessages:
                 aggregate_cap=7_350_000_000_000.0,
                 divisor=7_007_100_000.0,
                 session_state="CONTINUOUS",
-                day_open=1042.10,
-                day_high=1056.30,
-                day_low=1040.05,
+                day={"open": 1042.10, "high": 1056.30, "low": 1040.05},
             )
         )
         assert topic == "index.update"
         assert payload["index_id"] == "EDU100"
         assert payload["session_state"] == "CONTINUOUS"
-        assert payload["day_open"] == 1042.10
+        assert payload["day"] == {
+            "open": 1042.10,
+            "high": 1056.30,
+            "low": 1040.05,
+        }
+
+    def test_make_index_update_msg_omits_the_day_when_there_is_none(self) -> None:
+        """Before the session's first level there is no open, high or low.
+
+        The three used to be flat keys under one ``if day_open is not None``
+        guard; they are one nullable record in 5.2e, so the absence is a
+        single fact rather than a convention three keys had to keep (design
+        section 16.2).
+        """
+        _topic, payload = _rt(
+            make_index_update_msg(
+                index_id="EDU100",
+                level=1048.73,
+                aggregate_cap=7_350_000_000_000.0,
+                divisor=7_007_100_000.0,
+                session_state="PRE_OPEN",
+            )
+        )
+        assert "day" not in payload
+        assert "day_open" not in payload
 
     def test_make_index_history_request_msg(self) -> None:
         topic, payload = _rt(
@@ -96,10 +118,22 @@ class TestIndexMessages:
         assert payload["gateway_id"] == "GW01"
         assert payload["index_id"] == "EDU100"
 
-    def test_make_index_history_request_msg_defaults_to_structural_types(self) -> None:
-        """pm-index's history is a structural/audit log only — the default
-        request must never ask for LEVEL/EOD, which are no longer stored.
+    def test_make_index_history_request_msg_omits_types_by_default(self) -> None:
+        """The default is the server's, and is no longer copied client-side.
+
+        This asserted a hard-coded four-type set until 5.2f, and the set was
+        wrong: pm-index's own default is ``sorted(STRUCTURAL_RECORD_TYPES)``,
+        which also contains REBALANCE. Every caller taking the builder's
+        default therefore silently never saw a rebalance record (design
+        section 20.4). Omitting the key means the server applies its own
+        default and the two cannot part again.
+
+        The original intent — never ask for LEVEL/EOD, which pm-index no
+        longer stores — now holds structurally: the server's default is drawn
+        from STRUCTURAL_RECORD_TYPES, which contains neither.
         """
+        from edumatcher.index.history import STRUCTURAL_RECORD_TYPES
+
         _topic, payload = _rt(
             make_index_history_request_msg(
                 gateway_id="GW01",
@@ -108,14 +142,10 @@ class TestIndexMessages:
                 to_ts=2000.0,
             )
         )
-        assert "LEVEL" not in payload["types"]
-        assert "EOD" not in payload["types"]
-        assert set(payload["types"]) == {
-            "INIT",
-            "CORP_ACTION",
-            "ADD_CONSTITUENT",
-            "DELIST",
-        }
+        assert "types" not in payload
+        assert "LEVEL" not in STRUCTURAL_RECORD_TYPES
+        assert "EOD" not in STRUCTURAL_RECORD_TYPES
+        assert "REBALANCE" in STRUCTURAL_RECORD_TYPES
 
     def test_make_index_history_msg(self) -> None:
         topic, payload = _rt(

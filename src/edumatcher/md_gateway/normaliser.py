@@ -381,9 +381,15 @@ class EngineNormaliser:
             "SESSION": str(payload.get("session_state", "")).upper() or "UNKNOWN",
         }
 
-        day_open = payload.get("day_open")
-        day_high = payload.get("day_high")
-        day_low = payload.get("day_low")
+        # One nullable record replaced three flat day_* keys, so there is one
+        # absence to test instead of three (design section 16.2). The three
+        # per-field guards below are kept: a legacy payload is gone, but a
+        # non-numeric value still has to fall through to no CALF field rather
+        # than a malformed one.
+        day = payload.get("day") or {}
+        day_open = day.get("open")
+        day_high = day.get("high")
+        day_low = day.get("low")
         if day_open is not None:
             open_text = _as_decimal(day_open)
             if open_text is not None:

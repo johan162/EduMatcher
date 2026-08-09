@@ -1796,10 +1796,32 @@ every constituent trade or forced recalculation.
 | `aggregate_cap` | float | Sum of constituent market caps at current prices |
 | `divisor` | float | Current divisor |
 | `session_state` | string | Session phase at time of publication |
-| `day_open` | float \| null | First level of the trading day (omitted before first trade) |
-| `day_high` | float \| null | Intraday high (omitted before first trade) |
-| `day_low` | float \| null | Intraday low (omitted before first trade) |
 | `timestamp` | float | Unix epoch seconds |
+| `day` | object \| absent | The session's open/high/low — see below. Absent before the first level of the session is computed |
+
+`day` is a nested object, not three flat keys:
+
+```json
+"day": { "open": 1042.10, "high": 1056.30, "low": 1040.05 }
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `day.open` | float | First level computed this session |
+| `day.high` | float | Session high so far |
+| `day.low` | float | Session low so far |
+
+The three were `day_open`, `day_high` and `day_low` at the top level until
+this became a generated binding. They were only ever set together and cleared
+together, so a payload carrying one of them and not the others was never a
+thing the publisher could produce — but nothing said so, and every consumer
+had to re-check all three. One nullable object says it once, and makes the
+half-set state impossible to build rather than merely wrong. Read it as
+`payload.get("day")` and test for `None`.
+
+Note this is the *wire* shape only. pm-stats still stores the three values in
+separate `day_open` / `day_high` / `day_low` columns, because a column per
+value is what SQL wants.
 
 
 

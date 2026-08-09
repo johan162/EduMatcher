@@ -32,6 +32,7 @@ from edumatcher.models.price import DEFAULT_TICK_DECIMALS
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
+from edumatcher.models.generated.index import TOPIC_INDEX_UPDATE
 
 _ALLOWED_CHANNELS = frozenset(
     {"TOP", "TRADE", "STATE", "INDEX", "DEPTH", "AUCTION", "CB"}
@@ -927,7 +928,7 @@ class MarketDataGateway:
             budget -= 1
             try:
                 now_seconds = _extract_ts(payload)
-                if topic == "index.update":
+                if topic == TOPIC_INDEX_UPDATE:
                     self._dbg_count("index_update_topics")
                     index_id, fields = self._normaliser.normalise_index_update(payload)
                     if index_id:

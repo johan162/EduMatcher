@@ -24,6 +24,7 @@ Topic conventions
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 from typing import Any
 
 from edumatcher.models.feed_schema import (
@@ -40,6 +41,7 @@ from edumatcher.models.feed_schema import (
 # instead would raise ImportError whenever the generated module happened to be
 # imported first.
 from edumatcher.models.generated import book as _gen_book
+from edumatcher.models.generated import index as _gen_index
 from edumatcher.models.generated import log as _gen_log
 from edumatcher.models.generated import order as _gen_order
 from edumatcher.models.generated import session as _gen_session
@@ -1295,24 +1297,25 @@ def make_index_update_msg(
     aggregate_cap: float,
     divisor: float,
     session_state: str,
-    day_open: float | None = None,
-    day_high: float | None = None,
-    day_low: float | None = None,
+    day: Mapping[str, float] | None = None,
 ) -> list[bytes]:
-    """pm-index → subscribers: current index level broadcast."""
-    payload: dict[str, Any] = {
-        "index_id": index_id,
-        "level": level,
-        "aggregate_cap": aggregate_cap,
-        "divisor": divisor,
-        "session_state": session_state,
-        "timestamp": time.time(),
-    }
-    if day_open is not None:
-        payload["day_open"] = day_open
-        payload["day_high"] = day_high
-        payload["day_low"] = day_low
-    return encode("index.update", payload)
+    """pm-index → subscribers: current index level broadcast.
+
+    *day* is the session's ``{open, high, low}`` or None. It replaced three
+    flat ``day_*`` keys under one ``if day_open is not None`` guard: three
+    keys sharing a guard are a record that was flattened for want of one, and
+    a nullable record makes the half-set state unrepresentable rather than
+    merely invalid (design section 16.2).
+    """
+    return _gen_index.make_index_update(
+        index_id=index_id,
+        level=level,
+        aggregate_cap=aggregate_cap,
+        divisor=divisor,
+        session_state=session_state,
+        timestamp=time.time(),
+        day=dict(day) if day is not None else None,
+    )
 
 
 def make_index_history_request_msg(
@@ -1326,20 +1329,22 @@ def make_index_history_request_msg(
     """Gateway/operator → pm-index: request structural/audit index records.
 
     pm-index's history is a structural audit log only (INIT, CORP_ACTION,
-    ADD_CONSTITUENT, DELIST) — it no longer stores level or EOD ticks.
-    Omitting *types* returns all structural record types. For index
+    ADD_CONSTITUENT, DELIST, REBALANCE) — it no longer stores level or EOD
+    ticks. Omitting *types* returns all structural record types. For index
     level/EOD time-series history, query pm-stats instead.
+
+    The key is now **omitted** when *types* is None rather than sent as a
+    client-side copy of the server's default. That copy had drifted: it listed
+    four of the five structural types, so every caller taking the default
+    silently never saw a REBALANCE record (design section 20.4).
     """
-    return encode(
-        "index.history_request",
-        {
-            "gateway_id": gateway_id,
-            "index_id": index_id,
-            "from_ts": from_ts,
-            "to_ts": to_ts,
-            "types": types or ["INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"],
-            "max_records": max_records,
-        },
+    return _gen_index.make_index_history_request(
+        gateway_id=gateway_id,
+        index_id=index_id,
+        from_ts=from_ts,
+        to_ts=to_ts,
+        types=list(types) if types else [],
+        max_records=max_records,
     )
 
 
@@ -1349,11 +1354,21 @@ def make_index_history_msg(
     records: list[dict[str, Any]],
     warnings: list[str] | None = None,
 ) -> list[bytes]:
-    """pm-index → requestor: history response."""
+    """pm-index → requestor: history response.
+
+    **Topic constant only, deliberately.** *records* are replayed verbatim
+    from an append-only JSONL archive, and routing them through the generated
+    ``HistoryRecord`` would coerce and validate every one — so a single
+    legacy row missing a field the spec calls required would raise here, in a
+    handler with no exception guard, and take pm-index down while serving
+    history. The spec states the record's shape; the archive stays the thing
+    that decides what a stored row looks like. Same call as ``log``'s filter
+    in 5.2c and ``order.new`` in 5.1b.
+    """
     payload: dict[str, Any] = {"index_id": index_id, "records": records}
     if warnings:
         payload["warnings"] = warnings
-    return encode(f"index.history.{gateway_id}", payload)
+    return encode(_gen_index.topic_index_history(gateway_id), payload)
 
 
 def make_index_corp_action_msg(
@@ -1363,16 +1378,20 @@ def make_index_corp_action_msg(
     gateway_id: str,
     params: dict[str, Any],
 ) -> list[bytes]:
-    """Operator → pm-index: apply a corporate action."""
-    return encode(
-        "index.corp_action",
-        {
-            "action": action,
-            "index_id": index_id,
-            "symbol": symbol,
-            "gateway_id": gateway_id,
-            **params,
-        },
+    """Operator → pm-index: apply a corporate action.
+
+    *params* carries the action-specific fields — ``ratio_numerator`` and
+    ``ratio_denominator`` for SPLIT, ``dividend_per_share`` for
+    CASH_DIVIDEND, ``new_shares_outstanding`` for SHARES_ISSUANCE. The IDL has
+    no variant type to say "these belong to that action", so they are declared
+    flat and optional; design section 20.3 records why one was not built.
+    """
+    return _gen_index.make_index_corp_action(
+        action=action,
+        index_id=index_id,
+        symbol=symbol,
+        gateway_id=gateway_id,
+        **params,
     )
 
 
@@ -1385,17 +1404,14 @@ def make_index_constituent_change_msg(
     initial_price: float | None = None,
 ) -> list[bytes]:
     """Operator → pm-index: add or delist a constituent."""
-    payload: dict[str, Any] = {
-        "change_type": change_type,
-        "index_id": index_id,
-        "symbol": symbol,
-        "gateway_id": gateway_id,
-    }
-    if shares_outstanding is not None:
-        payload["shares_outstanding"] = shares_outstanding
-    if initial_price is not None:
-        payload["initial_price"] = initial_price
-    return encode("index.constituent_change", payload)
+    return _gen_index.make_index_constituent_change(
+        change_type=change_type,
+        index_id=index_id,
+        symbol=symbol,
+        gateway_id=gateway_id,
+        shares_outstanding=shares_outstanding,
+        initial_price=initial_price,
+    )
 
 
 def make_index_corp_action_ack_msg(
@@ -1407,18 +1423,15 @@ def make_index_corp_action_ack_msg(
     divisor: float | None = None,
 ) -> list[bytes]:
     """pm-index → requestor: corporate action ack."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "reason": reason,
-        "timestamp": time.time(),
-    }
-    if index_id:
-        payload["index_id"] = index_id
-    if level is not None:
-        payload["level"] = level
-    if divisor is not None:
-        payload["divisor"] = divisor
-    return encode(f"index.corp_action_ack.{gateway_id}", payload)
+    return _gen_index.make_index_corp_action_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        timestamp=time.time(),
+        index_id=index_id,
+        level=level,
+        divisor=divisor,
+    )
 
 
 def make_index_constituent_change_ack_msg(
@@ -1430,18 +1443,15 @@ def make_index_constituent_change_ack_msg(
     divisor: float | None = None,
 ) -> list[bytes]:
     """pm-index → requestor: constituent change ack."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "reason": reason,
-        "timestamp": time.time(),
-    }
-    if index_id:
-        payload["index_id"] = index_id
-    if level is not None:
-        payload["level"] = level
-    if divisor is not None:
-        payload["divisor"] = divisor
-    return encode(f"index.constituent_change_ack.{gateway_id}", payload)
+    return _gen_index.make_index_constituent_change_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        timestamp=time.time(),
+        index_id=index_id,
+        level=level,
+        divisor=divisor,
+    )
 
 
 def make_index_rebalance_msg(
@@ -1456,15 +1466,18 @@ def make_index_rebalance_msg(
     — each entry mirrors the existing SHARES_ISSUANCE corporate action,
     applied to every named *existing* constituent as one batch with a single
     recompute/publish, rather than one corp-action round-trip per symbol.
+
+    The non-empty and positive-share rules were pydantic constraints on
+    ``IndexRebalanceRequest``, so they held for the API gateway and for
+    nobody else. Declaring them in the spec makes them properties of the
+    message (design section 15.5).
     """
-    payload: dict[str, Any] = {
-        "index_id": index_id,
-        "gateway_id": gateway_id,
-        "updates": updates,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("index.rebalance", payload)
+    return _gen_index.make_index_rebalance(
+        index_id=index_id,
+        gateway_id=gateway_id,
+        updates=updates,
+        command_id=command_id,
+    )
 
 
 def make_index_rebalance_ack_msg(
@@ -1478,28 +1491,26 @@ def make_index_rebalance_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """pm-index → ADMIN: rebalance result."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "reason": reason,
-        "timestamp": time.time(),
-        "updated_symbols": updated_symbols,
-    }
-    if index_id:
-        payload["index_id"] = index_id
-    if level is not None:
-        payload["level"] = level
-    if divisor is not None:
-        payload["divisor"] = divisor
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(f"index.rebalance_ack.{gateway_id}", payload)
+    return _gen_index.make_index_rebalance_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        timestamp=time.time(),
+        updated_symbols=updated_symbols,
+        index_id=index_id,
+        level=level,
+        divisor=divisor,
+        command_id=command_id,
+    )
 
 
 def make_index_error_msg(gateway_id: str, reason: str) -> list[bytes]:
     """pm-index → requestor: generic index error reply."""
-    return encode(
-        f"index.error.{gateway_id}",
-        {"accepted": False, "reason": reason, "timestamp": time.time()},
+    return _gen_index.make_index_error(
+        gateway_id=gateway_id,
+        accepted=False,
+        reason=reason,
+        timestamp=time.time(),
     )
 
 

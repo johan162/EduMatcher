@@ -559,7 +559,7 @@ class TestOnIndexUpdate:
 
     def test_optional_fields_persisted_when_present(self, sp: StatsProcess) -> None:
         sp._on_index_update(
-            self._payload(day_open=1042.10, day_high=1056.30, day_low=1040.05)
+            self._payload(day={"open": 1042.10, "high": 1056.30, "low": 1040.05})
         )
         row = sp._conn.execute(
             "SELECT day_open, day_high, day_low FROM index_level_snapshots"
@@ -567,7 +567,7 @@ class TestOnIndexUpdate:
         assert row == (1042.10, 1056.30, 1040.05)
 
     def test_optional_fields_null_when_absent(self, sp: StatsProcess) -> None:
-        sp._on_index_update(self._payload())  # no day_open/high/low
+        sp._on_index_update(self._payload())  # no day record at all
         row = sp._conn.execute(
             "SELECT day_open, day_high, day_low FROM index_level_snapshots"
         ).fetchone()

@@ -21,6 +21,11 @@ from typing import Any
 import zmq
 
 from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.models.generated.index import (
+    topic_index_error,
+    topic_index_history,
+    topic_index_rebalance_ack,
+)
 from edumatcher.models.message import (
     decode,
     make_index_history_request_msg,
@@ -103,8 +108,8 @@ class IndexClient:
         echoes it back, so a read-only API session's own key (or any other
         caller-unique string) works fine here.
         """
-        history_future = self._register_future(f"index.history.{request_id}")
-        error_future = self._register_future(f"index.error.{request_id}")
+        history_future = self._register_future(topic_index_history(request_id))
+        error_future = self._register_future(topic_index_error(request_id))
         self._push.send_multipart(
             make_index_history_request_msg(
                 request_id,
@@ -125,8 +130,8 @@ class IndexClient:
             # Always drop both waiters once one resolves (or on timeout) so
             # a slow/duplicate reply never resolves a future we've already
             # abandoned or lands in _pending indefinitely.
-            self._drop_pending(f"index.history.{request_id}", history_future)
-            self._drop_pending(f"index.error.{request_id}", error_future)
+            self._drop_pending(topic_index_history(request_id), history_future)
+            self._drop_pending(topic_index_error(request_id), error_future)
         for future in pending:
             future.cancel()
         if not done:
@@ -157,7 +162,7 @@ class IndexClient:
         corp-action/constituent-change acks — so there is no separate error
         future to race against.
         """
-        topic = f"index.rebalance_ack.{gateway_id}"
+        topic = topic_index_rebalance_ack(gateway_id)
         future = self._register_future(topic)
         self._push.send_multipart(
             make_index_rebalance_msg(index_id, gateway_id, updates, command_id)

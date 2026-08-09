@@ -1310,7 +1310,7 @@ What it does not, and will not:
 | 5.2c | IDL `list` of scalars + the `log` control messages | **done** |
 | 5.2d | records to any depth + `log` server-side topics | **done** |
 | 5.2e | IDL `omit_when_empty` on lists + `index.yaml` and its binding | **done** — committed unused |
-| 5.2f | adopt `index`: the ten builders, the `day` record, literals to zero | not started |
+| 5.2f | adopt `index`: the builders, the `day` record, literals to zero | **done** — the `index` family is complete |
 | 5.3 | `risk` — 30 topics, planned as two sessions | not started |
 | 6 | Generated `271-message-appendix.md` | not started |
 
@@ -1325,12 +1325,7 @@ What it does not, and will not:
     still drifts exactly as it did before: the check cannot protect a message
     it has never been told about.
 
-    `index` is specified but **not yet adopted**: its binding is committed and
-    checked against the spec, and nothing imports it. Its 23 topic literals
-    across 8 modules are still literals, and `index.update` still puts
-    `day_open`/`day_high`/`day_low` on the wire flat rather than as the
-    `day` record the spec declares. That is Phase 5.2f, and until it lands
-    `index` is a description of the wire rather than a producer of it.
+    All six are adopted, and all six are at zero topic literals.
 
     Where a family *is* specified, its topic literals are at zero. Adding a
     family to `MIGRATED` in `tests/test_msgen_literals.py` is what makes that

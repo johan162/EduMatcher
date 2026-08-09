@@ -234,10 +234,18 @@ messages:
         load_family(path, load_transports(root / "transports.yaml"))
 
     def test_it_is_rejected_on_a_number(self, tmp_path: Any) -> None:
-        """On an int it would silently drop a legitimate zero."""
+        """On an int it would silently drop a legitimate zero.
+
+        The reason is unchanged; the boundary moved in 5.2e. The regime was
+        strings-only, and ``index``'s HistoryRecord showed that the
+        justification never covered lists — absent and empty are already the
+        same thing to a list on the read side, so omitting on empty is
+        symmetric with the read. Numbers and enums are still excluded, for
+        exactly the reason this test states.
+        """
         from edumatcher.msgen.spec import SpecError
 
-        with pytest.raises(SpecError, match="strings only"):
+        with pytest.raises(SpecError, match="strings and lists only"):
             self._load(
                 tmp_path,
                 "{ name: x, type: int, unit: shares, required: false, "

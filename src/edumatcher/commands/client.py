@@ -59,6 +59,16 @@ from edumatcher.models.message import (
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
+from edumatcher.models.generated.index import (
+    PREFIX_INDEX_CONSTITUENT_CHANGE_ACK,
+    PREFIX_INDEX_CORP_ACTION_ACK,
+    PREFIX_INDEX_ERROR,
+    PREFIX_INDEX_HISTORY,
+    topic_index_constituent_change_ack,
+    topic_index_corp_action_ack,
+    topic_index_error,
+    topic_index_history,
+)
 
 # Topics this client ever needs to receive from the engine PUB socket.
 # Extend this list when adding new commands that carry acks.
@@ -80,10 +90,10 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     "system.session_schedule.",
     "system.gateways.",
     "system.volume.",
-    "index.history.",
-    "index.corp_action_ack.",
-    "index.constituent_change_ack.",
-    "index.error.",
+    PREFIX_INDEX_HISTORY,
+    PREFIX_INDEX_CORP_ACTION_ACK,
+    PREFIX_INDEX_CONSTITUENT_CHANGE_ACK,
+    PREFIX_INDEX_ERROR,
 )
 
 
@@ -442,8 +452,8 @@ class ExchangeCommandClient:
             )
         )
         return self._recv(
-            f"index.history.{self._gw_id}",
-            error_prefix=f"index.error.{self._gw_id}",
+            topic_index_history(self._gw_id),
+            error_prefix=topic_index_error(self._gw_id),
         )
 
     def index_corp_action(
@@ -476,8 +486,8 @@ class ExchangeCommandClient:
             )
         )
         return self._recv(
-            f"index.corp_action_ack.{self._gw_id}",
-            error_prefix=f"index.error.{self._gw_id}",
+            topic_index_corp_action_ack(self._gw_id),
+            error_prefix=topic_index_error(self._gw_id),
         )
 
     def index_delist(self, index_id: str, symbol: str) -> dict[str, Any]:
@@ -498,8 +508,8 @@ class ExchangeCommandClient:
             )
         )
         return self._recv(
-            f"index.constituent_change_ack.{self._gw_id}",
-            error_prefix=f"index.error.{self._gw_id}",
+            topic_index_constituent_change_ack(self._gw_id),
+            error_prefix=topic_index_error(self._gw_id),
         )
 
     def index_add_constituent(
@@ -528,8 +538,8 @@ class ExchangeCommandClient:
             )
         )
         return self._recv(
-            f"index.constituent_change_ack.{self._gw_id}",
-            error_prefix=f"index.error.{self._gw_id}",
+            topic_index_constituent_change_ack(self._gw_id),
+            error_prefix=topic_index_error(self._gw_id),
         )
 
     def quote_bootstrap(self, target_gw: str, symbol: str = "") -> list[dict[str, Any]]:

@@ -124,6 +124,7 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_FILL,
 )
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
+from edumatcher.models.generated.index import TOPIC_INDEX_UPDATE
 
 _CLIENT_NAME = "pm-stats"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -907,7 +908,7 @@ class StatsProcess:
             # topic).
             self.index_sub = make_subscriber(
                 INDEX_PUB_CONNECT_ADDR,
-                "index.update",
+                TOPIC_INDEX_UPDATE,
                 rcvhwm=_SUB_RCVHWM,
             )
             self.push = make_pusher(ENGINE_PULL_ADDR)
@@ -1481,9 +1482,14 @@ class StatsProcess:
         aggregate_cap = payload.get("aggregate_cap")
         divisor = payload.get("divisor")
         session_state = payload.get("session_state")
-        day_open = payload.get("day_open")
-        day_high = payload.get("day_high")
-        day_low = payload.get("day_low")
+        # One nullable record on the wire (design section 16.2); three flat
+        # columns in index_level_snapshots. The table keeps its shape — a
+        # column per value is what SQL wants, and rewriting a schema to mirror
+        # a message is the tail wagging the dog.
+        day = payload.get("day") or {}
+        day_open = day.get("open")
+        day_high = day.get("high")
+        day_low = day.get("low")
 
         epoch_sec = payload.get("timestamp")
         if epoch_sec is None:
@@ -1712,7 +1718,7 @@ class StatsProcess:
         self._dbg_count("index_messages_received")
         self._check_topic_sequence(topic, decode_sequence(frames))
         try:
-            if topic == "index.update":
+            if topic == TOPIC_INDEX_UPDATE:
                 self._dbg_count("index_update_topics")
                 self._on_index_update(payload)
         except Exception as exc:

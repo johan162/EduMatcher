@@ -2720,6 +2720,137 @@ leave a defect undiagnosed, and "unrelated to this phase" is a conclusion that
 has to be earned by reading the producer rather than assumed from the
 consumer.
 
+## 21. Adopting `index`: the defect adoption itself introduced
+
+Phase 5.2f wired the family in. Nine of ten builders delegate, the `day`
+record replaced three flat keys in three consumers, and `index` is at zero
+topic literals — the sixth family to get there.
+
+The interesting part is not the migration. It is that **adoption introduced a
+denial of service**, and nothing in a 4 493-test suite noticed.
+
+### 21.1 A bounded field fed by an unbounded one
+
+Every rejection path in pm-index quotes the identifier it could not resolve:
+
+```python
+make_index_error_msg(gateway_id, f"Unknown index_id '{index_id}'")
+```
+
+`index_id` is `str(payload.get("index_id", ""))` — straight off the wire, no
+bound. `reason` is declared `max_len: 512`, and `gateway_id` `max_len: 32`.
+
+Before adoption the hand-written builder was a dict literal: a five-thousand
+character `index_id` produced an oversized reason and an enormous topic, which
+is bad and harmless. After adoption `make_*` **validates**, so the same input
+raises `MessageValidationError` out of `_handle_history_request` — which has
+no `try`/`except` — out of the pull dispatch, out of the run loop, and
+pm-index stops. One malformed request from any client on the PULL socket kills
+the index process.
+
+Four handlers had the shape, on eight identifier reads plus a symbol inside
+the rebalance loop. They clamp now, and `_clamp_id`'s docstring says why the
+bound is load-bearing rather than tidy. Truncation loses nothing: an
+identifier longer than the spec allows cannot name an index or a gateway that
+exists, so a clamped one fails the same lookup and yields the same rejection.
+
+### 21.2 Why the suite could not have caught it
+
+This is the part worth generalising. The tests are not weak here — they are
+comprehensive about the handlers' *logic*, including the unknown-index and
+invalid-window rejection paths. They pass identifiers like `"UNKNOWN"` and
+`"EDU100"`, because those are what a caller sends.
+
+The defect needs an input **no reasonable test would write**, reaching a
+validation rule that **did not exist when the tests were written**. Adoption
+is exactly the moment when the second half becomes true: it is the phase that
+turns a permissive producer into a validating one, so every previously
+harmless input has to be re-asked against the new rules.
+
+§12's warning about `make_trade_msg` said the same thing more narrowly — "if
+something that used to publish now raises, it was publishing something the
+spec says is invalid" — and framed it as a *finding*: fix the producer. That
+framing is right for a producer with a bug. It is wrong for a producer
+faithfully relaying hostile input, where the answer is to bound the input
+rather than to loosen the spec or to accept the crash.
+
+So the rule this phase adds: **when adoption makes a builder validate, list
+every field whose value originates outside the process, and check the spec's
+bound against the source's bound.** Where the source has none, the boundary
+needs one. It is a five-minute audit and it is not optional, because the
+failure mode is a crash on a path whose whole purpose is to handle bad input
+gracefully.
+
+### 21.3 The archive is why one builder did not delegate
+
+`make_index_history_msg` takes the topic constant and nothing else. Its
+`records` are replayed verbatim from an append-only JSONL file, so routing
+them through `HistoryRecord` would coerce and validate every stored row — and
+one legacy row missing a field the spec calls required would raise in the same
+unguarded handler, with the same result as §21.1.
+
+Verified rather than assumed: a probe confirmed that a row missing `level`,
+and a row whose `type` the spec does not declare, both replay unchanged
+through the adopted builder. §12's rule — *a recorder records what it
+received* — extends to the replayer, and for the same reason. The spec states
+the record's shape; the archive stays the thing that decides what a stored row
+looks like.
+
+### 21.4 What the day record removed besides three keys
+
+`_ManagedIndex` held `day_open`, `day_high` and `day_low` as three optional
+floats, and `_update_day_ohlc` had to write
+
+```python
+idx.day_high = max(idx.day_high or level, level)
+```
+
+`or`, not `is None` — so a high of exactly `0.0` would have been silently
+replaced by the current level. Unreachable for an index level, and the same
+falsy-versus-None confusion §16.1 made `omit_when_empty` strings-only to
+avoid. The defensive read existed only because the type could not express
+that the three move together; holding one optional `DaySummary` deletes both
+the `or` and the question.
+
+That is the argument in §16.2 point 2 showing up in the *producer* rather than
+on the wire. A record makes the half-set state unconstructible everywhere it
+is held, not merely unsendable — which is why the in-process representation
+was worth changing too, rather than assembling the record at the publish call.
+
+### 21.5 Two guards fired, one of them late
+
+`test_make_index_history_request_msg_defaults_to_structural_types` pinned the
+four-type client-side default — the very drift §20.4 found. Its stated intent
+("never ask for LEVEL/EOD") survives; the mechanism does not, since the key is
+omitted now. Updated to assert absence, plus that the server's own
+`STRUCTURAL_RECORD_TYPES` contains neither LEVEL nor EOD and does contain
+REBALANCE.
+
+`test_msgen_session.py::test_it_is_rejected_on_a_number` fired for a change
+made in **5.2e**, and should have been caught then: that phase ran seven msgen
+test files and `test_msgen_session.py` was not among them, so a widened
+rejection message went unnoticed for a phase. The verification lesson is
+narrow and worth stating — **the msgen change set is the whole `test_msgen_*`
+group, not the files the phase happens to be thinking about** — and it is the
+same shape as §18.3's regression: a rule changed in one place, checked in the
+places that came to mind.
+
+### 21.6 What did not change
+
+Three things were left flat on purpose, each because the wire is not the only
+consumer:
+
+* **pm-stats' `index_level_snapshots`** keeps `day_open` / `day_high` /
+  `day_low` columns. A column per value is what SQL wants; reshaping a schema
+  to mirror a message is the tail wagging the dog.
+* **pm-index's state file** keeps the same three keys. It is a persisted
+  diagnostic, nothing reads them back, and it is not the wire.
+* **`docs/user-guide/150-market-index.md`**'s JSON sample is that state file,
+  not `index.update` — so it was correctly left alone. A find-and-replace over
+  `day_open` across the docs would have silently corrupted it, which is a
+  small reminder that "the same three field names" is not the same thing as
+  "the same three fields".
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first
