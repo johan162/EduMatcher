@@ -41,6 +41,7 @@ MIGRATED = (
     "index",
     "risk",
     "structure",
+    "quote",
 )
 
 

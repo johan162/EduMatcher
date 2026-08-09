@@ -14,6 +14,14 @@ two-decimal instrument, silent in both directions.
 The rule now: **converting is the submitting gateway's job, and the wire
 carries integer ticks.** These tests are what stops a display float creeping
 back onto it.
+
+``quote.new`` was the one inbound path this rule did not cover. That phase
+listed three — ``order.new``, ``order.combo``, ``order.oco`` — and quotes were
+not among them, so they kept sending display money while the docstring above
+claimed no exceptions. Nothing was mispriced, because all four quote producers
+agreed; the hazard was that a developer trusting the rule would send ticks and
+have them read as dollars. Phase 6.1b converted them, and
+:class:`TestQuotePricesAreTicks` is what keeps the claim true.
 """
 
 from __future__ import annotations
@@ -214,3 +222,83 @@ class TestNoDisplayFloatsLingerInTestPayloads:
         assert offenders == [], "display money on an engine-inbound leg:\n" + "\n".join(
             offenders
         )
+
+
+class TestQuotePricesAreTicks:
+    """The path section 15.2 missed, closed in 6.1b.
+
+    ``_handle_quote_new`` used to do ``to_ticks(float(payload["bid_price"]))``,
+    so the wire carried display money for quotes and ticks for everything else
+    — a difference no schema could express and no reader could see.
+    """
+
+    def test_the_api_gateway_converts_before_publishing(self) -> None:
+        from edumatcher.api_gateway.schemas import QuoteRequest
+        from edumatcher.api_gateway.translate import build_quote_payload
+
+        payload = build_quote_payload(
+            QuoteRequest(
+                symbol="AAPL",
+                bid_price=99.50,
+                bid_qty=10,
+                ask_price=100.50,
+                ask_qty=10,
+            ),
+            "GW1",
+        )
+        assert payload["bid_price"] == to_ticks(99.50, "AAPL")
+        assert payload["ask_price"] == to_ticks(100.50, "AAPL")
+        assert isinstance(payload["bid_price"], int)
+        assert isinstance(payload["ask_price"], int)
+
+    def test_the_engine_rejects_a_display_float(self) -> None:
+        """Rejected, not truncated — the loud alternative.
+
+        A quote bid of 99.5 accepted as 99 ticks would rest at 99 cents on a
+        two-decimal instrument and be lifted instantly at 1/100th of the
+        intended price.
+        """
+        from edumatcher.models.generated.quote import QuoteNew
+        from edumatcher.models.generated._runtime import MessageValidationError
+
+        obj = QuoteNew.from_dict(
+            {
+                "gateway_id": "GW1",
+                "symbol": "AAPL",
+                "bid_price": 9950,
+                "bid_qty": 10,
+                "ask_price": 10050,
+                "ask_qty": 10,
+            }
+        )
+        obj.validate()
+        assert isinstance(obj.bid_price, int)
+
+        with pytest.raises(MessageValidationError):
+            QuoteNew.from_dict(
+                {
+                    "gateway_id": "GW1",
+                    "symbol": "AAPL",
+                    "bid_price": 0,
+                    "bid_qty": 10,
+                    "ask_price": 10050,
+                    "ask_qty": 10,
+                }
+            ).validate()
+
+    def test_the_engine_handler_reads_ticks_only(self) -> None:
+        import inspect
+
+        from edumatcher.engine.main import Engine
+
+        source = inspect.getsource(Engine._handle_quote_new)
+        assert 'to_ticks(float(payload["bid_price"])' not in source
+        assert "must be integer ticks, not display money" in source
+
+    def test_the_spec_declares_the_unit(self) -> None:
+        """A unit belongs in a field's declaration — design section 15.6."""
+        from edumatcher.models.generated.quote import describe_quote_new
+
+        units = {f["name"]: f.get("unit") for f in describe_quote_new()}
+        assert units["bid_price"] == "ticks"
+        assert units["ask_price"] == "ticks"

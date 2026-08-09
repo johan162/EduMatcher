@@ -78,6 +78,7 @@ class TestRealSpec:
             "index",
             "log",
             "order",
+            "quote",
             "risk",
             "session",
             "structure",

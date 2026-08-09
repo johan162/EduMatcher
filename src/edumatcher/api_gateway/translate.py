@@ -57,13 +57,19 @@ def build_order(request: OrderRequest, gateway_id: str) -> Order:
 
 
 def build_quote_payload(request: QuoteRequest, gateway_id: str) -> dict[str, Any]:
-    """Build the existing quote.new dict payload."""
+    """Build the quote.new payload, with prices converted to engine ticks.
+
+    The API takes display money from its clients and the wire carries ticks,
+    so the conversion belongs here — the same boundary ``_oco_leg_to_payload``
+    below draws, and the rule design section 15.2 set for every engine-inbound
+    price. Quotes joined it in 6.1b.
+    """
     payload: dict[str, Any] = {
         "gateway_id": gateway_id,
         "symbol": request.symbol,
-        "bid_price": request.bid_price,
+        "bid_price": to_ticks(request.bid_price, request.symbol),
         "bid_qty": request.bid_qty,
-        "ask_price": request.ask_price,
+        "ask_price": to_ticks(request.ask_price, request.symbol),
         "ask_qty": request.ask_qty,
         "tif": wire_value(request.tif),
     }

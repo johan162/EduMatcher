@@ -125,6 +125,10 @@ from edumatcher.models.generated.order import (
 )
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 from edumatcher.models.generated.index import TOPIC_INDEX_UPDATE
+from edumatcher.models.generated.quote import (
+    PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_STATUS,
+)
 from edumatcher.models.generated.structure import (
     PREFIX_COMBO_ACK,
     PREFIX_COMBO_STATUS,
@@ -904,8 +908,8 @@ class StatsProcess:
                 PREFIX_COMBO_STATUS,
                 PREFIX_OCO_ACK,
                 PREFIX_OCO_CANCELLED,
-                "quote.ack.",
-                "quote.status.",
+                PREFIX_QUOTE_ACK,
+                PREFIX_QUOTE_STATUS,
                 rcvhwm=_SUB_RCVHWM,
             )
             # Separate socket: pm-index binds its own PUB endpoint, distinct
@@ -1855,8 +1859,8 @@ def _is_order_event_topic(topic: str) -> bool:
             PREFIX_COMBO_STATUS,
             PREFIX_OCO_ACK,
             PREFIX_OCO_CANCELLED,
-            "quote.ack.",
-            "quote.status.",
+            PREFIX_QUOTE_ACK,
+            PREFIX_QUOTE_STATUS,
         )
     )
 
@@ -1914,9 +1918,9 @@ def _event_type_from_topic(topic: str, payload: dict[str, Any]) -> str:
         return _accept_reject(topic, payload, "OCO_ACK", "OCO_REJECT")
     if topic.startswith(PREFIX_OCO_CANCELLED):
         return "OCO_CANCEL"
-    if topic.startswith("quote.ack."):
+    if topic.startswith(PREFIX_QUOTE_ACK):
         return _accept_reject(topic, payload, "QUOTE_ACK", "QUOTE_REJECT")
-    if topic.startswith("quote.status."):
+    if topic.startswith(PREFIX_QUOTE_STATUS):
         return "QUOTE_STATUS"
     return "EVENT"
 

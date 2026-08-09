@@ -1,0 +1,139 @@
+# Canonical specification for the `quote` message family.
+#
+# Phase 6.1b. A market maker's two-sided quote: submit or replace, cancel, and
+# the two events that report what became of it.
+#
+# THE PRICE UNIT CHANGED, AND THAT IS THE POINT OF THE PHASE. quote.new
+# carried bid_price/ask_price as *display money*, and the engine converted with
+# `to_ticks(float(payload["bid_price"]), symbol)`. Every other engine-inbound
+# price path was moved to integer ticks in design section 15.2 - order.new,
+# order.combo and order.oco - and quotes were simply not in that phase's list
+# of three. The invariant that phase left behind says "engine-inbound prices
+# are ticks, everywhere, with no exceptions", which was false for this one
+# path.
+#
+# Nothing was mispriced: all four producers agreed on display money and the
+# engine always converted, so there was no int-versus-float ambiguity of the
+# kind 15.2 removed. The hazard was the *rule*. A developer trusting it would
+# send `bid_price: 150` meaning ticks, and to_ticks would read $150 - the same
+# silent 100x error, arrived at by following the documentation.
+#
+# So: the submitting gateway converts, the wire carries ticks, and the engine
+# rejects a float rather than truncating it - exactly what _handle_oco_order
+# does. See design section 25.2.
+
+family: quote
+version: 1
+
+messages:
+  - name: quote_new
+    topic: "quote.new"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Market maker to engine: submit or replace a two-sided quote on one
+        instrument. A quote is a bid and an ask posted as a pair; replacing one
+        cancels the previous pair for that gateway and symbol.
+      since: "1.0"
+      see_also: ["quote.ack.{GW_ID}", "quote.cancel", "quote.status.{GW_ID}"]
+      example_note: >
+        Prices are integer ticks. The engine rejects a float outright rather
+        than converting it, because a display price of 150.0 accepted as 150
+        ticks would post the quote at 1/100th of the intended level on a
+        two-decimal instrument - silent, and in the wrong direction for the
+        side that gets hit.
+
+        `quote_id` is the client's own handle, echoed on every ack and status
+        event. It is optional: a gateway that submits one quote per symbol can
+        identify it by symbol alone, and the hand-written builders omitted the
+        key entirely rather than sending "".
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: bid_price, type: ticks, unit: ticks, validate: { gt: 0 } }
+      - { name: bid_qty, type: int, unit: shares, validate: { gt: 0 } }
+      - { name: ask_price, type: ticks, unit: ticks, validate: { gt: 0 } }
+      - { name: ask_qty, type: int, unit: shares, validate: { gt: 0 } }
+      - name: tif
+        type: enum
+        values: [DAY, GTC, ATO, ATC]
+        required: false
+        default: "DAY"
+        doc: >
+          Applies to both legs; the engine reads it once. Same four values as
+          models/order.py::TIF and order.combo's own tif - a quote's legs are
+          ordinary orders once they rest.
+      - { name: quote_id, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: quote_cancel
+    topic: "quote.cancel"
+    transport: [engine_pub]
+    doc:
+      motivation: "Market maker to engine: pull the active quote on one symbol."
+      since: "1.0"
+      see_also: ["quote.new"]
+      example_note: >
+        Addressed by symbol rather than by quote_id: a gateway has at most one
+        active quote per instrument, so the pair identifies it. That is also
+        why quote_id is optional on submission.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: quote_ack
+    topic: "quote.ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Engine to market maker: the quote was accepted or rejected."
+      since: "1.0"
+      example_note: >
+        The two order ids are the engine's handles for the resting legs, and
+        are what ties a subsequent order.fill to the quote that produced it.
+        Both are always emitted, as "" on rejection - the hand-written builder
+        put them in the base payload, and a rejected quote rests nothing.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: quote_id, type: string, required: false, default: "",
+          validate: { max_len: 64 } }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+      - { name: bid_order_id, type: string, required: false, default: "",
+          validate: { max_len: 64 } }
+      - { name: ask_order_id, type: string, required: false, default: "",
+          validate: { max_len: 64 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: quote_status
+    topic: "quote.status.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to market maker: the quote left the book, and why.
+      since: "1.0"
+      see_also: ["quote.ack.{GW_ID}"]
+      example_note: >
+        The two INACTIVE_* states say which side was hit, which a market maker
+        needs in order to re-quote the other one. They are distinct states
+        rather than one INACTIVE plus a side field because
+        models/quote.py::QuoteState is what the engine actually holds, and a
+        wire that renames its own state machine is a translation nobody asked
+        for.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: quote_id, type: string, required: false, default: "",
+          validate: { max_len: 64 } }
+      - name: status
+        type: enum
+        values: [ACTIVE, INACTIVE_BID_FILLED, INACTIVE_ASK_FILLED, CANCELLED]
+        doc: "Mirrors models/quote.py::QuoteState."
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }

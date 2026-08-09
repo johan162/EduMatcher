@@ -5,6 +5,7 @@ from pathlib import Path
 
 from edumatcher.engine.main import Engine
 from edumatcher.models.message import decode
+from edumatcher.models.price import to_ticks
 
 
 @dataclass
@@ -82,8 +83,8 @@ gateways:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-CFG-ON",
-            "bid_price": 100.00,
-            "ask_price": 100.10,
+            "bid_price": to_ticks(100.00, "AAPL"),
+            "ask_price": to_ticks(100.10, "AAPL"),
             "bid_qty": 10,
             "ask_qty": 10,
         }
@@ -115,8 +116,8 @@ gateways:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-CFG-OFF",
-            "bid_price": 100.00,
-            "ask_price": 100.10,
+            "bid_price": to_ticks(100.00, "AAPL"),
+            "ask_price": to_ticks(100.10, "AAPL"),
             "bid_qty": 10,
             "ask_qty": 10,
         }
@@ -152,8 +153,8 @@ gateways:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-GLOBAL-MM-ON",
-            "bid_price": 100.00,
-            "ask_price": 100.10,
+            "bid_price": to_ticks(100.00, "AAPL"),
+            "ask_price": to_ticks(100.10, "AAPL"),
             "bid_qty": 10,
             "ask_qty": 10,
         }
@@ -201,8 +202,8 @@ gateways:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-SPECIFIC-WINS",
-            "bid_price": 100.00,
-            "ask_price": 100.10,
+            "bid_price": to_ticks(100.00, "AAPL"),
+            "ask_price": to_ticks(100.10, "AAPL"),
             "bid_qty": 10,
             "ask_qty": 10,
         }

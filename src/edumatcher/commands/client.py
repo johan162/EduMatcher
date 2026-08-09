@@ -86,6 +86,10 @@ from edumatcher.models.generated.index import (
     topic_index_error,
     topic_index_history,
 )
+from edumatcher.models.generated.quote import (
+    PREFIX_QUOTE_ACK,
+    topic_quote_ack,
+)
 
 # Topics this client ever needs to receive from the engine PUB socket.
 # Extend this list when adding new commands that carry acks.
@@ -97,7 +101,7 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     PREFIX_SYMBOL_RESUME_ACK,
     PREFIX_CANCEL_SYMBOL_ACK,
     PREFIX_KILL_SWITCH_ACK,
-    "quote.ack.",
+    PREFIX_QUOTE_ACK,
     PREFIX_BOOK_SNAPSHOT,
     TOPIC_SESSION_STATE,
     "system.symbols.",
@@ -400,7 +404,7 @@ class ExchangeCommandClient:
         dict with keys: ``accepted``, ``reason``, ``quote_id``.
         """
         self._send(make_quote_cancel_msg(target_gw.upper(), symbol.upper()))
-        return self._recv(f"quote.ack.{target_gw.upper()}")
+        return self._recv(topic_quote_ack(target_gw.upper()))
 
     def gateway_kick(self, target_gw: str, reason: str = "") -> None:
         """

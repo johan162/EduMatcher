@@ -44,6 +44,7 @@ from edumatcher.models.generated import book as _gen_book
 from edumatcher.models.generated import index as _gen_index
 from edumatcher.models.generated import log as _gen_log
 from edumatcher.models.generated import order as _gen_order
+from edumatcher.models.generated import quote as _gen_quote
 from edumatcher.models.generated import risk as _gen_risk
 from edumatcher.models.generated import session as _gen_session
 from edumatcher.models.generated import structure as _gen_structure
@@ -842,13 +843,20 @@ def make_oco_cancelled_msg(
 
 
 def make_quote_new_msg(payload: dict[str, Any]) -> list[bytes]:
-    """Gateway → engine: submit/replace two-sided quote for one symbol."""
-    return encode("quote.new", payload)
+    """Gateway → engine: submit/replace two-sided quote for one symbol.
+
+    Prices are **integer ticks**; the submitting gateway converts. They were
+    display money until 6.1b, which is the one path design section 15.2 missed
+    when it made ticks the sole engine-inbound unit — see section 25.2. A
+    pass-through of an arbitrary dict, like ``order.new``: the spec states the
+    contract and the engine's handler remains the thing that enforces it.
+    """
+    return encode(_gen_quote.TOPIC_QUOTE_NEW, payload)
 
 
 def make_quote_cancel_msg(gateway_id: str, symbol: str) -> list[bytes]:
     """Gateway → engine: cancel active quote for one symbol."""
-    return encode("quote.cancel", {"gateway_id": gateway_id, "symbol": symbol})
+    return _gen_quote.make_quote_cancel(gateway_id=gateway_id, symbol=symbol)
 
 
 def make_quote_ack_msg(
@@ -860,16 +868,13 @@ def make_quote_ack_msg(
     ask_order_id: str = "",
 ) -> list[bytes]:
     """Engine → gateway: quote accepted or rejected."""
-    topic = f"quote.ack.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "quote_id": quote_id,
-            "accepted": accepted,
-            "reason": reason,
-            "bid_order_id": bid_order_id,
-            "ask_order_id": ask_order_id,
-        },
+    return _gen_quote.make_quote_ack(
+        gateway_id=gateway_id,
+        quote_id=quote_id,
+        accepted=accepted,
+        reason=reason,
+        bid_order_id=bid_order_id,
+        ask_order_id=ask_order_id,
     )
 
 
@@ -880,14 +885,11 @@ def make_quote_status_msg(
     reason: str = "",
 ) -> list[bytes]:
     """Engine → gateway: quote lifecycle transition."""
-    topic = f"quote.status.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "quote_id": quote_id,
-            "status": status,
-            "reason": reason,
-        },
+    return _gen_quote.make_quote_status(
+        gateway_id=gateway_id,
+        quote_id=quote_id,
+        status=status,
+        reason=reason,
     )
 
 

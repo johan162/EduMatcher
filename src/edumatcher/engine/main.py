@@ -171,6 +171,10 @@ from edumatcher.models.generated.risk import (
     TOPIC_SYMBOL_HALT,
     TOPIC_SYMBOL_RESUME,
 )
+from edumatcher.models.generated.quote import (
+    TOPIC_QUOTE_CANCEL,
+    TOPIC_QUOTE_NEW,
+)
 
 # Kept for backward compatibility (e.g. tests that reference it).  The hot path
 # uses the monotonic now_ns() for event timestamps (M9), not this raw source.
@@ -2629,9 +2633,24 @@ class Engine:
             )
             return
 
+        def _quote_ticks(key: str) -> int:
+            """Read one quote price. Ticks only.
+
+            A float here means a submitting gateway skipped its ``to_ticks``
+            conversion. Accepting it would post the quote at 1/100th of the
+            intended level on a two-decimal instrument — silent, and in the
+            wrong direction for whichever side gets hit. Same rule and same
+            reasoning as ``_handle_oco_order``'s ``_leg_ticks`` (design
+            section 15.2); quotes joined it in 6.1b.
+            """
+            value = payload[key]
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise ValueError(f"{key} must be integer ticks, not display money")
+            return value
+
         try:
-            bid_price = to_ticks(float(payload["bid_price"]), symbol)
-            ask_price = to_ticks(float(payload["ask_price"]), symbol)
+            bid_price = _quote_ticks("bid_price")
+            ask_price = _quote_ticks("ask_price")
             bid_qty = int(payload["bid_qty"])
             ask_qty = int(payload["ask_qty"])
             tif = TIF(str(payload.get("tif", "DAY")).upper())
@@ -4979,9 +4998,9 @@ class Engine:
                 self._handle_oco_order(payload)
             elif topic == TOPIC_ORDER_OCO_CANCEL:
                 self._handle_oco_cancel(payload)
-            elif topic == "quote.new":
+            elif topic == TOPIC_QUOTE_NEW:
                 self._handle_quote_new(payload)
-            elif topic == "quote.cancel":
+            elif topic == TOPIC_QUOTE_CANCEL:
                 self._handle_quote_cancel(payload)
             elif topic == "system.gateway_connect":
                 self._handle_gateway_connect(payload)

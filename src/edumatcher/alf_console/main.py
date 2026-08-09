@@ -144,6 +144,10 @@ from edumatcher.models.generated.structure import (
     topic_oco_ack,
     topic_oco_cancelled,
 )
+from edumatcher.models.generated.quote import (
+    topic_quote_ack,
+    topic_quote_status,
+)
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-alf-console"
@@ -290,8 +294,8 @@ class Gateway:
             topic_combo_status(self.gateway_id),
             topic_oco_ack(self.gateway_id),
             topic_oco_cancelled(self.gateway_id),
-            f"quote.ack.{self.gateway_id}",
-            f"quote.status.{self.gateway_id}",
+            topic_quote_ack(self.gateway_id),
+            topic_quote_status(self.gateway_id),
             topic_kill_switch_ack(self.gateway_id),
             f"system.symbols.{self.gateway_id}",
             f"system.quote_bootstrap.{self.gateway_id}",
@@ -1247,9 +1251,11 @@ class Gateway:
         payload: dict[str, Any] = {
             "gateway_id": self.gateway_id,
             "symbol": symbol,
-            "bid_price": bid_price,
+            # Ticks on the wire: converting is the submitting gateway's job
+            # (design section 15.2, extended to quotes in 6.1b).
+            "bid_price": to_ticks(bid_price, symbol),
             "bid_qty": bid_qty,
-            "ask_price": ask_price,
+            "ask_price": to_ticks(ask_price, symbol),
             "ask_qty": ask_qty,
             "tif": tif.value,
         }

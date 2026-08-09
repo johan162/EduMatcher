@@ -196,8 +196,11 @@ def submit_quote(
             "gateway_id": gateway_id,
             "symbol": symbol,
             "quote_id": quote_id,
-            "bid_price": bid_price,
-            "ask_price": ask_price,
+            # Callers pass display money, as a market maker's own pricer
+            # produces; the wire carries ticks, and converting is the
+            # submitting side's job (design section 15.2, quotes in 6.1b).
+            "bid_price": to_ticks(bid_price, symbol),
+            "ask_price": to_ticks(ask_price, symbol),
             "bid_qty": bid_qty,
             "ask_qty": ask_qty,
             "tif": "DAY",

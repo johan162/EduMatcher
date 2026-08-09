@@ -3207,6 +3207,88 @@ same thing without lying to a registry. A test pins it: `order.FAMILY_TOPICS`
 contains `order.combo` and `order.oco` and nothing starting `combo.` or
 `oco.`.
 
+## 25. `quote`: the inbound path the units rule missed
+
+Phase 6.1b specified the four quote messages. Three were byte-identical. The
+fourth carried the last engine-inbound price in the system that was not ticks.
+
+### 25.1 What was actually wrong
+
+`_handle_quote_new` did `to_ticks(float(payload["bid_price"]), symbol)`, so
+`quote.new` carried **display money** while `order.new`, `order.combo` and
+`order.oco` all carried integer ticks after §15.2.
+
+It is important to be precise about the defect, because the obvious reading is
+wrong. This was **not** §15.2's ambiguity. That one was dangerous because three
+paths disagreed *and* `to_ticks` passed integers through unchanged, so a
+display price of `150` and `150` ticks were the same bytes with different
+meanings. Here all four producers agreed on display money, the engine always
+converted, and nothing was ever mispriced.
+
+What was wrong was the **rule**. §15.2 left behind a test file whose docstring
+opens *"Engine-inbound prices are ticks, everywhere, with no exceptions"*, and
+that sentence was false. A developer writing a fifth quote producer, reading
+the invariant, would send `bid_price: 150` meaning ticks and have it read as
+$150 — the same silent 100x error, arrived at by *following the
+documentation*.
+
+So the hazard was not in the code as it stood; it was in the gap between the
+code and a claim about it. That is worth separating from an ordinary bug: no
+test failed, no wire was wrong, and the thing that would eventually break was
+someone trusting a sentence.
+
+### 25.2 Why quotes were missed, and what that suggests
+
+§15.2 enumerated three inbound paths by name and converted them. Quotes were a
+fourth and are not mentioned anywhere in that section — not excluded, not
+deferred, simply absent. The phase's own test file then generalised from the
+three it knew about to "everywhere".
+
+The narrow lesson is about how invariants get written: **a rule stated over
+"everywhere" needs a check that enumerates everywhere, not the cases that
+prompted it.** §15.2's tests assert the three paths it converted; nothing
+walked the set of engine-inbound messages and asked which carried prices. The
+generator can now answer that question — `unit:` is declared per field and
+`describe_*()` exposes it — which is a better foundation for the invariant
+than a list maintained by hand.
+
+The fix follows §15.2's own resolution: the four producers convert, the wire
+carries ticks, and the engine **rejects** a float rather than truncating it,
+with the same wording and reasoning as `_handle_oco_order`'s `_leg_ticks`.
+`TestQuotePricesAreTicks` in `test_wire_price_units.py` is what keeps the
+docstring true, and the file now names quotes explicitly rather than implying
+them.
+
+One small hardening on the way past: the guard tests
+`isinstance(value, bool)` as well, because `isinstance(True, int)` is `True`
+in Python. Unreachable from any producer, but it costs one clause and the OCO
+guard it mirrors has the same hole.
+
+### 25.3 The test payloads, again
+
+§15.2 converted 29 payloads across eight test modules. This one converted 32
+across six, and the count is not the interesting part — the shape of the work
+is. Two thirds of them went through a helper (`engine_harness.submit_quote`,
+`test_engine_review_highs._quote`) that takes display prices and builds the
+payload, so the conversion belongs *in the helper*: call sites keep reading in
+display money, which is what a test author wants to write, and the helper
+plays the part a real gateway plays.
+
+That is the same boundary the production code draws — `build_quote_payload`
+converts because the API speaks display money to its clients — and it is worth
+noticing that the test helper and the API gateway ended up with identical
+responsibilities. A test double that converts where the real thing converts is
+testing the right wire.
+
+Three files matched a naive search and were **not** converted:
+`test_gateway_and_scheduler.py`, `test_commands.py` and part of
+`test_mm_bot.py` carry `bid_price` inside `system.quote_bootstrap` snapshots —
+engine→gateway state dumps in display money, a different message in the other
+direction. `test_config_gen_*` carry it as configuration seed values. A
+find-and-replace on the field name would have corrupted all five, which is
+§21.6's lesson holding for the third phase running: the same field name in a
+different message is a different field.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first

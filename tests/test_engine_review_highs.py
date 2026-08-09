@@ -53,6 +53,7 @@ from edumatcher.models.order import (
     TIF,
 )
 from edumatcher.models.participant import ParticipantRole
+from edumatcher.models.price import to_ticks
 
 SYMBOL = "AAPL"  # 2 tick decimals by default → 100.00 == 10000 ticks
 
@@ -187,8 +188,11 @@ def _quote(
             "gateway_id": gateway_id,
             "symbol": SYMBOL,
             "quote_id": quote_id,
-            "bid_price": bid_price,
-            "ask_price": ask_price,
+            # Callers pass display money, as a market maker's own pricer
+            # produces; the wire carries ticks, and converting is the
+            # submitting side's job (design section 15.2, quotes in 6.1b).
+            "bid_price": to_ticks(bid_price, SYMBOL),
+            "ask_price": to_ticks(ask_price, SYMBOL),
             "bid_qty": bid_qty,
             "ask_qty": ask_qty,
             "tif": "DAY",

@@ -13,6 +13,7 @@ from typing import Any
 import zmq
 
 from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.models.price import to_ticks
 from edumatcher.models.message import (
     decode,
     make_gateway_connect_msg,
@@ -32,6 +33,10 @@ from edumatcher.models.generated.book import (
 from edumatcher.models.generated.order import (
     topic_order_cancelled,
     topic_order_fill,
+)
+from edumatcher.models.generated.quote import (
+    topic_quote_ack,
+    topic_quote_status,
 )
 
 log = logging.getLogger(__name__)
@@ -195,8 +200,8 @@ class MMBot:
             TOPIC_TRADE_EXECUTED,
             topic_order_fill(self.gateway_id),
             topic_order_cancelled(self.gateway_id),
-            f"quote.ack.{self.gateway_id}",
-            f"quote.status.{self.gateway_id}",
+            topic_quote_ack(self.gateway_id),
+            topic_quote_status(self.gateway_id),
             TOPIC_SESSION_STATE,
             f"circuit_breaker.halt.{self.symbol}",
             f"circuit_breaker.resume.{self.symbol}",
@@ -441,8 +446,10 @@ class MMBot:
         quote_payload: dict[str, Any] = {
             "gateway_id": self.gateway_id,
             "symbol": self.symbol,
-            "bid_price": bid,
-            "ask_price": ask,
+            # The pricer works in display money; the wire carries ticks
+            # (design section 15.2, quotes joined in 6.1b).
+            "bid_price": to_ticks(bid, self.symbol),
+            "ask_price": to_ticks(ask, self.symbol),
             "bid_qty": self.qty,
             "ask_qty": self.qty,
             "tif": self.tif,
@@ -644,9 +651,9 @@ class MMBot:
                 self._cancel_and_reissue()
         elif topic == TOPIC_TRADE_EXECUTED:
             self._handle_trade(payload)
-        elif topic == f"quote.ack.{self.gateway_id}":
+        elif topic == topic_quote_ack(self.gateway_id):
             self._handle_quote_ack(payload)
-        elif topic == f"quote.status.{self.gateway_id}":
+        elif topic == topic_quote_status(self.gateway_id):
             self._handle_quote_status(payload)
         elif topic == topic_order_fill(self.gateway_id):
             self._handle_order_fill(payload)
@@ -920,7 +927,7 @@ class MMBot:
                     socks = dict(poller.poll(timeout=min(remaining_ms, 100)))
                     if self._sub_sock in socks:
                         topic, _payload = decode(self._sub_sock.recv_multipart())
-                        if topic == f"quote.status.{self.gateway_id}":
+                        if topic == topic_quote_status(self.gateway_id):
                             self._debug("shutdown: cancel confirmed")
                             break
                     self._flush_debug_summary(force=True)

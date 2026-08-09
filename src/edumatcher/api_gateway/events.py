@@ -22,6 +22,10 @@ from edumatcher.models.generated.structure import (
     PREFIX_OCO_ACK,
     PREFIX_OCO_CANCELLED,
 )
+from edumatcher.models.generated.quote import (
+    PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_STATUS,
+)
 
 ORDER_ACK_PREFIX = PREFIX_ORDER_ACK
 ORDER_FILL_PREFIX = PREFIX_ORDER_FILL
@@ -49,8 +53,8 @@ PRIVATE_PREFIXES = (
     PREFIX_COMBO_STATUS,
     PREFIX_OCO_ACK,
     PREFIX_OCO_CANCELLED,
-    "quote.ack.",
-    "quote.status.",
+    PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_STATUS,
     PREFIX_KILL_SWITCH_ACK,
     "system.gateway_auth.",
     SYSTEM_SYMBOLS_PREFIX,

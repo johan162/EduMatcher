@@ -82,6 +82,12 @@ from edumatcher.models.generated.structure import (
     topic_oco_ack,
     topic_oco_cancelled,
 )
+from edumatcher.models.generated.quote import (
+    PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_STATUS,
+    topic_quote_ack,
+    topic_quote_status,
+)
 
 _MAX_LINE_BYTES = 4096
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
@@ -826,9 +832,10 @@ class AlfGateway:
         payload: dict[str, Any] = {
             "gateway_id": self._require_gw(session),
             "symbol": symbol,
-            "bid_price": bid,
+            # Ticks on the wire (design section 15.2, quotes joined in 6.1b).
+            "bid_price": to_ticks(bid, symbol),
             "bid_qty": bid_qty,
-            "ask_price": ask,
+            "ask_price": to_ticks(ask, symbol),
             "ask_qty": ask_qty,
             "tif": tif.value,
         }
@@ -1324,7 +1331,7 @@ class AlfGateway:
         elif topic.startswith(PREFIX_ORDER_EXPIRED):
             msg_type = "EXPIRED"
             fields = {"ORDER_ID": str(payload.get("order_id", ""))}
-        elif topic.startswith("quote.ack."):
+        elif topic.startswith(PREFIX_QUOTE_ACK):
             msg_type = "QUOTE_ACK"
             fields = {
                 "QUOTE_ID": str(payload.get("quote_id", "")),
@@ -1333,7 +1340,7 @@ class AlfGateway:
                 "BID_ID": str(payload.get("bid_order_id", "")),
                 "ASK_ID": str(payload.get("ask_order_id", "")),
             }
-        elif topic.startswith("quote.status."):
+        elif topic.startswith(PREFIX_QUOTE_STATUS):
             msg_type = "QUOTE_STATUS"
             fields = {
                 "QUOTE_ID": str(payload.get("quote_id", "")),
@@ -1672,8 +1679,8 @@ class AlfGateway:
             topic_order_cancelled(gateway_id),
             topic_order_expired(gateway_id),
             f"order.orders.{gateway_id}",
-            f"quote.ack.{gateway_id}",
-            f"quote.status.{gateway_id}",
+            topic_quote_ack(gateway_id),
+            topic_quote_status(gateway_id),
             topic_combo_ack(gateway_id),
             topic_combo_status(gateway_id),
             topic_oco_ack(gateway_id),
