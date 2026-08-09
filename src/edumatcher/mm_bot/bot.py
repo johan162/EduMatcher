@@ -26,6 +26,10 @@ from edumatcher.models.message import (
 from edumatcher.mm_bot.pricer import QuotePricer
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.circuit_breaker import (
+    topic_circuit_breaker_halt,
+    topic_circuit_breaker_resume,
+)
 from edumatcher.models.generated.book import (
     PREFIX_BOOK_SNAPSHOT,
     topic_book_snapshot,
@@ -203,8 +207,8 @@ class MMBot:
             topic_quote_ack(self.gateway_id),
             topic_quote_status(self.gateway_id),
             TOPIC_SESSION_STATE,
-            f"circuit_breaker.halt.{self.symbol}",
-            f"circuit_breaker.resume.{self.symbol}",
+            topic_circuit_breaker_halt(self.symbol),
+            topic_circuit_breaker_resume(self.symbol),
         )
 
     def _close_sockets(self) -> None:
@@ -661,9 +665,9 @@ class MMBot:
             self._handle_order_cancelled(payload)
         elif topic == TOPIC_SESSION_STATE:
             self._handle_session_state(payload)
-        elif topic == f"circuit_breaker.halt.{self.symbol}":
+        elif topic == topic_circuit_breaker_halt(self.symbol):
             self._handle_circuit_breaker_halt()
-        elif topic == f"circuit_breaker.resume.{self.symbol}":
+        elif topic == topic_circuit_breaker_resume(self.symbol):
             self._handle_circuit_breaker_resume()
         elif topic == f"system.quote_legs.{self.gateway_id}":
             self._reconcile_qlegs(payload)

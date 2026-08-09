@@ -13,12 +13,12 @@
     - What `pm-msgen check` guarantees, and why generation must be
       byte-for-byte deterministic for that guarantee to be worth anything
 
-!!! info "Current status: Phase 6.1b"
-    **Nine families are specified and adopted**, covering 69 messages and 9
+!!! info "Current status: Phase 6.1c"
+    **Eleven families are specified and adopted**, covering 74 messages and 9
     record types: `trade`, `order`, `session`, `book`, `log`, `index`, `risk`,
-    `structure` and `quote`. Each has a Python binding; `trade` and `order`
-    also have C bindings for their CALF projections and the BALF
-    `execution_report` frame.
+    `structure`, `quote`, `circuit_breaker` and `auction`. Each has a Python
+    binding; `trade` and `order` also have C bindings for their CALF
+    projections and the BALF `execution_report` frame.
 
     All of it is live. `models/message.py`'s builders delegate to the generated
     code, the engine, pm-index and pm-log-srv publish through it,
@@ -31,10 +31,9 @@
     The drift check runs in CI and `make check`; compiled round-trip tests prove
     Python and C agree on both the text and binary wires.
 
-    Not built yet: roughly 37 topics across `circuit_breaker`, `auction`,
-    `drop_copy`, `admin` and `system` (Phase 6.1c–f), and the documentation
-    appendix (6.2). The full plan lives in
-    `docs-design/EduMatcher-Message-Generator.md`.
+    Not built yet: roughly 32 topics across `drop_copy`, `admin` and `system`
+    (Phase 6.1d–f), and the documentation appendix (6.2). The full plan lives
+    in `docs-design/EduMatcher-Message-Generator.md`.
 
 ## The problem
 
@@ -1318,7 +1317,7 @@ What it does not, and will not:
 | 5.3b | `risk` part two: symbol halt/resume/cancel + the two circuit-breaker sweeps (10 topics); `grep-literals` learns to see f-string topics, and the 46 they were hiding are migrated | **done** — every specified family is complete |
 | 6.1a | `structure`: the combo/OCO events; `combo.status`'s `details` map becomes a field | **done** |
 | 6.1b | `quote` (4 topics); quote prices join the ticks rule §15.2 set | **done** |
-| 6.1c | `circuit_breaker` + `auction` (5 topics) | not started |
+| 6.1c | `circuit_breaker` + `auction` (5 topics); the halt corridor fork resolved by presence regime, `imbalance_side` becomes an omitting enum | **done** |
 | 6.1d | `drop_copy` + `admin` (3 topics) | not started |
 | 6.1e–f | `system` (29 topics, two sessions) | not started |
 | 6.2 | Generated `271-message-appendix.md` | not started |

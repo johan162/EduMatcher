@@ -762,8 +762,8 @@ The engine will:
 Expected inbound events:
 
 ```
-circuit_breaker.resume.AAPL  → { symbol: "AAPL", mode: "MANUAL" }
-circuit_breaker.resume.MSFT  → { symbol: "MSFT", mode: "MANUAL" }
+circuit_breaker.resume.AAPL  → { symbol: "AAPL", halt_source: "ADMIN" }
+circuit_breaker.resume.MSFT  → { symbol: "MSFT", halt_source: "ADMIN" }
 ...
 risk.circuit_breaker_resume_all_ack.GW_ADMIN → { accepted: true, resumed_symbols: N }
 ```
@@ -1566,7 +1566,7 @@ Published repeatedly during an opening or closing auction, throttled by
 | `phase`          | string        | The call phase in progress, e.g. `OPENING_AUCTION`              |
 | `eq_price`       | float \| null | Indicative equilibrium price; `null` when the book would not cross at all — a real state during a call phase, and **not** the same as a price of zero |
 | `eq_qty`         | integer       | Quantity that would match at `eq_price`                         |
-| `imbalance_side` | string        | `"BUY"`, `"SELL"`, or `""` (balanced)                           |
+| `imbalance_side` | string        | `"BUY"` or `"SELL"`; the key is **absent** when the book is balanced |
 | `imbalance_qty`  | integer       | Surplus quantity that would not match                           |
 
 ### `auction.result.{SYMBOL}`
@@ -1577,10 +1577,12 @@ Published repeatedly during an opening or closing auction, throttled by
 Broadcast once per symbol after an auction uncross completes.  Reports the
 equilibrium price, quantity matched, and any imbalance.
 
-Three different events produce it, and `reason` is the only field that
-distinguishes them: leaving an auction or other non-matching session phase,
-a halted symbol reopening at the end of its halt, and the pass over restored
-GTC orders at engine startup.
+Four different events produce it, and `reason` is the only field that
+distinguishes them: leaving an auction or other non-matching session phase
+(`SCHEDULED`), a halted symbol reopening at the end of its halt (`REOPEN`),
+the pass over restored GTC orders at engine startup (`RECOVERY`), and the
+closing backstop forcing a still-halted symbol to print at its corridor
+boundary (`BACKSTOP`).
 
 | Field            | Type          | Description                                                  |
 |------------------|---------------|--------------------------------------------------------------|
@@ -1588,9 +1590,9 @@ GTC orders at engine startup.
 | `eq_price`       | float \| null | Equilibrium (uncross) price; `null` if no crossable interest |
 | `eq_qty`         | integer       | Total quantity matched at the equilibrium price              |
 | `trades_count`   | integer       | Number of individual trade pairs generated                   |
-| `imbalance_side` | string        | `"BUY"`, `"SELL"`, or `""` (balanced)                        |
+| `imbalance_side` | string        | `"BUY"` or `"SELL"`; **absent** when balanced                |
 | `imbalance_qty`  | integer       | Surplus quantity that could not be matched                   |
-| `reason`         | string        | `"SCHEDULED"`, `"REOPEN"`, or `"RECOVERY"`                   |
+| `reason`         | string        | `"SCHEDULED"`, `"REOPEN"`, `"RECOVERY"` or `"BACKSTOP"`      |
 
 
 

@@ -3289,6 +3289,189 @@ find-and-replace on the field name would have corrupted all five, which is
 §21.6's lesson holding for the third phase running: the same field name in a
 different message is a different field.
 
+## 26. `circuit_breaker` and `auction`: a fork that was a presence regime
+
+Phase 6.1c specified and adopted five topics across two families. Seven
+producers, one of which disagreed with the other two about the shape of its
+own message, and a docs surface that had believed in a field the wire never
+carried.
+
+### 26.1 Two files, because a family is its topic root
+
+`circuit_breaker.resume` and `auction.result` are published microseconds
+apart — a reopening auction *is* how a halt ends — and there was an obvious
+temptation to describe the five topics in one file. §24.4 is why that would be
+wrong, and the argument transfers unchanged: `FAMILY_TOPICS` is what a router
+subscribes from, so a combined family would advertise `auction.*` to a
+consumer that wants only halts. They are related by `see_also`.
+
+The evidence that this is the right cut is in the consumers rather than in the
+taxonomy. `md_gateway` subscribes to all five and `alf_gwy` to two of the
+three `circuit_breaker` topics and none of `auction`; `api_gateway` reads
+`auction.result` and no `circuit_breaker` topic at all. Three consumers, three
+different subsets, and not one of them wants the union.
+
+### 26.2 The corridor: a flattened record that stayed flat
+
+`circuit_breaker.halt` has three producers. The price-triggered path splats
+`**self._corridor_payload(cb, symbol)`; the two ADMIN paths omit the three
+keys it adds. `_corridor_payload` returns `corridor_low`, `corridor_high` and
+`expansion` as `None` together when `cb.corridor()` is `None`, so the wire
+carried two spellings of one absence — three nulls from one producer, nothing
+from the other two.
+
+§20.1's rule fits it exactly: *an `a_b`-prefixed group of fields sharing one
+guard is a record that was flattened for want of one.* §21.4 adds a second
+argument, and it also fits: the producer already holds the value as an
+all-or-nothing `tuple[int, int] | None` and flattens it at the publish call.
+The shape was nevertheless left flat, with three `omit_when_none` fields, and
+the reasons are worth recording because two good rules pointed the other way.
+
+* **`expansion` shares the guard but not the concept.** `cb.corridor()`
+  returns the bounds; `expansion_index` is a separate attribute that is always
+  a real integer and is `None` on the wire only because `_corridor_payload`
+  returns early. A `Corridor {low, high}` record would leave `expansion`
+  outside it still sharing the same guard — which *relocates* the half-set
+  state rather than removing it, and removing it is the whole point of the
+  record. Putting `expansion` inside forces the record to be read as "corridor
+  state" rather than "corridor bounds", which is a worse name for a worse fit.
+* **Both structural readers immediately unpack it.** `normalise_cb_halt` and
+  `normalise_cb_extend` turn the three into three independent CALF fields
+  (`CORRIDORLO`, `CORRIDORHI`, `EXPANSION`). The CALF wire is flat either way,
+  so a record would add a pack on one side and an unpack on the other with no
+  reader between them holding it as a unit.
+* **Regime 3 already collapses the fork, with no byte change on either
+  dominant path.** A price-triggered halt with a corridor still carries all
+  three; the ADMIN halts still carry none. The only shape that moves is a
+  price-triggered halt with ACE disabled, which stops saying `null` three
+  times and says nothing — and absence and null are the same value to the only
+  reader, which reaches every one of them through `payload.get`.
+
+So §20.1's count stands at three, not four. The narrow correction is to that
+section's closing claim: it grepped `risk`'s thirty topics and concluded the
+third instance was the last, which was a generalisation from the family in
+front of it. `circuit_breaker` was not in that grep. The rule is sound; *"and
+there are no more"* was never checked over the topics nobody had specified
+yet, and there are two families left to find out about.
+
+### 26.3 `imbalance_side`: the falsy sentinel, and the option that would have broken
+
+`imbalance_side` is `"BUY"`, `"SELL"` or `""` on three messages across both
+families, and `AuctionResult.imbalance_side` is documented in
+`engine/auction.py` as exactly that. An enum cannot carry `""` (§16.1), so the
+choice was between a plain string with `default: ""` — byte-identical, and
+silent about the two values it can hold — and an enum of `[BUY, SELL]` that
+omits when unset.
+
+It is an omitting enum now. Every reader already goes through
+`str(payload.get("imbalance_side", "")).upper()` and skips on falsy, so an
+absent key and an empty one are the same event to all three; the spec gains
+the enumeration, and the falsy sentinel — the pattern §16.1, §21.4 and §24.2
+have each cleaned up once — leaves one more wire.
+
+The rejected option is the interesting one. Regime 2 (`nullable`, key always
+present as `null`) reads like the conservative choice and is the one that
+breaks: `str(None).upper()` is `"NONE"` in Python, which is truthy, so all
+three normalisers would have emitted `IMB=NONE` on the CALF wire for a
+balanced book. Nothing in the spec or the IDL would have caught it — the
+payload is valid, the projection is valid, and the value is wrong. The only
+thing that found it was reading the four lines of the reader, which is §13.6
+for the fifth time and the cheapest habit in this document.
+
+### 26.4 `include: all` does not mean all
+
+All five messages name `{symbol}` in the topic *and* carry it in the body, and
+every consumer reads it from the body — `alf_gwy` broadcasts
+`payload["symbol"]`, `normalise_auction_result` derives the CALF symbol from
+it. The first draft of both specs wrote `include: all` and dropped the key
+from all five payloads. `pm-msgen check` passed, the generator was correct,
+and five wires had silently lost a field.
+
+`include: all` means "every field except the topic parameters". That default
+is right — `order.ack.{gateway_id}` does not repeat the gateway in the body —
+and `book.yaml` already works around it by enumerating all nine of
+`book_snapshot`'s fields, with a comment explaining why. These two families
+now do the same, which makes four messages in the tree carrying a hand-written
+field list that must be updated whenever a field is added, or the new field
+silently never reaches the wire.
+
+That is §1's failure class in the spec language itself, and it is worth
+recording as a **known rough edge rather than fixing here**: the fix is either
+a third value for `include` or making `all` literal, and both change the
+meaning of a key that four committed specs already use. It wants its own
+change with its own regeneration diff, not a passenger on a family phase.
+
+### 26.5 What the audit found, in both directions
+
+§23.3's widened rule — audit every field the process echoes outward *and*
+every field it accepts inward — found one of each, and the inward one was not
+introduced by this phase.
+
+**Outward, and new.** `circuit_breaker.halt.level` is a level name from the
+symbol's `circuit_breaker.levels` config, bounded at 32 by the spec and
+unbounded by `config_loader`. A deployment declaring a longer name would have
+loaded cleanly and then raised `MessageValidationError` inside the generated
+builder on the first halt of that symbol — far from the config line that
+caused it, and taking the halt with it. Bounded at config load, where the
+error can name the file, the symbol and the key.
+
+**Inward, and pre-existing.** `_handle_symbol_halt` reads `level` off the wire
+unbounded and quotes it verbatim into `f"Unknown circuit-breaker level for
+{symbol}: {level_name}"`, which becomes the `reason` of a `symbol_halt_ack`
+that the `risk` spec bounds at 512. A five-thousand-character level therefore
+raises inside the ack builder — and since `_reject_after_error` returns early
+for non-order topics, the caller gets **no ack at all** and waits for a
+timeout. This is §22.3's silent non-answer exactly, on a handler 5.3b bounded
+at the *API* edge (`_MAX_CB_LEVEL` in `schemas.py`) and not at the engine's.
+
+That gap is the useful finding, and it is a small correction to how §23.3's
+rule was applied rather than to the rule: bounding the FastAPI request model
+protects clients that go through FastAPI. The engine's PULL socket is a
+boundary of its own, and every other identifier reaching that handler was
+already clamped there by `_clamp_wire_id` — `level` was the one field on the
+message that was not an identifier, so it was not in the list the audit swept.
+**A per-type sweep misses the field that is not of that type.**
+
+Both are pinned by probes rather than by reasoning: the ack builder was called
+with a 5 040-character reason and the halt builder with a 40-character level,
+and both raised before either fix went in.
+
+### 26.6 A field three documents believed in alone
+
+`docs/user-guide/120-risk-controls.md` showed an ADMIN resume as
+`{"symbol": "AAPL", "mode": "MANUAL"}` in four places — two payload samples, a
+sequence diagram and a prose sentence — and
+`270-message-reference.md` repeated it. **No producer has ever sent a `mode`
+key.** The payload is `{symbol, halt_source}`, and `halt_source` is `"ADMIN"`
+there.
+
+This is §24.3's table gaining a fourth row, and a new kind: the previous three
+were a producer that dropped a value, a consumer that read a field the message
+could not carry, and a shape that was wrong on both sides. This one is neither
+side — both halves of the wire agree, and the *documentation* is the party
+that believes in the field. It costs nothing at runtime and it is the most
+expensive kind to leave, because §1's whole argument is that the docs are one
+of the three surfaces that drift, and this is the drift it predicted.
+
+Two smaller instances of the same, both found by writing the spec and
+comparing it against the prose:
+
+* `auction.result.reason` has **four** values. `_run_uncross` is called with
+  `BACKSTOP` from the closing backstop, and the builder's own docstring,
+  `normalise_auction_result`'s docstring and the reference table all listed
+  three. Nothing was broken — `reason` is a passthrough string on every path —
+  but a consumer switching on the documented three would fall through on a
+  real event, and the backstop is the one uncross where the price was imposed
+  rather than discovered, which is precisely when a consumer wants to know.
+* The `imbalance_side` rows in the reference documented `""` for balanced.
+  True until this phase, and updated with the omission.
+
+The generalisation is §25.1's, arriving from the other direction. There the
+hazard was a *rule* that had gone false while the code stayed right; here it
+is a *sample payload*. Both are things no test asserts and no reader can
+falsify without going to the source — which is the argument for 6.2 generating
+the reference appendix from the spec rather than maintaining it by hand.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first

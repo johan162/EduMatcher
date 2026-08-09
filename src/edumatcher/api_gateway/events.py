@@ -15,6 +15,7 @@ from edumatcher.models.generated.order import (
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT, PREFIX_DEPTH
+from edumatcher.models.generated.auction import PREFIX_AUCTION_RESULT
 from edumatcher.models.generated.risk import PREFIX_KILL_SWITCH_ACK
 from edumatcher.models.generated.structure import (
     PREFIX_COMBO_ACK,
@@ -108,7 +109,7 @@ def websocket_type(topic: str) -> str:
         return "session"
     if topic.startswith("circuit_breaker."):
         return "circuit_breaker"
-    if topic.startswith("auction.result."):
+    if topic.startswith(PREFIX_AUCTION_RESULT):
         return "auction"
     parts = topic.split(".")
     if len(parts) >= 2:
@@ -159,7 +160,7 @@ def market_data_symbol(topic: str, payload: dict[str, Any]) -> str | None:
     """Find the symbol associated with a public market-data event."""
     if topic.startswith(PREFIX_BOOK_SNAPSHOT) or topic.startswith(PREFIX_DEPTH):
         return topic.split(".", 1)[1]
-    if topic.startswith("auction.result."):
-        return topic[len("auction.result.") :].upper()
+    if topic.startswith(PREFIX_AUCTION_RESULT):
+        return topic[len(PREFIX_AUCTION_RESULT) :].upper()
     raw_symbol = payload.get("symbol")
     return str(raw_symbol).upper() if raw_symbol else None

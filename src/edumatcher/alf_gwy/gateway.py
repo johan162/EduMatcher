@@ -68,6 +68,10 @@ from edumatcher.models.generated.order import (
     topic_order_fill,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.circuit_breaker import (
+    PREFIX_CIRCUIT_BREAKER_HALT,
+    PREFIX_CIRCUIT_BREAKER_RESUME,
+)
 from edumatcher.models.generated.risk import (
     PREFIX_KILL_SWITCH_ACK,
     topic_kill_switch_ack,
@@ -160,8 +164,8 @@ class AlfGateway:
             config.engine_pub_addr,
             TOPIC_SESSION_STATE,
             TOPIC_TRADE_EXECUTED,
-            "circuit_breaker.halt.",
-            "circuit_breaker.resume.",
+            PREFIX_CIRCUIT_BREAKER_HALT,
+            PREFIX_CIRCUIT_BREAKER_RESUME,
         )
         # Separate SUB socket for the engine's drop-copy feed (:5557). Kept
         # distinct from self._sub (:5556) because it is a different ZMQ PUB
@@ -944,7 +948,7 @@ class AlfGateway:
                 )
                 continue
 
-            if topic.startswith("circuit_breaker.halt."):
+            if topic.startswith(PREFIX_CIRCUIT_BREAKER_HALT):
                 self._broadcast(
                     "HALT",
                     {
@@ -954,7 +958,7 @@ class AlfGateway:
                 )
                 continue
 
-            if topic.startswith("circuit_breaker.resume."):
+            if topic.startswith(PREFIX_CIRCUIT_BREAKER_RESUME):
                 self._broadcast(
                     "RESUME",
                     {

@@ -85,7 +85,6 @@ from edumatcher.models.generated.trade import make_trade_executed_unchecked
 from edumatcher.models.message import (
     dumps,
     decode,
-    encode,
     make_ack_msg,
     make_amended_msg,
     make_book_msg,
@@ -161,6 +160,11 @@ from edumatcher.models.session import (
 )
 from edumatcher.models.trade import Trade
 from edumatcher.models.generated.book import TOPIC_BOOK_SNAPSHOT_REQUEST
+from edumatcher.models.generated.circuit_breaker import (
+    make_circuit_breaker_extend,
+    make_circuit_breaker_halt,
+    make_circuit_breaker_resume,
+)
 from edumatcher.models.generated.risk import (
     TOPIC_CANCEL_SYMBOL,
     TOPIC_CIRCUIT_BREAKER_HALT_ALL,
@@ -257,6 +261,12 @@ def _compiled_engine_config() -> "EngineConfig | None":
 _MAX_WIRE_ID_LEN = 32
 #: Longest command_id echoed back, matching the spec's bound.
 _MAX_WIRE_COMMAND_ID_LEN = 64
+#: Longest circuit-breaker level name quoted back in a rejection, matching the
+#: `max_len` circuit_breaker.halt declares for `level`. Same load-bearing
+#: reasoning as ``_clamp_wire_id``: an unknown level is quoted verbatim into a
+#: `symbol_halt_ack` whose `reason` the risk spec bounds at 512, so an
+#: unbounded one raises inside the ack builder and the caller gets no answer.
+_MAX_WIRE_CB_LEVEL_LEN = 32
 
 
 def _clamp_wire_id(value: object, limit: int = _MAX_WIRE_ID_LEN) -> str:
@@ -2316,25 +2326,22 @@ class Engine:
                 self._cancel_quote_entry(entry, reason="Circuit breaker halt")
 
         self.pub_sock.send_multipart(
-            encode(
-                f"circuit_breaker.halt.{symbol}",
-                {
-                    "symbol": symbol,
-                    "trigger_price": (
-                        from_ticks(cb.trigger_price, symbol)
-                        if cb.trigger_price is not None
-                        else None
-                    ),
-                    "reference_price": (
-                        from_ticks(cb.reference_price, symbol)
-                        if cb.reference_price is not None
-                        else None
-                    ),
-                    "resume_at_ns": cb.resume_at_ns,
-                    "halt_source": cb.halt_source,
-                    "level": cb.triggered_level,
-                    **self._corridor_payload(cb, symbol),
-                },
+            make_circuit_breaker_halt(
+                symbol=symbol,
+                trigger_price=(
+                    from_ticks(cb.trigger_price, symbol)
+                    if cb.trigger_price is not None
+                    else None
+                ),
+                reference_price=(
+                    from_ticks(cb.reference_price, symbol)
+                    if cb.reference_price is not None
+                    else None
+                ),
+                resume_at_ns=cb.resume_at_ns,
+                halt_source=cb.halt_source,
+                level=cb.triggered_level,
+                **self._corridor_payload(cb, symbol),
             )
         )
         self._mark_dirty(symbol)
@@ -2425,19 +2432,16 @@ class Engine:
                 )
 
             self.pub_sock.send_multipart(
-                encode(
-                    f"circuit_breaker.resume.{symbol}",
-                    {
-                        "symbol": symbol,
-                        "halt_source": halt_source,
-                        "reason": "CLOSING_BACKSTOP",
-                        "clamped": clamped,
-                        "print_price": (
-                            from_ticks(print_price, symbol)
-                            if print_price is not None
-                            else None
-                        ),
-                    },
+                make_circuit_breaker_resume(
+                    symbol=symbol,
+                    halt_source=halt_source,
+                    reason="CLOSING_BACKSTOP",
+                    clamped=clamped,
+                    print_price=(
+                        from_ticks(print_price, symbol)
+                        if print_price is not None
+                        else None
+                    ),
                 )
             )
             self._mark_dirty(symbol)
@@ -2486,16 +2490,13 @@ class Engine:
                     f"qty={indicative.eq_qty} next_call_ends={cb.resume_at_ns}"
                 )
                 self.pub_sock.send_multipart(
-                    encode(
-                        f"circuit_breaker.extend.{symbol}",
-                        {
-                            "symbol": symbol,
-                            "indicative_price": from_ticks(indicative.eq_price, symbol),
-                            "indicative_qty": indicative.eq_qty,
-                            "imbalance_side": indicative.imbalance_side,
-                            "resume_at_ns": cb.resume_at_ns,
-                            **self._corridor_payload(cb, symbol),
-                        },
+                    make_circuit_breaker_extend(
+                        symbol=symbol,
+                        indicative_price=from_ticks(indicative.eq_price, symbol),
+                        indicative_qty=indicative.eq_qty,
+                        imbalance_side=indicative.imbalance_side or None,
+                        resume_at_ns=cb.resume_at_ns,
+                        **self._corridor_payload(cb, symbol),
                     )
                 )
                 self._mark_dirty(symbol)
@@ -2508,10 +2509,7 @@ class Engine:
             self._halted_symbols[symbol] = False
             self._run_uncross(symbol_filter=symbol, reason="REOPEN")
             self.pub_sock.send_multipart(
-                encode(
-                    f"circuit_breaker.resume.{symbol}",
-                    {"symbol": symbol, "halt_source": halt_source},
-                )
+                make_circuit_breaker_resume(symbol=symbol, halt_source=halt_source)
             )
             self._mark_dirty(symbol)
             log.info(
@@ -3213,16 +3211,13 @@ class Engine:
                 )
 
             self.pub_sock.send_multipart(
-                encode(
-                    f"circuit_breaker.halt.{symbol}",
-                    {
-                        "symbol": symbol,
-                        "trigger_price": None,
-                        "reference_price": None,
-                        "resume_at_ns": None,
-                        "halt_source": "ADMIN",
-                        "level": "ADMIN_ALL",
-                    },
+                make_circuit_breaker_halt(
+                    symbol=symbol,
+                    trigger_price=None,
+                    reference_price=None,
+                    resume_at_ns=None,
+                    halt_source="ADMIN",
+                    level="ADMIN_ALL",
                 )
             )
             self._mark_dirty(symbol)
@@ -3270,10 +3265,7 @@ class Engine:
                 cb.deactivate()
 
             self.pub_sock.send_multipart(
-                encode(
-                    f"circuit_breaker.resume.{symbol}",
-                    {"symbol": symbol, "halt_source": "ADMIN"},
-                )
+                make_circuit_breaker_resume(symbol=symbol, halt_source="ADMIN")
             )
             self._mark_dirty(symbol)
 
@@ -3304,7 +3296,11 @@ class Engine:
         gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         symbol = _clamp_wire_id(payload.get("symbol", ""), 16)
         level_name_raw = payload.get("level")
-        level_name = str(level_name_raw).upper() if level_name_raw else None
+        level_name = (
+            str(level_name_raw).upper()[:_MAX_WIRE_CB_LEVEL_LEN]
+            if level_name_raw
+            else None
+        )
         note = str(payload.get("note", ""))
         command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
 
@@ -3396,16 +3392,13 @@ class Engine:
             )
 
         self.pub_sock.send_multipart(
-            encode(
-                f"circuit_breaker.halt.{symbol}",
-                {
-                    "symbol": symbol,
-                    "trigger_price": None,
-                    "reference_price": None,
-                    "resume_at_ns": resume_at_ns,
-                    "halt_source": "ADMIN",
-                    "level": triggered_level,
-                },
+            make_circuit_breaker_halt(
+                symbol=symbol,
+                trigger_price=None,
+                reference_price=None,
+                resume_at_ns=resume_at_ns,
+                halt_source="ADMIN",
+                level=triggered_level,
             )
         )
         self._mark_dirty(symbol)
@@ -3477,10 +3470,7 @@ class Engine:
             cb.deactivate()
 
         self.pub_sock.send_multipart(
-            encode(
-                f"circuit_breaker.resume.{symbol}",
-                {"symbol": symbol, "halt_source": "ADMIN"},
-            )
+            make_circuit_breaker_resume(symbol=symbol, halt_source="ADMIN")
         )
         self._mark_dirty(symbol)
 

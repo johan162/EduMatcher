@@ -42,6 +42,8 @@ MIGRATED = (
     "risk",
     "structure",
     "quote",
+    "circuit_breaker",
+    "auction",
 )
 
 

@@ -1,0 +1,160 @@
+# Canonical specification for the `auction` message family.
+#
+# Phase 6.1c. Two engine -> subscribers events about an uncross: where a
+# symbol *would* clear while a call phase is still collecting orders, and what
+# actually happened when one ran.
+#
+# A SEPARATE FAMILY FROM `circuit_breaker`, DELIBERATELY. A reopening auction
+# is a circuit breaker's ending and the two are published within microseconds
+# of each other, so folding them into one file is tempting. Design section
+# 24.4 is why it would be wrong: a family file's name is its topic root, and
+# `FAMILY_TOPICS` is what a router subscribes from. One combined family would
+# advertise `auction.*` to a consumer that only wants halts, and
+# `circuit_breaker.*` to one that only wants uncrosses. `see_also` says the
+# same thing without lying to a registry.
+#
+# Prices are display money -- see the header of `circuit_breaker.yaml` for why
+# that is the correct direction here and not a contradiction of section 25.
+
+family: auction
+version: 1
+
+messages:
+  - name: auction_indicative
+    topic: "auction.indicative.{symbol}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to all: where one symbol would uncross if the call phase ended
+        now. Published repeatedly while an opening or closing auction collects
+        orders.
+      since: "1.0"
+      see_also: ["auction.result.{SYMBOL}", "circuit_breaker.extend.{SYMBOL}"]
+      example_note: >
+        The difference from `auction.result` is tense. That one reports what
+        happened; this one reports what would happen if the phase ended now,
+        and a client must not mistake the second for the first -- which is why
+        `md_gateway` projects it to a CALF `INDIC` rather than an `AUCTION`.
+
+        `eq_price` is null when the book would not cross at all. That is a
+        real and informative state during a call phase -- nothing would trade
+        yet -- and is not the same as a price of zero, so it is a null rather
+        than an omission.
+
+        Field names are shared with `circuit_breaker.extend`'s indicative
+        deliberately. A reopening auction and a scheduled one are the same
+        mechanism, and a client that learned to read one should not have to
+        learn the other.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - name: phase
+        type: enum
+        values: [OPENING_AUCTION, CLOSING_AUCTION]
+        doc: >
+          Which call phase is running. These are the only two states
+          `models/session.py::is_auction_phase` admits, and the producer
+          returns early for every other one.
+      - name: eq_price
+        type: float
+        required: false
+        nullable: true
+        unit: display_price
+        validate: { gt: 0 }
+        doc: "Indicative equilibrium price, or null if the book would not cross."
+      - name: eq_qty
+        type: int
+        unit: shares
+        validate: { ge: 0 }
+        doc: >
+          Quantity that would execute. Zero is a true reading and is always
+          emitted, unlike `eq_price`, which has no zero.
+      - name: imbalance_side
+        type: enum
+        values: [BUY, SELL]
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          Which side would be left unfilled. Absent when the book is balanced
+          at the indicative price.
+      - name: imbalance_qty
+        type: int
+        unit: shares
+        validate: { ge: 0 }
+        doc: "Surplus on `imbalance_side`; zero when balanced."
+    encoding:
+      # `symbol` is named in the topic AND carried in the body, so it is listed
+      # explicitly: `include: all` means "every field except the topic
+      # parameters" and would drop it. `normalise_auction_indicative` takes the
+      # symbol from the payload, not from the topic. Same as `book.{symbol}`.
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [symbol, phase, eq_price, eq_qty, imbalance_side,
+                  imbalance_qty]
+
+  - name: auction_result
+    topic: "auction.result.{symbol}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to all: one symbol's uncross has completed. Published for every
+        uncross, including the ones that printed nothing.
+      since: "1.0"
+      see_also: ["auction.indicative.{SYMBOL}", "trade.executed"]
+      example_note: >
+        `reason` says which uncross this was, because the four are otherwise
+        indistinguishable to a consumer and a client cannot tell a circuit
+        breaker reopening from the closing one:
+
+          SCHEDULED - leaving an auction or other non-matching session phase
+          REOPEN    - a halted symbol reopening at the end of its halt
+          RECOVERY  - restored GTC orders uncrossed at engine startup
+          BACKSTOP  - the closing backstop forcing a still-halted symbol to
+                      reopen, printing at the corridor boundary rather than at
+                      the outlying equilibrium
+
+        There is no persistent state to snapshot here, unlike TOP or DEPTH:
+        every event is forwarded as its own independent CALF event.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - name: eq_price
+        type: float
+        required: false
+        nullable: true
+        unit: display_price
+        validate: { gt: 0 }
+        doc: "Uncross price, or null when there was no crossable interest."
+      - name: eq_qty
+        type: int
+        unit: shares
+        validate: { ge: 0 }
+        doc: "Quantity executed; zero when nothing crossed."
+      - name: trades_count
+        type: int
+        unit: dimensionless
+        validate: { ge: 0 }
+        doc: "How many trades the uncross printed."
+      - name: imbalance_side
+        type: enum
+        values: [BUY, SELL]
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          Which side was left unfilled. Absent when the book was balanced at
+          the uncross price.
+      - name: imbalance_qty
+        type: int
+        unit: shares
+        validate: { ge: 0 }
+        doc: "Surplus on `imbalance_side`; zero when balanced."
+      - name: reason
+        type: enum
+        values: [SCHEDULED, REOPEN, RECOVERY, BACKSTOP]
+        doc: "Which of the four uncross paths produced this event."
+    encoding:
+      # `symbol` in the body as well as the topic — see `auction_indicative`.
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [symbol, eq_price, eq_qty, trades_count, imbalance_side,
+                  imbalance_qty, reason]

@@ -40,6 +40,7 @@ from edumatcher.models.feed_schema import (
 # the other's contents until call time. Importing `make_trade_executed` by name
 # instead would raise ImportError whenever the generated module happened to be
 # imported first.
+from edumatcher.models.generated import auction as _gen_auction
 from edumatcher.models.generated import book as _gen_book
 from edumatcher.models.generated import index as _gen_index
 from edumatcher.models.generated import log as _gen_log
@@ -742,17 +743,19 @@ def make_auction_indicative_msg(
     ``eq_price`` is ``None`` when the book would not cross at all. That is a
     real and informative state during a call phase -- nothing would trade yet
     -- and is not the same as a price of zero.
+
+    ``imbalance_side`` is ``""`` when the book is balanced, and the spec
+    declares it an enum of BUY and SELL that omits when unset -- so the empty
+    string becomes an absent key here. Every reader already defaults it
+    through ``payload.get("imbalance_side", "")``.
     """
-    return encode(
-        f"auction.indicative.{symbol}",
-        {
-            "symbol": symbol,
-            "phase": phase,
-            "eq_price": eq_price,
-            "eq_qty": eq_qty,
-            "imbalance_side": imbalance_side,
-            "imbalance_qty": imbalance_qty,
-        },
+    return _gen_auction.make_auction_indicative(
+        symbol=symbol,
+        phase=phase,
+        eq_price=eq_price,
+        eq_qty=eq_qty,
+        imbalance_side=imbalance_side or None,
+        imbalance_qty=imbalance_qty,
     )
 
 
@@ -767,24 +770,26 @@ def make_auction_result_msg(
 ) -> list[bytes]:
     """Engine → all: auction uncross result for one symbol.
 
-    ``reason`` says which uncross this was, because the three are otherwise
+    ``reason`` says which uncross this was, because the four are otherwise
     indistinguishable to a consumer:
 
       ``SCHEDULED`` — leaving an auction or other non-matching session phase
       ``REOPEN``    — a halted symbol reopening at the end of its halt
       ``RECOVERY``  — restored GTC orders uncrossed at engine startup
+      ``BACKSTOP``  — the closing backstop forcing a still-halted symbol to
+                      reopen at the corridor boundary
+
+    ``imbalance_side`` is ``""`` when balanced and omits — see
+    ``make_auction_indicative_msg``.
     """
-    return encode(
-        f"auction.result.{symbol}",
-        {
-            "symbol": symbol,
-            "eq_price": eq_price,
-            "eq_qty": eq_qty,
-            "trades_count": trades_count,
-            "imbalance_side": imbalance_side,
-            "imbalance_qty": imbalance_qty,
-            "reason": reason,
-        },
+    return _gen_auction.make_auction_result(
+        symbol=symbol,
+        eq_price=eq_price,
+        eq_qty=eq_qty,
+        trades_count=trades_count,
+        imbalance_side=imbalance_side or None,
+        imbalance_qty=imbalance_qty,
+        reason=reason,
     )
 
 
