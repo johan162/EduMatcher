@@ -91,9 +91,12 @@ async def reference_symbols(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     bundle = await fetch_reference_bundle(request, session)
+    # A list of objects each carrying its own `symbol`, not a map keyed by it:
+    # a client can iterate this without knowing the keys. The bundle is always
+    # complete, so there is nothing to default.
     return {
-        "symbols": bundle.get("symbols", {}),
-        "config_version": bundle.get("config_version"),
+        "symbols": bundle["symbols"],
+        "config_version": bundle["config_version"],
     }
 
 
@@ -102,8 +105,8 @@ async def reference_risk(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     bundle = await fetch_reference_bundle(request, session)
-    risk = cast(dict[str, Any], bundle.get("risk", {}))
-    return {**risk, "config_version": bundle.get("config_version")}
+    risk = cast(dict[str, Any], bundle["risk"])
+    return {**risk, "config_version": bundle["config_version"]}
 
 
 @router.get("/reference/indexes")
@@ -122,8 +125,11 @@ async def reference_schedule(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     bundle = await fetch_reference_bundle(request, session)
-    schedule = cast(dict[str, Any], bundle.get("schedule", {}))
-    return {**schedule, "config_version": bundle.get("config_version")}
+    # `sessions_enabled`, `country` and a nested `schedule` — the five clock
+    # times moved inside the last of those in 6.1e, so that one record could be
+    # declared once and carried by `system.session_schedule` too.
+    schedule = cast(dict[str, Any], bundle["schedule"])
+    return {**schedule, "config_version": bundle["config_version"]}
 
 
 @router.get("/symbols")

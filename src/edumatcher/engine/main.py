@@ -298,6 +298,18 @@ def _clamp_wire_id(value: object, limit: int = _MAX_WIRE_ID_LEN) -> str:
     return str(value).upper()[:limit]
 
 
+def _clamp_wire_text(value: object, limit: int = _MAX_WIRE_ID_LEN) -> str:
+    """Bound an inbound correlation key without changing its case.
+
+    ``_clamp_wire_id`` upper-cases because it normalises gateway ids, which the
+    engine matches against configuration. The keys this bounds are echoed back
+    into a reply *topic* the caller is already waiting on, so changing their
+    case would send the answer somewhere nobody is listening. The API gateway
+    passes a mixed-case API key here for read-only reference callers.
+    """
+    return str(value)[:limit]
+
+
 class Engine:
     # Minimum interval between book snapshot publishes per symbol (seconds)
     SNAPSHOT_INTERVAL = 0.5
@@ -1451,10 +1463,11 @@ class Engine:
             self._reference_config_version = None
             return
 
-        symbols: dict[str, dict[str, Any]] = {}
+        symbols: list[dict[str, Any]] = []
         for sym, sym_cfg in sorted(engine_cfg.symbols.items()):
             entry: dict[str, Any] = {
-                "tick_size": 10 ** (-int(sym_cfg.tick_decimals)),
+                "symbol": sym,
+                "tick_decimals": int(sym_cfg.tick_decimals),
                 "level": sym_cfg.level,
             }
             if sym_cfg.collar is not None:
@@ -1474,12 +1487,18 @@ class Engine:
                         for lvl in sym_cfg.circuit_breaker.levels
                     ],
                 }
-            symbols[sym] = entry
+            symbols.append(entry)
 
-        risk_levels: dict[str, dict[str, Any]] = {
-            name: {"collar": dict(level_cfg.get("collar", {}))}
-            for name, level_cfg in sorted(engine_cfg.risk_control_levels.items())
-        }
+        risk_levels: list[dict[str, Any]] = []
+        for name, level_cfg in sorted(engine_cfg.risk_control_levels.items()):
+            collar_raw = level_cfg.get("collar") or {}
+            level_entry: dict[str, Any] = {"name": name}
+            if collar_raw:
+                level_entry["collar"] = {
+                    "static_band_pct": collar_raw.get("static_band_pct"),
+                    "dynamic_band_pct": collar_raw.get("dynamic_band_pct"),
+                }
+            risk_levels.append(level_entry)
 
         schedule = engine_cfg.schedule
         reference: dict[str, Any] = {
@@ -1500,30 +1519,52 @@ class Engine:
             "schedule": {
                 "sessions_enabled": engine_cfg.sessions_enabled,
                 "country": engine_cfg.country,
-                "pre_open": schedule.pre_open if schedule else None,
-                "opening_auction_start": (
-                    schedule.opening_auction_start if schedule else None
-                ),
-                "continuous_start": schedule.continuous_start if schedule else None,
-                "closing_auction_start": (
-                    schedule.closing_auction_start if schedule else None
-                ),
-                "closing_auction_end": (
-                    schedule.closing_auction_end if schedule else None
+                "schedule": (
+                    {
+                        "pre_open": schedule.pre_open,
+                        "opening_auction_start": schedule.opening_auction_start,
+                        "continuous_start": schedule.continuous_start,
+                        "closing_auction_start": schedule.closing_auction_start,
+                        "closing_auction_end": schedule.closing_auction_end,
+                    }
+                    if schedule
+                    else None
                 ),
             },
         }
         digest = hashlib.sha256(
             json.dumps(reference, sort_keys=True, default=str).encode()
         ).hexdigest()[:16]
-        reference["config_version"] = digest
         self._reference_cache = reference
         self._reference_config_version = digest
 
     def _handle_reference_request(self, payload: dict[str, Any]) -> None:
-        gateway_id = str(payload.get("gateway_id", ""))
-        reference = self._reference_cache or {"config_version": None}
-        self.pub_sock.send_multipart(make_reference_msg(gateway_id, reference))
+        # The PULL socket is a boundary of its own (design section 22.3), and
+        # this id goes straight into a spec-bounded field ahead of the reply.
+        gateway_id = _clamp_wire_text(payload.get("gateway_id", ""), 64)
+        # One shape, always. An engine with no config loaded used to answer
+        # with `{"config_version": None}` and nothing else, which every
+        # slicing endpoint compensated for with a `.get(key, {})` default.
+        reference = self._reference_cache or {
+            "symbols": [],
+            "risk": {"default_level": None, "levels": []},
+            "indexes": [],
+            "schedule": {
+                "sessions_enabled": False,
+                "country": None,
+                "schedule": None,
+            },
+        }
+        self.pub_sock.send_multipart(
+            make_reference_msg(
+                gateway_id,
+                symbols=reference["symbols"],
+                risk=reference["risk"],
+                indexes=reference["indexes"],
+                schedule=reference["schedule"],
+                config_version=self._reference_config_version,
+            )
+        )
 
     def _handle_reference_reload(self, payload: dict[str, Any]) -> None:
         """Re-read static reference data from disk without touching live state.
@@ -1534,8 +1575,8 @@ class Engine:
         symbol or index set would require doing exactly those unsafe things
         mid-session, so it is rejected rather than partially applied.
         """
-        gateway_id = str(payload.get("gateway_id", ""))
-        command_id = str(payload.get("command_id", ""))
+        gateway_id = _clamp_wire_text(payload.get("gateway_id", ""))
+        command_id = _clamp_wire_text(payload.get("command_id", ""), 64)
 
         if self._config_path is None:
             self.pub_sock.send_multipart(
@@ -1599,15 +1640,21 @@ class Engine:
         )
 
     def _handle_symbols_request(self, payload: dict[str, Any]) -> None:
-        gateway_id = payload.get("gateway_id", "")
+        gateway_id = _clamp_wire_text(payload.get("gateway_id", ""))
         symbols = sorted(self.books.keys())
         engine_cfg = self._engine_config
-        symbol_meta: dict[str, dict[str, Any]] = {}
+        entries: list[dict[str, Any]] = []
         for symbol in symbols:
-            meta: dict[str, Any] = {}
+            # One record per instrument, carrying its own symbol. This used to
+            # be a list of strings beside a `symbol_meta` map keyed by those
+            # same strings, which nine readers joined back together.
+            meta: dict[str, Any] = {
+                "symbol": symbol,
+                "tick_decimals": get_tick_decimals(symbol),
+            }
             sym_cfg = engine_cfg.symbols.get(symbol) if engine_cfg else None
             if sym_cfg is not None:
-                meta["tick_size"] = 10 ** (-int(sym_cfg.tick_decimals))
+                meta["tick_decimals"] = int(sym_cfg.tick_decimals)
 
                 mm_max_spread_ticks: int | None = None
                 mm_min_qty: int | None = None
@@ -1647,15 +1694,13 @@ class Engine:
             if prev_close is not None:
                 meta["prev_close"] = prev_close
 
-            symbol_meta[symbol] = meta
+            entries.append(meta)
 
-        self.pub_sock.send_multipart(
-            make_symbols_msg(gateway_id, symbols, symbol_meta=symbol_meta)
-        )
+        self.pub_sock.send_multipart(make_symbols_msg(gateway_id, entries))
 
     def _handle_session_state_request(self, payload: dict[str, Any]) -> None:
         """Return the current session state without advancing it."""
-        gateway_id = str(payload.get("gateway_id", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         self.pub_sock.send_multipart(
             make_session_status_msg(
                 gateway_id,
@@ -1801,7 +1846,7 @@ class Engine:
 
     def _handle_session_schedule_request(self, payload: dict[str, Any]) -> None:
         """Return the session schedule configuration from the loaded engine config."""
-        gateway_id = str(payload.get("gateway_id", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         schedule: dict[str, str] | None = None
         if self._engine_config and self._engine_config.schedule:
             s = self._engine_config.schedule

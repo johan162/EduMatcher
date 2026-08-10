@@ -49,6 +49,7 @@ UNITS = (
     "shares",
     "epoch_seconds",
     "epoch_nanos",
+    "duration_nanos",
     "percent",
     "dimensionless",
     "money",
@@ -1259,6 +1260,20 @@ def load_family(path: Path, transports: dict[str, Transport]) -> Family:
         raise SpecError(f"{path}: duplicate message name(s) {dupes}")
 
     declared = {each.name for each in types}
+    # A record type and a message emit classes into the same module, so a type
+    # named `SessionSchedule` beside a message named `session_schedule` writes
+    # `class SessionSchedule` twice and the second silently shadows the first.
+    # Every other check passed on exactly that spec -- lint, `pm-msgen check`
+    # and black -- and the nested field resolved to the wrong class at runtime.
+    # The transform mirrors `generators/python.py::_class_name`; it is repeated
+    # rather than imported because the loader must not depend on a generator.
+    for message in messages:
+        emitted = "".join(part.title() for part in message.name.split("_"))
+        if emitted in declared:
+            raise SpecError(
+                f"{path}: message {message.name!r} and type {emitted!r} both "
+                f"generate 'class {emitted}'. Rename the type"
+            )
     for holder in types:
         for ref in _record_refs(holder.fields):
             if ref not in declared:

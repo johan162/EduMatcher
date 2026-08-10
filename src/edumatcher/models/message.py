@@ -27,12 +27,6 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
-from edumatcher.models.feed_schema import (
-    GatewayAuthPayload,
-    GatewayByePayload,
-    SystemEodPayload,
-)
-
 # Imported as a MODULE, not by name, and so is this module's counterpart import
 # inside the generated file. The two import each other: generated code needs
 # encode/decode/dumps from here, and make_trade_msg below delegates to there.
@@ -50,6 +44,7 @@ from edumatcher.models.generated import quote as _gen_quote
 from edumatcher.models.generated import risk as _gen_risk
 from edumatcher.models.generated import session as _gen_session
 from edumatcher.models.generated import structure as _gen_structure
+from edumatcher.models.generated import system as _gen_system
 from edumatcher.models.generated import trade as _gen_trade
 
 # PERF improvement #6: Use orjson instead of stdlib json.
@@ -126,7 +121,7 @@ def make_order_new_msg(order_dict: dict[str, Any]) -> list[bytes]:
 
 
 def make_gateway_connect_msg(gateway_id: str) -> list[bytes]:
-    return encode("system.gateway_connect", {"gateway_id": gateway_id})
+    return _gen_system.make_gateway_connect(gateway_id=gateway_id)
 
 
 def make_gateway_auth_msg(
@@ -135,15 +130,18 @@ def make_gateway_auth_msg(
     reason: str = "",
     description: str = "",
 ) -> list[bytes]:
-    typed = GatewayAuthPayload(
+    """Engine → all subscribers: a participant's connection verdict.
+
+    ``gateway_id`` is in the topic *and* the body; the spec enumerates the
+    body fields rather than taking the default projection, which would have
+    dropped it (design section 26.4).
+    """
+    return _gen_system.make_gateway_auth(
         gateway_id=gateway_id,
         accepted=accepted,
         reason=reason,
         description=description,
     )
-    topic = f"system.gateway_auth.{typed.gateway_id}"
-    payload = typed.to_dict()
-    return encode(topic, payload)
 
 
 def make_order_cancel_msg(order_id: str, gateway_id: str) -> list[bytes]:
@@ -339,25 +337,29 @@ def make_eod_msg(books: list[dict[str, Any]]) -> list[bytes]:
     End-of-day broadcast — engine sends this before shutting down.
     ``books`` is a list of book snapshots (one per symbol), each containing
     the current best bid/ask so subscribers can record closing prices.
+
+    A full ``OrderBook.snapshot()`` may be passed: ``EodBook`` declares the
+    five keys end of day carries and ``from_dict`` drops the rest, which is
+    the trim ``SystemEodPayload`` used to perform without saying so.
     """
-    typed = SystemEodPayload.from_dict({"books": books})
-    return encode("system.eod", typed.to_dict())
+    return _gen_system.make_eod(books=books)
 
 
 def make_symbols_request_msg(gateway_id: str) -> list[bytes]:
-    return encode("system.symbols_request", {"gateway_id": gateway_id})
+    return _gen_system.make_symbols_request(gateway_id=gateway_id)
 
 
 def make_symbols_msg(
     gateway_id: str,
-    symbols: list[str],
-    symbol_meta: dict[str, Any] | None = None,
+    symbols: list[dict[str, Any]],
 ) -> list[bytes]:
-    topic = f"system.symbols.{gateway_id}"
-    payload: dict[str, Any] = {"symbols": symbols}
-    if symbol_meta is not None:
-        payload["symbol_meta"] = symbol_meta
-    return encode(topic, payload)
+    """Engine → caller: the tradable instruments and this caller's terms.
+
+    One collection. ``symbols`` used to be a list of strings beside a parallel
+    ``symbol_meta`` map keyed by those same strings, built in the same loop;
+    each entry is now one ``SymbolInfo`` record carrying its own symbol.
+    """
+    return _gen_system.make_symbols(gateway_id=gateway_id, symbols=symbols)
 
 
 def make_quote_bootstrap_request_msg(gateway_id: str, symbol: str = "") -> list[bytes]:
@@ -430,7 +432,7 @@ def make_quote_legs_msg(
 
 def make_session_state_request_msg(gateway_id: str) -> list[bytes]:
     """Operator → engine: request the current session state."""
-    return encode("system.session_state_request", {"gateway_id": gateway_id})
+    return _gen_system.make_session_state_request(gateway_id=gateway_id)
 
 
 def make_session_status_msg(
@@ -439,8 +441,9 @@ def make_session_status_msg(
     sessions_enabled: bool,
 ) -> list[bytes]:
     """Engine → operator: reply with the current session state."""
-    topic = f"system.session_status.{gateway_id}"
-    return encode(topic, {"state": state, "sessions_enabled": sessions_enabled})
+    return _gen_system.make_session_status(
+        gateway_id=gateway_id, state=state, sessions_enabled=sessions_enabled
+    )
 
 
 # ------------------------------------------------------------------
@@ -450,22 +453,24 @@ def make_session_status_msg(
 
 def make_session_schedule_request_msg(gateway_id: str) -> list[bytes]:
     """Operator → engine: request the session schedule configuration."""
-    return encode("system.session_schedule_request", {"gateway_id": gateway_id})
+    return _gen_system.make_session_schedule_request(gateway_id=gateway_id)
 
 
 def make_session_schedule_msg(
     gateway_id: str,
     sessions_enabled: bool,
-    schedule: dict[str, str] | None,
+    schedule: dict[str, Any] | None,
 ) -> list[bytes]:
-    """Engine → operator: reply with the session schedule configuration."""
-    topic = f"system.session_schedule.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "sessions_enabled": sessions_enabled,
-            "schedule": schedule or {},
-        },
+    """Engine → operator: reply with the session schedule configuration.
+
+    ``schedule`` is the same ``SessionTimes`` record ``system.reference``
+    carries. It is ``None`` — not ``{}`` — when no ``schedule:`` block is
+    configured: one spelling of the absence rather than two.
+    """
+    return _gen_system.make_session_schedule(
+        gateway_id=gateway_id,
+        sessions_enabled=sessions_enabled,
+        schedule=schedule,
     )
 
 
@@ -477,20 +482,44 @@ def make_session_schedule_msg(
 
 def make_reference_request_msg(gateway_id: str) -> list[bytes]:
     """Any caller → engine: request the compiled reference-data bundle."""
-    return encode("system.reference_request", {"gateway_id": gateway_id})
+    return _gen_system.make_reference_request(gateway_id=gateway_id)
 
 
-def make_reference_msg(gateway_id: str, reference: dict[str, Any]) -> list[bytes]:
-    """Engine → caller: reply with the compiled reference-data bundle."""
-    topic = f"system.reference.{gateway_id}"
-    return encode(topic, reference)
+def make_reference_msg(
+    gateway_id: str,
+    *,
+    symbols: list[dict[str, Any]],
+    risk: dict[str, Any],
+    indexes: list[dict[str, Any]],
+    schedule: dict[str, Any],
+    config_version: str | None,
+) -> list[bytes]:
+    """Engine → caller: reply with the compiled reference-data bundle.
+
+    Named parameters rather than the single ``reference: dict[str, Any]`` this
+    replaces. ``from_dict`` reads declared keys only, so routing an open dict
+    through a generated builder would silently drop anything the spec does not
+    declare — the hazard design section 27.2 found on ``drop_copy``, where
+    adoption under the old signature would have made the wire *less* safe.
+
+    The bundle is always complete. Before an engine config is loaded it used to
+    be ``{"config_version": None}`` and nothing else, a second payload shape
+    every slicing endpoint compensated for with ``.get(key, {})``.
+    """
+    return _gen_system.make_reference(
+        gateway_id=gateway_id,
+        symbols=symbols,
+        risk=risk,
+        indexes=indexes,
+        schedule=schedule,
+        config_version=config_version,
+    )
 
 
 def make_reference_reload_msg(gateway_id: str, command_id: str) -> list[bytes]:
     """ADMIN → engine: request a reload of static reference data from disk."""
-    return encode(
-        "system.reference_reload",
-        {"gateway_id": gateway_id, "command_id": command_id},
+    return _gen_system.make_reference_reload(
+        gateway_id=gateway_id, command_id=command_id
     )
 
 
@@ -502,13 +531,13 @@ def make_reference_reload_ack_msg(
     reason: str | None = None,
 ) -> list[bytes]:
     """Engine → ADMIN: reload verdict."""
-    topic = f"system.reference_reload_ack.{gateway_id}"
-    payload: dict[str, Any] = {"command_id": command_id, "accepted": accepted}
-    if config_version is not None:
-        payload["config_version"] = config_version
-    if reason is not None:
-        payload["reason"] = reason
-    return encode(topic, payload)
+    return _gen_system.make_reference_reload_ack(
+        gateway_id=gateway_id,
+        command_id=command_id,
+        accepted=accepted,
+        config_version=config_version,
+        reason=reason,
+    )
 
 
 # ------------------------------------------------------------------
@@ -901,13 +930,7 @@ def make_quote_status_msg(
 
 def make_gateway_disconnect_msg(gateway_id: str, reason: str = "") -> list[bytes]:
     """Gateway → engine: graceful disconnect notification."""
-    return encode(
-        "system.gateway_disconnect",
-        {
-            "gateway_id": gateway_id,
-            "reason": reason,
-        },
-    )
+    return _gen_system.make_gateway_disconnect(gateway_id=gateway_id, reason=reason)
 
 
 def make_gateway_bye_msg(gateway_id: str, reason: str = "") -> list[bytes]:
@@ -919,9 +942,11 @@ def make_gateway_bye_msg(gateway_id: str, reason: str = "") -> list[bytes]:
     never reaches PUB subscribers such as clearing; this broadcast republishes
     the disconnect on the public feed so downstream consumers can close the
     matching session.
+
+    ``gateway_id`` is in the topic and the body; ``clearing`` — the only
+    structural reader — takes it from the body, so the spec enumerates it.
     """
-    typed = GatewayByePayload(gateway_id=gateway_id, reason=reason)
-    return encode(f"system.gateway_bye.{typed.gateway_id}", typed.to_dict())
+    return _gen_system.make_gateway_bye(gateway_id=gateway_id, reason=reason)
 
 
 def make_kill_switch_msg(

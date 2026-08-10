@@ -266,7 +266,9 @@ class TestStatsOnStartupSymbols:
             sp = StatsProcess(tmp_path / "test.db")
 
         try:
-            sp._on_startup_symbols({"symbols": ["AAPL", "MSFT"]})
+            sp._on_startup_symbols(
+                {"symbols": [{"symbol": "AAPL"}, {"symbol": "MSFT"}]}
+            )
             # Should have called send_multipart twice (once per symbol)
             assert fake_push.send_multipart.call_count == 2
         finally:

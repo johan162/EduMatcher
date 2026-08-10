@@ -64,11 +64,9 @@ from edumatcher.log_srv.config import (
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.clock import now_ns  # used in _flush
+from edumatcher.models.generated import system as _gen_system
 from edumatcher.models.generated.session import SessionState, TOPIC_SESSION_STATE
 from edumatcher.models.feed_schema import (
-    GatewayAuthPayload,
-    GatewayByePayload,
-    SystemEodPayload,
     TradeExecutedPayload,
 )
 from edumatcher.models.message import decode
@@ -627,7 +625,7 @@ class ClearingProcess:
             # this ingress boundary via to_ticks (CL-M4: keeps mark and avg_cost
             # in the same unit).
             eod_marks: dict[str, int] = {}
-            eod_payload = SystemEodPayload.from_dict(payload)
+            eod_payload = _gen_system.Eod.from_dict(payload)
             for book in eod_payload.books:
                 sym = book.symbol
                 if not sym:
@@ -638,12 +636,12 @@ class ClearingProcess:
                 if last_price is not None:
                     eod_marks[sym] = to_ticks(last_price, sym)
                 elif bids and asks:
-                    best_bid = bids[0].price
-                    best_ask = asks[0].price
-                    if best_bid is not None and best_ask is not None:
-                        eod_marks[sym] = (
-                            to_ticks(best_bid, sym) + to_ticks(best_ask, sym)
-                        ) // 2
+                    # `EodBookLevel.price` is required, so no None guard: the
+                    # dataclass this replaced made it optional and the only
+                    # producer, OrderBook.snapshot(), has never omitted it.
+                    eod_marks[sym] = (
+                        to_ticks(bids[0].price, sym) + to_ticks(asks[0].price, sym)
+                    ) // 2
 
             with self._lock:
                 # 1. Flush all buffered trades first.
@@ -747,7 +745,7 @@ class ClearingProcess:
         public feed, so record it exactly as a connect.  A refused auth carries
         ``accepted=False`` and is ignored (no session opened).
         """
-        typed = GatewayAuthPayload.from_dict(payload)
+        typed = _gen_system.GatewayAuth.from_dict(payload)
         if not typed.accepted:
             return
         self._handle_gateway_connect(typed.to_dict())
@@ -758,7 +756,7 @@ class ClearingProcess:
         a gateway disconnects.  Record it exactly as a disconnect (the inbound
         system.gateway_disconnect topic is PULL-only and never reaches here).
         """
-        typed = GatewayByePayload.from_dict(payload)
+        typed = _gen_system.GatewayBye.from_dict(payload)
         self._handle_gateway_disconnect(typed.to_dict())
 
     def _handle_gateway_connect(self, payload: dict[str, Any]) -> None:

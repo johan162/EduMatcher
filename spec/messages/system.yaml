@@ -1,0 +1,685 @@
+# Canonical specification for the `system` message family, part one.
+#
+# Phase 6.1e. Fifteen of the family's twenty-nine topics: what the venue *is*,
+# and joining or leaving it. The other fourteen -- the live-state snapshot
+# pairs (halt_status, position, quote_bootstrap, quote_legs, risk_state,
+# volume, gateways) -- are 6.1f. The cut is section 22.1's rule: split by what
+# the message acts on, never by direction, and each half lands as complete
+# request/reply conversations.
+#
+# `system` is therefore HALF SPECIFIED until 6.1f, and deliberately absent
+# from `tests/test_msgen_literals.py::MIGRATED`. `grep-literals` will report a
+# real count for it, which is accurate rather than a regression. See design
+# section 28.6.
+#
+# FIVE MAPS, ALL CONVERTED, EACH JUDGED SEPARATELY. Section 15.4 excludes maps
+# from the IDL because a spec that appears to need one is describing a message
+# that should have been something simpler; that claim was five-for-five before
+# this phase. It is ten-for-ten now, and section 27.1's general form held every
+# time -- a map is either a record that was never declared or a signature that
+# was never narrowed:
+#
+#   `system.reference` payload      -> a record. One producer, fixed top keys.
+#   `reference.symbols`             -> list of records, key as a field (19.2)
+#   `reference.risk.levels`         -> list of records, key as a field (19.2)
+#   `session_schedule.schedule`     -> a fixed five-key record. Never a map;
+#                                      only the `dict[str, str]` annotation
+#                                      ever said otherwise.
+#   `symbols.symbol_meta`           -> folded away entirely. See below.
+#
+# THE ONE THAT DID NOT SURVIVE BEING NAMED. `system.symbols` carried
+# `symbols: list[str]` beside `symbol_meta: {sym: {...}}` -- two collections
+# keyed by the same thing, populated in the same loop from the same list, and
+# able to disagree about which symbols exist. That is section 15.4's
+# `leg_fill_qty` shape: the key was already the identity of the row. There is
+# now one `symbols: list[SymbolInfo]` and no `symbol_meta` key at all.
+#
+# ONE SPELLING OF TICK SCALE. The engine held `tick_decimals` (an integer) and
+# published `tick_size = 10 ** -tick_decimals` (a float that cannot represent
+# most of its own values exactly). `pm-stats` recovered the exponent with
+# `round(-log10(x))` and `alf_gwy` with its own `_infer_decimals`; the API
+# gateway did not, and read a `tick_decimals` key that no producer has ever
+# sent -- so its `register_tick_decimals` call has never fired. That is
+# section 24.3's first row, a producer dropping a value, with a consumer
+# believing in the field it dropped. Both `system.symbols` and
+# `reference.symbols` carry `tick_decimals` now, matching `book` and
+# `system.eod`, and `tick_size` is gone from the wire.
+#
+# ONE SCHEDULE RECORD, NOT TWO. `session_schedule.schedule` and
+# `reference.schedule` are the same five keys off `engine_cfg.schedule`;
+# `reference` adds `sessions_enabled` and `country` beside them. Describing
+# that shape twice is the drift section 1 exists to stop, so `ReferenceSchedule`
+# nests `SessionTimes` rather than restating it. `GET /reference/schedule`
+# moves from seven flat keys to three as a result -- see design section 28.3.
+#
+# THE LADDER IS SHARED WITH `circuit_breaker`. A level `name` here is the same
+# string `circuit_breaker.halt.level` carries onward, which 6.1c bounded at 32
+# (design section 26.5). The static definition and the event that quotes it
+# get the same bound, and `config_loader` enforces it at load.
+
+family: system
+version: 1
+
+types:
+  # ---------------------------------------------------------------- symbols
+  SymbolInfo:
+    doc: >
+      One tradable instrument, as the engine sees it for a given caller. What
+      used to be one entry of `symbols` and one entry of `symbol_meta`, which
+      were always the same instrument written twice.
+
+      The market-maker fields are resolved per caller, not per symbol: the
+      engine layers the gateway's own policy, the global per-symbol policy and
+      the gateway's per-symbol override before publishing. Two gateways asking
+      at the same moment get different values for the same instrument, which
+      is why they travel on this reply rather than in the reference bundle.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - name: tick_decimals
+        type: int
+        unit: dimensionless
+        validate: { ge: 0, le: 9 }
+        doc: >
+          The tick scale, as the integer exponent the engine actually holds.
+          Same field, same name and same meaning as `book.tick_decimals` and
+          `system.eod`'s. It replaces `tick_size`, which was this value passed
+          through `10 ** -n` on the way out and `round(-log10(x))` on the way
+          back in by two consumers, and read under a third spelling by a
+          third.
+      - name: enforce_mm_obligation
+        type: bool
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          Whether this caller carries a market-making obligation on this
+          instrument. Absent when the caller is not a configured gateway --
+          regime 3 rather than `false`, because "no obligation configured" and
+          "obligation explicitly disabled" are different answers and the
+          console renders them differently.
+      - name: mm_max_spread_ticks
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: ticks
+        validate: { ge: 0 }
+        doc: "Widest quote that satisfies the obligation. Absent with it."
+      - name: mm_min_qty
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: shares
+        validate: { ge: 0 }
+        doc: "Smallest quote that satisfies the obligation. Absent with it."
+      - name: prev_close
+        type: float
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: display_price
+        doc: >
+          Previous session's closing reference price, from persisted book
+          stats. Absent on an instrument that has never closed, which is a
+          real state on the first day of a deployment.
+
+  # -------------------------------------------------------------- reference
+  Collar:
+    doc: >
+      Price-band configuration. The two bands `CollarConfig` reads; a
+      deployment writing other keys under `collar:` in its YAML had them
+      carried onto the wire and read by nothing, and they no longer travel.
+    fields:
+      - { name: static_band_pct, type: float, unit: percent, validate: { ge: 0 } }
+      - { name: dynamic_band_pct, type: float, unit: percent, validate: { ge: 0 } }
+
+  CircuitBreakerLevel:
+    doc: >
+      One rung of a symbol's circuit-breaker ladder, as configured. `name` is
+      the string `circuit_breaker.halt.level` and `admin.action.scope.level`
+      carry onward, and is bounded here to match them.
+    fields:
+      - { name: name, type: string, validate: { max_len: 32 } }
+      - { name: price_shift_pct, type: float, unit: percent, validate: { gt: 0 } }
+      - name: halt_duration_ns
+        type: int
+        unit: duration_nanos
+        validate: { ge: 0 }
+        doc: >
+          How long a halt at this rung lasts. A duration, not an instant --
+          the distinction `epoch_nanos` could not make, and the reason the
+          unit registry gained `duration_nanos` in this phase. See design
+          section 28.7.
+
+  SymbolCircuitBreaker:
+    doc: "A symbol's configured circuit-breaker ladder and its lookback."
+    fields:
+      - name: reference_window_ns
+        type: int
+        unit: duration_nanos
+        validate: { ge: 0 }
+        doc: "Lookback window for the reference price. A duration."
+      - { name: levels, type: list, ref: CircuitBreakerLevel }
+
+  ReferenceSymbol:
+    doc: >
+      One instrument's static configuration. Distinct from `SymbolInfo`, which
+      is the same instrument as a *caller* sees it: this record is identical
+      for every caller and changes only on reload, which is why the bundle can
+      be cached and hashed and the symbols reply cannot.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 },
+          doc: "Was the map key. Section 19.2." }
+      - name: tick_decimals
+        type: int
+        unit: dimensionless
+        validate: { ge: 0, le: 9 }
+        doc: "As on `SymbolInfo`; `tick_size` is gone from here too."
+      - name: level
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 32 }
+        doc: >
+          Which risk-control level this symbol resolves to, naming an entry of
+          `risk.levels`. Absent on a symbol with no level configured.
+      - { name: collar, type: nested, ref: Collar, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "Both bands or neither -- section 16.2's combination." }
+      - { name: circuit_breaker, type: nested, ref: SymbolCircuitBreaker,
+          required: false, nullable: true, omit_when_none: true }
+
+  RiskLevel:
+    doc: >
+      One named risk-control level. Was a map entry keyed by `name`; section
+      19.2's shape, with the key as a field.
+    fields:
+      - { name: name, type: string, validate: { max_len: 32 } }
+      - name: collar
+        type: nested
+        ref: Collar
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          The level's default bands, which a symbol may override. Absent when
+          the level configures none -- previously an empty `collar` object,
+          which said the same thing in more bytes.
+
+  ReferenceRisk:
+    doc: "The risk-control ladder as configured, and which rung is the default."
+    fields:
+      - name: default_level
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 32 }
+        doc: "Names an entry of `levels`. Absent when none is configured."
+      - { name: levels, type: list, ref: RiskLevel }
+
+  SessionTimes:
+    doc: >
+      The trading day's clock, as five wall-clock times. Carried by
+      `system.session_schedule` and, nested inside `ReferenceSchedule`, by
+      `system.reference` -- one shape declared once rather than two
+      declarations that can drift apart.
+
+      The values are strings because that is what the config file holds and
+      what every consumer renders. Nullable individually because a partial
+      `schedule:` block is a legal config.
+    fields:
+      - { name: pre_open, type: string, required: false, nullable: true,
+          validate: { max_len: 32 } }
+      - { name: opening_auction_start, type: string, required: false,
+          nullable: true, validate: { max_len: 32 } }
+      - { name: continuous_start, type: string, required: false,
+          nullable: true, validate: { max_len: 32 } }
+      - { name: closing_auction_start, type: string, required: false,
+          nullable: true, validate: { max_len: 32 } }
+      - { name: closing_auction_end, type: string, required: false,
+          nullable: true, validate: { max_len: 32 } }
+
+  ReferenceSchedule:
+    doc: >
+      The venue's calendar configuration: whether sessions run at all, which
+      country's holidays they observe, and the clock itself.
+
+      `schedule` is nested rather than flattened beside its two siblings,
+      which is a change to `GET /reference/schedule`. The alternative was
+      declaring `SessionTimes`'s five fields a second time inline, and a
+      shape described twice is the drift section 1 is about.
+    fields:
+      - { name: sessions_enabled, type: bool }
+      - name: country
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 2 }
+        doc: "ISO 3166-1 alpha-2, for the holiday calendar. Absent when unset."
+      - name: schedule
+        type: nested
+        ref: SessionTimes
+        required: false
+        nullable: true
+        doc: >
+          Null when the deployment configures no `schedule:` block. Regime 2
+          rather than 3: both readers pass the bundle through verbatim to a
+          caller, and a key that is sometimes absent is harder to consume than
+          one that is sometimes null.
+
+  IndexDefinition:
+    doc: >
+      One index as configured -- its membership and its starting level, not
+      its current one. `GET /history/index-daily` serves the live value; see
+      `index.rebalance`.
+    fields:
+      - { name: id, type: string, validate: { max_len: 32 } }
+      - { name: description, type: string, required: false, default: "",
+          validate: { max_len: 128 } }
+      - { name: base_value, type: float, unit: dimensionless,
+          doc: "Index points. `dimensionless` to match `index.yaml`." }
+      - { name: constituents, type: list, item: string }
+
+  # -------------------------------------------------------------------- eod
+  EodBookLevel:
+    doc: >
+      One aggregated price level of a closing book. The same three fields as
+      `book.BookLevel`, redeclared because records are family-scoped and the
+      IDL has no cross-family reference -- see design section 28.5 on why that
+      stays a known duplication rather than becoming a shared-types construct
+      on the strength of one instance.
+
+      `price` is required here. `BookLevelPayload`, the hand-written
+      dataclass this replaces, made it optional; the only producer is
+      `OrderBook.snapshot()`, which has never emitted a level without one.
+    fields:
+      - { name: price, type: float, unit: display_price }
+      - { name: qty, type: int, unit: shares }
+      - { name: count, type: int, unit: dimensionless }
+
+  EodBook:
+    doc: >
+      One symbol's closing book. A deliberately trimmed `book.book_snapshot`:
+      `SystemEodPayload.from_dict` has always dropped `last_qty`,
+      `last_buy_price`, `last_sell_price` and `recent_trades` from the
+      snapshot it is handed, and this record says so rather than leaving it to
+      a `from_dict` a reader has to go and find.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: tick_decimals, type: int, unit: dimensionless,
+          validate: { ge: 0, le: 9 },
+          doc: "The scale these display prices were produced at." }
+      - { name: bids, type: list, ref: EodBookLevel,
+          doc: "Descending by price." }
+      - { name: asks, type: list, ref: EodBookLevel,
+          doc: "Ascending by price." }
+      - { name: last_price, type: float, required: false, nullable: true,
+          omit_when_none: true, unit: display_price,
+          doc: "Absent on an instrument that never traded." }
+
+messages:
+  # ================================================================ lifecycle
+  - name: gateway_connect
+    topic: "system.gateway_connect"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Gateway to engine: authenticate this participant. Sent over PUSH/PULL
+        rather than the pub bus; it carries a topic so the audit log can
+        classify it alongside everything else.
+      since: "1.0"
+      see_also: ["system.gateway_auth.{GW_ID}", "system.gateway_disconnect"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Who is connecting. The engine's PULL socket is a boundary of
+                its own -- section 22.3 -- so this is clamped on arrival." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: gateway_auth
+    topic: "system.gateway_auth.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to all subscribers: a participant's connection was accepted or
+        rejected. The PUB-side answer to `system.gateway_connect`, and the
+        widest-read message in this half -- five consumers structurally, and
+        it is in `PRIVATE_PREFIXES`.
+      since: "1.0"
+      see_also: ["system.gateway_connect", "system.gateway_bye.{GW_ID}"]
+      example_note: >
+        `gateway_id` is in the topic AND the body, and every consumer reads it
+        from the body -- `balf_gwy` dispatches on the topic suffix and then
+        reads the payload's copy. So the field is listed in `include:`
+        explicitly. Section 26.4: `include: all` means "every field except the
+        topic parameters", and taking the default here would have dropped the
+        key from the wire with `pm-msgen check` still passing.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 },
+          doc: "Why it was rejected; \"\" on acceptance. Regime 1, because
+                `GatewayAuthPayload.to_dict` has always emitted the key." }
+      - { name: description, type: string, required: false, default: "",
+          validate: { max_len: 128 },
+          doc: "The gateway's configured display name. Regime 1, as above." }
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [gateway_id, accepted, reason, description]
+
+  - name: gateway_disconnect
+    topic: "system.gateway_disconnect"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Gateway to engine: I am leaving cleanly. PUSH/PULL, like
+        `gateway_connect`; the engine republishes it as `gateway_bye` so PUB
+        subscribers hear about it at all.
+      since: "1.0"
+      see_also: ["system.gateway_bye.{GW_ID}", "system.gateway_connect"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: gateway_bye
+    topic: "system.gateway_bye.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to all subscribers: a participant has disconnected. The
+        PUB-side counterpart to `gateway_auth`. The inbound
+        `system.gateway_disconnect` is a PULL message and never reaches
+        subscribers, so without this broadcast clearing could not close the
+        matching session.
+      since: "1.0"
+      see_also: ["system.gateway_disconnect", "system.gateway_auth.{GW_ID}"]
+      example_note: >
+        `gateway_id` is in the topic and the body, and `clearing` -- the only
+        structural reader -- takes it from the body. Enumerated for the same
+        reason as `gateway_auth`.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+    encoding:
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [gateway_id, reason]
+
+  # ====================================================================== eod
+  - name: eod
+    topic: "system.eod"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to all subscribers, once, before shutdown: the closing book of
+        every instrument. Four consumers -- clearing, index, stats and the
+        RALF gateway -- which is the widest fan-out in this half, and the
+        reason the record is declared rather than left to a `from_dict`.
+      since: "1.0"
+      see_also: ["book.{SYMBOL}", "session.state"]
+      example_note: >
+        A broadcast with no request: nothing asks for end of day, the engine
+        announces it. That is why it has no `_request` sibling and why it is
+        in this half rather than 6.1f's request/reply pairs.
+    fields:
+      - { name: books, type: list, ref: EodBook,
+          doc: "One per instrument the engine had a book for, unordered." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  # ================================================================== symbols
+  - name: symbols_request
+    topic: "system.symbols_request"
+    transport: [engine_pub]
+    doc:
+      motivation: "Caller to engine: which instruments are tradable, and on
+                   what terms for me."
+      since: "1.0"
+      see_also: ["system.symbols.{GW_ID}"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Both the correlation key for the reply topic and the identity
+                the market-maker fields are resolved against." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: symbols
+    topic: "system.symbols.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to caller: the tradable instruments, with the tick scale and
+        this caller's market-making terms for each.
+      since: "1.0"
+      see_also: ["system.symbols_request", "system.reference.{GW_ID}"]
+      example_note: >
+        The default projection is right here: `gateway_id` names the caller in
+        the topic and has never been in the body. Verified against the
+        producer rather than assumed -- section 26.4 is the case where
+        assuming cost five wires a field.
+
+        One collection, not two. The old payload carried `symbols` as a list
+        of strings beside `symbol_meta` as a map from those same strings to
+        their metadata, built in the same loop; nine readers joined them back
+        together. The join is gone.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped from the body by the default projection." }
+      - { name: symbols, type: list, ref: SymbolInfo,
+          doc: "Sorted by symbol, as the engine iterates its books." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  # ================================================================ reference
+  - name: reference_request
+    topic: "system.reference_request"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Any caller to engine: the compiled reference-data bundle. Static
+        configuration only -- nothing that changes during a session.
+      since: "1.0"
+      see_also: ["system.reference.{GW_ID}", "system.reference_reload"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Correlation key only. The API gateway passes an API key here
+                for read-only callers, since the bundle does not vary by
+                caller and this only has to be unique." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: reference
+    topic: "system.reference.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to caller: every piece of static venue configuration in one
+        round trip -- tick scales, risk levels, circuit-breaker ladders, index
+        definitions and the calendar -- with a hash that changes when any of
+        it does.
+      since: "1.0"
+      see_also:
+        ["system.reference_request", "system.reference_reload_ack.{GW_ID}",
+         "system.symbols.{GW_ID}"]
+      example_note: >
+        The whole payload was a `dict[str, Any]` passed to `encode` unread.
+        One producer builds it -- `_rebuild_reference_cache` -- with five
+        fixed top-level keys, so it was a record nobody had written down.
+
+        ONE SHAPE, ALWAYS. Before an engine config is loaded the reply used to
+        be `{"config_version": null}` and nothing else: a second payload shape
+        for the same topic, which every slicing endpoint compensated for with
+        a `.get(key, {})` default. The bundle is now always complete, with
+        empty collections and a null version, and the compensating defaults
+        go with it.
+
+        REST-VISIBLE. `api_gateway/routers/reference.py` returns slices of
+        this bundle verbatim, so `reference.symbols` becoming a list of
+        records and `reference.schedule` gaining a level of nesting change
+        `GET /reference/symbols` and `GET /reference/schedule`. Sanctioned,
+        and the better JSON in both cases -- a list of objects each carrying
+        its own `symbol` is what a client can iterate without knowing the
+        keys. `260-api-gateway.md` moves with it.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 64 },
+          doc: "Topic-only; dropped from the body by the default projection.
+                Bounded at 64 rather than 32 because the API gateway passes an
+                API key here for read-only callers." }
+      - { name: symbols, type: list, ref: ReferenceSymbol,
+          doc: "Sorted by symbol. Was a map keyed by it." }
+      - { name: risk, type: nested, ref: ReferenceRisk }
+      - { name: indexes, type: list, ref: IndexDefinition,
+          doc: "Already a list of records before this phase." }
+      - { name: schedule, type: nested, ref: ReferenceSchedule }
+      - name: config_version
+        type: string
+        required: false
+        nullable: true
+        validate: { max_len: 64 }
+        doc: >
+          Truncated SHA-256 of the bundle. Null before a config is loaded,
+          which is the only remaining difference between the two states the
+          old two-shape reply used to distinguish. Regime 2: every consumer
+          compares it, so the key has to be there to compare.
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: reference_reload
+    topic: "system.reference_reload"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        ADMIN to engine: re-read static reference data from disk. Deliberately
+        narrower than a startup load -- it never re-seeds quotes, creates or
+        removes books, or touches session and halt state, so a reload that
+        changed the symbol set is rejected rather than partially applied.
+      since: "1.0"
+      see_also: ["system.reference_reload_ack.{GW_ID}", "system.reference.{GW_ID}"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: command_id, type: string, validate: { max_len: 64 },
+          doc: "Correlated by the ack. Read off the wire unclamped before this
+                phase, and quoted straight into a bounded ack field -- section
+                22.3's silent non-answer, four reply paths." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: reference_reload_ack
+    topic: "system.reference_reload_ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Engine to ADMIN: the reload verdict, and the new
+                   configuration hash when it took."
+      since: "1.0"
+      see_also: ["system.reference_reload"]
+      example_note: >
+        The default projection is right: `gateway_id` is topic-only and has
+        never been in the body. `config_version` and `reason` are the two
+        halves of the verdict and never travel together -- an accepted reload
+        carries the version, a rejected one carries the reason.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped from the body by the default projection." }
+      - { name: command_id, type: string, validate: { max_len: 64 } }
+      - { name: accepted, type: bool }
+      - { name: config_version, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 },
+          doc: "Present on acceptance." }
+      - { name: reason, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 512 },
+          doc: "Present on rejection." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  # ============================================================ session state
+  - name: session_state_request
+    topic: "system.session_state_request"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Caller to engine: what session are we in, without advancing it. The
+        scheduler is the dominant producer -- it asks rather than assuming,
+        because it is not the only thing that can move the session.
+      since: "1.0"
+      see_also: ["system.session_status.{GW_ID}", "session.state"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: session_status
+    topic: "system.session_status.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to caller: the current session state, on request. The polled
+        answer to the `session.state` broadcast, for a caller that has just
+        started and missed the last transition.
+      since: "1.0"
+      see_also: ["session.state", "system.session_state_request"]
+      example_note: >
+        Default projection: `gateway_id` is topic-only. `state` is a plain
+        bounded string rather than an enum, matching `session.state.state` --
+        the value set lives in the session machine, and enumerating it in two
+        specs would be two places to update.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped from the body by the default projection." }
+      - { name: state, type: string, validate: { max_len: 32 },
+          doc: "Same values as `session.state.state`." }
+      - { name: sessions_enabled, type: bool,
+          doc: "False when the deployment runs continuously with no session
+                schedule at all, which makes `state` advisory." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  # ========================================================= session schedule
+  - name: session_schedule_request
+    topic: "system.session_schedule_request"
+    transport: [engine_pub]
+    doc:
+      motivation: "Operator to engine: the configured session schedule."
+      since: "1.0"
+      see_also: ["system.session_schedule.{GW_ID}", "system.reference.{GW_ID}"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: session_schedule
+    topic: "system.session_schedule.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to operator: the trading day's clock as configured. The same
+        `SessionTimes` record `system.reference` carries, which is what
+        forced these two topics into one phase.
+      since: "1.0"
+      see_also: ["system.session_schedule_request", "system.reference.{GW_ID}"]
+      example_note: >
+        Default projection: `gateway_id` is topic-only. Both readers --
+        `commands/client.py` and `GET /admin/schedule` -- pass the payload
+        through to a caller without touching a key, so nothing structural
+        constrains the presence regime here; `schedule` is regime 2 to match
+        the copy inside `ReferenceSchedule` rather than because a reader needs
+        it. It was `schedule or {}` before, so an unconfigured venue sent an
+        empty object where it now sends null.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped from the body by the default projection." }
+      - { name: sessions_enabled, type: bool }
+      - { name: schedule, type: nested, ref: SessionTimes, required: false,
+          nullable: true,
+          doc: "Null when no `schedule:` block is configured." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }

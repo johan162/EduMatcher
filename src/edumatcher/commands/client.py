@@ -442,10 +442,14 @@ class ExchangeCommandClient:
         return list(result.get("orders", []))
 
     def symbol_list(self) -> list[str]:
-        """Return the list of all symbols configured in the engine."""
+        """Return the list of all symbols configured in the engine.
+
+        The reply carries one record per instrument since 6.1e; this helper
+        still answers with names, which is what every caller of it wants.
+        """
         self._send(make_symbols_request_msg(self._gw_id))
         result = self._recv(f"system.symbols.{self._gw_id}")
-        return list(result.get("symbols", []))
+        return [str(e.get("symbol", "")) for e in result.get("symbols", [])]
 
     def index_history(
         self,

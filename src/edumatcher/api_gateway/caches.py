@@ -87,15 +87,14 @@ class SessionCaches:
                 current = self.quote_legs.setdefault(quote_id, {"quote_id": quote_id})
                 current.update(payload)
         elif topic.startswith(SYSTEM_SYMBOLS_PREFIX):
-            symbols = payload.get("symbols", [])
-            meta = payload.get("symbol_meta", {})
-            if isinstance(symbols, list):
-                for symbol in symbols:
-                    sym = str(symbol).upper()
-                    details = meta.get(sym, {}) if isinstance(meta, dict) else {}
-                    self.known_symbols[sym] = (
-                        details if isinstance(details, dict) else {}
-                    )
+            entries = payload.get("symbols", [])
+            if isinstance(entries, list):
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    sym = str(entry.get("symbol", "")).upper()
+                    if sym:
+                        self.known_symbols[sym] = entry
         elif topic == TOPIC_TRADE_EXECUTED:
             symbol = str(payload.get("symbol", ""))
             price = payload.get("price")

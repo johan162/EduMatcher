@@ -3683,6 +3683,199 @@ the cheapest available proof that a formatting change did not quietly reformat
 the tree. §23.5 asks for that check each time and this is the third phase it
 has been worth doing.
 
+## 28. `system` part one: the shadow the generator cast on itself
+
+Phase 6.1e specified and adopted fifteen topics — the largest phase in the
+project, and the first whose worst defect was in the generator rather than in
+a wire. Five maps, nine consumer modules, a REST-visible change, two additions
+to the IDL, and one bug that every existing check passed.
+
+### 28.1 The collision, and why nothing caught it
+
+The spec declared a record type `SessionSchedule` — the five-key trading-day
+clock — beside a message named `session_schedule`. The Python emitter derives
+a message's class name by PascalCasing it, so both wrote **`class
+SessionSchedule` into the same module**. Python does not complain; the second
+definition shadows the first, and the nested field resolved to the message
+class at runtime.
+
+What makes this the sharpest instance of §1's failure class so far is the list
+of things that agreed the spec was fine:
+
+* `pm-msgen lint` — the loader checks duplicate *message* names and duplicate
+  *field* names, and type names come from a YAML mapping whose keys are unique
+  by construction. Nobody had checked the two namespaces against each other.
+* `pm-msgen check` — the committed output matched the spec exactly. It did:
+  the spec really does ask for two classes with one name.
+* black — the file is perfectly formatted. It is also wrong.
+* the whole test suite — nothing constructed a `SessionTimes` yet.
+
+It was found by a probe, which is §7's habit paying for itself again: building
+one full `system.reference` payload by hand raised `TypeError: SessionSchedule
+.__init__() got an unexpected keyword argument 'pre_open'`.
+
+The loader rejects it now, with the transform repeated in `spec.py` rather
+than imported from `generators/python.py` — the loader must not depend on a
+generator, and the alternative was moving the check somewhere `lint` cannot
+reach. Two tests, because §23.1 asks for both halves: one that the guard fires
+on `Thing` beside `thing`, and one that it *does not* fire on `ThingDetail`
+beside `thing`, which is the shape every family in the tree already has.
+
+`test_msgen_system.py` adds a third, and it is the one worth keeping: an AST
+scan asserting that **no generated module defines a class twice**, over all
+fourteen. The loader guard fails a bad spec; the scan fails a bad emitter, and
+a future change to `_class_name` would break the second without touching the
+first. It asserts it scanned at least fourteen modules, because a scan that
+matched nothing passes for the wrong reason.
+
+The general form, which is new: **a check that validates two namespaces
+separately has not validated the namespace they share.** §26.5 recorded the
+per-*type* version of this — a sweep over identifiers missed the one field
+that was not an identifier. This is the per-*namespace* version.
+
+### 28.2 Five maps, five judgements
+
+§27.1's general form — a map is either a record that was never declared or a
+signature that was never narrowed — held five more times, and the interesting
+result is that no two resolved the same way.
+
+| Map | What it was | What it is |
+|---|---|---|
+| the whole `system.reference` payload | a `dict[str, Any]` passed to `encode` unread, built in one place with five fixed top-level keys | a record, with a typed builder |
+| `reference.symbols` | keyed by symbol | §19.2's list of records, key as a field |
+| `reference.risk.levels` | keyed by level name | the same |
+| `session_schedule.schedule` | annotated `dict[str, str] \| None` | a fixed five-key record. **Never a map at all** — only the annotation said otherwise |
+| `symbols.symbol_meta` | keyed by symbol, parallel to a `symbols` list of those same strings | **deleted**, folded into the list it duplicated |
+
+The last is the one §15.4 predicted and none of the previous ten instances had
+produced: not a map that should have been a record, but a map that should not
+have existed. `symbols` and `symbol_meta` were built in the same loop, over
+the same `sorted(self.books.keys())`, and nine readers joined them back
+together with `meta.get(sym)`. The key *was* the identity of the row, which is
+`leg_fill_qty` exactly. One `symbols: list[SymbolInfo]` now, and the two can no
+longer disagree about which instruments exist.
+
+`reference`'s conversion carried a second finding. `make_reference_msg` took a
+single `reference: dict[str, Any]`, and `from_dict` reads declared keys only —
+so adopting a generated builder underneath that signature would have silently
+dropped anything the spec did not declare. That is §27.2's `drop_copy` hazard
+for the second time, and it takes the same fix: named parameters.
+
+### 28.3 One shape, always — and one spelling, always
+
+Two smaller unifications, both of which removed a compensating read somewhere
+else.
+
+**The bundle had two shapes.** Before an engine config was loaded,
+`_handle_reference_request` answered `{"config_version": None}` and nothing
+else. Every slicing endpoint absorbed that with `.get(key, {})`, so the second
+shape was invisible until one of them stopped. The bundle is complete now —
+empty collections, null version — and the five defaults went with it.
+
+**Tick scale had three spellings.** The engine held `tick_decimals`, an
+integer, and published `tick_size = 10 ** -tick_decimals`, a float that cannot
+represent most of its own values exactly. `pm-stats` recovered the exponent
+with `round(-log10(x))`; `alf_gwy` and `balf_gwy` each had their own
+`_infer_decimals`; `book` and `system.eod` had been carrying `tick_decimals`
+under that name the whole time. And `api_gateway/engine_client.py` read
+`symbol_meta[sym]["tick_decimals"]` — **a key no producer has ever sent**, so
+its `register_tick_decimals` call had never once fired.
+
+That last one is §24.3's table gaining a fifth row, and a new combination: the
+producer dropped a value (row 1) *and* a consumer believed in the field it
+dropped (row 2), in the same field, in opposite directions, cancelling out
+into silence. Nothing failed. Three consumers reconstructed the number the
+producer had thrown away, and the fourth quietly did nothing at all.
+
+`tick_decimals` is on the wire now and `tick_size` is off it. Two
+`_infer_decimals` helpers went with it, and the API gateway's registration
+works for the first time.
+
+**And the schedule was described twice.** `session_schedule.schedule` and
+`reference.schedule` are the same five keys off `engine_cfg.schedule`. One
+`SessionTimes` record, nested inside `ReferenceSchedule`, which is why
+`GET /reference/schedule` returns three keys where it returned seven. This is
+also why the two topics could not be split across 6.1e and 6.1f: describing
+the record in one phase and re-describing it in the next is the drift §1 is
+about.
+
+### 28.4 The REST surface moved, on purpose
+
+`api_gateway/routers/reference.py` slices the bundle and returns the slices
+verbatim, so three wire changes are HTTP changes:
+
+* `GET /reference/symbols` — a list of objects each carrying its own `symbol`,
+  where it was an object keyed by symbol. A client can iterate this without
+  knowing the keys, which is the better JSON and not merely the changed one.
+* `GET /reference/schedule` — `{sessions_enabled, country, schedule{…}}`.
+* `GET /symbols` — the `system.symbols` reply verbatim, so the `symbol_meta`
+  fold is visible here too. This one was not in the phase's plan; it turned up
+  by reading the router rather than the design note, which is §13.6 for the
+  seventh time.
+
+All three are sanctioned under the standing instruction to take the best
+long-term shape and not weigh backward compatibility, and all three are
+recorded in `260-api-gateway.md`.
+
+### 28.5 What the phase declined to build
+
+* **A cross-family record.** `EodBookLevel` and `book.BookLevel` are the same
+  three fields, and records are family-scoped, so the shape is declared twice.
+  A `shared:` construct would fix it. One instance is not evidence for a
+  construct — §15.5's restriction, and the same argument that kept `include`'s
+  rough edge unfixed in §26.4. Recorded here so the second instance can be
+  counted against it rather than rediscovered.
+* **A variant type.** `SymbolInfo`'s market-maker fields are present together
+  or not at all, depending on whether the caller is a configured gateway.
+  §20.3's limitation, third occurrence, still not enough.
+
+### 28.6 The half-specified family, second occurrence
+
+`grep-literals` counts literals of *declared* topics, so `system` now reports a
+real non-zero count while fourteen of its topics remain unspecified. §22.5
+recorded this for `risk`; the response is the same and the *test* is the part
+worth copying. Keeping `system` out of `MIGRATED` is not enough on its own:
+adding it early fails loudly, but finishing 6.1f and forgetting to add it would
+fail **silently**, leaving the family unchecked forever. So the assertion is on
+the omission itself — `test_system_is_not_in_migrated_yet` — and 6.1f's job
+includes deleting it.
+
+### 28.7 Two additions to the IDL, one of which is a unit
+
+`unit: duration_nanos`. `halt_duration_ns` and `reference_window_ns` are
+durations; `epoch_nanos` names an instant, and using it would have been the
+kind of documentation-that-is-wrong §25.1 is about. `dimensionless` was the
+honest placeholder and it discards the scale. The registry is documentation
+the reviewer reads, so a unit that cannot tell "sixty seconds" from "1970 plus
+sixty nanoseconds" is a unit not doing its job.
+
+This is the first time the IDL has been extended rather than the message
+corrected — six previous occasions went the other way (§7). The test is
+whether the *message* is wrong, and here it is not: a halt really does last a
+duration. Worth stating so the count stays honest: **seven times asked, once
+extended.**
+
+### 28.8 The audit: five reads, all of them the same failure mode
+
+Every `*_request` in this half reads `gateway_id` off the engine's PULL socket
+and echoes it into a reply topic and a spec-bounded field. Four did so
+unclamped, as did `reference_reload`'s `command_id`. Each sits *before* its
+reply, so §27.5's rule places all five at §22.3's outcome: the caller gets no
+answer and waits for a timeout.
+
+The fix needed a second helper, and the reason is worth recording because
+reusing the existing one would have introduced a bug while fixing another.
+`_clamp_wire_id` **upper-cases**, because it normalises ids the engine matches
+against configuration. Two of these five keys are not that: they are
+correlation keys echoed into a reply topic the caller is already waiting on,
+and the API gateway passes a mixed-case **API key** there for read-only
+reference callers. Upper-casing it would have sent every read-only reference
+reply to a topic nobody was subscribed to — a clean, silent, total failure of
+the endpoint. `_clamp_wire_text` bounds without touching case.
+
+**A helper named for what it does to a value is safe to reuse; one named for
+the kind of value it expects is not.** `_clamp_wire_id` is the second.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first
@@ -4260,7 +4453,8 @@ display float. `enum_map` MAY accompany a `u8`/`u16` carrying an enum.
 
 ### B.11 `unit` reference (complete enumeration)
 
-`display_price`, `ticks`, `shares`, `epoch_seconds`, `epoch_nanos`, `percent`,
+`display_price`, `ticks`, `shares`, `epoch_seconds`, `epoch_nanos`,
+`duration_nanos`, `percent`,
 `dimensionless`, `money`. A `unit` is **declarative metadata** only — it appears
 in generated docs and is never a runtime conversion. Any other value is a
 lint error.
@@ -4550,7 +4744,8 @@ type           ::= "string" | "int" | "float" | "bool" | "enum" | "ticks"
                  | "nested" | "list[" type "]"
 
 unit           ::= "display_price" | "ticks" | "shares" | "epoch_seconds"
-                 | "epoch_nanos" | "percent" | "dimensionless" | "money"
+                 | "epoch_nanos" | "duration_nanos" | "percent"
+                 | "dimensionless" | "money"
 
 validate-map   ::= "{" { validate-key ":" scalar } "}"
 validate-key   ::= "gt" | "ge" | "lt" | "le"

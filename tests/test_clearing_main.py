@@ -445,6 +445,7 @@ class TestHandleEod:
             "books": [
                 {
                     "symbol": "AAPL",
+                    "tick_decimals": 2,
                     "last_price": 150.0,
                     "bids": [{"price": 149.0, "qty": 10, "count": 1}],
                     "asks": [{"price": 151.0, "qty": 10, "count": 1}],
@@ -470,6 +471,7 @@ class TestHandleEod:
             "books": [
                 {
                     "symbol": "MSFT",
+                    "tick_decimals": 2,
                     "bids": [{"price": 40.0, "qty": 5, "count": 1}],
                     "asks": [{"price": 41.0, "qty": 5, "count": 1}],
                 }
@@ -510,7 +512,19 @@ class TestHandleEod:
             ingest_ts_ns=1_000_001,
         )
         # book.snapshot() last_price is a display float; 120.0 → 12000 ticks.
-        process._handle_eod({"books": [{"symbol": "AAPL", "last_price": 120.0}]})
+        process._handle_eod(
+            {
+                "books": [
+                    {
+                        "symbol": "AAPL",
+                        "tick_decimals": 2,
+                        "bids": [],
+                        "asks": [],
+                        "last_price": 120.0,
+                    }
+                ]
+            }
+        )
         pos = process._ledger.position("GW_BUY", "AAPL")
         assert pos is not None
         assert pos.mark_price == 12000

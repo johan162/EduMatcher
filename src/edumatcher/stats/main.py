@@ -72,7 +72,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import math
 import signal
 import sqlite3
 import sys
@@ -1740,21 +1739,22 @@ class StatsProcess:
         and an initial price_snapshots row are recorded even if no new orders
         arrive after the stats process starts.
         """
-        symbols = payload.get("symbols", [])
-
-        # symbol_meta carries the engine's configured tick_size, which is the
-        # authoritative scale for every symbol — including ones that never
-        # trade and would otherwise never appear in the reference table.
-        symbol_meta = payload.get("symbol_meta") or {}
-        for sym, meta in symbol_meta.items():
-            tick_size = (meta or {}).get("tick_size")
-            if tick_size is None or tick_size <= 0:
+        # Each entry carries the engine's configured tick scale, which is
+        # authoritative for every symbol — including ones that never trade and
+        # would otherwise never appear in the reference table.
+        entries = payload.get("symbols", [])
+        symbols = [str(e.get("symbol", "")) for e in entries]
+        for entry in entries:
+            sym = str(entry.get("symbol", ""))
+            tick_decimals = entry.get("tick_decimals")
+            if not sym or tick_decimals is None:
                 continue
-            # tick_size is 10^-tick_decimals; recover the exponent.
-            tick_decimals = int(round(-math.log10(float(tick_size))))
-            self._record_instrument(str(sym).upper(), tick_decimals, "config")
-        if symbol_meta:
-            log.info("recorded tick metadata for %d symbol(s)", len(symbol_meta))
+            # The engine sends the exponent it holds. This used to recover it
+            # from `tick_size` with `round(-log10(x))`, one of three spellings
+            # of the same number the wire carried before 6.1e.
+            self._record_instrument(sym.upper(), int(tick_decimals), "config")
+        if entries:
+            log.info("recorded tick metadata for %d symbol(s)", len(entries))
 
         with self._push_lock:
             for sym in symbols:

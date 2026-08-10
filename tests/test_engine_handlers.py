@@ -134,10 +134,12 @@ class TestHandleSymbolsRequest:
         engine._handle_symbols_request({"gateway_id": "GW01"})
         topic, msg = decode(pub_sock.sent[-1])
         assert topic == "system.symbols.GW01"
-        assert "AAPL" in msg["symbols"]
-        assert "MSFT" in msg["symbols"]
-        assert "symbol_meta" in msg
-        assert msg["symbol_meta"]["AAPL"]["tick_size"] == 0.01
+        by_symbol = {e["symbol"]: e for e in msg["symbols"]}
+        assert set(by_symbol) == {"AAPL", "MSFT"}
+        # The metadata travels inside the entry rather than in a parallel
+        # `symbol_meta` map keyed by the same symbol, and the tick scale is the
+        # integer exponent the engine holds rather than 10 ** -n of it.
+        assert by_symbol["AAPL"]["tick_decimals"] == 2
 
 
 # ---------------------------------------------------------------------------

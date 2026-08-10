@@ -276,14 +276,14 @@ class MMBot:
                 continue
             topic, payload = decode(self._sub_sock.recv_multipart())
             if topic == f"system.symbols.{self.gateway_id}":
-                symbols = [str(s).upper() for s in payload.get("symbols", [])]
+                entries = payload.get("symbols", [])
+                symbols = [str(e.get("symbol", "")).upper() for e in entries]
                 self._debug(f"symbols received: {symbols}")
-                # Extract tick_size if available
-                sym_meta = payload.get("symbol_meta", {})
-                if self.symbol in sym_meta:
-                    meta = sym_meta[self.symbol]
-                    if "tick_size" in meta:
-                        self._tick_size = float(meta["tick_size"])
+                for meta in entries:
+                    if str(meta.get("symbol", "")).upper() != self.symbol:
+                        continue
+                    if "tick_decimals" in meta:
+                        self._tick_size = 10 ** -int(meta["tick_decimals"])
                     if "mm_max_spread_ticks" in meta:
                         try:
                             self._mm_max_spread_ticks = int(meta["mm_max_spread_ticks"])

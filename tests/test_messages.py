@@ -55,12 +55,8 @@ from edumatcher.models.message import (
     make_oco_order_msg,
     make_oco_cancel_msg,
 )
-from edumatcher.models.feed_schema import (
-    GatewayAuthPayload,
-    GatewayByePayload,
-    SystemEodPayload,
-    TradeExecutedPayload,
-)
+from edumatcher.models.feed_schema import TradeExecutedPayload
+from edumatcher.models.generated import system as _gen_system
 
 
 class TestIndexMessages:
@@ -349,21 +345,35 @@ class TestSystemMessages:
         assert payload["gateway_id"] == "GW01"
 
     def test_make_symbols_msg(self) -> None:
-        topic, payload = _rt(make_symbols_msg("GW01", ["AAPL", "MSFT"]))
-        assert topic == "system.symbols.GW01"
-        assert payload["symbols"] == ["AAPL", "MSFT"]
-
-    def test_make_symbols_msg_with_symbol_meta(self) -> None:
         topic, payload = _rt(
             make_symbols_msg(
                 "GW01",
-                ["AAPL"],
-                symbol_meta={"AAPL": {"tick_size": 0.01, "mm_max_spread_ticks": 10}},
+                [
+                    {"symbol": "AAPL", "tick_decimals": 2},
+                    {"symbol": "MSFT", "tick_decimals": 2},
+                ],
             )
         )
         assert topic == "system.symbols.GW01"
-        assert payload["symbols"] == ["AAPL"]
-        assert payload["symbol_meta"]["AAPL"]["tick_size"] == 0.01
+        assert [e["symbol"] for e in payload["symbols"]] == ["AAPL", "MSFT"]
+
+    def test_symbols_carries_its_metadata_inline(self) -> None:
+        """One collection, not two.
+
+        `symbols` was a list of strings beside a `symbol_meta` map keyed by
+        those same strings. Each entry now carries its own symbol, so the two
+        can no longer disagree about which instruments exist.
+        """
+        _topic, payload = _rt(
+            make_symbols_msg(
+                "GW01",
+                [{"symbol": "AAPL", "tick_decimals": 2, "mm_max_spread_ticks": 10}],
+            )
+        )
+        assert payload["symbols"] == [
+            {"symbol": "AAPL", "tick_decimals": 2, "mm_max_spread_ticks": 10}
+        ]
+        assert "symbol_meta" not in payload
 
     def test_make_orders_request_msg(self) -> None:
         topic, payload = _rt(make_orders_request_msg("GW01"))
@@ -375,16 +385,21 @@ class TestSystemMessages:
         assert len(payload["orders"]) == 1
 
     def test_make_eod_msg(self) -> None:
-        topic, payload = _rt(make_eod_msg([{"symbol": "AAPL"}]))
+        topic, payload = _rt(
+            make_eod_msg(
+                [{"symbol": "AAPL", "tick_decimals": 2, "bids": [], "asks": []}]
+            )
+        )
         assert topic == "system.eod"
         assert len(payload["books"]) == 1
 
-    def test_make_eod_msg_matches_feed_schema(self) -> None:
+    def test_make_eod_msg_matches_the_generated_record(self) -> None:
         topic, payload = _rt(
             make_eod_msg(
                 [
                     {
                         "symbol": "AAPL",
+                        "tick_decimals": 2,
                         "last_price": 150.75,
                         "bids": [{"price": 150.7, "qty": 10, "count": 1}],
                         "asks": [{"price": 150.8, "qty": 12, "count": 1}],
@@ -392,7 +407,7 @@ class TestSystemMessages:
                 ]
             )
         )
-        typed = SystemEodPayload.from_dict(payload)
+        typed = _gen_system.Eod.from_dict(payload)
         assert topic == "system.eod"
         assert typed.books[0].symbol == "AAPL"
         assert typed.books[0].last_price == 150.75
@@ -590,7 +605,7 @@ class TestMMQuoteAndRiskMessages:
         assert topic == "system.gateway_disconnect"
         assert payload["reason"] == "shutdown"
 
-    def test_gateway_auth_and_bye_match_feed_schema(self) -> None:
+    def test_gateway_auth_and_bye_match_the_generated_records(self) -> None:
         t1, p1 = _rt(make_gateway_auth_msg("GW01", True, reason="ok", description="d"))
         t2, p2 = _rt(make_gateway_disconnect_msg("GW01", "bye"))
         # gateway_disconnect is inbound (gateway -> engine), while gateway_bye
@@ -599,8 +614,8 @@ class TestMMQuoteAndRiskMessages:
 
         t3, p3 = _rt(make_gateway_bye_msg("GW01", "bye"))
 
-        auth = GatewayAuthPayload.from_dict(p1)
-        bye = GatewayByePayload.from_dict(p3)
+        auth = _gen_system.GatewayAuth.from_dict(p1)
+        bye = _gen_system.GatewayBye.from_dict(p3)
         assert t1 == "system.gateway_auth.GW01"
         assert auth.accepted is True
         assert t2 == "system.gateway_disconnect"

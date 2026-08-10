@@ -169,6 +169,59 @@ messages:
 """,
             )
 
+    def test_a_type_may_not_shadow_a_message_class(self, tmp_path: Path) -> None:
+        """A record and a message emit classes into the same module.
+
+        6.1e wrote a ``SessionSchedule`` type beside a ``session_schedule``
+        message, so ``class SessionSchedule`` was defined twice and the second
+        silently shadowed the first — the nested field resolved to the message
+        class at runtime. Every existing check passed on that spec: ``lint``,
+        ``pm-msgen check`` and black. Design section 28.4.
+        """
+        with pytest.raises(SpecError, match="both generate 'class Thing'"):
+            self._family(
+                tmp_path,
+                """
+family: fake
+version: 1
+types:
+  Thing:
+    fields: [{ name: a, type: string }]
+messages:
+  - name: thing
+    topic: "m.t"
+    transport: [engine_pub]
+    doc: { motivation: "fixture", since: "1.0" }
+    fields: [{ name: x, type: nested, ref: Thing }]
+    encoding: { engine_pub: { frames: [topic, json_payload], include: all } }
+""",
+            )
+
+    def test_the_shadowing_guard_allows_an_unrelated_type(self, tmp_path: Path) -> None:
+        """The guard keys on the emitted class name, not on resemblance.
+
+        Section 23.1: a check that has never disagreed has not been tested, and
+        a check that disagrees with everything is no better. ``ThingDetail``
+        beside ``thing`` is the shape every family in the tree already has.
+        """
+        self._family(
+            tmp_path,
+            """
+family: fake
+version: 1
+types:
+  ThingDetail:
+    fields: [{ name: a, type: string }]
+messages:
+  - name: thing
+    topic: "m.t"
+    transport: [engine_pub]
+    doc: { motivation: "fixture", since: "1.0" }
+    fields: [{ name: x, type: nested, ref: ThingDetail }]
+    encoding: { engine_pub: { frames: [topic, json_payload], include: all } }
+""",
+        )
+
     def test_a_nested_field_needs_a_ref(self, tmp_path: Path) -> None:
         with pytest.raises(SpecError, match="requires 'ref: <TypeName>'"):
             self._family(

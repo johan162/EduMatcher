@@ -86,6 +86,7 @@ class TestRealSpec:
             "risk",
             "session",
             "structure",
+            "system",
             "trade",
         ]
 

@@ -946,19 +946,18 @@ def test_readonly_open_handles_a_path_containing_a_uri_delimiter(
 # ---------------------------------------------------------------------------
 
 
-def test_symbol_meta_records_authoritative_tick_scale(sp: StatsProcess) -> None:
-    """tick_size from engine config is the authoritative scale.
+def test_symbols_reply_records_authoritative_tick_scale(sp: StatsProcess) -> None:
+    """tick_decimals from engine config is the authoritative scale.
 
     It also covers symbols that never trade, which observation alone would
     never reach.
     """
     sp._on_startup_symbols(
         {
-            "symbols": ["AAPL", "FXPAIR"],
-            "symbol_meta": {
-                "AAPL": {"tick_size": 0.01},
-                "FXPAIR": {"tick_size": 0.0001},
-            },
+            "symbols": [
+                {"symbol": "AAPL", "tick_decimals": 2},
+                {"symbol": "FXPAIR", "tick_decimals": 4},
+            ]
         }
     )
     conn = sp._conn
@@ -997,9 +996,7 @@ def test_observation_never_overwrites_configured_tick_scale(
     sp: StatsProcess,
 ) -> None:
     """Config is authoritative; a message only reveals one message's scale."""
-    sp._on_startup_symbols(
-        {"symbols": ["FXPAIR"], "symbol_meta": {"FXPAIR": {"tick_size": 0.0001}}}
-    )
+    sp._on_startup_symbols({"symbols": [{"symbol": "FXPAIR", "tick_decimals": 4}]})
     base = datetime(2026, 6, 14, 9, 0, tzinfo=timezone.utc).timestamp()
     # A payload claiming a coarser scale must not downgrade the config value.
     sp._on_trade(
@@ -1020,9 +1017,7 @@ def test_observation_never_overwrites_configured_tick_scale(
 
 def test_currency_is_reserved_and_always_null(sp: StatsProcess) -> None:
     """EduMatcher has no currency model; the column documents its absence."""
-    sp._on_startup_symbols(
-        {"symbols": ["AAPL"], "symbol_meta": {"AAPL": {"tick_size": 0.01}}}
-    )
+    sp._on_startup_symbols({"symbols": [{"symbol": "AAPL", "tick_decimals": 2}]})
     conn = open_readonly_connection(Path(sp._db_path))
     try:
         rows = query_instruments(conn)

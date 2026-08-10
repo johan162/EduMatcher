@@ -509,12 +509,18 @@ class EngineClient:
 
     @staticmethod
     def _register_tick_metadata(payload: dict[str, Any]) -> None:
-        meta = payload.get("symbol_meta")
-        if not isinstance(meta, dict):
+        # This read `symbol_meta[sym]["tick_decimals"]`, and no producer has
+        # ever sent that key — the engine sent `tick_size` under a separate
+        # `symbol_meta` map, so the registration below has never fired. The
+        # field exists now and this is the first time it does anything.
+        entries = payload.get("symbols")
+        if not isinstance(entries, list):
             return
-        for symbol, details in meta.items():
-            if isinstance(details, dict) and "tick_decimals" in details:
-                register_tick_decimals(str(symbol), int(details["tick_decimals"]))
+        for entry in entries:
+            if isinstance(entry, dict) and "tick_decimals" in entry:
+                register_tick_decimals(
+                    str(entry.get("symbol", "")), int(entry["tick_decimals"])
+                )
 
     def add_sink(self, gateway_id: str, queue: asyncio.Queue[dict[str, Any]]) -> None:
         self._sinks[gateway_id].add(queue)

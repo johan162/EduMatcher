@@ -972,21 +972,19 @@ class BalfGateway:
         log.info("BALF gateway authenticated: %s from %s", gw_id, session.addr)
 
     def _handle_symbols_response(self, gw_id: str, payload: dict[str, Any]) -> None:
-        symbols_raw = payload.get("symbols", [])
-        symbol_meta = payload.get("symbol_meta", {})
-        if not isinstance(symbols_raw, list):
+        entries = payload.get("symbols", [])
+        if not isinstance(entries, list):
             return
-        for s in symbols_raw:
-            sym = str(s).upper()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            sym = str(entry.get("symbol", "")).upper()
+            if not sym:
+                continue
             self._known_symbols.add(sym)
-            if isinstance(symbol_meta, dict):
-                meta = symbol_meta.get(sym)
-                if isinstance(meta, dict):
-                    tick_size = meta.get("tick_size")
-                    if isinstance(tick_size, (int, float)) and tick_size > 0:
-                        decimals = self._infer_decimals(float(tick_size))
-                        if decimals is not None:
-                            register_tick_decimals(sym, decimals)
+            tick_decimals = entry.get("tick_decimals")
+            if isinstance(tick_decimals, int):
+                register_tick_decimals(sym, tick_decimals)
 
     def _handle_order_ack_event(
         self, session: ClientSession, payload: dict[str, Any]
@@ -1360,15 +1358,6 @@ class BalfGateway:
             if session.gateway_id == gw_id and session.auth_pending:
                 return session
         return None
-
-    @staticmethod
-    def _infer_decimals(tick_size: float) -> int | None:
-        if tick_size <= 0:
-            return None
-        s = f"{tick_size:.10f}".rstrip("0")
-        if "." not in s:
-            return 0
-        return len(s.split(".")[1])
 
 
 # Keep a local reference to struct.error for bare-except avoidance

@@ -337,7 +337,15 @@ class TestDataQueries:
 
     def test_symbol_list_returns_symbols(self) -> None:
         client, push = _client(
-            recv_queue=_q(make_symbols_msg("GW_ADMIN", ["AAPL", "MSFT", "TSLA"]))
+            recv_queue=_q(
+                make_symbols_msg(
+                    "GW_ADMIN",
+                    [
+                        {"symbol": s, "tick_decimals": 2}
+                        for s in ("AAPL", "MSFT", "TSLA")
+                    ],
+                )
+            )
         )
         result = client.symbol_list()
 
@@ -702,13 +710,15 @@ class TestSessionSchedule:
         assert topic == "system.session_schedule_request"
         assert payload["gateway_id"] == "GW_ADMIN"
 
-    def test_no_schedule_returns_empty_dict(self) -> None:
+    def test_no_schedule_returns_null_schedule(self) -> None:
         ack = make_session_schedule_msg("GW_ADMIN", False, None)
         client, push = _client(recv_queue=_q(ack))
         result = client.session_schedule()
         assert result["sessions_enabled"] is False
-        # make_session_schedule_msg encodes None as {}
-        assert result["schedule"] == {}
+        # One spelling of the absence. This used to encode None as `{}`, so an
+        # unconfigured venue and one with an empty schedule block were the same
+        # payload; `schedule` is a nullable record now (design section 28.3).
+        assert result["schedule"] is None
 
 
 class TestGatewayList:

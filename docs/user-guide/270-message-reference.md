@@ -1201,16 +1201,19 @@ which symbols to pull opening book snapshots for.
 
 | Field | Type | Description |
 |---|---|---|
-| `symbols` | array of strings | All symbols configured in `engine_config.yaml` |
-| `symbol_meta` | object | Per-symbol metadata map keyed by symbol (e.g. `{"AAPL": {...}}`) |
+| `symbols` | array of objects | One entry per symbol configured in `engine_config.yaml`, sorted by symbol |
 
-When present, each `symbol_meta.{SYMBOL}` entry may include:
+Each entry carries its own `symbol` and:
 
-- `tick_size` (float): symbol tick size derived from `tick_decimals`
-- `enforce_mm_obligation` (bool): effective MM obligation enforcement for this gateway/symbol
-- `mm_max_spread_ticks` (int): effective max MM spread in ticks
-- `mm_min_qty` (int): effective minimum MM quote quantity
+- `tick_decimals` (int): the tick scale, as the integer exponent. Same field and meaning as `book.tick_decimals` and `system.eod`. Replaced `tick_size` in phase 6.1e — the wire carried `10 ** -tick_decimals` and three consumers converted it back
+- `enforce_mm_obligation` (bool \| absent): effective MM obligation enforcement for this gateway/symbol. Absent when the caller is not a configured gateway
+- `mm_max_spread_ticks` (int \| absent): effective max MM spread in ticks
+- `mm_min_qty` (int \| absent): effective minimum MM quote quantity
 - `prev_close` (float \| absent): last traded price from the previous session, in display price units. Present only when a previous session's book stats have been persisted (not available on a fresh engine with no prior data).
+
+There is no `symbol_meta` key. It was a second collection keyed by the same
+symbols this list already names, and the two could disagree about which
+instruments existed.
 
 
 

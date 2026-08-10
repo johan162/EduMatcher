@@ -231,9 +231,7 @@ def print_quote_bootstrap(gateway_id: str, quotes: list[dict[str, Any]]) -> None
     console.print(t)
 
 
-def print_symbols_table(
-    symbols: list[str], symbol_meta: dict[str, dict[str, Any]]
-) -> None:
+def print_symbols_table(symbols: list[dict[str, Any]]) -> None:
     t = Table(
         title="Active Instruments",
         show_header=True,
@@ -246,14 +244,20 @@ def print_symbols_table(
     t.add_column("Max Spread", justify="right")
     t.add_column("Min Qty", justify="right")
 
-    for i, sym in enumerate(symbols, 1):
-        meta = symbol_meta.get(sym, {})
-        tick_size = meta.get("tick_size")
+    for i, meta in enumerate(symbols, 1):
+        sym = str(meta.get("symbol", ""))
+        tick_decimals = meta.get("tick_decimals")
         enforce_mm = meta.get("enforce_mm_obligation")
         mm_max_spread_ticks = meta.get("mm_max_spread_ticks")
         mm_min_qty = meta.get("mm_min_qty")
 
-        tick_text = str(tick_size) if tick_size is not None else "—"
+        # The engine sends the exponent; the column shows the tick itself,
+        # which is what a trader reads a price against.
+        tick_text = (
+            f"{10 ** -int(tick_decimals):.{int(tick_decimals)}f}"
+            if tick_decimals is not None
+            else "—"
+        )
         if isinstance(enforce_mm, bool):
             enforced_text = "YES" if enforce_mm else "NO"
         else:

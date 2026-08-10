@@ -270,7 +270,6 @@ class Gateway:
         )  # order_id → quote leg state
         self._quote_id_by_order_id: dict[str, str] = {}  # order_id → quote_id
         self._known_symbols: list[str] = []
-        self._known_symbol_meta: dict[str, dict[str, Any]] = {}
         self._positions: dict[str, dict[str, Any]] = (
             {}
         )  # symbol → {net_qty, avg_cost, realized_pnl}
@@ -679,16 +678,13 @@ class Gateway:
                 self.order_cache[full_id]["status"] = "EXPIRED"
 
         elif "system.symbols" in topic:
-            symbols = payload.get("symbols", [])
-            symbol_meta = payload.get("symbol_meta", {})
+            entries = payload.get("symbols", [])
+            symbols = [str(e.get("symbol", "")) for e in entries]
             # Update completer's known symbols list
             self._known_symbols.clear()
             self._known_symbols.extend(symbols)
-            self._known_symbol_meta = (
-                symbol_meta if isinstance(symbol_meta, dict) else {}
-            )
             if symbols:
-                print_symbols_table(symbols, self._known_symbol_meta)
+                print_symbols_table(entries)
             else:
                 console.print(
                     "[dim]No active instruments yet — submit an order to create a book.[/dim]"

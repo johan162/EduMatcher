@@ -434,10 +434,10 @@ reference data changes only when an admin reloads it.
 |---|---|---|
 | `GET /reference` | The full bundle: `symbols`, `risk`, `indexes`, `schedule`, `config_version` | One call for a client that wants everything |
 | `GET /reference/config-version` | `{ "config_version": "..." }` | A content hash — see below |
-| `GET /reference/symbols` | `{ "symbols": {SYM: {tick_size, level, collar?, circuit_breaker?}}, "config_version":... }` | `collar`/`circuit_breaker` are omitted for a symbol with neither configured |
-| `GET /reference/risk` | `{ "default_level":..., "levels": {LEVEL: {collar: {...}}}, "config_version":... }` | Risk-band definitions referenced by `symbols.*.level` |
+| `GET /reference/symbols` | `{ "symbols": [{symbol, tick_decimals, level?, collar?, circuit_breaker?}], "config_version":... }` | A list, not a map: each entry carries its own `symbol`, so a client can iterate without knowing the keys. `collar`/`circuit_breaker` are omitted for a symbol with neither configured |
+| `GET /reference/risk` | `{ "default_level"?:..., "levels": [{name, collar?}], "config_version":... }` | Risk-band definitions referenced by each symbol's `level`. `collar` is omitted for a level that configures none |
 | `GET /reference/indexes` | `{ "indexes": [{id, description, base_value, constituents}], "config_version":... }` | Configured exchange indexes; empty list if none configured |
-| `GET /reference/schedule` | `{ "sessions_enabled":..., "country":..., "pre_open":..., "opening_auction_start":..., "continuous_start":..., "closing_auction_start":..., "closing_auction_end":..., "config_version":... }` | `null` schedule fields mean no `schedule:` block is configured |
+| `GET /reference/schedule` | `{ "sessions_enabled":..., "country"?:..., "schedule": {pre_open, opening_auction_start, continuous_start, closing_auction_start, closing_auction_end} \| null, "config_version":... }` | The five clock times are nested under `schedule`, which is the same record `system.session_schedule` carries. `schedule: null` means no `schedule:` block is configured |
 
 All six accept any valid API key, including read-only (`gateway_id: null`)
 credentials — this is metadata, not account or order data. Every response

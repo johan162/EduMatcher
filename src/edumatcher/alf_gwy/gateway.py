@@ -1083,30 +1083,29 @@ class AlfGateway:
         if session is None:
             return
 
-        symbols_raw = payload.get("symbols", [])
-        symbol_meta = payload.get("symbol_meta", {})
-        symbols = [str(s).upper() for s in symbols_raw if isinstance(s, str)]
+        entries = [e for e in payload.get("symbols", []) if isinstance(e, dict)]
+        ticks: dict[str, int] = {}
+        symbols: list[str] = []
+        for entry in entries:
+            sym = str(entry.get("symbol", "")).upper()
+            if not sym:
+                continue
+            symbols.append(sym)
+            tick_decimals = entry.get("tick_decimals")
+            if isinstance(tick_decimals, int):
+                ticks[sym] = tick_decimals
+                register_tick_decimals(sym, tick_decimals)
+
         self._symbols_snapshot_loaded = True
         self._known_symbols.update(symbols)
 
-        if isinstance(symbol_meta, dict):
-            for sym in symbols:
-                meta = symbol_meta.get(sym)
-                if not isinstance(meta, dict):
-                    continue
-                tick_size = meta.get("tick_size")
-                if isinstance(tick_size, (int, float)) and tick_size > 0:
-                    decimals = self._infer_decimals(float(tick_size))
-                    if decimals is not None:
-                        register_tick_decimals(sym, decimals)
-
         self._queue_line(session, "SYMBOLS", {"COUNT": str(len(symbols))})
         for sym in symbols:
-            tick = ""
-            if isinstance(symbol_meta, dict):
-                meta = symbol_meta.get(sym)
-                if isinstance(meta, dict) and "tick_size" in meta:
-                    tick = str(meta["tick_size"])
+            # TICK stays the tick size on the CALF wire — the value a client
+            # multiplies a price by. The engine now sends the exponent, so the
+            # conversion happens here instead of `_infer_decimals` undoing it.
+            decimals = ticks.get(sym)
+            tick = "" if decimals is None else f"{10 ** -decimals:.{decimals}f}"
             self._queue_line(session, "SYMBOL", {"SYM": sym, "TICK": tick})
         self._queue_line(session, "END", {"TYPE": "SYMBOLS"})
 
@@ -1722,12 +1721,3 @@ class AlfGateway:
         for session in self._clients.values():
             if session.authenticated:
                 self._queue_line(session, msg_type, fields)
-
-    @staticmethod
-    def _infer_decimals(tick_size: float) -> int | None:
-        if tick_size <= 0:
-            return None
-        text = f"{tick_size:.12f}".rstrip("0").rstrip(".")
-        if "." not in text:
-            return 0
-        return len(text.split(".", 1)[1])
