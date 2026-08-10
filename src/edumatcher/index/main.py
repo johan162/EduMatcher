@@ -51,6 +51,9 @@ from edumatcher.models.generated.index import (
     TOPIC_INDEX_REBALANCE,
     DaySummary,
 )
+from edumatcher.models.generated.system import (
+    TOPIC_EOD,
+)
 
 log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
@@ -119,7 +122,7 @@ class IndexProcess:
             ENGINE_PUB_ADDR,
             TOPIC_TRADE_EXECUTED,
             TOPIC_SESSION_STATE,
-            "system.eod",
+            TOPIC_EOD,
         )
         self._pull_sock = make_puller(INDEX_PULL_ADDR)
         self._pub_sock = make_publisher(INDEX_PUB_ADDR)
@@ -769,7 +772,7 @@ class IndexProcess:
                         self._handle_trade(payload)
                     elif topic == TOPIC_SESSION_STATE:
                         self._handle_session_state(payload)
-                    elif topic == "system.eod":
+                    elif topic == TOPIC_EOD:
                         self._finalize_eod()
 
             if self._pull_sock in socks:

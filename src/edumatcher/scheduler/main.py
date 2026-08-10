@@ -84,6 +84,9 @@ from edumatcher.models.message import (
 from edumatcher.engine.config_loader import DEFAULT_COUNTRY, ScheduleConfig
 from edumatcher.models.session import VALID_TRANSITIONS, SessionState
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.system import (
+    topic_session_status,
+)
 
 _CLIENT_NAME = "pm-scheduler"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -426,7 +429,7 @@ def _query_engine_state(
     ``None`` if the engine does not answer within ``timeout_ms`` or the reply
     is unusable — the caller then falls back to assuming a CLOSED start.
     """
-    reply_topic = f"system.session_status.{gateway_id.upper()}"
+    reply_topic = topic_session_status(gateway_id.upper())
     try:
         push_sock.send_multipart(make_session_state_request_msg(gateway_id))
     except zmq.ZMQError as exc:
@@ -914,18 +917,19 @@ def main() -> None:
             # the current state on startup, A2).
             confirm_sock: zmq.Socket[bytes] | None = None
             if not args.no_confirm:
+                status_topic = topic_session_status(SCHEDULER_GATEWAY_ID)
                 confirm_sock = make_subscriber(
                     ENGINE_PUB_ADDR,
                     TOPIC_SESSION_STATE,
-                    f"system.session_status.{SCHEDULER_GATEWAY_ID}",
+                    status_topic,
                 )
                 # Let the SUB subscription take effect before the state query
                 # (slow-joiner — review finding L5).
                 time.sleep(SUB_CONNECT_SETTLE_SEC)
-                log.debug(
-                    "subscribed to session.state and " "system.session_status.%s",
-                    SCHEDULER_GATEWAY_ID,
-                )
+                # Logs the topic actually subscribed rather than a second copy
+                # of the string: design section 27.6, where `pm-dc-spy` could
+                # report a subscription the process had not made.
+                log.debug("subscribed to %s and %s", TOPIC_SESSION_STATE, status_topic)
 
             try:
                 if args.daily:

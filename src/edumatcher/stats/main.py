@@ -134,6 +134,15 @@ from edumatcher.models.generated.structure import (
     PREFIX_OCO_ACK,
     PREFIX_OCO_CANCELLED,
 )
+from edumatcher.models.generated.system import (
+    TOPIC_EOD,
+    topic_symbols,
+)
+
+#: The fixed gateway id pm-stats identifies itself with. It subscribes
+#: `system.symbols.STATS` and requests on the same id, so the two were the same
+#: literal written twice -- one of them in a subscription and one in a request.
+STATS_GATEWAY_ID = "STATS"
 
 _CLIENT_NAME = "pm-stats"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -896,8 +905,8 @@ class StatsProcess:
                 ENGINE_PUB_ADDR,
                 TOPIC_TRADE_EXECUTED,
                 PREFIX_BOOK_SNAPSHOT,
-                "system.eod",
-                "system.symbols.STATS",
+                TOPIC_EOD,
+                topic_symbols(STATS_GATEWAY_ID),
                 PREFIX_ORDER_ACK,
                 PREFIX_ORDER_FILL,
                 PREFIX_ORDER_AMENDED,
@@ -1706,10 +1715,10 @@ class StatsProcess:
                 )
             else:
                 self._on_book(symbol, payload)
-        elif topic == "system.eod":
+        elif topic == TOPIC_EOD:
             self._dbg_count("eod_topics")
             self._on_eod(payload)
-        elif topic == "system.symbols.STATS":
+        elif topic == topic_symbols(STATS_GATEWAY_ID):
             self._dbg_count("startup_symbols_topics")
             self._on_startup_symbols(payload)
         elif _is_order_event_topic(topic):
@@ -1775,7 +1784,7 @@ class StatsProcess:
         # This handles the race where the engine seeded MM orders before we started.
         time.sleep(0.3)
         with self._push_lock:
-            self.push.send_multipart(make_symbols_request_msg("STATS"))
+            self.push.send_multipart(make_symbols_request_msg(STATS_GATEWAY_ID))
         log.debug("requested startup symbols for gateway_id=STATS")
 
         log.info("recording market statistics (Ctrl-C to stop)")

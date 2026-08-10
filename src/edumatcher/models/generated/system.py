@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping, cast
 
 from edumatcher.models import message as _msg
 from edumatcher.models.generated._runtime import MessageValidationError
@@ -744,6 +744,753 @@ class EodBook:
         if self.last_price is not None:
             payload["last_price"] = self.last_price
         return payload
+
+
+@dataclass(frozen=True, slots=True)
+class HaltedSymbol:
+    """One currently-halted instrument. The circuit-breaker detail is present only
+    when a circuit breaker is what halted it: an ADMIN halt sets the flag without
+    a breaker behind it, so the three fields travel together or not at all --
+    section 16.2's combination, expressed as three regime-3 fields rather than a
+    record because they are three independent CALF-side values and no reader holds
+    them as a unit (section 26.2's reasoning, second application).
+    """
+
+    symbol: str
+    resume_at_ns: int | None = None  # unit: epoch_nanos
+    level: str | None = None
+    halt_source: str | None = None
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.level is not None:
+            if len(self.level) > 32:
+                raise MessageValidationError(
+                    f"level: length {len(self.level)} exceeds max_len 32"
+                )
+        if self.halt_source is not None:
+            if len(self.halt_source) > 32:
+                raise MessageValidationError(
+                    f"halt_source: length {len(self.halt_source)} exceeds max_len 32"
+                )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "HaltedSymbol":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            symbol=str(p["symbol"]),
+            resume_at_ns=(
+                None if p.get("resume_at_ns") is None else int(p["resume_at_ns"])
+            ),
+            level=None if p.get("level") is None else str(p["level"]),
+            halt_source=None if p.get("halt_source") is None else str(p["halt_source"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "symbol": self.symbol,
+        }
+        if self.resume_at_ns is not None:
+            payload["resume_at_ns"] = self.resume_at_ns
+        if self.level is not None:
+            payload["level"] = self.level
+        if self.halt_source is not None:
+            payload["halt_source"] = self.halt_source
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class Position:
+    """One instrument the gateway is not flat in. Only non-zero net positions are
+    reported, so an empty list means flat everywhere.
+    """
+
+    symbol: str
+    net_qty: int  # unit: shares
+    avg_cost: float  # unit: display_price
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.avg_cost < 0:
+            raise MessageValidationError(f"avg_cost: {self.avg_cost!r} must be >= 0")
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "Position":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            symbol=str(p["symbol"]),
+            net_qty=int(p["net_qty"]),
+            avg_cost=float(p["avg_cost"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "symbol": self.symbol,
+            "net_qty": self.net_qty,
+            "avg_cost": self.avg_cost,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ActiveQuote:
+    """One active two-sided quote, with both legs' live order state. What a market
+    maker reads on reconnect to find out what it already has resting. A leg whose
+    order is gone reports `MISSING` with zero quantities rather than being
+    omitted: the quote still exists as far as the engine's index is concerned, and
+    a bootstrap that silently dropped one side would let a bot re-quote into its
+    own resting order.
+    """
+
+    quote_id: str
+    gateway_id: str
+    symbol: str
+    state: str
+    bid_order_id: str
+    ask_order_id: str
+    bid_qty: int  # unit: shares
+    ask_qty: int  # unit: shares
+    bid_remaining_qty: int  # unit: shares
+    ask_remaining_qty: int  # unit: shares
+    bid_status: str
+    ask_status: str
+    bid_price: float | None = None  # unit: display_price
+    ask_price: float | None = None  # unit: display_price
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.quote_id) > 64:
+            raise MessageValidationError(
+                f"quote_id: length {len(self.quote_id)} exceeds max_len 64"
+            )
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if len(self.state) > 32:
+            raise MessageValidationError(
+                f"state: length {len(self.state)} exceeds max_len 32"
+            )
+        if len(self.bid_order_id) > 64:
+            raise MessageValidationError(
+                f"bid_order_id: length {len(self.bid_order_id)} exceeds max_len 64"
+            )
+        if len(self.ask_order_id) > 64:
+            raise MessageValidationError(
+                f"ask_order_id: length {len(self.ask_order_id)} exceeds max_len 64"
+            )
+        if self.bid_qty < 0:
+            raise MessageValidationError(f"bid_qty: {self.bid_qty!r} must be >= 0")
+        if self.ask_qty < 0:
+            raise MessageValidationError(f"ask_qty: {self.ask_qty!r} must be >= 0")
+        if self.bid_remaining_qty < 0:
+            raise MessageValidationError(
+                f"bid_remaining_qty: {self.bid_remaining_qty!r} must be >= 0"
+            )
+        if self.ask_remaining_qty < 0:
+            raise MessageValidationError(
+                f"ask_remaining_qty: {self.ask_remaining_qty!r} must be >= 0"
+            )
+        if len(self.bid_status) > 32:
+            raise MessageValidationError(
+                f"bid_status: length {len(self.bid_status)} exceeds max_len 32"
+            )
+        if len(self.ask_status) > 32:
+            raise MessageValidationError(
+                f"ask_status: length {len(self.ask_status)} exceeds max_len 32"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "ActiveQuote":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            quote_id=str(p["quote_id"]),
+            gateway_id=str(p["gateway_id"]),
+            symbol=str(p["symbol"]),
+            state=str(p["state"]),
+            bid_order_id=str(p["bid_order_id"]),
+            ask_order_id=str(p["ask_order_id"]),
+            bid_price=None if p.get("bid_price") is None else float(p["bid_price"]),
+            ask_price=None if p.get("ask_price") is None else float(p["ask_price"]),
+            bid_qty=int(p["bid_qty"]),
+            ask_qty=int(p["ask_qty"]),
+            bid_remaining_qty=int(p["bid_remaining_qty"]),
+            ask_remaining_qty=int(p["ask_remaining_qty"]),
+            bid_status=str(p["bid_status"]),
+            ask_status=str(p["ask_status"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "quote_id": self.quote_id,
+            "gateway_id": self.gateway_id,
+            "symbol": self.symbol,
+            "state": self.state,
+            "bid_order_id": self.bid_order_id,
+            "ask_order_id": self.ask_order_id,
+            "bid_price": self.bid_price,
+            "ask_price": self.ask_price,
+            "bid_qty": self.bid_qty,
+            "ask_qty": self.ask_qty,
+            "bid_remaining_qty": self.bid_remaining_qty,
+            "ask_remaining_qty": self.ask_remaining_qty,
+            "bid_status": self.bid_status,
+            "ask_status": self.ask_status,
+        }
+
+
+_QUOTE_LEG_LEG_SIDE_VALUES = ("BUY", "SELL")
+QuoteLegLegSide = Literal["BUY", "SELL"]
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteLeg:
+    """One live leg of an active quote, with its order's current state."""
+
+    quote_id: str
+    order_id: str
+    symbol: str
+    leg_side: QuoteLegLegSide
+    qty: int  # unit: shares
+    remaining: int  # unit: shares
+    filled: int  # unit: shares
+    status: str
+    quote_status: str
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.quote_id) > 64:
+            raise MessageValidationError(
+                f"quote_id: length {len(self.quote_id)} exceeds max_len 64"
+            )
+        if len(self.order_id) > 64:
+            raise MessageValidationError(
+                f"order_id: length {len(self.order_id)} exceeds max_len 64"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.leg_side not in _QUOTE_LEG_LEG_SIDE_VALUES:
+            raise MessageValidationError(
+                f"leg_side: {self.leg_side!r} is not one of {_QUOTE_LEG_LEG_SIDE_VALUES!r}"
+            )
+        if self.qty < 0:
+            raise MessageValidationError(f"qty: {self.qty!r} must be >= 0")
+        if self.remaining < 0:
+            raise MessageValidationError(f"remaining: {self.remaining!r} must be >= 0")
+        if self.filled < 0:
+            raise MessageValidationError(f"filled: {self.filled!r} must be >= 0")
+        if len(self.status) > 32:
+            raise MessageValidationError(
+                f"status: length {len(self.status)} exceeds max_len 32"
+            )
+        if len(self.quote_status) > 32:
+            raise MessageValidationError(
+                f"quote_status: length {len(self.quote_status)} exceeds max_len 32"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "QuoteLeg":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            quote_id=str(p["quote_id"]),
+            order_id=str(p["order_id"]),
+            symbol=str(p["symbol"]),
+            leg_side=cast(QuoteLegLegSide, str(p["leg_side"])),
+            qty=int(p["qty"]),
+            remaining=int(p["remaining"]),
+            filled=int(p["filled"]),
+            status=str(p["status"]),
+            quote_status=str(p["quote_status"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "quote_id": self.quote_id,
+            "order_id": self.order_id,
+            "symbol": self.symbol,
+            "leg_side": self.leg_side,
+            "qty": self.qty,
+            "remaining": self.remaining,
+            "filled": self.filled,
+            "status": self.status,
+            "quote_status": self.quote_status,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteLegSnapshot:
+    """A leg as it stood when its quote left the book. No live qty/remaining here in
+    the sense the name suggests -- these are the final values, recorded at
+    removal, because once an order leaves the book its state is not available
+    anywhere in the engine.
+    """
+
+    order_id: str
+    qty: int  # unit: shares
+    remaining: int  # unit: shares
+    filled: int  # unit: shares
+    status: str
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.order_id) > 64:
+            raise MessageValidationError(
+                f"order_id: length {len(self.order_id)} exceeds max_len 64"
+            )
+        if self.qty < 0:
+            raise MessageValidationError(f"qty: {self.qty!r} must be >= 0")
+        if self.remaining < 0:
+            raise MessageValidationError(f"remaining: {self.remaining!r} must be >= 0")
+        if self.filled < 0:
+            raise MessageValidationError(f"filled: {self.filled!r} must be >= 0")
+        if len(self.status) > 32:
+            raise MessageValidationError(
+                f"status: length {len(self.status)} exceeds max_len 32"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "QuoteLegSnapshot":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            order_id=str(p["order_id"]),
+            qty=int(p["qty"]),
+            remaining=int(p["remaining"]),
+            filled=int(p["filled"]),
+            status=str(p["status"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "order_id": self.order_id,
+            "qty": self.qty,
+            "remaining": self.remaining,
+            "filled": self.filled,
+            "status": self.status,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RecentQuote:
+    """One recently-removed quote, from the engine's bounded per-gateway inactivation
+    history. A quote-level summary rather than a per-leg one. Does not survive an
+    engine restart.
+    """
+
+    quote_id: str
+    symbol: str
+    bid_order_id: str
+    ask_order_id: str
+    quote_status: str
+    reason: str
+    removed_at_ns: int  # unit: epoch_nanos
+    bid_leg: QuoteLegSnapshot | None = None
+    ask_leg: QuoteLegSnapshot | None = None
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.quote_id) > 64:
+            raise MessageValidationError(
+                f"quote_id: length {len(self.quote_id)} exceeds max_len 64"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if len(self.bid_order_id) > 64:
+            raise MessageValidationError(
+                f"bid_order_id: length {len(self.bid_order_id)} exceeds max_len 64"
+            )
+        if len(self.ask_order_id) > 64:
+            raise MessageValidationError(
+                f"ask_order_id: length {len(self.ask_order_id)} exceeds max_len 64"
+            )
+        if len(self.quote_status) > 32:
+            raise MessageValidationError(
+                f"quote_status: length {len(self.quote_status)} exceeds max_len 32"
+            )
+        if len(self.reason) > 64:
+            raise MessageValidationError(
+                f"reason: length {len(self.reason)} exceeds max_len 64"
+            )
+        if self.bid_leg is not None:
+            self.bid_leg.validate()
+        if self.ask_leg is not None:
+            self.ask_leg.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "RecentQuote":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            quote_id=str(p["quote_id"]),
+            symbol=str(p["symbol"]),
+            bid_order_id=str(p["bid_order_id"]),
+            ask_order_id=str(p["ask_order_id"]),
+            quote_status=str(p["quote_status"]),
+            reason=str(p["reason"]),
+            removed_at_ns=int(p["removed_at_ns"]),
+            bid_leg=(
+                None
+                if p.get("bid_leg") is None
+                else QuoteLegSnapshot.from_dict(p["bid_leg"])
+            ),
+            ask_leg=(
+                None
+                if p.get("ask_leg") is None
+                else QuoteLegSnapshot.from_dict(p["ask_leg"])
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "quote_id": self.quote_id,
+            "symbol": self.symbol,
+            "bid_order_id": self.bid_order_id,
+            "ask_order_id": self.ask_order_id,
+            "quote_status": self.quote_status,
+            "reason": self.reason,
+            "removed_at_ns": self.removed_at_ns,
+            "bid_leg": None if self.bid_leg is None else self.bid_leg.to_dict(),
+            "ask_leg": None if self.ask_leg is None else self.ask_leg.to_dict(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class LiveCircuitBreaker:
+    """A symbol's circuit breaker as it stands right now. The live counterpart to
+    `ReferenceSymbol.circuit_breaker`, which is the configuration.
+    """
+
+    halted: bool
+    reference_price: float | None = None  # unit: display_price
+    trigger_price: float | None = None  # unit: display_price
+    triggered_level: str | None = None
+    expansion_index: int | None = None  # unit: dimensionless
+    corridor_low: float | None = None  # unit: display_price
+    corridor_high: float | None = None  # unit: display_price
+    corridor_expansion: int | None = None  # unit: dimensionless
+    resume_at_ns: int | None = None  # unit: epoch_nanos
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if self.triggered_level is not None:
+            if len(self.triggered_level) > 32:
+                raise MessageValidationError(
+                    f"triggered_level: length {len(self.triggered_level)} exceeds max_len 32"
+                )
+        if self.expansion_index is not None:
+            if self.expansion_index < 0:
+                raise MessageValidationError(
+                    f"expansion_index: {self.expansion_index!r} must be >= 0"
+                )
+        if self.corridor_expansion is not None:
+            if self.corridor_expansion < 0:
+                raise MessageValidationError(
+                    f"corridor_expansion: {self.corridor_expansion!r} must be >= 0"
+                )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "LiveCircuitBreaker":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            halted=bool(p["halted"]),
+            reference_price=(
+                None
+                if p.get("reference_price") is None
+                else float(p["reference_price"])
+            ),
+            trigger_price=(
+                None if p.get("trigger_price") is None else float(p["trigger_price"])
+            ),
+            triggered_level=(
+                None if p.get("triggered_level") is None else str(p["triggered_level"])
+            ),
+            expansion_index=(
+                None if p.get("expansion_index") is None else int(p["expansion_index"])
+            ),
+            corridor_low=(
+                None if p.get("corridor_low") is None else float(p["corridor_low"])
+            ),
+            corridor_high=(
+                None if p.get("corridor_high") is None else float(p["corridor_high"])
+            ),
+            corridor_expansion=(
+                None
+                if p.get("corridor_expansion") is None
+                else int(p["corridor_expansion"])
+            ),
+            resume_at_ns=(
+                None if p.get("resume_at_ns") is None else int(p["resume_at_ns"])
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "halted": self.halted,
+            "reference_price": self.reference_price,
+            "trigger_price": self.trigger_price,
+            "triggered_level": self.triggered_level,
+            "expansion_index": self.expansion_index,
+            "corridor_low": self.corridor_low,
+            "corridor_high": self.corridor_high,
+            "corridor_expansion": self.corridor_expansion,
+            "resume_at_ns": self.resume_at_ns,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SymbolRiskState:
+    """One symbol's live risk state. Was a map entry keyed by symbol -- section
+    19.2's shape for the twelfth time.
+    """
+
+    symbol: str
+    collar_reference_price: float | None = None  # unit: display_price
+    circuit_breaker: LiveCircuitBreaker | None = None
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.circuit_breaker is not None:
+            self.circuit_breaker.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "SymbolRiskState":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            symbol=str(p["symbol"]),
+            collar_reference_price=(
+                None
+                if p.get("collar_reference_price") is None
+                else float(p["collar_reference_price"])
+            ),
+            circuit_breaker=(
+                None
+                if p.get("circuit_breaker") is None
+                else LiveCircuitBreaker.from_dict(p["circuit_breaker"])
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        payload: dict[str, Any] = {
+            "symbol": self.symbol,
+        }
+        if self.collar_reference_price is not None:
+            payload["collar_reference_price"] = self.collar_reference_price
+        if self.circuit_breaker is not None:
+            payload["circuit_breaker"] = self.circuit_breaker.to_dict()
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class GatewayInfo:
+    """One configured participant, and whether it is connected right now."""
+
+    id: str
+    role: str
+    connected: bool
+    description: str = ""
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.id) > 32:
+            raise MessageValidationError(
+                f"id: length {len(self.id)} exceeds max_len 32"
+            )
+        if len(self.role) > 32:
+            raise MessageValidationError(
+                f"role: length {len(self.role)} exceeds max_len 32"
+            )
+        if len(self.description) > 128:
+            raise MessageValidationError(
+                f"description: length {len(self.description)} exceeds max_len 128"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "GatewayInfo":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            id=str(p["id"]),
+            role=str(p["role"]),
+            description=str(p.get("description", "")),
+            connected=bool(p["connected"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "id": self.id,
+            "role": self.role,
+            "description": self.description,
+            "connected": self.connected,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SymbolVolume:
+    """One instrument's traded volume so far today. Was a map entry keyed by symbol;
+    the key is a field now, as everywhere else in this family.
+    """
+
+    symbol: str
+    qty: int  # unit: shares
+    value: float  # unit: money
+    trades: int  # unit: dimensionless
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.qty < 0:
+            raise MessageValidationError(f"qty: {self.qty!r} must be >= 0")
+        if self.value < 0:
+            raise MessageValidationError(f"value: {self.value!r} must be >= 0")
+        if self.trades < 0:
+            raise MessageValidationError(f"trades: {self.trades!r} must be >= 0")
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "SymbolVolume":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            symbol=str(p["symbol"]),
+            qty=int(p["qty"]),
+            value=float(p["value"]),
+            trades=int(p["trades"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "symbol": self.symbol,
+            "qty": self.qty,
+            "value": self.value,
+            "trades": self.trades,
+        }
 
 
 TOPIC_GATEWAY_CONNECT = "system.gateway_connect"
@@ -2822,6 +3569,1782 @@ def describe_session_schedule() -> tuple[dict[str, Any], ...]:
     return _SESSION_SCHEDULE_FIELDS
 
 
+TOPIC_HALT_STATUS_REQUEST = "system.halt_status_request"
+_TOPIC_HALT_STATUS_REQUEST_BYTES = "system.halt_status_request".encode()
+
+
+_HALT_STATUS_REQUEST_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class HaltStatusRequest:
+    """Any process to engine: which instruments are halted now."""
+
+    gateway_id: str
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "HaltStatusRequest":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p["gateway_id"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "gateway_id": self.gateway_id,
+        }
+
+
+def is_halt_status_request(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_HALT_STATUS_REQUEST
+
+
+def make_halt_status_request(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = HaltStatusRequest.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_HALT_STATUS_REQUEST, obj.to_dict())
+
+
+def make_halt_status_request_unchecked(
+    *,
+    gateway_id: str,
+) -> list[bytes]:
+    """Identical frames to ``make_halt_status_request``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_HALT_STATUS_REQUEST_BYTES,
+        _msg.dumps(
+            {
+                "gateway_id": str(gateway_id),
+            }
+        ),
+    ]
+
+
+def parse_halt_status_request(frames: list[bytes]) -> "HaltStatusRequest":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = HaltStatusRequest.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_halt_status_request() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _HALT_STATUS_REQUEST_FIELDS
+
+
+TOPIC_HALT_STATUS = "system.halt_status.{gateway_id}"
+PREFIX_HALT_STATUS = "system.halt_status."
+_HALT_STATUS_RE = re.compile("system\\.halt_status\\.(?P<gateway_id>[^.]+)")
+
+
+_HALT_STATUS_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "Topic-only; dropped by the default projection.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "halted",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class HaltStatus:
+    """Engine to caller: every currently-halted instrument, with the breaker state
+    behind it where a breaker is what halted it. The polled answer to the
+    `circuit_breaker.halt` broadcast, for a caller that has just started and
+    missed it.
+
+    An empty list means nothing is halted, which is the normal reply. The three optional
+    fields are present together or not at all: an ADMIN halt sets the flag with no
+    breaker behind it.
+    """
+
+    gateway_id: str
+    halted: list[HaltedSymbol]
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        for halted_item in self.halted:
+            halted_item.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "HaltStatus":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p.get("gateway_id", "")),
+            halted=[HaltedSymbol.from_dict(item) for item in p["halted"]],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "halted": [item.to_dict() for item in self.halted],
+        }
+
+
+def topic_halt_status(gateway_id: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"system.halt_status.{gateway_id}"
+
+
+def match_halt_status(topic: str) -> str | None:
+    """Return ``gateway_id`` when ``topic`` matches, else None."""
+    m = _HALT_STATUS_RE.fullmatch(topic)
+    return m.group("gateway_id") if m else None
+
+
+def make_halt_status(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = HaltStatus.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_halt_status(obj.gateway_id), obj.to_dict())
+
+
+def parse_halt_status(frames: list[bytes]) -> "HaltStatus":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_halt_status(topic)
+    if matched is None:
+        raise MessageValidationError(f"topic {topic!r} is not {TOPIC_HALT_STATUS!r}")
+    payload = {**payload, "gateway_id": matched}
+    obj = HaltStatus.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_halt_status() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _HALT_STATUS_FIELDS
+
+
+TOPIC_POSITION_REQUEST = "system.position_request"
+_TOPIC_POSITION_REQUEST_BYTES = "system.position_request".encode()
+
+
+_POSITION_REQUEST_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "Both the correlation key and the account being asked about. A gateway can only ask about itself: the handler answers from `_gateway_positions[gateway_id]` and nothing else.",
+        "constraints": {"max_len": 32},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class PositionRequest:
+    """Gateway to engine: what am I holding."""
+
+    gateway_id: str
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "PositionRequest":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p["gateway_id"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "gateway_id": self.gateway_id,
+        }
+
+
+def is_position_request(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_POSITION_REQUEST
+
+
+def make_position_request(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = PositionRequest.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_POSITION_REQUEST, obj.to_dict())
+
+
+def make_position_request_unchecked(
+    *,
+    gateway_id: str,
+) -> list[bytes]:
+    """Identical frames to ``make_position_request``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_POSITION_REQUEST_BYTES,
+        _msg.dumps(
+            {
+                "gateway_id": str(gateway_id),
+            }
+        ),
+    ]
+
+
+def parse_position_request(frames: list[bytes]) -> "PositionRequest":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = PositionRequest.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_position_request() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _POSITION_REQUEST_FIELDS
+
+
+TOPIC_POSITION_SNAPSHOT = "system.position_snapshot.{gateway_id}"
+PREFIX_POSITION_SNAPSHOT = "system.position_snapshot."
+_POSITION_SNAPSHOT_RE = re.compile("system\\.position_snapshot\\.(?P<gateway_id>[^.]+)")
+
+
+_POSITION_SNAPSHOT_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "Topic-only; dropped by the default projection.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "positions",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class PositionSnapshot:
+    """Engine to gateway: per-symbol net position and average cost, for the asking
+    gateway only.
+
+    An unauthenticated or unknown gateway gets an empty list rather than a rejection --
+    flat and not-a-gateway are the same answer here, which is deliberate: the
+    alternative tells an unauthenticated caller whether an id exists. This pair has no
+    consumer in `src/` at all. It is exercised only by
+    `tests/test_position_snapshot.py`, which is section 27.4's shape -- a capability
+    exercised only by its own tests. It is specified rather than removed because unlike
+    `drop_copy.replay_request` it is fully implemented on both sides and reachable by
+    any gateway; what it lacks is a caller, not an implementation. Recorded here so the
+    next phase to touch it knows the difference.
+    """
+
+    gateway_id: str
+    positions: list[Position]
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        for positions_item in self.positions:
+            positions_item.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "PositionSnapshot":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p.get("gateway_id", "")),
+            positions=[Position.from_dict(item) for item in p["positions"]],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "positions": [item.to_dict() for item in self.positions],
+        }
+
+
+def topic_position_snapshot(gateway_id: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"system.position_snapshot.{gateway_id}"
+
+
+def match_position_snapshot(topic: str) -> str | None:
+    """Return ``gateway_id`` when ``topic`` matches, else None."""
+    m = _POSITION_SNAPSHOT_RE.fullmatch(topic)
+    return m.group("gateway_id") if m else None
+
+
+def make_position_snapshot(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = PositionSnapshot.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_position_snapshot(obj.gateway_id), obj.to_dict())
+
+
+def parse_position_snapshot(frames: list[bytes]) -> "PositionSnapshot":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_position_snapshot(topic)
+    if matched is None:
+        raise MessageValidationError(
+            f"topic {topic!r} is not {TOPIC_POSITION_SNAPSHOT!r}"
+        )
+    payload = {**payload, "gateway_id": matched}
+    obj = PositionSnapshot.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_position_snapshot() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _POSITION_SNAPSHOT_FIELDS
+
+
+TOPIC_QUOTE_BOOTSTRAP_REQUEST = "system.quote_bootstrap_request"
+_TOPIC_QUOTE_BOOTSTRAP_REQUEST_BYTES = "system.quote_bootstrap_request".encode()
+
+
+_QUOTE_BOOTSTRAP_REQUEST_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": 'Narrows the reply to one instrument. "" means all.',
+        "constraints": {"max_len": 16},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteBootstrapRequest:
+    """Market maker to engine, on reconnect: what quotes do I already have resting.
+    Without it a bot cannot tell a fresh start from a reconnect and will quote
+    into its own orders.
+    """
+
+    gateway_id: str
+    symbol: str = ""
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "QuoteBootstrapRequest":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p["gateway_id"]),
+            symbol=str(p.get("symbol", "")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "gateway_id": self.gateway_id,
+            "symbol": self.symbol,
+        }
+
+
+def is_quote_bootstrap_request(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_QUOTE_BOOTSTRAP_REQUEST
+
+
+def make_quote_bootstrap_request(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = QuoteBootstrapRequest.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_QUOTE_BOOTSTRAP_REQUEST, obj.to_dict())
+
+
+def make_quote_bootstrap_request_unchecked(
+    *,
+    gateway_id: str,
+    symbol: str = "",
+) -> list[bytes]:
+    """Identical frames to ``make_quote_bootstrap_request``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_QUOTE_BOOTSTRAP_REQUEST_BYTES,
+        _msg.dumps(
+            {
+                "gateway_id": str(gateway_id),
+                "symbol": str(symbol),
+            }
+        ),
+    ]
+
+
+def parse_quote_bootstrap_request(frames: list[bytes]) -> "QuoteBootstrapRequest":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = QuoteBootstrapRequest.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_quote_bootstrap_request() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _QUOTE_BOOTSTRAP_REQUEST_FIELDS
+
+
+TOPIC_QUOTE_BOOTSTRAP = "system.quote_bootstrap.{gateway_id}"
+PREFIX_QUOTE_BOOTSTRAP = "system.quote_bootstrap."
+_QUOTE_BOOTSTRAP_RE = re.compile("system\\.quote_bootstrap\\.(?P<gateway_id>[^.]+)")
+
+
+_QUOTE_BOOTSTRAP_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "Topic-only; dropped by the default projection.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "quotes",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteBootstrap:
+    """Engine to market maker: the active quotes it already holds."""
+
+    gateway_id: str
+    quotes: list[ActiveQuote]
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        for quotes_item in self.quotes:
+            quotes_item.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "QuoteBootstrap":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p.get("gateway_id", "")),
+            quotes=[ActiveQuote.from_dict(item) for item in p["quotes"]],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "quotes": [item.to_dict() for item in self.quotes],
+        }
+
+
+def topic_quote_bootstrap(gateway_id: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"system.quote_bootstrap.{gateway_id}"
+
+
+def match_quote_bootstrap(topic: str) -> str | None:
+    """Return ``gateway_id`` when ``topic`` matches, else None."""
+    m = _QUOTE_BOOTSTRAP_RE.fullmatch(topic)
+    return m.group("gateway_id") if m else None
+
+
+def make_quote_bootstrap(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = QuoteBootstrap.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_quote_bootstrap(obj.gateway_id), obj.to_dict())
+
+
+def parse_quote_bootstrap(frames: list[bytes]) -> "QuoteBootstrap":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_quote_bootstrap(topic)
+    if matched is None:
+        raise MessageValidationError(
+            f"topic {topic!r} is not {TOPIC_QUOTE_BOOTSTRAP!r}"
+        )
+    payload = {**payload, "gateway_id": matched}
+    obj = QuoteBootstrap.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_quote_bootstrap() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _QUOTE_BOOTSTRAP_FIELDS
+
+
+TOPIC_QUOTE_LEGS_REQUEST = "system.quote_legs_request"
+_TOPIC_QUOTE_LEGS_REQUEST_BYTES = "system.quote_legs_request".encode()
+_QUOTE_LEGS_REQUEST_SHOW_VALUES = ("ACTIVE", "RECENT", "ALL")
+QuoteLegsRequestShow = Literal["ACTIVE", "RECENT", "ALL"]
+
+
+_QUOTE_LEGS_REQUEST_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "symbol",
+        "type": "string",
+        "unit": None,
+        "required": False,
+        "doc": 'Narrows the reply to one instrument. "" means all.',
+        "constraints": {"max_len": 16},
+    },
+    {
+        "name": "show",
+        "type": "enum",
+        "unit": None,
+        "required": False,
+        "doc": "Which half to return. `ACTIVE` is live legs, `RECENT` is the removal history, `ALL` is both. Enumerated rather than a free string because the handler branches on exactly these three and treats anything else as `ACTIVE` -- a typo currently answers, quietly, with the wrong half.",
+        "values": _QUOTE_LEGS_REQUEST_SHOW_VALUES,
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteLegsRequest:
+    """Operator or market maker to engine: the per-leg detail behind this gateway's
+    quotes, live and recently removed. What `QLEGS` asks for.
+    """
+
+    gateway_id: str
+    symbol: str = ""
+    show: QuoteLegsRequestShow = "ALL"
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        if len(self.symbol) > 16:
+            raise MessageValidationError(
+                f"symbol: length {len(self.symbol)} exceeds max_len 16"
+            )
+        if self.show not in _QUOTE_LEGS_REQUEST_SHOW_VALUES:
+            raise MessageValidationError(
+                f"show: {self.show!r} is not one of {_QUOTE_LEGS_REQUEST_SHOW_VALUES!r}"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "QuoteLegsRequest":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p["gateway_id"]),
+            symbol=str(p.get("symbol", "")),
+            show=cast(QuoteLegsRequestShow, str(p.get("show", "ALL"))),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "gateway_id": self.gateway_id,
+            "symbol": self.symbol,
+            "show": self.show,
+        }
+
+
+def is_quote_legs_request(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_QUOTE_LEGS_REQUEST
+
+
+def make_quote_legs_request(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = QuoteLegsRequest.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_QUOTE_LEGS_REQUEST, obj.to_dict())
+
+
+def make_quote_legs_request_unchecked(
+    *,
+    gateway_id: str,
+    symbol: str = "",
+    show: QuoteLegsRequestShow = "ALL",
+) -> list[bytes]:
+    """Identical frames to ``make_quote_legs_request``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_QUOTE_LEGS_REQUEST_BYTES,
+        _msg.dumps(
+            {
+                "gateway_id": str(gateway_id),
+                "symbol": str(symbol),
+                "show": str(show),
+            }
+        ),
+    ]
+
+
+def parse_quote_legs_request(frames: list[bytes]) -> "QuoteLegsRequest":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = QuoteLegsRequest.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_quote_legs_request() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _QUOTE_LEGS_REQUEST_FIELDS
+
+
+TOPIC_QUOTE_LEGS = "system.quote_legs.{gateway_id}"
+PREFIX_QUOTE_LEGS = "system.quote_legs."
+_QUOTE_LEGS_RE = re.compile("system\\.quote_legs\\.(?P<gateway_id>[^.]+)")
+_QUOTE_LEGS_SHOW_REQUESTED_VALUES = ("ACTIVE", "RECENT", "ALL")
+QuoteLegsShowRequested = Literal["ACTIVE", "RECENT", "ALL"]
+
+
+_QUOTE_LEGS_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "Topic-only; dropped by the default projection.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "legs",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "Live legs. Empty unless `show` was `ACTIVE` or `ALL`.",
+    },
+    {
+        "name": "show_requested",
+        "type": "enum",
+        "unit": None,
+        "required": True,
+        "doc": "Echo of the request's `show`, so replies can be told apart.",
+        "values": _QUOTE_LEGS_SHOW_REQUESTED_VALUES,
+    },
+    {
+        "name": "complete",
+        "type": "bool",
+        "unit": None,
+        "required": True,
+        "doc": "False when the reply could not fully answer what was asked. Always true today; kept because the recent-history buffer is bounded and a truncated answer needs a way to say so.",
+    },
+    {
+        "name": "recent",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "Removal history. Empty unless `show` was `RECENT` or `ALL`.",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteLegs:
+    """Engine to caller: live quote legs, recently-removed quotes, or both.
+
+    `legs` and `recent` are both always present, empty when the requested half does not
+    include them. Regime 4 would be the IDL's default instinct -- absent and `[]` are
+    the same value to `alf_gwy`, the only structural reader -- but `GET /quotes/legs`
+    returns this payload verbatim, and a REST client should not have to guess whether a
+    key exists. `[]` is a true statement here rather than an invented one: both halves
+    always mean something on this message. `show_requested` echoes what was asked, so a
+    caller that pipelined two requests can tell the replies apart.
+    """
+
+    gateway_id: str
+    legs: list[QuoteLeg]
+    show_requested: QuoteLegsShowRequested
+    complete: bool
+    recent: list[RecentQuote]
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        for legs_item in self.legs:
+            legs_item.validate()
+        if self.show_requested not in _QUOTE_LEGS_SHOW_REQUESTED_VALUES:
+            raise MessageValidationError(
+                f"show_requested: {self.show_requested!r} is not one of {_QUOTE_LEGS_SHOW_REQUESTED_VALUES!r}"
+            )
+        for recent_item in self.recent:
+            recent_item.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "QuoteLegs":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p.get("gateway_id", "")),
+            legs=[QuoteLeg.from_dict(item) for item in p["legs"]],
+            show_requested=cast(QuoteLegsShowRequested, str(p["show_requested"])),
+            complete=bool(p["complete"]),
+            recent=[RecentQuote.from_dict(item) for item in p["recent"]],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "legs": [item.to_dict() for item in self.legs],
+            "show_requested": self.show_requested,
+            "complete": self.complete,
+            "recent": [item.to_dict() for item in self.recent],
+        }
+
+
+def topic_quote_legs(gateway_id: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"system.quote_legs.{gateway_id}"
+
+
+def match_quote_legs(topic: str) -> str | None:
+    """Return ``gateway_id`` when ``topic`` matches, else None."""
+    m = _QUOTE_LEGS_RE.fullmatch(topic)
+    return m.group("gateway_id") if m else None
+
+
+def make_quote_legs(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = QuoteLegs.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_quote_legs(obj.gateway_id), obj.to_dict())
+
+
+def parse_quote_legs(frames: list[bytes]) -> "QuoteLegs":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_quote_legs(topic)
+    if matched is None:
+        raise MessageValidationError(f"topic {topic!r} is not {TOPIC_QUOTE_LEGS!r}")
+    payload = {**payload, "gateway_id": matched}
+    obj = QuoteLegs.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_quote_legs() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _QUOTE_LEGS_FIELDS
+
+
+TOPIC_RISK_STATE_REQUEST = "system.risk_state_request"
+_TOPIC_RISK_STATE_REQUEST_BYTES = "system.risk_state_request".encode()
+
+
+_RISK_STATE_REQUEST_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class RiskStateRequest:
+    """ADMIN to engine: the live collar and circuit-breaker state of every symbol
+    that has either configured, halted or not.
+    """
+
+    gateway_id: str
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "RiskStateRequest":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p["gateway_id"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "gateway_id": self.gateway_id,
+        }
+
+
+def is_risk_state_request(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_RISK_STATE_REQUEST
+
+
+def make_risk_state_request(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = RiskStateRequest.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_RISK_STATE_REQUEST, obj.to_dict())
+
+
+def make_risk_state_request_unchecked(
+    *,
+    gateway_id: str,
+) -> list[bytes]:
+    """Identical frames to ``make_risk_state_request``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_RISK_STATE_REQUEST_BYTES,
+        _msg.dumps(
+            {
+                "gateway_id": str(gateway_id),
+            }
+        ),
+    ]
+
+
+def parse_risk_state_request(frames: list[bytes]) -> "RiskStateRequest":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = RiskStateRequest.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_risk_state_request() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _RISK_STATE_REQUEST_FIELDS
+
+
+TOPIC_RISK_STATE = "system.risk_state.{gateway_id}"
+PREFIX_RISK_STATE = "system.risk_state."
+_RISK_STATE_RE = re.compile("system\\.risk_state\\.(?P<gateway_id>[^.]+)")
+
+
+_RISK_STATE_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "Topic-only; dropped by the default projection.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "symbols",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "Sorted by symbol. Was a map keyed by it.",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class RiskState:
+    """Engine to ADMIN: live risk state per symbol. The counterpart to
+    `reference.risk`, which is the static definitions, and to `halt_status`, which
+    is only the symbols currently halted.
+
+    The fourth `symbols` field in this family and the fourth different thing: a list of
+    `SymbolInfo` on `system.symbols`, of `ReferenceSymbol` on `reference`, of
+    `SymbolRiskState` here and of `SymbolVolume` on `volume`. Same name, four types, no
+    relationship -- which is why a find-and-replace across them would be the worst
+    available mistake.
+    """
+
+    gateway_id: str
+    symbols: list[SymbolRiskState]
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        for symbols_item in self.symbols:
+            symbols_item.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "RiskState":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p.get("gateway_id", "")),
+            symbols=[SymbolRiskState.from_dict(item) for item in p["symbols"]],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "symbols": [item.to_dict() for item in self.symbols],
+        }
+
+
+def topic_risk_state(gateway_id: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"system.risk_state.{gateway_id}"
+
+
+def match_risk_state(topic: str) -> str | None:
+    """Return ``gateway_id`` when ``topic`` matches, else None."""
+    m = _RISK_STATE_RE.fullmatch(topic)
+    return m.group("gateway_id") if m else None
+
+
+def make_risk_state(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = RiskState.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_risk_state(obj.gateway_id), obj.to_dict())
+
+
+def parse_risk_state(frames: list[bytes]) -> "RiskState":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_risk_state(topic)
+    if matched is None:
+        raise MessageValidationError(f"topic {topic!r} is not {TOPIC_RISK_STATE!r}")
+    payload = {**payload, "gateway_id": matched}
+    obj = RiskState.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_risk_state() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _RISK_STATE_FIELDS
+
+
+TOPIC_GATEWAYS_REQUEST = "system.gateways_request"
+_TOPIC_GATEWAYS_REQUEST_BYTES = "system.gateways_request".encode()
+
+
+_GATEWAYS_REQUEST_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class GatewaysRequest:
+    """Operator to engine: which participants exist, and who is on."""
+
+    gateway_id: str
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "GatewaysRequest":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p["gateway_id"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "gateway_id": self.gateway_id,
+        }
+
+
+def is_gateways_request(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_GATEWAYS_REQUEST
+
+
+def make_gateways_request(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = GatewaysRequest.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_GATEWAYS_REQUEST, obj.to_dict())
+
+
+def make_gateways_request_unchecked(
+    *,
+    gateway_id: str,
+) -> list[bytes]:
+    """Identical frames to ``make_gateways_request``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_GATEWAYS_REQUEST_BYTES,
+        _msg.dumps(
+            {
+                "gateway_id": str(gateway_id),
+            }
+        ),
+    ]
+
+
+def parse_gateways_request(frames: list[bytes]) -> "GatewaysRequest":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = GatewaysRequest.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_gateways_request() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _GATEWAYS_REQUEST_FIELDS
+
+
+TOPIC_GATEWAYS = "system.gateways.{gateway_id}"
+PREFIX_GATEWAYS = "system.gateways."
+_GATEWAYS_RE = re.compile("system\\.gateways\\.(?P<gateway_id>[^.]+)")
+
+
+_GATEWAYS_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "Topic-only; dropped by the default projection.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "gateways",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "Sorted by id. Empty when no config is loaded.",
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Gateways:
+    """Engine to operator: every configured participant with its role and current
+    connection status. The polled counterpart to the `gateway_auth` /
+    `gateway_bye` broadcasts.
+    """
+
+    gateway_id: str
+    gateways: list[GatewayInfo]
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        for gateways_item in self.gateways:
+            gateways_item.validate()
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "Gateways":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p.get("gateway_id", "")),
+            gateways=[GatewayInfo.from_dict(item) for item in p["gateways"]],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "gateways": [item.to_dict() for item in self.gateways],
+        }
+
+
+def topic_gateways(gateway_id: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"system.gateways.{gateway_id}"
+
+
+def match_gateways(topic: str) -> str | None:
+    """Return ``gateway_id`` when ``topic`` matches, else None."""
+    m = _GATEWAYS_RE.fullmatch(topic)
+    return m.group("gateway_id") if m else None
+
+
+def make_gateways(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = Gateways.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_gateways(obj.gateway_id), obj.to_dict())
+
+
+def parse_gateways(frames: list[bytes]) -> "Gateways":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_gateways(topic)
+    if matched is None:
+        raise MessageValidationError(f"topic {topic!r} is not {TOPIC_GATEWAYS!r}")
+    payload = {**payload, "gateway_id": matched}
+    obj = Gateways.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_gateways() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _GATEWAYS_FIELDS
+
+
+TOPIC_VOLUME_REQUEST = "system.volume_request"
+_TOPIC_VOLUME_REQUEST_BYTES = "system.volume_request".encode()
+
+
+_VOLUME_REQUEST_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "",
+        "constraints": {"max_len": 32},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class VolumeRequest:
+    """Operator to engine: how much has traded today."""
+
+    gateway_id: str
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "VolumeRequest":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p["gateway_id"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "gateway_id": self.gateway_id,
+        }
+
+
+def is_volume_request(topic: str) -> bool:
+    """True when ``topic`` is this message's topic."""
+    return topic == TOPIC_VOLUME_REQUEST
+
+
+def make_volume_request(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = VolumeRequest.from_dict(kw)
+    obj.validate()
+    return _msg.encode(TOPIC_VOLUME_REQUEST, obj.to_dict())
+
+
+def make_volume_request_unchecked(
+    *,
+    gateway_id: str,
+) -> list[bytes]:
+    """Identical frames to ``make_volume_request``, without ``validate()``.
+
+    For measured hot paths only; every other caller should use the validating
+    constructor. Builds the payload directly rather than via the dataclass, which is
+    what makes it cheap enough to be worth having — see the generator's _unchecked_block
+    docstring for the measurements.
+
+    Coerces exactly as ``make_*`` does, so for any input the two emit byte-identical
+    frames.
+    """
+    return [
+        _TOPIC_VOLUME_REQUEST_BYTES,
+        _msg.dumps(
+            {
+                "gateway_id": str(gateway_id),
+            }
+        ),
+    ]
+
+
+def parse_volume_request(frames: list[bytes]) -> "VolumeRequest":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    _topic, payload = _msg.decode(frames)
+    obj = VolumeRequest.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_volume_request() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _VOLUME_REQUEST_FIELDS
+
+
+TOPIC_VOLUME = "system.volume.{gateway_id}"
+PREFIX_VOLUME = "system.volume."
+_VOLUME_RE = re.compile("system\\.volume\\.(?P<gateway_id>[^.]+)")
+
+
+_VOLUME_FIELDS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "gateway_id",
+        "type": "string",
+        "unit": None,
+        "required": True,
+        "doc": "Topic-only; dropped by the default projection.",
+        "constraints": {"max_len": 32},
+    },
+    {
+        "name": "symbols",
+        "type": "list",
+        "unit": None,
+        "required": True,
+        "doc": "Sorted by symbol. Was a map keyed by it.",
+    },
+    {
+        "name": "total_qty",
+        "type": "int",
+        "unit": "shares",
+        "required": True,
+        "doc": "",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "total_value",
+        "type": "float",
+        "unit": "money",
+        "required": True,
+        "doc": "",
+        "constraints": {"ge": 0},
+    },
+    {
+        "name": "total_trades",
+        "type": "int",
+        "unit": "dimensionless",
+        "required": True,
+        "doc": "",
+        "constraints": {"ge": 0},
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Volume:
+    """Engine to operator: traded quantity, notional and trade count, per instrument
+    and exchange-wide.
+
+    The totals are carried rather than left to the caller to sum. That is redundant on
+    the wire and load-bearing off it: they are the engine's own running counters, not a
+    sum of the rows, so a caller adding up `symbols` would silently disagree with the
+    engine about any instrument whose book was removed mid-session.
+    """
+
+    gateway_id: str
+    symbols: list[SymbolVolume]
+    total_qty: int  # unit: shares
+    total_value: float  # unit: money
+    total_trades: int  # unit: dimensionless
+
+    def validate(self) -> None:
+        """Raise MessageValidationError if any declared rule fails.
+
+        The only strictness gate: ``from_dict`` coerces but never validates, so a reader
+        of historical data can opt out of the rules by calling ``from_dict`` alone
+        (design section 5.1.1).
+        """
+        if len(self.gateway_id) > 32:
+            raise MessageValidationError(
+                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
+            )
+        for symbols_item in self.symbols:
+            symbols_item.validate()
+        if self.total_qty < 0:
+            raise MessageValidationError(f"total_qty: {self.total_qty!r} must be >= 0")
+        if self.total_value < 0:
+            raise MessageValidationError(
+                f"total_value: {self.total_value!r} must be >= 0"
+            )
+        if self.total_trades < 0:
+            raise MessageValidationError(
+                f"total_trades: {self.total_trades!r} must be >= 0"
+            )
+
+    @classmethod
+    def from_dict(cls, p: Mapping[str, Any]) -> "Volume":
+        """Coerce a payload mapping into this message. Does NOT validate.
+
+        Mirrors the hand-written payload's coercion exactly, including its lenient
+        fallbacks, so it is a drop-in replacement for readers of already-published data
+        (design section 5.1.1).
+        """
+        return cls(
+            gateway_id=str(p.get("gateway_id", "")),
+            symbols=[SymbolVolume.from_dict(item) for item in p["symbols"]],
+            total_qty=int(p["total_qty"]),
+            total_value=float(p["total_value"]),
+            total_trades=int(p["total_trades"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the bus payload, in the spec's declared field order."""
+        return {
+            "symbols": [item.to_dict() for item in self.symbols],
+            "total_qty": self.total_qty,
+            "total_value": self.total_value,
+            "total_trades": self.total_trades,
+        }
+
+
+def topic_volume(gateway_id: str) -> str:
+    """Build this message's topic without a string literal."""
+    return f"system.volume.{gateway_id}"
+
+
+def match_volume(topic: str) -> str | None:
+    """Return ``gateway_id`` when ``topic`` matches, else None."""
+    m = _VOLUME_RE.fullmatch(topic)
+    return m.group("gateway_id") if m else None
+
+
+def make_volume(**kw: Any) -> list[bytes]:
+    """Coerce, validate, and return the TWO bus frames [topic, payload].
+
+    The per-topic sequence third frame is NOT added here; it is appended by
+    SequencedPublisher.send_multipart() at publish time (edumatcher/messaging/bus.py).
+
+    Routes through ``from_dict`` rather than the dataclass constructor, so a caller
+    passing ``price=100`` puts a float on the wire rather than an int (design section
+    5.1.1).
+    """
+    obj = Volume.from_dict(kw)
+    obj.validate()
+    return _msg.encode(topic_volume(obj.gateway_id), obj.to_dict())
+
+
+def parse_volume(frames: list[bytes]) -> "Volume":
+    """Decode bus frames into a validated message.
+
+    Raises MessageValidationError if the payload breaks a declared rule. Call
+    ``from_dict`` on a decoded payload instead to read without validating.
+    """
+    topic, payload = _msg.decode(frames)
+    matched = match_volume(topic)
+    if matched is None:
+        raise MessageValidationError(f"topic {topic!r} is not {TOPIC_VOLUME!r}")
+    payload = {**payload, "gateway_id": matched}
+    obj = Volume.from_dict(payload)
+    obj.validate()
+    return obj
+
+
+def describe_volume() -> tuple[dict[str, Any], ...]:
+    """Return field metadata, for spy tools and runtime pretty-printing."""
+    return _VOLUME_FIELDS
+
+
 FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_GATEWAY_CONNECT,
     TOPIC_GATEWAY_AUTH,
@@ -2838,4 +5361,18 @@ FAMILY_TOPICS: tuple[str, ...] = (
     TOPIC_SESSION_STATUS,
     TOPIC_SESSION_SCHEDULE_REQUEST,
     TOPIC_SESSION_SCHEDULE,
+    TOPIC_HALT_STATUS_REQUEST,
+    TOPIC_HALT_STATUS,
+    TOPIC_POSITION_REQUEST,
+    TOPIC_POSITION_SNAPSHOT,
+    TOPIC_QUOTE_BOOTSTRAP_REQUEST,
+    TOPIC_QUOTE_BOOTSTRAP,
+    TOPIC_QUOTE_LEGS_REQUEST,
+    TOPIC_QUOTE_LEGS,
+    TOPIC_RISK_STATE_REQUEST,
+    TOPIC_RISK_STATE,
+    TOPIC_GATEWAYS_REQUEST,
+    TOPIC_GATEWAYS,
+    TOPIC_VOLUME_REQUEST,
+    TOPIC_VOLUME,
 )

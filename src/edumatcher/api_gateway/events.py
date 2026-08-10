@@ -28,13 +28,20 @@ from edumatcher.models.generated.quote import (
     PREFIX_QUOTE_ACK,
     PREFIX_QUOTE_STATUS,
 )
+from edumatcher.models.generated.system import (
+    PREFIX_GATEWAY_AUTH,
+    PREFIX_QUOTE_BOOTSTRAP,
+    PREFIX_QUOTE_LEGS,
+    PREFIX_SESSION_STATUS,
+    PREFIX_SYMBOLS,
+)
 
 ORDER_ACK_PREFIX = PREFIX_ORDER_ACK
 ORDER_FILL_PREFIX = PREFIX_ORDER_FILL
 ORDER_AMENDED_PREFIX = PREFIX_ORDER_AMENDED
 ORDER_CANCELLED_PREFIX = PREFIX_ORDER_CANCELLED
 ORDER_EXPIRED_PREFIX = PREFIX_ORDER_EXPIRED
-SYSTEM_SYMBOLS_PREFIX = "system.symbols."
+SYSTEM_SYMBOLS_PREFIX = PREFIX_SYMBOLS
 
 #: Synthetic admin-monitor-only event (see models.message.make_admin_action_msg).
 #: Deliberately NOT in PRIVATE_PREFIXES: it isn't addressed to the trading
@@ -58,11 +65,11 @@ PRIVATE_PREFIXES = (
     PREFIX_QUOTE_ACK,
     PREFIX_QUOTE_STATUS,
     PREFIX_KILL_SWITCH_ACK,
-    "system.gateway_auth.",
+    PREFIX_GATEWAY_AUTH,
     SYSTEM_SYMBOLS_PREFIX,
-    "system.quote_bootstrap.",
-    "system.quote_legs.",
-    "system.session_status.",
+    PREFIX_QUOTE_BOOTSTRAP,
+    PREFIX_QUOTE_LEGS,
+    PREFIX_SESSION_STATUS,
 )
 
 

@@ -7,6 +7,14 @@ from typing import Annotated, Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from edumatcher.api_gateway.sessions import Session, auth, require_trading
+from edumatcher.models.generated.system import (
+    topic_gateways,
+    topic_quote_bootstrap,
+    topic_quote_legs,
+    topic_reference,
+    topic_session_status,
+    topic_symbols,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["reference"])
 
@@ -60,7 +68,7 @@ async def fetch_reference_bundle(request: Request, session: Session) -> dict[str
         return cast(
             dict[str, Any],
             await engine.await_topic(
-                f"system.reference.{correlation_id}",
+                topic_reference(correlation_id),
                 request.app.state.config.timeouts.engine_reply_sec,
             ),
         )
@@ -138,7 +146,7 @@ async def symbols(
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     return await _request_reply(
-        request, "symbols", f"system.symbols.{gateway_id}", gateway_id
+        request, "symbols", topic_symbols(gateway_id), gateway_id
     )
 
 
@@ -148,7 +156,7 @@ async def session_state(
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     return await _request_reply(
-        request, "session", f"system.session_status.{gateway_id}", gateway_id
+        request, "session", topic_session_status(gateway_id), gateway_id
     )
 
 
@@ -158,7 +166,7 @@ async def quote_bootstrap(
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     return await _request_reply(
-        request, "quote_bootstrap", f"system.quote_bootstrap.{gateway_id}", gateway_id
+        request, "quote_bootstrap", topic_quote_bootstrap(gateway_id), gateway_id
     )
 
 
@@ -171,7 +179,7 @@ async def quote_legs(
     if cache.quote_legs:
         return {"legs": list(cache.quote_legs.values())}
     return await _request_reply(
-        request, "quote_legs", f"system.quote_legs.{gateway_id}", gateway_id
+        request, "quote_legs", topic_quote_legs(gateway_id), gateway_id
     )
 
 
@@ -205,7 +213,7 @@ async def status_summary(
         try:
             reply = cast(
                 dict[str, Any],
-                await engine.await_topic(f"system.gateways.{gateway_id}", timeout),
+                await engine.await_topic(topic_gateways(gateway_id), timeout),
             )
         except TimeoutError:
             reply = {}

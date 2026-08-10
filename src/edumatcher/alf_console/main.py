@@ -149,6 +149,12 @@ from edumatcher.models.generated.quote import (
     topic_quote_ack,
     topic_quote_status,
 )
+from edumatcher.models.generated.system import (
+    topic_gateway_auth,
+    topic_quote_bootstrap,
+    topic_session_status,
+    topic_symbols,
+)
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-alf-console"
@@ -297,10 +303,10 @@ class Gateway:
             topic_quote_ack(self.gateway_id),
             topic_quote_status(self.gateway_id),
             topic_kill_switch_ack(self.gateway_id),
-            f"system.symbols.{self.gateway_id}",
-            f"system.quote_bootstrap.{self.gateway_id}",
-            f"system.session_status.{self.gateway_id}",
-            f"system.gateway_auth.{self.gateway_id}",
+            topic_symbols(self.gateway_id),
+            topic_quote_bootstrap(self.gateway_id),
+            topic_session_status(self.gateway_id),
+            topic_gateway_auth(self.gateway_id),
             TOPIC_TRADE_EXECUTED,
         )
         self._index_sub_sock = make_subscriber(
@@ -477,7 +483,7 @@ class Gateway:
                 continue
             frames = self.sub_sock.recv_multipart()
             topic, payload = decode(frames)
-            if topic == f"system.gateway_auth.{self.gateway_id}":
+            if topic == topic_gateway_auth(self.gateway_id):
                 accepted = bool(payload.get("accepted", False))
                 self._auth_reason = str(payload.get("reason", ""))
                 self._auth_description = str(payload.get("description", ""))

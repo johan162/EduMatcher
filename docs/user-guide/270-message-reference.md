@@ -1447,15 +1447,19 @@ Requests cumulative traded volume for all symbols in the current session.
 
 | Field | Type | Description |
 |---|---|---|
-| `symbols` | object | Map from symbol name to per-symbol volume stats |
+| `symbols` | array of objects | One entry per symbol, sorted by symbol |
 | `total_qty` | integer | Total quantity traded across all symbols |
 | `total_value` | float | Total notional value traded |
 | `total_trades` | integer | Total number of trade pairs |
 
-Each per-symbol entry in `symbols`:
+The totals are the engine's own running counters, not a sum of the rows: an
+instrument whose book was removed mid-session still counts toward them.
+
+Each entry in `symbols`:
 
 | Field | Type | Description |
 |---|---|---|
+| `symbol` | string | The instrument. Was the map key before phase 6.1f |
 | `qty` | integer | Traded quantity for this symbol |
 | `value` | float | Notional value for this symbol |
 | `trades` | integer | Number of trade pairs for this symbol |

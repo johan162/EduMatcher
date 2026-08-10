@@ -46,8 +46,7 @@ MIGRATED = (
     "auction",
     "drop_copy",
     "admin",
-    # NOT `system`. 6.1e specified fifteen of its twenty-nine topics; the
-    # other fourteen are 6.1f. See TestSystemIsHalfSpecified.
+    "system",
 )
 
 
@@ -158,36 +157,11 @@ class TestTheCliReport:
         assert code == 0
         for family in MIGRATED:
             assert f"{family}: 0 literals - migrated" in out
-        # Relaxed a second time, and for the same class of reason: 6.1e
-        # specified fifteen of `system`'s twenty-nine topics, so the family's
-        # own fourteen unspecified ones still appear as literals. The stronger
-        # claim returns in 6.1f, and `test_system_is_not_in_migrated_yet`
-        # below fails if `system` is added to MIGRATED before it does.
-        assert "system:" in out
-
-
-class TestSystemIsHalfSpecified:
-    """The half-specified family, second occurrence — design section 28.6.
-
-    ``grep-literals`` counts literals of *declared* topics, so a family with
-    half its topics specified reports a real, non-zero count. That is accurate
-    rather than a regression, and it means ``system`` must stay out of
-    ``MIGRATED`` until 6.1f declares the remaining fourteen.
-
-    Without this test the omission is invisible: adding ``system`` to
-    ``MIGRATED`` early would fail loudly, but *finishing* 6.1f and forgetting
-    to add it would fail silently — the family would simply never be checked
-    again. So the assertion is on the omission itself, and it is this test
-    that 6.1f must delete.
-    """
-
-    def test_system_is_not_in_migrated_yet(self) -> None:
-        assert "system" not in MIGRATED
-
-    def test_system_still_has_literals_to_migrate(self, hits: list[lit.Hit]) -> None:
-        """And they are the 6.1f topics, not 6.1e ones left half-adopted."""
-        system_hits = [h for h in hits if h.family == "system"]
-        assert system_hits, "expected the unspecified half to still be literal"
+        # Relaxed twice, restored twice. 6.1e specified fifteen of `system`'s
+        # twenty-nine topics and this assertion came out again for one phase;
+        # 6.1f declared the rest, so it is back and there is no family left
+        # that the scanner knows about and does not check.
+        assert "no topic literals remain" in out
 
 
 class TestTheDetectorSeesFStrings:

@@ -93,6 +93,17 @@ from edumatcher.models.generated.quote import (
     topic_quote_ack,
     topic_quote_status,
 )
+from edumatcher.models.generated.system import (
+    PREFIX_GATEWAY_AUTH,
+    PREFIX_QUOTE_BOOTSTRAP,
+    PREFIX_QUOTE_LEGS,
+    PREFIX_SESSION_STATUS,
+    PREFIX_SYMBOLS,
+    topic_gateway_auth,
+    topic_quote_bootstrap,
+    topic_session_status,
+    topic_symbols,
+)
 
 _MAX_LINE_BYTES = 4096
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
@@ -550,7 +561,7 @@ class AlfGateway:
         session.auth_pending = True
         session.connect_emitted = False
 
-        auth_topic = f"system.gateway_auth.{gateway_id}"
+        auth_topic = topic_gateway_auth(gateway_id)
         self._subscribe_topic(auth_topic)
         session.subscriptions.add(auth_topic)
         try:
@@ -909,12 +920,12 @@ class AlfGateway:
 
             budget -= 1
 
-            if topic.startswith("system.gateway_auth."):
+            if topic.startswith(PREFIX_GATEWAY_AUTH):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_gateway_auth(gateway_id, payload)
                 continue
 
-            if topic.startswith("system.symbols."):
+            if topic.startswith(PREFIX_SYMBOLS):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_symbols_response(gateway_id, payload)
                 continue
@@ -924,17 +935,17 @@ class AlfGateway:
                 self._handle_orders_response(gateway_id, payload)
                 continue
 
-            if topic.startswith("system.quote_bootstrap."):
+            if topic.startswith(PREFIX_QUOTE_BOOTSTRAP):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_qboot_response(gateway_id, payload)
                 continue
 
-            if topic.startswith("system.quote_legs."):
+            if topic.startswith(PREFIX_QUOTE_LEGS):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_qlegs_response(gateway_id, payload)
                 continue
 
-            if topic.startswith("system.session_status."):
+            if topic.startswith(PREFIX_SESSION_STATUS):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_session_status_response(gateway_id, payload)
                 continue
@@ -1676,7 +1687,7 @@ class AlfGateway:
 
     def _gateway_topics(self, gateway_id: str) -> tuple[str, ...]:
         return (
-            f"system.gateway_auth.{gateway_id}",
+            topic_gateway_auth(gateway_id),
             topic_order_ack(gateway_id),
             topic_order_fill(gateway_id),
             topic_order_amended(gateway_id),
@@ -1690,9 +1701,9 @@ class AlfGateway:
             topic_oco_ack(gateway_id),
             topic_oco_cancelled(gateway_id),
             topic_kill_switch_ack(gateway_id),
-            f"system.symbols.{gateway_id}",
-            f"system.quote_bootstrap.{gateway_id}",
-            f"system.session_status.{gateway_id}",
+            topic_symbols(gateway_id),
+            topic_quote_bootstrap(gateway_id),
+            topic_session_status(gateway_id),
         )
 
     def _gateway_in_use(self, gateway_id: str) -> bool:

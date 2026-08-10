@@ -24,6 +24,9 @@ from edumatcher.models.message import decode
 from edumatcher.ralf_gateway.config import RalfGatewayConfig
 from edumatcher.ralf_gateway.protocol import RalfFrame, build_line, iso_utc, parse_line
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.system import (
+    TOPIC_EOD,
+)
 
 _ALLOWED_CHANNELS = frozenset({"CLEARING", "DROP_COPY", "AUDIT"})
 
@@ -84,7 +87,7 @@ class RalfGateway:
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
             TOPIC_TRADE_EXECUTED,
-            "system.eod",
+            TOPIC_EOD,
         )
         self._last_heartbeat = time.monotonic()
         self._trade_counts: dict[str, int] = {}  # symbol → intraday execution count
@@ -447,7 +450,7 @@ class RalfGateway:
                 continue
             if topic == TOPIC_TRADE_EXECUTED:
                 self._handle_trade(payload)
-            elif topic == "system.eod":
+            elif topic == TOPIC_EOD:
                 self._handle_eod(payload)
 
     def _handle_trade(self, payload: dict[str, Any]) -> None:

@@ -3876,6 +3876,160 @@ the endpoint. `_clamp_wire_text` bounds without touching case.
 **A helper named for what it does to a value is safe to reuse; one named for
 the kind of value it expects is not.** `_clamp_wire_id` is the second.
 
+## 29. `system` part two: finishing a family, and the guard that caught its author
+
+Phase 6.1f specified and adopted the remaining fourteen topics — seven
+request/reply pairs, all of them snapshots of what is true right now. It is the
+last family. Every topic in EduMatcher is now declared, generated and adopted,
+and `grep-literals` reports zero for every family with nothing left excluded.
+
+### 29.1 The guard from 6.1e fired on the phase that wrote it
+
+§28.1 added a loader check rejecting a record type whose generated class name
+collides with a message's. Two tests pinned it and an AST scan pinned the
+property. The first spec written after it — this one — declared a
+`QuoteBootstrap` record beside a `quote_bootstrap` message and `pm-msgen lint`
+refused it by name, one phase later:
+
+```
+pm-msgen: spec error: message 'quote_bootstrap' and type 'QuoteBootstrap'
+both generate 'class QuoteBootstrap'. Rename the type
+```
+
+§23.1 asks for a check that has disagreed with somebody. This one disagreed
+with its own author on its first outing, which is about as direct an answer as
+that rule can get. The record is `ActiveQuote` now, and the name is better:
+`QuoteBootstrap` named the message it arrived on rather than the thing it is.
+
+**The generalisation is about naming, not about the guard.** A record named
+after the message that carries it will collide with that message roughly
+whenever the message carries exactly one collection — which is the commonest
+shape in this family. Naming a record for what it *is* avoids the collision as
+a side effect of being the better name.
+
+### 29.2 The corridor: one helper, two shapes
+
+`_corridor_payload` returns `{corridor_low, corridor_high, expansion}`.
+`circuit_breaker.halt` and `.extend` splat it **flat** — §26.2 examined that and
+deliberately left it flat, because both readers immediately unpack it into
+independent CALF fields. `risk_state` nested the identical dict under a key
+called `corridor`, so its wire read:
+
+```json
+"corridor": {"corridor_low": 8.0, "corridor_high": 12.0, "expansion": 1}
+```
+
+The prefix and the box say the same thing, and `corridor.corridor_low` is the
+stutter that gives it away. One producer, one helper, two shapes on two wires.
+
+Flat here too, matching the event, and the third key becomes
+`corridor_expansion` — distinguishing it from `expansion_index`, which sits
+beside it on the same record and is a genuinely different value:
+`expansion_index` is always a real integer, `corridor_expansion` is null
+exactly when the corridor is.
+
+This is §26.2 arriving at its own conclusion from the other end. That section
+declined to build a `Corridor` record and recorded three reasons; none of them
+mentioned that a second message was already nesting the same three values,
+because that message had not been read yet. The rule §26.2 stated survives —
+what changes is that "the shape was left flat" is now true of both wires
+instead of one.
+
+### 29.3 Seven maps, twelve of twelve
+
+`risk_state.symbols` and `volume.symbols` were the last two maps in the tree,
+and both were §19.2's shape with no argument on either side: keyed by symbol,
+built in a `for` loop over sorted symbols, read by exactly one consumer each.
+§15.4's claim finishes twelve-for-twelve.
+
+`volume` also settles a question §28.2 did not have to answer. Its totals are
+carried alongside the per-symbol rows, which looks like the redundancy a record
+conversion would remove. They stay, because they are not a sum of the rows:
+they are the engine's own running counters, and a caller adding up `symbols`
+would disagree with the engine about any instrument whose book was removed
+mid-session. **Redundant on the wire is not the same as derivable from the
+wire**, and only reading the producer tells you which one you have.
+
+### 29.4 Four fields named `symbols`, four types
+
+With the family complete, `system` carries `symbols` on four messages:
+`SymbolInfo`, `ReferenceSymbol`, `SymbolRiskState`, `SymbolVolume`. They share
+a name and nothing else — different fields, different lifetimes, different
+consumers. The handover that opened 6.1e flagged this as the worst available
+find-and-replace target in the project, and it survived two phases of editing
+precisely because it was written down before the editing started.
+
+The type names carry the distinction the field names cannot:
+`SymbolCircuitBreaker` is a symbol's configured ladder, `LiveCircuitBreaker` is
+where its breaker stands now; `ReferenceRisk` is the definitions,
+`SymbolRiskState` is the state. Four types rather than two with optional
+halves, because a caller wants exactly one of each pair and a merged record
+would make "which half is populated" a runtime question.
+
+### 29.5 A regime chosen against the IDL's instinct
+
+`quote_legs` carries `legs` and `recent`, and only one of them is populated for
+a `show` of `ACTIVE` or `RECENT`. That is regime 4's textbook case: an absent
+list and an empty one are the same value to `alf_gwy`, the only structural
+reader, and §18's `HistoryRecord` argument applies almost word for word.
+
+They are required lists instead, always present and empty when unused, and the
+reason is a surface §18 did not have: `GET /quotes/legs` returns this payload
+verbatim, so a REST client doing `resp["legs"]` would `KeyError` on a reply
+that is entirely well-formed. The rule that decides it: **regime 4 says "this
+message does not have that concept"; `[]` says "it has none right now".**
+`quote_legs` always has both concepts, so `[]` is the true statement and the
+omission would be an invented one.
+
+Which is the same test §26.3 applied to `imbalance_side` and reached the
+opposite answer on — there, absence really did mean the concept was absent.
+Same rule, different fact, different regime.
+
+### 29.6 The scripted edit, and reading what it matched
+
+102 topic literals across 17 modules had to become generated constants. The
+mapping is mechanical — exact topic to `TOPIC_X`, prefix to `PREFIX_X`,
+f-string to `topic_x(expr)` — and it was done by script, with the constant
+table built by reading the generated module rather than by writing the names
+out again.
+
+The substitutions were right. **The import placement was not**: the script
+inserted its `from ... import (...)` block after the last line matching an
+import, which for eleven files landed *inside* an existing parenthesised
+import and produced eleven syntax errors. They were found by parsing every
+file with `ast`, and repaired by a second pass that used `ast` to find the end
+of the last top-level import statement — the thing the first pass had
+approximated with a string match.
+
+§7's rule says to read what a scripted edit matched rather than how many. The
+correction this adds is that the edit is not only the substitution: **the
+scaffolding around a scripted edit needs the same scepticism as the edit**. The
+regex that chose *what* to replace was carefully built from the generated
+module; the heuristic that chose *where* to put the import was written in
+passing, and it was the one that broke. A syntax error is the friendly version
+of that mistake — the unfriendly version places a valid import in a scope where
+it shadows something.
+
+### 29.7 Two literals that were not migrations
+
+The last three literals resisted the script, and two of them were real:
+
+* `pm-stats` subscribed `"system.symbols.STATS"` and requested with
+  `make_symbols_request_msg("STATS")` — the same identity written twice, once
+  in a subscription and once in a request, with nothing tying them together. It
+  is `STATS_GATEWAY_ID` now, and the subscription is `topic_symbols` of it.
+* `pm-scheduler` logged `"subscribed to session.state and
+  system.session_status.%s"` two lines below the subscription it was
+  describing. §27.6's `pm-dc-spy` exactly: display text that can claim a
+  subscription the process did not make. It logs the topic objects now, which
+  removed the literal and the possibility together.
+
+Both are the pattern §27.6 named and neither is a bug in the running system.
+Two families running, the last literals in a migration have been *identity
+duplicated across two call sites* rather than topics anybody forgot — which is
+a hint about where to look first in whatever the next migration turns out to
+be.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first

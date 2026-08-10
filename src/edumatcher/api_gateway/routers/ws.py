@@ -18,6 +18,10 @@ from edumatcher.models.generated.book import (
     topic_book_snapshot,
     topic_depth,
 )
+from edumatcher.models.generated.system import (
+    topic_gateways,
+    topic_halt_status,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["websockets"])
 
@@ -267,10 +271,10 @@ async def _monitor_snapshot(websocket: WebSocket, gateway_id: str) -> dict[str, 
             return None
 
     halts = await _ask(
-        engine.request_halt_status, f"system.halt_status.{gateway_id}", "halts"
+        engine.request_halt_status, topic_halt_status(gateway_id), "halts"
     )
     gateways = await _ask(
-        engine.request_gateways, f"system.gateways.{gateway_id}", "gateways"
+        engine.request_gateways, topic_gateways(gateway_id), "gateways"
     )
     return {
         "type": "monitor.snapshot",

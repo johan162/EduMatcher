@@ -110,6 +110,12 @@ from edumatcher.models.generated.order import (
     topic_order_fill,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.system import (
+    PREFIX_GATEWAY_AUTH,
+    PREFIX_SYMBOLS,
+    topic_gateway_auth,
+    topic_symbols,
+)
 
 log = logging.getLogger(__name__)
 
@@ -603,7 +609,7 @@ class BalfGateway:
         session.connect_emitted = False
 
         # Subscribe to the auth reply topic and send gateway_connect to engine
-        auth_topic = f"system.gateway_auth.{gw_id}"
+        auth_topic = topic_gateway_auth(gw_id)
         self._subscribe_topic(auth_topic)
         session.subscriptions.add(auth_topic)
         try:
@@ -891,12 +897,12 @@ class BalfGateway:
                 log.exception("BALF error dispatching engine event %s: %s", topic, exc)
 
     def _dispatch_engine_event(self, topic: str, payload: dict[str, Any]) -> None:
-        if topic.startswith("system.gateway_auth."):
+        if topic.startswith(PREFIX_GATEWAY_AUTH):
             gw_id = topic.rsplit(".", 1)[-1].upper()
             self._handle_gateway_auth(gw_id, payload)
             return
 
-        if topic.startswith("system.symbols."):
+        if topic.startswith(PREFIX_SYMBOLS):
             gw_id = topic.rsplit(".", 1)[-1].upper()
             self._handle_symbols_response(gw_id, payload)
             return
@@ -1328,8 +1334,8 @@ class BalfGateway:
 
     def _gateway_topics(self, gw_id: str) -> tuple[str, ...]:
         return (
-            f"system.gateway_auth.{gw_id}",
-            f"system.symbols.{gw_id}",
+            topic_gateway_auth(gw_id),
+            topic_symbols(gw_id),
             topic_order_ack(gw_id),
             topic_order_fill(gw_id),
             topic_order_cancelled(gw_id),

@@ -1,27 +1,27 @@
-# Canonical specification for the `system` message family, part one.
+# Canonical specification for the `system` message family.
 #
-# Phase 6.1e. Fifteen of the family's twenty-nine topics: what the venue *is*,
-# and joining or leaving it. The other fourteen -- the live-state snapshot
-# pairs (halt_status, position, quote_bootstrap, quote_legs, risk_state,
-# volume, gateways) -- are 6.1f. The cut is section 22.1's rule: split by what
-# the message acts on, never by direction, and each half lands as complete
-# request/reply conversations.
+# Phases 6.1e and 6.1f. All twenty-nine topics: fifteen that say what the venue
+# *is* and how to join or leave it (6.1e), and fourteen -- seven request/reply
+# pairs -- that say what is true right now (6.1f). The cut between them was
+# section 22.1's rule: split by what the message acts on, never by direction,
+# so each half landed as complete conversations.
 #
-# `system` is therefore HALF SPECIFIED until 6.1f, and deliberately absent
-# from `tests/test_msgen_literals.py::MIGRATED`. `grep-literals` will report a
-# real count for it, which is accurate rather than a regression. See design
-# section 28.6.
+# The family is fully specified, so `system` is in
+# `tests/test_msgen_literals.py::MIGRATED` and `grep-literals` reports it at
+# zero like every other family.
 #
-# FIVE MAPS, ALL CONVERTED, EACH JUDGED SEPARATELY. Section 15.4 excludes maps
+# SEVEN MAPS, ALL CONVERTED, EACH JUDGED SEPARATELY. Section 15.4 excludes maps
 # from the IDL because a spec that appears to need one is describing a message
-# that should have been something simpler; that claim was five-for-five before
-# this phase. It is ten-for-ten now, and section 27.1's general form held every
-# time -- a map is either a record that was never declared or a signature that
-# was never narrowed:
+# that should have been something simpler. That claim was five-for-five before
+# these two phases and is twelve-for-twelve now, and section 27.1's general
+# form held every time -- a map is either a record that was never declared or a
+# signature that was never narrowed:
 #
 #   `system.reference` payload      -> a record. One producer, fixed top keys.
 #   `reference.symbols`             -> list of records, key as a field (19.2)
 #   `reference.risk.levels`         -> list of records, key as a field (19.2)
+#   `risk_state.symbols`            -> the same
+#   `volume.symbols`                -> the same
 #   `session_schedule.schedule`     -> a fixed five-key record. Never a map;
 #                                      only the `dict[str, str]` annotation
 #                                      ever said otherwise.
@@ -33,6 +33,13 @@
 # able to disagree about which symbols exist. That is section 15.4's
 # `leg_fill_qty` shape: the key was already the identity of the row. There is
 # now one `symbols: list[SymbolInfo]` and no `symbol_meta` key at all.
+#
+# FOUR FIELDS NAMED `symbols`, FOUR DIFFERENT TYPES. `SymbolInfo` on
+# `system.symbols`, `ReferenceSymbol` on `reference`, `SymbolRiskState` on
+# `risk_state`, `SymbolVolume` on `volume`. They share a name and nothing else.
+# The same field name in a different message is a different field, and a
+# find-and-replace across these four would be the worst version of that mistake
+# this project has had the chance to make.
 #
 # ONE SPELLING OF TICK SCALE. The engine held `tick_decimals` (an integer) and
 # published `tick_size = 10 ** -tick_decimals` (a float that cannot represent
@@ -56,6 +63,14 @@
 # string `circuit_breaker.halt.level` carries onward, which 6.1c bounded at 32
 # (design section 26.5). The static definition and the event that quotes it
 # get the same bound, and `config_loader` enforces it at load.
+#
+# STATIC VERSUS LIVE, SAID IN THE TYPE NAMES. `SymbolCircuitBreaker` is a
+# symbol's configured ladder; `LiveCircuitBreaker` is where that symbol's
+# breaker stands right now. `ReferenceRisk` is the named level definitions;
+# `SymbolRiskState` is the live collar and breaker state. Four types rather
+# than two with optional halves, because a caller wants exactly one of each
+# pair and a merged record would make "which half is populated" a runtime
+# question.
 
 family: system
 version: 1
@@ -320,6 +335,187 @@ types:
       - { name: last_price, type: float, required: false, nullable: true,
           omit_when_none: true, unit: display_price,
           doc: "Absent on an instrument that never traded." }
+
+  # ------------------------------------------------------------ live state
+  HaltedSymbol:
+    doc: >
+      One currently-halted instrument. The circuit-breaker detail is present
+      only when a circuit breaker is what halted it: an ADMIN halt sets the
+      flag without a breaker behind it, so the three fields travel together or
+      not at all -- section 16.2's combination, expressed as three regime-3
+      fields rather than a record because they are three independent CALF-side
+      values and no reader holds them as a unit (section 26.2's reasoning,
+      second application).
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: resume_at_ns, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: epoch_nanos,
+          doc: "When the halt lapses. Null on an indefinite halt." }
+      - { name: level, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 32 },
+          doc: "The rung that triggered it. Bounded to match the ladder." }
+      - { name: halt_source, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 32 } }
+
+  Position:
+    doc: >
+      One instrument the gateway is not flat in. Only non-zero net positions
+      are reported, so an empty list means flat everywhere.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: net_qty, type: int, unit: shares,
+          doc: "Positive is long, negative is short. Never zero." }
+      - { name: avg_cost, type: float, unit: display_price, validate: { ge: 0 },
+          doc: "Volume-weighted entry price; 0.0 when unknown." }
+
+  ActiveQuote:
+    doc: >
+      One active two-sided quote, with both legs' live order state. What a
+      market maker reads on reconnect to find out what it already has resting.
+
+      A leg whose order is gone reports `MISSING` with zero quantities rather
+      than being omitted: the quote still exists as far as the engine's index
+      is concerned, and a bootstrap that silently dropped one side would let a
+      bot re-quote into its own resting order.
+    fields:
+      - { name: quote_id, type: string, validate: { max_len: 64 } }
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: state, type: string, validate: { max_len: 32 } }
+      - { name: bid_order_id, type: string, validate: { max_len: 64 } }
+      - { name: ask_order_id, type: string, validate: { max_len: 64 } }
+      - { name: bid_price, type: float, required: false, nullable: true,
+          unit: display_price }
+      - { name: ask_price, type: float, required: false, nullable: true,
+          unit: display_price }
+      - { name: bid_qty, type: int, unit: shares, validate: { ge: 0 } }
+      - { name: ask_qty, type: int, unit: shares, validate: { ge: 0 } }
+      - { name: bid_remaining_qty, type: int, unit: shares, validate: { ge: 0 } }
+      - { name: ask_remaining_qty, type: int, unit: shares, validate: { ge: 0 } }
+      - { name: bid_status, type: string, validate: { max_len: 32 } }
+      - { name: ask_status, type: string, validate: { max_len: 32 } }
+
+  QuoteLeg:
+    doc: "One live leg of an active quote, with its order's current state."
+    fields:
+      - { name: quote_id, type: string, validate: { max_len: 64 } }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: leg_side, type: enum, values: [BUY, SELL],
+          doc: "Which side of the quote this leg is. Exactly two producers." }
+      - { name: qty, type: int, unit: shares, validate: { ge: 0 } }
+      - { name: remaining, type: int, unit: shares, validate: { ge: 0 } }
+      - { name: filled, type: int, unit: shares, validate: { ge: 0 } }
+      - { name: status, type: string, validate: { max_len: 32 } }
+      - { name: quote_status, type: string, validate: { max_len: 32 } }
+
+  QuoteLegSnapshot:
+    doc: >
+      A leg as it stood when its quote left the book. No live qty/remaining
+      here in the sense the name suggests -- these are the final values,
+      recorded at removal, because once an order leaves the book its state is
+      not available anywhere in the engine.
+    fields:
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: qty, type: int, unit: shares, validate: { ge: 0 } }
+      - { name: remaining, type: int, unit: shares, validate: { ge: 0 } }
+      - { name: filled, type: int, unit: shares, validate: { ge: 0 } }
+      - { name: status, type: string, validate: { max_len: 32 } }
+
+  RecentQuote:
+    doc: >
+      One recently-removed quote, from the engine's bounded per-gateway
+      inactivation history. A quote-level summary rather than a per-leg one.
+      Does not survive an engine restart.
+    fields:
+      - { name: quote_id, type: string, validate: { max_len: 64 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: bid_order_id, type: string, validate: { max_len: 64 } }
+      - { name: ask_order_id, type: string, validate: { max_len: 64 } }
+      - { name: quote_status, type: string, validate: { max_len: 32 } }
+      - { name: reason, type: string, validate: { max_len: 64 },
+          doc: "Why it was removed. `quote_status` is derived from this." }
+      - { name: removed_at_ns, type: int, unit: epoch_nanos }
+      - { name: bid_leg, type: nested, ref: QuoteLegSnapshot, required: false,
+          nullable: true,
+          doc: "Null when the quote had no bid leg to record." }
+      - { name: ask_leg, type: nested, ref: QuoteLegSnapshot, required: false,
+          nullable: true }
+
+  LiveCircuitBreaker:
+    doc: >
+      A symbol's circuit breaker as it stands right now. The live counterpart
+      to `ReferenceSymbol.circuit_breaker`, which is the configuration.
+    fields:
+      - { name: halted, type: bool }
+      - { name: reference_price, type: float, required: false, nullable: true,
+          unit: display_price }
+      - { name: trigger_price, type: float, required: false, nullable: true,
+          unit: display_price }
+      - { name: triggered_level, type: string, required: false, nullable: true,
+          validate: { max_len: 32 } }
+      - { name: expansion_index, type: int, required: false, nullable: true,
+          unit: dimensionless, validate: { ge: 0 } }
+      - name: corridor_low
+        type: float
+        required: false
+        nullable: true
+        unit: display_price
+        doc: >
+          Flat, and named without the `corridor.` box it used to sit in.
+          `_corridor_payload` returns `{corridor_low, corridor_high,
+          expansion}` and `risk_state` nested that under a key called
+          `corridor`, so the wire read `corridor.corridor_low` -- the prefix
+          and the box saying the same thing twice. The same helper is splatted
+          *flat* into `circuit_breaker.halt`, so one producer was emitting two
+          shapes of one value. Flat here matches the event. See design 29.2.
+      - { name: corridor_high, type: float, required: false, nullable: true,
+          unit: display_price }
+      - name: corridor_expansion
+        type: int
+        required: false
+        nullable: true
+        unit: dimensionless
+        validate: { ge: 0 }
+        doc: >
+          The ACE expansion count that goes with the bounds above. Distinct
+          from `expansion_index`, which is always a real integer; this one is
+          null exactly when the corridor is.
+      - { name: resume_at_ns, type: int, required: false, nullable: true,
+          unit: epoch_nanos }
+
+  SymbolRiskState:
+    doc: >
+      One symbol's live risk state. Was a map entry keyed by symbol --
+      section 19.2's shape for the twelfth time.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: collar_reference_price, type: float, required: false,
+          nullable: true, omit_when_none: true, unit: display_price,
+          doc: "Absent on a symbol with no collar configured." }
+      - { name: circuit_breaker, type: nested, ref: LiveCircuitBreaker,
+          required: false, nullable: true, omit_when_none: true,
+          doc: "Absent on a symbol with no circuit breaker configured." }
+
+  GatewayInfo:
+    doc: "One configured participant, and whether it is connected right now."
+    fields:
+      - { name: id, type: string, validate: { max_len: 32 } }
+      - { name: role, type: string, validate: { max_len: 32 } }
+      - { name: description, type: string, required: false, default: "",
+          validate: { max_len: 128 } }
+      - { name: connected, type: bool }
+
+  SymbolVolume:
+    doc: >
+      One instrument's traded volume so far today. Was a map entry keyed by
+      symbol; the key is a field now, as everywhere else in this family.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: qty, type: int, unit: shares, validate: { ge: 0 } }
+      - { name: value, type: float, unit: money, validate: { ge: 0 },
+          doc: "Traded notional, rounded to two decimals by the producer." }
+      - { name: trades, type: int, unit: dimensionless, validate: { ge: 0 } }
 
 messages:
   # ================================================================ lifecycle
@@ -681,5 +877,299 @@ messages:
       - { name: schedule, type: nested, ref: SessionTimes, required: false,
           nullable: true,
           doc: "Null when no `schedule:` block is configured." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  # =============================================== live state: halt snapshot
+  - name: halt_status_request
+    topic: "system.halt_status_request"
+    transport: [engine_pub]
+    doc:
+      motivation: "Any process to engine: which instruments are halted now."
+      since: "1.0"
+      see_also: ["system.halt_status.{GW_ID}", "circuit_breaker.halt.{SYMBOL}"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: halt_status
+    topic: "system.halt_status.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to caller: every currently-halted instrument, with the breaker
+        state behind it where a breaker is what halted it. The polled answer
+        to the `circuit_breaker.halt` broadcast, for a caller that has just
+        started and missed it.
+      since: "1.0"
+      see_also: ["system.halt_status_request", "system.risk_state.{GW_ID}"]
+      example_note: >
+        An empty list means nothing is halted, which is the normal reply. The
+        three optional fields are present together or not at all: an ADMIN
+        halt sets the flag with no breaker behind it.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped by the default projection." }
+      - { name: halted, type: list, ref: HaltedSymbol }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  # ==================================================== live state: position
+  - name: position_request
+    topic: "system.position_request"
+    transport: [engine_pub]
+    doc:
+      motivation: "Gateway to engine: what am I holding."
+      since: "1.0"
+      see_also: ["system.position_snapshot.{GW_ID}"]
+    fields:
+      - name: gateway_id
+        type: string
+        validate: { max_len: 32 }
+        doc: >
+          Both the correlation key and the account being asked about. A
+          gateway can only ask about itself: the handler answers from
+          `_gateway_positions[gateway_id]` and nothing else.
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: position_snapshot
+    topic: "system.position_snapshot.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to gateway: per-symbol net position and average cost, for the
+        asking gateway only.
+      since: "1.0"
+      see_also: ["system.position_request", "trade.executed"]
+      example_note: >
+        An unauthenticated or unknown gateway gets an empty list rather than a
+        rejection -- flat and not-a-gateway are the same answer here, which is
+        deliberate: the alternative tells an unauthenticated caller whether an
+        id exists.
+
+        This pair has no consumer in `src/` at all. It is exercised only by
+        `tests/test_position_snapshot.py`, which is section 27.4's shape --
+        a capability exercised only by its own tests. It is specified rather
+        than removed because unlike `drop_copy.replay_request` it is fully
+        implemented on both sides and reachable by any gateway; what it lacks
+        is a caller, not an implementation. Recorded here so the next phase to
+        touch it knows the difference.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped by the default projection." }
+      - { name: positions, type: list, ref: Position }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  # ============================================= live state: quote bootstrap
+  - name: quote_bootstrap_request
+    topic: "system.quote_bootstrap_request"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Market maker to engine, on reconnect: what quotes do I already have
+        resting. Without it a bot cannot tell a fresh start from a reconnect
+        and will quote into its own orders.
+      since: "1.0"
+      see_also: ["system.quote_bootstrap.{GW_ID}", "system.quote_legs_request"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: symbol, type: string, required: false, default: "",
+          validate: { max_len: 16 },
+          doc: "Narrows the reply to one instrument. \"\" means all." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: quote_bootstrap
+    topic: "system.quote_bootstrap.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Engine to market maker: the active quotes it already holds."
+      since: "1.0"
+      see_also: ["system.quote_bootstrap_request", "quote.status.{GW_ID}"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped by the default projection." }
+      - { name: quotes, type: list, ref: ActiveQuote }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  # ================================================== live state: quote legs
+  - name: quote_legs_request
+    topic: "system.quote_legs_request"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Operator or market maker to engine: the per-leg detail behind this
+        gateway's quotes, live and recently removed. What `QLEGS` asks for.
+      since: "1.0"
+      see_also: ["system.quote_legs.{GW_ID}", "system.quote_bootstrap_request"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: symbol, type: string, required: false, default: "",
+          validate: { max_len: 16 },
+          doc: "Narrows the reply to one instrument. \"\" means all." }
+      - name: show
+        type: enum
+        values: [ACTIVE, RECENT, ALL]
+        required: false
+        default: ALL
+        doc: >
+          Which half to return. `ACTIVE` is live legs, `RECENT` is the
+          removal history, `ALL` is both. Enumerated rather than a free string
+          because the handler branches on exactly these three and treats
+          anything else as `ACTIVE` -- a typo currently answers, quietly, with
+          the wrong half.
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: quote_legs
+    topic: "system.quote_legs.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to caller: live quote legs, recently-removed quotes, or both.
+      since: "1.0"
+      see_also: ["system.quote_legs_request"]
+      example_note: >
+        `legs` and `recent` are both always present, empty when the requested
+        half does not include them. Regime 4 would be the IDL's default
+        instinct -- absent and `[]` are the same value to `alf_gwy`, the only
+        structural reader -- but `GET /quotes/legs` returns this payload
+        verbatim, and a REST client should not have to guess whether a key
+        exists. `[]` is a true statement here rather than an invented one:
+        both halves always mean something on this message.
+
+        `show_requested` echoes what was asked, so a caller that pipelined two
+        requests can tell the replies apart.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped by the default projection." }
+      - { name: legs, type: list, ref: QuoteLeg,
+          doc: "Live legs. Empty unless `show` was `ACTIVE` or `ALL`." }
+      - name: show_requested
+        type: enum
+        values: [ACTIVE, RECENT, ALL]
+        doc: "Echo of the request's `show`, so replies can be told apart."
+      - name: complete
+        type: bool
+        doc: >
+          False when the reply could not fully answer what was asked. Always
+          true today; kept because the recent-history buffer is bounded and a
+          truncated answer needs a way to say so.
+      - { name: recent, type: list, ref: RecentQuote,
+          doc: "Removal history. Empty unless `show` was `RECENT` or `ALL`." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  # ================================================= live state: risk state
+  - name: risk_state_request
+    topic: "system.risk_state_request"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        ADMIN to engine: the live collar and circuit-breaker state of every
+        symbol that has either configured, halted or not.
+      since: "1.0"
+      see_also: ["system.risk_state.{GW_ID}", "system.reference.{GW_ID}"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: risk_state
+    topic: "system.risk_state.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to ADMIN: live risk state per symbol. The counterpart to
+        `reference.risk`, which is the static definitions, and to
+        `halt_status`, which is only the symbols currently halted.
+      since: "1.0"
+      see_also: ["system.risk_state_request", "system.halt_status.{GW_ID}"]
+      example_note: >
+        The fourth `symbols` field in this family and the fourth different
+        thing: a list of `SymbolInfo` on `system.symbols`, of `ReferenceSymbol`
+        on `reference`, of `SymbolRiskState` here and of `SymbolVolume` on
+        `volume`. Same name, four types, no relationship -- which is why a
+        find-and-replace across them would be the worst available mistake.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped by the default projection." }
+      - { name: symbols, type: list, ref: SymbolRiskState,
+          doc: "Sorted by symbol. Was a map keyed by it." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  # =================================================== live state: gateways
+  - name: gateways_request
+    topic: "system.gateways_request"
+    transport: [engine_pub]
+    doc:
+      motivation: "Operator to engine: which participants exist, and who is on."
+      since: "1.0"
+      see_also: ["system.gateways.{GW_ID}", "system.gateway_auth.{GW_ID}"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: gateways
+    topic: "system.gateways.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to operator: every configured participant with its role and
+        current connection status. The polled counterpart to the
+        `gateway_auth` / `gateway_bye` broadcasts.
+      since: "1.0"
+      see_also: ["system.gateways_request", "system.gateway_bye.{GW_ID}"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped by the default projection." }
+      - { name: gateways, type: list, ref: GatewayInfo,
+          doc: "Sorted by id. Empty when no config is loaded." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  # ===================================================== live state: volume
+  - name: volume_request
+    topic: "system.volume_request"
+    transport: [engine_pub]
+    doc:
+      motivation: "Operator to engine: how much has traded today."
+      since: "1.0"
+      see_also: ["system.volume.{GW_ID}", "trade.executed"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: volume
+    topic: "system.volume.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to operator: traded quantity, notional and trade count, per
+        instrument and exchange-wide.
+      since: "1.0"
+      see_also: ["system.volume_request"]
+      example_note: >
+        The totals are carried rather than left to the caller to sum. That is
+        redundant on the wire and load-bearing off it: they are the engine's
+        own running counters, not a sum of the rows, so a caller adding up
+        `symbols` would silently disagree with the engine about any instrument
+        whose book was removed mid-session.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped by the default projection." }
+      - { name: symbols, type: list, ref: SymbolVolume,
+          doc: "Sorted by symbol. Was a map keyed by it." }
+      - { name: total_qty, type: int, unit: shares, validate: { ge: 0 } }
+      - { name: total_value, type: float, unit: money, validate: { ge: 0 } }
+      - { name: total_trades, type: int, unit: dimensionless,
+          validate: { ge: 0 } }
     encoding:
       engine_pub: { frames: [topic, json_payload] }

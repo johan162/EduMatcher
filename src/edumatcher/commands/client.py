@@ -90,11 +90,27 @@ from edumatcher.models.generated.quote import (
     PREFIX_QUOTE_ACK,
     topic_quote_ack,
 )
+from edumatcher.models.generated.system import (
+    PREFIX_GATEWAYS,
+    PREFIX_GATEWAY_AUTH,
+    PREFIX_QUOTE_BOOTSTRAP,
+    PREFIX_SESSION_SCHEDULE,
+    PREFIX_SESSION_STATUS,
+    PREFIX_SYMBOLS,
+    PREFIX_VOLUME,
+    topic_gateway_auth,
+    topic_gateways,
+    topic_quote_bootstrap,
+    topic_session_schedule,
+    topic_session_status,
+    topic_symbols,
+    topic_volume,
+)
 
 # Topics this client ever needs to receive from the engine PUB socket.
 # Extend this list when adding new commands that carry acks.
 _ACK_SUB_PREFIXES: tuple[str, ...] = (
-    "system.gateway_auth.",
+    PREFIX_GATEWAY_AUTH,
     PREFIX_CIRCUIT_BREAKER_HALT_ALL_ACK,
     PREFIX_CIRCUIT_BREAKER_RESUME_ALL_ACK,
     PREFIX_SYMBOL_HALT_ACK,
@@ -104,13 +120,13 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     PREFIX_QUOTE_ACK,
     PREFIX_BOOK_SNAPSHOT,
     TOPIC_SESSION_STATE,
-    "system.symbols.",
+    PREFIX_SYMBOLS,
     "order.orders.",
-    "system.quote_bootstrap.",
-    "system.session_status.",
-    "system.session_schedule.",
-    "system.gateways.",
-    "system.volume.",
+    PREFIX_QUOTE_BOOTSTRAP,
+    PREFIX_SESSION_STATUS,
+    PREFIX_SESSION_SCHEDULE,
+    PREFIX_GATEWAYS,
+    PREFIX_VOLUME,
     PREFIX_INDEX_HISTORY,
     PREFIX_INDEX_CORP_ACTION_ACK,
     PREFIX_INDEX_CONSTITUENT_CHANGE_ACK,
@@ -313,7 +329,7 @@ class ExchangeCommandClient:
         ``result["accepted"]`` before sending any other commands.
         """
         self._send(make_gateway_connect_msg(self._gw_id))
-        return self._recv(f"system.gateway_auth.{self._gw_id}")
+        return self._recv(topic_gateway_auth(self._gw_id))
 
     def disconnect(self) -> None:
         """Send a graceful disconnect notice.  No ack is published."""
@@ -448,7 +464,7 @@ class ExchangeCommandClient:
         still answers with names, which is what every caller of it wants.
         """
         self._send(make_symbols_request_msg(self._gw_id))
-        result = self._recv(f"system.symbols.{self._gw_id}")
+        result = self._recv(topic_symbols(self._gw_id))
         return [str(e.get("symbol", "")) for e in result.get("symbols", [])]
 
     def index_history(
@@ -574,7 +590,7 @@ class ExchangeCommandClient:
         Optional *symbol* narrows the result to one instrument.
         """
         self._send(make_quote_bootstrap_request_msg(target_gw.upper(), symbol.upper()))
-        result = self._recv(f"system.quote_bootstrap.{target_gw.upper()}")
+        result = self._recv(topic_quote_bootstrap(target_gw.upper()))
         return list(result.get("quotes", []))
 
     # ------------------------------------------------------------------
@@ -603,7 +619,7 @@ class ExchangeCommandClient:
         dict with keys: ``state`` (str), ``sessions_enabled`` (bool).
         """
         self._send(make_session_state_request_msg(self._gw_id))
-        return self._recv(f"system.session_status.{self._gw_id}")
+        return self._recv(topic_session_status(self._gw_id))
 
     def session_schedule(self) -> dict[str, Any]:
         """
@@ -615,7 +631,7 @@ class ExchangeCommandClient:
         phase → ``HH:MM`` time strings, or empty dict if scheduling is off).
         """
         self._send(make_session_schedule_request_msg(self._gw_id))
-        return self._recv(f"system.session_schedule.{self._gw_id}")
+        return self._recv(topic_session_schedule(self._gw_id))
 
     def gateway_list(self) -> list[dict[str, Any]]:
         """
@@ -626,7 +642,7 @@ class ExchangeCommandClient:
         List of dicts with keys: ``id``, ``role``, ``description``, ``connected``.
         """
         self._send(make_gateways_request_msg(self._gw_id))
-        result = self._recv(f"system.gateways.{self._gw_id}")
+        result = self._recv(topic_gateways(self._gw_id))
         return list(result.get("gateways", []))
 
     def volume(self) -> dict[str, Any]:
@@ -643,7 +659,7 @@ class ExchangeCommandClient:
         - ``total_trades``: int
         """
         self._send(make_volume_request_msg(self._gw_id))
-        return self._recv(f"system.volume.{self._gw_id}")
+        return self._recv(topic_volume(self._gw_id))
 
     # ------------------------------------------------------------------
     # Per-symbol controls — ADMIN role required

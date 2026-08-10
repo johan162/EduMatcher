@@ -73,6 +73,13 @@ from edumatcher.models.message import decode
 from edumatcher.models.price import to_ticks
 from edumatcher.models.trade import Trade
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.system import (
+    PREFIX_GATEWAY_AUTH,
+    PREFIX_GATEWAY_BYE,
+    TOPIC_EOD,
+    TOPIC_GATEWAY_CONNECT,
+    TOPIC_GATEWAY_DISCONNECT,
+)
 
 FLUSH_SIZE: int = 100
 FLUSH_INTERVAL_SEC: float = 5.0
@@ -348,7 +355,7 @@ class ClearingProcess:
         sub = make_subscriber(
             self._pub_addr,
             TOPIC_TRADE_EXECUTED,
-            "system.eod",
+            TOPIC_EOD,
             # Session-phase transitions — recorded as PHASE rows in
             # session_events (finding CL-M7) so operators can bucket activity by
             # session phase and the advertised PHASE filter is real.
@@ -359,14 +366,14 @@ class ClearingProcess:
             # / ``system.gateway_disconnect`` are gateway→engine PULL topics that
             # never reach this subscriber (finding CL-C3), so subscribe to the
             # auth-broadcast prefix as the real "gateway connected" signal.
-            "system.gateway_auth.",
+            PREFIX_GATEWAY_AUTH,
             # Disconnect broadcast — the PUB counterpart to gateway_auth
             # (engine/main.py _handle_gateway_disconnect → make_gateway_bye_msg).
-            "system.gateway_bye.",
+            PREFIX_GATEWAY_BYE,
             # Kept for the test harness's readiness/ordering probe and any
             # direct-injection clients; harmless in production where it is silent.
-            "system.gateway_connect",
-            "system.gateway_disconnect",
+            TOPIC_GATEWAY_CONNECT,
+            TOPIC_GATEWAY_DISCONNECT,
         )
         try:
             self._receive_loop(sub)
@@ -447,7 +454,7 @@ class ClearingProcess:
                 if self._print_every > 0 and self._trade_count % self._print_every == 0:
                     self._print_pnl_table()
 
-            elif topic == "system.eod":
+            elif topic == TOPIC_EOD:
                 self._dbg_count("eod_topics")
                 self._handle_eod(payload)
 
@@ -455,19 +462,19 @@ class ClearingProcess:
                 self._dbg_count("phase_topics")
                 self._handle_session_state(payload)
 
-            elif topic.startswith("system.gateway_auth."):
+            elif topic.startswith(PREFIX_GATEWAY_AUTH):
                 self._dbg_count("gateway_auth_topics")
                 self._handle_gateway_auth(payload)
 
-            elif topic.startswith("system.gateway_bye."):
+            elif topic.startswith(PREFIX_GATEWAY_BYE):
                 self._dbg_count("gateway_bye_topics")
                 self._handle_gateway_bye(payload)
 
-            elif topic == "system.gateway_connect":
+            elif topic == TOPIC_GATEWAY_CONNECT:
                 self._dbg_count("gateway_connect_topics")
                 self._handle_gateway_connect(payload)
 
-            elif topic == "system.gateway_disconnect":
+            elif topic == TOPIC_GATEWAY_DISCONNECT:
                 self._dbg_count("gateway_disconnect_topics")
                 self._handle_gateway_disconnect(payload)
 

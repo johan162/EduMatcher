@@ -42,6 +42,10 @@ from edumatcher.models.generated.order import (
     topic_order_expired,
     topic_order_fill,
 )
+from edumatcher.models.generated.system import (
+    topic_gateway_auth,
+    topic_symbols,
+)
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-ai-trader"
@@ -112,8 +116,8 @@ class AITraderBot:
         self.push_sock = make_pusher(ENGINE_PULL_ADDR)
         self.sub_sock = make_subscriber(
             ENGINE_PUB_ADDR,
-            f"system.gateway_auth.{self.gateway_id}",
-            f"system.symbols.{self.gateway_id}",
+            topic_gateway_auth(self.gateway_id),
+            topic_symbols(self.gateway_id),
             topic_order_ack(self.gateway_id),
             topic_order_fill(self.gateway_id),
             topic_order_cancelled(self.gateway_id),
@@ -182,7 +186,7 @@ class AITraderBot:
                 continue
             topic, payload = decode(self.sub_sock.recv_multipart())
             self._dbg_count("auth_messages")
-            if topic == f"system.gateway_auth.{self.gateway_id}":
+            if topic == topic_gateway_auth(self.gateway_id):
                 accepted = bool(payload.get("accepted", False))
                 if accepted:
                     self._log("authenticated")
@@ -283,7 +287,7 @@ class AITraderBot:
             self._on_trade(payload)
             return
 
-        if topic == f"system.symbols.{self.gateway_id}":
+        if topic == topic_symbols(self.gateway_id):
             raw = payload.get("symbols", [])
             all_syms = [str(sym).upper() for sym in raw if str(sym).strip()]
             if self._symbols_filter:

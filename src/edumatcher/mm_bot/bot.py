@@ -42,6 +42,12 @@ from edumatcher.models.generated.quote import (
     topic_quote_ack,
     topic_quote_status,
 )
+from edumatcher.models.generated.system import (
+    topic_gateway_auth,
+    topic_quote_bootstrap,
+    topic_quote_legs,
+    topic_symbols,
+)
 
 log = logging.getLogger(__name__)
 
@@ -196,10 +202,10 @@ class MMBot:
         self._push_sock = make_pusher(self._engine_pull)
         self._sub_sock = make_subscriber(
             self._engine_pub,
-            f"system.gateway_auth.{self.gateway_id}",
-            f"system.symbols.{self.gateway_id}",
-            f"system.quote_bootstrap.{self.gateway_id}",
-            f"system.quote_legs.{self.gateway_id}",
+            topic_gateway_auth(self.gateway_id),
+            topic_symbols(self.gateway_id),
+            topic_quote_bootstrap(self.gateway_id),
+            topic_quote_legs(self.gateway_id),
             topic_book_snapshot(self.symbol),
             TOPIC_TRADE_EXECUTED,
             topic_order_fill(self.gateway_id),
@@ -244,7 +250,7 @@ class MMBot:
             if self._sub_sock not in socks:
                 continue
             topic, payload = decode(self._sub_sock.recv_multipart())
-            if topic == f"system.gateway_auth.{self.gateway_id}":
+            if topic == topic_gateway_auth(self.gateway_id):
                 accepted = bool(payload.get("accepted", False))
                 if accepted:
                     self._log("authenticated")
@@ -275,7 +281,7 @@ class MMBot:
             if self._sub_sock not in socks:
                 continue
             topic, payload = decode(self._sub_sock.recv_multipart())
-            if topic == f"system.symbols.{self.gateway_id}":
+            if topic == topic_symbols(self.gateway_id):
                 entries = payload.get("symbols", [])
                 symbols = [str(e.get("symbol", "")).upper() for e in entries]
                 self._debug(f"symbols received: {symbols}")
@@ -311,7 +317,7 @@ class MMBot:
             if self._sub_sock not in socks:
                 continue
             topic, payload = decode(self._sub_sock.recv_multipart())
-            if topic == f"system.quote_bootstrap.{self.gateway_id}":
+            if topic == topic_quote_bootstrap(self.gateway_id):
                 return payload
             # Capture other events during wait
             self._buffer_event(topic, payload)
@@ -334,7 +340,7 @@ class MMBot:
             if self._sub_sock not in socks:
                 continue
             topic, payload = decode(self._sub_sock.recv_multipart())
-            if topic == f"system.quote_legs.{self.gateway_id}":
+            if topic == topic_quote_legs(self.gateway_id):
                 return payload
             self._buffer_event(topic, payload)
 
@@ -669,7 +675,7 @@ class MMBot:
             self._handle_circuit_breaker_halt()
         elif topic == topic_circuit_breaker_resume(self.symbol):
             self._handle_circuit_breaker_resume()
-        elif topic == f"system.quote_legs.{self.gateway_id}":
+        elif topic == topic_quote_legs(self.gateway_id):
             self._reconcile_qlegs(payload)
         else:
             self._dbg_count("incoming_unhandled")

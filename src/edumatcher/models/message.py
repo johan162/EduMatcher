@@ -364,9 +364,8 @@ def make_symbols_msg(
 
 def make_quote_bootstrap_request_msg(gateway_id: str, symbol: str = "") -> list[bytes]:
     """Gateway -> engine: request active quote bootstrap state."""
-    return encode(
-        "system.quote_bootstrap_request",
-        {"gateway_id": gateway_id, "symbol": symbol.upper()},
+    return _gen_system.make_quote_bootstrap_request(
+        gateway_id=gateway_id, symbol=symbol.upper()
     )
 
 
@@ -374,17 +373,15 @@ def make_quote_bootstrap_msg(
     gateway_id: str, quotes: list[dict[str, Any]]
 ) -> list[bytes]:
     """Engine -> gateway: reply with active quote bootstrap state."""
-    topic = f"system.quote_bootstrap.{gateway_id}"
-    return encode(topic, {"quotes": quotes})
+    return _gen_system.make_quote_bootstrap(gateway_id=gateway_id, quotes=quotes)
 
 
 def make_quote_legs_request_msg(
     gateway_id: str, symbol: str = "", show: str = "ALL"
 ) -> list[bytes]:
     """Gateway -> engine: request quote leg snapshot (QLEGS)."""
-    return encode(
-        "system.quote_legs_request",
-        {"gateway_id": gateway_id, "symbol": symbol.upper(), "show": show.upper()},
+    return _gen_system.make_quote_legs_request(
+        gateway_id=gateway_id, symbol=symbol.upper(), show=show.upper()
     )
 
 
@@ -413,15 +410,12 @@ def make_quote_legs_msg(
     (always true for ``ACTIVE``; also true for ``RECENT``/``ALL`` now that
     real history is tracked, modulo the history buffer's bound).
     """
-    topic = f"system.quote_legs.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "legs": legs,
-            "show_requested": show_requested,
-            "complete": complete,
-            "recent": recent or [],
-        },
+    return _gen_system.make_quote_legs(
+        gateway_id=gateway_id,
+        legs=legs,
+        show_requested=show_requested,
+        complete=complete,
+        recent=recent or [],
     )
 
 
@@ -549,12 +543,20 @@ def make_reference_reload_ack_msg(
 
 def make_risk_state_request_msg(gateway_id: str) -> list[bytes]:
     """ADMIN → engine: request live per-symbol risk state."""
-    return encode("system.risk_state_request", {"gateway_id": gateway_id})
+    return _gen_system.make_risk_state_request(gateway_id=gateway_id)
 
 
-def make_risk_state_msg(gateway_id: str, symbols: dict[str, Any]) -> list[bytes]:
-    """Engine → ADMIN: reply with live per-symbol risk state."""
-    return encode(f"system.risk_state.{gateway_id}", {"symbols": symbols})
+def make_risk_state_msg(gateway_id: str, symbols: list[dict[str, Any]]) -> list[bytes]:
+    """Engine → ADMIN: reply with live per-symbol risk state.
+
+    One `SymbolRiskState` record per symbol, carrying its own symbol. This was
+    a map keyed by symbol, and the corridor inside each entry was a box named
+    `corridor` holding keys named `corridor_low`/`corridor_high` -- the prefix
+    and the box saying the same thing twice, from a helper that splats the
+    same three values *flat* into `circuit_breaker.halt`. Flat here too, so
+    one producer emits one shape.
+    """
+    return _gen_system.make_risk_state(gateway_id=gateway_id, symbols=symbols)
 
 
 # ------------------------------------------------------------------
@@ -564,7 +566,7 @@ def make_risk_state_msg(gateway_id: str, symbols: dict[str, Any]) -> list[bytes]
 
 def make_gateways_request_msg(gateway_id: str) -> list[bytes]:
     """Operator → engine: request the list of configured gateways."""
-    return encode("system.gateways_request", {"gateway_id": gateway_id})
+    return _gen_system.make_gateways_request(gateway_id=gateway_id)
 
 
 def make_gateways_msg(
@@ -572,8 +574,7 @@ def make_gateways_msg(
     gateways: list[dict[str, Any]],
 ) -> list[bytes]:
     """Engine → operator: reply with configured gateways and connection status."""
-    topic = f"system.gateways.{gateway_id}"
-    return encode(topic, {"gateways": gateways})
+    return _gen_system.make_gateways(gateway_id=gateway_id, gateways=gateways)
 
 
 # ------------------------------------------------------------------
@@ -583,26 +584,23 @@ def make_gateways_msg(
 
 def make_volume_request_msg(gateway_id: str) -> list[bytes]:
     """Operator → engine: request daily traded volume."""
-    return encode("system.volume_request", {"gateway_id": gateway_id})
+    return _gen_system.make_volume_request(gateway_id=gateway_id)
 
 
 def make_volume_msg(
     gateway_id: str,
-    symbols: dict[str, dict[str, Any]],
+    symbols: list[dict[str, Any]],
     total_qty: int,
     total_value: float,
     total_trades: int,
 ) -> list[bytes]:
     """Engine → operator: reply with daily volume data."""
-    topic = f"system.volume.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "symbols": symbols,
-            "total_qty": total_qty,
-            "total_value": total_value,
-            "total_trades": total_trades,
-        },
+    return _gen_system.make_volume(
+        gateway_id=gateway_id,
+        symbols=symbols,
+        total_qty=total_qty,
+        total_value=total_value,
+        total_trades=total_trades,
     )
 
 
@@ -1275,7 +1273,7 @@ def make_admin_action_msg(
 
 def make_halt_status_request_msg(gateway_id: str) -> list[bytes]:
     """Any process → engine: request current halt state for all symbols."""
-    return encode("system.halt_status_request", {"gateway_id": gateway_id})
+    return _gen_system.make_halt_status_request(gateway_id=gateway_id)
 
 
 def make_halt_status_msg(
@@ -1289,8 +1287,7 @@ def make_halt_status_msg(
       ``level`` (str | None), ``halt_source`` (str | None).
     An empty list means no symbols are currently halted.
     """
-    topic = f"system.halt_status.{gateway_id}"
-    return encode(topic, {"halted": halted})
+    return _gen_system.make_halt_status(gateway_id=gateway_id, halted=halted)
 
 
 def make_position_request_msg(gateway_id: str) -> list[bytes]:
@@ -1298,7 +1295,7 @@ def make_position_request_msg(gateway_id: str) -> list[bytes]:
 
     The engine replies on ``system.position_snapshot.<GW_ID>``.
     """
-    return encode("system.position_request", {"gateway_id": gateway_id})
+    return _gen_system.make_position_request(gateway_id=gateway_id)
 
 
 def make_position_snapshot_msg(
@@ -1313,8 +1310,9 @@ def make_position_snapshot_msg(
     Only symbols with a non-zero net position are included.
     An empty list means the gateway is flat across all symbols.
     """
-    topic = f"system.position_snapshot.{gateway_id}"
-    return encode(topic, {"positions": positions})
+    return _gen_system.make_position_snapshot(
+        gateway_id=gateway_id, positions=positions
+    )
 
 
 # ------------------------------------------------------------------

@@ -761,21 +761,22 @@ class TestGatewayList:
 
 class TestVolume:
     def test_returns_symbol_and_total_data(self) -> None:
-        symbols_vol = {
-            "AAPL": {"qty": 500, "value": 75000.0, "trades": 10},
-            "GOOG": {"qty": 200, "value": 50000.0, "trades": 5},
-        }
+        symbols_vol = [
+            {"symbol": "AAPL", "qty": 500, "value": 75000.0, "trades": 10},
+            {"symbol": "GOOG", "qty": 200, "value": 50000.0, "trades": 5},
+        ]
         ack = make_volume_msg("GW_ADMIN", symbols_vol, 700, 125000.0, 15)
         client, push = _client(recv_queue=_q(ack))
         result = client.volume()
         assert result["total_qty"] == 700
         assert result["total_value"] == 125000.0
         assert result["total_trades"] == 15
-        assert result["symbols"]["AAPL"]["qty"] == 500
-        assert result["symbols"]["GOOG"]["trades"] == 5
+        by_symbol = {e["symbol"]: e for e in result["symbols"]}
+        assert by_symbol["AAPL"]["qty"] == 500
+        assert by_symbol["GOOG"]["trades"] == 5
 
     def test_sends_correct_topic(self) -> None:
-        ack = make_volume_msg("GW_ADMIN", {}, 0, 0.0, 0)
+        ack = make_volume_msg("GW_ADMIN", [], 0, 0.0, 0)
         client, push = _client(recv_queue=_q(ack))
         client.volume()
         topic, payload = _last_sent(push)
@@ -783,11 +784,11 @@ class TestVolume:
         assert payload["gateway_id"] == "GW_ADMIN"
 
     def test_zero_volume(self) -> None:
-        ack = make_volume_msg("GW_ADMIN", {}, 0, 0.0, 0)
+        ack = make_volume_msg("GW_ADMIN", [], 0, 0.0, 0)
         client, push = _client(recv_queue=_q(ack))
         result = client.volume()
         assert result["total_qty"] == 0
-        assert result["symbols"] == {}
+        assert result["symbols"] == []
 
 
 # ---------------------------------------------------------------------------

@@ -356,3 +356,138 @@ class TestTheGeneratedRecordsReplaceTheHandWrittenOnes:
         assert (auth.gateway_id, auth.accepted, auth.reason) == ("GW1", True, "")
         bye = G.GatewayBye.from_dict(_payload(M.make_gateway_bye_msg("GW1", "done")))
         assert (bye.gateway_id, bye.reason) == ("GW1", "done")
+
+
+# ---------------------------------------------------------------------------
+# Phase 6.1f — the seven live-state pairs
+# ---------------------------------------------------------------------------
+
+
+class TestTheLastTwoMapsAreLists:
+    """`risk_state.symbols` and `volume.symbols`, section 19.2's shape."""
+
+    def test_risk_state_entries_carry_their_own_symbol(self) -> None:
+        payload = _payload(
+            M.make_risk_state_msg(
+                "GW1", [{"symbol": "AAPL", "collar_reference_price": 10.0}]
+            )
+        )
+        assert payload == {
+            "symbols": [{"symbol": "AAPL", "collar_reference_price": 10.0}]
+        }
+
+    def test_volume_entries_carry_their_own_symbol(self) -> None:
+        payload = _payload(
+            M.make_volume_msg(
+                "GW1",
+                [{"symbol": "AAPL", "qty": 10, "value": 1.5, "trades": 2}],
+                10,
+                1.5,
+                2,
+            )
+        )
+        assert payload["symbols"] == [
+            {"symbol": "AAPL", "qty": 10, "value": 1.5, "trades": 2}
+        ]
+
+    def test_volume_carries_totals_that_are_not_a_sum_of_the_rows(self) -> None:
+        """They are the engine's own counters. Design section 29.3.
+
+        A book removed mid-session still counts toward the totals and no longer
+        has a row, so a caller adding up `symbols` would disagree with the
+        engine. That is why the redundancy stays.
+        """
+        payload = _payload(M.make_volume_msg("GW1", [], 500, 1000.0, 7))
+        assert payload["symbols"] == []
+        assert (payload["total_qty"], payload["total_trades"]) == (500, 7)
+
+
+class TestTheCorridorIsFlatOnBothWires:
+    """One helper had been producing two shapes. Design section 29.2."""
+
+    def test_risk_state_does_not_nest_the_corridor(self) -> None:
+        cb = _payload(
+            M.make_risk_state_msg(
+                "GW1",
+                [
+                    {
+                        "symbol": "AAPL",
+                        "circuit_breaker": {
+                            "halted": True,
+                            "corridor_low": 8.0,
+                            "corridor_high": 12.0,
+                            "corridor_expansion": 2,
+                        },
+                    }
+                ],
+            )
+        )["symbols"][0]["circuit_breaker"]
+        assert "corridor" not in cb
+        assert (cb["corridor_low"], cb["corridor_high"]) == (8.0, 12.0)
+
+    def test_corridor_expansion_is_distinct_from_expansion_index(self) -> None:
+        """Two integers that share a guard and not a meaning.
+
+        `expansion_index` is always a real number; `corridor_expansion` is null
+        exactly when the corridor is.
+        """
+        cb = _payload(
+            M.make_risk_state_msg(
+                "GW1",
+                [
+                    {
+                        "symbol": "AAPL",
+                        "circuit_breaker": {
+                            "halted": False,
+                            "expansion_index": 3,
+                            "corridor_low": None,
+                            "corridor_high": None,
+                            "corridor_expansion": None,
+                        },
+                    }
+                ],
+            )
+        )["symbols"][0]["circuit_breaker"]
+        assert cb["expansion_index"] == 3
+        assert cb["corridor_expansion"] is None
+
+
+class TestQuoteLegsAlwaysCarriesBothHalves:
+    """Chosen against regime 4's instinct. Design section 29.5.
+
+    `alf_gwy` reads through `.get("legs", [])` and would not notice either way,
+    but `GET /quotes/legs` returns this payload verbatim and a REST client
+    should not have to guess whether a key exists.
+    """
+
+    def test_an_active_reply_still_carries_an_empty_recent(self) -> None:
+        payload = _payload(
+            M.make_quote_legs_msg("GW1", [], show_requested="ACTIVE", complete=True)
+        )
+        assert payload["legs"] == []
+        assert payload["recent"] == []
+
+    def test_show_is_an_enum_so_a_typo_cannot_answer_quietly(self) -> None:
+        """The handler treats anything unrecognised as ACTIVE."""
+        with pytest.raises(MessageValidationError):
+            M.make_quote_legs_request_msg("GW1", show="ACTIVEE")
+
+
+class TestTheFourFieldsNamedSymbols:
+    """Four messages, one field name, four unrelated record types.
+
+    Section 29.4. Pinned because the danger is a find-and-replace, and a test
+    that names all four is the cheapest way to make one fail loudly.
+    """
+
+    def test_each_carries_a_different_record(self) -> None:
+        assert G.Symbols.__annotations__["symbols"] == "list[SymbolInfo]"
+        assert G.Reference.__annotations__["symbols"] == "list[ReferenceSymbol]"
+        assert G.RiskState.__annotations__["symbols"] == "list[SymbolRiskState]"
+        assert G.Volume.__annotations__["symbols"] == "list[SymbolVolume]"
+
+
+class TestTheFamilyIsComplete:
+    def test_all_twenty_nine_topics_are_declared(self) -> None:
+        topics = {getattr(G, n) for n in dir(G) if n.startswith("TOPIC_")}
+        assert len(topics) == 29, sorted(topics)

@@ -13,9 +13,9 @@
     - What `pm-msgen check` guarantees, and why generation must be
       byte-for-byte deterministic for that guarantee to be worth anything
 
-!!! info "Current status: Phase 6.1e"
-    **Fourteen families are specified and adopted**, covering 92 messages and
-    22 record types: `trade`, `order`, `session`, `book`, `log`, `index`,
+!!! info "Current status: Phase 6.1f"
+    **Fourteen families are specified and adopted — every family there is**,
+    covering 106 messages and 34 record types: `trade`, `order`, `session`, `book`, `log`, `index`,
     `risk`, `structure`, `quote`, `circuit_breaker`, `auction`, `drop_copy`,
     `admin` and `system`. Each has a Python binding; `trade` and `order` also
     have C bindings for their CALF projections and the BALF
@@ -24,23 +24,16 @@
     All of it is live. `models/message.py`'s builders delegate to the generated
     code, the engine, pm-index and pm-log-srv publish through it,
     `md_gateway/normaliser.py` projects through it, and the CALF and BALF
-    example clients parse with the generated structs. **No topic of any
-    *fully* specified family appears as a literal anywhere in `src/`** —
-    including parameterised topics written as f-strings, which `grep-literals`
-    could not see until 5.3b.
-
-    `system` is the exception, and deliberately: 6.1e declared fifteen of its
-    twenty-nine topics and 6.1f declares the rest, so `grep-literals` reports a
-    real non-zero count for it. That is accurate rather than a regression —
-    the scanner only knows *declared* topics. `system` therefore stays out of
-    `tests/test_msgen_literals.py::MIGRATED` until 6.1f, and
-    `TestSystemIsHalfSpecified` fails if it is added early.
+    example clients parse with the generated structs. **No topic appears as a
+    literal anywhere in `src/`** — including parameterised topics written as
+    f-strings, which `grep-literals` could not see until 5.3b. Every family the
+    scanner knows about is at zero, and every family is now specified, so those
+    are the same statement for the first time.
 
     The drift check runs in CI and `make check`; compiled round-trip tests prove
     Python and C agree on both the text and binary wires.
 
-    Not built yet: the remaining 14 `system` topics (Phase 6.1f) and the
-    documentation appendix (6.2). The full plan lives in
+    Not built yet: the documentation appendix (6.2). The full plan lives in
     `docs-design/EduMatcher-Message-Generator.md`.
 
 ## The problem
@@ -1328,7 +1321,7 @@ What it does not, and will not:
 | 6.1c | `circuit_breaker` + `auction` (5 topics); the halt corridor fork resolved by presence regime, `imbalance_side` becomes an omitting enum | **done** |
 | 6.1d | `drop_copy` + `admin` (3 topics); the last two maps become a typed publisher and a declared record | **done** |
 | 6.1e | `system` part one — lifecycle, symbols, reference, schedule (15 topics); five maps converted; `tick_size` becomes `tick_decimals`; `duration_nanos` joins the unit registry | **done** |
-| 6.1f | `system` part two — the seven live-state snapshot pairs (14 topics) | not started |
+| 6.1f | `system` part two — the seven live-state snapshot pairs (14 topics); `risk_state` and `volume` maps converted; the corridor un-nested | **done** |
 | 6.2 | Generated `271-message-appendix.md` | not started |
 
 !!! success "The guarantee is live"

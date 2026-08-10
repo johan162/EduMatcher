@@ -59,6 +59,11 @@ from edumatcher.models.generated.risk import topic_kill_switch_ack
 from edumatcher.models.generated.session import (
     topic_session_transition_ack,
 )
+from edumatcher.models.generated.system import (
+    topic_gateway_auth,
+    topic_gateways,
+    topic_reference_reload_ack,
+)
 
 log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
@@ -240,7 +245,7 @@ class EngineClient:
                 gateway_id,
                 timeout,
             )
-            auth_key = f"system.gateway_auth.{gateway_id}"
+            auth_key = topic_gateway_auth(gateway_id)
             future = self._register_future(auth_key)
             try:
                 self._send(make_gateway_connect_msg(gateway_id))
@@ -663,7 +668,7 @@ class EngineClient:
         from a slow one.
         """
         command_id = new_command_id()
-        topic = f"system.reference_reload_ack.{gateway_id}"
+        topic = topic_reference_reload_ack(gateway_id)
         future = self._register_future(topic, match={"command_id": command_id})
         try:
             self._send(make_reference_reload_msg(gateway_id, command_id))
@@ -779,7 +784,7 @@ class EngineClient:
             return cached
         self.request_gateways(gid)
         try:
-            reply = await self.await_topic(f"system.gateways.{gid}", timeout)
+            reply = await self.await_topic(topic_gateways(gid), timeout)
         except TimeoutError:
             return "TRADER"
         role = "TRADER"

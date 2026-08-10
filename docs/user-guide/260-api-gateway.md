@@ -412,7 +412,7 @@ replacement (see [Implementation notes](#implementation-notes-and-design-deviati
 | `GET /symbols` | `{ "symbols": [...] }` | Instrument metadata, round-tripped from the engine's `system.symbols_request` |
 | `GET /session` | Current `SessionState` and schedule info | Round-tripped from the engine's `system.session_status` reply |
 | `GET /quotes/bootstrap` | Active MM quote bootstrap state | Round-tripped from the engine |
-| `GET /quotes/legs` | `{ "legs": [...] }` | Served from the gateway's local quote-leg cache when populated, otherwise round-tripped from the engine |
+| `GET /quotes/legs` | `{ "legs": [...], "recent": [...], "show_requested":..., "complete":... }` | Served from the gateway's local quote-leg cache when populated, otherwise round-tripped from the engine. `legs` and `recent` are always present, empty when the requested half does not include them |
 | `GET /positions` | `{ "positions": [{"symbol", "net_qty", "last_price"}, ...] }` | Computed entirely from the gateway's local fill cache — no engine round-trip |
 
 All of the round-tripped endpoints above return `503` with error code
@@ -769,7 +769,7 @@ Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
 | `POST` | `/admin/circuit-breaker/trigger`  | `{ "symbol":"AAPL", "level": "L1", "reason":null }` | engine halt ack                         | `risk.symbol_halt`          |
 | `POST` | `/admin/circuit-breaker/resume`   | `{ "symbol":"AAPL", "reason":null }`        | engine resume ack                               | `risk.symbol_resume`        |
 | `GET`  | `/admin/halts`                    | none                                        | `{ "halted":[{symbol,resume_at_ns?,level?,...}] }` | `system.halt_status_request` |
-| `GET`  | `/admin/risk/state`               | none                                        | `{ "symbols": {SYM: {collar_reference_price, circuit_breaker:{...}}} }` | `system.risk_state_request` |
+| `GET`  | `/admin/risk/state`               | none                                        | `{ "symbols": [{symbol, collar_reference_price?, circuit_breaker?}] }` | `system.risk_state_request` |
 | `GET`  | `/admin/orders`                   | `?symbol=&gateway_id=&status=`              | `{ "count":N, "orders":[...], "retention_sec":N }` | none — served from cache |
 | `GET`  | `/admin/orders/{order_id}`        | `?limit=`                                   | `{ "order_id":..., "count":N, "events":[...] }` | none — read from `audit_index.db` |
 | `POST` | `/admin/kill-switch/symbol`       | `{ "symbol":"AAPL", "reason":null }`        | engine cancel-symbol ack                        | `risk.cancel_symbol`        |
