@@ -47,7 +47,11 @@ def _presence(f: Field) -> str:
         return "omitted when empty"
     if f.nullable:
         return "`null` when unset"
-    if f.default is not None or f.default == "":
+    # Regime 1: always present, carrying `default` when the producer omits it.
+    # The `or f.default == ""` this used to also test was dead — `""` is not
+    # `None`, so the first half already covers a declared empty-string default,
+    # which is the commonest one in the tree.
+    if f.default is not None:
         return f"defaults to `{f.default!r}`"
     return "optional"
 
