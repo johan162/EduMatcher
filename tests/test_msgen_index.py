@@ -230,7 +230,7 @@ messages:
   - name: m
     topic: "m.t"
     transport: [engine_pub]
-    doc: {{ motivation: "fixture", since: "1.0" }}
+    doc: {{ motivation: "fixture", published_by: [engine], since: "1.0" }}
     fields:
       - {{ name: a, type: string, validate: {{ max_len: 8 }} }}
       - {field}

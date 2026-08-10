@@ -13,7 +13,7 @@
     - What `pm-msgen check` guarantees, and why generation must be
       byte-for-byte deterministic for that guarantee to be worth anything
 
-!!! info "Current status: Phase 6.1f"
+!!! info "Current status: Phase 6.2 — complete"
     **Fourteen families are specified and adopted — every family there is**,
     covering 106 messages and 34 record types: `trade`, `order`, `session`, `book`, `log`, `index`,
     `risk`, `structure`, `quote`, `circuit_breaker`, `auction`, `drop_copy`,
@@ -33,8 +33,15 @@
     The drift check runs in CI and `make check`; compiled round-trip tests prove
     Python and C agree on both the text and binary wires.
 
-    Not built yet: the documentation appendix (6.2). The full plan lives in
-    `docs-design/EduMatcher-Message-Generator.md`.
+    **`docs/user-guide/270-message-reference.md` is generated too.** Its
+    reference half — the topic index, the record types and one section per
+    message — is rendered from the spec, and `pm-msgen check` fails when the
+    page and the spec disagree. Its narrative half lives in
+    `270-preamble.md`, which is hand-written and is where anything the spec
+    cannot state belongs.
+
+    That closes all three surfaces this tool was built for. The full history
+    lives in `docs-design/EduMatcher-Message-Generator.md`.
 
 ## The problem
 
@@ -160,6 +167,7 @@ topic constant.
 | `omit_when_none` | implies `nullable`, and **omits the key entirely** when the value is `None` |
 | `omit_when_empty` | strings and lists. Omits the key when the value is `""` / `[]` |
 | `parse_default` | what `from_dict` substitutes when the key is missing from an *inbound* payload. Need not be legal — see [Coercion vs validation](#coercion-and-validation-are-different-jobs) |
+| `doc.published_by` | required on every message. A list of process roles from a closed vocabulary — `engine`, `gateway`, `scheduler`, `index`, `stats`, `clearing`, `md_gateway`, `api_gateway`, `admin`, `log_server`, `log_client` |
 | `unit` | required on every numeric field. One of `display_price`, `ticks`, `shares`, `epoch_seconds`, `epoch_nanos`, `duration_nanos`, `percent`, `dimensionless`, `money` |
 | `doc` | prose for the generated documentation and the `describe_*()` table |
 | `values` | required for `type: enum`; declaration order is authoritative |
@@ -1322,7 +1330,7 @@ What it does not, and will not:
 | 6.1d | `drop_copy` + `admin` (3 topics); the last two maps become a typed publisher and a declared record | **done** |
 | 6.1e | `system` part one — lifecycle, symbols, reference, schedule (15 topics); five maps converted; `tick_size` becomes `tick_decimals`; `duration_nanos` joins the unit registry | **done** |
 | 6.1f | `system` part two — the seven live-state snapshot pairs (14 topics); `risk_state` and `volume` maps converted; the corridor un-nested | **done** |
-| 6.2 | Generated `271-message-appendix.md` | not started |
+| 6.2 | `270-message-reference.md` generated from the spec; `doc.published_by` added to the IDL | **done** |
 
 !!! success "The guarantee is live"
     For every family in `spec/`, the committed bindings provably match the

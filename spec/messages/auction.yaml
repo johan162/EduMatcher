@@ -28,6 +28,7 @@ messages:
         Engine to all: where one symbol would uncross if the call phase ended
         now. Published repeatedly while an opening or closing auction collects
         orders.
+      published_by: [engine]
       since: "1.0"
       see_also: ["auction.result.{SYMBOL}", "circuit_breaker.extend.{SYMBOL}"]
       example_note: >
@@ -99,6 +100,7 @@ messages:
       motivation: >
         Engine to all: one symbol's uncross has completed. Published for every
         uncross, including the ones that printed nothing.
+      published_by: [engine]
       since: "1.0"
       see_also: ["auction.indicative.{SYMBOL}", "trade.executed"]
       example_note: >

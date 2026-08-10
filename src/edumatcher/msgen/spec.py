@@ -58,6 +58,30 @@ UNITS = (
 #: Numeric types for which lint requires a declared ``unit`` (B.18 rule 13).
 NUMERIC_TYPES = ("int", "float", "ticks")
 
+#: Who puts a message on the wire. A closed set, on the same reasoning as
+#: `drop_copy.event_type`'s one-value enum (design section 27.3): the
+#: hand-written reference carried this as prose ("Published by: pm-alf-console,
+#: pm-admin, pm-viewer, bots, or the API gateway, via PUSH :5555"), which is
+#: exactly the surface sections 26.6 and 27.6 kept finding had drifted.
+#:
+#: Deliberately coarse. A process *role* is stable; a module path moves with
+#: every refactor and a port number moves with every deployment. Ports and
+#: sockets belong in `doc.example_note`, which is prose about this message
+#: rather than a fact the appendix tabulates.
+PUBLISHERS = (
+    "engine",
+    "gateway",
+    "scheduler",
+    "index",
+    "stats",
+    "clearing",
+    "md_gateway",
+    "api_gateway",
+    "admin",
+    "log_server",
+    "log_client",
+)
+
 #: ZeroMQ / external-protocol patterns (design section B.4).
 PATTERNS = ("PUB", "SUB", "PUSH", "PULL", "TCP")
 
@@ -312,7 +336,7 @@ _MESSAGE_KEYS = {
     "encoding",
     "invariants",
 }
-_DOC_KEYS = {"motivation", "since", "see_also", "example_note"}
+_DOC_KEYS = {"motivation", "published_by", "since", "see_also", "example_note"}
 _BUS_ENCODING_KEYS = {"frames", "include"}
 _TEXT_ENCODING_KEYS = {"msg_type", "include", "keys", "gateway_injected"}
 _BINARY_ENCODING_KEYS = {"msg_type", "frame_size", "price_scale", "layout"}
@@ -1044,6 +1068,21 @@ def _load_message(raw: Any, transports: dict[str, Transport], what: str) -> Mess
     _reject_unknown(doc, _DOC_KEYS, f"{where}.doc")
     if not doc.get("motivation"):
         raise SpecError(f"{where}: doc.motivation is required")
+    published_by = doc.get("published_by")
+    if not published_by:
+        raise SpecError(f"{where}: doc.published_by is required")
+    if not isinstance(published_by, list) or not all(
+        isinstance(p, str) for p in published_by
+    ):
+        raise SpecError(f"{where}.doc.published_by: must be a list of strings")
+    for who in published_by:
+        if who not in PUBLISHERS:
+            near = _nearest(who, set(PUBLISHERS))
+            hint = f" (did you mean {near!r}?)" if near else ""
+            raise SpecError(
+                f"{where}.doc.published_by: {who!r} is not a known publisher"
+                f"{hint}. One of {sorted(PUBLISHERS)}"
+            )
 
     raw_encoding = block.get("encoding") or {}
     raw_encoding = _require_mapping(raw_encoding, f"{where}.encoding")

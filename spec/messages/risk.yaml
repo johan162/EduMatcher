@@ -39,6 +39,7 @@ messages:
         Gateway or admin to engine: cancel a gateway's open risk-bearing
         exposure. The gateway is NOT halted - it may submit again as soon as
         the ack arrives.
+      published_by: [admin, api_gateway, gateway]
       since: "1.0"
       see_also: ["risk.kill_switch_ack.{GW_ID}", "risk.kill_switch_gateway"]
       example_note: >
@@ -76,6 +77,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Engine to caller: what the kill switch cancelled."
+      published_by: [engine]
       since: "1.0"
       example_note: >
         The counters are always emitted, as 0 on rejection: the hand-written
@@ -103,6 +105,7 @@ messages:
       motivation: >
         ADMIN to engine: cancel every order and quote belonging to one named
         participant.
+      published_by: [api_gateway]
       since: "1.0"
       see_also: ["risk.kill_switch", "risk.kill_switch_global"]
       example_note: >
@@ -130,6 +133,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Engine to ADMIN: what the gateway-targeted kill switch cancelled."
+      published_by: [engine]
       since: "1.0"
       example_note: >
         `target_gateway_id` is echoed in the body, unlike `gateway_id`, which
@@ -159,6 +163,7 @@ messages:
       motivation: >
         ADMIN to engine: cancel every resting order and quote, for every
         gateway. The full-market emergency stop.
+      published_by: [api_gateway]
       since: "1.0"
       see_also: ["risk.circuit_breaker_halt_all"]
       example_note: >
@@ -180,6 +185,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Engine to ADMIN: what the market-wide kill switch cancelled."
+      published_by: [engine]
       since: "1.0"
       example_note: >
         `affected_gateways` is what distinguishes this ack from the other two:
@@ -220,6 +226,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "ADMIN to engine: halt trading on one instrument."
+      published_by: [admin, api_gateway]
       since: "1.0"
       see_also: ["risk.symbol_resume", "risk.circuit_breaker_halt_all"]
       example_note: >
@@ -248,6 +255,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Engine to ADMIN: the per-symbol halt's outcome."
+      published_by: [engine]
       since: "1.0"
       example_note: >
         `symbol` is echoed in the body. It is what tells two concurrent halt
@@ -273,6 +281,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "ADMIN to engine: resume trading on one halted instrument."
+      published_by: [admin, api_gateway]
       since: "1.0"
       see_also: ["risk.symbol_halt"]
     fields:
@@ -290,6 +299,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Engine to ADMIN: the per-symbol resume's outcome."
+      published_by: [engine]
       since: "1.0"
       example_note: >
         No counters: a resume cancels nothing. The one ack in this family
@@ -313,6 +323,7 @@ messages:
       motivation: >
         ADMIN to engine: cancel every resting order for one instrument, across
         every gateway.
+      published_by: [admin, api_gateway]
       since: "1.0"
       see_also: ["risk.symbol_halt", "risk.kill_switch"]
       example_note: >
@@ -335,6 +346,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Engine to ADMIN: what the symbol-wide mass cancel removed."
+      published_by: [engine]
       since: "1.0"
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
@@ -357,6 +369,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "ADMIN to engine: halt trading on every known symbol."
+      published_by: [admin]
       since: "1.0"
       see_also: ["risk.circuit_breaker_resume_all", "risk.kill_switch_global"]
       example_note: >
@@ -376,6 +389,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Engine to ADMIN: how wide the market-wide halt reached."
+      published_by: [engine]
       since: "1.0"
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
@@ -395,6 +409,7 @@ messages:
     doc:
       motivation: >
         ADMIN to engine: resume every symbol halted by the market-wide halt.
+      published_by: [admin]
       since: "1.0"
       see_also: ["risk.circuit_breaker_halt_all"]
     fields:
@@ -407,6 +422,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Engine to ADMIN: how many symbols came back."
+      published_by: [engine]
       since: "1.0"
       example_note: >
         No cancelled_quotes counterpart: resuming pulls nothing. The halt ack

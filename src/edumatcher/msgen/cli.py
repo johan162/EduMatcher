@@ -28,6 +28,8 @@ _DEFAULT_SPEC = Path("spec")
 _DEFAULT_OUT_PYTHON = Path("src/edumatcher/models/generated")
 _DEFAULT_OUT_C = Path("docs/examples/generated")
 _DEFAULT_SRC = Path("src")
+_DEFAULT_DOCS_REFERENCE = Path("docs/user-guide/270-message-reference.md")
+_DEFAULT_DOCS_PREAMBLE = Path("docs/user-guide/270-preamble.md")
 
 
 def _add_common(parser: argparse.ArgumentParser, *, with_out: bool) -> None:
@@ -106,7 +108,13 @@ def main(argv: list[str] | None = None) -> int:
             )
             return _EXIT_OK
 
-        artifacts = gen.build_artifacts(args.spec, args.out_python, args.out_c)
+        artifacts = gen.build_artifacts(
+            args.spec,
+            args.out_python,
+            args.out_c,
+            _DEFAULT_DOCS_REFERENCE,
+            _DEFAULT_DOCS_PREAMBLE,
+        )
     except SpecError as exc:
         print(f"pm-msgen: spec error: {exc}", file=sys.stderr)
         return _EXIT_ERROR

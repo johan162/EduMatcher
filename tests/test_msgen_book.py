@@ -220,7 +220,7 @@ messages:
   - name: m
     topic: "m.t"
     transport: [engine_pub]
-    doc: {{ motivation: "fixture", since: "1.0" }}
+    doc: {{ motivation: "fixture", published_by: [engine], since: "1.0" }}
     fields: [{{ name: xs, type: list, ref: R, validate: {{ {rules} }} }}]
     encoding: {{ engine_pub: {{ frames: [topic, json_payload], include: all }} }}
 """,

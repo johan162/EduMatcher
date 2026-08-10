@@ -34,6 +34,7 @@ messages:
         Market maker to engine: submit or replace a two-sided quote on one
         instrument. A quote is a bid and an ask posted as a pair; replacing one
         cancels the previous pair for that gateway and symbol.
+      published_by: [gateway]
       since: "1.0"
       see_also: ["quote.ack.{GW_ID}", "quote.cancel", "quote.status.{GW_ID}"]
       example_note: >
@@ -73,6 +74,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Market maker to engine: pull the active quote on one symbol."
+      published_by: [admin, api_gateway, gateway]
       since: "1.0"
       see_also: ["quote.new"]
       example_note: >
@@ -90,6 +92,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Engine to market maker: the quote was accepted or rejected."
+      published_by: [engine]
       since: "1.0"
       example_note: >
         The two order ids are the engine's handles for the resting legs, and
@@ -116,6 +119,7 @@ messages:
     doc:
       motivation: >
         Engine to market maker: the quote left the book, and why.
+      published_by: [engine]
       since: "1.0"
       see_also: ["quote.ack.{GW_ID}"]
       example_note: >

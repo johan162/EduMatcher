@@ -36,6 +36,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Acknowledge acceptance or rejection of a new order."
+      published_by: [engine]
       example_note: "reason is empty on ACCEPTED."
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }

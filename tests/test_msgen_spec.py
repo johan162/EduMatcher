@@ -35,7 +35,7 @@ def _minimal_family(**message_overrides: Any) -> dict[str, Any]:
         "name": "thing_happened",
         "topic": "thing.happened",
         "transport": ["engine_pub"],
-        "doc": {"motivation": "Something happened."},
+        "doc": {"motivation": "Something happened.", "published_by": ["engine"]},
         "fields": [
             {"name": "who", "type": "string", "validate": {"max_len": 8}},
             {"name": "how_many", "type": "int", "unit": "shares"},

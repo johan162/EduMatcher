@@ -93,6 +93,7 @@ messages:
       motivation: >
         Private per-order fill notification, sent to the gateway session that
         owns the order. Both sides of a match receive their own report.
+      published_by: [gateway]
       since: "1.0"
       see_also: ["trade.executed"]
       example_note: >
@@ -205,6 +206,7 @@ messages:
       motivation: >
         Acknowledge acceptance or rejection of a new order, addressed to the
         gateway that submitted it.
+      published_by: [engine]
       since: "1.0"
       see_also: ["order.fill.{GW_ID}", "order.new"]
       example_note: >
@@ -250,6 +252,7 @@ messages:
       motivation: >
         Private fill notification for one order, addressed to the gateway that
         owns it. The public counterpart is trade.executed.
+      published_by: [engine]
       since: "1.0"
       see_also: ["trade.executed"]
     fields:
@@ -289,6 +292,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Confirm that a resting order has been cancelled."
+      published_by: [engine]
       since: "1.0"
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
@@ -314,6 +318,7 @@ messages:
         A DAY order that never filled has expired at session end. Same shape as
         order.cancelled - the difference is who ended the order, not what the
         consumer needs to know about it.
+      published_by: [engine]
       since: "1.0"
     fields:
       - { name: gateway_id, type: string, validate: { max_len: 32 } }
@@ -336,6 +341,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Confirm an accepted amendment and report the resulting order."
+      published_by: [engine]
       since: "1.0"
       example_note: >
         price is nullable but always present: a MARKET order has no limit
@@ -399,6 +405,7 @@ messages:
         Submit a new order to the matching engine. Sent over PUSH/PULL rather
         than the pub bus, but it carries a topic so the audit log can classify
         it alongside everything else.
+      published_by: [gateway]
       since: "1.0"
       see_also: ["order.ack.{GW_ID}", "order.cancel", "order.amend"]
       example_note: >
@@ -484,6 +491,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Request cancellation of one resting order by id."
+      published_by: [gateway]
       since: "1.0"
       see_also: ["order.cancelled.{GW_ID}"]
     fields:
@@ -497,6 +505,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Request a price and/or quantity change to a resting order."
+      published_by: [gateway]
       since: "1.0"
       see_also: ["order.amended.{GW_ID}"]
       example_note: >
@@ -543,6 +552,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Cancel a combo order and all of its resting child legs."
+      published_by: [gateway]
       since: "1.0"
       see_also: ["order.combo", "order.cancel"]
     fields:
@@ -561,6 +571,7 @@ messages:
       motivation: >
         Submit a combo: two or more orders on different instruments that the
         engine posts together and tracks as one aggregate.
+      published_by: [gateway]
       since: "1.0"
       see_also: ["combo.ack.{GW_ID}", "order.combo_cancel"]
       example_note: >
@@ -598,6 +609,7 @@ messages:
       motivation: >
         Submit a One-Cancels-Other pair: two orders on the same instrument, of
         which a fill on either cancels the other.
+      published_by: [gateway]
       since: "1.0"
       see_also: ["oco.ack.{GW_ID}", "order.oco_cancel"]
       example_note: >
@@ -632,6 +644,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Cancel an OCO pair and both of its legs."
+      published_by: [gateway]
       since: "1.0"
       see_also: ["order.oco", "order.cancel"]
     fields:

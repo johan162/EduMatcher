@@ -151,6 +151,7 @@ messages:
         pm-index to subscribers: the current level of one index, published on
         every constituent trade subject to a rate limit, and forced on a
         structural change or at end of day.
+      published_by: [index]
       since: "1.0"
       see_also: ["session.state"]
       example_note: >
@@ -180,6 +181,7 @@ messages:
     doc:
       motivation: >
         Gateway or operator to pm-index: replay the structural audit log.
+      published_by: [admin, api_gateway, gateway]
       since: "1.0"
       see_also: ["index.history.{GW_ID}", "index.error.{GW_ID}"]
       example_note: >
@@ -211,6 +213,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "pm-index to requestor: the matching audit records."
+      published_by: [index]
       since: "1.0"
       see_also: ["index.history_request"]
       example_note: >
@@ -231,6 +234,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Operator to pm-index: apply a corporate action."
+      published_by: [admin]
       since: "1.0"
       see_also: ["index.corp_action_ack.{GW_ID}", "index.error.{GW_ID}"]
       example_note: >
@@ -267,6 +271,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Operator to pm-index: add or delist a constituent."
+      published_by: [admin]
       since: "1.0"
       see_also: ["index.constituent_change_ack.{GW_ID}"]
       example_note: >
@@ -296,6 +301,7 @@ messages:
       motivation: >
         ADMIN to pm-index: set shares outstanding for several constituents in
         one batch.
+      published_by: [api_gateway]
       since: "1.0"
       see_also: ["index.rebalance_ack.{GW_ID}"]
       example_note: >
@@ -320,6 +326,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "pm-index to requestor: the corporate action's outcome."
+      published_by: [index]
       since: "1.0"
       example_note: >
         level and divisor are the recomputed values and are present only on
@@ -347,6 +354,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "pm-index to requestor: the constituent change's outcome."
+      published_by: [index]
       since: "1.0"
       example_note: >
         Field for field the same payload as index.corp_action_ack, on its own
@@ -373,6 +381,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "pm-index to ADMIN: the batch's outcome."
+      published_by: [index]
       since: "1.0"
       example_note: >
         updated_symbols is always emitted, as 0 on rejection: the builder puts
@@ -404,6 +413,7 @@ messages:
       motivation: >
         pm-index to requestor: the request could not be routed to an index at
         all.
+      published_by: [index]
       since: "1.0"
       example_note: >
         Distinct from a rejecting ack. An unknown index_id means pm-index

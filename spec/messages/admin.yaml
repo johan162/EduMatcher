@@ -114,6 +114,7 @@ messages:
       motivation: >
         Engine to the admin monitor: one admin-gated command ran, who ran it,
         what it acted on, and whether it was accepted.
+      published_by: [engine]
       since: "1.0"
       see_also:
         ["risk.kill_switch", "risk.symbol_halt", "circuit_breaker.halt.{SYMBOL}"]

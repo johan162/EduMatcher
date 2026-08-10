@@ -143,7 +143,7 @@ messages:
   - name: m
     topic: "m.t"
     transport: [engine_pub]
-    doc: { motivation: "fixture", since: "1.0" }
+    doc: { motivation: "fixture", published_by: [engine], since: "1.0" }
     fields: [{ name: x, type: nested, ref: Outer }]
     encoding: { engine_pub: { frames: [topic, json_payload], include: all } }
 """,
@@ -163,7 +163,7 @@ messages:
   - name: m
     topic: "m.t"
     transport: [engine_pub]
-    doc: { motivation: "fixture", since: "1.0" }
+    doc: { motivation: "fixture", published_by: [engine], since: "1.0" }
     fields: [{ name: x, type: nested, ref: Legg }]
     encoding: { engine_pub: { frames: [topic, json_payload], include: all } }
 """,
@@ -191,7 +191,7 @@ messages:
   - name: thing
     topic: "m.t"
     transport: [engine_pub]
-    doc: { motivation: "fixture", since: "1.0" }
+    doc: { motivation: "fixture", published_by: [engine], since: "1.0" }
     fields: [{ name: x, type: nested, ref: Thing }]
     encoding: { engine_pub: { frames: [topic, json_payload], include: all } }
 """,
@@ -216,7 +216,7 @@ messages:
   - name: thing
     topic: "m.t"
     transport: [engine_pub]
-    doc: { motivation: "fixture", since: "1.0" }
+    doc: { motivation: "fixture", published_by: [engine], since: "1.0" }
     fields: [{ name: x, type: nested, ref: ThingDetail }]
     encoding: { engine_pub: { frames: [topic, json_payload], include: all } }
 """,
@@ -233,7 +233,7 @@ messages:
   - name: m
     topic: "m.t"
     transport: [engine_pub]
-    doc: { motivation: "fixture", since: "1.0" }
+    doc: { motivation: "fixture", published_by: [engine], since: "1.0" }
     fields: [{ name: x, type: nested }]
     encoding: { engine_pub: { frames: [topic, json_payload], include: all } }
 """,
@@ -254,7 +254,7 @@ messages:
   - name: m
     topic: "m.t"
     transport: [engine_pub]
-    doc: { motivation: "fixture", since: "1.0" }
+    doc: { motivation: "fixture", published_by: [engine], since: "1.0" }
     fields: [{ name: x, type: string }]
     encoding: { engine_pub: { frames: [topic, json_payload], include: all } }
 """,
@@ -440,7 +440,7 @@ messages:
   - name: m
     topic: "m.t"
     transport: [engine_pub, calf]
-    doc: { motivation: "fixture", since: "1.0" }
+    doc: { motivation: "fixture", published_by: [engine], since: "1.0" }
     fields: [{ name: legs, type: list, ref: Leg }]
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
@@ -466,7 +466,7 @@ messages:
   - name: m
     topic: "m.t"
     transport: [engine_pub]
-    doc: { motivation: "fixture", since: "1.0" }
+    doc: { motivation: "fixture", published_by: [engine], since: "1.0" }
     fields:
       - { name: legs, type: list, ref: Leg, required: false, nullable: true }
     encoding: { engine_pub: { frames: [topic, json_payload], include: all } }
@@ -490,7 +490,7 @@ messages:
   - name: m
     topic: "m.t"
     transport: [engine_pub]
-    doc: { motivation: "fixture", since: "1.0" }
+    doc: { motivation: "fixture", published_by: [engine], since: "1.0" }
     fields: [{ name: x, type: nested, ref: Outer }]
     encoding: { engine_pub: { frames: [topic, json_payload], include: all } }
 """,
@@ -515,7 +515,7 @@ messages:
   - name: m
     topic: "m.t"
     transport: [engine_pub]
-    doc: { motivation: "fixture", since: "1.0" }
+    doc: { motivation: "fixture", published_by: [engine], since: "1.0" }
     fields: [{ name: x, type: nested, ref: Node }]
     encoding: { engine_pub: { frames: [topic, json_payload], include: all } }
 """,

@@ -25,6 +25,7 @@ messages:
       motivation: >
         Public print of a completed match. The authoritative record of what
         traded, consumed by statistics, clearing, index and market data.
+      published_by: [engine]
       since: "1.0"
       see_also: ["book.{SYMBOL}", "order.fill.{GW_ID}"]
       example_note: >

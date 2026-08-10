@@ -13,6 +13,7 @@ from pathlib import Path
 
 from edumatcher.msgen import spec as spec_mod
 from edumatcher.msgen.generators import c as c_gen
+from edumatcher.msgen.generators import markdown as md_gen
 from edumatcher.msgen.generators import python as py_gen
 
 
@@ -37,7 +38,11 @@ def _spec_label(spec_root: Path, family_name: str) -> str:
 
 
 def build_artifacts(
-    spec_root: Path, out_python: Path, out_c: Path | None = None
+    spec_root: Path,
+    out_python: Path,
+    out_c: Path | None = None,
+    docs_reference: Path | None = None,
+    docs_preamble: Path | None = None,
 ) -> list[Artifact]:
     """Load every spec under ``spec_root`` and render each target.
 
@@ -49,6 +54,20 @@ def build_artifacts(
     """
     _transports, families = spec_mod.load_all(spec_root)
     artifacts: list[Artifact] = []
+    if docs_reference is not None and docs_preamble is not None:
+        # The reference page is an artifact like any other, which is the whole
+        # point: `check` diffs it against the spec on the same code path that
+        # diffs the bindings, so the documentation surface can no longer drift
+        # away from the other two (design section 30).
+        artifacts.append(
+            Artifact(
+                path=docs_reference,
+                content=md_gen.render_reference(
+                    families, docs_preamble.read_text(encoding="utf-8")
+                ),
+                label=f"{docs_reference.parent.name}/{docs_reference.name}",
+            )
+        )
     for family in families:
         label = _spec_label(spec_root, family.family)
         artifacts.append(

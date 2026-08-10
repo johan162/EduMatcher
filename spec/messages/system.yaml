@@ -527,6 +527,7 @@ messages:
         Gateway to engine: authenticate this participant. Sent over PUSH/PULL
         rather than the pub bus; it carries a topic so the audit log can
         classify it alongside everything else.
+      published_by: [admin, api_gateway, gateway]
       since: "1.0"
       see_also: ["system.gateway_auth.{GW_ID}", "system.gateway_disconnect"]
     fields:
@@ -545,6 +546,7 @@ messages:
         rejected. The PUB-side answer to `system.gateway_connect`, and the
         widest-read message in this half -- five consumers structurally, and
         it is in `PRIVATE_PREFIXES`.
+      published_by: [engine]
       since: "1.0"
       see_also: ["system.gateway_connect", "system.gateway_bye.{GW_ID}"]
       example_note: >
@@ -577,6 +579,7 @@ messages:
         Gateway to engine: I am leaving cleanly. PUSH/PULL, like
         `gateway_connect`; the engine republishes it as `gateway_bye` so PUB
         subscribers hear about it at all.
+      published_by: [admin, api_gateway, gateway]
       since: "1.0"
       see_also: ["system.gateway_bye.{GW_ID}", "system.gateway_connect"]
     fields:
@@ -596,6 +599,7 @@ messages:
         `system.gateway_disconnect` is a PULL message and never reaches
         subscribers, so without this broadcast clearing could not close the
         matching session.
+      published_by: [engine]
       since: "1.0"
       see_also: ["system.gateway_disconnect", "system.gateway_auth.{GW_ID}"]
       example_note: >
@@ -621,6 +625,7 @@ messages:
         every instrument. Four consumers -- clearing, index, stats and the
         RALF gateway -- which is the widest fan-out in this half, and the
         reason the record is declared rather than left to a `from_dict`.
+      published_by: [engine]
       since: "1.0"
       see_also: ["book.{SYMBOL}", "session.state"]
       example_note: >
@@ -640,6 +645,7 @@ messages:
     doc:
       motivation: "Caller to engine: which instruments are tradable, and on
                    what terms for me."
+      published_by: [admin, api_gateway, gateway, stats]
       since: "1.0"
       see_also: ["system.symbols.{GW_ID}"]
     fields:
@@ -656,6 +662,7 @@ messages:
       motivation: >
         Engine to caller: the tradable instruments, with the tick scale and
         this caller's market-making terms for each.
+      published_by: [engine]
       since: "1.0"
       see_also: ["system.symbols_request", "system.reference.{GW_ID}"]
       example_note: >
@@ -684,6 +691,7 @@ messages:
       motivation: >
         Any caller to engine: the compiled reference-data bundle. Static
         configuration only -- nothing that changes during a session.
+      published_by: [api_gateway]
       since: "1.0"
       see_also: ["system.reference.{GW_ID}", "system.reference_reload"]
     fields:
@@ -703,6 +711,7 @@ messages:
         round trip -- tick scales, risk levels, circuit-breaker ladders, index
         definitions and the calendar -- with a hash that changes when any of
         it does.
+      published_by: [engine]
       since: "1.0"
       see_also:
         ["system.reference_request", "system.reference_reload_ack.{GW_ID}",
@@ -759,6 +768,7 @@ messages:
         narrower than a startup load -- it never re-seeds quotes, creates or
         removes books, or touches session and halt state, so a reload that
         changed the symbol set is rejected rather than partially applied.
+      published_by: [api_gateway]
       since: "1.0"
       see_also: ["system.reference_reload_ack.{GW_ID}", "system.reference.{GW_ID}"]
     fields:
@@ -776,6 +786,7 @@ messages:
     doc:
       motivation: "Engine to ADMIN: the reload verdict, and the new
                    configuration hash when it took."
+      published_by: [engine]
       since: "1.0"
       see_also: ["system.reference_reload"]
       example_note: >
@@ -806,6 +817,7 @@ messages:
         Caller to engine: what session are we in, without advancing it. The
         scheduler is the dominant producer -- it asks rather than assuming,
         because it is not the only thing that can move the session.
+      published_by: [admin, api_gateway, gateway, scheduler]
       since: "1.0"
       see_also: ["system.session_status.{GW_ID}", "session.state"]
     fields:
@@ -821,6 +833,7 @@ messages:
         Engine to caller: the current session state, on request. The polled
         answer to the `session.state` broadcast, for a caller that has just
         started and missed the last transition.
+      published_by: [engine]
       since: "1.0"
       see_also: ["session.state", "system.session_state_request"]
       example_note: >
@@ -845,6 +858,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Operator to engine: the configured session schedule."
+      published_by: [admin, api_gateway]
       since: "1.0"
       see_also: ["system.session_schedule.{GW_ID}", "system.reference.{GW_ID}"]
     fields:
@@ -860,6 +874,7 @@ messages:
         Engine to operator: the trading day's clock as configured. The same
         `SessionTimes` record `system.reference` carries, which is what
         forced these two topics into one phase.
+      published_by: [engine]
       since: "1.0"
       see_also: ["system.session_schedule_request", "system.reference.{GW_ID}"]
       example_note: >
@@ -886,6 +901,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Any process to engine: which instruments are halted now."
+      published_by: [api_gateway]
       since: "1.0"
       see_also: ["system.halt_status.{GW_ID}", "circuit_breaker.halt.{SYMBOL}"]
     fields:
@@ -902,6 +918,7 @@ messages:
         state behind it where a breaker is what halted it. The polled answer
         to the `circuit_breaker.halt` broadcast, for a caller that has just
         started and missed it.
+      published_by: [engine]
       since: "1.0"
       see_also: ["system.halt_status_request", "system.risk_state.{GW_ID}"]
       example_note: >
@@ -921,6 +938,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Gateway to engine: what am I holding."
+      published_by: [gateway]
       since: "1.0"
       see_also: ["system.position_snapshot.{GW_ID}"]
     fields:
@@ -941,6 +959,7 @@ messages:
       motivation: >
         Engine to gateway: per-symbol net position and average cost, for the
         asking gateway only.
+      published_by: [engine]
       since: "1.0"
       see_also: ["system.position_request", "trade.executed"]
       example_note: >
@@ -972,6 +991,7 @@ messages:
         Market maker to engine, on reconnect: what quotes do I already have
         resting. Without it a bot cannot tell a fresh start from a reconnect
         and will quote into its own orders.
+      published_by: [admin, api_gateway, gateway]
       since: "1.0"
       see_also: ["system.quote_bootstrap.{GW_ID}", "system.quote_legs_request"]
     fields:
@@ -987,6 +1007,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Engine to market maker: the active quotes it already holds."
+      published_by: [engine]
       since: "1.0"
       see_also: ["system.quote_bootstrap_request", "quote.status.{GW_ID}"]
     fields:
@@ -1004,6 +1025,7 @@ messages:
       motivation: >
         Operator or market maker to engine: the per-leg detail behind this
         gateway's quotes, live and recently removed. What `QLEGS` asks for.
+      published_by: [api_gateway, gateway]
       since: "1.0"
       see_also: ["system.quote_legs.{GW_ID}", "system.quote_bootstrap_request"]
     fields:
@@ -1031,6 +1053,7 @@ messages:
     doc:
       motivation: >
         Engine to caller: live quote legs, recently-removed quotes, or both.
+      published_by: [engine]
       since: "1.0"
       see_also: ["system.quote_legs_request"]
       example_note: >
@@ -1072,6 +1095,7 @@ messages:
       motivation: >
         ADMIN to engine: the live collar and circuit-breaker state of every
         symbol that has either configured, halted or not.
+      published_by: [api_gateway]
       since: "1.0"
       see_also: ["system.risk_state.{GW_ID}", "system.reference.{GW_ID}"]
     fields:
@@ -1087,6 +1111,7 @@ messages:
         Engine to ADMIN: live risk state per symbol. The counterpart to
         `reference.risk`, which is the static definitions, and to
         `halt_status`, which is only the symbols currently halted.
+      published_by: [engine]
       since: "1.0"
       see_also: ["system.risk_state_request", "system.halt_status.{GW_ID}"]
       example_note: >
@@ -1109,6 +1134,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Operator to engine: which participants exist, and who is on."
+      published_by: [admin, api_gateway]
       since: "1.0"
       see_also: ["system.gateways.{GW_ID}", "system.gateway_auth.{GW_ID}"]
     fields:
@@ -1124,6 +1150,7 @@ messages:
         Engine to operator: every configured participant with its role and
         current connection status. The polled counterpart to the
         `gateway_auth` / `gateway_bye` broadcasts.
+      published_by: [engine]
       since: "1.0"
       see_also: ["system.gateways_request", "system.gateway_bye.{GW_ID}"]
     fields:
@@ -1140,6 +1167,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Operator to engine: how much has traded today."
+      published_by: [admin]
       since: "1.0"
       see_also: ["system.volume.{GW_ID}", "trade.executed"]
     fields:
@@ -1154,6 +1182,7 @@ messages:
       motivation: >
         Engine to operator: traded quantity, notional and trade count, per
         instrument and exchange-wide.
+      published_by: [engine]
       since: "1.0"
       see_also: ["system.volume_request"]
       example_note: >

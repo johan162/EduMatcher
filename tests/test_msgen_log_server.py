@@ -135,7 +135,7 @@ messages:
   - name: m
     topic: "m.t"
     transport: [engine_pub]
-    doc: {{ motivation: "fixture", since: "1.0" }}
+    doc: {{ motivation: "fixture", published_by: [engine], since: "1.0" }}
     fields: [{{ name: x, type: nested, ref: Outer }}]
     encoding: {{ engine_pub: {{ frames: [topic, json_payload], include: all }} }}
 """,
@@ -351,7 +351,7 @@ messages:
   - name: m
     topic: "m.t"
     transport: [engine_pub]
-    doc: {{ motivation: "fixture", since: "1.0" }}
+    doc: {{ motivation: "fixture", published_by: [engine], since: "1.0" }}
     fields: [{{ name: x, type: nested, ref: Outer }}]
     encoding: {{ engine_pub: {{ frames: [topic, json_payload], include: all }} }}
 """,

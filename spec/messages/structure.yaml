@@ -29,6 +29,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Engine to gateway: a combo submission was accepted or rejected."
+      published_by: [engine]
       since: "1.0"
       see_also: ["order.combo", "combo.status.{GW_ID}"]
       example_note: >
@@ -52,6 +53,7 @@ messages:
     doc:
       motivation: >
         Engine to gateway: a combo moved to a new lifecycle state.
+      published_by: [engine]
       since: "1.0"
       see_also: ["combo.ack.{GW_ID}"]
       example_note: >
@@ -79,6 +81,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Engine to gateway: an OCO pair was accepted or rejected."
+      published_by: [engine]
       since: "1.0"
       see_also: ["order.oco", "oco.cancelled.{GW_ID}"]
       example_note: >
@@ -106,6 +109,7 @@ messages:
       motivation: >
         Engine to gateway: one leg of an OCO pair was cancelled because the
         other was actioned.
+      published_by: [engine]
       since: "1.0"
       see_also: ["oco.ack.{GW_ID}", "order.cancelled.{GW_ID}"]
       example_note: >

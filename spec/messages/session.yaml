@@ -75,6 +75,7 @@ messages:
       motivation: >
         Broadcast the engine's current session state to every subscriber. The
         most widely consumed topic in the system.
+      published_by: [engine]
       since: "1.0"
       see_also: ["session.transition"]
       example_note: >
@@ -97,6 +98,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Scheduler or operator to engine: request a state change."
+      published_by: [scheduler]
       since: "1.0"
       see_also: ["session.transition_ack.{GW_ID}", "session.state"]
     fields:
@@ -122,6 +124,7 @@ messages:
     doc:
       motivation: >
         Engine to the requesting gateway: the outcome of a transition request.
+      published_by: [engine]
       since: "1.0"
       example_note: >
         Addressed rather than broadcast, because a command_id belongs to

@@ -44,6 +44,7 @@ messages:
       motivation: >
         Engine to a participant's clearing broker, prime broker or in-house
         risk system: one execution, as it happens.
+      published_by: [engine]
       since: "1.0"
       see_also: ["drop_copy.replay.{RECIPIENT_ID}", "order.fill.{GW_ID}"]
       example_note: >
@@ -127,6 +128,7 @@ messages:
         Engine to one named recipient: buffered events re-published on
         request, so a participant that reconnects mid-session can close its
         sequence gap.
+      published_by: [engine]
       since: "1.0"
       see_also: ["drop_copy.event.{GW_ID}"]
       example_note: >

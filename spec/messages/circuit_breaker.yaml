@@ -40,6 +40,7 @@ messages:
         Engine to all: one symbol has stopped trading. New orders rest rather
         than match until the halt ends, and every resting quote on the symbol
         has already been cancelled by the time this is published.
+      published_by: [engine]
       since: "1.0"
       see_also:
         ["circuit_breaker.extend.{SYMBOL}", "circuit_breaker.resume.{SYMBOL}"]
@@ -156,6 +157,7 @@ messages:
         Engine to all: the call phase ended with the indicative price outside
         the corridor, so the symbol stays halted, the corridor widens by one
         rung and a fresh call phase begins.
+      published_by: [engine]
       since: "1.0"
       see_also: ["circuit_breaker.halt.{SYMBOL}"]
       example_note: >
@@ -231,6 +233,7 @@ messages:
         exchange is currently doing rather than returning to continuous
         trading -- a halt that expires near the close resumes into
         CLOSING_AUCTION or CLOSED.
+      published_by: [engine]
       since: "1.0"
       see_also: ["circuit_breaker.halt.{SYMBOL}"]
       example_note: >

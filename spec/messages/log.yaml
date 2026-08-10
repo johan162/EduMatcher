@@ -111,6 +111,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Subscriber to pm-log-srv: open or replace a leased stream."
+      published_by: [log_client]
       since: "1.0"
       see_also: ["log.renew", "log.unsubscribe"]
       example_note: >
@@ -144,6 +145,7 @@ messages:
         Lease keepalive. The liveness signal: a subscriber that stops renewing
         is dropped, which is how the server reclaims a viewer that went away
         without unsubscribing.
+      published_by: [log_client]
       since: "1.0"
       see_also: ["log.lease_expired.{SUB_ID}"]
     fields:
@@ -157,6 +159,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Close a subscription immediately rather than letting it lapse."
+      published_by: [log_client]
       since: "1.0"
     fields:
       - { name: sub_id, type: string, validate: { max_len: 64 } }
@@ -169,6 +172,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Replay the last N minutes of history for one subscription."
+      published_by: [log_client]
       since: "1.0"
       see_also: ["log.backfill.{SUB_ID}"]
     fields:
@@ -188,6 +192,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Ask for subscription and server diagnostics."
+      published_by: [log_client]
       since: "1.0"
       see_also: ["log.status.{SUB_ID}"]
     fields:
@@ -207,6 +212,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Confirm a subscription and echo the terms the server chose."
+      published_by: [log_server]
       since: "1.0"
       example_note: >
         The filter comes back parsed rather than as sent, so a subscriber can
@@ -239,6 +245,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Confirm a keepalive and say how long the lease now has."
+      published_by: [log_server]
       since: "1.0"
     fields:
       - { name: accepted, type: bool }
@@ -258,6 +265,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Confirm a close, or say there was nothing to close."
+      published_by: [log_server]
       since: "1.0"
     fields:
       - { name: accepted, type: bool }
@@ -275,6 +283,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Server and subscription diagnostics, on request."
+      published_by: [log_server]
       since: "1.0"
       example_note: >
         subscription is null when the requester has no live subscription -
@@ -302,6 +311,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "One chunk of replayed history for a subscription."
+      published_by: [log_server]
       since: "1.0"
       see_also: ["log.backfill_request", "log.event.{SUB_ID}"]
       example_note: >
@@ -331,6 +341,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "A batch of live rows for a STREAM subscription."
+      published_by: [log_server]
       since: "1.0"
       see_also: ["log.notify.{SUB_ID}"]
     fields:
@@ -357,6 +368,7 @@ messages:
       motivation: >
         Periodic counts for a NOTIFY subscription: how much happened, without
         the rows.
+      published_by: [log_server]
       since: "1.0"
       example_note: >
         levels was a map keyed by level name. It is a list of records now - the
@@ -380,6 +392,7 @@ messages:
     doc:
       motivation: >
         The subscription was reaped for want of a renew.
+      published_by: [log_server]
       since: "1.0"
       example_note: >
         Published on the off-chance the subscriber is alive but wedged: nothing
@@ -402,6 +415,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "A control request was rejected, with a machine-readable code."
+      published_by: [log_server]
       since: "1.0"
     fields:
       - { name: accepted, type: bool,
@@ -422,6 +436,7 @@ messages:
       motivation: >
         Periodic server heartbeat and configuration, broadcast to everyone
         rather than addressed - it is how a viewer finds the server at all.
+      published_by: [log_server]
       since: "1.0"
     fields:
       - { name: server, type: string, validate: { max_len: 64 } }

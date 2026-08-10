@@ -60,6 +60,7 @@ messages:
       motivation: >
         Broadcast an aggregated view of one instrument's order book, on a
         timer. What every viewer and terminal renders.
+      published_by: [engine]
       since: "1.0"
       see_also: ["depth.{SYMBOL}", "book.snapshot_request"]
       example_note: >
@@ -105,6 +106,7 @@ messages:
     transport: [engine_pub]
     doc:
       motivation: "Ask the engine to publish one symbol's book immediately."
+      published_by: [stats, gateway]
       since: "1.0"
       see_also: ["book.{SYMBOL}"]
     fields:
@@ -119,6 +121,7 @@ messages:
       motivation: >
         Book-depth metrics within a tolerance band of the last trade: how much
         size sits nearby, which way it leans, and what it costs to move.
+      published_by: [engine]
       since: "1.0"
       see_also: ["book.{SYMBOL}"]
       example_note: >

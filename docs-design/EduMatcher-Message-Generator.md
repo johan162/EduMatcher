@@ -4030,6 +4030,127 @@ duplicated across two call sites* rather than topics anybody forgot — which is
 a hint about where to look first in whatever the next migration turns out to
 be.
 
+## 30. The third surface
+
+Phase 6.2 generates `270-message-reference.md` from the spec. §1 opened this
+document by naming three places a message is described — the publisher, the
+subscriber, and the documentation — and observing that nothing links them. The
+publisher has been generated since 5.1 and the subscriber since the last topic
+literal went in 6.1f. This closes the third, which means the sentence §1 was
+written to justify is no longer true of this system.
+
+Four phases running, every family's adoption turned up a documentation defect
+and every one of them ended with the same note: *this is the argument for 6.2*.
+§26.6 found a `mode` field in four places that no producer has ever sent. §27.3
+found two capabilities that existed only in prose. §27.6 found a docstring
+describing a design rather than the code beneath it. §28.3 found a consumer
+reading a key under a name nothing emits. All four are the same failure, and
+all four are gone by construction now: a statement about a message that the
+spec does not make cannot appear on the page.
+
+### 30.1 What is generated, and what deliberately is not
+
+The page is one artifact built from two halves:
+
+| Half | Source | Checked |
+|---|---|---|
+| topic index, record types, one section per message | `spec/messages/*.yaml` | yes — `pm-msgen check` |
+| bus concepts, transports, the CALF protocol | `docs/user-guide/270-preamble.md` | no, and correctly not |
+
+The split is the load-bearing decision. A documentation generator that starts
+producing narrative starts inventing, which relocates §1's failure rather than
+removing it. The preamble is prose the spec has no field for, so it stays
+hand-written and is copied through **byte for byte** — a property with a test,
+for a reason given in §30.4.
+
+### 30.2 `published_by`: prose became a closed vocabulary
+
+The hand-written page carried lines like:
+
+> **Published by:** Requesting client process (for example pm-alf-console,
+> pm-admin, pm-viewer, pm-stats, bots, or the API gateway) via PUSH :5555
+
+Five process names and a port, none of them checkable — and `pm-viewer` is not
+a process this system has. That is §26.6 in the surface §26.6 was about.
+
+`doc.published_by` is now a required key holding a list drawn from a closed
+vocabulary of eleven process *roles*. Closed on §27.3's reasoning: an enum
+makes a twelfth role a spec change with a regenerated page, rather than a new
+string nobody notices. A typo fails the loader by name.
+
+**It is deliberately coarse, and that is the interesting part.** The obvious
+richer design is module paths, which a test could verify exist. It was
+rejected: a module path moves with every refactor and a port with every
+deployment, so the precise version would be wrong more often than the vague
+one. *A fact worth tabulating is one that changes less often than the thing it
+describes.* Ports and sockets live in `doc.example_note`, which is prose about
+one message rather than a column the appendix aligns.
+
+Populating all 106 was done by reading the tree, not by writing them out: an
+AST pass collected every module that calls each message's builder — resolving
+the hand-written wrappers in `models/message.py` through their own bodies — and
+mapped module to role. Seventy-six resolved that way. The remaining thirty
+build their payload through `encode()` directly rather than a generated
+builder, and were read by hand; they are listed in the population script's
+`MANUAL` table rather than guessed, and every one of them is a message whose
+direction is unambiguous.
+
+That residue is itself a finding: **thirty messages are still constructed
+without going through their generated builder.** They are correct today and
+nothing is broken, but they are the population for which `from_dict`'s silent
+key-dropping (§27.2) cannot help, because nothing validates them. A phase 6.3
+worth having is adopting those thirty, and the `MANUAL` table is the worklist.
+
+### 30.3 What the appendix says that the hand-written page could not
+
+* **Coverage.** 67 `###` sections for 106 messages. A reference that silently
+  omits a third of the system is worse than one merely out of date, because
+  nothing about reading it reveals the omission. `test_msgen_docs.py` asserts
+  every topic and every record type has a section.
+* **Presence.** The old page wrote "optional" for all four regimes, so a reader
+  could not tell an absent key from a null one without going to the producer —
+  which is §13.6's habit forced on every reader of the documentation. The
+  generated table has a phrase per regime.
+* **Units.** `unit` exists to be reviewable (§15.2), which requires being
+  visible. It had never appeared in the reference at all.
+* **Bounds.** `max_len 32` on the page and in the builder are now the same
+  fact. Four phases of audits (§21.2, §22.3, §26.5, §27.5) turned on a bound a
+  reader had no way to look up.
+
+### 30.4 The bug the generator had, and it was the predictable one
+
+The first draft normalised blank-line runs across the whole rendered page —
+harmless-looking, and it kept the output stable regardless of which optional
+blocks a message carried. It also **silently reformatted the hand-written
+preamble on every run.**
+
+A documentation generator quietly editing the prose a human owns is a small
+version of exactly what this tool exists to stop, and it is the failure mode
+the split in §30.1 was designed to prevent, appearing anyway in the one line
+that spanned both halves. It was caught by the test asserting the preamble
+appears verbatim — written before the bug, for a different reason.
+
+The fix normalises only the body. The test that would have hidden it —
+"the page contains no triple newline" — was **inverted** rather than deleted:
+it now asserts the property over the body alone, and a second test asserts the
+preamble *does* still contain a blank run. A test that passes because the
+generator flattened the evidence is worse than no test, and §23.1's rule reads
+the same way from this direction: a check that cannot fail for the right reason
+has not been written yet.
+
+### 30.5 Where this leaves the argument
+
+§1's claim was that three surfaces drift because nothing links them. The record
+across nine phases is that **the wire was wrong six times, the consumer four
+times, and the documentation seven** — and the documentation is the only one of
+the three whose defects cost nothing at runtime, which is exactly why it
+accumulated the most. Nothing failed, so nothing prompted anyone to look.
+
+That asymmetry is the argument for generating it, stated more precisely than
+§1 managed: it is not that documentation drifts faster, it is that **drift in
+documentation has no symptom.** A wrong builder raises. A wrong subscriber goes
+quiet. A wrong reference page is read, believed, and acted on.
+
 ## Appendix A — Phase 1 implementation starter
 
 Sections 1–11 are the design. This appendix is the *how* for the first
