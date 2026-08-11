@@ -863,7 +863,18 @@ def test_depth_topic_does_not_match_a_book_subscription() -> None:
     """The fix, stated as the property that matters."""
     from edumatcher.models.message import decode, make_depth_msg
 
-    topic, _ = decode(make_depth_msg("AAPL", {}))
+    depth = {
+        "symbol": "AAPL",
+        "mid_price_ticks": 9525,
+        "mid_price": 95.25,
+        "tolerance_ticks": 100,
+        "bid_depth": 150,
+        "ask_depth": 80,
+        "imbalance": 0.3,
+        "microprice": 95.3,
+        "cost_to_move": 7620.0,
+    }
+    topic, _ = decode(make_depth_msg("AAPL", depth))
     assert topic == "depth.AAPL"
     assert not topic.startswith("book.")
 

@@ -36,6 +36,61 @@ class FakeSocket:
         self.closed = True
 
 
+def _combo_payload() -> dict[str, Any]:
+    """A valid ``order.combo`` submission; the builder validates before send."""
+    return {
+        "combo_id": "C1",
+        "gateway_id": "GW01",
+        "combo_type": "AON",
+        "tif": "DAY",
+        "legs": [
+            {
+                "symbol": "AAPL",
+                "side": "BUY",
+                "order_type": "LIMIT",
+                "quantity": 10,
+                "price": 100,
+                "stop_price": None,
+                "smp_action": None,
+            },
+            {
+                "symbol": "MSFT",
+                "side": "SELL",
+                "order_type": "LIMIT",
+                "quantity": 10,
+                "price": 200,
+                "stop_price": None,
+                "smp_action": None,
+            },
+        ],
+    }
+
+
+def _oco_payload() -> dict[str, Any]:
+    """A valid ``order.oco`` submission with both legs present."""
+    return {
+        "oco_id": "O1",
+        "gateway_id": "GW01",
+        "symbol": "AAPL",
+        "quantity": 10,
+        "tif": "DAY",
+        "leg1": {
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "price": 100,
+            "stop_price": None,
+            "trail_offset": None,
+        },
+        "leg2": {
+            "side": "BUY",
+            "order_type": "STOP",
+            "price": None,
+            "stop_price": 90,
+            "trail_offset": None,
+        },
+    }
+
+
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
@@ -75,9 +130,9 @@ async def test_engine_client_auth_send_and_event_flow(
 
     client.send_cancel("ORD1", "GW01")
     client.send_amend("ORD1", "GW01", 151.0, 10)
-    client.send_combo({"combo_id": "C1"})
+    client.send_combo(_combo_payload())
     client.send_combo_cancel("C1", "GW01")
-    client.send_oco({"oco_id": "O1"})
+    client.send_oco(_oco_payload())
     client.send_oco_cancel("O1", "GW01")
     client.send_quote({"quote_id": "Q1"})
     client.send_quote_cancel("GW01", "AAPL")

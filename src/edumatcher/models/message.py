@@ -312,7 +312,9 @@ def make_trade_msg(trade_dict: dict[str, Any]) -> list[bytes]:
 
 
 def make_book_msg(symbol: str, book_snapshot: dict[str, Any]) -> list[bytes]:
-    return encode(_gen_book.topic_book_snapshot(symbol), book_snapshot)
+    # The builder takes the topic's symbol from the payload, which the engine
+    # always fills from the same book as ``symbol``.
+    return _gen_book.make_book_snapshot(**book_snapshot)
 
 
 def make_orders_request_msg(gateway_id: str) -> list[bytes]:
@@ -325,7 +327,7 @@ def make_orders_msg(gateway_id: str, orders: list[dict[str, Any]]) -> list[bytes
 
 
 def make_book_snapshot_request_msg(symbol: str) -> list[bytes]:
-    return encode(_gen_book.TOPIC_BOOK_SNAPSHOT_REQUEST, {"symbol": symbol})
+    return _gen_book.make_book_snapshot_request(symbol=symbol)
 
 
 def make_eod_msg(books: list[dict[str, Any]]) -> list[bytes]:
@@ -1545,7 +1547,7 @@ def make_depth_msg(symbol: str, depth: dict[str, Any]) -> list[bytes]:
     first dot, so it recorded a phantom instrument literally named
     ``depth.AAPL`` into daily_stats.
     """
-    return encode(_gen_book.topic_depth(symbol), depth)
+    return _gen_book.make_depth(**depth)
 
 
 # ---------------------------------------------------------------------------

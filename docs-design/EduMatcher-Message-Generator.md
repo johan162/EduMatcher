@@ -4300,15 +4300,44 @@ surface with no `src` caller (the client is the TypeScript log-gui; only tests
 build these in Python). That is a call to make with intent, not a mechanical
 sweep, so it is left for the next pass alongside the enumeration test.
 
-### 31.6 What remains
+### 31.6 Cluster C: `book`, three hot-path publishes, byte-identical
 
-Ten unadopted: `order.new` (§31.4) and `order.execution_report` (the BALF frame
-of §31.2, a candidate to be struck from the count rather than adopted);
-`log.subscribe` and `log.backfill_request` (§31.5); and clusters C (`book`, 3)
-and D (the three remaining singletons). The enumeration test §7.3 of the
-handover asks for is still deferred until the residue is empty or the excluded
-frames alone; pinning a partial count would read as a target rather than a
-checkpoint.
+`book.book_snapshot`, `book.depth` and `book.book_snapshot_request` all adopt
+through their generated checked builder with no wire change — every probe,
+including an empty book, is byte-identical to what `encode()` produced.
+
+`book_snapshot` is checked-only: it carries three record lists (`BookLevel`
+ladders and a `RecentTrade` tape), and the generator withholds `_unchecked`
+where a record rides, as it does across the log family. That reopens §5.3's
+question of a validating builder raising on a feed whose purpose is being the
+record — the engine publishes both from `_flush_snapshots`, which §9 calls the
+hot path. Three things close it: the publish is already throttled by
+`snapshot_interval_sec`, not per trade; an empty book validates (the ladders
+have no `min_items`, so a symbol with no resting orders does not raise and drop
+its snapshot); and unlike a log row, a dropped snapshot self-heals on the next
+flush, because the message *is* the current state, not an event. `depth` has an
+`_unchecked` variant but uses the checked one too, for one rule across the
+block rather than two.
+
+Both `make_book_msg` and `make_depth_msg` kept their `symbol` parameter, now
+redundant: the builder takes the topic's symbol from the payload, which the
+engine fills from the same book the argument names. Leaving the signature spares
+five call sites a churn that would trace to nothing the request asked for. A
+handful of tests built these with stub payloads the pass-through `encode()`
+accepted — `{"bids": [[10000, 10]]}` for a `depth` that has no `bids` field at
+all — and were moved to full shapes at the validating boundary; the `depth`
+assertions that read `bids` now read `mid_price_ticks`, the field that is
+actually there.
+
+### 31.7 What remains
+
+Seven unadopted: `order.new` (§31.4) and `order.execution_report` (the BALF
+frame of §31.2, a candidate to be struck from the count rather than adopted);
+`log.subscribe` and `log.backfill_request` (§31.5); and cluster D —
+`index.index_history`, `quote.quote_new`, `session.session_transition`. The
+enumeration test §7.3 of the handover asks for is still deferred until the
+residue is empty or the excluded frames alone; pinning a partial count would
+read as a target rather than a checkpoint.
 
 ## Appendix A — Phase 1 implementation starter
 

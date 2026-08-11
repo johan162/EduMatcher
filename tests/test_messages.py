@@ -219,6 +219,21 @@ def _rt(frames: list[bytes]) -> tuple[str, dict]:
     return decode(frames)
 
 
+def _depth_payload() -> dict:
+    """A full ``depth`` payload, as ``OrderBook.depth_snapshot`` produces it."""
+    return {
+        "symbol": "AAPL",
+        "mid_price_ticks": 9525,
+        "mid_price": 95.25,
+        "tolerance_ticks": 100,
+        "bid_depth": 150,
+        "ask_depth": 80,
+        "imbalance": 0.3,
+        "microprice": 95.3,
+        "cost_to_move": 7620.0,
+    }
+
+
 class TestEncodeDecodeRoundtrip:
     def test_encode_decode_basic(self) -> None:
         frames = encode("my.topic", {"key": "value", "n": 42})
@@ -460,7 +475,19 @@ class TestMarketDataMessages:
         assert roundtrip == typed
 
     def test_make_book_msg(self) -> None:
-        topic, payload = _rt(make_book_msg("AAPL", {"bids": [], "asks": []}))
+        # Adoption validates the snapshot, so it must be a full book shape.
+        snapshot = {
+            "symbol": "AAPL",
+            "tick_decimals": 2,
+            "bids": [],
+            "asks": [],
+            "last_price": None,
+            "last_qty": None,
+            "last_buy_price": None,
+            "last_sell_price": None,
+            "recent_trades": [],
+        }
+        topic, payload = _rt(make_book_msg("AAPL", snapshot))
         assert topic == "book.AAPL"
         assert "bids" in payload
 
@@ -732,10 +759,10 @@ class TestMMQuoteAndRiskMessages:
         a `book.` prefix subscription swallows, making pm-stats invent a
         phantom symbol called "depth.AAPL".
         """
-        topic, payload = _rt(make_depth_msg("AAPL", {"bids": [[10000, 10]]}))
+        topic, payload = _rt(make_depth_msg("AAPL", _depth_payload()))
         assert topic == "depth.AAPL"
-        assert payload["bids"][0][0] == 10000
+        assert payload["mid_price_ticks"] == 9525
 
     def test_depth_topic_is_not_swallowed_by_a_book_subscription(self) -> None:
-        topic, _ = _rt(make_depth_msg("AAPL", {}))
+        topic, _ = _rt(make_depth_msg("AAPL", _depth_payload()))
         assert not topic.startswith("book.")

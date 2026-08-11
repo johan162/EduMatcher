@@ -301,10 +301,13 @@ class TestDataQueries:
     def test_book_depth_sends_snapshot_request(self) -> None:
         book_payload = {
             "symbol": "AAPL",
+            "tick_decimals": 2,
             "bids": [{"price": 150.0, "qty": 100, "count": 1}],
             "asks": [{"price": 150.5, "qty": 200, "count": 2}],
             "last_price": 150.25,
             "last_qty": 50,
+            "last_buy_price": None,
+            "last_sell_price": None,
             "recent_trades": [],
         }
         client, push = _client(recv_queue=_q(make_book_msg("AAPL", book_payload)))
