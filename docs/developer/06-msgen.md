@@ -13,7 +13,7 @@
     - What `pm-msgen check` guarantees, and why generation must be
       byte-for-byte deterministic for that guarantee to be worth anything
 
-!!! info "Current status: Phase 6.3 — complete"
+!!! info "What is covered"
     **Fourteen families are specified and adopted — every family there is**,
     covering 108 messages and 37 record types: `trade`, `order`, `session`, `book`, `log`, `index`,
     `risk`, `structure`, `quote`, `circuit_breaker`, `auction`, `drop_copy`,
@@ -26,9 +26,7 @@
     `md_gateway/normaliser.py` projects through it, and the CALF and BALF
     example clients parse with the generated structs. **No topic appears as a
     literal anywhere in `src/`** — including parameterised topics written as
-    f-strings, which `grep-literals` could not see until 5.3b. Every family the
-    scanner knows about is at zero, and every family is now specified, so those
-    are the same statement for the first time.
+    f-strings.
 
     The drift check runs in CI and `make check`; compiled round-trip tests prove
     Python and C agree on both the text and binary wires.
@@ -40,13 +38,10 @@
     `270-preamble.md`, which is hand-written and is where anything the spec
     cannot state belongs.
 
-    Phase 6.3 finished the adoption: every producer now reaches the wire
-    through its generated builder except two frames that opt out on purpose —
-    the BALF `execution_report` and `index.index_history`'s legacy-archive
-    replay — which `tests/test_msgen_adoption.py` pins. That closes all three
-    surfaces this tool was built for, and there is no planned 6.4: the
-    generator is done. The full history lives in
-    `docs-design/EduMatcher-Message-Generator.md`.
+    Every producer reaches the wire through its generated builder except two
+    frames that opt out on purpose — the BALF `execution_report` and
+    `index.index_history`'s legacy-archive replay — which
+    `tests/test_msgen_adoption.py` pins.
 
 ## The problem
 
@@ -133,7 +128,46 @@ Run `pm-msgen generate` and commit the result.
 ✗ Generated message bindings are out of date. Run 'make msgen' ...
 ```
 
+## Adding a family
+
+1. Write `spec/messages/<family>.yaml`. Run `pm-msgen lint` until it passes.
+2. Run `pm-msgen generate`. Review the generated file as you would any other.
+3. Write a wire-compatibility test comparing the generated output against the
+   existing hand-written producer for that family. **No family is adopted
+   without one.**
+4. Only then change call sites.
+
+### Two comparisons, not one
+
+Step 3 needs care, because "byte-identical" is the right assertion in one
+direction and the wrong one in the other:
+
+| Comparison | Assert | Why |
+|---|---|---|
+| hand-written factory vs generated `make_*` | **byte-identical frames** | Both derive from a `to_dict()` over the same fields. There is no excuse for a difference. |
+| an inline producer dict vs the generated payload | **equal key sets and equal values** | JSON objects are unordered and every consumer reads with `.get`, so key order is not part of the contract. Asserting byte-identity would be stronger than the system actually promises, and would block a legitimate change. |
+
+The `trade` family shows why the distinction matters:
+`engine/main.py::_publish_trade` emits `tick_decimals` between `price` and
+`quantity`, while `feed_schema.TradeExecutedPayload.to_dict()` emits it last.
+Both are correct. Nothing on the wire can tell. Only a byte-comparing test can,
+and it would be testing the wrong thing.
+
+`tests/test_msgen_trade_wire_compat.py` makes both claims explicitly, and pins
+the divergence so it cannot be quietly forgotten.
+
 ## Writing a specification
+
+### Family-level keys
+
+A spec file has four top-level keys:
+
+| Key | Required | Meaning |
+|---|---|---|
+| `family` | yes | Must equal the filename stem: `heartbeat` → `spec/messages/heartbeat.yaml`. Also the topic root: `heartbeat.*` |
+| `version` | yes | Integer layout version, exposed as `FAMILY_VERSION` in the generated module. Increment when the change is **not backward-compatible** — a field removed, renamed, or its type changed. Adding an optional field or tightening a `validate:` rule does not require a bump. |
+| `types` | no | Named record type definitions shared across this family's messages. Referenced by `type: nested` and `type: list` fields. |
+| `messages` | yes | Ordered list of message definitions. |
 
 ### A minimal family
 
@@ -158,12 +192,33 @@ messages:
 That is enough to generate a dataclass, a validating constructor, a parser and a
 topic constant.
 
+### Message-level keys
+
+| Key | Required | Meaning |
+|---|---|---|
+| `name` | yes | snake_case identifier. Becomes the suffix of every generated symbol: `make_<name>`, `parse_<name>`, `TOPIC_<NAME>` |
+| `topic` | yes* | Topic string, e.g. `"order.ack.{gateway_id}"`. May contain `{field_name}` parameters. Omit only for binary-only messages (`transport: [balf]`) that never touch the bus. |
+| `transport` | yes | List of transports this message uses. Names must exist in `spec/transports.yaml`. |
+| `doc` | yes | Documentation block — see sub-keys below. |
+| `fields` | yes | Ordered list of field definitions — see [Field keys](#field-keys). |
+| `encoding` | no | Per-transport binary or text projection details (`balf:`, `calf:`, `ralf:`). Required when a transport carries a non-JSON wire format. |
+
+The `doc:` block sub-keys:
+
+| Sub-key | Required | Meaning |
+|---|---|---|
+| `motivation` | yes | One or two sentences on why this message exists. Appears in the generated reference. |
+| `published_by` | yes | List of process roles from the closed vocabulary: `engine`, `gateway`, `scheduler`, `index`, `stats`, `clearing`, `md_gateway`, `api_gateway`, `admin`, `log_server`, `log_client` |
+| `since` | no | Version string when the message was introduced, e.g. `"1.0"`. |
+| `see_also` | no | List of related message names for generated cross-references. |
+| `example_note` | no | Prose about edge cases or usage subtleties shown in the generated reference. |
+
 ### Field keys
 
 | Key | Meaning |
 |---|---|
 | `name` | snake_case identifier, unique within the message |
-| `type` | `string`, `int`, `float`, `bool`, `enum`, `ticks`, `nested`, `list` |
+| `type` | `string`, `int`, `float`, `bool`, `enum`, `ticks`, `nested`, `list`. `ticks` is an integer price in engine ticks — it generates the same `int` as `type: int` but makes the unit self-documenting and lets binary layout entries distinguish tick prices from plain integers |
 | `ref` | for `nested`, and for a `list` **of records**: the name of a family-level entry under `types:` |
 | `item` | for a `list` **of scalars**: the element type. Exactly one of `ref` / `item` |
 | `required` | default `true`. A `required: false` field **must** say which presence regime it means — see below |
@@ -172,7 +227,6 @@ topic constant.
 | `omit_when_none` | implies `nullable`, and **omits the key entirely** when the value is `None` |
 | `omit_when_empty` | strings and lists. Omits the key when the value is `""` / `[]` |
 | `parse_default` | what `from_dict` substitutes when the key is missing from an *inbound* payload. Need not be legal — see [Coercion vs validation](#coercion-and-validation-are-different-jobs) |
-| `doc.published_by` | required on every message. A list of process roles from a closed vocabulary — `engine`, `gateway`, `scheduler`, `index`, `stats`, `clearing`, `md_gateway`, `api_gateway`, `admin`, `log_server`, `log_client` |
 | `unit` | required on every numeric field. One of `display_price`, `ticks`, `shares`, `epoch_seconds`, `epoch_nanos`, `duration_nanos`, `percent`, `dimensionless`, `money` |
 | `doc` | prose for the generated documentation and the `describe_*()` table |
 | `values` | required for `type: enum`; declaration order is authoritative |
@@ -320,7 +374,9 @@ make sense together:
 That is why the IDL has no `co_present: [a, b]` constraint. A pair of keys that
 must travel together is a record that was flattened into `a_b` names, and a
 nullable record makes the half-set state *unrepresentable* rather than merely
-invalid. `session.state` is the worked example — see design section 16.2.
+invalid. `session.state` is the worked example: `next_state` and `next_at` only
+make sense together, so they live in a nullable `NextTransition` record instead
+of two co-present flat keys.
 
 A `list` takes `min_items` / `max_items`, which are ordinary `validate:` rules
 enforced in both bindings:
@@ -364,8 +420,7 @@ per message — a flat message in the same family still has one.
 !!! note "Maps are not supported, deliberately"
     A spec that appears to need one is usually describing a message that should
     have been a list of records. `leg_fill_qty: {0: 5}` only ever meant
-    `legs[0].filled_qty = 5`, and the list index was already the key. See
-    design section 15.4.
+    `legs[0].filled_qty = 5`, and the list index was already the key.
 
 ### Topics with parameters
 
@@ -451,9 +506,13 @@ a flow sequence.
 | A `repr` must be able to carry the field's type | `u64` cannot hold a string |
 
 !!! tip "The coverage rule is the one that earns its keep"
-    It is what would have caught the defect described at the bottom of this
-    page: a layout eight bytes short of its declared `frame_size` fails to load
-    with `body byte(s) 48-55 are not covered by any layout entry`.
+    A customer reference parser once modelled `order_id` as `char[16]` (a
+    16-byte string) instead of the correct `u64`, making it exactly 8 bytes too
+    large on every message that carries one. Six message types were wrong.
+    Nothing caught it because the example tested its parser only against frames
+    the same file built — it agreed with itself while disagreeing with the
+    gateway. The coverage rule would have rejected the spec at load time:
+    `body byte(s) 48-55 are not covered by any layout entry`.
 
 ### Using it
 
@@ -591,7 +650,7 @@ Values are coerced to their declared types first, so
     `{CH, SYM, SEQ, TS}` *before* the payload; `ralf_gateway`'s `_emit_event`
     appends `SEQ` *after* it. No single "injected keys go here" rule can
     describe both. The envelope belongs to the gateway, the payload map to the
-    generator — which is the boundary the design draws anyway.
+    generator.
 
 ## Generated C
 
@@ -698,7 +757,7 @@ SRC := your_client.c calf_parser.c \
 | `-7` | `EDU_MSG_ERR_OVERFLOW` | value exceeds a fixed-size buffer |
 
 `-1`..`-5` mirror `balf_parser.c`'s `parse_header`/`split_frame`, whose logic the
-generated BALF parser will reimplement in Phase 4b.
+generated BALF parser reimplements.
 
 !!! danger "A return code is a per-function contract, not a global registry"
     `calf_parser.c`'s hand-written `calf_parse_line` **also** returns `-1`..`-6`,
@@ -706,9 +765,8 @@ generated BALF parser will reimplement in Phase 4b.
     "unknown msg_type", and its `-6` is "empty field key".
 
     So check each call's result against the function you called, and use
-    `edu_msg_strerror` only for functions declared in a generated header. The
-    design originally claimed there was a single convention in the tree to reuse;
-    there never was.
+    `edu_msg_strerror` only for functions declared in a generated header. There
+    is no single return-code convention shared across the tree to reuse.
 
 ## How the two bindings are kept honest
 
@@ -723,10 +781,8 @@ This is the property no test in this repository could previously state: not
 bytes the same way".
 
 It follows `test_alf_examples.py` — `shutil.which("cc")` plus `pytest.skip`, no
-new dependency and no marker. The design originally proposed a `cffi` harness, a
-`msgen_c` marker and an `apt-get install build-essential` CI step; none was
-needed. `cffi` is not a dependency, the skip pattern makes a marker redundant,
-and `ubuntu-latest` ships a compiler.
+new dependency and no marker. `cffi` is not a dependency, the skip pattern makes
+a marker redundant, and `ubuntu-latest` ships a compiler.
 
 ## Using a generated binding
 
@@ -830,7 +886,7 @@ For a parameterised topic the generator emits three helpers, which is what
 removes hand-typed topic strings from subscribers:
 
 ```python
-from edumatcher.models.generated.orders import (   # Phase 5 — illustrative
+from edumatcher.models.generated.orders import (   # illustrative
     PREFIX_ORDER_ACK,
     match_order_ack,
     topic_order_ack,
@@ -957,7 +1013,7 @@ is noisy.
 
 !!! question "Could the generated code be as fast as the hand-written literal?"
     **No, and the reason is structural rather than a shortcoming of the
-    emitter.** §14 of the design decomposes it; the short version:
+    emitter.** The short version:
 
     - **~53 % of the original call was already `orjson`** — 0.51 µs of 0.96.
       That half is untouched either way.
@@ -973,28 +1029,31 @@ is noisy.
     and `float`-where-`int`; it cannot reject `int`-where-`float` or
     `bool`-where-`int`. It is not applied because it weakens `_unchecked`'s
     "byte-identical for any input" promise to "for input a type checker has
-    seen" — `make_*_unchecked(**payload_dict)` defeats it. §14.3 has the full
-    trade-off.
+    seen" — `make_*_unchecked(**payload_dict)` defeats it.
 
     Also measured and worth knowing: replacing the coercion call with a
     `price.__class__ is float` test is **slower**, not faster.
 
-## What adoption looks like
+## Adopting a binding in existing code
 
-Phase 2 wired the `trade` family in. Three changes, each a different kind:
+Wiring a generated binding into a producer or consumer that predates it comes
+in a few recognisable shapes.
 
-### `make_trade_msg` — a delegating shim
+### A delegating shim
+
+A hand-written `make_*` factory becomes a one-line delegation:
 
 ```python
 def make_trade_msg(trade_dict: dict[str, Any]) -> list[bytes]:
     return _gen_trade.make_trade_executed(**trade_dict)
 ```
 
-Byte-identical output. **One deliberate behaviour change:** it now validates. A
-zero price, or a payload with no `aggressor_side`, previously went out on the
-wire without complaint and now raises `MessageValidationError`. That is the
-point — producers are held to the contract — and because the error subclasses
-`ValueError`, callers already guarding with `except ValueError` keep working.
+Byte-identical output, with **one deliberate behaviour change: it now
+validates.** A zero price, or a payload with no `aggressor_side`, previously
+went out on the wire without complaint and now raises
+`MessageValidationError`. That is the point — producers are held to the
+contract — and because the error subclasses `ValueError`, callers already
+guarding with `except ValueError` keep working.
 
 !!! warning "This is the change most likely to surprise you"
     If something that used to publish now raises, it was publishing something
@@ -1003,49 +1062,36 @@ point — producers are held to the contract — and because the error subclasse
     away; that variant is for measured hot paths, not for silencing a real
     finding.
 
-### `_publish_trade` — the actual producer
+### The producer itself
 
-The dict literal is gone; the field list now lives only in the spec. This is
-where the value is: before Phase 2, adding a field to `trade.executed` meant
-three coordinated edits and still never reached the C clients. Now it is one
-edit to `trade.yaml`.
+Replacing an inline dict literal with a generated builder removes the field
+list from the producer — it now lives only in the spec. That is where the value
+is: adding a field to a message becomes one edit to its `.yaml`, and the C
+clients pick it up too.
 
-The published **key order changed** as a side effect (`tick_decimals` moved from
-the middle to the end). No consumer can observe this — JSON objects are
-unordered and every reader uses `.get` — which is exactly why the wire test
-asserts equal keys and values rather than equal bytes for this comparison.
+Published **key order may change** as a side effect. No consumer can observe
+this — JSON objects are unordered and every reader uses `.get` — which is why a
+wire-compatibility test for a producer asserts equal keys and values rather than
+equal bytes.
 
-### `pm-stats` — the topic constant only, *not* the parser
+### A recorder: topic constant, not the parser
 
-This one is worth understanding, because it generalises.
+Adopt the **topic constant** everywhere — it is pure gain and zero risk: a topic
+rename in the spec then reaches the subscriber instead of silently leaving it
+subscribed to a topic nobody publishes.
 
-`pm-stats` adopted `TOPIC_TRADE_EXECUTED` in place of its three
-`"trade.executed"` literals — the ZMQ subscription, the dispatch test, and the
-`feed_gaps.stream` name. A topic rename in the spec now reaches the recorder
-instead of silently leaving it subscribed to a topic nobody publishes.
+Do **not** reflexively adopt `parse_*`. A statistics recorder or archive
+replayer is often deliberately tolerant — skipping a partial print, falling back
+to receipt time for a missing timestamp, accepting a non-numeric id. `parse_*`
+validates, so adopting it there would make the recorder **raise** on inputs it
+handles on purpose.
 
-It did **not** adopt `parse_trade_executed`, even though the original plan said
-it should. `stats/main.py::_on_trade` is deliberately tolerant in three
-separately documented ways:
-
-| Tolerance | Why it is there |
-|---|---|
-| returns early when `symbol`/`price`/`quantity` is missing | a partial print is skipped, not fatal |
-| falls back to receipt time when `timestamp` is absent, with a warning | the row is still worth recording |
-| accepts a non-numeric `id`, disabling gap detection with one warning | "a synthetic or gateway-supplied id" is an expected input |
-
-`parse_*` validates, so adopting it would make the recorder **raise** on inputs
-it currently handles on purpose.
-
-!!! tip "The rule this gives you for Phase 5"
-    **A recorder records what it received.** Refusing to store a message
-    because it fails the current spec destroys exactly the evidence you need to
-    find out why it was malformed.
-
-    So: adopt the **topic constants everywhere** — that is pure gain and zero
-    risk. Adopt **`parse_*` only where the consumer genuinely wants to reject a
-    non-conforming message** rather than record it. Do not assume every
-    subscriber wants validation.
+!!! tip "A recorder records what it received"
+    Refusing to store a message because it fails the current spec destroys
+    exactly the evidence you need to find out why it was malformed. Adopt
+    `parse_*` only where the consumer genuinely wants to reject a non-conforming
+    message rather than record it. Do not assume every subscriber wants
+    validation.
 
 ## Coercion and validation are different jobs
 
@@ -1095,9 +1141,9 @@ Four consequences worth spelling out:
 2. **Every published message is checked**, and the engine already always
    supplies a real value.
 3. **`""` never becomes a permanent part of the contract.** Had the spec
-   declared it a legal enum value, it would have to become a C enum member in
-   Phase 4 — an invented `EDU_AGG_UNKNOWN` sentinel exporting the accident into
-   a second language and freezing it in a wire format.
+   declared it a legal enum value, it would have to become a C enum member —
+   an invented `EDU_AGG_UNKNOWN` sentinel exporting the accident into a second
+   language and freezing it in a wire format.
 4. **The `""` population becomes countable.** Run `validate()` over the clearing
    archive and read the failure count. Today nothing asserts, so nobody knows
    how many there are.
@@ -1190,7 +1236,7 @@ which would break the f-string that carried it.
 
 ## Migrating a family's topic literals
 
-§1.2 of the design counted **108 topic string literals across 25 files**. Each
+The codebase once carried **108 topic string literals across 25 files**. Each
 one is a place where a publisher-side rename goes unnoticed: the subscriber
 keeps compiling, keeps running, and simply stops receiving. Nothing errors.
 
@@ -1227,59 +1273,31 @@ merging quietly. `trade` and `order` are at zero today.
     build. A hand-written `TRADE_TOPIC = "trade.executed"` in some constants
     module would drift from the spec exactly like the literals did.
 
-## Adding a family
-
-1. Write `spec/messages/<family>.yaml`. Run `pm-msgen lint` until it passes.
-2. Run `pm-msgen generate`. Review the generated file as you would any other.
-3. Write a wire-compatibility test comparing the generated output against the
-   existing hand-written producer for that family. **No family is adopted
-   without one.**
-4. Only then change call sites.
-
-### Two comparisons, not one
-
-Step 3 needs care, because "byte-identical" is the right assertion in one
-direction and the wrong one in the other:
-
-| Comparison | Assert | Why |
-|---|---|---|
-| hand-written factory vs generated `make_*` | **byte-identical frames** | Both derive from a `to_dict()` over the same fields. There is no excuse for a difference. |
-| an inline producer dict vs the generated payload | **equal key sets and equal values** | JSON objects are unordered and every consumer reads with `.get`, so key order is not part of the contract. Asserting byte-identity would be stronger than the system actually promises, and would block a legitimate change. |
-
-The `trade` family shows why the distinction matters:
-`engine/main.py::_publish_trade` emits `tick_decimals` between `price` and
-`quantity`, while `feed_schema.TradeExecutedPayload.to_dict()` emits it last.
-Both are correct. Nothing on the wire can tell. Only a byte-comparing test can,
-and it would be testing the wrong thing.
-
-`tests/test_msgen_trade_wire_compat.py` makes both claims explicitly, and pins
-the divergence so it cannot be quietly forgotten.
-
 ## Testing
 
 | File | Covers |
 |---|---|
 | `tests/test_msgen_spec.py` | the loader and its strictness — every rejection is a test |
 | `tests/test_msgen_python.py` | determinism, drift detection, parameterised topics, every `validate` rule |
-| `tests/test_msgen_trade_wire_compat.py` | wire compatibility, and exactly what Phase 2 adoption changed |
+| `tests/test_msgen_trade_wire_compat.py` | wire compatibility between a producer and its generated builder |
 | `tests/test_msgen_trade_perf.py` | hot-path budget (marker `perf`, deselected by default) |
 | `tests/test_msgen_ci_wiring.py` | that the drift check is actually wired into the build |
 | `tests/test_msgen_calf_roundtrip.py` | compiled C vs Python over the CALF wire (skips without `cc`) |
 | `tests/test_msgen_calf_adoption.py` | what `normalise_trade` adoption changed, and what it did not |
-| `tests/test_msgen_balf_roundtrip.py` | binary frames: byte-identity with `codec.py`, compiled C round-trip, and the example-parser frame-size guard |
-| `tests/test_msgen_literals.py` | the Phase 5 acceptance gate: a migrated family's topics appear nowhere as literals |
+| `tests/test_msgen_balf_roundtrip.py` | binary frames: byte-identity with an independent reference, compiled C round-trip, and the example-parser frame-size guard |
+| `tests/test_msgen_literals.py` | a migrated family's topics appear nowhere as literals |
 | `tests/test_msgen_order_events.py` | the five order events, the three presence regimes, and the one accepted wire change |
 
 Two tests in the wire-compat file are worth knowing about because they will
 fail if you change the wrong thing:
 
 - `test_no_trade_executed_literal_remains_in_adopted_modules` scans the adopted
-  modules for a `"trade.executed"` string literal. It is how "adoption" is
-  measured against the 108-literal problem, and it caught a subscription literal
-  I had missed.
-- `test_key_order_differs_as_documented` pins the pre- and post-adoption key
-  orders against each other, so the divergence stays a recorded decision rather
-  than becoming folklore.
+  modules for a `"trade.executed"` string literal. It is how a family's freedom
+  from topic literals is enforced, and it catches a subscription literal left
+  behind by mistake.
+- `test_key_order_differs_as_documented` pins the two key orders against each
+  other, so a producer's key order stays a recorded decision rather than
+  becoming folklore.
 
 ## Scope
 
@@ -1306,192 +1324,7 @@ What it does not, and will not:
   enough to express the risk rules — that would be a second implementation of
   the engine.
 
-## Roadmap
-
-| Phase | Ships | Status |
-|---|---|---|
-| 1 | Generator + `trade.yaml` + Python binding, committed unused | **done** |
-| 2 | Adopt for `trade`: `make_trade_msg`, `_publish_trade`, `pm-stats` topics | **done** |
-| 3 | `pm-msgen check` in `make _check` and `ci.yml` | **done** |
-| 4a | CALF text projection: Python + C, adopted, compiled round-trip | **done** |
-| 4b | BALF binary layout; `order.yaml` with `execution_report` | **done** |
-| 5.0 | `pm-msgen grep-literals`; `trade` literals to zero | **done** |
-| 5.1a | the five engine→gateway `order.*` events | **done** |
-| 5.1b | inbound `order.new` / `order.cancel` / `order.amend` | **done** |
-| 5.1c | `order.combo_cancel` / `order.oco_cancel` | **done** |
-| 5.1d | IDL `nested` + `order.oco` | **done** |
-| 5.1e | IDL `list[T]` + `order.combo` | **done** — the `order` family is complete |
-| 5.2a | IDL `omit_when_empty` + the `session` family | **done** |
-| 5.2b | the `book`/`depth` family | **done** |
-| 5.2c | IDL `list` of scalars + the `log` control messages | **done** |
-| 5.2d | records to any depth + `log` server-side topics | **done** |
-| 5.2e | IDL `omit_when_empty` on lists + `index.yaml` and its binding | **done** — committed unused |
-| 5.2f | adopt `index`: the builders, the `day` record, literals to zero | **done** — the `index` family is complete |
-| 5.3a | `risk` part one: the three kill switches (6 topics) | **done** |
-| 5.3b | `risk` part two: symbol halt/resume/cancel + the two circuit-breaker sweeps (10 topics); `grep-literals` learns to see f-string topics, and the 46 they were hiding are migrated | **done** — every specified family is complete |
-| 6.1a | `structure`: the combo/OCO events; `combo.status`'s `details` map becomes a field | **done** |
-| 6.1b | `quote` (4 topics); quote prices join the ticks rule §15.2 set | **done** |
-| 6.1c | `circuit_breaker` + `auction` (5 topics); the halt corridor fork resolved by presence regime, `imbalance_side` becomes an omitting enum | **done** |
-| 6.1d | `drop_copy` + `admin` (3 topics); the last two maps become a typed publisher and a declared record | **done** |
-| 6.1e | `system` part one — lifecycle, symbols, reference, schedule (15 topics); five maps converted; `tick_size` becomes `tick_decimals`; `duration_nanos` joins the unit registry | **done** |
-| 6.1f | `system` part two — the seven live-state snapshot pairs (14 topics); `risk_state` and `volume` maps converted; the corridor un-nested | **done** |
-| 6.2 | `270-message-reference.md` generated from the spec; `doc.published_by` added to the IDL | **done** |
-
-!!! success "The guarantee is live"
-    For every family in `spec/`, the committed bindings provably match the
-    spec on `main`. A spec change without a regeneration, or a hand-edit to a
-    generated file, now fails the build rather than merging quietly.
-
-!!! warning "It only covers what is specified"
-    Seven families of roughly fifteen have a spec — `trade`, `order`,
-    `session`, `book`, `log`, `index` and `risk`. Everything unspecified still
-    drifts exactly as it did before: the check cannot protect a message it has
-    never been told about.
-
-    All seven are complete, adopted, and at zero topic literals — and since
-    5.3b that count means what it says. `grep-literals` could not previously
-    see a **parameterised topic written as an f-string**: its pattern required
-    a closing quote right after the prefix, which `f"order.fill.{gateway_id}"`
-    does not have. It reported `order: 0 literals - migrated` while forty such
-    f-strings sat in eight modules. The detector was fixed and all 46 migrated;
-    `MIGRATED` in `tests/test_msgen_literals.py` now lists every family.
-
-    Where a family *is* specified, its topic literals are at zero. Adding a
-    family to `MIGRATED` in `tests/test_msgen_literals.py` is what makes that
-    stick — a new literal for one of its topics then fails the suite instead of
-    merging quietly.
-
-## What Phase 5.1b found
-
-### One contract, not two shapes
-
-`order.new` is published by four modules, and two of them build the payload
-differently: `api_gateway`, `alf_console` and `alf_gwy` all send
-`Order.to_dict()` — 23 fields, always present, many null — while
-`balf_gwy/translate.py` builds a dict by hand and omits nine of them.
-
-That looked like a fork: which shape does the spec describe? It was not one.
-The consumer settles it. `models/order.py::Order.from_dict` states its contract
-field by field, and all 23 fall onto the three presence regimes exactly:
-
-| How `from_dict` reads it | Regime | Count |
-|---|---|---|
-| `d["x"]` | `required: true` | 10 |
-| `d.get("x")` | `nullable: true` | 11 |
-| `d.get("x", <non-None>)` | `required: false` + `default:` | 2 |
-
-For the middle group absent and null are the same value to that reader —
-`from_dict`'s own comment on `smp_action` says so: *"Absent key or explicit
-null both mean 'client did not specify'"*. So the two producers were never two
-contracts, only two points inside this one.
-
-**The rule, stated generally:** describe what the *consumer* requires; then,
-where producers still differ, reproduce the bytes of the dominant one. Producer
-disagreement is a real fork only when it changes what some reader sees.
-
-That is why 5.1b uses `nullable` **without** `omit_when_none` while 5.1a used
-`omit_when_none` throughout. Same rule, opposite answers — in 5.1a the
-hand-written builders omitted, here the dominant builder emits.
-
-### A second consumer that is *not* indifferent
-
-`audit/query.py` renders `p.get('price', '')`. Absent gives `LIMIT BUY 10@`;
-null gives `LIMIT BUY 10@None`. So the two producers already wrote different
-audit summaries. Always-emitting makes `balf_gwy`'s summaries match everyone
-else's — a fix, not a regression, and the reason to check every consumer rather
-than only the structural one.
-
-### `price` means two different things
-
-On `order.new` — inbound — `price`, `stop_price` and `trail_offset` are engine
-**ticks** (`int`). On `order.ack` and `order.amended` — outbound — `price` is
-**display money** (`float`). `balf_gwy` calls `to_ticks()` before publishing.
-Copying the 5.1a field definitions would have typechecked and been wrong on the
-wire, which is what `unit:` exists to make visible.
-
-### Enums are named types now
-
-`order_type` has eight values, and an inline `Literal[...]` of eight values does
-not fit in 88 columns. Black splits each over-long construct by a *different*
-rule — a parenthesised union for `X | None = None`, a right-hand split inside
-`cast(...)`, another for a dataclass field — and the emitter reproduces black
-rather than running it (risk R9).
-
-Rather than teach it three more rules, each a fresh chance to drift, the
-generator now emits one alias per enum:
-
-```python
-OrderNewOrderType = Literal[
-    "MARKET",
-    "LIMIT",
-    ...
-]
-
-@dataclass(slots=True)
-class OrderNew:
-    order_type: OrderNewOrderType
-```
-
-Every use site is short, so no wrapping rule can ever apply — however many
-values a future enum grows. The aliases are public and usable by callers who
-want to type their own variables. `test_generated_files_are_black_clean` now
-runs black over the committed output, which is the right place for that
-dependency: a version bump failing a test is a true report that the emitter
-needs updating, where the same bump at generation time would silently change
-committed bytes.
-
-`smp_action` was also the first **nullable** enum in any spec, and mypy caught
-that `from_dict`'s nullable read bypassed the `cast` entirely.
-
-### What was deliberately *not* adopted
-
-`Order.from_dict` is a measured hot path — `object.__new__` plus direct slot
-writes, ~1400 ns down to ~1000 ns, documented in the code. Section 14's analysis
-says a generated parser would land above that, so 5.1b adopts the **topic
-constants and the field contract only** and leaves the parse path alone.
-`make_order_new_msg` stays a pass-through of an arbitrary dict.
-
-## What Phase 4b found
-
-Writing the BALF spec meant reading the layout from an authoritative source.
-There were four candidates, and they did not agree:
-
-| Source | `EXECUTION_REPORT` | `order_id` |
-|---|---|---|
-| `docs/user-guide/910-app-balf-protocol.md` — "the **normative reference**" | 64 bytes | `u64` |
-| `src/edumatcher/balf_gwy/codec.py` — the gateway that emits the frames | 64 bytes | `u64` |
-| `tests/test_balf_gwy_unit.py` — asserts `side` at body offset 48 | 64 bytes | `u64` |
-| `docs/examples/balf/balf_parser.{py,c}` — "a customer reference implementation" | **72 bytes** | **`char[16]`** |
-
-The example was wrong, and not only for that message. Modelling `order_id` as a
-sixteen-byte string where the protocol defines a `u64` made it exactly eight
-bytes too large on **all six messages that carry one** — `ORDER_ACK`,
-`CANCEL_ORDER`, `CANCEL_ACK`, `AMEND_ORDER`, `AMEND_ACK` and
-`EXECUTION_REPORT`. A customer writing a client from it would mis-parse every
-one.
-
-**Why nothing caught it.** The example has a self-test, and it passed: it
-checks its parser against frames the *same file* builds. It agreed with itself
-perfectly while disagreeing with the gateway. A binding that only round-trips
-against itself proves nothing — which is exactly why the tests here compare the
-generated code against `codec.py` and against a *different language*, never
-against itself.
-
-Phase 4b corrected both example parsers, adopted the generated binding for
-`EXECUTION_REPORT` in `balf_parser.c`, and added
-`TestTheExampleParsersMatchTheGateway` so the two can never drift again.
-
-!!! note "This design propagated the bug"
-    `docs-design/EduMatcher-Message-Generator.md` §4.1 used the wrong layout as
-    its worked BALF example, because it was written from the example parser.
-    Worse, §12.4 listed it under "claims that checked out" — the verification
-    was real, the source was wrong. Both are corrected, and the episode is kept
-    in §13.6 rather than tidied away: it is the clearest evidence in the whole
-    document that the problem §1 describes is not hypothetical.
-
 ## See also
 
-- `docs-design/EduMatcher-Message-Generator.md` — the full design, including the
-  normative IDL in Appendix B
 - [Message Reference](../user-guide/270-message-reference.md) — the hand-written
   narrative reference this generator will eventually supplement
