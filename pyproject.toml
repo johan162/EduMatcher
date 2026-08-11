@@ -86,6 +86,7 @@ pm-setup    = "edumatcher.setup_cmd:main"
 pm-config-gen = "edumatcher.config_gen.cli:main"
 pm-config-deploy = "edumatcher.config_deploy:main"
 pm-cverifier  = "edumatcher.cverifier.cli:main"
+pm-msgen      = "edumatcher.msgen.cli:main"
 pm-log-srv  = "edumatcher.log_srv.main:main"
 pm-log-cli  = "edumatcher.log_cli.main:main"
 

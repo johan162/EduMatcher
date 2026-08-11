@@ -412,7 +412,7 @@ replacement (see [Implementation notes](#implementation-notes-and-design-deviati
 | `GET /symbols` | `{ "symbols": [...] }` | Instrument metadata, round-tripped from the engine's `system.symbols_request` |
 | `GET /session` | Current `SessionState` and schedule info | Round-tripped from the engine's `system.session_status` reply |
 | `GET /quotes/bootstrap` | Active MM quote bootstrap state | Round-tripped from the engine |
-| `GET /quotes/legs` | `{ "legs": [...] }` | Served from the gateway's local quote-leg cache when populated, otherwise round-tripped from the engine |
+| `GET /quotes/legs` | `{ "legs": [...], "recent": [...], "show_requested":..., "complete":... }` | Served from the gateway's local quote-leg cache when populated, otherwise round-tripped from the engine. `legs` and `recent` are always present, empty when the requested half does not include them |
 | `GET /positions` | `{ "positions": [{"symbol", "net_qty", "last_price"}, ...] }` | Computed entirely from the gateway's local fill cache — no engine round-trip |
 
 All of the round-tripped endpoints above return `503` with error code
@@ -434,10 +434,10 @@ reference data changes only when an admin reloads it.
 |---|---|---|
 | `GET /reference` | The full bundle: `symbols`, `risk`, `indexes`, `schedule`, `config_version` | One call for a client that wants everything |
 | `GET /reference/config-version` | `{ "config_version": "..." }` | A content hash — see below |
-| `GET /reference/symbols` | `{ "symbols": {SYM: {tick_size, level, collar?, circuit_breaker?}}, "config_version":... }` | `collar`/`circuit_breaker` are omitted for a symbol with neither configured |
-| `GET /reference/risk` | `{ "default_level":..., "levels": {LEVEL: {collar: {...}}}, "config_version":... }` | Risk-band definitions referenced by `symbols.*.level` |
+| `GET /reference/symbols` | `{ "symbols": [{symbol, tick_decimals, level?, collar?, circuit_breaker?}], "config_version":... }` | A list, not a map: each entry carries its own `symbol`, so a client can iterate without knowing the keys. `collar`/`circuit_breaker` are omitted for a symbol with neither configured |
+| `GET /reference/risk` | `{ "default_level"?:..., "levels": [{name, collar?}], "config_version":... }` | Risk-band definitions referenced by each symbol's `level`. `collar` is omitted for a level that configures none |
 | `GET /reference/indexes` | `{ "indexes": [{id, description, base_value, constituents}], "config_version":... }` | Configured exchange indexes; empty list if none configured |
-| `GET /reference/schedule` | `{ "sessions_enabled":..., "country":..., "pre_open":..., "opening_auction_start":..., "continuous_start":..., "closing_auction_start":..., "closing_auction_end":..., "config_version":... }` | `null` schedule fields mean no `schedule:` block is configured |
+| `GET /reference/schedule` | `{ "sessions_enabled":..., "country"?:..., "schedule": {pre_open, opening_auction_start, continuous_start, closing_auction_start, closing_auction_end} \| null, "config_version":... }` | The five clock times are nested under `schedule`, which is the same record `system.session_schedule` carries. `schedule: null` means no `schedule:` block is configured |
 
 All six accept any valid API key, including read-only (`gateway_id: null`)
 credentials — this is metadata, not account or order data. Every response
@@ -769,7 +769,7 @@ Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
 | `POST` | `/admin/circuit-breaker/trigger`  | `{ "symbol":"AAPL", "level": "L1", "reason":null }` | engine halt ack                         | `risk.symbol_halt`          |
 | `POST` | `/admin/circuit-breaker/resume`   | `{ "symbol":"AAPL", "reason":null }`        | engine resume ack                               | `risk.symbol_resume`        |
 | `GET`  | `/admin/halts`                    | none                                        | `{ "halted":[{symbol,resume_at_ns?,level?,...}] }` | `system.halt_status_request` |
-| `GET`  | `/admin/risk/state`               | none                                        | `{ "symbols": {SYM: {collar_reference_price, circuit_breaker:{...}}} }` | `system.risk_state_request` |
+| `GET`  | `/admin/risk/state`               | none                                        | `{ "symbols": [{symbol, collar_reference_price?, circuit_breaker?}] }` | `system.risk_state_request` |
 | `GET`  | `/admin/orders`                   | `?symbol=&gateway_id=&status=`              | `{ "count":N, "orders":[...], "retention_sec":N }` | none — served from cache |
 | `GET`  | `/admin/orders/{order_id}`        | `?limit=`                                   | `{ "order_id":..., "count":N, "events":[...] }` | none — read from `audit_index.db` |
 | `POST` | `/admin/kill-switch/symbol`       | `{ "symbol":"AAPL", "reason":null }`        | engine cancel-symbol ack                        | `risk.cancel_symbol`        |
@@ -958,11 +958,25 @@ to know each command's own ack shape:
 
 `action` is one of `circuit_breaker.trigger`, `circuit_breaker.resume`,
 `kill_switch.self`, `kill_switch.symbol`, `kill_switch.gateway`,
-`kill_switch.global`. `scope` varies by `action` — it carries whatever
-identifies what the command acted on (symbol, target gateway, cancelled
-counts) plus the request's `reason` field under the key `note`. This event
-is admin-monitor-only: it never reaches a trading gateway's private stream or
-the public market-data stream, regardless of which gateway initiated it.
+`kill_switch.global`. `scope` carries what the command acted on and what it
+did, and every key is optional because each `action` uses a different subset.
+The set is closed — since phase 6.1d it is a declared record, and a key
+outside it cannot reach the wire:
+
+| Key                 | Type  | Present on                                    |
+|---------------------|-------|-----------------------------------------------|
+| `symbol`            | str   | the per-symbol actions                        |
+| `target_gateway_id` | str   | `kill_switch.gateway`                         |
+| `level`             | str   | `circuit_breaker.trigger`                     |
+| `note`              | str   | any action carrying the request's `reason`    |
+| `cancelled_orders`  | int   | accepted kill switches                        |
+| `cancelled_quotes`  | int   | accepted kill switches                        |
+| `affected_gateways` | int   | an accepted `kill_switch.global`              |
+
+A key whose value is unset is **absent** rather than `null`, and `scope` is
+`{}` on a rejection that named nothing. This event is admin-monitor-only: it
+never reaches a trading gateway's private stream or the public market-data
+stream, regardless of which gateway initiated it.
 
 !!! note "Index rebalance does not emit `admin.action`"
     `POST /admin/indexes/{id}/rebalance` talks to `pm-index`, a separate

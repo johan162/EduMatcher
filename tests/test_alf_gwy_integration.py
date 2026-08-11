@@ -241,7 +241,12 @@ def test_welcome_followed_by_symbols_response(
         pub.send_multipart(
             encode(
                 "system.symbols.TRADER01",
-                {"symbols": ["AAPL", "MSFT"]},
+                {
+                    "symbols": [
+                        {"symbol": "AAPL", "tick_decimals": 2},
+                        {"symbol": "MSFT", "tick_decimals": 2},
+                    ]
+                },
             )
         )
 
@@ -446,7 +451,7 @@ def test_new_order_forwarded_to_engine(
         pub.send_multipart(
             encode(
                 "system.symbols.TRADER01",
-                {"symbols": ["AAPL"]},
+                {"symbols": [{"symbol": "AAPL", "tick_decimals": 2}]},
             )
         )
         lb.recv_until(lambda ln: ln.startswith("SYMBOLS"), timeout=3.0)

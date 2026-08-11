@@ -42,8 +42,11 @@ from edumatcher.log_srv.config import (
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 
 console = Console()
+
 log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-board"
@@ -186,7 +189,7 @@ def main() -> None:
         debug_last_summary = now
 
     # Subscribe to all book snapshots and trade feed
-    sub = make_subscriber(ENGINE_PUB_ADDR, "book.", "trade.executed")
+    sub = make_subscriber(ENGINE_PUB_ADDR, PREFIX_BOOK_SNAPSHOT, TOPIC_TRADE_EXECUTED)
 
     # symbol → aggregated data
     symbols: dict[str, dict[str, Any]] = {}
@@ -223,9 +226,9 @@ def main() -> None:
                     topic_str, payload = decode(frames)
                     _dbg_count("incoming_total")
 
-                    if topic_str.startswith("book."):
+                    if topic_str.startswith(PREFIX_BOOK_SNAPSHOT):
                         _dbg_count("incoming_book")
-                        sym = topic_str[5:]  # strip "book."
+                        sym = topic_str[5:]  # strip PREFIX_BOOK_SNAPSHOT
                         entry = symbols.setdefault(
                             sym,
                             {
@@ -251,7 +254,7 @@ def main() -> None:
                         ):
                             entry["first_price"] = entry["last_price"]
 
-                    elif topic_str == "trade.executed":
+                    elif topic_str == TOPIC_TRADE_EXECUTED:
                         _dbg_count("incoming_trade")
                         trade_sym: str | None = payload.get("symbol")
                         if trade_sym:

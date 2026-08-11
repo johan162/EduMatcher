@@ -165,16 +165,13 @@ def test_fill_event_relayed_to_matching_gateway_id(
         deadline = time.time() + _DEFAULT_TIMEOUT
         got_fill = False
         while time.time() < deadline and not got_fill:
-            pub.publish(
+            pub.publish_fill(
                 "TRADER01",
-                "order.fill",
-                {
-                    "order_id": "ord-1",
-                    "symbol": "AAPL",
-                    "fill_qty": 100,
-                    "fill_price": 150.25,
-                    "liquidity_flag": "MAKER",
-                },
+                order_id="ord-1",
+                symbol="AAPL",
+                fill_qty=100,
+                fill_price=150.25,
+                liquidity_flag="MAKER",
             )
             try:
                 cli.settimeout(0.3)
@@ -206,10 +203,13 @@ def test_fill_event_not_relayed_to_other_gateway_id(
         # should never see a DC_FILL, only its own periodic HB (heartbeat
         # is set to 60s here so none will arrive within the short window).
         for _ in range(5):
-            pub.publish(
+            pub.publish_fill(
                 "TRADER01",
-                "order.fill",
-                {"order_id": "ord-x", "symbol": "MSFT", "fill_qty": 10},
+                order_id="ord-x",
+                symbol="MSFT",
+                fill_qty=10,
+                fill_price=1.0,
+                liquidity_flag="TAKER",
             )
             time.sleep(0.05)
 
@@ -279,10 +279,13 @@ def test_two_clients_same_gateway_id_both_receive(
         deadline = time.time() + _DEFAULT_TIMEOUT
         seen1 = seen2 = False
         while time.time() < deadline and not (seen1 and seen2):
-            pub.publish(
+            pub.publish_fill(
                 "TRADER07",
-                "order.fill",
-                {"order_id": "ord-2", "symbol": "IBM", "fill_qty": 5},
+                order_id="ord-2",
+                symbol="IBM",
+                fill_qty=5,
+                fill_price=1.0,
+                liquidity_flag="TAKER",
             )
             for sock_obj, flag_name in ((cli1, "seen1"), (cli2, "seen2")):
                 try:

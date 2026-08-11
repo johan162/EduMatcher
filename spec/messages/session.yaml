@@ -1,0 +1,145 @@
+# Canonical specification for the `session` message family.
+#
+# Phase 5.2a. Four topics, but the widest literal duplication of any family:
+# "session.state" alone appears 22 times across 15 modules, which is exactly
+# the silent-rename failure section 1.2 measured.
+#
+# TWO PRESENCE REGIMES ARRIVE HERE.
+#
+# 1. `omit_when_empty` (new). SessionStatePayload.to_dict does
+#    `if self.prev_state:` - it omits on the empty string, not on null. That is
+#    a fourth regime alongside B.7.0's three, and it is the one the codebase
+#    used most: 27 hand-written builders drop a key the same way. Strings only,
+#    since on a number it would silently drop a legitimate zero.
+#
+# 2. Paired presence, expressed as a record. The hand-written builders had
+#    `if next_state and next_at:` and `if command_id and gateway_id:` - two
+#    keys that must travel together or not at all. The IDL could have grown a
+#    `co_present: [a, b]` constraint; it grew nothing, because those pairs are
+#    records that had been flattened into `a_b` names for want of one.
+#
+#    A nullable record says "both or neither" by construction rather than by
+#    assertion: the invalid half-set state is unrepresentable instead of
+#    detected. It also names the thing - `next` is the next transition, and
+#    `reply_to` is a return address, which is what "if both of these happen to
+#    be set, someone wants an answer" was trying to say.
+#
+#    This is the first deliberate *shape* change in the migration. Every family
+#    so far was byte-identical; section 15.6's rule says a unit belongs in a
+#    declaration rather than a representation, and the same argument applies to
+#    a relationship between two fields.
+
+family: session
+version: 1
+
+types:
+  NextTransition:
+    doc: >
+      The transition after this one: what the session moves to, and when.
+
+      Present only when the scheduler drove the transition, since it alone
+      knows the day's timetable. A manual or admin-driven transition carries no
+      next - deliberately, because the schedule says what *should* happen while
+      the engine decides what *does*, and a countdown derived from the
+      timetable alone would tick toward a transition nobody will perform.
+
+      The two fields are one record rather than two optional keys because
+      neither is meaningful alone: a phase without a time cannot be counted
+      down to, and a time without a phase does not say what happens.
+    fields:
+      - { name: state, type: string, validate: { max_len: 32 },
+          doc: "The session state being moved to." }
+      - { name: at, type: string, validate: { max_len: 32 },
+          doc: "UTC ISO-8601 instant of the transition." }
+
+  ReplyTo:
+    doc: >
+      Where to send the outcome of a command, and under what correlation id.
+
+      Supplied by an *interactive* requester that wants to know what happened.
+      pm-scheduler omits it: it drives the timetable, has nobody to report back
+      to, and the public session.state broadcast already says what occurred.
+
+      A record rather than two optional keys for the same reason as
+      NextTransition - a command_id with no gateway to answer on is
+      undeliverable, and a gateway with no command_id cannot be correlated.
+    fields:
+      - { name: command_id, type: string, validate: { max_len: 64 } }
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+
+messages:
+  - name: session_state
+    topic: "session.state"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Broadcast the engine's current session state to every subscriber. The
+        most widely consumed topic in the system.
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["session.transition"]
+      example_note: >
+        prev_state is omitted when empty rather than emitted as "", which is
+        what the hand-written payload did. next is present only on a
+        scheduler-driven transition.
+    fields:
+      - { name: state, type: string, validate: { max_len: 32 },
+          doc: "The session state now in effect." }
+      - { name: prev_state, type: string, required: false,
+          omit_when_empty: true, validate: { max_len: 32 },
+          doc: "The state departed from; absent on the first broadcast." }
+      - { name: next, type: nested, ref: NextTransition, required: false,
+          nullable: true, omit_when_none: true }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: session_transition
+    topic: "session.transition"
+    transport: [engine_pub]
+    doc:
+      motivation: "Scheduler or operator to engine: request a state change."
+      published_by: [scheduler]
+      since: "1.0"
+      see_also: ["session.transition_ack.{GW_ID}", "session.state"]
+    fields:
+      - { name: to_state, type: string, validate: { max_len: 32 } }
+      - name: next
+        type: nested
+        ref: NextTransition
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          Describes the transition *after* this one, so the engine can publish
+          a countdown target. A manual transition omits it, which clears any
+          stale target the engine was holding.
+      - { name: reply_to, type: nested, ref: ReplyTo, required: false,
+          nullable: true, omit_when_none: true }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: session_transition_ack
+    topic: "session.transition_ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to the requesting gateway: the outcome of a transition request.
+      published_by: [engine]
+      since: "1.0"
+      example_note: >
+        Addressed rather than broadcast, because a command_id belongs to
+        whoever issued it - putting it on the public session.state topic would
+        hand every subscriber another operator's correlation id. It also closes
+        a silent failure: a request the engine discarded previously produced no
+        reply at all, so a caller could not tell a rejection from a timeout.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: command_id, type: string, validate: { max_len: 64 } }
+      - { name: accepted, type: bool }
+      - { name: to_state, type: string, required: false, default: "",
+          validate: { max_len: 32 } }
+      - { name: reason, type: string, required: false, default: "",
+          doc: "Rejection detail; empty when accepted.",
+          validate: { max_len: 256 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }

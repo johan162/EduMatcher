@@ -11,6 +11,17 @@ from pydantic import ValidationError
 from edumatcher.api_gateway.events import market_data_symbol, now_iso
 from edumatcher.api_gateway.schemas import ALWAYS_ON_CHANNELS, MarketDataControl
 from edumatcher.api_gateway.sessions import SessionRegistry
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.auction import topic_auction_result
+from edumatcher.models.generated.book import (
+    topic_book_snapshot,
+    topic_depth,
+)
+from edumatcher.models.generated.system import (
+    topic_gateways,
+    topic_halt_status,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["websockets"])
 
@@ -260,10 +271,10 @@ async def _monitor_snapshot(websocket: WebSocket, gateway_id: str) -> dict[str, 
             return None
 
     halts = await _ask(
-        engine.request_halt_status, f"system.halt_status.{gateway_id}", "halts"
+        engine.request_halt_status, topic_halt_status(gateway_id), "halts"
     )
     gateways = await _ask(
-        engine.request_gateways, f"system.gateways.{gateway_id}", "gateways"
+        engine.request_gateways, topic_gateways(gateway_id), "gateways"
     )
     return {
         "type": "monitor.snapshot",
@@ -367,15 +378,15 @@ def _topic_from_event(event: dict[str, Any]) -> str:
     data = event.get("data", {})
     symbol = str(data.get("symbol", "")) if isinstance(data, dict) else ""
     if event_type == "book" and symbol:
-        return f"book.{symbol}"
+        return topic_book_snapshot(symbol)
     if event_type == "depth" and symbol:
-        return f"depth.{symbol}"
+        return topic_depth(symbol)
     if event_type == "trade":
-        return "trade.executed"
+        return TOPIC_TRADE_EXECUTED
     if event_type == "session":
-        return "session.state"
+        return TOPIC_SESSION_STATE
     if event_type == "circuit_breaker":
         return "circuit_breaker.event"
     if event_type == "auction" and symbol:
-        return f"auction.result.{symbol}"
+        return topic_auction_result(symbol)
     return event_type

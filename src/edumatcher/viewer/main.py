@@ -53,6 +53,9 @@ from edumatcher.log_srv.config import (
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_subscriber, make_pusher
 from edumatcher.models.message import decode, make_book_snapshot_request_msg
+from edumatcher.models.generated.book import (
+    topic_book_snapshot,
+)
 
 console = Console()
 log = logging.getLogger(__name__)
@@ -579,7 +582,7 @@ def main() -> None:
         debug_counts.clear()
         debug_last_summary = now
 
-    sub = make_subscriber(ENGINE_PUB_ADDR, f"book.{symbol}")
+    sub = make_subscriber(ENGINE_PUB_ADDR, topic_book_snapshot(symbol))
 
     # Request the current snapshot so reconnects show the live book
     # immediately. Done in a daemon thread so we don't block the main loop.

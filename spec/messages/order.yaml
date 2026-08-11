@@ -1,0 +1,775 @@
+# Canonical specification for the `order` message family.
+#
+# Scope (docs-design/EduMatcher-Message-Generator.md section 8):
+#   Phase 4b - execution_report, the BALF binary frame.
+#   Phase 5.1a - the five engine -> gateway order events below.
+#   Phase 5.1b - the three inbound gateway -> engine commands.
+# The combo/OCO topics are 5.1c and are deliberately absent rather than
+# half-specified.
+#
+# PRESENCE. These events are the reason section B.7.2 exists. They carry three
+# kinds of field: always present; present but nullable; and absent entirely
+# when unset. The last is `omit_when_none`, and it is used wherever the
+# hand-written code omitted a key - which models/message.py::group_ids
+# documents as deliberate: "an ordinary single order carries none of these,
+# and its events should not grow four empty fields to say so".
+#
+# LAYOUT AUTHORITY. Every offset, size and enum value below comes from
+# docs/user-guide/910-app-balf-protocol.md, which declares itself "the normative
+# reference for BALF 1.0.0", and is cross-checked against
+# src/edumatcher/balf_gwy/codec.py (the gateway that emits these frames) and
+# tests/test_balf_gwy_unit.py (which asserts side at body offset 48).
+#
+# It deliberately does NOT follow docs/examples/balf/balf_parser.py, which was
+# the source for this design's original example and is wrong: it models
+# `order_id` as a 16-byte string where the protocol defines a u64, making it
+# eight bytes too large on every message that carries one. See section 4.1's
+# correction note.
+
+family: order
+version: 1
+
+# Record types shared by the messages below. Declared here rather than inline
+# so a type used by more than one message generates a single definition (see
+# design section 15.5).
+types:
+  OcoLeg:
+    doc: >
+      One side of an OCO pair. It has no symbol or quantity of its own: both
+      legs trade the same instrument in the same size, and the OCO carries
+      those. That is what makes it a different record from a combo leg, which
+      does own a symbol and a quantity.
+    fields:
+      - { name: side, type: enum, values: [BUY, SELL] }
+      - { name: order_type, type: enum,
+          values: [MARKET, LIMIT, STOP, STOP_LIMIT, FOK, ICEBERG, IOC,
+                   TRAILING_STOP] }
+      - { name: price, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "Limit price in engine ticks. Absent for a leg with none." }
+      - { name: stop_price, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true }
+      - { name: trail_offset, type: ticks, unit: ticks, required: false,
+          nullable: true, omit_when_none: true }
+
+  ComboLeg:
+    doc: >
+      One leg of a combo. Unlike an OcoLeg it owns a symbol and a quantity:
+      the legs of a combo trade different instruments, in sizes that need not
+      match. That is why the two are separate types rather than one shared
+      `leg` - an early draft of design section 15 assumed they could be merged
+      and was wrong.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: side, type: enum, values: [BUY, SELL] }
+      - { name: order_type, type: enum,
+          values: [MARKET, LIMIT, STOP, STOP_LIMIT, FOK, ICEBERG, IOC,
+                   TRAILING_STOP] }
+      - { name: quantity, type: int, unit: shares, validate: { gt: 0 } }
+      - { name: price, type: ticks, unit: ticks, required: false,
+          nullable: true,
+          doc: "Limit price in engine ticks; null for a leg with none." }
+      - { name: stop_price, type: ticks, unit: ticks, required: false,
+          nullable: true }
+      - name: smp_action
+        type: enum
+        values: [NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH]
+        required: false
+        nullable: true
+        doc: >
+          Null means the client did not specify SMP, which is distinct from an
+          explicit NONE. Combo-level in the ALF protocols, so every leg carries
+          the same value.
+
+  OrderDisplay:
+    doc: >
+      One resting order as the engine reports it in an `order.orders` snapshot,
+      in display units. It is `Order.to_dict()` with price, stop_price and
+      trail_offset converted from ticks to display money and timestamp
+      expressed in seconds - the projection `order_to_display_dict` builds so an
+      operator reads prices in the same money the book shows, not raw ticks.
+      Gateway_id is not included here; it is topic-only (part of the message
+      topic as order.orders.{gateway_id}, not part of the record). The record
+      contains the order state (id, symbol, side, etc.) exactly as Order.to_dict()
+      produces, minus gateway_id; the eleven nullable ones ride as null when unset.
+    fields:
+      - { name: id, type: string, validate: { max_len: 64 },
+          doc: "Engine order id; a UUID string." }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: side, type: enum, values: [BUY, SELL] }
+      - { name: order_type, type: enum,
+          values: [MARKET, LIMIT, STOP, STOP_LIMIT, FOK, ICEBERG, IOC,
+                   TRAILING_STOP] }
+      - { name: tif, type: enum, values: [DAY, GTC, ATO, ATC] }
+      - { name: quantity, type: int, unit: shares,
+          doc: "Total original quantity.", validate: { gt: 0 } }
+      - { name: remaining_qty, type: int, unit: shares,
+          doc: "Quantity yet to be filled.", validate: { ge: 0 } }
+      - { name: trail_offset, type: float, unit: display_price,
+          required: false, nullable: true,
+          doc: "TRAILING_STOP: trail distance, in display money." }
+      - { name: oco_group_id, type: string, required: false, nullable: true,
+          validate: { max_len: 64 } }
+      - name: timestamp
+        type: float
+        unit: epoch_seconds
+        validate: { ge: 0 }
+        doc: >
+          Client-supplied submission time, in seconds. NOT the book's time
+          priority key - see arrival_seq.
+      - { name: status, type: enum,
+          values: [NEW, PARTIAL, FILLED, CANCELLED, REJECTED, EXPIRED] }
+      - { name: price, type: float, unit: display_price, required: false,
+          nullable: true,
+          doc: "Limit price in display money. Null for MARKET, which has none." }
+      - { name: stop_price, type: float, unit: display_price, required: false,
+          nullable: true, doc: "STOP / STOP_LIMIT / TRAILING_STOP trigger." }
+      - { name: visible_qty, type: int, unit: shares, required: false,
+          nullable: true, doc: "ICEBERG: fixed peak size." }
+      - { name: displayed_qty, type: int, unit: shares, required: false,
+          nullable: true, doc: "ICEBERG: current visible slice on the book." }
+      - name: smp_action
+        type: enum
+        values: [NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH]
+        required: false
+        nullable: true
+        doc: >
+          Self-match prevention. Null means the client did not specify SMP at
+          all, distinct from an explicit NONE. See SmpAction's docstring.
+      - { name: combo_parent_id, type: string, required: false, nullable: true,
+          validate: { max_len: 64 } }
+      - { name: leg_index, type: int, unit: dimensionless, required: false,
+          nullable: true, doc: "Position in the parent combo's legs, 0-based." }
+      - { name: origin, type: enum, values: [ORDER, QUOTE, IMPLIED],
+          required: false, default: "ORDER",
+          doc: "Defaulted rather than nullable: to_dict always supplies ORDER." }
+      - { name: quote_id, type: string, required: false, nullable: true,
+          validate: { max_len: 64 } }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          validate: { max_len: 64 },
+          doc: "Client correlation tag, echoed on every lifecycle event." }
+      - name: arrival_seq
+        type: int
+        unit: dimensionless
+        required: false
+        default: 0
+        doc: "Engine-assigned monotonic arrival sequence; 0 = unassigned."
+
+messages:
+  - name: execution_report
+    # BALF-only: a private per-order fill sent to the owning gateway session.
+    # No `topic:` - this message never travels on the internal bus. It is NOT
+    # the public trade.executed print; see section 4.6 and risk R13 on why the
+    # two are separate messages rather than one message on two transports.
+    transport: [balf]
+
+    doc:
+      motivation: >
+        Private per-order fill notification, sent to the gateway session that
+        owns the order. Both sides of a match receive their own report.
+      published_by: [gateway]
+      since: "1.0"
+      see_also: ["trade.executed"]
+      example_note: >
+        Sent for every partial or full fill, so a single order may produce
+        several. remaining_qty reaching zero is what marks the order done;
+        status FILLED says the same thing and the two must agree.
+
+    fields:
+      - name: client_order_id
+        type: int
+        required: true
+        unit: dimensionless
+        doc: Echoed from the original NEW_ORDER so a client can correlate.
+
+      - name: order_id
+        type: int
+        required: true
+        unit: dimensionless
+        doc: >
+          Session-scoped BALF order id assigned by the gateway. A u64 on the
+          wire, not a string - this is the field the reference example got
+          wrong.
+
+      - name: fill_price
+        type: float
+        required: true
+        unit: display_price
+        doc: >
+          Execution price in display money. On the wire it is an i64 scaled by
+          the fixed BALF PRICE_SCALE of 10^8, never by the instrument's
+          tick_decimals.
+        validate: { gt: 0 }
+
+      - name: fill_qty
+        type: int
+        required: true
+        unit: shares
+        doc: Quantity matched in this event, not cumulatively.
+        validate: { gt: 0 }
+
+      - name: remaining_qty
+        type: int
+        required: true
+        unit: shares
+        doc: Unfilled quantity after this fill; zero means the order is done.
+        validate: { ge: 0 }
+
+      - name: timestamp_ns
+        type: int
+        required: true
+        unit: epoch_nanos
+        doc: Trade time in nanoseconds since the Unix epoch.
+        validate: { ge: 0 }
+
+      - name: symbol
+        type: string
+        required: true
+        doc: Instrument, echoed for convenience; matches the original order.
+        validate: { max_len: 8, pattern: '^[A-Z0-9._]+$' }
+
+      - name: side
+        type: enum
+        values: [BUY, SELL]
+        required: true
+        doc: Side of the filled order.
+
+      - name: status
+        type: enum
+        values: [PARTIAL, FILLED]
+        required: true
+        doc: >
+          Whether this fill completed the order. Only these two values exist on
+          BALF - there is no NEW or CANCELLED execution report.
+
+    encoding:
+      balf:
+        msg_type: 0x20
+        # Total bytes on the wire = 8-byte header + 56-byte body. MUST equal
+        # codec.FRAME_SIZE[0x20]; a test asserts it.
+        frame_size: 64
+        # Fixed for every BALF price. The 8-byte header (magic 0xBA,
+        # version 0x01, msg_type, flags, seq_no u32 LE) is prepended by the
+        # generator and must not appear in `layout`.
+        price_scale: 100000000
+        layout:
+          - { field: client_order_id, repr: u64,     offset: 0 }
+          - { field: order_id,        repr: u64,     offset: 8 }
+          - { field: fill_price,      repr: i64,     offset: 16, scale: price_scale }
+          - { field: fill_qty,        repr: u32,     offset: 24 }
+          - { field: remaining_qty,   repr: u32,     offset: 28 }
+          - { field: timestamp_ns,    repr: u64,     offset: 32 }
+          - { field: symbol,          repr: "char[8]", offset: 40 }
+          - { field: side,            repr: u8,      offset: 48, enum_map: { BUY: 1, SELL: 2 } }
+          - { field: status,          repr: u8,      offset: 49, enum_map: { PARTIAL: 1, FILLED: 2 } }
+          # "Must be zero" per the normative reference.
+          - { reserved: 6, offset: 50 }
+
+  # --------------------------------------------------------------------------
+  # Phase 5.1a: engine -> gateway order events.
+  #
+  # All five share a parameterised topic keyed on the destination gateway, and
+  # all five carry the group identifiers that tie an order to the structure it
+  # belongs to (GROUP_ID_FIELDS in models/message.py).
+  # --------------------------------------------------------------------------
+
+  - name: order_ack
+    topic: "order.ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Acknowledge acceptance or rejection of a new order, addressed to the
+        gateway that submitted it.
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["order.fill.{GW_ID}", "order.new"]
+      example_note: >
+        The order-detail fields are present only when the engine had the order
+        to hand; on a rejection before lookup they are absent. reason is empty
+        on an acceptance.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          doc: "Rejection detail; empty when accepted.", validate: { max_len: 256 } }
+      - { name: symbol, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 16 } }
+      - { name: side, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 8 } }
+      - { name: order_type, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 16 } }
+      - { name: tif, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 8 } }
+      - { name: qty, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: shares }
+      - { name: price, type: float, required: false, nullable: true,
+          omit_when_none: true, unit: display_price,
+          doc: "Absent for a MARKET order, which has no limit price." }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: oco_group_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: combo_parent_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: quote_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: leg_index, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: dimensionless }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_fill
+    topic: "order.fill.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Private fill notification for one order, addressed to the gateway that
+        owns it. The public counterpart is trade.executed.
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["trade.executed"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: fill_qty, type: int, unit: shares }
+      - { name: fill_price, type: float, unit: display_price }
+      - { name: remaining_qty, type: int, unit: shares }
+      - { name: status, type: string, validate: { max_len: 16 } }
+      - { name: symbol, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 16 } }
+      - { name: side, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 8 } }
+      - { name: order_type, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 16 } }
+      - { name: tif, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 8 } }
+      - { name: qty, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: shares }
+      - { name: price, type: float, required: false, nullable: true,
+          omit_when_none: true, unit: display_price }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: oco_group_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: combo_parent_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: quote_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: leg_index, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: dimensionless }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_cancelled
+    topic: "order.cancelled.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Confirm that a resting order has been cancelled."
+      published_by: [engine]
+      since: "1.0"
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: oco_group_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: combo_parent_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: quote_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: leg_index, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: dimensionless }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_expired
+    topic: "order.expired.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        A DAY order that never filled has expired at session end. Same shape as
+        order.cancelled - the difference is who ended the order, not what the
+        consumer needs to know about it.
+      published_by: [engine]
+      since: "1.0"
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: oco_group_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: combo_parent_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: quote_id, type: string, required: false, nullable: true,
+          omit_when_none: true, validate: { max_len: 64 } }
+      - { name: leg_index, type: int, required: false, nullable: true,
+          omit_when_none: true, unit: dimensionless }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_amended
+    topic: "order.amended.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Confirm an accepted amendment and report the resulting order."
+      published_by: [engine]
+      since: "1.0"
+      example_note: >
+        price is nullable but always present: a MARKET order has no limit
+        price, and the field says so with null rather than by being absent.
+        This is the one message in the group that emits null rather than
+        omitting - it is what the hand-written builder did.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: price, type: float, required: false, nullable: true,
+          unit: display_price,
+          doc: "New limit price, or null for an order that has none." }
+      - { name: qty, type: int, unit: shares }
+      - { name: remaining_qty, type: int, unit: shares }
+      - { name: priority_reset, type: bool,
+          doc: "True when the amendment lost the order its time priority." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  # --------------------------------------------------------------------------
+  # Phase 5.1b: gateway -> engine inbound commands.
+  #
+  # PRESENCE, AND WHY IT IS THE OPPOSITE OF 5.1a. The five events above use
+  # `omit_when_none` throughout, because the hand-written builders omitted and
+  # every reader used `.get()`. These three do not, and the rule that decides
+  # both is the same: describe what the *consumer* requires, then reproduce the
+  # bytes of the dominant producer.
+  #
+  # The consumer is models/order.py::Order.from_dict, which states its contract
+  # field by field and partitions all 23 exactly onto section B.7.0's three
+  # regimes:
+  #   d["x"]                -> required          (10 fields)
+  #   d.get("x")            -> nullable          (11 fields)
+  #   d.get("x", <default>) -> required: false + default   (origin, arrival_seq)
+  # For the middle group absent and null are the same value to that reader -
+  # from_dict's own smp_action comment says so: "Absent key or explicit null
+  # both mean 'client did not specify'". So the two shapes seen in production
+  # were never two contracts, only two points inside this one.
+  #
+  # The dominant producer is Order.to_dict(), used by api_gateway, alf_console
+  # and alf_gwy, which always emits all 23. `nullable` without `omit_when_none`
+  # therefore reproduces it byte for byte. balf_gwy's translate.py builds its
+  # dict by hand and omits some of the 11; those keys become explicit nulls,
+  # which from_dict already reads identically.
+  #
+  # FIELD ORDER below is Order.to_dict()'s emission order, not from_dict's read
+  # order and not a tidied one. trail_offset and oco_group_id sitting at
+  # positions 9-10 looks like an accident of editing, but it is the wire today
+  # and byte-identity is the acceptance bar.
+  #
+  # UNITS. price, stop_price and trail_offset are ENGINE TICKS here, not the
+  # display money that order.ack and order.amended carry. balf_gwy converts
+  # with to_ticks() before publishing. Getting this wrong would typecheck.
+  # --------------------------------------------------------------------------
+
+  - name: order_new
+    topic: "order.new"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Submit a new order to the matching engine. Sent over PUSH/PULL rather
+        than the pub bus, but it carries a topic so the audit log can classify
+        it alongside everything else.
+      published_by: [gateway]
+      since: "1.0"
+      see_also: ["order.ack.{GW_ID}", "order.cancel", "order.amend"]
+      example_note: >
+        The payload is exactly Order.to_dict(). Eleven fields are nullable and
+        are emitted as null when unset rather than omitted - a MARKET order
+        carries "price": null. The engine's Order.from_dict reads absent and
+        null alike, so a producer that omits them is still accepted.
+    fields:
+      - { name: id, type: string, doc: "Engine order id; a UUID string.",
+          validate: { max_len: 64 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: side, type: enum, values: [BUY, SELL] }
+      - { name: order_type, type: enum,
+          values: [MARKET, LIMIT, STOP, STOP_LIMIT, FOK, ICEBERG, IOC,
+                   TRAILING_STOP] }
+      - { name: tif, type: enum, values: [DAY, GTC, ATO, ATC] }
+      - { name: quantity, type: int, unit: shares,
+          doc: "Total original quantity.", validate: { gt: 0 } }
+      - { name: remaining_qty, type: int, unit: shares,
+          doc: "Quantity yet to be filled; equals quantity on submission.",
+          validate: { ge: 0 } }
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: trail_offset, type: ticks, unit: ticks, required: false,
+          nullable: true,
+          doc: "TRAILING_STOP: fixed distance to trail the market price." }
+      - { name: oco_group_id, type: string, required: false, nullable: true,
+          validate: { max_len: 64 } }
+      - name: timestamp
+        type: int
+        unit: epoch_nanos
+        validate: { ge: 0 }
+        doc: >
+          Client-supplied submission time. NOT what the book uses for time
+          priority - see arrival_seq. BALF has no timestamp field on
+          NEW_ORDER, so balf_gwy stamps one at ingress.
+      - { name: status, type: enum,
+          values: [NEW, PARTIAL, FILLED, CANCELLED, REJECTED, EXPIRED],
+          doc: "Always NEW on submission; the enum is the full lifecycle." }
+      - { name: price, type: ticks, unit: ticks, required: false,
+          nullable: true,
+          doc: "Limit price in ticks. Null for MARKET, which has none." }
+      - { name: stop_price, type: ticks, unit: ticks, required: false,
+          nullable: true, doc: "STOP / STOP_LIMIT / TRAILING_STOP trigger." }
+      - { name: visible_qty, type: int, unit: shares, required: false,
+          nullable: true, doc: "ICEBERG: fixed peak size." }
+      - { name: displayed_qty, type: int, unit: shares, required: false,
+          nullable: true, doc: "ICEBERG: current visible slice on the book." }
+      - name: smp_action
+        type: enum
+        values: [NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH]
+        required: false
+        nullable: true
+        doc: >
+          Self-match prevention. Null means the client did not specify SMP at
+          all, which is distinct from an explicit NONE: the engine resolves
+          null to the gateway's configured default. See SmpAction's docstring.
+      - { name: combo_parent_id, type: string, required: false, nullable: true,
+          validate: { max_len: 64 } }
+      - { name: leg_index, type: int, unit: dimensionless, required: false,
+          nullable: true, doc: "Position in the parent combo's legs, 0-based." }
+      - { name: origin, type: enum, values: [ORDER, QUOTE, IMPLIED],
+          required: false, default: "ORDER",
+          doc: "Defaulted rather than nullable: from_dict supplies ORDER." }
+      - { name: quote_id, type: string, required: false, nullable: true,
+          validate: { max_len: 64 } }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          doc: "Client correlation tag, echoed on every lifecycle event.",
+          validate: { max_len: 64 } }
+      - name: arrival_seq
+        type: int
+        unit: dimensionless
+        required: false
+        default: 0
+        doc: >
+          Engine-assigned monotonic arrival sequence; time priority is keyed
+          on this, not on timestamp, so a back-dated payload cannot jump the
+          queue. Zero means unassigned, which is what a submission carries.
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_cancel
+    topic: "order.cancel"
+    transport: [engine_pub]
+    doc:
+      motivation: "Request cancellation of one resting order by id."
+      published_by: [gateway]
+      since: "1.0"
+      see_also: ["order.cancelled.{GW_ID}"]
+    fields:
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_amend
+    topic: "order.amend"
+    transport: [engine_pub]
+    doc:
+      motivation: "Request a price and/or quantity change to a resting order."
+      published_by: [gateway]
+      since: "1.0"
+      see_also: ["order.amended.{GW_ID}"]
+      example_note: >
+        price and qty are omitted when not being changed, and the engine reads
+        that absence as "leave this alone" - so unlike order.new these two DO
+        take omit_when_none. tests/test_messages.py pins the omission directly.
+        price here is display money, not the ticks that order.new carries.
+    fields:
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: price, type: float, unit: display_price, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "New limit price; absent means the price is unchanged." }
+      - { name: qty, type: int, unit: shares, required: false, nullable: true,
+          omit_when_none: true,
+          doc: "New quantity; absent means the quantity is unchanged." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  # --------------------------------------------------------------------------
+  # Phase 5.1c, part one: the two structure-cancel commands.
+  #
+  # order.combo and order.oco themselves are NOT here, and cannot be until the
+  # IDL grows `nested` and `list[T]` (design appendix B). Their payloads carry
+  # a list of leg objects, two named leg objects, a list of strings and two
+  # integer-keyed maps - none of which SCALAR_TYPES can describe. Specifying
+  # them as flat scalars would be a lie the generator would then enforce.
+  # See section 15 for the full finding and the units trap inside it.
+  #
+  # These two are flat, and identical in shape to order.cancel.
+  #
+  # PRESENCE follows the consumer, as in 5.1b - but the consumer here is
+  # lenient where order.cancel's was strict. _handle_combo_cancel and
+  # _handle_oco_cancel both read `payload.get("...", "")`, so the fields are
+  # `required: false` with an empty-string default rather than `required`.
+  # Declaring them required would be stricter than the engine and would make
+  # validate() reject a frame the engine handles today, which is a behaviour
+  # change this migration has no business making. Both builders always emit
+  # both keys, so the bytes are unchanged either way.
+  # --------------------------------------------------------------------------
+
+  - name: order_combo_cancel
+    topic: "order.combo_cancel"
+    transport: [engine_pub]
+    doc:
+      motivation: "Cancel a combo order and all of its resting child legs."
+      published_by: [gateway]
+      since: "1.0"
+      see_also: ["order.combo", "order.cancel"]
+    fields:
+      - { name: combo_id, type: string, required: false, default: "",
+          doc: "Client-supplied combo label, not the internal UUID.",
+          validate: { max_len: 64 } }
+      - { name: gateway_id, type: string, required: false, default: "",
+          validate: { max_len: 32 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_combo
+    topic: "order.combo"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Submit a combo: two or more orders on different instruments that the
+        engine posts together and tracks as one aggregate.
+      published_by: [gateway]
+      since: "1.0"
+      see_also: ["combo.ack.{GW_ID}", "order.combo_cancel"]
+      example_note: >
+        This is the message the whole of design section 15 is about. It was
+        unspecifiable for three separate reasons, and each turned out to be the
+        wire being wrong rather than the IDL being short: leg prices whose unit
+        depended on their runtime type (15.2), engine lifecycle state riding on
+        a client submission (15.4), and finally the ordinary need for `nested`
+        and `list[T]` (15.5). The payload below is `ComboOrder.
+        to_submission_dict()` and carries no engine state at all.
+    fields:
+      # As with order.oco, presence follows _handle_combo_order - which builds
+      # through ComboOrder.from_submission_dict, whose reads are strict.
+      - { name: combo_id, type: string, validate: { max_len: 64 },
+          doc: "Client-supplied tracking label, not the engine's internal id." }
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: combo_type, type: enum, values: [AON],
+          doc: "All-or-none: the combo completes only when every leg fills." }
+      - { name: tif, type: enum, values: [DAY, GTC, ATO, ATC] }
+      - name: legs
+        type: list
+        ref: ComboLeg
+        doc: >
+          The child orders. The bounds below were previously enforced only by
+          api_gateway's pydantic schema, which left the ALF console and gateway
+          free to submit a one-legged combo.
+        validate: { min_items: 2, max_items: 10 }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_oco
+    topic: "order.oco"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Submit a One-Cancels-Other pair: two orders on the same instrument, of
+        which a fill on either cancels the other.
+      published_by: [gateway]
+      since: "1.0"
+      see_also: ["oco.ack.{GW_ID}", "order.oco_cancel"]
+      example_note: >
+        The first message in any spec to use a nested record. Both legs are
+        `OcoLeg`, and their prices are engine ticks - the gateway converts.
+        A leg omits a price it does not have rather than sending null, which
+        is what the three producing gateways already do.
+    fields:
+      # PRESENCE follows _handle_oco_order, which reads every scalar with a
+      # `.get(k, default)` - so none of them is `required`, and the defaults
+      # below are the handler's own.
+      - { name: oco_id, type: string, required: false, default: "",
+          doc: "Client-supplied label for the pair.", validate: { max_len: 64 } }
+      - { name: gateway_id, type: string, required: false, default: "",
+          validate: { max_len: 32 } }
+      - { name: symbol, type: string, required: false, default: "",
+          doc: "Both legs trade this instrument.", validate: { max_len: 16 } }
+      - { name: quantity, type: int, unit: shares, required: false, default: 0,
+          doc: "Size of each leg; they are equal by construction." }
+      - { name: tif, type: enum, values: [DAY, GTC, ATO, ATC],
+          required: false, default: "DAY" }
+      # The legs are `required` even though the handler reads them with
+      # `.get(k, {})`: that empty default immediately fails `_parse_leg`, which
+      # rejects the OCO. Required is the honest description of the behaviour.
+      - { name: leg1, type: nested, ref: OcoLeg }
+      - { name: leg2, type: nested, ref: OcoLeg }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  - name: order_oco_cancel
+    topic: "order.oco_cancel"
+    transport: [engine_pub]
+    doc:
+      motivation: "Cancel an OCO pair and both of its legs."
+      published_by: [gateway]
+      since: "1.0"
+      see_also: ["order.oco", "order.cancel"]
+    fields:
+      - { name: oco_id, type: string, required: false, default: "",
+          doc: "Client-supplied OCO label.", validate: { max_len: 64 } }
+      - { name: gateway_id, type: string, required: false, default: "",
+          validate: { max_len: 32 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload], include: all }
+
+  # --------------------------------------------------------------------------
+  # Order snapshot query: a caller asks the engine for a gateway's resting
+  # orders, and the engine replies with them in display units. The reply mirrors
+  # system.symbols - gateway_id keys the topic and is dropped from the body by
+  # the default projection, so the body is just {orders: [...]}.
+  # --------------------------------------------------------------------------
+  - name: orders_request
+    topic: "order.orders_request"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Caller to engine: the resting (unfilled, non-cancelled) orders a
+        gateway currently has on the books, across all symbols.
+      published_by: [admin, api_gateway, gateway]
+      since: "1.0"
+      see_also: ["order.orders.{GW_ID}", "system.symbols_request"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Whose resting orders to return, and the reply's correlation
+                key." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: orders
+    topic: "order.orders.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to caller: the gateway's resting orders in display units, one
+        OrderDisplay record each. Empty when the gateway is unknown or flat.
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["order.orders_request", "order.new"]
+      example_note: >
+        gateway_id names the caller in the topic and is dropped from the body
+        by the default projection, so the body is a single `orders` list -
+        the same shape system.symbols uses.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped from the body by the default projection." }
+      - { name: orders, type: list, ref: OrderDisplay,
+          doc: "Resting orders, as the engine iterates its books." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }

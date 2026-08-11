@@ -22,7 +22,6 @@ from edumatcher.balf_gwy.codec import (
     HEADER_SIZE,
     MSG_AMEND_ACK,
     MSG_CANCEL_ACK,
-    MSG_EXECUTION_REPORT,
     MSG_HEARTBEAT,
     MSG_HEARTBEAT_ACK,
     MSG_LOGON_ACK,
@@ -30,11 +29,8 @@ from edumatcher.balf_gwy.codec import (
     MSG_ORDER_ACK,
     SIDE_BUY,
     SIDE_SELL,
-    STATUS_FILLED,
-    STATUS_PARTIAL,
     build_amend_ack,
     build_cancel_ack,
-    build_execution_report,
     build_header,
     build_heartbeat,
     build_heartbeat_ack,
@@ -88,10 +84,10 @@ from edumatcher.balf_gwy.translate import (
     build_engine_new_order,
     cancel_reason_from_engine,
     engine_amended_to_balf_params,
-    engine_fill_to_balf_params,
-    engine_side_to_balf,
+    engine_fill_to_execution_report_dict,
     new_engine_order_id,
 )
+from edumatcher.models.order import Order
 from edumatcher.models.price import clear_tick_registry
 
 # ---------------------------------------------------------------------------
@@ -150,21 +146,6 @@ class TestCodecFrameSizes:
             client_order_id=1, balf_order_id=2, seq_no=1, accepted=True
         )
         assert len(frame) == FRAME_SIZE[MSG_AMEND_ACK]
-
-    def test_execution_report(self):
-        frame = build_execution_report(
-            client_order_id=1,
-            balf_order_id=2,
-            seq_no=1,
-            fill_price=encode_price(150.0),
-            fill_qty=10,
-            remaining_qty=0,
-            timestamp_ns=12345,
-            symbol="AAPL",
-            side=SIDE_BUY,
-            status=STATUS_FILLED,
-        )
-        assert len(frame) == FRAME_SIZE[MSG_EXECUTION_REPORT]
 
     def test_heartbeat(self):
         assert len(build_heartbeat(seq_no=1)) == FRAME_SIZE[MSG_HEARTBEAT]
@@ -447,42 +428,8 @@ class TestCodecAmend:
 # ===========================================================================
 # Codec — EXECUTION_REPORT
 # ===========================================================================
-
-
-class TestCodecExecutionReport:
-    def test_partial_fill(self):
-        frame = build_execution_report(
-            client_order_id=1,
-            balf_order_id=2,
-            seq_no=1,
-            fill_price=encode_price(150.0),
-            fill_qty=50,
-            remaining_qty=50,
-            timestamp_ns=1_000_000,
-            symbol="AAPL",
-            side=SIDE_BUY,
-            status=STATUS_PARTIAL,
-        )
-        assert len(frame) == FRAME_SIZE[MSG_EXECUTION_REPORT]
-        # side at HEADER + Q+Q+q+I+I+Q+8s = 8+8+8+4+4+8+8 = 48
-        assert frame[HEADER_SIZE + 48] == SIDE_BUY
-        assert frame[HEADER_SIZE + 49] == STATUS_PARTIAL
-
-    def test_full_fill_side_sell(self):
-        frame = build_execution_report(
-            client_order_id=1,
-            balf_order_id=2,
-            seq_no=1,
-            fill_price=encode_price(99.5),
-            fill_qty=100,
-            remaining_qty=0,
-            timestamp_ns=0,
-            symbol="MSFT",
-            side=SIDE_SELL,
-            status=STATUS_FILLED,
-        )
-        assert frame[HEADER_SIZE + 48] == SIDE_SELL
-        assert frame[HEADER_SIZE + 49] == STATUS_FILLED
+# Serialisation is owned by the generated binding and covered byte-for-byte in
+# tests/test_msgen_balf_roundtrip.py.
 
 
 # ===========================================================================
@@ -1047,17 +994,15 @@ class TestBuildEngineNewOrder:
         order = build_engine_new_order(parsed, "GW1", "uuid-9")
         assert order.get("visible_qty") == 20
 
+    def test_translated_order_round_trips_into_order_model(self):
+        order_dict = build_engine_new_order(self._limit_parsed(), "GW1", "uuid-10")
+        restored = Order.from_dict(order_dict)
+        assert restored.id == "uuid-10"
+        assert isinstance(restored.timestamp, int)
+        assert restored.timestamp > 0
+
 
 class TestEngineEventTranslations:
-    def test_engine_side_buy(self):
-        assert engine_side_to_balf("BUY") == SIDE_BUY
-
-    def test_engine_side_sell(self):
-        assert engine_side_to_balf("SELL") == SIDE_SELL
-
-    def test_engine_side_unknown_is_sell(self):
-        assert engine_side_to_balf("UNKNOWN") == SIDE_SELL
-
     def test_fill_partial(self):
         payload = {
             "fill_price": 150.0,
@@ -1068,11 +1013,16 @@ class TestEngineEventTranslations:
             "side": "BUY",
             "timestamp": 999,
         }
-        p = engine_fill_to_balf_params(payload, balf_order_id=1, client_order_id=2)
+        p = engine_fill_to_execution_report_dict(
+            payload, balf_order_id=1, client_order_id=2
+        )
         assert p["fill_qty"] == 50
-        assert p["status"] == STATUS_PARTIAL
-        assert p["side"] == SIDE_BUY
-        assert p["fill_price"] == encode_price(150.0)
+        assert p["status"] == "PARTIAL"
+        assert p["side"] == "BUY"
+        assert p["fill_price"] == 150.0
+        assert p["order_id"] == 1
+        assert p["client_order_id"] == 2
+        assert p["timestamp_ns"] == 999
 
     def test_fill_fully_filled(self):
         payload = {
@@ -1084,14 +1034,18 @@ class TestEngineEventTranslations:
             "side": "SELL",
             "fill_timestamp": 1234,
         }
-        p = engine_fill_to_balf_params(payload, balf_order_id=3, client_order_id=4)
-        assert p["status"] == STATUS_FILLED
-        assert p["side"] == SIDE_SELL
+        p = engine_fill_to_execution_report_dict(
+            payload, balf_order_id=3, client_order_id=4
+        )
+        assert p["status"] == "FILLED"
+        assert p["side"] == "SELL"
+        assert p["timestamp_ns"] == 1234
 
     def test_fill_missing_fields_tolerated(self):
-        p = engine_fill_to_balf_params({}, balf_order_id=1, client_order_id=1)
+        p = engine_fill_to_execution_report_dict({}, balf_order_id=1, client_order_id=1)
         assert p["fill_qty"] == 0
-        assert p["status"] == STATUS_PARTIAL  # default
+        assert p["status"] == "PARTIAL"  # default
+        assert p["side"] == "BUY"  # default
 
     def test_amended_params(self):
         payload = {

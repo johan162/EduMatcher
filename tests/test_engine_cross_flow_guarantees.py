@@ -85,8 +85,8 @@ def flow_oco(engine, pub) -> str | None:
             "symbol": SYMBOL,
             "quantity": QTY,
             "tif": "DAY",
-            "leg1": {"side": "BUY", "order_type": "LIMIT", "price": PRICE},
-            "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 130.0},
+            "leg1": {"side": "BUY", "order_type": "LIMIT", "price": PRICE_TICKS},
+            "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 13000},
         }
     )
     acks = [m for m in msgs(pub, "oco.ack.GW01") if m.get("accepted")]

@@ -58,6 +58,74 @@ def _order() -> Order:
     )
 
 
+def _combo_payload() -> dict[str, Any]:
+    """A valid ``order.combo`` submission; the builder now validates before send."""
+    return {
+        "combo_id": "C1",
+        "gateway_id": "GW01",
+        "combo_type": "AON",
+        "tif": "DAY",
+        "legs": [
+            {
+                "symbol": "AAPL",
+                "side": "BUY",
+                "order_type": "LIMIT",
+                "quantity": 10,
+                "price": 100,
+                "stop_price": None,
+                "smp_action": None,
+            },
+            {
+                "symbol": "MSFT",
+                "side": "SELL",
+                "order_type": "LIMIT",
+                "quantity": 10,
+                "price": 200,
+                "stop_price": None,
+                "smp_action": None,
+            },
+        ],
+    }
+
+
+def _oco_payload() -> dict[str, Any]:
+    """A valid ``order.oco`` submission with both legs present."""
+    return {
+        "oco_id": "O1",
+        "gateway_id": "GW01",
+        "symbol": "AAPL",
+        "quantity": 10,
+        "tif": "DAY",
+        "leg1": {
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "price": 100,
+            "stop_price": None,
+            "trail_offset": None,
+        },
+        "leg2": {
+            "side": "BUY",
+            "order_type": "STOP",
+            "price": None,
+            "stop_price": 90,
+            "trail_offset": None,
+        },
+    }
+
+
+def _quote_payload() -> dict[str, Any]:
+    """A valid ``quote.new`` submission in ticks."""
+    return {
+        "gateway_id": "GW01",
+        "symbol": "AAPL",
+        "bid_price": 100,
+        "bid_qty": 10,
+        "ask_price": 101,
+        "ask_qty": 10,
+        "tif": "DAY",
+    }
+
+
 @pytest.mark.parametrize(
     "raised",
     [
@@ -93,11 +161,11 @@ def test_every_sender_is_guarded(client: EngineClient) -> None:
         lambda: client.send_new_order(_order()),
         lambda: client.send_cancel("ORD-1", "GW01"),
         lambda: client.send_amend("ORD-1", "GW01", price=1.0, qty=1),
-        lambda: client.send_combo({}),
+        lambda: client.send_combo(_combo_payload()),
         lambda: client.send_combo_cancel("C1", "GW01"),
-        lambda: client.send_oco({}),
+        lambda: client.send_oco(_oco_payload()),
         lambda: client.send_oco_cancel("O1", "GW01"),
-        lambda: client.send_quote({}),
+        lambda: client.send_quote(_quote_payload()),
         lambda: client.send_quote_cancel("GW01", "AAPL"),
         lambda: client.send_mass_cancel("GW01"),
         lambda: client.send_session_transition("CONTINUOUS"),

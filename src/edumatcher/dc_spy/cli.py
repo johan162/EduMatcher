@@ -26,7 +26,13 @@ from typing import Any
 
 from rich.console import Console
 
-from edumatcher.dc_spy.client import DcSpyClient, DcSpyConnectionError, DcSpyOptions
+from edumatcher.dc_spy.client import (
+    EVENT_TOPIC_PREFIX,
+    REPLAY_TOPIC_PREFIX,
+    DcSpyClient,
+    DcSpyConnectionError,
+    DcSpyOptions,
+)
 from edumatcher.dc_spy.formatters import format_human, format_json
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -86,15 +92,15 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="GW_ID",
         help="Only show fills for this gateway (subscribes to the "
-        "drop_copy.event.<GW_ID> topic). Default: all gateways "
-        "(drop_copy.event. prefix). Note the drop-copy socket performs no "
-        "entitlement checks -- any gateway's fills can be requested.",
+        f"{EVENT_TOPIC_PREFIX}<GW_ID> topic). Default: all gateways "
+        f"({EVENT_TOPIC_PREFIX} prefix). Note the drop-copy socket performs "
+        "no entitlement checks -- any gateway's fills can be requested.",
     )
     sub.add_argument(
         "--replay-of",
         default=None,
         metavar="RECIPIENT_ID",
-        help="Also subscribe to drop_copy.replay.<RECIPIENT_ID>, the topic "
+        help=f"Also subscribe to {REPLAY_TOPIC_PREFIX}<RECIPIENT_ID>, the topic "
         "DropCopyPublisher.replay() publishes on when a recipient's replay "
         "is requested programmatically. Replay lines are tagged REPLAY "
         "instead of FILL. Useful for observing replay() calls made by "
@@ -260,13 +266,11 @@ def main() -> None:
         session.console.print(f"[bold red]pm-dc-spy: {exc}[/bold red]")
         raise SystemExit(1) from exc
 
-    target = (
-        f"drop_copy.event.{gateway}" if gateway else "drop_copy.event.* (all gateways)"
-    )
+    target = options.event_topic if gateway else f"{EVENT_TOPIC_PREFIX}* (all gateways)"
     session.console.print(
         f"[bold cyan]◆ pm-dc-spy[/bold cyan] connected to "
         f"{args.host}:{args.port}, subscribed to [bold]{target}[/bold]"
-        f"{f' + drop_copy.replay.{replay_of}' if replay_of else ''} "
+        f"{f' + {options.replay_topic}' if replay_of else ''} "
         f"(Ctrl-C to stop)"
     )
 

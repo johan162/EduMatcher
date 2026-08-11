@@ -1,4 +1,11 @@
-# Statistics & Reporting — Pre-Ship Review
+Version: 1.0.0
+
+Date: 2026-06-14
+
+Status: Design and Research Proposal
+
+
+# Statistics and Reporting — Pre-Ship Review
 
 Scope: `src/edumatcher/stats/{main,query,cli}.py` and
 `docs/user-guide/140-statistics-and-reporting.md`.

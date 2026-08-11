@@ -31,6 +31,10 @@ from typing import Any
 
 from edumatcher.commands import CommandError, CommandTimeoutError, ExchangeCommandClient
 from edumatcher.config import INDEX_PUB_CONNECT_ADDR, INDEX_PULL_CONNECT_ADDR
+from edumatcher.models.generated.index import (
+    TOPIC_INDEX_CONSTITUENT_CHANGE,
+    TOPIC_INDEX_CORP_ACTION,
+)
 
 _FORMATS = ("table", "json")
 
@@ -333,7 +337,7 @@ def _cmd_split(client: ExchangeCommandClient, args: argparse.Namespace) -> bool:
 
     if args.dry_run:
         _print_dry_run(
-            "index.corp_action",
+            TOPIC_INDEX_CORP_ACTION,
             {
                 "action": _SPLIT,
                 "index_id": args.index.upper(),
@@ -373,7 +377,7 @@ def _cmd_dividend(client: ExchangeCommandClient, args: argparse.Namespace) -> bo
 
     if args.dry_run:
         _print_dry_run(
-            "index.corp_action",
+            TOPIC_INDEX_CORP_ACTION,
             {
                 "action": _CASH_DIVIDEND,
                 "index_id": args.index.upper(),
@@ -434,11 +438,17 @@ def _resolve_delta(
         detail = str(rec.get("detail", ""))
         shares: int | None = None
         if rec.get("type") == "ADD_CONSTITUENT":
-            # ADD_CONSTITUENT records don't carry shares_outstanding in the
-            # history payload (only reference_price) — skip; SHARES_ISSUANCE
-            # corp-action records are the authoritative source once applied.
-            continue
-        if rec.get("type") == "CORP_ACTION" and detail.startswith("shares="):
+            # Records written before shares_outstanding was added to the
+            # ADD_CONSTITUENT audit entry carry only reference_price; for those
+            # a SHARES_ISSUANCE corp-action record is still the only source.
+            raw_shares = rec.get("shares_outstanding")
+            if raw_shares is None:
+                continue
+            try:
+                shares = int(raw_shares)
+            except (TypeError, ValueError):
+                shares = None
+        elif rec.get("type") == "CORP_ACTION" and detail.startswith("shares="):
             try:
                 shares = int(detail.split("=", 1)[1])
             except ValueError:
@@ -472,7 +482,7 @@ def _cmd_shares(client: ExchangeCommandClient, args: argparse.Namespace) -> bool
 
     if args.dry_run:
         _print_dry_run(
-            "index.corp_action",
+            TOPIC_INDEX_CORP_ACTION,
             {
                 "action": _SHARES_ISSUANCE,
                 "index_id": args.index.upper(),
@@ -519,7 +529,7 @@ def _cmd_add(client: ExchangeCommandClient, args: argparse.Namespace) -> bool:
 
     if args.dry_run:
         _print_dry_run(
-            "index.constituent_change",
+            TOPIC_INDEX_CONSTITUENT_CHANGE,
             {
                 "change_type": "ADD",
                 "index_id": args.index.upper(),
@@ -557,7 +567,7 @@ def _cmd_add(client: ExchangeCommandClient, args: argparse.Namespace) -> bool:
 def _cmd_delist(client: ExchangeCommandClient, args: argparse.Namespace) -> bool:
     if args.dry_run:
         _print_dry_run(
-            "index.constituent_change",
+            TOPIC_INDEX_CONSTITUENT_CHANGE,
             {
                 "change_type": "DELIST",
                 "index_id": args.index.upper(),

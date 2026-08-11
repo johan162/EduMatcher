@@ -49,13 +49,18 @@ def clear_tick_registry() -> None:
     _to_scale_cache.clear()
 
 
-def to_ticks(price: float | int, symbol: str) -> int:
+def to_ticks(price: float, symbol: str) -> int:
     """Convert a display price to integer ticks with nearest-tick rounding.
 
-    If an integer is passed, it is assumed to already be in ticks.
+    ``price`` is always display money. This function used to return an ``int``
+    argument unchanged, on the convention that "an integer is already ticks" -
+    which made the *unit* of a price depend on its *runtime type*, and made a
+    display price of exactly 150 indistinguishable from 150 ticks.
+
+    Engine-inbound messages now carry ticks and only ticks; converting is the
+    submitting gateway's job. Nothing calls this with a tick value any more, so
+    the passthrough is gone and the function is total.
     """
-    if isinstance(price, int):
-        return price
     scale = _to_scale_cache.get(symbol)
     if scale is None:
         scale = 10 ** get_tick_decimals(symbol)

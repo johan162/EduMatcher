@@ -99,7 +99,13 @@ def test_session_transition_stays_unchanged_for_the_scheduler() -> None:
     payload = _payload(
         make_session_transition_msg("OPEN", next_state="CLOSED", next_at="16:00")
     )
-    assert payload == {"to_state": "OPEN", "next_state": "CLOSED", "next_at": "16:00"}
+    # `next_state`/`next_at` became one `next` record in Phase 5.2a: they only
+    # ever travelled together, and a nullable record says so by construction
+    # rather than by an `if a and b:` every future caller has to remember.
+    assert payload == {
+        "to_state": "OPEN",
+        "next": {"state": "CLOSED", "at": "16:00"},
+    }
 
 
 def test_session_transition_carries_command_id_only_with_a_gateway() -> None:
@@ -107,8 +113,11 @@ def test_session_transition_carries_command_id_only_with_a_gateway() -> None:
     both = _payload(
         make_session_transition_msg("OPEN", command_id="cmd-1", gateway_id="GW01")
     )
-    assert both["command_id"] == "cmd-1" and both["gateway_id"] == "GW01"
-    assert "command_id" not in _payload(
+    # One `reply_to` record rather than two loose keys — a command_id with no
+    # gateway to answer on is undeliverable, and the record makes that state
+    # unrepresentable instead of merely invalid.
+    assert both["reply_to"] == {"command_id": "cmd-1", "gateway_id": "GW01"}
+    assert "reply_to" not in _payload(
         make_session_transition_msg("OPEN", command_id="cmd-1")
     )
 
@@ -154,7 +163,10 @@ def test_session_transition_rejection_is_reported_not_silent() -> None:
     engine = _engine()
     engine._sessions_enabled = False
     engine._handle_session_transition(
-        {"to_state": "OPEN", "command_id": "cmd-9", "gateway_id": "GW01"}
+        {
+            "to_state": "OPEN",
+            "reply_to": {"command_id": "cmd-9", "gateway_id": "GW01"},
+        }
     )
     published = _published(engine)
     assert len(published) == 1
@@ -168,7 +180,10 @@ def test_an_unknown_state_is_rejected_with_a_reason() -> None:
     engine = _engine()
     engine._sessions_enabled = True
     engine._handle_session_transition(
-        {"to_state": "NOT_A_STATE", "command_id": "cmd-10", "gateway_id": "GW01"}
+        {
+            "to_state": "NOT_A_STATE",
+            "reply_to": {"command_id": "cmd-10", "gateway_id": "GW01"},
+        }
     )
     ack = _payload(_published(engine)[-1])
     assert ack["accepted"] is False

@@ -10,6 +10,7 @@ import pytest
 
 import edumatcher.index.main as index_main
 from edumatcher.index.config_loader import IndexRuntimeConfig
+from edumatcher.models.generated.index import DaySummary
 from edumatcher.models.message import decode
 
 
@@ -400,14 +401,10 @@ def test_session_state_resets_intraday_fields(
 ) -> None:
     proc, _ = proc_with_fakes
     idx = proc._indices["EDU100"]
-    idx.day_open = 1.0
-    idx.day_high = 2.0
-    idx.day_low = 0.5
+    idx.day = DaySummary(open=1.0, high=2.0, low=0.5)
     idx.day_close = 1.5
     proc._handle_session_state({"state": "CONTINUOUS"})
-    assert idx.day_open is None
-    assert idx.day_high is None
-    assert idx.day_low is None
+    assert idx.day is None
     assert idx.day_close is None
 
 

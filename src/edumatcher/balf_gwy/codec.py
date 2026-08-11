@@ -444,39 +444,10 @@ def build_amend_ack(
 # ---------------------------------------------------------------------------
 # EXECUTION_REPORT  (0x20, 64 bytes total)
 # ---------------------------------------------------------------------------
-# Body: client_order_id Q | order_id Q | fill_price q | fill_qty I |
-#       remaining_qty I | timestamp_ns Q | symbol[8] | side B | status B | reserved[6]
-
-_EXEC_REPORT_FMT = "<QQqIIQ8sBBxxxxxx"
-
-
-def build_execution_report(
-    *,
-    client_order_id: int,
-    balf_order_id: int,
-    seq_no: int,
-    fill_price: int,
-    fill_qty: int,
-    remaining_qty: int,
-    timestamp_ns: int,
-    symbol: str,
-    side: int,
-    status: int,
-) -> bytes:
-    """Build an EXECUTION_REPORT frame (64 bytes)."""
-    body = struct.pack(
-        _EXEC_REPORT_FMT,
-        client_order_id,
-        balf_order_id,
-        fill_price,
-        fill_qty,
-        remaining_qty,
-        timestamp_ns,
-        _encode_fixed(symbol, 8),
-        side & 0xFF,
-        status & 0xFF,
-    )
-    return build_header(MSG_EXECUTION_REPORT, seq_no) + body
+# Serialisation is owned by the generated binding:
+# models.generated.order.serialise_execution_report_balf. The gateway is the
+# only producer of this frame and calls that directly. MSG_EXECUTION_REPORT and
+# its FRAME_SIZE entry remain here as the client-side parse registry.
 
 
 # ---------------------------------------------------------------------------

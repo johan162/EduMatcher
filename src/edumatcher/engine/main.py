@@ -68,10 +68,24 @@ from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_puller, make_publisher
 from edumatcher.models.combo import ComboOrder, ComboStatus, ComboType
 from edumatcher.models.clock import now_ns
+from edumatcher.models.generated.session import TOPIC_SESSION_TRANSITION
+from edumatcher.models.generated.order import (
+    TOPIC_ORDER_AMEND,
+    TOPIC_ORDER_CANCEL,
+    TOPIC_ORDER_COMBO,
+    TOPIC_ORDER_COMBO_CANCEL,
+    TOPIC_ORDER_NEW,
+    TOPIC_ORDER_OCO,
+    TOPIC_ORDER_OCO_CANCEL,
+    TOPIC_ORDERS_REQUEST,
+    topic_order_ack,
+    topic_order_cancelled,
+    topic_order_fill,
+)
+from edumatcher.models.generated.trade import make_trade_executed_unchecked
 from edumatcher.models.message import (
     dumps,
     decode,
-    encode,
     make_ack_msg,
     make_amended_msg,
     make_book_msg,
@@ -146,6 +160,42 @@ from edumatcher.models.session import (
     is_matching_enabled,
 )
 from edumatcher.models.trade import Trade
+from edumatcher.models.generated.book import TOPIC_BOOK_SNAPSHOT_REQUEST
+from edumatcher.models.generated.circuit_breaker import (
+    make_circuit_breaker_extend,
+    make_circuit_breaker_halt,
+    make_circuit_breaker_resume,
+)
+from edumatcher.models.generated.risk import (
+    TOPIC_CANCEL_SYMBOL,
+    TOPIC_CIRCUIT_BREAKER_HALT_ALL,
+    TOPIC_CIRCUIT_BREAKER_RESUME_ALL,
+    TOPIC_KILL_SWITCH,
+    TOPIC_KILL_SWITCH_GATEWAY,
+    TOPIC_KILL_SWITCH_GLOBAL,
+    TOPIC_SYMBOL_HALT,
+    TOPIC_SYMBOL_RESUME,
+)
+from edumatcher.models.generated.quote import (
+    TOPIC_QUOTE_CANCEL,
+    TOPIC_QUOTE_NEW,
+)
+from edumatcher.models.generated.system import (
+    TOPIC_GATEWAYS_REQUEST,
+    TOPIC_GATEWAY_CONNECT,
+    TOPIC_GATEWAY_DISCONNECT,
+    TOPIC_HALT_STATUS_REQUEST,
+    TOPIC_POSITION_REQUEST,
+    TOPIC_QUOTE_BOOTSTRAP_REQUEST,
+    TOPIC_QUOTE_LEGS_REQUEST,
+    TOPIC_REFERENCE_RELOAD,
+    TOPIC_REFERENCE_REQUEST,
+    TOPIC_RISK_STATE_REQUEST,
+    TOPIC_SESSION_SCHEDULE_REQUEST,
+    TOPIC_SESSION_STATE_REQUEST,
+    TOPIC_SYMBOLS_REQUEST,
+    TOPIC_VOLUME_REQUEST,
+)
 
 # Kept for backward compatibility (e.g. tests that reference it).  The hot path
 # uses the monotonic now_ns() for event timestamps (M9), not this raw source.
@@ -159,10 +209,9 @@ log = logging.getLogger(__name__)
 _CLIENT_NAME = "pm-engine"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
-# Pre-encoded static trade topic and a pre-built fill-status set — small hot-path
-# allocations avoided (see docs-design/perf-notes.md).
-_TRADE_TOPIC = b"trade.executed"
-
+# Pre-built fill-status set — a small hot-path allocation avoided (see
+# docs-design/perf-notes.md). The pre-encoded trade topic that used to sit here
+# now lives in the generated binding, which pre-encodes it the same way.
 _FILL_STATUSES = frozenset({OrderStatus.PARTIAL, OrderStatus.FILLED})
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
@@ -180,13 +229,13 @@ _PERSIST_INTERVAL_SEC = 5.0
 #: that is not an order is worse than silence.
 _ORDER_TOPICS = frozenset(
     {
-        "order.new",
-        "order.cancel",
-        "order.amend",
-        "order.combo",
-        "order.combo_cancel",
-        "order.oco",
-        "order.oco_cancel",
+        TOPIC_ORDER_NEW,
+        TOPIC_ORDER_CANCEL,
+        TOPIC_ORDER_AMEND,
+        TOPIC_ORDER_COMBO,
+        TOPIC_ORDER_COMBO_CANCEL,
+        TOPIC_ORDER_OCO,
+        TOPIC_ORDER_OCO_CANCEL,
     }
 )
 
@@ -221,6 +270,61 @@ def _compiled_engine_config() -> "EngineConfig | None":
 
     compiled = load_compiled_config()
     return None if compiled is None else compiled.engine
+
+
+#: Longest identifier the engine will echo from an inbound payload back into a
+#: reply. Matches the `max_len` the risk spec declares for gateway_id and
+#: target_gateway_id.
+_MAX_WIRE_ID_LEN = 32
+#: Longest command_id echoed back, matching the spec's bound.
+_MAX_WIRE_COMMAND_ID_LEN = 64
+#: Longest operator note echoed into an admin.action monitor record, matching
+#: the `max_len` the admin spec declares for `scope.note`. Load-bearing for a
+#: reason worth stating: the ack is sent *before* the monitor record, so an
+#: unbounded note lets a kill switch run, answer "accepted", and then lose its
+#: own audit entry to a validation error nobody sees. Design section 27.5.
+_MAX_WIRE_NOTE_LEN = 256
+#: Longest circuit-breaker level name quoted back in a rejection, matching the
+#: `max_len` circuit_breaker.halt declares for `level`. Same load-bearing
+#: reasoning as ``_clamp_wire_id``: an unknown level is quoted verbatim into a
+#: `symbol_halt_ack` whose `reason` the risk spec bounds at 512, so an
+#: unbounded one raises inside the ack builder and the caller gets no answer.
+_MAX_WIRE_CB_LEVEL_LEN = 32
+
+
+def _clamp_wire_id(value: object, limit: int = _MAX_WIRE_ID_LEN) -> str:
+    """Normalise an identifier arriving from the wire, bounded and upper-cased.
+
+    The bound is load-bearing rather than tidy. Every rejection path quotes the
+    gateway it could not resolve — ``_gateway_status`` builds
+    ``f"Gateway not configured: {gw_id}"`` — and since 5.3a those replies are
+    generated constructors that validate, with ``reason`` bounded at 512
+    characters. An inbound gateway_id of five thousand characters would
+    therefore raise MessageValidationError inside the ack builder.
+
+    The engine survives that where pm-index did not: ``_dispatch_pull_message``
+    wraps every branch in a try/except. But ``_reject_after_error`` returns
+    early for anything outside ``_ORDER_TOPICS``, so a risk command would send
+    **no ack at all** and leave its caller waiting for a timeout — where before
+    adoption it got a real, if oversized, answer. Clamping keeps the answer.
+
+    Truncating loses nothing: an id longer than the spec allows cannot name a
+    gateway that exists, so a clamped one fails the same lookup with the same
+    reason.
+    """
+    return str(value).upper()[:limit]
+
+
+def _clamp_wire_text(value: object, limit: int = _MAX_WIRE_ID_LEN) -> str:
+    """Bound an inbound correlation key without changing its case.
+
+    ``_clamp_wire_id`` upper-cases because it normalises gateway ids, which the
+    engine matches against configuration. The keys this bounds are echoed back
+    into a reply *topic* the caller is already waiting on, so changing their
+    case would send the answer somewhere nobody is listening. The API gateway
+    passes a mixed-case API key here for read-only reference callers.
+    """
+    return str(value)[:limit]
 
 
 class Engine:
@@ -453,7 +557,15 @@ class Engine:
         self._debug_last_summary = now
 
     def _gateway_status(self, gateway_id: str) -> tuple[bool, str]:
-        """Return (is_allowed_and_connected, reason_if_not)."""
+        """Return (is_allowed_and_connected, reason_if_not).
+
+        The reason interpolates the gateway id, and callers put that reason on
+        an ack whose ``reason`` the risk spec bounds at 512 characters — so
+        the id has to be bounded before it gets here. Handlers clamp on the
+        way in (``_clamp_wire_id``); this note exists because the coupling is
+        not local: an unbounded id reaching this line becomes a validation
+        error two calls away, in a generated ack constructor.
+        """
         gw_id = gateway_id.upper()
         if self._allowed_fix_gateways is None:
             return True, ""
@@ -915,14 +1027,6 @@ class Engine:
         order = Order.from_dict(payload)
         self._dbg_count("new_order_requests")
 
-        # Boundary conversion: inbound payload prices are display decimals.
-        if order.price is not None and isinstance(order.price, float):
-            order.price = to_ticks(order.price, order.symbol)
-        if order.stop_price is not None and isinstance(order.stop_price, float):
-            order.stop_price = to_ticks(order.stop_price, order.symbol)
-        if order.trail_offset is not None and isinstance(order.trail_offset, float):
-            order.trail_offset = to_ticks(order.trail_offset, order.symbol)
-
         # SMP=None means the client omitted it -- fall back to the gateway's
         # configured default (gateways.alf[].smp_action). An explicit value
         # (including SmpAction.NONE) from the client is always respected.
@@ -1133,9 +1237,9 @@ class Engine:
         ack_topic = _tc.get(_gw)
         if ack_topic is None:
             # First order from this gateway — populate the three hot topics
-            _tc[_gw] = f"order.ack.{_gw}".encode()
-            _tc[f"fill.{_gw}"] = f"order.fill.{_gw}".encode()
-            _tc[f"cancel.{_gw}"] = f"order.cancelled.{_gw}".encode()
+            _tc[_gw] = topic_order_ack(_gw).encode()
+            _tc[f"fill.{_gw}"] = topic_order_fill(_gw).encode()
+            _tc[f"cancel.{_gw}"] = topic_order_cancelled(_gw).encode()
             ack_topic = _tc[_gw]
         _pub = self.pub_sock
         _fill_topic = _tc[f"fill.{_gw}"]  # guaranteed set by ack-topic setup above
@@ -1225,7 +1329,7 @@ class Engine:
                             if evt.gateway_id == _gw
                             else (
                                 _tc.get(f"fill.{evt.gateway_id}")
-                                or f"order.fill.{evt.gateway_id}".encode()
+                                or topic_order_fill(evt.gateway_id).encode()
                             )
                         ),
                         dumps(
@@ -1339,7 +1443,7 @@ class Engine:
                 _pub.send_multipart(
                     [
                         _tc.get(f"cancel.{evt.gateway_id}")
-                        or f"order.cancelled.{evt.gateway_id}".encode(),
+                        or topic_order_cancelled(evt.gateway_id).encode(),
                         dumps({"order_id": evt.id, "client_tag": evt.client_tag}),
                     ]
                 )
@@ -1376,10 +1480,11 @@ class Engine:
             self._reference_config_version = None
             return
 
-        symbols: dict[str, dict[str, Any]] = {}
+        symbols: list[dict[str, Any]] = []
         for sym, sym_cfg in sorted(engine_cfg.symbols.items()):
             entry: dict[str, Any] = {
-                "tick_size": 10 ** (-int(sym_cfg.tick_decimals)),
+                "symbol": sym,
+                "tick_decimals": int(sym_cfg.tick_decimals),
                 "level": sym_cfg.level,
             }
             if sym_cfg.collar is not None:
@@ -1399,12 +1504,18 @@ class Engine:
                         for lvl in sym_cfg.circuit_breaker.levels
                     ],
                 }
-            symbols[sym] = entry
+            symbols.append(entry)
 
-        risk_levels: dict[str, dict[str, Any]] = {
-            name: {"collar": dict(level_cfg.get("collar", {}))}
-            for name, level_cfg in sorted(engine_cfg.risk_control_levels.items())
-        }
+        risk_levels: list[dict[str, Any]] = []
+        for name, level_cfg in sorted(engine_cfg.risk_control_levels.items()):
+            collar_raw = level_cfg.get("collar") or {}
+            level_entry: dict[str, Any] = {"name": name}
+            if collar_raw:
+                level_entry["collar"] = {
+                    "static_band_pct": collar_raw.get("static_band_pct"),
+                    "dynamic_band_pct": collar_raw.get("dynamic_band_pct"),
+                }
+            risk_levels.append(level_entry)
 
         schedule = engine_cfg.schedule
         reference: dict[str, Any] = {
@@ -1425,30 +1536,52 @@ class Engine:
             "schedule": {
                 "sessions_enabled": engine_cfg.sessions_enabled,
                 "country": engine_cfg.country,
-                "pre_open": schedule.pre_open if schedule else None,
-                "opening_auction_start": (
-                    schedule.opening_auction_start if schedule else None
-                ),
-                "continuous_start": schedule.continuous_start if schedule else None,
-                "closing_auction_start": (
-                    schedule.closing_auction_start if schedule else None
-                ),
-                "closing_auction_end": (
-                    schedule.closing_auction_end if schedule else None
+                "schedule": (
+                    {
+                        "pre_open": schedule.pre_open,
+                        "opening_auction_start": schedule.opening_auction_start,
+                        "continuous_start": schedule.continuous_start,
+                        "closing_auction_start": schedule.closing_auction_start,
+                        "closing_auction_end": schedule.closing_auction_end,
+                    }
+                    if schedule
+                    else None
                 ),
             },
         }
         digest = hashlib.sha256(
             json.dumps(reference, sort_keys=True, default=str).encode()
         ).hexdigest()[:16]
-        reference["config_version"] = digest
         self._reference_cache = reference
         self._reference_config_version = digest
 
     def _handle_reference_request(self, payload: dict[str, Any]) -> None:
-        gateway_id = str(payload.get("gateway_id", ""))
-        reference = self._reference_cache or {"config_version": None}
-        self.pub_sock.send_multipart(make_reference_msg(gateway_id, reference))
+        # The PULL socket is a boundary of its own (design section 22.3), and
+        # this id goes straight into a spec-bounded field ahead of the reply.
+        gateway_id = _clamp_wire_text(payload.get("gateway_id", ""), 64)
+        # One shape, always. An engine with no config loaded used to answer
+        # with `{"config_version": None}` and nothing else, which every
+        # slicing endpoint compensated for with a `.get(key, {})` default.
+        reference = self._reference_cache or {
+            "symbols": [],
+            "risk": {"default_level": None, "levels": []},
+            "indexes": [],
+            "schedule": {
+                "sessions_enabled": False,
+                "country": None,
+                "schedule": None,
+            },
+        }
+        self.pub_sock.send_multipart(
+            make_reference_msg(
+                gateway_id,
+                symbols=reference["symbols"],
+                risk=reference["risk"],
+                indexes=reference["indexes"],
+                schedule=reference["schedule"],
+                config_version=self._reference_config_version,
+            )
+        )
 
     def _handle_reference_reload(self, payload: dict[str, Any]) -> None:
         """Re-read static reference data from disk without touching live state.
@@ -1459,8 +1592,8 @@ class Engine:
         symbol or index set would require doing exactly those unsafe things
         mid-session, so it is rejected rather than partially applied.
         """
-        gateway_id = str(payload.get("gateway_id", ""))
-        command_id = str(payload.get("command_id", ""))
+        gateway_id = _clamp_wire_text(payload.get("gateway_id", ""))
+        command_id = _clamp_wire_text(payload.get("command_id", ""), 64)
 
         if self._config_path is None:
             self.pub_sock.send_multipart(
@@ -1524,15 +1657,21 @@ class Engine:
         )
 
     def _handle_symbols_request(self, payload: dict[str, Any]) -> None:
-        gateway_id = payload.get("gateway_id", "")
+        gateway_id = _clamp_wire_text(payload.get("gateway_id", ""))
         symbols = sorted(self.books.keys())
         engine_cfg = self._engine_config
-        symbol_meta: dict[str, dict[str, Any]] = {}
+        entries: list[dict[str, Any]] = []
         for symbol in symbols:
-            meta: dict[str, Any] = {}
+            # One record per instrument, carrying its own symbol. This used to
+            # be a list of strings beside a `symbol_meta` map keyed by those
+            # same strings, which nine readers joined back together.
+            meta: dict[str, Any] = {
+                "symbol": symbol,
+                "tick_decimals": get_tick_decimals(symbol),
+            }
             sym_cfg = engine_cfg.symbols.get(symbol) if engine_cfg else None
             if sym_cfg is not None:
-                meta["tick_size"] = 10 ** (-int(sym_cfg.tick_decimals))
+                meta["tick_decimals"] = int(sym_cfg.tick_decimals)
 
                 mm_max_spread_ticks: int | None = None
                 mm_min_qty: int | None = None
@@ -1572,15 +1711,13 @@ class Engine:
             if prev_close is not None:
                 meta["prev_close"] = prev_close
 
-            symbol_meta[symbol] = meta
+            entries.append(meta)
 
-        self.pub_sock.send_multipart(
-            make_symbols_msg(gateway_id, symbols, symbol_meta=symbol_meta)
-        )
+        self.pub_sock.send_multipart(make_symbols_msg(gateway_id, entries))
 
     def _handle_session_state_request(self, payload: dict[str, Any]) -> None:
         """Return the current session state without advancing it."""
-        gateway_id = str(payload.get("gateway_id", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         self.pub_sock.send_multipart(
             make_session_status_msg(
                 gateway_id,
@@ -1644,7 +1781,7 @@ class Engine:
 
     def _handle_position_request(self, payload: dict[str, Any]) -> None:
         """Reply with a per-symbol position snapshot for the requesting gateway."""
-        gateway_id = str(payload.get("gateway_id", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         ok, _ = self._gateway_status(gateway_id)
         if not ok:
             self.pub_sock.send_multipart(make_position_snapshot_msg(gateway_id, []))
@@ -1664,7 +1801,7 @@ class Engine:
 
     def _handle_halt_status_request(self, payload: dict[str, Any]) -> None:
         """Reply with a snapshot of all currently halted symbols."""
-        gateway_id = str(payload.get("gateway_id", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         halted: list[dict[str, Any]] = []
         for symbol, is_halted in self._halted_symbols.items():
             if not is_halted:
@@ -1688,13 +1825,13 @@ class Engine:
         Prices are converted to display units; nothing here is a new piece
         of engine state, only a read of self._collars / self._circuit_breakers.
         """
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        symbols: dict[str, Any] = {}
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        symbols: list[dict[str, Any]] = []
         symbol_names: set[str] = set(self._collars.keys()) | set(
             self._circuit_breakers.keys()
         )
         for symbol in sorted(symbol_names):
-            entry: dict[str, Any] = {}
+            entry: dict[str, Any] = {"symbol": symbol}
             collar = self._collars.get(symbol)
             if collar is not None:
                 entry["collar_reference_price"] = (
@@ -1704,6 +1841,7 @@ class Engine:
                 )
             cb = self._circuit_breakers.get(symbol)
             if cb is not None:
+                corridor = self._corridor_payload(cb, symbol)
                 entry["circuit_breaker"] = {
                     "halted": cb.halted,
                     "reference_price": (
@@ -1718,15 +1856,23 @@ class Engine:
                     ),
                     "triggered_level": cb.triggered_level,
                     "expansion_index": cb.expansion_index,
-                    "corridor": self._corridor_payload(cb, symbol),
+                    # Flat, matching `circuit_breaker.halt`. This used to nest
+                    # the same helper's output under a key called `corridor`,
+                    # so the wire read `corridor.corridor_low` -- one producer
+                    # emitting two shapes of one value.
+                    **{
+                        "corridor_low": corridor["corridor_low"],
+                        "corridor_high": corridor["corridor_high"],
+                        "corridor_expansion": corridor["expansion"],
+                    },
                     "resume_at_ns": cb.resume_at_ns,
                 }
-            symbols[symbol] = entry
+            symbols.append(entry)
         self.pub_sock.send_multipart(make_risk_state_msg(gateway_id, symbols))
 
     def _handle_session_schedule_request(self, payload: dict[str, Any]) -> None:
         """Return the session schedule configuration from the loaded engine config."""
-        gateway_id = str(payload.get("gateway_id", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         schedule: dict[str, str] | None = None
         if self._engine_config and self._engine_config.schedule:
             s = self._engine_config.schedule
@@ -1743,7 +1889,7 @@ class Engine:
 
     def _handle_gateways_request(self, payload: dict[str, Any]) -> None:
         """Return all configured gateways with their role and connection status."""
-        gateway_id = str(payload.get("gateway_id", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         gateways: list[dict[str, Any]] = []
         if self._engine_config:
             for gw_id, cfg in sorted(self._engine_config.fix_gateways.items()):
@@ -1763,17 +1909,20 @@ class Engine:
 
     def _handle_volume_request(self, payload: dict[str, Any]) -> None:
         """Return daily traded volume totals per symbol and exchange-wide."""
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        symbols_vol: dict[str, dict[str, Any]] = {}
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        symbols_vol: list[dict[str, Any]] = []
         total_qty = 0
         total_value = 0.0
         total_trades = 0
         for sym, book in sorted(self.books.items()):
-            symbols_vol[sym] = {
-                "qty": book.daily_qty,
-                "value": round(book.daily_value, 2),
-                "trades": book.daily_trades,
-            }
+            symbols_vol.append(
+                {
+                    "symbol": sym,
+                    "qty": book.daily_qty,
+                    "value": round(book.daily_value, 2),
+                    "trades": book.daily_trades,
+                }
+            )
             total_qty += book.daily_qty
             total_value += book.daily_value
             total_trades += book.daily_trades
@@ -1861,8 +2010,8 @@ class Engine:
         self.pub_sock.send_multipart(make_orders_msg(gateway_id, orders))
 
     def _handle_quote_bootstrap_request(self, payload: dict[str, Any]) -> None:
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        symbol_filter = str(payload.get("symbol", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        symbol_filter = _clamp_wire_id(payload.get("symbol", ""), 16)
 
         ok, _ = self._gateway_status(gateway_id)
         if not ok:
@@ -1937,7 +2086,7 @@ class Engine:
         are now complete too (subject to the history buffer's bound — very
         old inactivations may have been evicted).
         """
-        gateway_id = str(payload.get("gateway_id", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
         symbol_filter = str(payload.get("symbol", "")).upper()
         show = str(payload.get("show", "ACTIVE")).upper() or "ACTIVE"
 
@@ -2138,27 +2287,30 @@ class Engine:
         return cancelled
 
     def _publish_trade(self, trade: Any) -> None:
-        _pub = self.pub_sock
-        tick_decimals = get_tick_decimals(trade.symbol)
-        _pub.send_multipart(
-            [
-                _TRADE_TOPIC,
-                dumps(
-                    {
-                        "id": trade.id,
-                        "symbol": trade.symbol,
-                        "buy_order_id": trade.buy_order_id,
-                        "sell_order_id": trade.sell_order_id,
-                        "buy_gateway_id": trade.buy_gateway_id,
-                        "sell_gateway_id": trade.sell_gateway_id,
-                        "price": from_ticks(trade.price, trade.symbol),
-                        "tick_decimals": tick_decimals,
-                        "quantity": trade.quantity,
-                        "aggressor_side": trade.aggressor_side,
-                        "timestamp": trade.timestamp / 1_000_000_000,
-                    }
-                ),
-            ]
+        # Generated from spec/messages/trade.yaml. The field list used to be a
+        # dict literal here, which meant adding a field to trade.executed took
+        # three coordinated edits (this function, feed_schema, the reference
+        # docs) and reached the C clients not at all. It now takes one edit to
+        # the spec. Costs ~0.6 µs/trade against the literal; see
+        # docs-design/perf-notes.md and docs/developer/06-msgen.md.
+        #
+        # The *unchecked* constructor: this is a measured hot path and the
+        # engine is the authority on its own trades. Every other producer uses
+        # the validating make_trade_executed.
+        self.pub_sock.send_multipart(
+            make_trade_executed_unchecked(
+                id=trade.id,
+                symbol=trade.symbol,
+                buy_order_id=trade.buy_order_id,
+                sell_order_id=trade.sell_order_id,
+                buy_gateway_id=trade.buy_gateway_id,
+                sell_gateway_id=trade.sell_gateway_id,
+                price=from_ticks(trade.price, trade.symbol),
+                quantity=trade.quantity,
+                aggressor_side=trade.aggressor_side,
+                timestamp=trade.timestamp / 1_000_000_000,
+                tick_decimals=get_tick_decimals(trade.symbol),
+            )
         )
         # #10: update BOTH counterparties' position ledgers for every trade,
         # right here in the single trade-publication path — so fills produced
@@ -2185,16 +2337,13 @@ class Engine:
                 (trade.buy_gateway_id, trade.buy_order_id, "BUY"),
                 (trade.sell_gateway_id, trade.sell_order_id, "SELL"),
             ):
-                self._drop_copy.publish(
+                self._drop_copy.publish_fill(
                     gateway_id=_gw,
-                    event_type="order.fill",
-                    payload={
-                        "order_id": _oid,
-                        "symbol": trade.symbol,
-                        "fill_qty": trade.quantity,
-                        "fill_price": _trade_px,
-                        "liquidity_flag": "TAKER" if _sd == _agg else "MAKER",
-                    },
+                    order_id=_oid,
+                    symbol=trade.symbol,
+                    fill_qty=trade.quantity,
+                    fill_price=_trade_px,
+                    liquidity_flag="TAKER" if _sd == _agg else "MAKER",
                 )
 
         # Circuit breaker monitor — check if this fill triggered a halt.
@@ -2254,25 +2403,22 @@ class Engine:
                 self._cancel_quote_entry(entry, reason="Circuit breaker halt")
 
         self.pub_sock.send_multipart(
-            encode(
-                f"circuit_breaker.halt.{symbol}",
-                {
-                    "symbol": symbol,
-                    "trigger_price": (
-                        from_ticks(cb.trigger_price, symbol)
-                        if cb.trigger_price is not None
-                        else None
-                    ),
-                    "reference_price": (
-                        from_ticks(cb.reference_price, symbol)
-                        if cb.reference_price is not None
-                        else None
-                    ),
-                    "resume_at_ns": cb.resume_at_ns,
-                    "halt_source": cb.halt_source,
-                    "level": cb.triggered_level,
-                    **self._corridor_payload(cb, symbol),
-                },
+            make_circuit_breaker_halt(
+                symbol=symbol,
+                trigger_price=(
+                    from_ticks(cb.trigger_price, symbol)
+                    if cb.trigger_price is not None
+                    else None
+                ),
+                reference_price=(
+                    from_ticks(cb.reference_price, symbol)
+                    if cb.reference_price is not None
+                    else None
+                ),
+                resume_at_ns=cb.resume_at_ns,
+                halt_source=cb.halt_source,
+                level=cb.triggered_level,
+                **self._corridor_payload(cb, symbol),
             )
         )
         self._mark_dirty(symbol)
@@ -2363,19 +2509,16 @@ class Engine:
                 )
 
             self.pub_sock.send_multipart(
-                encode(
-                    f"circuit_breaker.resume.{symbol}",
-                    {
-                        "symbol": symbol,
-                        "halt_source": halt_source,
-                        "reason": "CLOSING_BACKSTOP",
-                        "clamped": clamped,
-                        "print_price": (
-                            from_ticks(print_price, symbol)
-                            if print_price is not None
-                            else None
-                        ),
-                    },
+                make_circuit_breaker_resume(
+                    symbol=symbol,
+                    halt_source=halt_source,
+                    reason="CLOSING_BACKSTOP",
+                    clamped=clamped,
+                    print_price=(
+                        from_ticks(print_price, symbol)
+                        if print_price is not None
+                        else None
+                    ),
                 )
             )
             self._mark_dirty(symbol)
@@ -2424,16 +2567,13 @@ class Engine:
                     f"qty={indicative.eq_qty} next_call_ends={cb.resume_at_ns}"
                 )
                 self.pub_sock.send_multipart(
-                    encode(
-                        f"circuit_breaker.extend.{symbol}",
-                        {
-                            "symbol": symbol,
-                            "indicative_price": from_ticks(indicative.eq_price, symbol),
-                            "indicative_qty": indicative.eq_qty,
-                            "imbalance_side": indicative.imbalance_side,
-                            "resume_at_ns": cb.resume_at_ns,
-                            **self._corridor_payload(cb, symbol),
-                        },
+                    make_circuit_breaker_extend(
+                        symbol=symbol,
+                        indicative_price=from_ticks(indicative.eq_price, symbol),
+                        indicative_qty=indicative.eq_qty,
+                        imbalance_side=indicative.imbalance_side or None,
+                        resume_at_ns=cb.resume_at_ns,
+                        **self._corridor_payload(cb, symbol),
                     )
                 )
                 self._mark_dirty(symbol)
@@ -2446,10 +2586,7 @@ class Engine:
             self._halted_symbols[symbol] = False
             self._run_uncross(symbol_filter=symbol, reason="REOPEN")
             self.pub_sock.send_multipart(
-                encode(
-                    f"circuit_breaker.resume.{symbol}",
-                    {"symbol": symbol, "halt_source": halt_source},
-                )
+                make_circuit_breaker_resume(symbol=symbol, halt_source=halt_source)
             )
             self._mark_dirty(symbol)
             log.info(
@@ -2571,9 +2708,24 @@ class Engine:
             )
             return
 
+        def _quote_ticks(key: str) -> int:
+            """Read one quote price. Ticks only.
+
+            A float here means a submitting gateway skipped its ``to_ticks``
+            conversion. Accepting it would post the quote at 1/100th of the
+            intended level on a two-decimal instrument — silent, and in the
+            wrong direction for whichever side gets hit. Same rule and same
+            reasoning as ``_handle_oco_order``'s ``_leg_ticks`` (design
+            section 15.2); quotes joined it in 6.1b.
+            """
+            value = payload[key]
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise ValueError(f"{key} must be integer ticks, not display money")
+            return value
+
         try:
-            bid_price = to_ticks(float(payload["bid_price"]), symbol)
-            ask_price = to_ticks(float(payload["ask_price"]), symbol)
+            bid_price = _quote_ticks("bid_price")
+            ask_price = _quote_ticks("ask_price")
             bid_qty = int(payload["bid_qty"])
             ask_qty = int(payload["ask_qty"])
             tif = TIF(str(payload.get("tif", "DAY")).upper())
@@ -2832,12 +2984,12 @@ class Engine:
                         self._cancel_order_by_id(order.id)
 
     def _handle_kill_switch(self, payload: dict[str, Any]) -> None:
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        symbol_filter = str(payload.get("symbol", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        symbol_filter = _clamp_wire_id(payload.get("symbol", ""), 16)
         # Echoed on the ack so concurrent mass cancels for one gateway can be
         # told apart. Absent for callers that do not supply it.
-        command_id = str(payload.get("command_id", ""))
-        note = str(payload.get("note", ""))
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
@@ -2915,10 +3067,10 @@ class Engine:
         allowed to differ — this is one admin acting on another participant's
         exposure, not a gateway acting on its own.
         """
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        target_gateway_id = str(payload.get("target_gateway_id", "")).upper()
-        command_id = str(payload.get("command_id", ""))
-        note = str(payload.get("note", ""))
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        target_gateway_id = _clamp_wire_id(payload.get("target_gateway_id", ""))
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
 
         def _reject(reason: str) -> None:
             self.pub_sock.send_multipart(
@@ -3004,9 +3156,9 @@ class Engine:
         ``risk.circuit_breaker_halt_all``, which halts trading but leaves
         resting orders in place — this cancels them outright.
         """
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        command_id = str(payload.get("command_id", ""))
-        note = str(payload.get("note", ""))
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
 
         def _reject(reason: str) -> None:
             self.pub_sock.send_multipart(
@@ -3136,16 +3288,13 @@ class Engine:
                 )
 
             self.pub_sock.send_multipart(
-                encode(
-                    f"circuit_breaker.halt.{symbol}",
-                    {
-                        "symbol": symbol,
-                        "trigger_price": None,
-                        "reference_price": None,
-                        "resume_at_ns": None,
-                        "halt_source": "ADMIN",
-                        "level": "ADMIN_ALL",
-                    },
+                make_circuit_breaker_halt(
+                    symbol=symbol,
+                    trigger_price=None,
+                    reference_price=None,
+                    resume_at_ns=None,
+                    halt_source="ADMIN",
+                    level="ADMIN_ALL",
                 )
             )
             self._mark_dirty(symbol)
@@ -3193,10 +3342,7 @@ class Engine:
                 cb.deactivate()
 
             self.pub_sock.send_multipart(
-                encode(
-                    f"circuit_breaker.resume.{symbol}",
-                    {"symbol": symbol, "halt_source": "ADMIN"},
-                )
+                make_circuit_breaker_resume(symbol=symbol, halt_source="ADMIN")
             )
             self._mark_dirty(symbol)
 
@@ -3224,12 +3370,16 @@ class Engine:
         matching level (the previous behaviour), the halt is indefinite —
         cleared only by an explicit resume.
         """
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        symbol = str(payload.get("symbol", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        symbol = _clamp_wire_id(payload.get("symbol", ""), 16)
         level_name_raw = payload.get("level")
-        level_name = str(level_name_raw).upper() if level_name_raw else None
-        note = str(payload.get("note", ""))
-        command_id = str(payload.get("command_id", ""))
+        level_name = (
+            str(level_name_raw).upper()[:_MAX_WIRE_CB_LEVEL_LEN]
+            if level_name_raw
+            else None
+        )
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
 
         def _reject(reason: str) -> None:
             self.pub_sock.send_multipart(
@@ -3319,16 +3469,13 @@ class Engine:
             )
 
         self.pub_sock.send_multipart(
-            encode(
-                f"circuit_breaker.halt.{symbol}",
-                {
-                    "symbol": symbol,
-                    "trigger_price": None,
-                    "reference_price": None,
-                    "resume_at_ns": resume_at_ns,
-                    "halt_source": "ADMIN",
-                    "level": triggered_level,
-                },
+            make_circuit_breaker_halt(
+                symbol=symbol,
+                trigger_price=None,
+                reference_price=None,
+                resume_at_ns=resume_at_ns,
+                halt_source="ADMIN",
+                level=triggered_level,
             )
         )
         self._mark_dirty(symbol)
@@ -3355,10 +3502,10 @@ class Engine:
 
     def _handle_symbol_resume(self, payload: dict[str, Any]) -> None:
         """Resume a single symbol that was halted by a per-symbol or global halt (ADMIN only)."""
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        symbol = str(payload.get("symbol", "")).upper()
-        note = str(payload.get("note", ""))
-        command_id = str(payload.get("command_id", ""))
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        symbol = _clamp_wire_id(payload.get("symbol", ""), 16)
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
 
         def _reject(reason: str) -> None:
             self.pub_sock.send_multipart(
@@ -3400,10 +3547,7 @@ class Engine:
             cb.deactivate()
 
         self.pub_sock.send_multipart(
-            encode(
-                f"circuit_breaker.resume.{symbol}",
-                {"symbol": symbol, "halt_source": "ADMIN"},
-            )
+            make_circuit_breaker_resume(symbol=symbol, halt_source="ADMIN")
         )
         self._mark_dirty(symbol)
 
@@ -3421,11 +3565,11 @@ class Engine:
 
     def _handle_cancel_symbol(self, payload: dict[str, Any]) -> None:
         """Cancel all resting orders for a symbol across every gateway (ADMIN only)."""
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        symbol = str(payload.get("symbol", "")).upper()
+        gateway_id = _clamp_wire_id(payload.get("gateway_id", ""))
+        symbol = _clamp_wire_id(payload.get("symbol", ""), 16)
 
-        note = str(payload.get("note", ""))
-        command_id = str(payload.get("command_id", ""))
+        note = str(payload.get("note", ""))[:_MAX_WIRE_NOTE_LEN]
+        command_id = str(payload.get("command_id", ""))[:_MAX_WIRE_COMMAND_ID_LEN]
 
         def _reject(reason: str) -> None:
             self.pub_sock.send_multipart(
@@ -3660,12 +3804,9 @@ class Engine:
 
         self._combos[combo.id] = combo
 
-        # Emit ACK after child creation so child_order_ids is populated
         if publish_ack:
             self.pub_sock.send_multipart(
-                make_combo_ack_msg(
-                    combo.gateway_id, combo.combo_id, True, combo=combo.to_dict()
-                )
+                make_combo_ack_msg(combo.gateway_id, combo.combo_id, True)
             )
 
         self._update_combo_status(combo)
@@ -3673,14 +3814,7 @@ class Engine:
 
     def _handle_combo_order(self, payload: dict[str, Any]) -> None:
         """Accept a combo, create child orders on respective books."""
-        combo = ComboOrder.from_dict(payload)
-
-        # Boundary conversion: combo legs may arrive in display price units.
-        for leg in combo.legs:
-            if leg.price is not None and isinstance(leg.price, float):
-                leg.price = to_ticks(leg.price, leg.symbol)
-            if leg.stop_price is not None and isinstance(leg.stop_price, float):
-                leg.stop_price = to_ticks(leg.stop_price, leg.symbol)
+        combo = ComboOrder.from_submission_dict(payload)
 
         # Gateway auth
         ok, reason = self._gateway_status(combo.gateway_id)
@@ -3822,7 +3956,7 @@ class Engine:
                 combo.gateway_id,
                 combo.combo_id,
                 terminal_status.value,
-                details={"reason": reason} if reason else None,
+                reason=reason,
             )
         )
         log.info(
@@ -3848,8 +3982,9 @@ class Engine:
         broadcast. An operator issuing a manual transition does supply one,
         and previously received nothing at all when the request was discarded.
         """
-        command_id = str(payload.get("command_id", ""))
-        gateway_id = str(payload.get("gateway_id", ""))
+        reply_to = payload.get("reply_to") or {}
+        command_id = str(reply_to.get("command_id", ""))
+        gateway_id = str(reply_to.get("gateway_id", ""))
         if not command_id or not gateway_id:
             return
         self.pub_sock.send_multipart(
@@ -3923,8 +4058,9 @@ class Engine:
         # target has stopped being a fact about anything. Leaving it would
         # count a terminal down to a transition nobody is going to perform,
         # which is the failure this field exists to avoid (T-M6).
-        self._next_session_state = str(payload.get("next_state", ""))
-        self._next_session_at = str(payload.get("next_at", ""))
+        upcoming = payload.get("next") or {}
+        self._next_session_state = str(upcoming.get("state", ""))
+        self._next_session_at = str(upcoming.get("at", ""))
 
         # --- Uncrossing on exit from auction / no-matching phases ---
         needs_uncross = not is_matching_enabled(from_state) and (
@@ -4163,8 +4299,8 @@ class Engine:
             "symbol":     str,    # both legs must be on the same symbol
             "quantity":   int,
             "tif":        str,
-            "leg1": {"side": str, "order_type": str, "price": float|null, "stop_price": float|null},
-            "leg2": {"side": str, "order_type": str, "price": float|null, "stop_price": float|null},
+            "leg1": {"side": str, "order_type": str, "price": int|null, "stop_price": int|null},
+            "leg2": {"side": str, "order_type": str, "price": int|null, "stop_price": int|null},
           }
         """
         gateway_id = str(payload.get("gateway_id", "")).upper()
@@ -4199,6 +4335,20 @@ class Engine:
         leg1_raw = payload.get("leg1", {})
         leg2_raw = payload.get("leg2", {})
 
+        def _leg_ticks(raw: dict[str, Any], key: str) -> int | None:
+            """Read one leg price. Ticks only.
+
+            A float here means a submitting gateway skipped its ``to_ticks``
+            conversion. Silently accepting it would price the leg 100x low on a
+            two-decimal instrument, so it is rejected as an invalid leg.
+            """
+            value = raw.get(key)
+            if value is None:
+                return None
+            if not isinstance(value, int):
+                raise ValueError(f"{key} must be integer ticks, not display money")
+            return value
+
         def _parse_leg(raw: dict[str, Any]) -> Order | None:
             try:
                 return Order.create(
@@ -4208,21 +4358,10 @@ class Engine:
                     quantity=quantity,
                     gateway_id=gateway_id,
                     tif=tif,
-                    price=(
-                        to_ticks(float(raw["price"]), symbol)
-                        if raw.get("price") is not None
-                        else None
-                    ),
-                    stop_price=(
-                        to_ticks(float(raw["stop_price"]), symbol)
-                        if raw.get("stop_price") is not None
-                        else None
-                    ),
-                    trail_offset=(
-                        to_ticks(float(raw["trail_offset"]), symbol)
-                        if raw.get("trail_offset") is not None
-                        else None
-                    ),
+                    # Ticks on the wire: the submitting gateway converted.
+                    price=_leg_ticks(raw, "price"),
+                    stop_price=_leg_ticks(raw, "stop_price"),
+                    trail_offset=_leg_ticks(raw, "trail_offset"),
                 )
             except (KeyError, ValueError):
                 return None
@@ -4912,73 +5051,73 @@ class Engine:
         """
         fills_before = self._fills_published
         try:
-            if topic == "order.new":
+            if topic == TOPIC_ORDER_NEW:
                 self._handle_new_order(payload)
-            elif topic == "order.cancel":
+            elif topic == TOPIC_ORDER_CANCEL:
                 self._handle_cancel(payload)
-            elif topic == "order.amend":
+            elif topic == TOPIC_ORDER_AMEND:
                 self._handle_amend(payload)
-            elif topic == "order.combo":
+            elif topic == TOPIC_ORDER_COMBO:
                 self._handle_combo_order(payload)
-            elif topic == "order.combo_cancel":
+            elif topic == TOPIC_ORDER_COMBO_CANCEL:
                 self._handle_combo_cancel(payload)
-            elif topic == "order.oco":
+            elif topic == TOPIC_ORDER_OCO:
                 self._handle_oco_order(payload)
-            elif topic == "order.oco_cancel":
+            elif topic == TOPIC_ORDER_OCO_CANCEL:
                 self._handle_oco_cancel(payload)
-            elif topic == "quote.new":
+            elif topic == TOPIC_QUOTE_NEW:
                 self._handle_quote_new(payload)
-            elif topic == "quote.cancel":
+            elif topic == TOPIC_QUOTE_CANCEL:
                 self._handle_quote_cancel(payload)
-            elif topic == "system.gateway_connect":
+            elif topic == TOPIC_GATEWAY_CONNECT:
                 self._handle_gateway_connect(payload)
-            elif topic == "system.gateway_disconnect":
+            elif topic == TOPIC_GATEWAY_DISCONNECT:
                 self._handle_gateway_disconnect(payload)
-            elif topic == "system.symbols_request":
+            elif topic == TOPIC_SYMBOLS_REQUEST:
                 self._handle_symbols_request(payload)
-            elif topic == "system.reference_request":
+            elif topic == TOPIC_REFERENCE_REQUEST:
                 self._handle_reference_request(payload)
-            elif topic == "system.reference_reload":
+            elif topic == TOPIC_REFERENCE_RELOAD:
                 self._handle_reference_reload(payload)
-            elif topic == "book.snapshot_request":
+            elif topic == TOPIC_BOOK_SNAPSHOT_REQUEST:
                 self._handle_book_snapshot_request(payload)
-            elif topic == "order.orders_request":
+            elif topic == TOPIC_ORDERS_REQUEST:
                 self._handle_orders_request(payload)
-            elif topic == "system.quote_bootstrap_request":
+            elif topic == TOPIC_QUOTE_BOOTSTRAP_REQUEST:
                 self._handle_quote_bootstrap_request(payload)
-            elif topic == "system.quote_legs_request":
+            elif topic == TOPIC_QUOTE_LEGS_REQUEST:
                 self._handle_quote_legs_request(payload)
-            elif topic == "risk.kill_switch":
+            elif topic == TOPIC_KILL_SWITCH:
                 self._handle_kill_switch(payload)
-            elif topic == "risk.kill_switch_gateway":
+            elif topic == TOPIC_KILL_SWITCH_GATEWAY:
                 self._handle_kill_switch_gateway(payload)
-            elif topic == "risk.kill_switch_global":
+            elif topic == TOPIC_KILL_SWITCH_GLOBAL:
                 self._handle_kill_switch_global(payload)
-            elif topic == "risk.circuit_breaker_halt_all":
+            elif topic == TOPIC_CIRCUIT_BREAKER_HALT_ALL:
                 self._handle_circuit_breaker_halt_all(payload)
-            elif topic == "risk.circuit_breaker_resume_all":
+            elif topic == TOPIC_CIRCUIT_BREAKER_RESUME_ALL:
                 self._handle_circuit_breaker_resume_all(payload)
-            elif topic == "risk.symbol_halt":
+            elif topic == TOPIC_SYMBOL_HALT:
                 self._handle_symbol_halt(payload)
-            elif topic == "risk.symbol_resume":
+            elif topic == TOPIC_SYMBOL_RESUME:
                 self._handle_symbol_resume(payload)
-            elif topic == "risk.cancel_symbol":
+            elif topic == TOPIC_CANCEL_SYMBOL:
                 self._handle_cancel_symbol(payload)
-            elif topic == "session.transition":
+            elif topic == TOPIC_SESSION_TRANSITION:
                 self._handle_session_transition(payload)
-            elif topic == "system.session_state_request":
+            elif topic == TOPIC_SESSION_STATE_REQUEST:
                 self._handle_session_state_request(payload)
-            elif topic == "system.session_schedule_request":
+            elif topic == TOPIC_SESSION_SCHEDULE_REQUEST:
                 self._handle_session_schedule_request(payload)
-            elif topic == "system.gateways_request":
+            elif topic == TOPIC_GATEWAYS_REQUEST:
                 self._handle_gateways_request(payload)
-            elif topic == "system.volume_request":
+            elif topic == TOPIC_VOLUME_REQUEST:
                 self._handle_volume_request(payload)
-            elif topic == "system.halt_status_request":
+            elif topic == TOPIC_HALT_STATUS_REQUEST:
                 self._handle_halt_status_request(payload)
-            elif topic == "system.risk_state_request":
+            elif topic == TOPIC_RISK_STATE_REQUEST:
                 self._handle_risk_state_request(payload)
-            elif topic == "system.position_request":
+            elif topic == TOPIC_POSITION_REQUEST:
                 self._handle_position_request(payload)
             else:
                 self._unknown_topic_count += 1

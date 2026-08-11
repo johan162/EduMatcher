@@ -29,6 +29,19 @@ from edumatcher.api_gateway.schemas import (
     SymbolCancelRequest,
 )
 from edumatcher.api_gateway.sessions import Session, auth, require_admin
+from edumatcher.models.generated.risk import (
+    topic_cancel_symbol_ack,
+    topic_kill_switch_gateway_ack,
+    topic_kill_switch_global_ack,
+    topic_symbol_halt_ack,
+    topic_symbol_resume_ack,
+)
+from edumatcher.models.generated.system import (
+    topic_gateways,
+    topic_halt_status,
+    topic_risk_state,
+    topic_session_schedule,
+)
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -184,7 +197,7 @@ async def session_schedule(  # pyright: ignore[reportUnusedFunction]
 ) -> dict[str, Any]:
     gateway_id = await require_admin(request, session)
     request.app.state.engine.request_session_schedule(gateway_id)
-    return await _await_reply(request, f"system.session_schedule.{gateway_id}")
+    return await _await_reply(request, topic_session_schedule(gateway_id))
 
 
 @router.get("/gateways")
@@ -194,7 +207,7 @@ async def list_gateways(  # pyright: ignore[reportUnusedFunction]
 ) -> dict[str, Any]:
     gateway_id = await require_admin(request, session)
     request.app.state.engine.request_gateways(gateway_id)
-    return await _await_reply(request, f"system.gateways.{gateway_id}")
+    return await _await_reply(request, topic_gateways(gateway_id))
 
 
 @router.post("/gateways/{gid}/disconnect", status_code=status.HTTP_202_ACCEPTED)
@@ -231,7 +244,7 @@ async def circuit_breaker_trigger(  # pyright: ignore[reportUnusedFunction]
     )
     ack = await _await_ack(
         request,
-        f"risk.symbol_halt_ack.{gateway_id}",
+        topic_symbol_halt_ack(gateway_id),
         match={"symbol": body.symbol},
     )
     return _require_accepted(ack)
@@ -251,7 +264,7 @@ async def circuit_breaker_resume(  # pyright: ignore[reportUnusedFunction]
     )
     ack = await _await_ack(
         request,
-        f"risk.symbol_resume_ack.{gateway_id}",
+        topic_symbol_resume_ack(gateway_id),
         match={"symbol": body.symbol},
     )
     return _require_accepted(ack)
@@ -264,7 +277,7 @@ async def halt_status(  # pyright: ignore[reportUnusedFunction]
 ) -> dict[str, Any]:
     gateway_id = await require_admin(request, session)
     request.app.state.engine.request_halt_status(gateway_id)
-    return await _await_reply(request, f"system.halt_status.{gateway_id}")
+    return await _await_reply(request, topic_halt_status(gateway_id))
 
 
 @router.get("/risk/state")
@@ -281,7 +294,7 @@ async def risk_state(  # pyright: ignore[reportUnusedFunction]
     """
     gateway_id = await require_admin(request, session)
     request.app.state.engine.request_risk_state(gateway_id)
-    return await _await_reply(request, f"system.risk_state.{gateway_id}")
+    return await _await_reply(request, topic_risk_state(gateway_id))
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +384,7 @@ async def kill_switch_symbol(  # pyright: ignore[reportUnusedFunction]
     )
     ack = await _await_ack(
         request,
-        f"risk.cancel_symbol_ack.{gateway_id}",
+        topic_cancel_symbol_ack(gateway_id),
         match={"symbol": body.symbol},
     )
     return _require_accepted(ack)
@@ -399,7 +412,7 @@ async def kill_switch_gateway(  # pyright: ignore[reportUnusedFunction]
     )
     ack = await _await_ack(
         request,
-        f"risk.kill_switch_gateway_ack.{gateway_id}",
+        topic_kill_switch_gateway_ack(gateway_id),
         match={"command_id": command_id},
     )
     return _require_accepted(ack)
@@ -424,7 +437,7 @@ async def kill_switch_global(  # pyright: ignore[reportUnusedFunction]
     )
     ack = await _await_ack(
         request,
-        f"risk.kill_switch_global_ack.{gateway_id}",
+        topic_kill_switch_global_ack(gateway_id),
         match={"command_id": command_id},
     )
     return _require_accepted(ack)

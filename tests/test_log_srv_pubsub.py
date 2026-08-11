@@ -23,12 +23,14 @@ from edumatcher.log_srv.writer import LogEventRow
 from edumatcher.logclient.protocol import PROTO_VERSION, build_header_line, iso_utc
 from edumatcher.models.message import (
     decode,
+    encode,
     make_log_backfill_request_msg,
     make_log_renew_msg,
     make_log_status_request_msg,
     make_log_subscribe_msg,
     make_log_unsubscribe_msg,
 )
+from edumatcher.models.generated.log import TOPIC_LOG_SUBSCRIBE
 
 _HOST = "127.0.0.1"
 
@@ -314,8 +316,19 @@ def test_notify_mode_coalesces_into_counts(harness: _PubSubHarness) -> None:
     # batch boundaries fall relative to notify_interval_ms; only the totals are
     # deterministic, and only the totals are what a subscriber acts on.
     assert sum(n["count"] for n in notes) == 3
-    assert {lvl for n in notes for lvl in n["levels"]} == {"ERROR"}
-    assert sum(n["levels"]["ERROR"] for n in notes) == 3
+    # `levels` became a list of {level, count} records in Phase 5.2d: it was a
+    # map keyed by level name, and the key was a value. The counts it reports
+    # are unchanged.
+    assert {each["level"] for n in notes for each in n["levels"]} == {"ERROR"}
+    assert (
+        sum(
+            each["count"]
+            for n in notes
+            for each in n["levels"]
+            if each["level"] == "ERROR"
+        )
+        == 3
+    )
     assert notes[-1]["last_seq"] > 0
     # A notify carries no row bodies at all — that is what makes it cheap.
     assert all("rows" not in n for n in notes)
@@ -470,7 +483,10 @@ def test_resubscribe_is_idempotent_and_preserves_counters(
 
 
 def test_invalid_mode_is_rejected(harness: _PubSubHarness) -> None:
-    harness.send(make_log_subscribe_msg("v1", "SIDEWAYS"))
+    # The client builder now rejects an invalid mode at construction, so this
+    # sends one raw to exercise the server's own defence — a non-Python client
+    # (the log-gui) can still put ``SIDEWAYS`` on the wire.
+    harness.send(encode(TOPIC_LOG_SUBSCRIBE, {"sub_id": "v1", "mode": "SIDEWAYS"}))
     time.sleep(0.4)
     errs = [p for t, p in harness.drain(0.6) if t == "log.error.v1"]
     assert errs and errs[0]["code"] == "INVALID_MODE"

@@ -55,6 +55,15 @@ from edumatcher.models.message import (
 )
 from edumatcher.models.order import Order
 from edumatcher.models.price import register_tick_decimals
+from edumatcher.models.generated.risk import topic_kill_switch_ack
+from edumatcher.models.generated.session import (
+    topic_session_transition_ack,
+)
+from edumatcher.models.generated.system import (
+    topic_gateway_auth,
+    topic_gateways,
+    topic_reference_reload_ack,
+)
 
 log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
@@ -236,7 +245,7 @@ class EngineClient:
                 gateway_id,
                 timeout,
             )
-            auth_key = f"system.gateway_auth.{gateway_id}"
+            auth_key = topic_gateway_auth(gateway_id)
             future = self._register_future(auth_key)
             try:
                 self._send(make_gateway_connect_msg(gateway_id))
@@ -505,12 +514,18 @@ class EngineClient:
 
     @staticmethod
     def _register_tick_metadata(payload: dict[str, Any]) -> None:
-        meta = payload.get("symbol_meta")
-        if not isinstance(meta, dict):
+        # This read `symbol_meta[sym]["tick_decimals"]`, and no producer has
+        # ever sent that key — the engine sent `tick_size` under a separate
+        # `symbol_meta` map, so the registration below has never fired. The
+        # field exists now and this is the first time it does anything.
+        entries = payload.get("symbols")
+        if not isinstance(entries, list):
             return
-        for symbol, details in meta.items():
-            if isinstance(details, dict) and "tick_decimals" in details:
-                register_tick_decimals(str(symbol), int(details["tick_decimals"]))
+        for entry in entries:
+            if isinstance(entry, dict) and "tick_decimals" in entry:
+                register_tick_decimals(
+                    str(entry.get("symbol", "")), int(entry["tick_decimals"])
+                )
 
     def add_sink(self, gateway_id: str, queue: asyncio.Queue[dict[str, Any]]) -> None:
         self._sinks[gateway_id].add(queue)
@@ -611,7 +626,7 @@ class EngineClient:
         command_id = new_command_id()
         self.send_mass_cancel(gateway_id, symbol, command_id=command_id)
         return await self.await_event(
-            f"risk.kill_switch_ack.{gateway_id}",
+            topic_kill_switch_ack(gateway_id),
             match={"command_id": command_id},
             timeout=timeout,
         )
@@ -626,7 +641,7 @@ class EngineClient:
         and the caller saw nothing at all.
         """
         command_id = new_command_id()
-        topic = f"session.transition_ack.{gateway_id}"
+        topic = topic_session_transition_ack(gateway_id)
         future = self._register_future(topic, match={"command_id": command_id})
         try:
             self._send(
@@ -653,7 +668,7 @@ class EngineClient:
         from a slow one.
         """
         command_id = new_command_id()
-        topic = f"system.reference_reload_ack.{gateway_id}"
+        topic = topic_reference_reload_ack(gateway_id)
         future = self._register_future(topic, match={"command_id": command_id})
         try:
             self._send(make_reference_reload_msg(gateway_id, command_id))
@@ -769,7 +784,7 @@ class EngineClient:
             return cached
         self.request_gateways(gid)
         try:
-            reply = await self.await_topic(f"system.gateways.{gid}", timeout)
+            reply = await self.await_topic(topic_gateways(gid), timeout)
         except TimeoutError:
             return "TRADER"
         role = "TRADER"

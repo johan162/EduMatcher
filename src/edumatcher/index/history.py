@@ -5,6 +5,9 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from edumatcher.models.generated._runtime import MessageValidationError
+from edumatcher.models.generated.index import HistoryRecord
+
 log = logging.getLogger(__name__)
 
 # Record types written to the JSONL file. This file is an append-only
@@ -37,6 +40,19 @@ class IndexHistory:
         return self._path
 
     def append(self, record: dict[str, Any]) -> None:
+        # Validate on write so the archive is canonical by construction; a
+        # record that fails is a producer bug — log it and store as-is rather
+        # than crash the process (pm-index does not guard its pull handlers).
+        try:
+            canonical = HistoryRecord.from_dict(record)
+            canonical.validate()
+            record = canonical.to_dict()
+        except (KeyError, MessageValidationError) as exc:
+            log.error(
+                "index history record failed validation, storing as-is: %s | record=%s",
+                exc,
+                json.dumps(record, separators=(",", ":")),
+            )
         self._fh.write(json.dumps(record, separators=(",", ":")) + "\n")
         log.debug(
             "history append path=%s type=%s index_id=%s",
@@ -108,11 +124,31 @@ class IndexHistory:
                         continue
 
                     if from_ts <= ts_f <= to_ts:
+                        # The reply now builds through the checked builder, so a
+                        # non-conforming row (a legacy shape in an existing
+                        # archive) is dropped with a warning rather than failing
+                        # the whole response.
+                        try:
+                            HistoryRecord.from_dict(rec).validate()
+                        except (KeyError, MessageValidationError) as exc:
+                            warnings.append(
+                                f"ignored non-conforming history record: {exc}"
+                            )
+                            continue
                         results.append(rec)
                         if len(results) >= max_records:
                             break
         except FileNotFoundError:
+            # Benign: the archive is created lazily on the first append.
             return [], []
+        except OSError as exc:
+            # The file exists but cannot be read (permissions, disk error) —
+            # distinct from "no history yet" so an operator can act on it.
+            log.error(
+                "index history file unreadable: path=%s error=%s", self._path, exc
+            )
+            warnings.append(f"index history file unreadable: {exc}")
+            return [], warnings
 
         log.debug(
             "history query path=%s from_ts=%.3f to_ts=%.3f types=%s max_records=%d returned=%d warnings=%d",

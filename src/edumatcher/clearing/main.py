@@ -64,16 +64,22 @@ from edumatcher.log_srv.config import (
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.clock import now_ns  # used in _flush
+from edumatcher.models.generated import system as _gen_system
+from edumatcher.models.generated.session import SessionState, TOPIC_SESSION_STATE
 from edumatcher.models.feed_schema import (
-    GatewayAuthPayload,
-    GatewayByePayload,
-    SessionStatePayload,
-    SystemEodPayload,
     TradeExecutedPayload,
 )
 from edumatcher.models.message import decode
 from edumatcher.models.price import to_ticks
 from edumatcher.models.trade import Trade
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.system import (
+    PREFIX_GATEWAY_AUTH,
+    PREFIX_GATEWAY_BYE,
+    TOPIC_EOD,
+    TOPIC_GATEWAY_CONNECT,
+    TOPIC_GATEWAY_DISCONNECT,
+)
 
 FLUSH_SIZE: int = 100
 FLUSH_INTERVAL_SEC: float = 5.0
@@ -348,26 +354,26 @@ class ClearingProcess:
 
         sub = make_subscriber(
             self._pub_addr,
-            "trade.executed",
-            "system.eod",
+            TOPIC_TRADE_EXECUTED,
+            TOPIC_EOD,
             # Session-phase transitions — recorded as PHASE rows in
             # session_events (finding CL-M7) so operators can bucket activity by
             # session phase and the advertised PHASE filter is real.
-            "session.state",
+            TOPIC_SESSION_STATE,
             # The engine broadcasts gateway lifecycle on PUB as
             # ``system.gateway_auth.{id}`` (models/message.py make_gateway_auth_msg,
             # engine/main.py _handle_gateway_connect).  ``system.gateway_connect``
             # / ``system.gateway_disconnect`` are gateway→engine PULL topics that
             # never reach this subscriber (finding CL-C3), so subscribe to the
             # auth-broadcast prefix as the real "gateway connected" signal.
-            "system.gateway_auth.",
+            PREFIX_GATEWAY_AUTH,
             # Disconnect broadcast — the PUB counterpart to gateway_auth
             # (engine/main.py _handle_gateway_disconnect → make_gateway_bye_msg).
-            "system.gateway_bye.",
+            PREFIX_GATEWAY_BYE,
             # Kept for the test harness's readiness/ordering probe and any
             # direct-injection clients; harmless in production where it is silent.
-            "system.gateway_connect",
-            "system.gateway_disconnect",
+            TOPIC_GATEWAY_CONNECT,
+            TOPIC_GATEWAY_DISCONNECT,
         )
         try:
             self._receive_loop(sub)
@@ -420,7 +426,7 @@ class ClearingProcess:
 
             self._dbg_count("messages_received")
 
-            if topic == "trade.executed":
+            if topic == TOPIC_TRADE_EXECUTED:
                 try:
                     trade = _trade_from_payload(payload)
                 except Exception as exc:
@@ -448,27 +454,27 @@ class ClearingProcess:
                 if self._print_every > 0 and self._trade_count % self._print_every == 0:
                     self._print_pnl_table()
 
-            elif topic == "system.eod":
+            elif topic == TOPIC_EOD:
                 self._dbg_count("eod_topics")
                 self._handle_eod(payload)
 
-            elif topic == "session.state":
+            elif topic == TOPIC_SESSION_STATE:
                 self._dbg_count("phase_topics")
                 self._handle_session_state(payload)
 
-            elif topic.startswith("system.gateway_auth."):
+            elif topic.startswith(PREFIX_GATEWAY_AUTH):
                 self._dbg_count("gateway_auth_topics")
                 self._handle_gateway_auth(payload)
 
-            elif topic.startswith("system.gateway_bye."):
+            elif topic.startswith(PREFIX_GATEWAY_BYE):
                 self._dbg_count("gateway_bye_topics")
                 self._handle_gateway_bye(payload)
 
-            elif topic == "system.gateway_connect":
+            elif topic == TOPIC_GATEWAY_CONNECT:
                 self._dbg_count("gateway_connect_topics")
                 self._handle_gateway_connect(payload)
 
-            elif topic == "system.gateway_disconnect":
+            elif topic == TOPIC_GATEWAY_DISCONNECT:
                 self._dbg_count("gateway_disconnect_topics")
                 self._handle_gateway_disconnect(payload)
 
@@ -626,7 +632,7 @@ class ClearingProcess:
             # this ingress boundary via to_ticks (CL-M4: keeps mark and avg_cost
             # in the same unit).
             eod_marks: dict[str, int] = {}
-            eod_payload = SystemEodPayload.from_dict(payload)
+            eod_payload = _gen_system.Eod.from_dict(payload)
             for book in eod_payload.books:
                 sym = book.symbol
                 if not sym:
@@ -637,12 +643,12 @@ class ClearingProcess:
                 if last_price is not None:
                     eod_marks[sym] = to_ticks(last_price, sym)
                 elif bids and asks:
-                    best_bid = bids[0].price
-                    best_ask = asks[0].price
-                    if best_bid is not None and best_ask is not None:
-                        eod_marks[sym] = (
-                            to_ticks(best_bid, sym) + to_ticks(best_ask, sym)
-                        ) // 2
+                    # `EodBookLevel.price` is required, so no None guard: the
+                    # dataclass this replaced made it optional and the only
+                    # producer, OrderBook.snapshot(), has never omitted it.
+                    eod_marks[sym] = (
+                        to_ticks(bids[0].price, sym) + to_ticks(asks[0].price, sym)
+                    ) // 2
 
             with self._lock:
                 # 1. Flush all buffered trades first.
@@ -716,7 +722,7 @@ class ClearingProcess:
         activity with the session phase it occurred in.
         """
         try:
-            typed = SessionStatePayload.from_dict(payload)
+            typed = SessionState.from_dict(payload)
             state = typed.state.upper()
             if not state:
                 return
@@ -746,7 +752,7 @@ class ClearingProcess:
         public feed, so record it exactly as a connect.  A refused auth carries
         ``accepted=False`` and is ignored (no session opened).
         """
-        typed = GatewayAuthPayload.from_dict(payload)
+        typed = _gen_system.GatewayAuth.from_dict(payload)
         if not typed.accepted:
             return
         self._handle_gateway_connect(typed.to_dict())
@@ -757,7 +763,7 @@ class ClearingProcess:
         a gateway disconnects.  Record it exactly as a disconnect (the inbound
         system.gateway_disconnect topic is PULL-only and never reaches here).
         """
-        typed = GatewayByePayload.from_dict(payload)
+        typed = _gen_system.GatewayBye.from_dict(payload)
         self._handle_gateway_disconnect(typed.to_dict())
 
     def _handle_gateway_connect(self, payload: dict[str, Any]) -> None:

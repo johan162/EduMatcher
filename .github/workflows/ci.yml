@@ -43,6 +43,17 @@ jobs:
       - name: Type check
         run: poetry run mypy src tests
 
+      # The guarantee the message generator rests on: regenerate from spec/ and
+      # fail if the committed bindings differ. Catches a spec change without a
+      # regeneration, and a hand-edit to a generated file.
+      # See docs-design/EduMatcher-Message-Generator.md section 7.2.
+      #
+      # Invoked as a module rather than via the `pm-msgen` console script: this
+      # job installs with --no-root (install-root: 'false'), so project scripts
+      # are not on PATH. pyyaml is a main dependency and is installed.
+      - name: Message spec drift check
+        run: PYTHONPATH=src poetry run python -m edumatcher.msgen.cli check
+
   testing:
     name: Testing
     runs-on: ubuntu-latest

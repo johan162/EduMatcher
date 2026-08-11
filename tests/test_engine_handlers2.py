@@ -311,8 +311,8 @@ class TestOCOValidation:
             "symbol": "AAPL",
             "quantity": 100,
             "tif": "DAY",
-            "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 95.0},
-            "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 105.0},
+            "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
+            "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
         }
 
     def test_stop_leg_missing_stop_price_rejected(self, monkeypatch, tmp_path) -> None:
@@ -367,8 +367,8 @@ class TestOCOSiblingCancel:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 95.0},
-                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 105.0},
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
+                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
             }
         )
         order_ids = engine._oco_groups.get("OCO_FILL", [])

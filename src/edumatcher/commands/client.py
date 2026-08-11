@@ -57,31 +57,84 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
     make_volume_request_msg,
 )
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.order import (
+    PREFIX_ORDERS,
+    topic_orders,
+)
+from edumatcher.models.generated.book import (
+    PREFIX_BOOK_SNAPSHOT,
+    topic_book_snapshot,
+)
+from edumatcher.models.generated.risk import (
+    PREFIX_CANCEL_SYMBOL_ACK,
+    PREFIX_CIRCUIT_BREAKER_HALT_ALL_ACK,
+    PREFIX_CIRCUIT_BREAKER_RESUME_ALL_ACK,
+    PREFIX_KILL_SWITCH_ACK,
+    PREFIX_SYMBOL_HALT_ACK,
+    PREFIX_SYMBOL_RESUME_ACK,
+    topic_cancel_symbol_ack,
+    topic_circuit_breaker_halt_all_ack,
+    topic_circuit_breaker_resume_all_ack,
+    topic_kill_switch_ack,
+    topic_symbol_halt_ack,
+    topic_symbol_resume_ack,
+)
+from edumatcher.models.generated.index import (
+    PREFIX_INDEX_CONSTITUENT_CHANGE_ACK,
+    PREFIX_INDEX_CORP_ACTION_ACK,
+    PREFIX_INDEX_ERROR,
+    PREFIX_INDEX_HISTORY,
+    topic_index_constituent_change_ack,
+    topic_index_corp_action_ack,
+    topic_index_error,
+    topic_index_history,
+)
+from edumatcher.models.generated.quote import (
+    PREFIX_QUOTE_ACK,
+    topic_quote_ack,
+)
+from edumatcher.models.generated.system import (
+    PREFIX_GATEWAYS,
+    PREFIX_GATEWAY_AUTH,
+    PREFIX_QUOTE_BOOTSTRAP,
+    PREFIX_SESSION_SCHEDULE,
+    PREFIX_SESSION_STATUS,
+    PREFIX_SYMBOLS,
+    PREFIX_VOLUME,
+    topic_gateway_auth,
+    topic_gateways,
+    topic_quote_bootstrap,
+    topic_session_schedule,
+    topic_session_status,
+    topic_symbols,
+    topic_volume,
+)
 
 # Topics this client ever needs to receive from the engine PUB socket.
 # Extend this list when adding new commands that carry acks.
 _ACK_SUB_PREFIXES: tuple[str, ...] = (
-    "system.gateway_auth.",
-    "risk.circuit_breaker_halt_all_ack.",
-    "risk.circuit_breaker_resume_all_ack.",
-    "risk.symbol_halt_ack.",
-    "risk.symbol_resume_ack.",
-    "risk.cancel_symbol_ack.",
-    "risk.kill_switch_ack.",
-    "quote.ack.",
-    "book.",
-    "session.state",
-    "system.symbols.",
-    "order.orders.",
-    "system.quote_bootstrap.",
-    "system.session_status.",
-    "system.session_schedule.",
-    "system.gateways.",
-    "system.volume.",
-    "index.history.",
-    "index.corp_action_ack.",
-    "index.constituent_change_ack.",
-    "index.error.",
+    PREFIX_GATEWAY_AUTH,
+    PREFIX_CIRCUIT_BREAKER_HALT_ALL_ACK,
+    PREFIX_CIRCUIT_BREAKER_RESUME_ALL_ACK,
+    PREFIX_SYMBOL_HALT_ACK,
+    PREFIX_SYMBOL_RESUME_ACK,
+    PREFIX_CANCEL_SYMBOL_ACK,
+    PREFIX_KILL_SWITCH_ACK,
+    PREFIX_QUOTE_ACK,
+    PREFIX_BOOK_SNAPSHOT,
+    TOPIC_SESSION_STATE,
+    PREFIX_SYMBOLS,
+    PREFIX_ORDERS,
+    PREFIX_QUOTE_BOOTSTRAP,
+    PREFIX_SESSION_STATUS,
+    PREFIX_SESSION_SCHEDULE,
+    PREFIX_GATEWAYS,
+    PREFIX_VOLUME,
+    PREFIX_INDEX_HISTORY,
+    PREFIX_INDEX_CORP_ACTION_ACK,
+    PREFIX_INDEX_CONSTITUENT_CHANGE_ACK,
+    PREFIX_INDEX_ERROR,
 )
 
 
@@ -280,7 +333,7 @@ class ExchangeCommandClient:
         ``result["accepted"]`` before sending any other commands.
         """
         self._send(make_gateway_connect_msg(self._gw_id))
-        return self._recv(f"system.gateway_auth.{self._gw_id}")
+        return self._recv(topic_gateway_auth(self._gw_id))
 
     def disconnect(self) -> None:
         """Send a graceful disconnect notice.  No ack is published."""
@@ -317,7 +370,7 @@ class ExchangeCommandClient:
         ``cancelled_quotes``.
         """
         self._send(make_circuit_breaker_halt_all_msg(self._gw_id))
-        return self._recv(f"risk.circuit_breaker_halt_all_ack.{self._gw_id}")
+        return self._recv(topic_circuit_breaker_halt_all_ack(self._gw_id))
 
     def resume_all(self) -> dict[str, Any]:
         """
@@ -330,7 +383,7 @@ class ExchangeCommandClient:
         dict with keys: ``accepted``, ``reason``, ``resumed_symbols``.
         """
         self._send(make_circuit_breaker_resume_all_msg(self._gw_id))
-        return self._recv(f"risk.circuit_breaker_resume_all_ack.{self._gw_id}")
+        return self._recv(topic_circuit_breaker_resume_all_ack(self._gw_id))
 
     # ------------------------------------------------------------------
     # Risk controls — any connected gateway
@@ -350,7 +403,7 @@ class ExchangeCommandClient:
         ``cancelled_quotes``.
         """
         self._send(make_kill_switch_msg(target_gw.upper(), symbol.upper()))
-        return self._recv(f"risk.kill_switch_ack.{target_gw.upper()}")
+        return self._recv(topic_kill_switch_ack(target_gw.upper()))
 
     def mass_cancel(self, target_gw: str, symbol: str) -> dict[str, Any]:
         """
@@ -371,7 +424,7 @@ class ExchangeCommandClient:
         dict with keys: ``accepted``, ``reason``, ``quote_id``.
         """
         self._send(make_quote_cancel_msg(target_gw.upper(), symbol.upper()))
-        return self._recv(f"quote.ack.{target_gw.upper()}")
+        return self._recv(topic_quote_ack(target_gw.upper()))
 
     def gateway_kick(self, target_gw: str, reason: str = "") -> None:
         """
@@ -397,7 +450,7 @@ class ExchangeCommandClient:
         ``last_qty``, ``recent_trades``.
         """
         self._send(make_book_snapshot_request_msg(symbol.upper()))
-        return self._recv(f"book.{symbol.upper()}")
+        return self._recv(topic_book_snapshot(symbol.upper()))
 
     def order_list(self, target_gw: str) -> list[dict[str, Any]]:
         """
@@ -405,14 +458,18 @@ class ExchangeCommandClient:
         across all symbols.
         """
         self._send(make_orders_request_msg(target_gw.upper()))
-        result = self._recv(f"order.orders.{target_gw.upper()}")
+        result = self._recv(topic_orders(target_gw.upper()))
         return list(result.get("orders", []))
 
     def symbol_list(self) -> list[str]:
-        """Return the list of all symbols configured in the engine."""
+        """Return the list of all symbols configured in the engine.
+
+        The reply carries one record per instrument since 6.1e; this helper
+        still answers with names, which is what every caller of it wants.
+        """
         self._send(make_symbols_request_msg(self._gw_id))
-        result = self._recv(f"system.symbols.{self._gw_id}")
-        return list(result.get("symbols", []))
+        result = self._recv(topic_symbols(self._gw_id))
+        return [str(e.get("symbol", "")) for e in result.get("symbols", [])]
 
     def index_history(
         self,
@@ -440,8 +497,8 @@ class ExchangeCommandClient:
             )
         )
         return self._recv(
-            f"index.history.{self._gw_id}",
-            error_prefix=f"index.error.{self._gw_id}",
+            topic_index_history(self._gw_id),
+            error_prefix=topic_index_error(self._gw_id),
         )
 
     def index_corp_action(
@@ -474,8 +531,8 @@ class ExchangeCommandClient:
             )
         )
         return self._recv(
-            f"index.corp_action_ack.{self._gw_id}",
-            error_prefix=f"index.error.{self._gw_id}",
+            topic_index_corp_action_ack(self._gw_id),
+            error_prefix=topic_index_error(self._gw_id),
         )
 
     def index_delist(self, index_id: str, symbol: str) -> dict[str, Any]:
@@ -496,8 +553,8 @@ class ExchangeCommandClient:
             )
         )
         return self._recv(
-            f"index.constituent_change_ack.{self._gw_id}",
-            error_prefix=f"index.error.{self._gw_id}",
+            topic_index_constituent_change_ack(self._gw_id),
+            error_prefix=topic_index_error(self._gw_id),
         )
 
     def index_add_constituent(
@@ -526,8 +583,8 @@ class ExchangeCommandClient:
             )
         )
         return self._recv(
-            f"index.constituent_change_ack.{self._gw_id}",
-            error_prefix=f"index.error.{self._gw_id}",
+            topic_index_constituent_change_ack(self._gw_id),
+            error_prefix=topic_index_error(self._gw_id),
         )
 
     def quote_bootstrap(self, target_gw: str, symbol: str = "") -> list[dict[str, Any]]:
@@ -537,7 +594,7 @@ class ExchangeCommandClient:
         Optional *symbol* narrows the result to one instrument.
         """
         self._send(make_quote_bootstrap_request_msg(target_gw.upper(), symbol.upper()))
-        result = self._recv(f"system.quote_bootstrap.{target_gw.upper()}")
+        result = self._recv(topic_quote_bootstrap(target_gw.upper()))
         return list(result.get("quotes", []))
 
     # ------------------------------------------------------------------
@@ -555,7 +612,7 @@ class ExchangeCommandClient:
         Check ``result["state"]`` to verify the transition was accepted.
         """
         self._send(make_session_transition_msg(to_state.upper()))
-        return self._recv("session.state")
+        return self._recv(TOPIC_SESSION_STATE)
 
     def session_status(self) -> dict[str, Any]:
         """
@@ -566,7 +623,7 @@ class ExchangeCommandClient:
         dict with keys: ``state`` (str), ``sessions_enabled`` (bool).
         """
         self._send(make_session_state_request_msg(self._gw_id))
-        return self._recv(f"system.session_status.{self._gw_id}")
+        return self._recv(topic_session_status(self._gw_id))
 
     def session_schedule(self) -> dict[str, Any]:
         """
@@ -578,7 +635,7 @@ class ExchangeCommandClient:
         phase → ``HH:MM`` time strings, or empty dict if scheduling is off).
         """
         self._send(make_session_schedule_request_msg(self._gw_id))
-        return self._recv(f"system.session_schedule.{self._gw_id}")
+        return self._recv(topic_session_schedule(self._gw_id))
 
     def gateway_list(self) -> list[dict[str, Any]]:
         """
@@ -589,7 +646,7 @@ class ExchangeCommandClient:
         List of dicts with keys: ``id``, ``role``, ``description``, ``connected``.
         """
         self._send(make_gateways_request_msg(self._gw_id))
-        result = self._recv(f"system.gateways.{self._gw_id}")
+        result = self._recv(topic_gateways(self._gw_id))
         return list(result.get("gateways", []))
 
     def volume(self) -> dict[str, Any]:
@@ -606,7 +663,7 @@ class ExchangeCommandClient:
         - ``total_trades``: int
         """
         self._send(make_volume_request_msg(self._gw_id))
-        return self._recv(f"system.volume.{self._gw_id}")
+        return self._recv(topic_volume(self._gw_id))
 
     # ------------------------------------------------------------------
     # Per-symbol controls — ADMIN role required
@@ -627,7 +684,7 @@ class ExchangeCommandClient:
         ``cancelled_quotes``.
         """
         self._send(make_symbol_halt_msg(self._gw_id, symbol.upper()))
-        return self._recv(f"risk.symbol_halt_ack.{self._gw_id}")
+        return self._recv(topic_symbol_halt_ack(self._gw_id))
 
     def symbol_resume(self, symbol: str) -> dict[str, Any]:
         """
@@ -641,7 +698,7 @@ class ExchangeCommandClient:
         dict with keys: ``accepted``, ``symbol``, ``reason``.
         """
         self._send(make_symbol_resume_msg(self._gw_id, symbol.upper()))
-        return self._recv(f"risk.symbol_resume_ack.{self._gw_id}")
+        return self._recv(topic_symbol_resume_ack(self._gw_id))
 
     def cancel_symbol(self, symbol: str) -> dict[str, Any]:
         """
@@ -658,4 +715,4 @@ class ExchangeCommandClient:
         ``cancelled_orders``, ``cancelled_quotes``.
         """
         self._send(make_cancel_symbol_msg(self._gw_id, symbol.upper()))
-        return self._recv(f"risk.cancel_symbol_ack.{self._gw_id}")
+        return self._recv(topic_cancel_symbol_ack(self._gw_id))

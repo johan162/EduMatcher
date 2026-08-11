@@ -563,8 +563,12 @@ CLOSING BACKSTOP ABC: indicative=12200 ticks outside [9000, 11000] -> clamped to
 On the wire, `circuit_breaker.halt.{symbol}` and the new
 `circuit_breaker.extend.{symbol}` both carry `corridor_low`, `corridor_high`
 and `expansion`; `extend` adds `indicative_price`, `indicative_qty`,
-`imbalance_side` and the next `resume_at_ns`. A backstop resume carries
-`reason: "CLOSING_BACKSTOP"`, `clamped` and `print_price`.
+`imbalance_side` and the next `resume_at_ns`. On `extend` the three corridor
+fields are always present — the event is published by the widening itself. On
+`halt` all three are **omitted** when the halt has no corridor: either ACE is
+disabled, or the halt began with no reference price to centre one on, or it is
+an operator halt. A backstop resume carries `reason: "CLOSING_BACKSTOP"`,
+`clamped` and `print_price`.
 
 ### Configuration
 
@@ -771,11 +775,14 @@ Risk events are broadcast on the engine's PUB socket (port 5556).
 topic:   b"circuit_breaker.halt.MSFT"
 payload: {
     "symbol":           "MSFT",
-    "trigger_price":    10800,
-    "reference_price":  10100,
+    "trigger_price":    108.00,   # display money, not ticks
+    "reference_price":  101.00,
     "resume_at_ns":     <timestamp>,
     "halt_source":      "CB",
-    "level":            "L1"
+    "level":            "L1",
+    "corridor_low":     90.00,    # all three omitted when there is
+    "corridor_high":    110.00,   # no corridor — see above
+    "expansion":        0
 }
 ```
 
@@ -790,7 +797,7 @@ payload: {
     "symbol":           "MSFT",
     "indicative_price": 122.00,   # what it would have reopened at
     "indicative_qty":   500,
-    "imbalance_side":   "BUY",
+    "imbalance_side":   "BUY",   # omitted entirely when balanced
     "corridor_low":     80.00,    # corridor AFTER widening
     "corridor_high":    120.00,
     "expansion":        1,        # rungs consumed so far
@@ -977,10 +984,10 @@ Expected inbound events:
 
 ```
 topic:   b"circuit_breaker.resume.AAPL"
-payload: { "symbol": "AAPL", "mode": "MANUAL" }
+payload: { "symbol": "AAPL", "halt_source": "ADMIN" }
 
 topic:   b"circuit_breaker.resume.MSFT"
-payload: { "symbol": "MSFT", "mode": "MANUAL" }
+payload: { "symbol": "MSFT", "halt_source": "ADMIN" }
 
 topic:   b"risk.circuit_breaker_resume_all_ack.GW_ADMIN"
 payload: {
@@ -1012,8 +1019,8 @@ sequenceDiagram
     Note over Op,Sub: ... incident resolved ...
 
     Op->>Eng: risk.circuit_breaker_resume_all<br/>{gateway_id: "GW_ADMIN"}
-    Eng->>Sub: circuit_breaker.resume.AAPL  {mode: MANUAL}
-    Eng->>Sub: circuit_breaker.resume.MSFT  {mode: MANUAL}
+    Eng->>Sub: circuit_breaker.resume.AAPL  {halt_source: ADMIN}
+    Eng->>Sub: circuit_breaker.resume.MSFT  {halt_source: ADMIN}
     Eng->>Op: risk.circuit_breaker_resume_all_ack.GW_ADMIN<br/>{accepted: true, resumed_symbols: 2}
 ```
 
@@ -1066,7 +1073,7 @@ What the engine does:
 `"<SYMBOL> is not halted"` if the symbol isn't currently halted, otherwise
 clears the halt, deactivates the circuit breaker state, runs the same
 unconditional uncross as an automatic resume, publishes
-`circuit_breaker.resume.<SYMBOL>` with `"mode": "MANUAL"`, and acks on
+`circuit_breaker.resume.<SYMBOL>` with `"halt_source": "ADMIN"`, and acks on
 `risk.symbol_resume_ack.<GW_ADMIN>` with `{"accepted": true, "symbol": "AAPL", "reason": ""}`.
 
 Both `symbol_halt` and `symbol_resume` also reject with `"symbol required"`

@@ -57,13 +57,19 @@ def build_order(request: OrderRequest, gateway_id: str) -> Order:
 
 
 def build_quote_payload(request: QuoteRequest, gateway_id: str) -> dict[str, Any]:
-    """Build the existing quote.new dict payload."""
+    """Build the quote.new payload, with prices converted to engine ticks.
+
+    The API takes display money from its clients and the wire carries ticks,
+    so the conversion belongs here — the same boundary ``_oco_leg_to_payload``
+    below draws, and the rule design section 15.2 set for every engine-inbound
+    price. Quotes joined it in 6.1b.
+    """
     payload: dict[str, Any] = {
         "gateway_id": gateway_id,
         "symbol": request.symbol,
-        "bid_price": request.bid_price,
+        "bid_price": to_ticks(request.bid_price, request.symbol),
         "bid_qty": request.bid_qty,
-        "ask_price": request.ask_price,
+        "ask_price": to_ticks(request.ask_price, request.symbol),
         "ask_qty": request.ask_qty,
         "tif": wire_value(request.tif),
     }
@@ -72,17 +78,21 @@ def build_quote_payload(request: QuoteRequest, gateway_id: str) -> dict[str, Any
     return payload
 
 
-def _oco_leg_to_payload(leg: OcoLegRequest) -> dict[str, Any]:
+def _oco_leg_to_payload(leg: OcoLegRequest, symbol: str) -> dict[str, Any]:
+    """Build one OCO leg payload, with prices converted to engine ticks.
+
+    Both legs are on ``symbol``; OCO has no per-leg symbol.
+    """
     payload: dict[str, Any] = {
         "side": wire_value(leg.side),
         "order_type": wire_value(leg.order_type),
     }
     if leg.price is not None:
-        payload["price"] = leg.price
+        payload["price"] = to_ticks(leg.price, symbol)
     if leg.stop_price is not None:
-        payload["stop_price"] = leg.stop_price
+        payload["stop_price"] = to_ticks(leg.stop_price, symbol)
     if leg.trail_offset is not None:
-        payload["trail_offset"] = leg.trail_offset
+        payload["trail_offset"] = to_ticks(leg.trail_offset, symbol)
     return payload
 
 
@@ -94,8 +104,8 @@ def build_oco_payload(request: OcoRequest, gateway_id: str) -> dict[str, Any]:
         "symbol": request.symbol,
         "quantity": request.quantity,
         "tif": wire_value(request.tif),
-        "leg1": _oco_leg_to_payload(request.leg1),
-        "leg2": _oco_leg_to_payload(request.leg2),
+        "leg1": _oco_leg_to_payload(request.leg1, request.symbol),
+        "leg2": _oco_leg_to_payload(request.leg2, request.symbol),
     }
 
 
@@ -131,4 +141,4 @@ def build_combo_payload(request: ComboRequest, gateway_id: str) -> dict[str, Any
         tif=TIF(request.tif),
         legs=legs,
     )
-    return combo.to_dict()
+    return combo.to_submission_dict()

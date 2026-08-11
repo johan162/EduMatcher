@@ -28,7 +28,7 @@ endif
 
 # Make behavior
 .DEFAULT_GOAL := pdf-docs
-MAKEFLAGS += -j8
+MAKEFLAGS += -j16
 
 # Get full path to bash
 SHELL := $(shell which bash)
@@ -206,102 +206,84 @@ endef
 # ============================================================================================
 # Design document specific variable definitions
 # ============================================================================================
-SPRINT_PLANNING_PANDOC_FILTER := $(SCRIPTS_DIR)/pandoc_sprint_planning_table_widths.lua
+AUTO_DESIGN_MD_FILES := $(sort $(wildcard $(DESIGN_IDEAS_DIR)/EduMatcher-*.md))
 
-$(eval $(call DEFINE_DESIGN_DOC_VARS,BALF_PROPOSAL,EduMatcher-BALF_Proposal,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,FEATURE_IMPLEMENTATION,EduMatcher-Feature_Implementation_Plan,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,MM_QUOTES_IMPLEMENTATION,EduMatcher-MM_Quotes_Implementation_Plan,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,TICK_MIGRATION_PLAN,EduMatcher-Tick_Migration_Plan,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,MARKET_DATA_PROTOCOL,EduMatcher-Market_Data_Protocol,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,SESSION_GWY_COMMAND,EduMatcher-Session-gwy-command,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,INDEX_DESIGN,EduMatcher-Index,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,INDEX_DB_DESIGN,EduMatcher-index-cb,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,CROSS_HOST_CONNECTION,EduMatcher-Cross-host-connection,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,STAT_COMMANDS,EduMatcher-Stat-commands,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,CONFIG_GENERATOR,EduMatcher-config-generator,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,MM_QUOTE_IDENTIFICATION,mm-quote-identification,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,POST_TRADE_DISSEMINATION_GATEWAY,EduMatcher-Post-Trade-Dissemination-Gateway,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,API_GATEWAY_V2,EduMatcher-ALF-API-Gwy2,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,CLEARING_V2,EduMatcher-Cleaaring,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,CONTRACT_MULTIPLYER,EduMatcher-contract-multiplyer,,))
+# Optional non-prefixed design docs to include in the same pipeline.
+EXTRA_DESIGN_DOC_BASENAMES ?= mm-quote-identification
+EXTRA_DESIGN_MD_FILES := $(wildcard $(addprefix $(DESIGN_IDEAS_DIR)/,$(addsuffix .md,$(EXTRA_DESIGN_DOC_BASENAMES))))
 
-$(eval $(call DEFINE_DESIGN_DOC_VARS,REQUIREMENTS,EduMatcher-Requirements,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,MM_BOTS,EduMatcher-MM-bots,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,CONFIG_VERIFIER,EduMatcher-Config-Verifier,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,AI_TRADING_BOT_V2,EduMatcher-AI-trading-bot-v2,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,AUDIT_CLI,EduMatcher-audit-cli,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,TRADING_GUI,EduMatcher-Trading-GUI,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,CONFIG_GUI,EduMatcher-Config-GUI,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,TERMINAL_GUI,EduMatcher-Terminal-GUI,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,CALF_EXTENSIONS,EduMatcher-CALF-Extensions,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,QLEGS_RECENT,EduMatcher-QLEGS-RECENT,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,INDEX_ADMIN_CLI,EduMatcher-index-admin-cli,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,CALF_AUCTION_CB,EduMatcher-CALF-auction-cb,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,LOG_SRV,EduMatcher-log-srv,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,LOG_GUI,EduMatcher-log-GUI,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,ARCH_ASYNCIO,EduMatcher-arch-asyncio,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,MESSAGE_GENERATOR,EduMatcher-Message-Generator,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,AI_TRADING_BOT,EduMatcher-AI-trading-bot,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,ALF_GWY,EduMatcher-ALF-Gwy,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,DEPLOYMENT,EduMatcher-deployment,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,ENGINE_CORP_ACTIONS,EduMatcher-Engine-Corp-Actions,,))
+DESIGN_DOC_MD_FILES := $(sort $(AUTO_DESIGN_MD_FILES) $(EXTRA_DESIGN_MD_FILES))
+DESIGN_DOC_BASENAMES := $(basename $(notdir $(DESIGN_DOC_MD_FILES)))
+
+PDF_DESIGN_DOCS := $(addprefix $(STAMP_DIR)/,$(addsuffix -pdf$(THEME_SUFFIX).stamp,$(DESIGN_DOC_BASENAMES)))
+REQUIREMENTS_STAMP := $(STAMP_DIR)/EduMatcher-Requirements-pdf$(THEME_SUFFIX).stamp
 
 # ============================================================================================
 # Makefile Targets
 # ============================================================================================
-
-$(eval $(call DESIGN_DOC_PDF_RULE,BALF_PROPOSAL,"EduMatcher-BALF_Proposal"))
-$(eval $(call DESIGN_DOC_PDF_RULE,FEATURE_IMPLEMENTATION,"EduMatcher-Feature_Implementation_Plan"))
-$(eval $(call DESIGN_DOC_PDF_RULE,MM_QUOTES_IMPLEMENTATION,"EduMatcher-MM_Quotes_Implementation_Plan"))
-$(eval $(call DESIGN_DOC_PDF_RULE,TICK_MIGRATION_PLAN,"EduMatcher-Tick_Migration_Plan"))	
-$(eval $(call DESIGN_DOC_PDF_RULE,MARKET_DATA_PROTOCOL,"EduMatcher-Market_Data_Protocol"))
-$(eval $(call DESIGN_DOC_PDF_RULE,SESSION_GWY_COMMAND,"EduMatcher-Session-gwy-command"))
-$(eval $(call DESIGN_DOC_PDF_RULE,INDEX_DESIGN,"EduMatcher-Index"))
-$(eval $(call DESIGN_DOC_PDF_RULE,INDEX_DB_DESIGN,"EduMatcher-index-cb"))
-$(eval $(call DESIGN_DOC_PDF_RULE,CROSS_HOST_CONNECTION,"EduMatcher-Cross-host-connection"))
-$(eval $(call DESIGN_DOC_PDF_RULE,STAT_COMMANDS,"EduMatcher-Stat-commands"))
-$(eval $(call DESIGN_DOC_PDF_RULE,CONFIG_GENERATOR,"EduMatcher-config-generator"))
-$(eval $(call DESIGN_DOC_PDF_RULE,MM_QUOTE_IDENTIFICATION,"mm-quote-identification"))
-$(eval $(call DESIGN_DOC_PDF_RULE,POST_TRADE_DISSEMINATION_GATEWAY,"EduMatcher-Post-Trade-Dissemination-Gateway"))
-$(eval $(call DESIGN_DOC_PDF_RULE,API_GATEWAY_V2,"EduMatcher-ALF-API-Gwy2"))
-$(eval $(call DESIGN_DOC_PDF_RULE,CLEARING_V2,"EduMatcher-Cleaaring"))
-$(eval $(call DESIGN_DOC_PDF_RULE,CONTRACT_MULTIPLYER,"EduMatcher-contract-multiplyer"))
-
-$(eval $(call DESIGN_DOC_PDF_RULE,REQUIREMENTS,"EduMatcher-Requirements"))
-$(eval $(call DESIGN_DOC_PDF_RULE,MM_BOTS,"EduMatcher-MM-bots"))
-$(eval $(call DESIGN_DOC_PDF_RULE,CONFIG_VERIFIER,"EduMatcher-Config-Verifier"))
-$(eval $(call DESIGN_DOC_PDF_RULE,AI_TRADING_BOT_V2,"EduMatcher-AI-trading-bot-v2"))
-$(eval $(call DESIGN_DOC_PDF_RULE,AUDIT_CLI,"EduMatcher-audit-cli"))
-$(eval $(call DESIGN_DOC_PDF_RULE,TRADING_GUI,"EduMatcher-Trading-GUI"))
-$(eval $(call DESIGN_DOC_PDF_RULE,CONFIG_GUI,"EduMatcher-Config-GUI"))
-$(eval $(call DESIGN_DOC_PDF_RULE,TERMINAL_GUI,"EduMatcher-Terminal-GUI"))
-$(eval $(call DESIGN_DOC_PDF_RULE,CALF_EXTENSIONS,"EduMatcher-CALF-Extensions"))
-$(eval $(call DESIGN_DOC_PDF_RULE,QLEGS_RECENT,"EduMatcher-QLEGS-RECENT"))
-$(eval $(call DESIGN_DOC_PDF_RULE,INDEX_ADMIN_CLI,"EduMatcher-index-admin-cli"))
-$(eval $(call DESIGN_DOC_PDF_RULE,CALF_AUCTION_CB,"EduMatcher-CALF-auction-cb"))
-$(eval $(call DESIGN_DOC_PDF_RULE,LOG_SRV,"EduMatcher-log-srv"))
-$(eval $(call DESIGN_DOC_PDF_RULE,LOG_GUI,"EduMatcher-log-GUI"))
-$(eval $(call DESIGN_DOC_PDF_RULE,ARCH_ASYNCIO,"EduMatcher-arch-asyncio"))
-$(eval $(call DESIGN_DOC_PDF_RULE,MESSAGE_GENERATOR,"EduMatcher-Message-Generator"))
-$(eval $(call DESIGN_DOC_PDF_RULE,AI_TRADING_BOT,"EduMatcher-AI-trading-bot"))
-$(eval $(call DESIGN_DOC_PDF_RULE,ALF_GWY,"EduMatcher-ALF-Gwy"))
-$(eval $(call DESIGN_DOC_PDF_RULE,DEPLOYMENT,"EduMatcher-deployment"))
-$(eval $(call DESIGN_DOC_PDF_RULE,ENGINE_CORP_ACTIONS,"EduMatcher-Engine-Corp-Actions"))
-
-
-PDF_DESIGN_DOCS := $(BALF_PROPOSAL_PDF) $(FEATURE_IMPLEMENTATION_PDF) $(MM_QUOTES_IMPLEMENTATION_PDF) \
-$(TICK_MIGRATION_PLAN_PDF) $(MARKET_DATA_PROTOCOL_PDF) $(SESSION_GWY_COMMAND_PDF) $(INDEX_DESIGN_PDF) \
-$(INDEX_DB_DESIGN_PDF) \
-$(CROSS_HOST_CONNECTION_PDF) $(STAT_COMMANDS_PDF) $(CONFIG_GENERATOR_PDF) $(MM_QUOTE_IDENTIFICATION_PDF) \
-$(MM_BOTS_PDF) $(POST_TRADE_DISSEMINATION_GATEWAY_PDF) $(API_GATEWAY_V2_PDF) \
-$(CONFIG_VERIFIER_PDF) $(AI_TRADING_BOT_V2_PDF) $(CLEARING_V2_PDF) $(CONTRACT_MULTIPLYER_PDF) $(AUDIT_CLI_PDF) \
-$(TRADING_GUI_PDF) $(CONFIG_GUI_PDF) $(TERMINAL_GUI_PDF) $(CALF_EXTENSIONS_PDF) $(QLEGS_RECENT_PDF) \
-$(INDEX_ADMIN_CLI_PDF) $(CALF_AUCTION_CB_PDF) $(LOG_SRV_PDF) $(LOG_GUI_PDF) $(ARCH_ASYNCIO_PDF) \
-$(MESSAGE_GENERATOR_PDF) $(AI_TRADING_BOT_PDF) $(ALF_GWY_PDF) $(DEPLOYMENT_PDF) $(ENGINE_CORP_ACTIONS_PDF)
+$(STAMP_DIR)/%-pdf$(THEME_SUFFIX).stamp: $(DESIGN_IDEAS_DIR)/%.md $(DESIGN_LATEX_TEMPLATE) | $(BUILD_DIR) $(STAMP_DIR) $(DIST_DIR) $(NODE_MODULES_PATH)
+	@echo -e "\n$(DARKYELLOW)- Building $* PDF via LaTeX report pipeline...$(NC)"
+	@DOC_BASENAME="$*"; \
+	DOC_BUILD_DIR="$(BUILD_DESIGN_DIR)/$*"; \
+	DOC_MD_CLEAN="$$DOC_BUILD_DIR/$*_clean.md"; \
+	DOC_BODY_TEX="$$DOC_BUILD_DIR/$*_body.tex"; \
+	DOC_TEX="$$DOC_BUILD_DIR/$*_report.tex"; \
+	DOC_PDF_BUILT="$$DOC_BUILD_DIR/$*_report.pdf"; \
+	rm -rf "$$DOC_BUILD_DIR"; \
+	mkdir -p "$$DOC_BUILD_DIR"; \
+	sed -E 's/^(#{1,6}[[:space:]]+)[0-9]+([.][0-9]+)*[.]?[[:space:]]+/\1/' "$<" > "$$DOC_MD_CLEAN"; \
+	mkdir -p "$$DOC_BUILD_DIR/.mermaid-img"; \
+	PUPPETEER_EXECUTABLE_PATH="$(PUPPETEER_EXECUTABLE_PATH)" \
+	MERMAID_FILTER_FORMAT="$(MERMAID_FILTER_FORMAT)" \
+	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
+	MERMAID_FILTER_LOC="$$DOC_BUILD_DIR/.mermaid-img" \
+	pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none --filter "$(MERMAID_FILTER)" $(USER_GUIDE_LUA_FILTER_FLAGS) "$$DOC_MD_CLEAN" -o "$$DOC_BODY_TEX"; \
+	sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' "$$DOC_BODY_TEX"; \
+	rm -f "$$DOC_BODY_TEX.bak"; \
+	awk -v body="$$DOC_BODY_TEX" '\
+		/%%__DESIGN_CONTENT__%%/ { while ((getline line < body) > 0) print line; close(body); inserted=1; next } \
+		{ print } \
+		END { if (!inserted) { print "Template placeholder %%__DESIGN_CONTENT__%% not found" > "/dev/stderr"; exit 2 } }' \
+		"$(DESIGN_LATEX_TEMPLATE)" > "$$DOC_TEX"; \
+	VERSION_FROM_MD=$$(head -n 1 "$<" | sed -E 's/^Version:[[:space:]]*//'); \
+	if [ -z "$$VERSION_FROM_MD" ]; then \
+		echo -e "$(RED)✗ Error: Could not extract Version from first line of $<$(NC)"; \
+		exit 1; \
+	fi; \
+	TITLE_FROM_MD=$$(grep -m 1 '^# ' "$<" | sed -E 's/^#[[:space:]]+//'); \
+	if [ -z "$$TITLE_FROM_MD" ]; then \
+		echo -e "$(RED)✗ Error: Could not extract title from $<$(NC)"; \
+		exit 1; \
+	fi; \
+	TITLE_FROM_MD_ESCAPED=$$(printf '%s' "$$TITLE_FROM_MD" | sed -e 's/[\/&\\]/\\&/g'); \
+	sed -i.bak -E "s/\{\{VERSION\}\}/Version: $$VERSION_FROM_MD/g" "$$DOC_TEX"; \
+	sed -i.bak -E "s/\{\{TITLE\}\}/$$TITLE_FROM_MD_ESCAPED/g" "$$DOC_TEX"; \
+	if ! grep -q "Version: $$VERSION_FROM_MD" "$$DOC_TEX"; then \
+		echo -e "$(RED)✗ Error: Failed to update version number in LaTeX template from markdown source$(NC)"; \
+		exit 1; \
+	fi; \
+	if ! grep -q "$$TITLE_FROM_MD" "$$DOC_TEX"; then \
+		echo -e "$(RED)✗ Error: Failed to update title ($$TITLE_FROM_MD) in LaTeX template $$DOC_TEX from markdown source$(NC)"; \
+		exit 1; \
+	fi; \
+	rm -f "$$DOC_TEX.bak"; \
+	if ! PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory "$$DOC_BUILD_DIR" "$$DOC_TEX" >/dev/null; then \
+		echo -e "$(RED)✗ Error: xelatex pass 1 failed for $$DOC_TEX$(NC)"; \
+		echo -e "$(YELLOW)  See log: $$DOC_BUILD_DIR/$*_report.log$(NC)"; \
+		exit 1; \
+	fi; \
+	if ! PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory "$$DOC_BUILD_DIR" "$$DOC_TEX" >/dev/null; then \
+		echo -e "$(RED)✗ Error: xelatex pass 2 failed for $$DOC_TEX$(NC)"; \
+		echo -e "$(YELLOW)  See log: $$DOC_BUILD_DIR/$*_report.log$(NC)"; \
+		exit 1; \
+	fi; \
+	cp "$$DOC_PDF_BUILT" "$(DIST_DIR)/$$DOC_BASENAME$(THEME_SUFFIX)-$$VERSION_FROM_MD.pdf"; \
+	touch "$@"; \
+	echo -e "$(GREEN)✓ Version: $$VERSION_FROM_MD of \"$*\" PDF built: $(DARKGRAY)$(DIST_DIR)/$$DOC_BASENAME$(THEME_SUFFIX)-$$VERSION_FROM_MD.pdf$(NC)"
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"
-	@$(call print_section,Build & Documentation,build|pdf-design-docs|dark|clean|really-clean)
+	@$(call print_section,Build & Documentation,build|pdf-docs|dark|clean|really-clean)
 	@echo ""
 
 $(BUILD_DIR):
@@ -336,10 +318,10 @@ check-latex-engine:
 pdf-docs: check-latex-engine
 
 dark: ## Build all PDFs in dark theme (adds -dark suffix to filenames)
-	@$(MAKE) pdf-design-docs THEME=dark
+	@$(MAKE) pdf-docs THEME=dark
 
 
-reqs: check-latex-engine $(REQUIREMENTS_PDF) ## Build the MCPProjSim requirements design document PDF
+reqs: check-latex-engine $(REQUIREMENTS_STAMP) ## Build the MCPProjSim requirements design document PDF
 	@:
 
 

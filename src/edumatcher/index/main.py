@@ -42,9 +42,44 @@ from edumatcher.models.message import (
     make_index_rebalance_ack_msg,
     make_index_update_msg,
 )
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.index import (
+    TOPIC_INDEX_CONSTITUENT_CHANGE,
+    TOPIC_INDEX_CORP_ACTION,
+    TOPIC_INDEX_HISTORY_REQUEST,
+    TOPIC_INDEX_REBALANCE,
+    DaySummary,
+)
+from edumatcher.models.generated.system import (
+    TOPIC_EOD,
+)
 
 log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+
+#: Longest identifier this process will echo back into a reply, matching the
+#: `max_len` the index spec declares for gateway_id / index_id / symbol.
+_MAX_ID_LEN = 32
+
+
+def _clamp_id(value: object, limit: int = _MAX_ID_LEN) -> str:
+    """Normalise an identifier arriving from the wire, bounded.
+
+    The bound is what makes the replies safe to build. Every rejection path
+    here quotes the identifier it could not resolve, and since 5.2f those
+    replies are generated constructors that *validate* — so an inbound
+    index_id of five thousand characters would raise MessageValidationError
+    out of a handler that has no exception guard, and take pm-index down while
+    answering a malformed request. Before adoption the same input merely
+    published an oversized reason.
+
+    Truncating loses nothing real: an identifier longer than the spec allows
+    cannot name an index or a gateway that exists, so a clamped one fails the
+    same lookup and produces the same rejection.
+    """
+    return str(value).upper()[:limit]
+
 
 _CLIENT_NAME = "pm-index"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -58,9 +93,12 @@ class _ManagedIndex:
     session_state: str = "PRE_OPEN"
     last_publish_time: float = 0.0
     eod_finalized_for_session: bool = False
-    day_open: float | None = None
-    day_high: float | None = None
-    day_low: float | None = None
+    #: The session's open/high/low, or None before the first level is
+    #: computed. One optional record rather than three optional floats: the
+    #: three were only ever set and cleared together, and holding them
+    #: separately left a half-set state representable in the one place it
+    #: could actually arise (design section 16.2).
+    day: DaySummary | None = None
     day_close: float | None = None
 
 
@@ -82,9 +120,9 @@ class IndexProcess:
 
         self._sub_sock = make_subscriber(
             ENGINE_PUB_ADDR,
-            "trade.executed",
-            "session.state",
-            "system.eod",
+            TOPIC_TRADE_EXECUTED,
+            TOPIC_SESSION_STATE,
+            TOPIC_EOD,
         )
         self._pull_sock = make_puller(INDEX_PULL_ADDR)
         self._pub_sock = make_publisher(INDEX_PUB_ADDR)
@@ -201,9 +239,11 @@ class IndexProcess:
                 symbol: idx.calc.last_price(symbol)
                 for symbol in idx.calc.constituent_symbols()
             },
-            "day_open": idx.day_open,
-            "day_high": idx.day_high,
-            "day_low": idx.day_low,
+            # The state file keeps three flat keys: it is a persisted
+            # diagnostic, not the wire, and nothing reads them back.
+            "day_open": idx.day.open if idx.day else None,
+            "day_high": idx.day.high if idx.day else None,
+            "day_low": idx.day.low if idx.day else None,
             "last_level": last_level,
             "last_updated": time.time(),
         }
@@ -264,13 +304,14 @@ class IndexProcess:
             )
 
     def _update_day_ohlc(self, idx: _ManagedIndex, level: float) -> None:
-        if idx.day_open is None:
-            idx.day_open = level
-            idx.day_high = level
-            idx.day_low = level
+        if idx.day is None:
+            idx.day = DaySummary(open=level, high=level, low=level)
             return
-        idx.day_high = max(idx.day_high or level, level)
-        idx.day_low = min(idx.day_low or level, level)
+        idx.day = DaySummary(
+            open=idx.day.open,
+            high=max(idx.day.high, level),
+            low=min(idx.day.low, level),
+        )
 
     def _publish_level(
         self, idx: _ManagedIndex, level: float, force: bool = False
@@ -286,9 +327,7 @@ class IndexProcess:
             aggregate_cap=aggregate_cap,
             divisor=idx.calc.divisor,
             session_state=idx.session_state,
-            day_open=idx.day_open,
-            day_high=idx.day_high,
-            day_low=idx.day_low,
+            day=idx.day.to_dict() if idx.day is not None else None,
         )
         self._pub_sock.send_multipart(frames)
         idx.last_publish_time = now
@@ -350,9 +389,7 @@ class IndexProcess:
     def _reset_for_new_session(self) -> None:
         for idx in self._indices.values():
             idx.eod_finalized_for_session = False
-            idx.day_open = None
-            idx.day_high = None
-            idx.day_low = None
+            idx.day = None
             idx.day_close = None
 
     def _handle_session_state(self, payload: dict[str, Any]) -> None:
@@ -366,12 +403,12 @@ class IndexProcess:
             self._finalize_eod()
 
     def _handle_history_request(self, payload: dict[str, Any]) -> None:
-        gateway_id = str(payload.get("gateway_id", "")).upper()
+        gateway_id = _clamp_id(payload.get("gateway_id", ""))
         if not gateway_id:
             return
         log.debug("handling history request gateway_id=%s", gateway_id)
 
-        index_id = str(payload.get("index_id", "")).upper()
+        index_id = _clamp_id(payload.get("index_id", ""))
         idx = self._indices.get(index_id)
         if idx is None:
             self._pub_sock.send_multipart(
@@ -415,10 +452,10 @@ class IndexProcess:
         )
 
     def _handle_corp_action(self, payload: dict[str, Any]) -> None:
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        index_id = str(payload.get("index_id", "")).upper()
-        action = str(payload.get("action", "")).upper()
-        symbol = str(payload.get("symbol", "")).upper()
+        gateway_id = _clamp_id(payload.get("gateway_id", ""))
+        index_id = _clamp_id(payload.get("index_id", ""))
+        action = _clamp_id(payload.get("action", ""))
+        symbol = _clamp_id(payload.get("symbol", ""))
         log.info(
             "received corp action gateway_id=%s index_id=%s action=%s symbol=%s",
             gateway_id,
@@ -501,10 +538,10 @@ class IndexProcess:
         )
 
     def _handle_constituent_change(self, payload: dict[str, Any]) -> None:
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        index_id = str(payload.get("index_id", "")).upper()
-        change_type = str(payload.get("change_type", "")).upper()
-        symbol = str(payload.get("symbol", "")).upper()
+        gateway_id = _clamp_id(payload.get("gateway_id", ""))
+        index_id = _clamp_id(payload.get("index_id", ""))
+        change_type = _clamp_id(payload.get("change_type", ""))
+        symbol = _clamp_id(payload.get("symbol", ""))
         log.info(
             "received constituent change gateway_id=%s index_id=%s change=%s symbol=%s",
             gateway_id,
@@ -540,6 +577,7 @@ class IndexProcess:
                 event_type = "ADD_CONSTITUENT"
                 event_payload = {
                     "symbol": symbol,
+                    "shares_outstanding": shares,
                     "reference_price": initial_price,
                     "old_divisor": old_divisor,
                     "new_divisor": idx.calc.divisor,
@@ -594,9 +632,9 @@ class IndexProcess:
         the same all-or-nothing guarantee the single-action corp-action
         handlers get for free by only ever doing one mutation.
         """
-        gateway_id = str(payload.get("gateway_id", "")).upper()
-        index_id = str(payload.get("index_id", "")).upper()
-        command_id = str(payload.get("command_id", ""))
+        gateway_id = _clamp_id(payload.get("gateway_id", ""))
+        index_id = _clamp_id(payload.get("index_id", ""))
+        command_id = str(payload.get("command_id", ""))[:64]
         updates_raw = payload.get("updates")
         log.info(
             "received rebalance gateway_id=%s index_id=%s updates=%s",
@@ -639,7 +677,7 @@ class IndexProcess:
             if not isinstance(symbol_raw, str) or not symbol_raw.strip():
                 _reject(f"updates[{i}].symbol must be a non-empty string")
                 return
-            symbol = symbol_raw.strip().upper()
+            symbol = _clamp_id(symbol_raw.strip())
             if symbol not in known_symbols:
                 _reject(f"updates[{i}]: {symbol} is not a constituent of {index_id}")
                 return
@@ -730,11 +768,11 @@ class IndexProcess:
                     log.warning("malformed sub frame: %s", exc)
                 else:
                     self._dbg_count("sub_messages")
-                    if topic == "trade.executed":
+                    if topic == TOPIC_TRADE_EXECUTED:
                         self._handle_trade(payload)
-                    elif topic == "session.state":
+                    elif topic == TOPIC_SESSION_STATE:
                         self._handle_session_state(payload)
-                    elif topic == "system.eod":
+                    elif topic == TOPIC_EOD:
                         self._finalize_eod()
 
             if self._pull_sock in socks:
@@ -745,13 +783,13 @@ class IndexProcess:
                     log.warning("malformed pull frame: %s", exc)
                 else:
                     self._dbg_count("pull_messages")
-                    if topic == "index.history_request":
+                    if topic == TOPIC_INDEX_HISTORY_REQUEST:
                         self._handle_history_request(payload)
-                    elif topic == "index.corp_action":
+                    elif topic == TOPIC_INDEX_CORP_ACTION:
                         self._handle_corp_action(payload)
-                    elif topic == "index.constituent_change":
+                    elif topic == TOPIC_INDEX_CONSTITUENT_CHANGE:
                         self._handle_constituent_change(payload)
-                    elif topic == "index.rebalance":
+                    elif topic == TOPIC_INDEX_REBALANCE:
                         self._handle_rebalance(payload)
 
             for idx in self._indices.values():

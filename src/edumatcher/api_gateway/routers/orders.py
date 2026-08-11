@@ -26,6 +26,12 @@ from edumatcher.api_gateway.translate import (
     build_order,
     build_quote_payload,
 )
+from edumatcher.models.generated.order import (
+    topic_order_ack,
+    topic_order_amended,
+    topic_order_cancelled,
+    topic_orders,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["orders"])
 
@@ -107,7 +113,9 @@ async def submit_order(
         "status": "PENDING",
     }
     request.app.state.engine.send_new_order(order)
-    event = await _await_order_event(request, f"order.ack.{gateway_id}", order.id, wait)
+    event = await _await_order_event(
+        request, topic_order_ack(gateway_id), order.id, wait
+    )
     return OrderAccepted(
         order_id=order.id,
         client_order_id=body.client_order_id,
@@ -132,7 +140,7 @@ async def cancel_order(
     _check_rate_limit(request, session)
     request.app.state.engine.send_cancel(order_id, gateway_id)
     event = await _await_order_event(
-        request, f"order.cancelled.{gateway_id}", order_id, wait
+        request, topic_order_cancelled(gateway_id), order_id, wait
     )
     return CancelAccepted(order_id=order_id, status="PENDING_CANCEL", event=event)
 
@@ -149,7 +157,7 @@ async def amend_order(
     _check_rate_limit(request, session)
     request.app.state.engine.send_amend(order_id, gateway_id, body.price, body.quantity)
     event = await _await_order_event(
-        request, f"order.amended.{gateway_id}", order_id, wait
+        request, topic_order_amended(gateway_id), order_id, wait
     )
     return {"order_id": order_id, "status": "PENDING_AMEND", "event": event}
 
@@ -170,7 +178,7 @@ async def replace_order(
     request.app.state.engine.send_cancel(order_id, gateway_id)
     try:
         await request.app.state.engine.await_event(
-            f"order.cancelled.{gateway_id}",
+            topic_order_cancelled(gateway_id),
             match={"order_id": order_id},
             timeout=request.app.state.config.timeouts.wait_ack_sec,
         )
@@ -198,7 +206,7 @@ async def list_orders(
         return cast(
             dict[str, Any],
             await request.app.state.engine.await_topic(
-                f"order.orders.{gateway_id}",
+                topic_orders(gateway_id),
                 request.app.state.config.timeouts.engine_reply_sec,
             ),
         )

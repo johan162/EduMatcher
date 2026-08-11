@@ -9,6 +9,7 @@ from edumatcher.engine.main import Engine
 from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
+from edumatcher.models.price import to_ticks
 
 
 @dataclass
@@ -78,9 +79,9 @@ def test_quote_rejected_for_non_market_maker(monkeypatch, tmp_path) -> None:
         {
             "gateway_id": "GW01",
             "symbol": "AAPL",
-            "bid_price": 100.0,
+            "bid_price": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": 101.0,
+            "ask_price": to_ticks(101.0, "AAPL"),
             "ask_qty": 10,
         }
     )
@@ -99,9 +100,9 @@ def test_quote_accept_and_cancel(monkeypatch, tmp_path) -> None:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q1",
-            "bid_price": 100.0,
+            "bid_price": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": 101.0,
+            "ask_price": to_ticks(101.0, "AAPL"),
             "ask_qty": 12,
         }
     )
@@ -136,9 +137,9 @@ def test_kill_switch_cancels_quote_and_orders(monkeypatch, tmp_path) -> None:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q2",
-            "bid_price": 99.0,
+            "bid_price": to_ticks(99.0, "AAPL"),
             "bid_qty": 5,
-            "ask_price": 102.0,
+            "ask_price": to_ticks(102.0, "AAPL"),
             "ask_qty": 5,
         }
     )
@@ -179,9 +180,9 @@ def test_disconnect_cancels_quotes_only(monkeypatch, tmp_path) -> None:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q3",
-            "bid_price": 97.0,
+            "bid_price": to_ticks(97.0, "AAPL"),
             "bid_qty": 5,
-            "ask_price": 103.0,
+            "ask_price": to_ticks(103.0, "AAPL"),
             "ask_qty": 5,
         }
     )
@@ -209,9 +210,9 @@ def test_quote_obligation_enforced_when_enabled(monkeypatch, tmp_path) -> None:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-OBL-1",
-            "bid_price": 100.0,
+            "bid_price": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": 100.10,
+            "ask_price": to_ticks(100.10, "AAPL"),
             "ask_qty": 10,
         }
     )
@@ -236,9 +237,9 @@ def test_quote_obligation_not_enforced_when_disabled(monkeypatch, tmp_path) -> N
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-OBL-2",
-            "bid_price": 100.0,
+            "bid_price": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": 100.10,
+            "ask_price": to_ticks(100.10, "AAPL"),
             "ask_qty": 10,
         }
     )
@@ -264,9 +265,9 @@ def test_quote_legs_inherit_gateway_smp_action(monkeypatch, tmp_path) -> None:
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-SMP-1",
-            "bid_price": 100.0,
+            "bid_price": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": 101.0,
+            "ask_price": to_ticks(101.0, "AAPL"),
             "ask_qty": 10,
         }
     )
@@ -289,9 +290,9 @@ def test_quote_smp_action_defaults_to_none_when_unconfigured(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-SMP-DEFAULT",
-            "bid_price": 100.0,
+            "bid_price": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": 101.0,
+            "ask_price": to_ticks(101.0, "AAPL"),
             "ask_qty": 10,
         }
     )
@@ -341,9 +342,9 @@ def test_quote_smp_cancel_resting_prevents_self_match(monkeypatch, tmp_path) -> 
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-SMP-CROSS",
-            "bid_price": 100.0,
+            "bid_price": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": 101.0,
+            "ask_price": to_ticks(101.0, "AAPL"),
             "ask_qty": 10,
         }
     )
@@ -387,9 +388,9 @@ def test_quote_without_smp_action_self_trades_against_stale_resting_order(
             "gateway_id": "GW01",
             "symbol": "AAPL",
             "quote_id": "Q-NO-SMP-CROSS",
-            "bid_price": 100.0,
+            "bid_price": to_ticks(100.0, "AAPL"),
             "bid_qty": 10,
-            "ask_price": 101.0,
+            "ask_price": to_ticks(101.0, "AAPL"),
             "ask_qty": 10,
         }
     )

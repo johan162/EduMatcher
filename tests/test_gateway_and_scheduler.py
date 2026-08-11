@@ -210,33 +210,36 @@ class TestGatewayHelpers:
 
     def test_handle_event_symbols(self) -> None:
         gw = _make_gateway()
-        gw._handle_event("system.symbols.GW01", {"symbols": ["AAPL", "MSFT"]})
+        gw._handle_event(
+            "system.symbols.GW01",
+            {"symbols": [{"symbol": "AAPL"}, {"symbol": "MSFT"}]},
+        )
         assert "AAPL" in gw._known_symbols
 
     def test_handle_event_symbols_with_meta(self) -> None:
         gw = _make_gateway()
         payload = {
-            "symbols": ["AAPL", "MSFT"],
-            "symbol_meta": {
-                "AAPL": {
-                    "tick_size": 0.01,
+            "symbols": [
+                {
+                    "symbol": "AAPL",
+                    "tick_decimals": 2,
                     "enforce_mm_obligation": True,
                     "mm_max_spread_ticks": 10,
                     "mm_min_qty": 100,
                 },
-                "MSFT": {
-                    "tick_size": 0.05,
+                {
+                    "symbol": "MSFT",
+                    "tick_decimals": 3,
                     "enforce_mm_obligation": False,
                     "mm_max_spread_ticks": 12,
                     "mm_min_qty": 50,
                 },
-            },
+            ]
         }
 
         with patch("edumatcher.alf_console.main.console.print") as mock_print:
             gw._handle_event("system.symbols.GW01", payload)
 
-        assert gw._known_symbol_meta["AAPL"]["tick_size"] == 0.01
         table = mock_print.call_args[0][0]
         assert isinstance(table, Table)
         assert [column.header for column in table.columns] == [
@@ -248,7 +251,10 @@ class TestGatewayHelpers:
             "Min Qty",
         ]
         assert table.columns[1]._cells == ["AAPL", "MSFT"]
-        assert table.columns[2]._cells == ["0.01", "0.05"]
+        # The Tick column is derived from `tick_decimals` now. It used to be
+        # whatever float the engine put in `tick_size`, which is why the old
+        # fixture could claim 0.05 -- a tick no decimal scale can express.
+        assert table.columns[2]._cells == ["0.01", "0.001"]
         assert table.columns[3]._cells == ["YES", "NO"]
         assert table.columns[4]._cells == ["10", "12"]
         assert table.columns[5]._cells == ["100", "50"]
@@ -1833,8 +1839,12 @@ class TestSendQuoteValidation:
 class TestSymbolsNoMeta:
     def test_handle_event_symbols_no_meta(self) -> None:
         gw = _make_gateway()
-        # No symbol_meta key at all → should use empty dict fallback
-        gw._handle_event("system.symbols.GW01", {"symbols": ["AAPL", "MSFT"]})
+        # Entries carrying nothing but their symbol — every other field on
+        # SymbolInfo is optional, so this is a legal reply.
+        gw._handle_event(
+            "system.symbols.GW01",
+            {"symbols": [{"symbol": "AAPL"}, {"symbol": "MSFT"}]},
+        )
         assert "AAPL" in gw._known_symbols
 
 
@@ -2081,15 +2091,15 @@ class TestSymbolsTableNonBoolMeta:
     def test_symbols_with_non_bool_enforce_mm(self) -> None:
         gw = _make_gateway()
         payload = {
-            "symbols": ["AAPL"],
-            "symbol_meta": {
-                "AAPL": {
-                    "tick_size": 0.01,
+            "symbols": [
+                {
+                    "symbol": "AAPL",
+                    "tick_decimals": 2,
                     "enforce_mm_obligation": "yes",  # not a bool → "—" in table
                     "mm_max_spread_ticks": None,
                     "mm_min_qty": None,
                 }
-            },
+            ]
         }
         gw._handle_event("system.symbols.GW01", payload)
         assert "AAPL" in gw._known_symbols

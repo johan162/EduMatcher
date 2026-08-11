@@ -1,0 +1,49 @@
+# EduMatcher transport registry.
+#
+# Named once here so a message spec can say `transport: [engine_pub]` instead
+# of restating a pattern and an address per message. See the design document
+# section 4.4 (docs-design/EduMatcher-Message-Generator.md).
+#
+# `address_config_key` is a SYMBOLIC name resolved from engine_config at
+# runtime. It must never be a literal address: keeping ports out of the spec is
+# what keeps them out of the generated code.
+#
+# The names `calf`, `balf` and `ralf` are reserved for external line/binary
+# protocols fronted by their own gateway processes. They may be declared here
+# to bind an address (as `ralf` is) or referenced bare when the address is
+# fully owned by the gateway.
+
+transports:
+  engine_pub:
+    pattern: PUB
+    subscriber_pattern: SUB
+    address_config_key: ENGINE_PUB_ADDR
+
+  engine_push:
+    pattern: PUSH
+    subscriber_pattern: PULL
+    address_config_key: ENGINE_PUSH_ADDR
+
+  drop_copy_pub:
+    pattern: PUB
+    subscriber_pattern: SUB
+    address_config_key: DROP_COPY_PUB_ADDR
+
+  log_pub:
+    pattern: PUB
+    subscriber_pattern: SUB
+    address_config_key: LOG_PUB_ADDR
+
+  log_push:
+    pattern: PUSH
+    subscriber_pattern: PULL
+    address_config_key: LOG_PUSH_ADDR
+
+  index_pub:
+    pattern: PUB
+    subscriber_pattern: SUB
+    address_config_key: INDEX_PUB_ADDR
+
+  ralf:
+    pattern: TCP
+    address_config_key: POST_TRADE_GATEWAY_PORT

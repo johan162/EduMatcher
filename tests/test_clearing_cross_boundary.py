@@ -37,6 +37,7 @@ from edumatcher.engine.config_loader import SymbolConfig
 from edumatcher.models.message import encode, make_eod_msg
 from edumatcher.models.order import OrderType, Side
 from edumatcher.models.price import from_ticks
+from edumatcher.models.price import to_ticks
 
 from tests.clearing_harness import start_clearing
 from tests.engine_harness import SYMBOL, connect, make_engine, order_payload
@@ -329,8 +330,8 @@ class TestXB5CrossSystemPositionAgreement:
                 "gateway_id": "GW01",
                 "symbol": SYMBOL,
                 "quote_id": "QXB5",
-                "bid_price": 101.0,  # crosses the resting ask → trade
-                "ask_price": 102.0,
+                "bid_price": to_ticks(101.0, "AAPL"),  # crosses the resting ask → trade
+                "ask_price": to_ticks(102.0, "AAPL"),
                 "bid_qty": 100,
                 "ask_qty": 100,
                 "tif": "DAY",

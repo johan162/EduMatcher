@@ -37,6 +37,7 @@ import zmq
 from edumatcher.dc_gateway.config import DcGatewayConfig
 from edumatcher.dc_gateway.protocol import DcFrame, build_line, iso_utc, parse_line
 from edumatcher.messaging.bus import make_subscriber
+from edumatcher.models.generated.drop_copy import PREFIX_DROP_COPY_EVENT
 from edumatcher.models.message import decode
 
 log = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ _MAX_LINE_BYTES = 4096
 _MAX_DC_EVENTS_PER_LOOP = 1000
 # Topic prefix used by DropCopyPublisher (engine/drop_copy.py) for live
 # (non-replay) fill events.
-_DC_EVENT_TOPIC_PREFIX = "drop_copy.event."
+_DC_EVENT_TOPIC_PREFIX = PREFIX_DROP_COPY_EVENT
 
 
 @dataclass

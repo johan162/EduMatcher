@@ -1,0 +1,126 @@
+# Canonical specification for the `structure` message family.
+#
+# Phase 6.1a. The four engine -> gateway events that report what became of a
+# multi-leg structure: a combo's acceptance and lifecycle, and an OCO pair's
+# acceptance and sibling cancellation.
+#
+# WHY A FAMILY RATHER THAN PART OF `order`. The submissions live on
+# `order.combo` / `order.oco` and are specified in order.yaml; these events do
+# not - they are published on `combo.*` and `oco.*` topic roots. A family file
+# is named after its topic root, because that is what the generated
+# FAMILY_TOPICS registry and the literal scanner key on. Splitting them across
+# two roots inside order.yaml would make `order`'s registry claim topics it
+# does not own.
+#
+# THE MAP WAS A SINGLE FIELD IN A COSTUME. combo.status carried
+# `details: {"reason": ...}` - a dict with exactly one key, ever. Both
+# consumers immediately dug it back out with `details.get("reason")`. Design
+# section 15.4 excludes maps on the grounds that a spec appearing to need one
+# is describing a message that should have been something simpler; this is the
+# thinnest possible instance. `reason` is now a top-level string, and it reads
+# like every other reason in the tree. See design section 24.2.
+
+family: structure
+version: 1
+
+messages:
+  - name: combo_ack
+    topic: "combo.ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Engine to gateway: a combo submission was accepted or rejected."
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["order.combo", "combo.status.{GW_ID}"]
+      example_note: >
+        Three scalars. It carried a full ComboOrder.to_dict() state dump until
+        the submission, event and persistence shapes were separated in 5.1c -
+        and no consumer had ever read it: alf_console, alf_gwy, pm-stats and
+        the api_gateway event stream all take only these three. Design section
+        15.4 records that removal.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: combo_id, type: string, validate: { max_len: 64 } }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: combo_status
+    topic: "combo.status.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to gateway: a combo moved to a new lifecycle state.
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["combo.ack.{GW_ID}"]
+      example_note: >
+        PENDING is never published - it is the state a combo is created in, so
+        the first event a client sees is always a transition out of it.
+
+        `reason` replaced a `details` map carrying exactly one key, always
+        "reason", which both consumers unwrapped on arrival. It is omitted
+        when empty, which is what the map's `if reason else None` guard did.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: combo_id, type: string, validate: { max_len: 64 } }
+      - name: status
+        type: enum
+        values: [PENDING, PARTIALLY_MATCHED, MATCHED, FAILED, CANCELLED, REJECTED]
+        doc: "Mirrors models/combo.py::ComboStatus."
+      - { name: reason, type: string, required: false, omit_when_empty: true,
+          validate: { max_len: 512 },
+          doc: "Why a terminal status was reached; absent on the happy path." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: oco_ack
+    topic: "oco.ack.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: "Engine to gateway: an OCO pair was accepted or rejected."
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["order.oco", "oco.cancelled.{GW_ID}"]
+      example_note: >
+        The two order ids are always emitted, as "" on rejection: the
+        hand-written builder put them in the base payload rather than under a
+        guard, and a rejected pair has no orders to name. They are what lets a
+        client tie the pair to the two single-order acks that follow.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: oco_id, type: string, validate: { max_len: 64 } }
+      - { name: accepted, type: bool }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+      - { name: order_id_1, type: string, required: false, default: "",
+          validate: { max_len: 64 }, doc: "The first leg's engine order id." }
+      - { name: order_id_2, type: string, required: false, default: "",
+          validate: { max_len: 64 }, doc: "The second leg's engine order id." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: oco_cancelled
+    topic: "oco.cancelled.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to gateway: one leg of an OCO pair was cancelled because the
+        other was actioned.
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["oco.ack.{GW_ID}", "order.cancelled.{GW_ID}"]
+      example_note: >
+        Distinct from order.cancelled, which says an order is gone. This says
+        *why* - the sibling filled or was cancelled - and names the pair, which
+        an order-level event cannot.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: oco_id, type: string, validate: { max_len: 64 } }
+      - { name: cancelled_order_id, type: string, validate: { max_len: 64 } }
+      - { name: reason, type: string, required: false, default: "",
+          validate: { max_len: 512 } }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }

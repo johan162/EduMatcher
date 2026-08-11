@@ -301,10 +301,13 @@ class TestDataQueries:
     def test_book_depth_sends_snapshot_request(self) -> None:
         book_payload = {
             "symbol": "AAPL",
+            "tick_decimals": 2,
             "bids": [{"price": 150.0, "qty": 100, "count": 1}],
             "asks": [{"price": 150.5, "qty": 200, "count": 2}],
             "last_price": 150.25,
             "last_qty": 50,
+            "last_buy_price": None,
+            "last_sell_price": None,
             "recent_trades": [],
         }
         client, push = _client(recv_queue=_q(make_book_msg("AAPL", book_payload)))
@@ -319,7 +322,20 @@ class TestDataQueries:
         assert result["last_price"] == 150.25
 
     def test_order_list_returns_orders_array(self) -> None:
-        orders = [{"id": "abc", "symbol": "AAPL", "side": "BUY", "remaining_qty": 100}]
+        orders = [
+            {
+                "id": "abc",
+                "symbol": "AAPL",
+                "side": "BUY",
+                "order_type": "LIMIT",
+                "tif": "DAY",
+                "quantity": 100,
+                "remaining_qty": 100,
+                "gateway_id": "TRADER01",
+                "timestamp": 1.0,
+                "status": "NEW",
+            }
+        ]
         client, push = _client(recv_queue=_q(make_orders_msg("TRADER01", orders)))
         result = client.order_list("TRADER01")
 
@@ -337,7 +353,15 @@ class TestDataQueries:
 
     def test_symbol_list_returns_symbols(self) -> None:
         client, push = _client(
-            recv_queue=_q(make_symbols_msg("GW_ADMIN", ["AAPL", "MSFT", "TSLA"]))
+            recv_queue=_q(
+                make_symbols_msg(
+                    "GW_ADMIN",
+                    [
+                        {"symbol": s, "tick_decimals": 2}
+                        for s in ("AAPL", "MSFT", "TSLA")
+                    ],
+                )
+            )
         )
         result = client.symbol_list()
 
@@ -388,7 +412,14 @@ class TestIndexCommands:
                 make_index_history_msg(
                     gateway_id="GW_ADMIN",
                     index_id="EDU100",
-                    records=[{"type": "CORP_ACTION", "timestamp": 1.0}],
+                    records=[
+                        {
+                            "type": "CORP_ACTION",
+                            "timestamp": 1.0,
+                            "index_id": "EDU100",
+                            "level": 100.0,
+                        }
+                    ],
                 )
             )
         )
@@ -702,13 +733,15 @@ class TestSessionSchedule:
         assert topic == "system.session_schedule_request"
         assert payload["gateway_id"] == "GW_ADMIN"
 
-    def test_no_schedule_returns_empty_dict(self) -> None:
+    def test_no_schedule_returns_null_schedule(self) -> None:
         ack = make_session_schedule_msg("GW_ADMIN", False, None)
         client, push = _client(recv_queue=_q(ack))
         result = client.session_schedule()
         assert result["sessions_enabled"] is False
-        # make_session_schedule_msg encodes None as {}
-        assert result["schedule"] == {}
+        # One spelling of the absence. This used to encode None as `{}`, so an
+        # unconfigured venue and one with an empty schedule block were the same
+        # payload; `schedule` is a nullable record now (design section 28.3).
+        assert result["schedule"] is None
 
 
 class TestGatewayList:
@@ -751,21 +784,22 @@ class TestGatewayList:
 
 class TestVolume:
     def test_returns_symbol_and_total_data(self) -> None:
-        symbols_vol = {
-            "AAPL": {"qty": 500, "value": 75000.0, "trades": 10},
-            "GOOG": {"qty": 200, "value": 50000.0, "trades": 5},
-        }
+        symbols_vol = [
+            {"symbol": "AAPL", "qty": 500, "value": 75000.0, "trades": 10},
+            {"symbol": "GOOG", "qty": 200, "value": 50000.0, "trades": 5},
+        ]
         ack = make_volume_msg("GW_ADMIN", symbols_vol, 700, 125000.0, 15)
         client, push = _client(recv_queue=_q(ack))
         result = client.volume()
         assert result["total_qty"] == 700
         assert result["total_value"] == 125000.0
         assert result["total_trades"] == 15
-        assert result["symbols"]["AAPL"]["qty"] == 500
-        assert result["symbols"]["GOOG"]["trades"] == 5
+        by_symbol = {e["symbol"]: e for e in result["symbols"]}
+        assert by_symbol["AAPL"]["qty"] == 500
+        assert by_symbol["GOOG"]["trades"] == 5
 
     def test_sends_correct_topic(self) -> None:
-        ack = make_volume_msg("GW_ADMIN", {}, 0, 0.0, 0)
+        ack = make_volume_msg("GW_ADMIN", [], 0, 0.0, 0)
         client, push = _client(recv_queue=_q(ack))
         client.volume()
         topic, payload = _last_sent(push)
@@ -773,11 +807,11 @@ class TestVolume:
         assert payload["gateway_id"] == "GW_ADMIN"
 
     def test_zero_volume(self) -> None:
-        ack = make_volume_msg("GW_ADMIN", {}, 0, 0.0, 0)
+        ack = make_volume_msg("GW_ADMIN", [], 0, 0.0, 0)
         client, push = _client(recv_queue=_q(ack))
         result = client.volume()
         assert result["total_qty"] == 0
-        assert result["symbols"] == {}
+        assert result["symbols"] == []
 
 
 # ---------------------------------------------------------------------------

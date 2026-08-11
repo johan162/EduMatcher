@@ -386,8 +386,8 @@ class TestC5OcoImmediateFillRace:
                 "symbol": SYMBOL,
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 100.0},
-                "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 120.0},
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 10000},
+                "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 12000},
             }
         )
 
@@ -424,8 +424,8 @@ class TestC5OcoImmediateFillRace:
                 "symbol": SYMBOL,
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 100.0},
-                "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 120.0},
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 10000},
+                "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 12000},
             }
         )
         acks = [m for m in _msgs(pub, "oco.ack.GW01") if m.get("accepted")]

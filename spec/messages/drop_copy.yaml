@@ -1,0 +1,167 @@
+# Canonical specification for the `drop_copy` message family.
+#
+# Phase 6.1d. The clearing/risk feed: every fill for one participant,
+# sequenced, on a dedicated PUB socket (:5557) so a recipient does not have to
+# subscribe to the whole market feed to see one gateway's order flow.
+#
+# THE MAP THAT WAS A FIXED RECORD -- THE FOURTH.
+# `DropCopyPublisher.publish` took `payload: dict[str, Any]` and splatted it
+# into the message beside four fixed keys. Design section 15.4 excludes maps
+# from the IDL on the grounds that a spec appearing to need one is describing
+# a message that should have been something simpler, and this is the thinnest
+# case yet: **one call site, one `event_type`, the same five keys every time.**
+# Both structural readers -- `alf_gwy`'s DC relay and `dc_gateway` -- read
+# exactly those five plus `seq`, by name.
+#
+# Adoption forced the question rather than merely raising it. `from_dict`
+# reads declared keys only, so a generic `**payload` reaching a generated
+# builder would **silently drop** any key the spec does not declare: the
+# publisher would return normally, the recipient would receive a well-formed
+# message, and a field would simply be missing. That is section 1's failure
+# class exactly, and adopting a builder underneath a generic signature would
+# have introduced it. The signature is typed now. See design section 27.2.
+#
+# WHY THE NINE FIELDS ARE WRITTEN TWICE RATHER THAN SHARED VIA `types:`.
+# The two messages carry identical bodies, which is exactly what a record is
+# for -- but a `nested` field is an *object* on the wire, and both readers
+# reach `seq` and `order_id` at the top level. The IDL has no way to say
+# "share this shape, flat", and inventing one for a single caller is the
+# abstraction section 15.5's restrictions exist to avoid. Duplication is the
+# honest cost, and `test_msgen_drop_copy.py` pins the two field lists equal so
+# they cannot drift. Section 27.4.
+#
+# `fill_price` is display money -- `_publish_trade` converts once with
+# `from_ticks` and hands the same float to the position ledger and to here.
+
+family: drop_copy
+version: 1
+
+messages:
+  - name: drop_copy_event
+    topic: "drop_copy.event.{gateway_id}"
+    transport: [drop_copy_pub]
+    doc:
+      motivation: >
+        Engine to a participant's clearing broker, prime broker or in-house
+        risk system: one execution, as it happens.
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["drop_copy.replay.{RECIPIENT_ID}", "order.fill.{GW_ID}"]
+      example_note: >
+        Fed from the engine's single trade-publication path, so it covers
+        every fill-producing flow -- new orders, quotes, combo legs, OCO legs,
+        auction uncrosses, stop cascades and amend-rematches. It was once
+        wired only into the new-order loop, and quote and auction fills were
+        invisible to clearing as a result.
+
+        This is a *derived copy* of `order.fill.{GW_ID}`, not the same
+        message: it is sequenced, buffered for replay, carries the liquidity
+        flag, and travels on a socket the trading gateway does not subscribe
+        to. The two are deliberately allowed to differ.
+
+        Every trade produces two of these, one per counterparty, so a
+        recipient watching both sides of a matched pair sees the same
+        execution twice under different `gateway_id`s.
+    fields:
+      - name: seq
+        type: int
+        unit: dimensionless
+        validate: { gt: 0 }
+        doc: >
+          Process-wide monotone counter, starting at 1 so that 0 can mean "no
+          events yet". Never resets while the engine lives. A recipient
+          detects loss from a gap and a duplicate from a repeat, which is the
+          whole reason the feed is sequenced.
+      - name: timestamp
+        type: int
+        unit: epoch_nanos
+        doc: "When the engine published the event (`models/clock.py::now_ns`)."
+      - name: gateway_id
+        type: string
+        validate: { max_len: 32 }
+        doc: >
+          The participant whose order executed. Carried in the body as well as
+          in the topic, because `drop_copy.replay` names the *recipient* in
+          its topic instead and a replayed event would otherwise not say whose
+          fill it was.
+      - name: event_type
+        type: enum
+        values: ["order.fill"]
+        doc: >
+          One value today. An enum rather than a free string so that a second
+          event type is a spec change with a regenerated binding, rather than
+          a new dict key no reader knows about -- `DropCopyPublisher`'s own
+          docstring promised "every fill and cancel" while only fills existed,
+          which is how the gap went unnoticed. Section 27.3.
+      - name: order_id
+        type: string
+        validate: { max_len: 64 }
+        doc: "The resting or aggressing order this execution belongs to."
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: fill_qty, type: int, unit: shares, validate: { gt: 0 } }
+      - name: fill_price
+        type: float
+        unit: display_price
+        validate: { gt: 0 }
+        doc: "Display money, not ticks -- converted once in `_publish_trade`."
+      - name: liquidity_flag
+        type: enum
+        values: [MAKER, TAKER]
+        doc: >
+          Derived from the trade's aggressor side: the aggressor is the TAKER
+          and the resting side the MAKER. Exactly one of the two events a
+          trade produces is TAKER.
+    encoding:
+      # `gateway_id` is named in the topic AND carried in the body, so it is
+      # listed explicitly: `include: all` means "every field except the topic
+      # parameters" and would drop it. Section 26.4.
+      drop_copy_pub:
+        frames: [topic, json_payload]
+        include: [seq, timestamp, gateway_id, event_type, order_id, symbol,
+                  fill_qty, fill_price, liquidity_flag]
+
+  - name: drop_copy_replay
+    topic: "drop_copy.replay.{recipient_id}"
+    transport: [drop_copy_pub]
+    doc:
+      motivation: >
+        Engine to one named recipient: buffered events re-published on
+        request, so a participant that reconnects mid-session can close its
+        sequence gap.
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["drop_copy.event.{GW_ID}"]
+      example_note: >
+        The body is byte-identical to the live event, including the original
+        `seq` and `timestamp` -- a replayed fill is the same fill, not a new
+        one. Only the topic differs, and it names the *recipient* rather than
+        the gateway, so two simultaneous replays do not interleave.
+
+        `recipient_id` is therefore not the same thing as `gateway_id`, which
+        is why the body keeps carrying the latter.
+
+        There is no request message. `DropCopyPublisher.replay()` is
+        in-process only, callable from the engine and reachable by no
+        protocol -- the module docstring described a
+        `drop_copy.replay_request` that was never built. Section 27.3.
+    fields:
+      - { name: recipient_id, type: string, validate: { max_len: 32 },
+          doc: "Who asked for the replay. Topic-only — deliberately not in
+                the body, which is byte-identical to the live event." }
+      - { name: seq, type: int, unit: dimensionless, validate: { gt: 0 } }
+      - { name: timestamp, type: int, unit: epoch_nanos }
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Whose fill this was — not the recipient the topic names." }
+      - { name: event_type, type: enum, values: ["order.fill"] }
+      - { name: order_id, type: string, validate: { max_len: 64 } }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: fill_qty, type: int, unit: shares, validate: { gt: 0 } }
+      - { name: fill_price, type: float, unit: display_price,
+          validate: { gt: 0 } }
+      - { name: liquidity_flag, type: enum, values: [MAKER, TAKER] }
+    encoding:
+      # `recipient_id` is the topic parameter and is deliberately NOT in the
+      # body — it identifies who asked, not what happened. The default
+      # projection drops it, which is right here; `gateway_id` is an ordinary
+      # field on this message and needs no special listing.
+      drop_copy_pub: { frames: [topic, json_payload] }
