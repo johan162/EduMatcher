@@ -12,10 +12,6 @@ from typing import Any
 
 from edumatcher.balf_gwy.codec import (
     CANCEL_REASON_CLIENT,
-    SIDE_BUY,
-    SIDE_SELL,
-    STATUS_FILLED,
-    STATUS_PARTIAL,
     decode_price,
     encode_price,
 )
@@ -117,41 +113,27 @@ def build_engine_new_order(
 # ---------------------------------------------------------------------------
 
 
-def engine_side_to_balf(side_str: str) -> int:
-    """Convert engine side string to BALF side code."""
-    return SIDE_BUY if side_str.upper() == "BUY" else SIDE_SELL
-
-
-def engine_fill_to_balf_params(
+def engine_fill_to_execution_report_dict(
     payload: dict[str, Any],
     balf_order_id: int,
     client_order_id: int,
 ) -> dict[str, Any]:
-    """Extract parameters for ``build_execution_report`` from an engine fill payload.
+    """Map an engine fill payload to a spec-level execution_report dict.
 
-    ``fill_price`` in engine events is a display float; we convert to BALF i64.
+    Returns the logical field values (display-float price, "BUY"/"SELL" side);
+    ``serialise_execution_report_balf`` owns the scaling and enum-to-wire coding.
     """
-    fill_price_display = float(payload.get("fill_price") or 0.0)
-    fill_qty = int(payload.get("fill_qty") or 0)
-    remaining_qty = int(payload.get("remaining_qty") or 0)
-    status_str = str(payload.get("status") or "PARTIAL").upper()
-    status = STATUS_FILLED if status_str == "FILLED" else STATUS_PARTIAL
-    symbol = str(payload.get("symbol") or "")
-    side_str = str(payload.get("side") or "")
-    side = engine_side_to_balf(side_str) if side_str else SIDE_BUY
     ts = payload.get("timestamp") or payload.get("fill_timestamp") or 0
-    timestamp_ns = int(ts)
-
     return {
         "client_order_id": client_order_id,
-        "balf_order_id": balf_order_id,
-        "fill_price": encode_price(fill_price_display),
-        "fill_qty": fill_qty,
-        "remaining_qty": remaining_qty,
-        "timestamp_ns": timestamp_ns,
-        "symbol": symbol,
-        "side": side,
-        "status": status,
+        "order_id": balf_order_id,
+        "fill_price": float(payload.get("fill_price") or 0.0),
+        "fill_qty": int(payload.get("fill_qty") or 0),
+        "remaining_qty": int(payload.get("remaining_qty") or 0),
+        "timestamp_ns": int(ts),
+        "symbol": str(payload.get("symbol") or ""),
+        "side": str(payload.get("side") or "BUY").upper(),
+        "status": str(payload.get("status") or "PARTIAL").upper(),
     }
 
 

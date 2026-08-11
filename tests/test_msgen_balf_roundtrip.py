@@ -2,13 +2,13 @@
 
 This is capstone assertion 5 — the binary half of "a C client and a Python
 publisher read the same bytes the same way" — plus the assertion that matters
-most here: **the generated binding agrees with the production gateway**.
+most here: **the generated binding is the production gateway's serialiser**.
 
-Byte-for-byte equality against ``balf_gwy/codec.py`` is what makes the spec
-trustworthy. The spec was written from
-``docs/user-guide/910-app-balf-protocol.md``; if that reading were wrong, this
-file would say so immediately, because the gateway is what actually reaches a
-client.
+Byte-for-byte equality against an independent inline reference packer (the
+documented layout, packed with ``struct`` right here) is what makes the spec
+trustworthy: the generator and the reference share no code, so agreement is
+evidence. The gateway itself calls ``serialise_execution_report_balf`` directly,
+so there is no second hand-written packer left to drift.
 
 Also guards the defect that started this phase: ``docs/examples/balf`` disagreed
 with the gateway on six of twelve frame sizes for years, and nothing compared
@@ -101,19 +101,35 @@ int main(int argc, char **argv) {
 
 
 def _gateway_frame(payload: dict[str, Any], seq_no: int = 7) -> bytes:
-    """The same message, built by the production gateway codec."""
-    return codec.build_execution_report(
-        client_order_id=payload["client_order_id"],
-        balf_order_id=payload["order_id"],
-        seq_no=seq_no,
-        fill_price=codec.encode_price(payload["fill_price"]),
-        fill_qty=payload["fill_qty"],
-        remaining_qty=payload["remaining_qty"],
-        timestamp_ns=payload["timestamp_ns"],
-        symbol=payload["symbol"],
-        side=_SIDE[payload["side"]],
-        status=_STATUS[payload["status"]],
+    """The same message, packed independently from the documented layout.
+
+    An inline reference oracle: it duplicates neither the generator nor the
+    gateway, so byte-equality against it proves the generated serialiser matches
+    the BALF spec (header magic 0xBA / version 0x01, body ``<QQqIIQ8sBB6x``).
+    """
+    import struct
+
+    header = struct.pack(
+        "<BBBBI",
+        codec.BALF_MAGIC,
+        codec.BALF_VERSION,
+        codec.MSG_EXECUTION_REPORT,
+        0,
+        seq_no,
     )
+    body = struct.pack(
+        "<QQqIIQ8sBB6x",
+        payload["client_order_id"],
+        payload["order_id"],
+        codec.encode_price(payload["fill_price"]),
+        payload["fill_qty"],
+        payload["remaining_qty"],
+        payload["timestamp_ns"],
+        payload["symbol"].encode("ascii"),
+        _SIDE[payload["side"]],
+        _STATUS[payload["status"]],
+    )
+    return header + body
 
 
 @pytest.fixture(scope="module")

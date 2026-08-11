@@ -19,11 +19,14 @@ Generate the Python bindings, the C bindings, and the reference documentation
 for every EduMatcher message from one canonical specification, so the three can
 no longer disagree — and make a CI check fail the build the moment they do.
 
-The system is complete: **fourteen families, 106 messages, 34 record types**,
+The system is complete: **fourteen families, 108 messages, 37 record types**,
 each with a Python binding; `trade` and `order` also carry C bindings for their
 CALF text and BALF binary projections. Every producer in the tree reaches the
 wire through a generated builder, with exactly two deliberate exceptions (§9),
 and `docs/user-guide/270-message-reference.md` is generated from the same specs.
+
+(Phase 6.3 addition: `order.orders_request` and `order.orders` messages, bringing
+the count from 106 to 108 messages and 34 to 37 record types.)
 
 ## Table of Contents
 
@@ -631,12 +634,16 @@ builder. Exactly one message deliberately does not, and it is pinned by
 
 **`order.execution_report` — the BALF binary frame.** It has no bus topic and
 makes no `make_*` call, so the AST enumeration that defines "adopted" (a module
-calling `make_<name>`) does not see it. But its **layout comes from the spec**: the
-generated C and Python binary projections are round-trip tested byte-for-byte
-against the production gateway codec. It is adopted in the sense that matters — the
-spec is authoritative for its bytes — and excluded only because a binary frame is
-constructed by packing a struct, not by calling a JSON builder. The deviation is a
-property of *how binary messages are built*, not a gap in coverage.
+calling `make_<name>`) does not see it. But the production gateway reaches the
+wire through the generated serialiser `serialise_execution_report_balf`: there is
+no longer a hand-written packer beside it — the spec's `layout:` block *is* the
+serialiser, and the generated C and Python binary projections are round-trip
+tested byte-for-byte against an independent inline reference. It is adopted in the
+sense that matters — the spec is authoritative for its bytes and the gateway calls
+the generated code — and listed as an exception only because the enumeration keys
+on the JSON `make_*` builder a binary frame does not have. The deviation is a
+property of *how binary messages are built* (packing a struct, not calling a JSON
+builder), not a gap in coverage.
 
 **Formerly two: `index.index_history`.** The history reply once took only its topic
 constant, on the reasoning that it replays records verbatim from an append-only

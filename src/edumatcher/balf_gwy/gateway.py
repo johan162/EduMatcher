@@ -59,7 +59,6 @@ from edumatcher.balf_gwy.codec import (
     MSG_NEW_ORDER,
     build_amend_ack,
     build_cancel_ack,
-    build_execution_report,
     build_heartbeat,
     build_heartbeat_ack,
     build_logon_ack,
@@ -82,7 +81,7 @@ from edumatcher.balf_gwy.protocol import (
 from edumatcher.balf_gwy.translate import (
     build_engine_new_order,
     engine_amended_to_balf_params,
-    engine_fill_to_balf_params,
+    engine_fill_to_execution_report_dict,
     new_engine_order_id,
 )
 from edumatcher.messaging.bus import make_pusher, make_subscriber
@@ -103,6 +102,7 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_CANCELLED,
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
+    serialise_execution_report_balf,
     topic_order_ack,
     topic_order_amended,
     topic_order_cancelled,
@@ -1076,11 +1076,13 @@ class BalfGateway:
             return
 
         balf_order_id, client_order_id = mapping
-        params = engine_fill_to_balf_params(payload, balf_order_id, client_order_id)
+        params = engine_fill_to_execution_report_dict(
+            payload, balf_order_id, client_order_id
+        )
 
         self._queue_frame(
             session,
-            build_execution_report(seq_no=session.next_seq(), **params),
+            serialise_execution_report_balf(params, seq_no=session.next_seq()),
         )
 
         # Clean up mapping on full fill
