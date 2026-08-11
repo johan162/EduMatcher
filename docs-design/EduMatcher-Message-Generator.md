@@ -4101,6 +4101,11 @@ nothing is broken, but they are the population for which `from_dict`'s silent
 key-dropping (§27.2) cannot help, because nothing validates them. A phase 6.3
 worth having is adopting those thirty, and the `MANUAL` table is the worklist.
 
+!!! note "Corrected in §31.1"
+    Re-run against the tree, the residue is **29**, not thirty: the `MANUAL`
+    table also carried `system.position_request`, which already goes through
+    its builder. See §31.1.
+
 ### 30.3 What the appendix says that the hand-written page could not
 
 * **Coverage.** 67 `###` sections for 106 messages. A reference that silently
@@ -4150,6 +4155,103 @@ That asymmetry is the argument for generating it, stated more precisely than
 §1 managed: it is not that documentation drifts faster, it is that **drift in
 documentation has no symptom.** A wrong builder raises. A wrong subscriber goes
 quiet. A wrong reference page is read, believed, and acted on.
+
+## 31. Phase 6.3: adopting the `encode()` residue, and the count that was 29
+
+### 31.1 The residue is 29, not thirty
+
+§30.2 read thirty un-adopted messages out of the population script's `MANUAL`
+table. Re-run against the tree by the same AST pass that produced the table —
+a message is *unadopted* when no non-generated, non-`msgen` module calls its
+`make_<name>` or `make_<name>_unchecked` — the residue is **29**. The extra
+entry was `system.position_request`, which the `MANUAL` table carried but which
+already goes through its generated builder; it was never on the worklist. The
+"thirty" in §30.2 stands as what the table said; this is what the tree says.
+A count that lived only in a table went one phase unverified, which is the
+argument for the enumeration becoming a test once the residue is empty.
+
+### 31.2 The four clusters
+
+The 29 group into four independent families of work:
+
+* **A. `log` (15)** — ten server-side sends through `log_srv/pubsub.py`'s one
+  generic `_publish(topic, payload)`, plus five client-side builders.
+* **B. `order` inbound (7)** — the gateway→engine commands, all built in
+  `models/message.py` through `encode()`.
+* **C. `book` (3)** — `book_snapshot`, `book_snapshot_request`, `depth`, two of
+  them on the engine's hot path.
+* **D. singletons (4)** — `quote.quote_new`, `session.session_transition`,
+  `index.index_history`, and `order.execution_report`. The last has no bus
+  topic at all: it is the BALF binary frame, whose layout already comes from
+  the spec (§15, `test_msgen_balf_roundtrip.py`), and is only in the count
+  because the AST scan looks for `make_*` calls a binary frame never makes.
+
+This section records **cluster B**; the other three remain.
+
+### 31.3 Cluster B: six adopted, byte-identical
+
+Six of the seven inbound commands now build through their generated *checked*
+builder — `models/message.py`'s wrappers call `_gen_order.make_order_*(…)`
+instead of `encode(TOPIC, dict)`, matching the delegation style the rest of the
+family already used (`make_gateway_auth_msg`, `make_quote_cancel_msg`):
+
+| Message | Producers | Result |
+|---|---|---|
+| `order_cancel` | fixed two-key dict | byte-identical |
+| `order_amend` | conditional `price`/`qty` | byte-identical — the generated builder omits both when `None`, so the hand-rolled regime-3 conditional (§16) reproduces exactly |
+| `order_combo` | `ComboOrder.to_submission_dict()` | byte-identical; the builder also rejects a one-leg combo, which `encode()` waved through |
+| `order_combo_cancel` | fixed two-key dict | byte-identical |
+| `order_oco` | `build_oco_payload` / `alf_gwy` | byte-identical |
+| `order_oco_cancel` | fixed two-key dict | byte-identical |
+
+Each was key-set probed against every producer before adoption, not after
+(§27.2): the emitted keys are exactly the declared set, so the checked builder
+routes through `from_dict` with nothing to drop. `test_msgen_order_commands.py`
+already asserted the byte-identity for the cancel/amend/new trio; the two
+minimal-payload tests in `test_messages.py` for `order_combo`/`order_oco`,
+which the old pass-through `encode()` accepted, were updated to full submission
+shapes — the guard now sits at the validating boundary rather than below it
+(§7.2 of the 6.3 handover).
+
+### 31.4 `order.new`: the probe found the real defect, and it was not where it was expected
+
+`order.new` is deferred, and the reason is the finding this cluster produced.
+Five of its six producers are safe: `alf_console`, `alf_gwy`, `api_gateway` and
+`balf_gwy/gateway` all pass `Order.to_dict()` (23 keys for 23 declared), and
+`balf_gwy/translate.build_engine_new_order` — the path §5.2 of the handover
+flagged as suspect — emits a strict *subset* of the declared keys and drops
+nothing. Its earlier apparent mismatch was a scrape artifact, as suspected.
+
+The sixth producer, `ai_trader._make_order_payload`, is a pre-existing defect
+that adoption surfaced rather than caused. Its dict:
+
+* **omits four required fields** (`id`, `remaining_qty`, `timestamp`,
+  `status`), so the engine's `_handle_new_order` — whose first line is
+  `Order.from_dict(payload)` — already raises `KeyError: 'id'` on it today.
+  The bot talks straight to the engine PULL socket and does not read the reject,
+  so the failure is silent; the runtime test masks it by mocking
+  `make_order_new_msg`;
+* carries **two undeclared keys** (`run_id`, `strategy`) that no consumer in the
+  tree reads; and
+* sends **display-money floats** for `price`, where `order.new` is integer
+  ticks and no gateway sits between the bot and the engine to convert.
+
+So `pm-ai-trader` has never placed a valid order. Routing `make_order_new_msg`
+through the validating builder would move that failure from a swallowed engine
+`KeyError` to a raise at the bot, which is the correct place for it — but the
+fix belongs to `ai_trader` (build a real `Order`, in ticks, dropping the two
+dead tags), and its correct shape depends on the bot's market-data units, which
+is a change to a shipped process rather than a builder swap. `order.new` waits
+on that; it is a follow-up, not part of cluster B.
+
+### 31.5 What remains
+
+Twenty-three unadopted after cluster B: `order.new` and `order.execution_report`
+in the `order` family (the latter the BALF frame of §31.2, a candidate to be
+struck from the count rather than adopted), plus clusters A, C and D untouched.
+The enumeration test §7.3 of the handover asks for is deferred until the residue
+is empty or the BALF frame alone; pinning 23 as an expectation would read as a
+target rather than a checkpoint.
 
 ## Appendix A — Phase 1 implementation starter
 

@@ -511,7 +511,35 @@ class TestSessionMessages:
 
 class TestComboMessages:
     def test_make_combo_order_msg(self) -> None:
-        topic, payload = _rt(make_combo_order_msg({"combo_id": "PAIR1"}))
+        # Adoption routes this through the validating generated builder, so the
+        # payload must be a real submission shape (>=2 legs), not a stub.
+        combo = {
+            "combo_id": "PAIR1",
+            "gateway_id": "GW01",
+            "combo_type": "AON",
+            "tif": "DAY",
+            "legs": [
+                {
+                    "symbol": "AAPL",
+                    "side": "BUY",
+                    "order_type": "LIMIT",
+                    "quantity": 10,
+                    "price": 100,
+                    "stop_price": None,
+                    "smp_action": None,
+                },
+                {
+                    "symbol": "MSFT",
+                    "side": "SELL",
+                    "order_type": "LIMIT",
+                    "quantity": 10,
+                    "price": 200,
+                    "stop_price": None,
+                    "smp_action": None,
+                },
+            ],
+        }
+        topic, payload = _rt(make_combo_order_msg(combo))
         assert topic == "order.combo"
         assert payload["combo_id"] == "PAIR1"
 
@@ -563,7 +591,29 @@ class TestComboMessages:
 
 class TestOcoMessages:
     def test_make_oco_order_msg(self) -> None:
-        topic, payload = _rt(make_oco_order_msg({"oco_id": "OCO1"}))
+        # Adoption validates the OCO pair, so both legs must be present.
+        oco = {
+            "oco_id": "OCO1",
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quantity": 10,
+            "tif": "DAY",
+            "leg1": {
+                "side": "BUY",
+                "order_type": "LIMIT",
+                "price": 100,
+                "stop_price": None,
+                "trail_offset": None,
+            },
+            "leg2": {
+                "side": "BUY",
+                "order_type": "STOP",
+                "price": None,
+                "stop_price": 90,
+                "trail_offset": None,
+            },
+        }
+        topic, payload = _rt(make_oco_order_msg(oco))
         assert topic == "order.oco"
         assert payload["oco_id"] == "OCO1"
 

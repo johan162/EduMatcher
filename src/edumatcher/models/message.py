@@ -145,10 +145,7 @@ def make_gateway_auth_msg(
 
 
 def make_order_cancel_msg(order_id: str, gateway_id: str) -> list[bytes]:
-    return encode(
-        _gen_order.TOPIC_ORDER_CANCEL,
-        {"order_id": order_id, "gateway_id": gateway_id},
-    )
+    return _gen_order.make_order_cancel(order_id=order_id, gateway_id=gateway_id)
 
 
 def make_order_amend_msg(
@@ -157,12 +154,11 @@ def make_order_amend_msg(
     price: float | None = None,
     qty: int | None = None,
 ) -> list[bytes]:
-    payload: dict[str, Any] = {"order_id": order_id, "gateway_id": gateway_id}
-    if price is not None:
-        payload["price"] = price
-    if qty is not None:
-        payload["qty"] = qty
-    return encode(_gen_order.TOPIC_ORDER_AMEND, payload)
+    # The generated builder omits price/qty when None, matching the former
+    # hand-rolled regime-3 conditional exactly (verified byte-identical).
+    return _gen_order.make_order_amend(
+        order_id=order_id, gateway_id=gateway_id, price=price, qty=qty
+    )
 
 
 def make_amended_msg(
@@ -611,18 +607,12 @@ def make_volume_msg(
 
 def make_combo_order_msg(combo_dict: dict[str, Any]) -> list[bytes]:
     """Gateway → engine: submit a combo order."""
-    return encode(_gen_order.TOPIC_ORDER_COMBO, combo_dict)
+    return _gen_order.make_order_combo(**combo_dict)
 
 
 def make_combo_cancel_msg(combo_id: str, gateway_id: str) -> list[bytes]:
     """Gateway → engine: cancel a combo and all its child legs."""
-    return encode(
-        _gen_order.TOPIC_ORDER_COMBO_CANCEL,
-        {
-            "combo_id": combo_id,
-            "gateway_id": gateway_id,
-        },
-    )
+    return _gen_order.make_order_combo_cancel(combo_id=combo_id, gateway_id=gateway_id)
 
 
 def make_combo_ack_msg(
@@ -828,15 +818,12 @@ def make_auction_result_msg(
 
 def make_oco_order_msg(payload: dict[str, Any]) -> list[bytes]:
     """Gateway → engine: submit an OCO (One-Cancels-Other) pair."""
-    return encode(_gen_order.TOPIC_ORDER_OCO, payload)
+    return _gen_order.make_order_oco(**payload)
 
 
 def make_oco_cancel_msg(oco_id: str, gateway_id: str) -> list[bytes]:
     """Gateway → engine: cancel an OCO pair and both its legs."""
-    return encode(
-        _gen_order.TOPIC_ORDER_OCO_CANCEL,
-        {"oco_id": oco_id, "gateway_id": gateway_id},
-    )
+    return _gen_order.make_order_oco_cancel(oco_id=oco_id, gateway_id=gateway_id)
 
 
 def make_oco_ack_msg(
