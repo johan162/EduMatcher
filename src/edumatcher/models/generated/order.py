@@ -285,9 +285,11 @@ class OrderDisplay:
     display units. It is `Order.to_dict()` with price, stop_price and trail_offset
     converted from ticks to display money and timestamp expressed in seconds - the
     projection `order_to_display_dict` builds so an operator reads prices in the
-    same money the book shows, not raw ticks. Every field the engine emits is
-    declared; the eleven nullable ones ride as null when unset, exactly as
-    `order.new` carries `Order.to_dict()`.
+    same money the book shows, not raw ticks. Gateway_id is not included here; it
+    is topic-only (part of the message topic as order.orders.{gateway_id}, not
+    part of the record). The record contains the order state (id, symbol, side,
+    etc.) exactly as Order.to_dict() produces, minus gateway_id; the eleven
+    nullable ones ride as null when unset.
     """
 
     id: str
@@ -297,7 +299,6 @@ class OrderDisplay:
     tif: OrderDisplayTif
     quantity: int  # unit: shares
     remaining_qty: int  # unit: shares
-    gateway_id: str
     timestamp: float  # unit: epoch_seconds
     status: OrderDisplayStatus
     trail_offset: float | None = None  # unit: display_price
@@ -346,10 +347,6 @@ class OrderDisplay:
         if self.remaining_qty < 0:
             raise MessageValidationError(
                 f"remaining_qty: {self.remaining_qty!r} must be >= 0"
-            )
-        if len(self.gateway_id) > 32:
-            raise MessageValidationError(
-                f"gateway_id: length {len(self.gateway_id)} exceeds max_len 32"
             )
         if self.oco_group_id is not None:
             if len(self.oco_group_id) > 64:
@@ -403,7 +400,6 @@ class OrderDisplay:
             tif=cast(OrderDisplayTif, str(p["tif"])),
             quantity=int(p["quantity"]),
             remaining_qty=int(p["remaining_qty"]),
-            gateway_id=str(p["gateway_id"]),
             trail_offset=(
                 None if p.get("trail_offset") is None else float(p["trail_offset"])
             ),
@@ -442,7 +438,6 @@ class OrderDisplay:
             "tif": self.tif,
             "quantity": self.quantity,
             "remaining_qty": self.remaining_qty,
-            "gateway_id": self.gateway_id,
             "trail_offset": self.trail_offset,
             "oco_group_id": self.oco_group_id,
             "timestamp": self.timestamp,

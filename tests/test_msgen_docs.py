@@ -60,9 +60,9 @@ class TestTheAppendixDocumentsEveryMessage:
         assert missing == []
 
     def test_it_covers_more_than_the_page_it_replaced(self, families: list) -> None:
-        """106, where the hand-written file managed 67."""
+        """108, where the hand-written file managed 67."""
         total = sum(len(f.messages) for f in families)
-        assert total == 106, total
+        assert total == 108, total
 
     def test_every_record_type_has_a_section(self, families: list, page: str) -> None:
         missing = [

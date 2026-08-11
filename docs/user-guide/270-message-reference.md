@@ -1710,7 +1710,7 @@ One leg of a combo. Unlike an OcoLeg it owns a symbol and a quantity: the legs o
 
 #### `OrderDisplay`
 
-One resting order as the engine reports it in an `order.orders` snapshot, in display units. It is `Order.to_dict()` with price, stop_price and trail_offset converted from ticks to display money and timestamp expressed in seconds - the projection `order_to_display_dict` builds so an operator reads prices in the same money the book shows, not raw ticks. Every field the engine emits is declared; the eleven nullable ones ride as null when unset, exactly as `order.new` carries `Order.to_dict()`.
+One resting order as the engine reports it in an `order.orders` snapshot, in display units. It is `Order.to_dict()` with price, stop_price and trail_offset converted from ticks to display money and timestamp expressed in seconds - the projection `order_to_display_dict` builds so an operator reads prices in the same money the book shows, not raw ticks. Gateway_id is not included here; it is topic-only (part of the message topic as order.orders.{gateway_id}, not part of the record). The record contains the order state (id, symbol, side, etc.) exactly as Order.to_dict() produces, minus gateway_id; the eleven nullable ones ride as null when unset.
 
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
@@ -1721,7 +1721,6 @@ One resting order as the engine reports it in an `order.orders` snapshot, in dis
 | `tif` | enum: `DAY`, `GTC`, `ATO`, `ATC` | required | — |  |
 | `quantity` | `int` | required | gt 0, unit `shares` | Total original quantity. |
 | `remaining_qty` | `int` | required | ge 0, unit `shares` | Quantity yet to be filled. |
-| `gateway_id` | `string` | required | max_len 32 |  |
 | `trail_offset` | `float` | `null` when unset | unit `display_price` | TRAILING_STOP: trail distance, in display money. |
 | `oco_group_id` | `string` | `null` when unset | max_len 64 |  |
 | `timestamp` | `float` | required | ge 0, unit `epoch_seconds` | Client-supplied submission time, in seconds. NOT the book's time priority key - see arrival_seq. |
