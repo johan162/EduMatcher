@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 import struct as _struct
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping, cast
 
 from edumatcher.models import message as _msg
@@ -1234,6 +1234,13 @@ _ORDER_FILL_FIELDS: tuple[dict[str, Any], ...] = (
         "required": False,
         "doc": "",
     },
+    {
+        "name": "trade_ids",
+        "type": "list",
+        "unit": None,
+        "required": False,
+        "doc": "The public trade.executed id(s) that composed this fill event. Usually one; more than one when an aggressor swept several resting orders and the engine coalesced them into a single VWAP fill (H5/H6). Empty only for a fill with no trade behind it. Lets a reader link a private fill to the public trade tape without re-deriving the join.",
+    },
 )
 
 
@@ -1260,6 +1267,7 @@ class OrderFill:
     combo_parent_id: str | None = None
     quote_id: str | None = None
     leg_index: int | None = None  # unit: dimensionless
+    trade_ids: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1351,6 +1359,7 @@ class OrderFill:
             ),
             quote_id=None if p.get("quote_id") is None else str(p["quote_id"]),
             leg_index=None if p.get("leg_index") is None else int(p["leg_index"]),
+            trade_ids=[str(item) for item in p.get("trade_ids", [])],
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1361,6 +1370,7 @@ class OrderFill:
             "fill_price": self.fill_price,
             "remaining_qty": self.remaining_qty,
             "status": self.status,
+            "trade_ids": self.trade_ids,
         }
         if self.symbol is not None:
             payload["symbol"] = self.symbol
@@ -1432,6 +1442,7 @@ def make_order_fill_unchecked(
     combo_parent_id: str | None = None,
     quote_id: str | None = None,
     leg_index: int | None = None,
+    trade_ids: list[str] = [],
 ) -> list[bytes]:
     """Identical frames to ``make_order_fill``, without ``validate()``.
 
@@ -1449,6 +1460,7 @@ def make_order_fill_unchecked(
         "fill_price": float(fill_price),
         "remaining_qty": int(remaining_qty),
         "status": str(status),
+        "trade_ids": [str(item) for item in trade_ids],
     }
     if symbol is not None:
         payload["symbol"] = str(symbol)

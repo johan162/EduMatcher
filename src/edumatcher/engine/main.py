@@ -842,6 +842,9 @@ class Engine:
                                         remaining_qty=evt.remaining_qty,
                                         status=evt.status.value,
                                         order=evt.to_dict(),
+                                        trade_ids=self._order_trade_ids(trades).get(
+                                            evt.id, []
+                                        ),
                                     )
                                 )
                                 if evt.quote_id:
@@ -1283,6 +1286,7 @@ class Engine:
         # last trade price.  Fall back to last_trade_price only if an order is
         # somehow missing from the trade map.
         _order_fill_px = self._order_fill_prices(trades)
+        _order_trade_ids_map = self._order_trade_ids(trades)
         _fill_px = (
             from_ticks(book.last_trade_price, order.symbol)
             if trades and book.last_trade_price is not None
@@ -1341,6 +1345,7 @@ class Engine:
                                 "status": (
                                     "PARTIAL_FILL" if evt.remaining_qty else "FILLED"
                                 ),
+                                "trade_ids": _order_trade_ids_map.get(evt.id, []),
                                 "symbol": evt.symbol,
                                 "side": _side_v if _is_agg else evt.side.value,
                                 "order_type": (
@@ -2143,6 +2148,11 @@ class Engine:
                         "order_id": leg_order.id,
                         "symbol": entry.symbol,
                         "leg_side": leg_side,
+                        "price": (
+                            from_ticks(leg_order.price, entry.symbol)
+                            if leg_order.price is not None
+                            else None
+                        ),
                         "qty": leg_order.quantity,
                         "remaining": leg_order.remaining_qty,
                         "filled": leg_order.quantity - leg_order.remaining_qty,
@@ -2370,6 +2380,24 @@ class Engine:
                 qty, notional = agg.get(oid, (0, 0.0))
                 agg[oid] = (qty + t.quantity, notional + px * t.quantity)
         return {oid: (n / q if q else 0.0) for oid, (q, n) in agg.items()}
+
+    @staticmethod
+    def _order_trade_ids(trades: list[Any]) -> dict[str, list[str]]:
+        """Per-order list of the public trade ids that composed its fill.
+
+        Mirrors ``_order_fill_prices``: because one private ``order.fill``
+        coalesces an order's executions across levels (H5/H6), a consumer that
+        wants the trade ids behind that fill needs them all, in match order and
+        deduplicated. Lets the fills panel link a private fill to the public
+        trade tape without re-deriving the join.
+        """
+        ids: dict[str, list[str]] = {}
+        for t in trades:
+            for oid in (t.buy_order_id, t.sell_order_id):
+                bucket = ids.setdefault(oid, [])
+                if t.id not in bucket:
+                    bucket.append(t.id)
+        return ids
 
     def _check_circuit_breaker(self, symbol: str, trade_price: int, now: int) -> None:
         """
@@ -2894,6 +2922,7 @@ class Engine:
                                 remaining_qty=evt.remaining_qty,
                                 status=evt.status.value,
                                 order=evt.to_dict(),
+                                trade_ids=self._order_trade_ids(trades).get(evt.id, []),
                             )
                         )
                         if evt.quote_id:
@@ -3769,6 +3798,7 @@ class Engine:
                                 remaining_qty=evt.remaining_qty,
                                 status=evt.status.value,
                                 order=evt.to_dict(),
+                                trade_ids=self._order_trade_ids(trades).get(evt.id, []),
                             )
                         )
                     if evt.combo_parent_id and evt.id != child.id:
@@ -4211,6 +4241,9 @@ class Engine:
                                     remaining_qty=evt.remaining_qty,
                                     status=evt.status.value,
                                     order=evt.to_dict(),
+                                    trade_ids=self._order_trade_ids(trades).get(
+                                        evt.id, []
+                                    ),
                                 )
                             )
                         if evt.combo_parent_id:
@@ -4248,6 +4281,9 @@ class Engine:
                                         remaining_qty=sub_evt.remaining_qty,
                                         status=sub_evt.status.value,
                                         order=sub_evt.to_dict(),
+                                        trade_ids=self._order_trade_ids(sub_trades).get(
+                                            sub_evt.id, []
+                                        ),
                                     )
                                 )
                                 if sub_evt.combo_parent_id:
@@ -4511,6 +4547,7 @@ class Engine:
                                 remaining_qty=evt.remaining_qty,
                                 status=evt.status.value,
                                 order=evt.to_dict(),
+                                trade_ids=self._order_trade_ids(trades).get(evt.id, []),
                             )
                         )
                         if evt.status == OrderStatus.FILLED and evt.oco_group_id:
@@ -4898,6 +4935,7 @@ class Engine:
                         remaining_qty=evt.remaining_qty,
                         status=("PARTIAL_FILL" if evt.remaining_qty else "FILLED"),
                         order=evt.to_dict(),
+                        trade_ids=self._order_trade_ids(trades).get(evt.id, []),
                     )
                 )
             if (

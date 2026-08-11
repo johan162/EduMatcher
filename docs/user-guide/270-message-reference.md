@@ -1832,6 +1832,7 @@ Private fill notification for one order, addressed to the gateway that owns it. 
 | `combo_parent_id` | `string` | omitted when unset | max_len 64 |  |
 | `quote_id` | `string` | omitted when unset | max_len 64 |  |
 | `leg_index` | `int` | omitted when unset | unit `dimensionless` |  |
+| `trade_ids` | list of `string` | defaults to `[]` | — | The public trade.executed id(s) that composed this fill event. Usually one; more than one when an aggressor swept several resting orders and the engine coalesced them into a single VWAP fill (H5/H6). Empty only for a fill with no trade behind it. Lets a reader link a private fill to the public trade tape without re-deriving the join. |
 
 **See also:** `trade.executed`
 
@@ -2990,6 +2991,7 @@ One live leg of an active quote, with its order's current state.
 | `order_id` | `string` | required | max_len 64 |  |
 | `symbol` | `string` | required | max_len 16 |  |
 | `leg_side` | enum: `BUY`, `SELL` | required | — | Which side of the quote this leg is. Exactly two producers. |
+| `price` | `float` | omitted when unset | unit `display_price` | Leg limit price in display money. A quote leg is always a priced limit order; null only if the resting order's price is somehow unavailable. |
 | `qty` | `int` | required | ge 0, unit `shares` |  |
 | `remaining` | `int` | required | ge 0, unit `shares` |  |
 | `filled` | `int` | required | ge 0, unit `shares` |  |

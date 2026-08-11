@@ -49,7 +49,7 @@ class TestOrderToDisplayDictPriceCoverage:
             trail_offset=50,  # display: 0.50
         )
         result = order_to_display_dict(order)
-        
+
         assert "price" in result
         assert result["price"] is not None
         assert "stop_price" in result
@@ -77,7 +77,7 @@ class TestOrderToDisplayDictPriceCoverage:
             trail_offset=50,
         )
         result = order_to_display_dict(order)
-        
+
         assert result["price"] is None
         assert result["stop_price"] is not None
         assert result["trail_offset"] is not None
@@ -100,7 +100,7 @@ class TestOrderToDisplayDictPriceCoverage:
             trail_offset=50,
         )
         result = order_to_display_dict(order)
-        
+
         assert result["price"] is not None
         assert result["stop_price"] is None
         assert result["trail_offset"] is not None
@@ -123,7 +123,7 @@ class TestOrderToDisplayDictPriceCoverage:
             trail_offset=None,
         )
         result = order_to_display_dict(order)
-        
+
         assert result["price"] is not None
         assert result["stop_price"] is not None
         assert result["trail_offset"] is None
@@ -146,7 +146,7 @@ class TestOrderToDisplayDictPriceCoverage:
             trail_offset=None,
         )
         result = order_to_display_dict(order)
-        
+
         assert result["price"] is None
         assert result["stop_price"] is None
         assert result["trail_offset"] is None
@@ -166,7 +166,7 @@ class TestOrderToDisplayDictPriceCoverage:
             status=OrderStatus.NEW,
         )
         result = order_to_display_dict(order)
-        
+
         assert result["timestamp"] == pytest.approx(1.23456789, rel=1e-6)
 
     def test_maintains_other_order_fields(self, base_order):
@@ -184,7 +184,7 @@ class TestOrderToDisplayDictPriceCoverage:
             status=OrderStatus.NEW,
         )
         result = order_to_display_dict(order)
-        
+
         assert result["id"] == "TEST-123"
         assert result["symbol"] == "MSFT"
         assert result["quantity"] == 500

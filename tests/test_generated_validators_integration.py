@@ -12,29 +12,34 @@ violations of each declared rule.
 
 from __future__ import annotations
 
+from typing import Any, Protocol, cast
+
 import pytest
 
 from edumatcher.models.generated._runtime import MessageValidationError
 from edumatcher.models.generated import system as G
 from edumatcher.models.generated import risk as R
 from edumatcher.models.generated import log as L
-from edumatcher.models.generated import order as O
-
+from edumatcher.models.generated import order as ORD
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _assert_validates(obj: object) -> None:
+class _Validatable(Protocol):
+    def validate(self) -> None: ...
+
+
+def _assert_validates(obj: _Validatable) -> None:
     """Assert that obj.validate() does not raise."""
-    obj.validate()  # type: ignore[union-attr]
+    obj.validate()
 
 
-def _assert_rejects(obj: object, match: str) -> None:
+def _assert_rejects(obj: _Validatable, match: str) -> None:
     """Assert that obj.validate() raises MessageValidationError containing match."""
     with pytest.raises(MessageValidationError, match=match):
-        obj.validate()  # type: ignore[union-attr]
+        obj.validate()
 
 
 # ===========================================================================
@@ -80,7 +85,9 @@ class TestSymbolInfoValidation:
 
     def test_mm_fields_zero_are_valid(self) -> None:
         _assert_validates(
-            G.SymbolInfo(symbol="AAPL", tick_decimals=2, mm_max_spread_ticks=0, mm_min_qty=0)
+            G.SymbolInfo(
+                symbol="AAPL", tick_decimals=2, mm_max_spread_ticks=0, mm_min_qty=0
+            )
         )
 
 
@@ -111,12 +118,16 @@ class TestCircuitBreakerLevelValidation:
 
     def test_valid(self) -> None:
         _assert_validates(
-            G.CircuitBreakerLevel(name="L1", price_shift_pct=10.0, halt_duration_ns=60_000_000_000)
+            G.CircuitBreakerLevel(
+                name="L1", price_shift_pct=10.0, halt_duration_ns=60_000_000_000
+            )
         )
 
     def test_name_too_long(self) -> None:
         _assert_rejects(
-            G.CircuitBreakerLevel(name="X" * 33, price_shift_pct=5.0, halt_duration_ns=1),
+            G.CircuitBreakerLevel(
+                name="X" * 33, price_shift_pct=5.0, halt_duration_ns=1
+            ),
             "name",
         )
 
@@ -137,23 +148,31 @@ class TestGatewayAuthValidation:
     """GatewayAuth: gateway_id max_len 32, reason max_len 256, description max_len 256."""
 
     def test_valid_accepted(self) -> None:
-        _assert_validates(G.GatewayAuth(gateway_id="GW1", accepted=True, reason="", description=""))
+        _assert_validates(
+            G.GatewayAuth(gateway_id="GW1", accepted=True, reason="", description="")
+        )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
-            G.GatewayAuth(gateway_id="X" * 33, accepted=True, reason="", description=""),
+            G.GatewayAuth(
+                gateway_id="X" * 33, accepted=True, reason="", description=""
+            ),
             "gateway_id",
         )
 
     def test_reason_too_long(self) -> None:
         _assert_rejects(
-            G.GatewayAuth(gateway_id="GW1", accepted=False, reason="X" * 513, description=""),
+            G.GatewayAuth(
+                gateway_id="GW1", accepted=False, reason="X" * 513, description=""
+            ),
             "reason",
         )
 
     def test_description_too_long(self) -> None:
         _assert_rejects(
-            G.GatewayAuth(gateway_id="GW1", accepted=True, reason="", description="X" * 513),
+            G.GatewayAuth(
+                gateway_id="GW1", accepted=True, reason="", description="X" * 513
+            ),
             "description",
         )
 
@@ -190,10 +209,14 @@ class TestGatewayDisconnectValidation:
         _assert_validates(G.GatewayDisconnect(gateway_id="GW1", reason=""))
 
     def test_gateway_id_too_long(self) -> None:
-        _assert_rejects(G.GatewayDisconnect(gateway_id="X" * 33, reason=""), "gateway_id")
+        _assert_rejects(
+            G.GatewayDisconnect(gateway_id="X" * 33, reason=""), "gateway_id"
+        )
 
     def test_reason_too_long(self) -> None:
-        _assert_rejects(G.GatewayDisconnect(gateway_id="GW1", reason="X" * 513), "reason")
+        _assert_rejects(
+            G.GatewayDisconnect(gateway_id="GW1", reason="X" * 513), "reason"
+        )
 
 
 class TestHaltedSymbolValidation:
@@ -210,13 +233,17 @@ class TestHaltedSymbolValidation:
 
     def test_level_too_long(self) -> None:
         _assert_rejects(
-            G.HaltedSymbol(symbol="AAPL", resume_at_ns=0, level="X" * 33, halt_source=""),
+            G.HaltedSymbol(
+                symbol="AAPL", resume_at_ns=0, level="X" * 33, halt_source=""
+            ),
             "level",
         )
 
     def test_halt_source_too_long(self) -> None:
         _assert_rejects(
-            G.HaltedSymbol(symbol="AAPL", resume_at_ns=0, level="", halt_source="X" * 33),
+            G.HaltedSymbol(
+                symbol="AAPL", resume_at_ns=0, level="", halt_source="X" * 33
+            ),
             "halt_source",
         )
 
@@ -226,16 +253,22 @@ class TestSymbolVolumeValidation:
         _assert_validates(G.SymbolVolume(symbol="AAPL", qty=100, value=10000, trades=5))
 
     def test_symbol_too_long(self) -> None:
-        _assert_rejects(G.SymbolVolume(symbol="X" * 17, qty=0, value=0, trades=0), "symbol")
+        _assert_rejects(
+            G.SymbolVolume(symbol="X" * 17, qty=0, value=0, trades=0), "symbol"
+        )
 
     def test_qty_negative(self) -> None:
         _assert_rejects(G.SymbolVolume(symbol="AAPL", qty=-1, value=0, trades=0), "qty")
 
     def test_value_negative(self) -> None:
-        _assert_rejects(G.SymbolVolume(symbol="AAPL", qty=0, value=-1, trades=0), "value")
+        _assert_rejects(
+            G.SymbolVolume(symbol="AAPL", qty=0, value=-1, trades=0), "value"
+        )
 
     def test_trades_negative(self) -> None:
-        _assert_rejects(G.SymbolVolume(symbol="AAPL", qty=0, value=0, trades=-1), "trades")
+        _assert_rejects(
+            G.SymbolVolume(symbol="AAPL", qty=0, value=0, trades=-1), "trades"
+        )
 
 
 class TestSessionTimesValidation:
@@ -257,9 +290,7 @@ class TestSessionTimesValidation:
         _assert_validates(G.SessionTimes())
 
     def test_pre_open_too_long(self) -> None:
-        _assert_rejects(
-            G.SessionTimes(pre_open="X" * 33), "pre_open"
-        )
+        _assert_rejects(G.SessionTimes(pre_open="X" * 33), "pre_open")
 
     def test_opening_auction_too_long(self) -> None:
         _assert_rejects(
@@ -267,9 +298,7 @@ class TestSessionTimesValidation:
         )
 
     def test_continuous_start_too_long(self) -> None:
-        _assert_rejects(
-            G.SessionTimes(continuous_start="X" * 33), "continuous_start"
-        )
+        _assert_rejects(G.SessionTimes(continuous_start="X" * 33), "continuous_start")
 
     def test_closing_auction_start_too_long(self) -> None:
         _assert_rejects(
@@ -295,9 +324,7 @@ class TestPositionValidation:
 
 class TestEodBookValidation:
     def test_valid(self) -> None:
-        _assert_validates(
-            G.EodBook(symbol="AAPL", tick_decimals=2, bids=[], asks=[])
-        )
+        _assert_validates(G.EodBook(symbol="AAPL", tick_decimals=2, bids=[], asks=[]))
 
     def test_symbol_too_long(self) -> None:
         _assert_rejects(
@@ -326,7 +353,9 @@ class TestReferenceSymbolValidation:
 
     def test_symbol_too_long(self) -> None:
         _assert_rejects(
-            G.ReferenceSymbol(symbol="X" * 17, tick_decimals=2, level="L1", collar=None),
+            G.ReferenceSymbol(
+                symbol="X" * 17, tick_decimals=2, level="L1", collar=None
+            ),
             "symbol",
         )
 
@@ -338,7 +367,9 @@ class TestReferenceSymbolValidation:
 
     def test_level_too_long(self) -> None:
         _assert_rejects(
-            G.ReferenceSymbol(symbol="AAPL", tick_decimals=2, level="X" * 33, collar=None),
+            G.ReferenceSymbol(
+                symbol="AAPL", tick_decimals=2, level="X" * 33, collar=None
+            ),
             "level",
         )
 
@@ -351,7 +382,9 @@ class TestReferenceSymbolValidation:
 
 class TestQuoteLegsRequestValidation:
     def test_valid(self) -> None:
-        _assert_validates(G.QuoteLegsRequest(gateway_id="GW1", symbol="AAPL", show="ALL"))
+        _assert_validates(
+            G.QuoteLegsRequest(gateway_id="GW1", symbol="AAPL", show="ALL")
+        )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
@@ -367,7 +400,9 @@ class TestQuoteLegsRequestValidation:
 
     def test_show_too_long(self) -> None:
         _assert_rejects(
-            G.QuoteLegsRequest(gateway_id="GW1", symbol="AAPL", show="X" * 33),
+            G.QuoteLegsRequest(
+                gateway_id="GW1", symbol="AAPL", show=cast(Any, "X" * 33)
+            ),
             "show",
         )
 
@@ -375,32 +410,46 @@ class TestQuoteLegsRequestValidation:
 class TestReferenceReloadAckValidation:
     def test_valid(self) -> None:
         _assert_validates(
-            G.ReferenceReloadAck(gateway_id="GW1", command_id="C1", accepted=True, config_version="")
+            G.ReferenceReloadAck(
+                gateway_id="GW1", command_id="C1", accepted=True, config_version=""
+            )
         )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
-            G.ReferenceReloadAck(gateway_id="X" * 33, command_id="C1", accepted=True, config_version=""),
+            G.ReferenceReloadAck(
+                gateway_id="X" * 33, command_id="C1", accepted=True, config_version=""
+            ),
             "gateway_id",
         )
 
     def test_command_id_too_long(self) -> None:
         _assert_rejects(
-            G.ReferenceReloadAck(gateway_id="GW1", command_id="X" * 65, accepted=True, config_version=""),
+            G.ReferenceReloadAck(
+                gateway_id="GW1", command_id="X" * 65, accepted=True, config_version=""
+            ),
             "command_id",
         )
 
     def test_config_version_too_long(self) -> None:
         _assert_rejects(
-            G.ReferenceReloadAck(gateway_id="GW1", command_id="C1", accepted=True, config_version="X" * 65),
+            G.ReferenceReloadAck(
+                gateway_id="GW1",
+                command_id="C1",
+                accepted=True,
+                config_version="X" * 65,
+            ),
             "config_version",
         )
 
     def test_reason_too_long(self) -> None:
         _assert_rejects(
             G.ReferenceReloadAck(
-                gateway_id="GW1", command_id="C1", accepted=False,
-                config_version="", reason="X" * 513
+                gateway_id="GW1",
+                command_id="C1",
+                accepted=False,
+                config_version="",
+                reason="X" * 513,
             ),
             "reason",
         )
@@ -413,7 +462,9 @@ class TestReferenceReloadAckValidation:
 
 class TestKillSwitchValidation:
     def test_valid(self) -> None:
-        _assert_validates(R.KillSwitch(gateway_id="GW1", symbol="", note="", command_id=""))
+        _assert_validates(
+            R.KillSwitch(gateway_id="GW1", symbol="", note="", command_id="")
+        )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
@@ -443,30 +494,60 @@ class TestKillSwitchValidation:
 class TestKillSwitchAckValidation:
     def test_valid_accepted(self) -> None:
         _assert_validates(
-            R.KillSwitchAck(gateway_id="GW1", accepted=True, reason="", cancelled_orders=0, cancelled_quotes=0)
+            R.KillSwitchAck(
+                gateway_id="GW1",
+                accepted=True,
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=0,
+            )
         )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
-            R.KillSwitchAck(gateway_id="X" * 33, accepted=True, reason="", cancelled_orders=0, cancelled_quotes=0),
+            R.KillSwitchAck(
+                gateway_id="X" * 33,
+                accepted=True,
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=0,
+            ),
             "gateway_id",
         )
 
     def test_reason_too_long(self) -> None:
         _assert_rejects(
-            R.KillSwitchAck(gateway_id="GW1", accepted=False, reason="X" * 513, cancelled_orders=0, cancelled_quotes=0),
+            R.KillSwitchAck(
+                gateway_id="GW1",
+                accepted=False,
+                reason="X" * 513,
+                cancelled_orders=0,
+                cancelled_quotes=0,
+            ),
             "reason",
         )
 
     def test_cancelled_orders_negative(self) -> None:
         _assert_rejects(
-            R.KillSwitchAck(gateway_id="GW1", accepted=True, reason="", cancelled_orders=-1, cancelled_quotes=0),
+            R.KillSwitchAck(
+                gateway_id="GW1",
+                accepted=True,
+                reason="",
+                cancelled_orders=-1,
+                cancelled_quotes=0,
+            ),
             "cancelled_orders",
         )
 
     def test_cancelled_quotes_negative(self) -> None:
         _assert_rejects(
-            R.KillSwitchAck(gateway_id="GW1", accepted=True, reason="", cancelled_orders=0, cancelled_quotes=-1),
+            R.KillSwitchAck(
+                gateway_id="GW1",
+                accepted=True,
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=-1,
+            ),
             "cancelled_quotes",
         )
 
@@ -474,30 +555,40 @@ class TestKillSwitchAckValidation:
 class TestKillSwitchGatewayValidation:
     def test_valid(self) -> None:
         _assert_validates(
-            R.KillSwitchGateway(gateway_id="GW1", target_gateway_id="GW2", note="", command_id="")
+            R.KillSwitchGateway(
+                gateway_id="GW1", target_gateway_id="GW2", note="", command_id=""
+            )
         )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
-            R.KillSwitchGateway(gateway_id="X" * 33, target_gateway_id="GW2", note="", command_id=""),
+            R.KillSwitchGateway(
+                gateway_id="X" * 33, target_gateway_id="GW2", note="", command_id=""
+            ),
             "gateway_id",
         )
 
     def test_target_gateway_id_too_long(self) -> None:
         _assert_rejects(
-            R.KillSwitchGateway(gateway_id="GW1", target_gateway_id="X" * 33, note="", command_id=""),
+            R.KillSwitchGateway(
+                gateway_id="GW1", target_gateway_id="X" * 33, note="", command_id=""
+            ),
             "target_gateway_id",
         )
 
     def test_note_too_long(self) -> None:
         _assert_rejects(
-            R.KillSwitchGateway(gateway_id="GW1", target_gateway_id="GW2", note="X" * 257, command_id=""),
+            R.KillSwitchGateway(
+                gateway_id="GW1", target_gateway_id="GW2", note="X" * 257, command_id=""
+            ),
             "note",
         )
 
     def test_command_id_too_long(self) -> None:
         _assert_rejects(
-            R.KillSwitchGateway(gateway_id="GW1", target_gateway_id="GW2", note="", command_id="X" * 65),
+            R.KillSwitchGateway(
+                gateway_id="GW1", target_gateway_id="GW2", note="", command_id="X" * 65
+            ),
             "command_id",
         )
 
@@ -506,16 +597,24 @@ class TestKillSwitchGatewayAckValidation:
     def test_valid(self) -> None:
         _assert_validates(
             R.KillSwitchGatewayAck(
-                gateway_id="GW1", accepted=True, target_gateway_id="GW2",
-                reason="", cancelled_orders=0, cancelled_quotes=0
+                gateway_id="GW1",
+                accepted=True,
+                target_gateway_id="GW2",
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=0,
             )
         )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
             R.KillSwitchGatewayAck(
-                gateway_id="X" * 33, accepted=True, target_gateway_id="GW2",
-                reason="", cancelled_orders=0, cancelled_quotes=0
+                gateway_id="X" * 33,
+                accepted=True,
+                target_gateway_id="GW2",
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=0,
             ),
             "gateway_id",
         )
@@ -523,8 +622,12 @@ class TestKillSwitchGatewayAckValidation:
     def test_target_gateway_id_too_long(self) -> None:
         _assert_rejects(
             R.KillSwitchGatewayAck(
-                gateway_id="GW1", accepted=True, target_gateway_id="X" * 33,
-                reason="", cancelled_orders=0, cancelled_quotes=0
+                gateway_id="GW1",
+                accepted=True,
+                target_gateway_id="X" * 33,
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=0,
             ),
             "target_gateway_id",
         )
@@ -532,8 +635,12 @@ class TestKillSwitchGatewayAckValidation:
     def test_reason_too_long(self) -> None:
         _assert_rejects(
             R.KillSwitchGatewayAck(
-                gateway_id="GW1", accepted=False, target_gateway_id="GW2",
-                reason="X" * 513, cancelled_orders=0, cancelled_quotes=0
+                gateway_id="GW1",
+                accepted=False,
+                target_gateway_id="GW2",
+                reason="X" * 513,
+                cancelled_orders=0,
+                cancelled_quotes=0,
             ),
             "reason",
         )
@@ -541,8 +648,12 @@ class TestKillSwitchGatewayAckValidation:
     def test_cancelled_orders_negative(self) -> None:
         _assert_rejects(
             R.KillSwitchGatewayAck(
-                gateway_id="GW1", accepted=True, target_gateway_id="GW2",
-                reason="", cancelled_orders=-1, cancelled_quotes=0
+                gateway_id="GW1",
+                accepted=True,
+                target_gateway_id="GW2",
+                reason="",
+                cancelled_orders=-1,
+                cancelled_quotes=0,
             ),
             "cancelled_orders",
         )
@@ -550,8 +661,12 @@ class TestKillSwitchGatewayAckValidation:
     def test_cancelled_quotes_negative(self) -> None:
         _assert_rejects(
             R.KillSwitchGatewayAck(
-                gateway_id="GW1", accepted=True, target_gateway_id="GW2",
-                reason="", cancelled_orders=0, cancelled_quotes=-1
+                gateway_id="GW1",
+                accepted=True,
+                target_gateway_id="GW2",
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=-1,
             ),
             "cancelled_quotes",
         )
@@ -584,16 +699,24 @@ class TestKillSwitchGlobalAckValidation:
     def test_valid(self) -> None:
         _assert_validates(
             R.KillSwitchGlobalAck(
-                gateway_id="GW1", accepted=True, reason="",
-                cancelled_orders=0, cancelled_quotes=0, command_id=""
+                gateway_id="GW1",
+                accepted=True,
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=0,
+                command_id="",
             )
         )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
             R.KillSwitchGlobalAck(
-                gateway_id="X" * 33, accepted=True, reason="",
-                cancelled_orders=0, cancelled_quotes=0, command_id=""
+                gateway_id="X" * 33,
+                accepted=True,
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=0,
+                command_id="",
             ),
             "gateway_id",
         )
@@ -601,8 +724,12 @@ class TestKillSwitchGlobalAckValidation:
     def test_reason_too_long(self) -> None:
         _assert_rejects(
             R.KillSwitchGlobalAck(
-                gateway_id="GW1", accepted=False, reason="X" * 513,
-                cancelled_orders=0, cancelled_quotes=0, command_id=""
+                gateway_id="GW1",
+                accepted=False,
+                reason="X" * 513,
+                cancelled_orders=0,
+                cancelled_quotes=0,
+                command_id="",
             ),
             "reason",
         )
@@ -610,8 +737,12 @@ class TestKillSwitchGlobalAckValidation:
     def test_cancelled_orders_negative(self) -> None:
         _assert_rejects(
             R.KillSwitchGlobalAck(
-                gateway_id="GW1", accepted=True, reason="",
-                cancelled_orders=-1, cancelled_quotes=0, command_id=""
+                gateway_id="GW1",
+                accepted=True,
+                reason="",
+                cancelled_orders=-1,
+                cancelled_quotes=0,
+                command_id="",
             ),
             "cancelled_orders",
         )
@@ -619,8 +750,12 @@ class TestKillSwitchGlobalAckValidation:
     def test_cancelled_quotes_negative(self) -> None:
         _assert_rejects(
             R.KillSwitchGlobalAck(
-                gateway_id="GW1", accepted=True, reason="",
-                cancelled_orders=0, cancelled_quotes=-1, command_id=""
+                gateway_id="GW1",
+                accepted=True,
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=-1,
+                command_id="",
             ),
             "cancelled_quotes",
         )
@@ -628,8 +763,12 @@ class TestKillSwitchGlobalAckValidation:
     def test_command_id_too_long(self) -> None:
         _assert_rejects(
             R.KillSwitchGlobalAck(
-                gateway_id="GW1", accepted=True, reason="",
-                cancelled_orders=0, cancelled_quotes=0, command_id="X" * 65
+                gateway_id="GW1",
+                accepted=True,
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=0,
+                command_id="X" * 65,
             ),
             "command_id",
         )
@@ -637,35 +776,49 @@ class TestKillSwitchGlobalAckValidation:
 
 class TestSymbolHaltValidation:
     def test_valid(self) -> None:
-        _assert_validates(R.SymbolHalt(gateway_id="GW1", symbol="AAPL", level="", note="", command_id=""))
+        _assert_validates(
+            R.SymbolHalt(
+                gateway_id="GW1", symbol="AAPL", level="", note="", command_id=""
+            )
+        )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolHalt(gateway_id="X" * 33, symbol="AAPL", level="", note="", command_id=""),
+            R.SymbolHalt(
+                gateway_id="X" * 33, symbol="AAPL", level="", note="", command_id=""
+            ),
             "gateway_id",
         )
 
     def test_symbol_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolHalt(gateway_id="GW1", symbol="X" * 17, level="", note="", command_id=""),
+            R.SymbolHalt(
+                gateway_id="GW1", symbol="X" * 17, level="", note="", command_id=""
+            ),
             "symbol",
         )
 
     def test_level_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolHalt(gateway_id="GW1", symbol="AAPL", level="X" * 33, note="", command_id=""),
+            R.SymbolHalt(
+                gateway_id="GW1", symbol="AAPL", level="X" * 33, note="", command_id=""
+            ),
             "level",
         )
 
     def test_note_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolHalt(gateway_id="GW1", symbol="AAPL", level="", note="X" * 257, command_id=""),
+            R.SymbolHalt(
+                gateway_id="GW1", symbol="AAPL", level="", note="X" * 257, command_id=""
+            ),
             "note",
         )
 
     def test_command_id_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolHalt(gateway_id="GW1", symbol="AAPL", level="", note="", command_id="X" * 65),
+            R.SymbolHalt(
+                gateway_id="GW1", symbol="AAPL", level="", note="", command_id="X" * 65
+            ),
             "command_id",
         )
 
@@ -673,37 +826,65 @@ class TestSymbolHaltValidation:
 class TestSymbolHaltAckValidation:
     def test_valid(self) -> None:
         _assert_validates(
-            R.SymbolHaltAck(gateway_id="GW1", accepted=True, symbol="AAPL", reason="", command_id="")
+            R.SymbolHaltAck(
+                gateway_id="GW1", accepted=True, symbol="AAPL", reason="", command_id=""
+            )
         )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolHaltAck(gateway_id="X" * 33, accepted=True, symbol="AAPL", reason="", command_id=""),
+            R.SymbolHaltAck(
+                gateway_id="X" * 33,
+                accepted=True,
+                symbol="AAPL",
+                reason="",
+                command_id="",
+            ),
             "gateway_id",
         )
 
     def test_symbol_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolHaltAck(gateway_id="GW1", accepted=True, symbol="X" * 17, reason="", command_id=""),
+            R.SymbolHaltAck(
+                gateway_id="GW1",
+                accepted=True,
+                symbol="X" * 17,
+                reason="",
+                command_id="",
+            ),
             "symbol",
         )
 
     def test_reason_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolHaltAck(gateway_id="GW1", accepted=False, symbol="AAPL", reason="X" * 513, command_id=""),
+            R.SymbolHaltAck(
+                gateway_id="GW1",
+                accepted=False,
+                symbol="AAPL",
+                reason="X" * 513,
+                command_id="",
+            ),
             "reason",
         )
 
     def test_command_id_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolHaltAck(gateway_id="GW1", accepted=True, symbol="AAPL", reason="", command_id="X" * 65),
+            R.SymbolHaltAck(
+                gateway_id="GW1",
+                accepted=True,
+                symbol="AAPL",
+                reason="",
+                command_id="X" * 65,
+            ),
             "command_id",
         )
 
 
 class TestSymbolResumeValidation:
     def test_valid(self) -> None:
-        _assert_validates(R.SymbolResume(gateway_id="GW1", symbol="AAPL", note="", command_id=""))
+        _assert_validates(
+            R.SymbolResume(gateway_id="GW1", symbol="AAPL", note="", command_id="")
+        )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
@@ -719,13 +900,17 @@ class TestSymbolResumeValidation:
 
     def test_note_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolResume(gateway_id="GW1", symbol="AAPL", note="X" * 257, command_id=""),
+            R.SymbolResume(
+                gateway_id="GW1", symbol="AAPL", note="X" * 257, command_id=""
+            ),
             "note",
         )
 
     def test_command_id_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolResume(gateway_id="GW1", symbol="AAPL", note="", command_id="X" * 65),
+            R.SymbolResume(
+                gateway_id="GW1", symbol="AAPL", note="", command_id="X" * 65
+            ),
             "command_id",
         )
 
@@ -738,26 +923,34 @@ class TestSymbolResumeAckValidation:
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolResumeAck(gateway_id="X" * 33, accepted=True, symbol="AAPL", reason=""),
+            R.SymbolResumeAck(
+                gateway_id="X" * 33, accepted=True, symbol="AAPL", reason=""
+            ),
             "gateway_id",
         )
 
     def test_symbol_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolResumeAck(gateway_id="GW1", accepted=True, symbol="X" * 17, reason=""),
+            R.SymbolResumeAck(
+                gateway_id="GW1", accepted=True, symbol="X" * 17, reason=""
+            ),
             "symbol",
         )
 
     def test_reason_too_long(self) -> None:
         _assert_rejects(
-            R.SymbolResumeAck(gateway_id="GW1", accepted=False, symbol="AAPL", reason="X" * 513),
+            R.SymbolResumeAck(
+                gateway_id="GW1", accepted=False, symbol="AAPL", reason="X" * 513
+            ),
             "reason",
         )
 
 
 class TestCancelSymbolValidation:
     def test_valid(self) -> None:
-        _assert_validates(R.CancelSymbol(gateway_id="GW1", symbol="AAPL", note="", command_id=""))
+        _assert_validates(
+            R.CancelSymbol(gateway_id="GW1", symbol="AAPL", note="", command_id="")
+        )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
@@ -773,13 +966,17 @@ class TestCancelSymbolValidation:
 
     def test_note_too_long(self) -> None:
         _assert_rejects(
-            R.CancelSymbol(gateway_id="GW1", symbol="AAPL", note="X" * 257, command_id=""),
+            R.CancelSymbol(
+                gateway_id="GW1", symbol="AAPL", note="X" * 257, command_id=""
+            ),
             "note",
         )
 
     def test_command_id_too_long(self) -> None:
         _assert_rejects(
-            R.CancelSymbol(gateway_id="GW1", symbol="AAPL", note="", command_id="X" * 65),
+            R.CancelSymbol(
+                gateway_id="GW1", symbol="AAPL", note="", command_id="X" * 65
+            ),
             "command_id",
         )
 
@@ -787,42 +984,78 @@ class TestCancelSymbolValidation:
 class TestCancelSymbolAckValidation:
     def test_valid(self) -> None:
         _assert_validates(
-            R.CancelSymbolAck(gateway_id="GW1", accepted=True, symbol="AAPL", reason="",
-                              cancelled_orders=0, cancelled_quotes=0)
+            R.CancelSymbolAck(
+                gateway_id="GW1",
+                accepted=True,
+                symbol="AAPL",
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=0,
+            )
         )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
-            R.CancelSymbolAck(gateway_id="X" * 33, accepted=True, symbol="AAPL", reason="",
-                              cancelled_orders=0, cancelled_quotes=0),
+            R.CancelSymbolAck(
+                gateway_id="X" * 33,
+                accepted=True,
+                symbol="AAPL",
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=0,
+            ),
             "gateway_id",
         )
 
     def test_symbol_too_long(self) -> None:
         _assert_rejects(
-            R.CancelSymbolAck(gateway_id="GW1", accepted=True, symbol="X" * 17, reason="",
-                              cancelled_orders=0, cancelled_quotes=0),
+            R.CancelSymbolAck(
+                gateway_id="GW1",
+                accepted=True,
+                symbol="X" * 17,
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=0,
+            ),
             "symbol",
         )
 
     def test_reason_too_long(self) -> None:
         _assert_rejects(
-            R.CancelSymbolAck(gateway_id="GW1", accepted=False, symbol="AAPL", reason="X" * 513,
-                              cancelled_orders=0, cancelled_quotes=0),
+            R.CancelSymbolAck(
+                gateway_id="GW1",
+                accepted=False,
+                symbol="AAPL",
+                reason="X" * 513,
+                cancelled_orders=0,
+                cancelled_quotes=0,
+            ),
             "reason",
         )
 
     def test_cancelled_orders_negative(self) -> None:
         _assert_rejects(
-            R.CancelSymbolAck(gateway_id="GW1", accepted=True, symbol="AAPL", reason="",
-                              cancelled_orders=-1, cancelled_quotes=0),
+            R.CancelSymbolAck(
+                gateway_id="GW1",
+                accepted=True,
+                symbol="AAPL",
+                reason="",
+                cancelled_orders=-1,
+                cancelled_quotes=0,
+            ),
             "cancelled_orders",
         )
 
     def test_cancelled_quotes_negative(self) -> None:
         _assert_rejects(
-            R.CancelSymbolAck(gateway_id="GW1", accepted=True, symbol="AAPL", reason="",
-                              cancelled_orders=0, cancelled_quotes=-1),
+            R.CancelSymbolAck(
+                gateway_id="GW1",
+                accepted=True,
+                symbol="AAPL",
+                reason="",
+                cancelled_orders=0,
+                cancelled_quotes=-1,
+            ),
             "cancelled_quotes",
         )
 
@@ -830,24 +1063,32 @@ class TestCancelSymbolAckValidation:
 class TestCircuitBreakerHaltAllAckValidation:
     def test_valid(self) -> None:
         _assert_validates(
-            R.CircuitBreakerHaltAllAck(gateway_id="GW1", accepted=True, reason="", halted_symbols=0)
+            R.CircuitBreakerHaltAllAck(
+                gateway_id="GW1", accepted=True, reason="", halted_symbols=0
+            )
         )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
-            R.CircuitBreakerHaltAllAck(gateway_id="X" * 33, accepted=True, reason="", halted_symbols=0),
+            R.CircuitBreakerHaltAllAck(
+                gateway_id="X" * 33, accepted=True, reason="", halted_symbols=0
+            ),
             "gateway_id",
         )
 
     def test_reason_too_long(self) -> None:
         _assert_rejects(
-            R.CircuitBreakerHaltAllAck(gateway_id="GW1", accepted=False, reason="X" * 513, halted_symbols=0),
+            R.CircuitBreakerHaltAllAck(
+                gateway_id="GW1", accepted=False, reason="X" * 513, halted_symbols=0
+            ),
             "reason",
         )
 
     def test_halted_symbols_negative(self) -> None:
         _assert_rejects(
-            R.CircuitBreakerHaltAllAck(gateway_id="GW1", accepted=True, reason="", halted_symbols=-1),
+            R.CircuitBreakerHaltAllAck(
+                gateway_id="GW1", accepted=True, reason="", halted_symbols=-1
+            ),
             "halted_symbols",
         )
 
@@ -855,24 +1096,32 @@ class TestCircuitBreakerHaltAllAckValidation:
 class TestCircuitBreakerResumeAllAckValidation:
     def test_valid(self) -> None:
         _assert_validates(
-            R.CircuitBreakerResumeAllAck(gateway_id="GW1", accepted=True, reason="", resumed_symbols=0)
+            R.CircuitBreakerResumeAllAck(
+                gateway_id="GW1", accepted=True, reason="", resumed_symbols=0
+            )
         )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
-            R.CircuitBreakerResumeAllAck(gateway_id="X" * 33, accepted=True, reason="", resumed_symbols=0),
+            R.CircuitBreakerResumeAllAck(
+                gateway_id="X" * 33, accepted=True, reason="", resumed_symbols=0
+            ),
             "gateway_id",
         )
 
     def test_reason_too_long(self) -> None:
         _assert_rejects(
-            R.CircuitBreakerResumeAllAck(gateway_id="GW1", accepted=False, reason="X" * 513, resumed_symbols=0),
+            R.CircuitBreakerResumeAllAck(
+                gateway_id="GW1", accepted=False, reason="X" * 513, resumed_symbols=0
+            ),
             "reason",
         )
 
     def test_resumed_symbols_negative(self) -> None:
         _assert_rejects(
-            R.CircuitBreakerResumeAllAck(gateway_id="GW1", accepted=True, reason="", resumed_symbols=-1),
+            R.CircuitBreakerResumeAllAck(
+                gateway_id="GW1", accepted=True, reason="", resumed_symbols=-1
+            ),
             "resumed_symbols",
         )
 
@@ -884,30 +1133,34 @@ class TestCircuitBreakerResumeAllAckValidation:
 
 class TestOrderAckValidation:
     def test_valid(self) -> None:
-        _assert_validates(O.OrderAck(gateway_id="GW1", order_id="O1", accepted=True, reason=""))
+        _assert_validates(
+            ORD.OrderAck(gateway_id="GW1", order_id="O1", accepted=True, reason="")
+        )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
-            O.OrderAck(gateway_id="X" * 33, order_id="O1", accepted=True, reason=""),
+            ORD.OrderAck(gateway_id="X" * 33, order_id="O1", accepted=True, reason=""),
             "gateway_id",
         )
 
     def test_order_id_too_long(self) -> None:
         _assert_rejects(
-            O.OrderAck(gateway_id="GW1", order_id="X" * 65, accepted=True, reason=""),
+            ORD.OrderAck(gateway_id="GW1", order_id="X" * 65, accepted=True, reason=""),
             "order_id",
         )
 
     def test_reason_too_long(self) -> None:
         _assert_rejects(
-            O.OrderAck(gateway_id="GW1", order_id="O1", accepted=False, reason="X" * 257),
+            ORD.OrderAck(
+                gateway_id="GW1", order_id="O1", accepted=False, reason="X" * 257
+            ),
             "reason",
         )
 
 
 class TestOrderFillValidation:
-    def _valid(self) -> O.OrderFill:
-        return O.OrderFill(
+    def _valid(self) -> ORD.OrderFill:
+        return ORD.OrderFill(
             gateway_id="GW1",
             order_id="O1",
             fill_qty=10,
@@ -921,38 +1174,42 @@ class TestOrderFillValidation:
 
     def test_gateway_id_too_long(self) -> None:
         import dataclasses
+
         obj = dataclasses.replace(self._valid(), gateway_id="X" * 33)
         _assert_rejects(obj, "gateway_id")
 
     def test_order_id_too_long(self) -> None:
         import dataclasses
+
         obj = dataclasses.replace(self._valid(), order_id="X" * 65)
         _assert_rejects(obj, "order_id")
 
     def test_status_too_long(self) -> None:
         import dataclasses
+
         obj = dataclasses.replace(self._valid(), status="X" * 17)
         _assert_rejects(obj, "status")
 
     def test_symbol_too_long(self) -> None:
         import dataclasses
+
         obj = dataclasses.replace(self._valid(), symbol="X" * 17)
         _assert_rejects(obj, "symbol")
 
 
 class TestOrderCancelValidation:
     def test_valid(self) -> None:
-        _assert_validates(O.OrderCancel(order_id="O1", gateway_id="GW1"))
+        _assert_validates(ORD.OrderCancel(order_id="O1", gateway_id="GW1"))
 
     def test_order_id_too_long(self) -> None:
         _assert_rejects(
-            O.OrderCancel(order_id="X" * 65, gateway_id="GW1"),
+            ORD.OrderCancel(order_id="X" * 65, gateway_id="GW1"),
             "order_id",
         )
 
     def test_gateway_id_too_long(self) -> None:
         _assert_rejects(
-            O.OrderCancel(order_id="O1", gateway_id="X" * 33),
+            ORD.OrderCancel(order_id="O1", gateway_id="X" * 33),
             "gateway_id",
         )
 
@@ -960,18 +1217,22 @@ class TestOrderCancelValidation:
 class TestComboLegValidation:
     def test_valid_market(self) -> None:
         _assert_validates(
-            O.ComboLeg(symbol="AAPL", side="BUY", order_type="MARKET", quantity=100)
+            ORD.ComboLeg(symbol="AAPL", side="BUY", order_type="MARKET", quantity=100)
         )
 
     def test_symbol_too_long(self) -> None:
         _assert_rejects(
-            O.ComboLeg(symbol="X" * 17, side="BUY", order_type="MARKET", quantity=100),
+            ORD.ComboLeg(
+                symbol="X" * 17, side="BUY", order_type="MARKET", quantity=100
+            ),
             "symbol",
         )
 
     def test_quantity_zero(self) -> None:
         _assert_rejects(
-            O.ComboLeg(symbol="AAPL", side="BUY", order_type="LIMIT", quantity=0, price=100.0),
+            ORD.ComboLeg(
+                symbol="AAPL", side="BUY", order_type="LIMIT", quantity=0, price=100
+            ),
             "quantity",
         )
 
@@ -984,12 +1245,26 @@ class TestComboLegValidation:
 class TestLogNotifyValidation:
     def test_valid(self) -> None:
         _assert_validates(
-            L.LogNotify(sub_id="S1", count=5, levels=[], last_seq=1, server_last_seq=1, timestamp=1.0)
+            L.LogNotify(
+                sub_id="S1",
+                count=5,
+                levels=[],
+                last_seq=1,
+                server_last_seq=1,
+                timestamp=1.0,
+            )
         )
 
     def test_sub_id_too_long(self) -> None:
         _assert_rejects(
-            L.LogNotify(sub_id="X" * 65, count=0, levels=[], last_seq=0, server_last_seq=0, timestamp=0.0),
+            L.LogNotify(
+                sub_id="X" * 65,
+                count=0,
+                levels=[],
+                last_seq=0,
+                server_last_seq=0,
+                timestamp=0.0,
+            ),
             "sub_id",
         )
 
@@ -1013,7 +1288,9 @@ class TestLogBackfillRequestValidation:
 
     def test_sub_id_too_long(self) -> None:
         _assert_rejects(
-            L.LogBackfillRequest(sub_id="X" * 65, minutes=60, filter=None, max_rows=1000),
+            L.LogBackfillRequest(
+                sub_id="X" * 65, minutes=60, filter=None, max_rows=1000
+            ),
             "sub_id",
         )
 
@@ -1191,8 +1468,11 @@ class TestRiskMessageRoundTrips:
 
     def test_kill_switch_ack_accepted_round_trip(self) -> None:
         frames = R.make_kill_switch_ack(
-            gateway_id="GW1", accepted=True, reason="",
-            cancelled_orders=5, cancelled_quotes=2
+            gateway_id="GW1",
+            accepted=True,
+            reason="",
+            cancelled_orders=5,
+            cancelled_quotes=2,
         )
         msg = R.parse_kill_switch_ack(frames)
         msg.validate()
@@ -1201,8 +1481,11 @@ class TestRiskMessageRoundTrips:
 
     def test_kill_switch_ack_rejected_round_trip(self) -> None:
         frames = R.make_kill_switch_ack(
-            gateway_id="GW1", accepted=False, reason="not connected",
-            cancelled_orders=0, cancelled_quotes=0
+            gateway_id="GW1",
+            accepted=False,
+            reason="not connected",
+            cancelled_orders=0,
+            cancelled_quotes=0,
         )
         msg = R.parse_kill_switch_ack(frames)
         msg.validate()
@@ -1211,7 +1494,11 @@ class TestRiskMessageRoundTrips:
 
     def test_symbol_halt_round_trip(self) -> None:
         frames = R.make_symbol_halt(
-            gateway_id="GW1", symbol="AAPL", level="L1", note="fat finger", command_id="C1"
+            gateway_id="GW1",
+            symbol="AAPL",
+            level="L1",
+            note="fat finger",
+            command_id="C1",
         )
         msg = R.parse_symbol_halt(frames)
         msg.validate()
@@ -1252,8 +1539,12 @@ class TestRiskMessageRoundTrips:
 
     def test_cancel_symbol_ack_round_trip(self) -> None:
         frames = R.make_cancel_symbol_ack(
-            gateway_id="GW1", accepted=True, symbol="AAPL", reason="",
-            cancelled_orders=3, cancelled_quotes=1
+            gateway_id="GW1",
+            accepted=True,
+            symbol="AAPL",
+            reason="",
+            cancelled_orders=3,
+            cancelled_quotes=1,
         )
         msg = R.parse_cancel_symbol_ack(frames)
         msg.validate()

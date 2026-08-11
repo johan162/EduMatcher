@@ -1,4 +1,4 @@
-Version: 1.9.0
+Version: 1.11.1
 
 Date: 2026-08-11
 
@@ -9,6 +9,34 @@ Status: Design and Research Proposal
 
 > **Revision History**
 >
+> - **1.11.1 (2026-08-11)** — Backend confirmation for the ADMIN halts table. `GET /api/v1/admin/halts`
+>   returns the engine `system.halt_status` reply verbatim (`HaltStatus` → `HaltedSymbol[]`): key
+>   `halted`, each entry `{ symbol, resume_at_ns?, level?(string), halt_source? }` — **no**
+>   `trigger_price`/`reference_price`/`halted_at`/ISO `resume_at`/`resumption_mode` (those price fields
+>   are on the live `circuit_breaker` WS event only). Corrected [§6.6](#66-halts-and-risk-configuration-runtime-read-only)
+>   and the [§15.6.1](#1561-active-halts-table) columns/sources accordingly. This clears the last
+>   sign-off caveat.
+> - **1.11.0 (2026-08-11)** — Final pre-handover review. (1) **Order-ACK safety:** documented the
+>   engine's two-ACK model — `accepted:true` is a pre-match *gateway* ACK, and MARKET/FOK/IOC may get a
+>   later authoritative `accepted:false` — in a new [§17.2.4](#1724-order-acknowledgement-safety), and
+>   made [§12.9](#129-submit-flow-and-feedback-buysell-actions) and [§18.3](#183-order-cache-reconciliation)
+>   apply the later ACK, treat a `4xx` POST as a synchronous rejection (no PENDING row), and reconcile
+>   a missing ACK via `stream_seq` + `orders.snapshot`/`GET /orders` so an ACK can be neither lost nor
+>   falsely granted. (2) **Symbol metadata:** corrected the source — `reference_price`/`level` are not
+>   on `GET /symbols` (`SymbolInfo`); `level` comes from `/reference` (`ReferenceSymbol`) and
+>   `reference_price` from `/reference/risk` (`SymbolRiskState`). Updated
+>   [§10.6](#106-relevant-api-calls), [§12.6](#126-symbol-picker), [§15.2.1](#1521-symbol-table),
+>   [§18.1.5](#1815-usesymbolstore), and Appendix A. (3) Fixed example code: `o.order_id` in
+>   [§18.2](#182-tanstack-query-key-conventions), an indicative-aware `updateAuction` in
+>   [§18.1.3](#1813-usebookstore), and `TradeData.timestamp` in [§16.2.3](#1623-live-tick-append).
+> - **1.10.0 (2026-08-11)** — Backend closed the two wire gaps 1.9.0 flagged as not-yet-buildable.
+>   (1) `order.fill` now carries a `trade_ids` array — the public `trade.executed` id(s) that composed
+>   the fill (VWAP-coalesced per H5/H6) — so the Fills panel Trade ID is buildable straight from the
+>   live event, no join against the public `trade` tape ([§13.5](#135-trade-history--fills-panel),
+>   Appendix A `Fill`). (2) `QuoteLeg` now carries `price`, so the MM quote-card fill bars and legs
+>   table read price directly from `/quotes/legs` without joining the bootstrap `ActiveQuote`
+>   ([§14.1.1](#1411-quote-card-anatomy), [§14.3](#143-quote-bootstrap-and-legs-view), Appendix A
+>   `QuoteLeg`). Regenerated the affected Appendix A types.
 > - **1.9.0 (2026-08-11)** — Aligned the client contract with the **pm-msgen** wire format after the
 >   message-structure rework. (1) Regenerated [Appendix A](#appendix-a-core-typescript-types): fixed
 >   `WsEnvelope` (added `topic`, `stream_seq`; `seq` is per-topic), `Fill` (no `trade_id`; engine names
@@ -230,6 +258,7 @@ Status: Design and Research Proposal
       - [17.2.1 Authentication frame](#1721-authentication-frame)
       - [17.2.2 Event routing](#1722-event-routing)
       - [17.2.3 Fill toast content](#1723-fill-toast-content)
+      - [17.2.4 Order acknowledgement safety](#1724-order-acknowledgement-safety)
     - [17.3 Market Data WebSocket (`/api/v1/market-data`)](#173-market-data-websocket-apiv1market-data)
       - [17.3.1 Authentication and subscription](#1731-authentication-and-subscription)
       - [17.3.2 Event routing](#1732-event-routing)
@@ -698,23 +727,34 @@ semantics). The UI's confirmation dialog states this explicitly.
 
 **`GET /api/v1/admin/halts`**
 
-Purpose: list active circuit breaker halts.
+Purpose: list currently-halted symbols. Returns the engine `system.halt_status` reply verbatim
+(pm-msgen `HaltStatus` → `HaltedSymbol[]`).
 
 **Response `200 OK`:**
 
 ```jsonc
 {
-  "halts": [
-    { "symbol": "AAPL", "level": 2, "trigger_price": 145.00, "reference_price": 150.00,
-      "halted_at": "2026-07-09T14:30:00Z", "resume_at": "2026-07-09T14:45:00Z",
-      "resumption_mode": "AUCTION" }
+  "halted": [
+    // `symbol` is always present; the other three are omitted when absent.
+    { "symbol": "AAPL", "resume_at_ns": 1765293900000000000, "level": "L2",
+      "halt_source": "CIRCUIT_BREAKER" }
   ]
 }
 ```
 
-**Current reality:** `GET /api/v1/admin/halts` is available now and should be treated as the
-authoritative bootstrap for the ADMIN halt table, with websocket `circuit_breaker` events providing
-the live delta stream.
+- The array key is **`halted`** (not `halts`); each entry is a `HaltedSymbol`.
+- `resume_at_ns` is **epoch nanoseconds**, and is **omitted** for an indefinite halt (`halt_all`, or a
+  per-symbol halt named without a level).
+- `level` is the level **name string** (e.g. `"L2"`); omitted on an ADMIN halt.
+- `halt_source` is e.g. `"CIRCUIT_BREAKER"` / `"ADMIN"`; omitted when absent.
+- **Not present here:** `trigger_price`, `reference_price`, `halted_at`, an ISO `resume_at`, or a
+  `resumption_mode`. The richer price context (`trigger_price`, `reference_price`, corridor) rides the
+  live `circuit_breaker` **WS** halt event only (`CircuitBreakerHalt`, Appendix A). Every halt reopens
+  via a call auction, so there is no per-halt resumption mode.
+
+**Current reality:** `GET /api/v1/admin/halts` is available now and is the authoritative **bootstrap**
+for the ADMIN halt table; the `circuit_breaker` WS events provide the live delta stream (and the only
+source of trigger/reference price).
 
 **`GET /api/v1/admin/risk/collars`**
 
@@ -1347,7 +1387,9 @@ with a Retry button that re-fetches `GET /symbols`.
 
 ```
 GET /api/v1/symbols
-→ { symbols: [{ symbol, tick_decimals, reference_price, ... }] }
+→ { symbols: [{ symbol, tick_decimals, prev_close?, enforce_mm_obligation?, mm_max_spread_ticks?, mm_min_qty? }] }
+   // pm-msgen `SymbolInfo`, resolved per caller. reference_price and the collar `level` are NOT
+   // here — source those from GET /api/v1/reference (see §12.6, §15.2.1, §18.1.5).
 
 GET /api/v1/history/daily?date=<today>
 → { stats: [{ symbol, open_price, close_price, volume, ... }] }
@@ -1554,9 +1596,11 @@ auction phases, the auction banner ([§12.10](#1210-auction-phase-banner)) also 
 
 The Symbol field is a combobox (shadcn `<Combobox>`) populated from the Zustand symbol list.
 Typing filters symbols by prefix. Selecting a symbol also **sets the active symbol** (so the chart,
-DOM, and blotter follow) and pre-fills a reference price hint next to the Price field:
-`"Ref: 150.25"` (from `symbol.reference_price`). In Workspace mode the picker is bound to the active
-symbol and changing it re-binds the whole workspace.
+DOM, and blotter follow) and pre-fills a reference price hint next to the Price field: `"Ref: 150.25"`.
+The reference price is **not** on `GET /symbols` (`SymbolInfo`); source it from the reference bundle
+(`GET /api/v1/reference/risk` → `SymbolRiskState.reference_price`), falling back to
+`SymbolInfo.prev_close` from `/symbols` when the risk bundle is not loaded. In Workspace mode the
+picker is bound to the active symbol and changing it re-binds the whole workspace.
 
 ### 12.7 OCO Order Entry sub-panel
 
@@ -1619,10 +1663,26 @@ The resulting combo is shown as a group in the blotter ([§13.3](#133-oco-and-co
 
 1. User presses **BUY** or **SELL** (or `B` / `S` when the ticket is focused).
 2. The handler injects the chosen `side`, then runs Zod validation; inline field errors shown on failure.
-3. On success, `POST /api/v1/orders` (or `/oco`, `/combos` for the advanced sub-panels).
-4. Immediately show a toast: `"Order submitted — pending ACK"` and record it in the Event Center.
-5. On WebSocket `order.ack` with `accepted: true`: toast updates to `"ACK: order accepted"`.
-6. On `accepted: false`: toast shows `"REJECTED: {reason}"` in red; recorded in the Event Center.
+3. `POST /api/v1/orders` (or `/oco`, `/combos`). **The HTTP status is the first authority:**
+   - `202 Accepted` — the order reached the engine. Insert a local **PENDING** row keyed on the
+     returned `order_id` and toast `"Order submitted — pending ACK"`. `202` means *submitted*, not
+     *accepted*.
+   - `4xx` (`422` validation, `409` duplicate `client_order_id`, `429` rate limit) — an immediate,
+     **synchronous rejection**: no order exists, so create **no PENDING row**; toast the error. There
+     is no `order.ack` for a `4xx`.
+4. The authoritative outcome then arrives on `/events` as `order.ack` — see the two-ACK model in
+   [§17.2.4](#1724-order-acknowledgement-safety). Apply it to the PENDING row:
+   - `accepted: true` → mark the row **NEW** (working). For LIMIT/STOP/… this is final until a later
+     fill/cancel.
+   - `accepted: false` → mark the row **REJECTED** (terminal) and toast `"REJECTED: {reason}"` — even
+     if a prior `accepted: true` was already seen, because MARKET/FOK/IOC can emit a gateway ACK and
+     then a book rejection, and the **later ACK wins**.
+5. Fills (`order.fill`) and terminals (`order.cancelled`/`order.expired`) update the row thereafter.
+6. If no `order.ack` arrives within a short timeout (e.g. 3 s), **reconcile** the PENDING row against
+   `GET /orders` (and `GET /history/orders/{order_id}` if absent there) rather than leaving it PENDING
+   — the ACK may have been dropped under backpressure and is recoverable via the `stream_seq` gap +
+   snapshot path ([§17.2.4](#1724-order-acknowledgement-safety)). Alternatively submit with
+   `?wait=ack` to fold the first ACK into the HTTP response synchronously.
 7. The ticket keeps its parameters after submit (symbol, qty, price) so the trader can immediately
    act on the other side; only transient fields are cleared. This is deliberate for fast two-sided
    trading from the Workspace.
@@ -1790,13 +1850,14 @@ A paginated table of fill events for this gateway.
 - Initial load: `GET /api/v1/history/fills?limit=200` (durable FILL order-events from `stats.db`).
 - Live updates: WebSocket `order.fill` events appended to the top of the table.
 
-> **Trade ID caveat (pm-msgen):** the private `order.fill` event has **no `trade_id`** — its wire
-> shape is `{gateway_id, order_id, fill_qty, fill_price, remaining_qty, status, …}`
-> ([order.py `OrderFill`](../src/edumatcher/models/generated/order.py)). A trade id exists only on the
-> **public** `trade.executed` print (`data.id`), which is not addressed to the gateway. The Trade ID
-> column is therefore populated from `/history/fills` (which carries the durable trade id) or by
-> correlating a live `order.fill` against the public `trade` tape on `(symbol, price, qty, ts)`;
-> live-appended rows show the Order ID immediately and fill in the Trade ID on reconciliation.
+> **Trade ID (pm-msgen):** the private `order.fill` event now carries a **`trade_ids`** array — the
+> public `trade.executed` id(s) that composed the fill
+> ([order.py `OrderFill`](../src/edumatcher/models/generated/order.py)). It is usually a single id; it
+> holds several when an aggressor swept multiple resting orders and the engine coalesced them into one
+> VWAP fill (H5/H6), and is `[]` only for a fill with no trade behind it. The Trade ID column reads
+> `trade_ids[0]` (badging “＋N” when there is more than one), so a live `order.fill` row shows its
+> trade id immediately — no correlation against the public `trade` tape and no wait for
+> `/history/fills`. `/history/fills` remains the source for historical rows.
 
 #### 13.5.2 Columns
 
@@ -1808,7 +1869,7 @@ A paginated table of fill events for this gateway.
 | Fill Qty | |
 | Fill Price | |
 | Remaining | After this fill |
-| Trade ID | First 8 chars; hover shows full UUID. Present on `/history/fills` and public `trade` rows; **blank on a live `order.fill` until reconciled** (see §13.5.1) |
+| Trade ID | First 8 chars of `trade_ids[0]`; hover shows the full id(s). A “＋N” badge marks a multi-trade (swept VWAP) fill; `[]` (no trade) shows `—`. Present on the live `order.fill` immediately (see §13.5.1) |
 | Order ID | First 8 chars; click opens the Order Detail drawer ([§13.4](#134-order-detail-drawer)) |
 
 #### 13.5.3 Filters
@@ -1891,10 +1952,10 @@ active two-sided quote for that symbol.
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- **BID / ASK rows**: price, quantity, and a per-leg fill progress bar (`filled / qty`). The
-  authoritative per-leg fill quantities come from `GET /api/v1/quotes/legs`; the **prices** come from
-  `GET /api/v1/quotes/bootstrap` (`ActiveQuote.bid_price` / `ask_price`), because the `QuoteLeg`
-  record carries no price — see [§14.3](#143-quote-bootstrap-and-legs-view).
+- **BID / ASK rows**: price, quantity, and a per-leg fill progress bar (`filled / qty`). Both the
+  per-leg fill quantities and the leg **price** now come from `GET /api/v1/quotes/legs` — the
+  `QuoteLeg` record carries `price` directly, so the card no longer needs to join against
+  `GET /api/v1/quotes/bootstrap` for it (see [§14.3](#143-quote-bootstrap-and-legs-view)).
 - **Status badge**: ACTIVE (green), INACTIVE (amber), CANCELLED (slate), PENDING (slate).
 - **New Quote button**: opens the New Quote Form inline ([§14.2](#142-new-quote-form)).
 - **Cancel button**: calls `DELETE /api/v1/quotes/{symbol}` with confirmation.
@@ -1959,21 +2020,21 @@ These two endpoints should also define the MM reconnect/recovery path:
 - show a small “reconciled at HH:MM:SS” stamp so the user can see that the dashboard has been
   resynced after a disconnect
 
-The combined table shows (note the pm-msgen `QuoteLeg` shape is per-side, keyed on `leg_side`, and
-carries **no price** — price is joined in from the bootstrap `ActiveQuote`):
+The combined table shows (the pm-msgen `QuoteLeg` shape is per-side, keyed on `leg_side`, and now
+carries its own `price`, so every column below is available from `/quotes/legs` alone):
 
 | Column | Source | pm-msgen field |
 |--------|--------|----------------|
-| Symbol | bootstrap / legs | `symbol` |
-| Quote ID | bootstrap / legs | `quote_id` |
+| Symbol | legs | `symbol` |
+| Quote ID | legs | `quote_id` |
 | Order ID | legs | `order_id` |
 | Side | legs | `leg_side` (`"BUY"` \| `"SELL"`, **not** bid/ask) |
-| Price | bootstrap (`ActiveQuote.bid_price`/`ask_price`) | — (absent from `QuoteLeg`) |
+| Price | legs | `price` (display money; `null` only if the resting order's price is unavailable) |
 | Qty | legs | `qty` |
 | Remaining | legs | `remaining` |
 | Filled | legs | `filled` |
 | Leg status | legs | `status` |
-| Quote status | bootstrap / legs | `quote_status` |
+| Quote status | legs | `quote_status` |
 
 ### 14.4 MM Position Panel
 
@@ -2039,12 +2100,13 @@ A table of all configured symbols with:
 
 | Column | Source |
 |--------|--------|
-| Symbol | `GET /symbols` |
-| Tick Decimals | `symbol.tick_decimals` |
-| Reference Price | `symbol.reference_price` |
+| Symbol | `GET /symbols` (`SymbolInfo`) |
+| Tick Decimals | `SymbolInfo.tick_decimals` |
+| Reference Price | `GET /reference/risk` → `SymbolRiskState.reference_price` (**not** on `/symbols`) |
+| Prev Close | `SymbolInfo.prev_close` |
 | Last Buy Price | `bookStore` (from WS `book` events) |
 | Last Ask Price | `bookStore` |
-| CB Level | `symbol.level` (collar profile name) |
+| CB Level | `GET /reference` → `ReferenceSymbol.level` (collar profile name; **not** on `/symbols`) |
 
 **Add / edit symbol:** the "Add Symbol" form and inline edits map to
 `POST /api/v1/admin/symbols` / `PATCH /api/v1/admin/symbols/{symbol}`
@@ -2147,10 +2209,16 @@ The live operational view of circuit breakers — which are active, plus manual 
 
 #### 15.6.1 Active halts table
 
-Columns: Symbol, Level, Trigger Price, Reference Price, Halt Start, Estimated Resume, Resumption Mode.
+Columns: Symbol, Level, Trigger Price, Reference Price, Estimated Resume, Halt Source.
 
 Populated from Zustand `haltStore` (fed by WebSocket `circuit_breaker` events) + initial bootstrap
-from `GET /api/v1/admin/halts` ([§6.6](#66-halts-and-risk-configuration-runtime-read-only)).
+from `GET /api/v1/admin/halts` ([§6.6](#66-halts-and-risk-configuration-runtime-read-only)). The two
+sources differ: the `/admin/halts` bootstrap carries only `symbol`, `level`, `resume_at_ns`, and
+`halt_source`, so **Trigger Price / Reference Price render only for halts seen live** on the WS
+`circuit_breaker` event (which alone carries them) — rows restored from the bootstrap leave those
+cells blank until the symbol is re-halted. "Estimated Resume" is derived from `resume_at_ns` (blank
+for an indefinite halt). There is **no** Resumption Mode column — every halt reopens via a call
+auction.
 
 #### 15.6.2 Manual CB trigger
 
@@ -2294,16 +2362,16 @@ Buttons above the chart: `1m` | `5m` | `1h` | `1D` | `All`.
 When a WebSocket `trade` event arrives for the current symbol:
 
 ```typescript
-const handleTrade = (trade: WSTrade) => {
-  if (trade.symbol !== activeSymbol) return;
-  // Update last candle or create new one depending on current time bucket
+const handleTrade = (t: TradeData) => {
+  if (t.symbol !== activeSymbol) return;
+  // `t` is the WS event `data` (pm-msgen TradeExecuted); `timestamp` is epoch seconds.
   chartRef.current?.updateLastBar({
-    time: bucketTimestamp(trade.ts, timeframe),
+    time: bucketTimestamp(t.timestamp, timeframe),
     open: candle.open,
-    high: Math.max(candle.high, trade.price),
-    low: Math.min(candle.low, trade.price),
-    close: trade.price,
-    volume: candle.volume + trade.quantity,
+    high: Math.max(candle.high, t.price),
+    low: Math.min(candle.low, t.price),
+    close: t.price,
+    volume: candle.volume + t.quantity,
   });
 };
 ```
@@ -2507,6 +2575,43 @@ grouping client-side.
 Toast persists for 8 seconds (longer than standard toasts) and is retained in the Event Center.
 Clicking "View Order" opens the Order Detail drawer ([§13.4](#134-order-detail-drawer)) for that order.
 
+#### 17.2.4 Order acknowledgement safety
+
+An order acknowledgement can be neither **lost** (an order that went through but the UI never learns)
+nor **falsely granted** (showing accepted for an order the engine rejected), provided the UI follows
+the rules below. They reflect how the engine and gateway actually behave.
+
+**Two-ACK model — `accepted:true` is not "it rested/filled".** The engine publishes `order.ack`
+`accepted:true` **before** it runs the order through the book. That first ACK is a *gateway/processing*
+ACK: it confirms only that the symbol is valid, the session is open, and the gateway is authenticated.
+For **MARKET/FOK/IOC**, if the book then rejects (e.g. FOK with insufficient liquidity), a **second
+`order.ack` `accepted:false`** follows on the same topic and is **authoritative**. Therefore:
+
+- The UI must process **every** `order.ack` for an `order_id`, in order, and let the **latest** win.
+- `accepted:false` sets the row **REJECTED** (terminal) even if a prior `accepted:true` was seen.
+- Never render the first `accepted:true` as a terminal "done/good" state for MARKET/FOK/IOC; only a
+  fill, a cancel, or the absence of a follow-up rejection makes the outcome final.
+- For LIMIT/STOP/STOP_LIMIT/ICEBERG/TRAILING_STOP the first `accepted:true` is the resting ACK; fills
+  and cancels follow as their own events.
+
+**No lost ACK.** Every private event on `/events` carries a monotonic per-gateway `stream_seq`
+([§17.2.1](#1721-authentication-frame)), so a dropped ACK (e.g. shed under sink backpressure) shows up
+as a **sequence gap** rather than vanishing silently. Recovery, in order of cost:
+
+1. On reconnect, the `orders.snapshot` frame and `GET /orders` return each order's **current status**
+   (`NEW`/`REJECTED`/`PARTIAL`/`FILLED`/`CANCELLED`/`EXPIRED`) — the gateway cache folds every ACK into
+   the order (`accepted → NEW`, `!accepted → REJECTED`), so a missed ACK is reflected there.
+2. `GET /history/orders/{order_id}` is the durable backstop (from `stats.db`), independent of cache
+   retention.
+3. A local **PENDING** row with no ACK after a short timeout is reconciled against (1)–(2) rather than
+   displayed indefinitely.
+
+**No false ACK.** The design never optimistically promotes an order to a working/accepted state
+without an `order.ack`; a `4xx` POST is a synchronous rejection that creates no order and no PENDING
+row ([§12.9](#129-submit-flow-and-feedback-buysell-actions)); and because ACK handling is keyed on
+`order_id` and status transitions are monotonic toward a terminal state, re-processing the same ACK
+(after a reconnect/replay) is idempotent and cannot resurrect a rejected order.
+
 ### 17.3 Market Data WebSocket (`/api/v1/market-data`)
 
 Used by: all roles.
@@ -2701,7 +2806,13 @@ interface BookStore {
   books: Record<string, BookEntry>;
   updateBook: (symbol: string, data: BookSnapshot) => void;
   updateLastPrice: (symbol: string, price: number, qty: number) => void;
-  updateAuction: (symbol: string, data: AuctionResult) => void;
+  // Accepts both the final `auction` (AuctionResult) and the running
+  // `auction.indicative` (AuctionIndicative); `opts.indicative` flags the latter.
+  updateAuction: (
+    symbol: string,
+    data: AuctionResult | AuctionIndicative,
+    opts?: { indicative?: boolean },
+  ) => void;
 }
 ```
 
@@ -2714,15 +2825,20 @@ const bestBid = useBookStore((s) => s.books["AAPL"]?.bids[0]?.price);
 
 #### 18.1.4 `useHaltStore`
 
+Fed by the `circuit_breaker` WS event (`CircuitBreakerHalt`, see Appendix A) and bootstrapped by
+`GET /api/v1/admin/halts`. The shape matches the wire: `level` is a **name string** (not a number),
+timing is `resumeAtNs` (epoch nanoseconds), and `triggerPrice`/`referencePrice` are null on an ADMIN
+(non-price) halt. There is **no `resumptionMode` on the wire** — every halt reopens via a call
+auction, so the UI need not carry a per-halt mode.
+
 ```typescript
 interface HaltEntry {
   symbol: string;
-  level: number;
-  triggerPrice: number;
-  referencePrice: number;
-  haltedAt: string;
-  resumeAt: string | null;
-  resumptionMode: "AUCTION" | "CONTINUOUS";
+  level: string | null;            // level NAME, e.g. "L2"; null on an ADMIN halt
+  triggerPrice: number | null;     // null on an ADMIN (non-price) halt
+  referencePrice: number | null;
+  resumeAtNs: number | null;       // epoch nanoseconds; null = indefinite halt
+  haltSource?: string;             // e.g. "CIRCUIT_BREAKER" | "ADMIN"
 }
 
 interface HaltStore {
@@ -2737,9 +2853,10 @@ interface HaltStore {
 ```typescript
 interface SymbolEntry {
   symbol: string;
-  tickDecimals: number;
-  referencePrice: number | null;
-  level: string | null;
+  tickDecimals: number;          // GET /symbols (SymbolInfo)
+  prevClose: number | null;      // GET /symbols (SymbolInfo)
+  referencePrice: number | null; // GET /reference/risk (SymbolRiskState) — NOT /symbols
+  level: string | null;          // GET /reference (ReferenceSymbol) — NOT /symbols
 }
 
 interface SymbolStore {
@@ -2748,7 +2865,9 @@ interface SymbolStore {
 }
 ```
 
-Populated once from `GET /symbols` on login. Rarely changes during a session.
+Assembled once on login by **merging** `GET /symbols` (`tick_decimals`, `prev_close`, MM fields) with
+the `GET /reference` bundle (`level`, collar) and `/reference/risk` (`reference_price`). Rarely
+changes during a session.
 
 #### 18.1.6 `useActiveSymbolStore`
 
@@ -2821,7 +2940,7 @@ WebSocket events invalidate relevant queries using `queryClient.invalidateQuerie
 // In the WS event handler for order.fill:
 queryClient.invalidateQueries({ queryKey: ["positions"] });
 queryClient.setQueryData(["orders"], (old: Order[]) =>
-  old?.map((o) => o.id === fill.order_id ? { ...o, ...updatedFields } : o)
+  old?.map((o) => o.order_id === fill.order_id ? { ...o, ...updatedFields } : o)
 );
 ```
 
@@ -2831,7 +2950,10 @@ The active orders blotter maintains a local React state derived from the TanStac
 but patched in real-time by WebSocket events without waiting for a full refetch:
 
 1. Initial data: `useQuery(["orders"])` — fills the table.
-2. WS `order.ack` (accepted): `queryClient.setQueryData` — inserts new order row.
+2. WS `order.ack` with `accepted: true`: `queryClient.setQueryData` — insert/mark the row **NEW**.
+2b. WS `order.ack` with `accepted: false`: mark the row **REJECTED** (terminal), **overriding** any
+   prior `accepted: true` — MARKET/FOK/IOC emit a gateway ACK then a possible book rejection, and the
+   later ACK is authoritative ([§17.2.4](#1724-order-acknowledgement-safety)).
 3. WS `order.fill`: updates `remaining_qty` and `status` in the cached row.
 4. WS `order.cancelled` / `order.expired`: updates `status` in cached row.
 5. WS `order.amended`: updates `price`, `quantity`, `remaining_qty` in cached row.
@@ -3692,14 +3814,14 @@ export interface Order {
 }
 
 export interface Fill {
-  // The PRIVATE `order.fill` event (pm-msgen `OrderFill`). Note: NO `trade_id`
-  // — a trade id exists only on the public `trade` print (see TradeData).
+  // The PRIVATE `order.fill` event (pm-msgen `OrderFill`).
   gateway_id: string;
   order_id: string;
   fill_qty: number;
   fill_price: number;
   remaining_qty: number;
   status: OrderStatus;             // PARTIAL | FILLED
+  trade_ids: string[];             // public trade id(s) composing this fill; [] if none (always present)
   symbol?: string;
   side?: Side;
   qty?: number;                    // original order qty (engine name, not `quantity`)
@@ -3812,13 +3934,13 @@ export interface PositionPnlExtension {
 }
 
 // ── MM quote legs (§14.3) ────────────────────────────────────────────────────
-// pm-msgen `QuoteLeg` is per-side and carries NO price (join price from the
-// bootstrap ActiveQuote). `leg_side` is "BUY"/"SELL", not "bid"/"ask".
+// pm-msgen `QuoteLeg` is per-side; `leg_side` is "BUY"/"SELL", not "bid"/"ask".
 export interface QuoteLeg {
   quote_id: string;
   order_id: string;
   symbol: string;
   leg_side: Side;                  // "BUY" | "SELL"
+  price?: number | null;           // leg limit price (display money); omitted/null if unavailable
   qty: number;
   remaining: number;
   filled: number;                  // per-leg filled quantity
@@ -3826,13 +3948,27 @@ export interface QuoteLeg {
   quote_status: string;            // parent quote status
 }
 
-// ── Symbol metadata (§6.7, GET /symbols) ─────────────────────────────────────
+// ── Symbol metadata ──────────────────────────────────────────────────────────
+// `GET /symbols` returns pm-msgen `SymbolInfo`, resolved per caller. reference_price, level and
+// outstanding_shares are NOT on it — see the merged `Symbol` view below.
+export interface SymbolInfoDTO {           // GET /symbols
+  symbol: string;
+  tick_decimals: number;
+  prev_close?: number | null;
+  enforce_mm_obligation?: boolean | null;
+  mm_max_spread_ticks?: number | null;
+  mm_min_qty?: number | null;
+}
+
+// The merged view the UI stores (§18.1.5): tick_decimals/prev_close from /symbols, level from
+// /reference (ReferenceSymbol), reference_price from /reference/risk (SymbolRiskState).
+// outstanding_shares is not currently returned by any read model.
 export interface Symbol {
   symbol: string;
   tick_decimals: number;
-  reference_price: number | null;
-  outstanding_shares?: number | null;
-  level?: string | null;           // collar profile name
+  prev_close: number | null;
+  reference_price: number | null;  // from /reference/risk (SymbolRiskState)
+  level?: string | null;           // from /reference (ReferenceSymbol); collar profile name
 }
 
 // ── Market-data subscription (§17.3.1) ───────────────────────────────────────
@@ -3903,7 +4039,7 @@ export interface OrderAckData {
   quote_id?: string; leg_index?: number;
 }
 
-// `order.fill` data === the `Fill` interface above (no trade_id).
+// `order.fill` data === the `Fill` interface above (carries `trade_ids`).
 
 export interface OrderAmendedData {
   gateway_id: string;

@@ -403,6 +403,9 @@ types:
       - { name: symbol, type: string, validate: { max_len: 16 } }
       - { name: leg_side, type: enum, values: [BUY, SELL],
           doc: "Which side of the quote this leg is. Exactly two producers." }
+      - { name: price, type: float, unit: display_price, required: false,
+          nullable: true, omit_when_none: true,
+          doc: "Leg limit price in display money. A quote leg is always a priced limit order; null only if the resting order's price is somehow unavailable." }
       - { name: qty, type: int, unit: shares, validate: { ge: 0 } }
       - { name: remaining, type: int, unit: shares, validate: { ge: 0 } }
       - { name: filled, type: int, unit: shares, validate: { ge: 0 } }

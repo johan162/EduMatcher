@@ -241,11 +241,13 @@ def make_fill_msg(
     remaining_qty: int,
     status: str,
     order: dict[str, Any] | None = None,
+    trade_ids: list[str] | None = None,
 ) -> list[bytes]:
     """Generated from ``spec/messages/order.yaml``.
 
     Same one wire change as ``make_ack_msg``: a MARKET order's fill no longer
-    carries ``"price": null``.
+    carries ``"price": null``. ``trade_ids`` are the public trade.executed ids
+    that composed this fill (one, or several for a swept VWAP fill).
     """
     detail = order or {}
     return _gen_order.make_order_fill_unchecked(
@@ -262,6 +264,7 @@ def make_fill_msg(
         qty=detail.get("quantity"),
         price=detail.get("price"),
         client_tag=detail.get("client_tag"),
+        trade_ids=list(trade_ids) if trade_ids else [],
         **group_ids(order),
     )
 

@@ -358,6 +358,18 @@ messages:
           omit_when_none: true, validate: { max_len: 64 } }
       - { name: leg_index, type: int, required: false, nullable: true,
           omit_when_none: true, unit: dimensionless }
+      - name: trade_ids
+        type: list
+        item: string
+        required: false
+        default: []
+        doc: >
+          The public trade.executed id(s) that composed this fill event.
+          Usually one; more than one when an aggressor swept several resting
+          orders and the engine coalesced them into a single VWAP fill
+          (H5/H6). Empty only for a fill with no trade behind it. Lets a
+          reader link a private fill to the public trade tape without
+          re-deriving the join.
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
 

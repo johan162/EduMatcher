@@ -1000,6 +1000,7 @@ class QuoteLeg:
     filled: int  # unit: shares
     status: str
     quote_status: str
+    price: float | None = None  # unit: display_price
 
     def validate(self) -> None:
         """Raise MessageValidationError if any declared rule fails.
@@ -1052,6 +1053,7 @@ class QuoteLeg:
             order_id=str(p["order_id"]),
             symbol=str(p["symbol"]),
             leg_side=cast(QuoteLegLegSide, str(p["leg_side"])),
+            price=None if p.get("price") is None else float(p["price"]),
             qty=int(p["qty"]),
             remaining=int(p["remaining"]),
             filled=int(p["filled"]),
@@ -1061,7 +1063,7 @@ class QuoteLeg:
 
     def to_dict(self) -> dict[str, Any]:
         """Return the bus payload, in the spec's declared field order."""
-        return {
+        payload: dict[str, Any] = {
             "quote_id": self.quote_id,
             "order_id": self.order_id,
             "symbol": self.symbol,
@@ -1072,6 +1074,9 @@ class QuoteLeg:
             "status": self.status,
             "quote_status": self.quote_status,
         }
+        if self.price is not None:
+            payload["price"] = self.price
+        return payload
 
 
 @dataclass(frozen=True, slots=True)

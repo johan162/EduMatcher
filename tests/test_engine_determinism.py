@@ -31,8 +31,10 @@ from tests.engine_harness import (
 )
 
 # Fields that legitimately differ between runs (process-global counter /
-# wall clock) and carry no matching semantics.
-_VOLATILE_KEYS = {"id", "timestamp"}
+# wall clock) and carry no matching semantics. `trade_ids` carries the same
+# process-global trade-id counter as `trade.executed`'s `id`, surfaced on the
+# private fill — volatile for the same reason.
+_VOLATILE_KEYS = {"id", "timestamp", "trade_ids"}
 
 
 def _build_scenario(seed: int = 42, n: int = 60) -> list[tuple[str, dict[str, Any]]]:

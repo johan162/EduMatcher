@@ -183,7 +183,9 @@ def test_flush_timer_is_scheduled_on_first_message(tmp_path: Path) -> None:
     from unittest.mock import patch
 
     with patch("edumatcher.audit.main.make_subscriber"):
-        proc = AuditProcess(log_path=tmp_path / "t.log", to_terminal=False, buffer_size=100)
+        proc = AuditProcess(
+            log_path=tmp_path / "t.log", to_terminal=False, buffer_size=100
+        )
 
     assert proc._flush_timer is None
     proc._add_to_buffer("first line")
@@ -202,4 +204,3 @@ def test_flush_buffer_is_idempotent_on_empty(tmp_path: Path) -> None:
     proc._flush_buffer()  # Buffer already empty — should not raise.
     # No output written for an empty flush.
     assert not log_path.exists() or log_path.read_text() == ""
-

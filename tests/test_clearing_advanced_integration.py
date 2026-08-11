@@ -20,7 +20,7 @@ import threading
 import time
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 import zmq
@@ -34,7 +34,6 @@ from edumatcher.clearing.store import (
     query_session_events,
     query_sessions,
 )
-from edumatcher.models.message import decode
 from edumatcher.models.generated.system import (
     TOPIC_GATEWAY_CONNECT,
     TOPIC_GATEWAY_DISCONNECT,
@@ -45,7 +44,6 @@ from edumatcher.models.generated.system import (
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.trade import Trade
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -137,17 +135,25 @@ class TestParseTickDecimals:
 
 
 class TestHandleGatewayAuth:
-    def test_refused_auth_is_ignored(self, proc: ClearingProcess, db_path: Path) -> None:
+    def test_refused_auth_is_ignored(
+        self, proc: ClearingProcess, db_path: Path
+    ) -> None:
         """accepted=False must NOT record a gateway session (only accepted auths do)."""
-        proc._handle_gateway_auth({"gateway_id": "GW_REFUSED", "accepted": False, "reason": "not configured"})
+        proc._handle_gateway_auth(
+            {"gateway_id": "GW_REFUSED", "accepted": False, "reason": "not configured"}
+        )
         conn = open_writer_connection(db_path)
         rows = query_sessions(conn, gateway="GW_REFUSED")
         conn.close()
         assert rows == []
 
-    def test_accepted_auth_records_session(self, proc: ClearingProcess, db_path: Path) -> None:
+    def test_accepted_auth_records_session(
+        self, proc: ClearingProcess, db_path: Path
+    ) -> None:
         """accepted=True must record a gateway session, just like gateway_connect."""
-        proc._handle_gateway_auth({"gateway_id": "GW_OK", "accepted": True, "reason": ""})
+        proc._handle_gateway_auth(
+            {"gateway_id": "GW_OK", "accepted": True, "reason": ""}
+        )
         conn = open_writer_connection(db_path)
         rows = query_sessions(conn, gateway="GW_OK")
         conn.close()
@@ -215,7 +221,9 @@ class TestSequenceGapDetection:
         assert proc._gap_count == 0
         assert proc._last_seq == 100
 
-    def test_consecutive_numeric_ids_produce_no_gap(self, proc: ClearingProcess) -> None:
+    def test_consecutive_numeric_ids_produce_no_gap(
+        self, proc: ClearingProcess
+    ) -> None:
         with proc._lock:
             for i in range(1, 11):
                 proc._check_sequence_gap(_make_trade(str(i)))
@@ -262,9 +270,7 @@ class _InprocPub:
         self._pub.bind(addr)
 
     def send(self, topic: str, payload: dict[str, Any]) -> None:
-        self._pub.send_multipart(
-            [topic.encode(), json.dumps(payload).encode()]
-        )
+        self._pub.send_multipart([topic.encode(), json.dumps(payload).encode()])
 
     def close(self) -> None:
         self._pub.close(linger=0)
@@ -290,8 +296,12 @@ class TestReceiveLoopTopicRouting:
         """system.gateway_connect message via PUB → ClearingProcess writes a session."""
         pub = _InprocPub(zmq_addr)
         p = ClearingProcess(
-            pub_addr=zmq_addr, db_path=db_path, flush_size=100,
-            flush_interval_sec=60.0, print_every=0, retention_days=3650,
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
         )
         t = self._start(p)
         time.sleep(0.2)
@@ -313,8 +323,12 @@ class TestReceiveLoopTopicRouting:
         """gateway_connect then gateway_disconnect closes the session."""
         pub = _InprocPub(zmq_addr)
         p = ClearingProcess(
-            pub_addr=zmq_addr, db_path=db_path, flush_size=100,
-            flush_interval_sec=60.0, print_every=0, retention_days=3650,
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
         )
         t = self._start(p)
         time.sleep(0.2)
@@ -337,8 +351,12 @@ class TestReceiveLoopTopicRouting:
         """system.eod message via PUB loop writes an EOD session_event."""
         pub = _InprocPub(zmq_addr)
         p = ClearingProcess(
-            pub_addr=zmq_addr, db_path=db_path, flush_size=100,
-            flush_interval_sec=60.0, print_every=0, retention_days=3650,
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
         )
         t = self._start(p)
         time.sleep(0.2)
@@ -360,8 +378,12 @@ class TestReceiveLoopTopicRouting:
         """session.state PHASE message is recorded via the receive loop."""
         pub = _InprocPub(zmq_addr)
         p = ClearingProcess(
-            pub_addr=zmq_addr, db_path=db_path, flush_size=100,
-            flush_interval_sec=60.0, print_every=0, retention_days=3650,
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
         )
         t = self._start(p)
         time.sleep(0.2)
@@ -385,14 +407,26 @@ class TestReceiveLoopTopicRouting:
         """system.gateway_auth.GW1 with accepted=True records a session."""
         pub = _InprocPub(zmq_addr)
         p = ClearingProcess(
-            pub_addr=zmq_addr, db_path=db_path, flush_size=100,
-            flush_interval_sec=60.0, print_every=0, retention_days=3650,
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
         )
         t = self._start(p)
         time.sleep(0.2)
 
         auth_topic = f"{PREFIX_GATEWAY_AUTH}AUTH_GW"
-        pub.send(auth_topic, {"gateway_id": "AUTH_GW", "accepted": True, "reason": "", "description": ""})
+        pub.send(
+            auth_topic,
+            {
+                "gateway_id": "AUTH_GW",
+                "accepted": True,
+                "reason": "",
+                "description": "",
+            },
+        )
         time.sleep(0.3)
 
         self._stop(p, t)
@@ -409,8 +443,12 @@ class TestReceiveLoopTopicRouting:
         """system.gateway_bye.GW1 closes an open session via the receive loop."""
         pub = _InprocPub(zmq_addr)
         p = ClearingProcess(
-            pub_addr=zmq_addr, db_path=db_path, flush_size=100,
-            flush_interval_sec=60.0, print_every=0, retention_days=3650,
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
         )
         t = self._start(p)
         time.sleep(0.2)
@@ -437,9 +475,7 @@ class TestReceiveLoopTopicRouting:
 
 
 class TestPrintPnlTable:
-    def test_print_does_not_raise_with_positions(
-        self, proc: ClearingProcess
-    ) -> None:
+    def test_print_does_not_raise_with_positions(self, proc: ClearingProcess) -> None:
         """_print_pnl_table must render cleanly when positions exist."""
         proc._ledger.apply_trade(
             symbol="AAPL",
@@ -469,8 +505,12 @@ class TestPrintPnlTable:
         """Setting print_every=1 means the table should be printed after each trade."""
         pub = _InprocPub(zmq_addr)
         p = ClearingProcess(
-            pub_addr=zmq_addr, db_path=db_path, flush_size=1,
-            flush_interval_sec=60.0, print_every=1, retention_days=3650,
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=1,
+            flush_interval_sec=60.0,
+            print_every=1,
+            retention_days=3650,
         )
         t = threading.Thread(target=p.run, daemon=True)
         t.start()
@@ -539,8 +579,12 @@ class TestWarmStartHydration:
         """A new ClearingProcess instance should restore positions from the DB."""
         pub = _InprocPub(zmq_addr)
         p1 = ClearingProcess(
-            pub_addr=zmq_addr, db_path=db_path, flush_size=1,
-            flush_interval_sec=60.0, print_every=0, retention_days=3650,
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=1,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
         )
         t = threading.Thread(target=p1.run, daemon=True)
         t.start()
@@ -556,8 +600,12 @@ class TestWarmStartHydration:
 
         # Second process: must restore GW_BUY/AAPL position from DB.
         p2 = ClearingProcess(
-            pub_addr=zmq_addr, db_path=db_path, flush_size=1,
-            flush_interval_sec=60.0, print_every=0, retention_days=3650,
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=1,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
         )
         pos = p2._ledger.position("GW_BUY", "AAPL")
         p2._conn.close()
