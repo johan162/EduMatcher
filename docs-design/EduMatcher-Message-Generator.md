@@ -4288,17 +4288,19 @@ optionals (`subscribe_ack.backfill_request_id`, `unsubscribe_ack.reason`) are
 omitted rather than sent blank. Every consumer reads these through `from_dict`,
 so none can tell.
 
-**The two not adopted.** `log.subscribe` and `log.backfill_request` carry a
-`LogFilter` and are checked-only. A guard from the literal-migration phase,
-`test_a_filter_rides_through_untouched`, asserts the client's raw filter dict
-rides through *un-coerced* — "adoption is constants only" — and routing these
-through the builder would canonicalise the filter (fill its defaults, drop
-`contains: null`, reorder) and, on a malformed filter, coerce it. The server
-re-canonicalises via `LogFilter.from_payload` regardless, so the change is inert
-for a well-formed client, but it overrides a documented decision on the one
-surface with no `src` caller (the client is the TypeScript log-gui; only tests
-build these in Python). That is a call to make with intent, not a mechanical
-sweep, so it is left for the next pass alongside the enumeration test.
+**The two filter-carriers, adopted.** `log.subscribe` and `log.backfill_request`
+were the last log messages left, held back by a literal-migration guard
+asserting the client's raw filter dict rides through *un-coerced* ("adoption is
+constants only"). That was a phase-5 deferral, not a permanent shape, and it is
+resolved the long-term way: the wrappers became thin adapters that forward every
+argument to the checked builder and let the spec's `omit_when_none` regime govern
+presence, rather than re-deciding it with `if x:` here. The filter is now
+validated and filled to the canonical `LogFilter` on the wire — which the
+server's `LogFilter.from_payload` already produced from the partial dict, so no
+consumer changes, while a malformed filter fails at construction instead of being
+silently mis-read. The optional defaults moved from `0`/sentinel to `None`, so
+"unset" is a single thing as the spec's `example_note` intends, and the guard was
+inverted to assert the canonicalisation it once forbade (§7.2).
 
 ### 31.6 Cluster C: `book`, three hot-path publishes, byte-identical
 
@@ -4329,15 +4331,53 @@ all — and were moved to full shapes at the validating boundary; the `depth`
 assertions that read `bids` now read `mid_price_ticks`, the field that is
 actually there.
 
-### 31.7 What remains
+### 31.7 Cluster D: two singletons adopt, two are pass-throughs by design
 
-Seven unadopted: `order.new` (§31.4) and `order.execution_report` (the BALF
-frame of §31.2, a candidate to be struck from the count rather than adopted);
-`log.subscribe` and `log.backfill_request` (§31.5); and cluster D —
-`index.index_history`, `quote.quote_new`, `session.session_transition`. The
-enumeration test §7.3 of the handover asks for is still deferred until the
-residue is empty or the excluded frames alone; pinning a partial count would
-read as a target rather than a checkpoint.
+The four §5.1 singletons split two and two.
+
+**Adopted.** `session.session_transition` and `quote.quote_new` route through
+their checked builders, byte-identical. `session_transition`'s wrapper builds
+the payload from explicit arguments — every caller (pm-scheduler, the api
+gateway, the commands client) passes them, none an open dict — and the two
+both-or-neither records (`next`, `reply_to`) reproduce across all four presence
+combinations. `quote_new` was documented as "a pass-through of an arbitrary
+dict, like `order.new`," but the two are not alike after all: its four
+producers — `mm_bot`, both consoles and the api gateway — each build the eight
+declared fields in ticks, none of them an ai_trader shipping display money and
+undeclared tags (§31.4). So it validates cleanly where `order.new` would raise,
+and the docstring's framing was updated to say so. `quote_id` is optional and
+omitted when empty, which the builder matches.
+
+`quote_new` broke the same api-gateway stub-sender tests as combo and OCO did —
+`send_quote({})` reaches the validating builder now — fixed with the same
+`_quote_payload()` helper; the `test_messages` quote case moved to a full shape.
+
+**Not adopted, by design.** `index.index_history` says so in its own docstring:
+it replays records verbatim from an append-only JSONL archive, so routing them
+through the generated `HistoryRecord` would coerce and validate every one, and
+a single legacy row missing a now-required field would raise in a handler with
+no exception guard and take pm-index down *while serving history*. It is
+checked-only (a record rides), and it names itself the same call as `log`'s
+filter and `order.new`. `order.execution_report` is the BALF binary frame of
+§31.2. Both stay pass-throughs on purpose.
+
+### 31.8 What remains, and the shape of the end
+
+Three unadopted, and two of them are settled exclusions:
+
+* `order.execution_report` — the BALF frame; adopt nothing, strike it from the
+  count (§31.2).
+* `index.index_history` — a deliberate pass-through over a legacy archive
+  (§31.7).
+
+The third, `order.new`, is the only message that *should* adopt and cannot yet,
+because one of its producers — ai_trader — does not build a valid order (§31.4).
+
+That is the shape the enumeration test §7.3 of the handover should freeze: not
+empty, but exactly this residue — two documented exclusions and `order.new`.
+Writing it now would pin `order.new` as if its exclusion were intended, which it
+is not; it waits only on the ai_trader fix, after which the set it asserts is the
+phase's actual end.
 
 ## Appendix A — Phase 1 implementation starter
 

@@ -654,7 +654,17 @@ class TestOcoMessages:
 class TestMMQuoteAndRiskMessages:
     def test_make_quote_new_msg(self) -> None:
         topic, payload = _rt(
-            make_quote_new_msg({"gateway_id": "GW01", "symbol": "AAPL"})
+            make_quote_new_msg(
+                {
+                    "gateway_id": "GW01",
+                    "symbol": "AAPL",
+                    "bid_price": 100,
+                    "bid_qty": 10,
+                    "ask_price": 101,
+                    "ask_qty": 10,
+                    "tif": "DAY",
+                }
+            )
         )
         assert topic == "quote.new"
         assert payload["symbol"] == "AAPL"

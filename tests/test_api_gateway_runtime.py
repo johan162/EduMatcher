@@ -91,6 +91,19 @@ def _oco_payload() -> dict[str, Any]:
     }
 
 
+def _quote_payload() -> dict[str, Any]:
+    """A valid ``quote.new`` submission in ticks."""
+    return {
+        "gateway_id": "GW01",
+        "symbol": "AAPL",
+        "bid_price": 100,
+        "bid_qty": 10,
+        "ask_price": 101,
+        "ask_qty": 10,
+        "tif": "DAY",
+    }
+
+
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
@@ -134,7 +147,7 @@ async def test_engine_client_auth_send_and_event_flow(
     client.send_combo_cancel("C1", "GW01")
     client.send_oco(_oco_payload())
     client.send_oco_cancel("O1", "GW01")
-    client.send_quote({"quote_id": "Q1"})
+    client.send_quote(_quote_payload())
     client.send_quote_cancel("GW01", "AAPL")
     client.send_mass_cancel("GW01", "AAPL")
     client.request_orders("GW01")

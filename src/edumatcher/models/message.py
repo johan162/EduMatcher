@@ -695,7 +695,7 @@ def make_session_transition_msg(
         payload["next"] = {"state": next_state, "at": next_at}
     if command_id and gateway_id:
         payload["reply_to"] = {"command_id": command_id, "gateway_id": gateway_id}
-    return encode(_gen_session.TOPIC_SESSION_TRANSITION, payload)
+    return _gen_session.make_session_transition(**payload)
 
 
 def make_session_transition_ack_msg(
@@ -869,11 +869,12 @@ def make_quote_new_msg(payload: dict[str, Any]) -> list[bytes]:
 
     Prices are **integer ticks**; the submitting gateway converts. They were
     display money until 6.1b, which is the one path design section 15.2 missed
-    when it made ticks the sole engine-inbound unit — see section 25.2. A
-    pass-through of an arbitrary dict, like ``order.new``: the spec states the
-    contract and the engine's handler remains the thing that enforces it.
+    when it made ticks the sole engine-inbound unit — see section 25.2. Every
+    producer builds it from the declared fields in ticks, so unlike
+    ``order.new`` it routes through the validating builder, not an open
+    ``encode``.
     """
-    return encode(_gen_quote.TOPIC_QUOTE_NEW, payload)
+    return _gen_quote.make_quote_new(**payload)
 
 
 def make_quote_cancel_msg(gateway_id: str, symbol: str) -> list[bytes]:
@@ -1566,21 +1567,25 @@ def make_log_subscribe_msg(
     sub_id: str,
     mode: str = "STREAM",
     log_filter: dict[str, Any] | None = None,
-    backfill_minutes: int = 0,
+    backfill_minutes: int | None = None,
     lease_sec: int | None = None,
     notify_interval_ms: int | None = None,
 ) -> list[bytes]:
-    """Subscriber → pm-log-srv: open or replace a leased subscription."""
-    payload: dict[str, Any] = {"sub_id": sub_id, "mode": mode}
-    if log_filter:
-        payload["filter"] = log_filter
-    if backfill_minutes:
-        payload["backfill_minutes"] = backfill_minutes
-    if lease_sec is not None:
-        payload["lease_sec"] = lease_sec
-    if notify_interval_ms is not None:
-        payload["notify_interval_ms"] = notify_interval_ms
-    return encode(_gen_log.TOPIC_LOG_SUBSCRIBE, payload)
+    """Subscriber → pm-log-srv: open or replace a leased subscription.
+
+    Every optional field is ``omit_when_none`` in the spec, so the builder
+    drops whatever the caller left unset rather than the wrapper deciding it
+    here; the filter is validated and filled to the canonical ``LogFilter``
+    shape the server reads, not passed through raw.
+    """
+    return _gen_log.make_log_subscribe(
+        sub_id=sub_id,
+        mode=mode,
+        filter=log_filter,
+        backfill_minutes=backfill_minutes,
+        lease_sec=lease_sec,
+        notify_interval_ms=notify_interval_ms,
+    )
 
 
 def make_log_renew_msg(sub_id: str) -> list[bytes]:
@@ -1600,12 +1605,12 @@ def make_log_backfill_request_msg(
     max_rows: int | None = None,
 ) -> list[bytes]:
     """Subscriber → pm-log-srv: replay the last ``minutes`` of history."""
-    payload: dict[str, Any] = {"sub_id": sub_id, "minutes": minutes}
-    if log_filter is not None:
-        payload["filter"] = log_filter
-    if max_rows is not None:
-        payload["max_rows"] = max_rows
-    return encode(_gen_log.TOPIC_LOG_BACKFILL_REQUEST, payload)
+    return _gen_log.make_log_backfill_request(
+        sub_id=sub_id,
+        minutes=minutes,
+        filter=log_filter,
+        max_rows=max_rows,
+    )
 
 
 def make_log_status_request_msg(sub_id: str) -> list[bytes]:

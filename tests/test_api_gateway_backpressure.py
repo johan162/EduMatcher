@@ -113,6 +113,19 @@ def _oco_payload() -> dict[str, Any]:
     }
 
 
+def _quote_payload() -> dict[str, Any]:
+    """A valid ``quote.new`` submission in ticks."""
+    return {
+        "gateway_id": "GW01",
+        "symbol": "AAPL",
+        "bid_price": 100,
+        "bid_qty": 10,
+        "ask_price": 101,
+        "ask_qty": 10,
+        "tif": "DAY",
+    }
+
+
 @pytest.mark.parametrize(
     "raised",
     [
@@ -152,7 +165,7 @@ def test_every_sender_is_guarded(client: EngineClient) -> None:
         lambda: client.send_combo_cancel("C1", "GW01"),
         lambda: client.send_oco(_oco_payload()),
         lambda: client.send_oco_cancel("O1", "GW01"),
-        lambda: client.send_quote({}),
+        lambda: client.send_quote(_quote_payload()),
         lambda: client.send_quote_cancel("GW01", "AAPL"),
         lambda: client.send_mass_cancel("GW01"),
         lambda: client.send_session_transition("CONTINUOUS"),

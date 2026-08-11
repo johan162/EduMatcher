@@ -203,12 +203,21 @@ class TestTheControlMessages:
         _topic, payload = M.decode(M.make_log_subscribe_msg("S1"))
         assert payload == {"sub_id": "S1", "mode": "STREAM"}
 
-    def test_a_filter_rides_through_untouched(self) -> None:
-        """Adoption is constants only; the raw dict is not coerced."""
+    def test_the_filter_is_canonicalised(self) -> None:
+        """6.3 completed the adoption (design section 31.5): the client builder
+        now validates and fills the filter to the canonical ``LogFilter`` shape
+        the server reads, rather than passing the caller's partial dict raw.
+        """
         _topic, payload = M.decode(
-            M.make_log_subscribe_msg("S1", log_filter={"processes": "engine"})
+            M.make_log_subscribe_msg("S1", log_filter={"min_level": "INFO"})
         )
-        assert payload["filter"] == {"processes": "engine"}
+        assert payload["filter"] == {
+            "processes": [],
+            "loggers": [],
+            "sessions": [],
+            "exceptions_only": False,
+            "min_level": "INFO",
+        }
 
     def test_backfill_minutes_must_be_positive(self) -> None:
         with pytest.raises(MessageValidationError, match="minutes"):
