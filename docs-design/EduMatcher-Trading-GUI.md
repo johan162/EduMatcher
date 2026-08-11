@@ -1,4 +1,4 @@
-Version: 1.11.1
+Version: 1.11.2
 
 Date: 2026-08-11
 
@@ -9,6 +9,11 @@ Status: Design and Research Proposal
 
 > **Revision History**
 >
+> - **1.11.2 (2026-08-11)** — Aligned the session-transition response with the code and the REST API
+>   reference: `POST /api/v1/admin/session/transition` returns **`202`/`APPLIED`** on success (not
+>   `200`/`ACCEPTED`), or `409`/`TRANSITION_REJECTED`. Updated
+>   [§6.3](#63-session-control-available-now), [§6.11](#611-capability-summary-table),
+>   [§15.4](#154-session-control), and [§26.3.7](#2637-uniform-command-acknowledgements).
 > - **1.11.1 (2026-08-11)** — Backend confirmation for the ADMIN halts table. `GET /api/v1/admin/halts`
 >   returns the engine `system.halt_status` reply verbatim (`HaltStatus` → `HaltedSymbol[]`): key
 >   `halted`, each entry `{ symbol, resume_at_ns?, level?(string), halt_source? }` — **no**
@@ -80,7 +85,7 @@ Status: Design and Research Proposal
 >   cascading `command_id` onto every triggered event and blanket adoption across all async endpoints
 >   were evaluated and declined. Fixed a real bug along the way — `POST /api/v1/admin/session/transition`
 >   used to answer `202`/`PENDING` even when the handler silently dropped the request (sessions
->   disabled or unknown state); it now answers `200`/`ACCEPTED` or `409`/`TRANSITION_REJECTED` with a
+>   disabled or unknown state); it now answers `202`/`APPLIED` or `409`/`TRANSITION_REJECTED` with a
 >   reason. Updated [§6.3](#63-session-control), [§6.11](#611-capability-summary-table),
 >   [§15.4](#154-session-control), [§26.2](#262-highest-impact-changes),
 >   [§26.3.7](#2637-uniform-command-acknowledgements), and [§26.5](#265-suggested-implementation-order)
@@ -638,10 +643,10 @@ Purpose: drive the engine through its session phases (the same capability the sc
 { "to_state": "CONTINUOUS" }   // PRE_OPEN | OPENING_AUCTION | CONTINUOUS | CLOSING_AUCTION | CLOSED
 ```
 
-**Response `200 OK` (transition accepted):**
+**Response `202 Accepted` (transition accepted):**
 
 ```jsonc
-{ "command_id": "cmd-01J4...", "requested_state": "CONTINUOUS", "status": "ACCEPTED" }
+{ "command_id": "cmd-01J4...", "requested_state": "CONTINUOUS", "status": "APPLIED" }
 ```
 
 **Response `409 Conflict` (transition rejected):**
@@ -656,8 +661,8 @@ This closed a real bug found during implementation: the handler previously **ret
 published nothing** when sessions were disabled or the requested state was unknown, yet the endpoint
 still answered `202 Accepted` / `PENDING` regardless — so a caller's only signal was a timeout
 indistinguishable from a slow engine. All three paths (success, sessions-disabled, unknown-state) now
-produce an acknowledgement, so the REST response is authoritative (`200`/`ACCEPTED` or
-`409`/`TRANSITION_REJECTED` with the engine's reason) instead of a blind `202`. The UI should still
+produce an acknowledgement, so the REST response is authoritative (`202`/`APPLIED` or
+`409`/`TRANSITION_REJECTED` with the engine's reason) rather than the earlier blind `202`/`PENDING`. The UI should still
 observe the subsequent `session.state` broadcast on `/market-data` to reflect the resulting phase
 across the app, but no longer needs it just to learn whether the request was accepted.
 
@@ -974,7 +979,7 @@ authoritative engine feed, not a client-side approximation.
 | Capability | Current status | Notes |
 |---|---|---|
 | `GET /api/v1/status` → `gateway_role`, admin `gateway_count` | Available now | Use for role-aware routing and ADMIN KPI bootstrap |
-| `POST /api/v1/admin/session/transition` | Available now | REST response is authoritative: `200`/`ACCEPTED` with `command_id`, or `409`/`TRANSITION_REJECTED` with reason; still observe `session.state` for the resulting phase |
+| `POST /api/v1/admin/session/transition` | Available now | REST response is authoritative: `202`/`APPLIED` with `command_id`, or `409`/`TRANSITION_REJECTED` with reason; still observe `session.state` for the resulting phase |
 | `POST /api/v1/admin/circuit-breaker/trigger` / `/resume` | Available, but symbol-level | Treat as manual symbol halt / resume until `level` is semantically honoured |
 | `GET /api/v1/admin/gateways` | Available now | Supports Gateway Management screen |
 | `POST /api/v1/admin/gateways/{id}/disconnect` | Available now | “Kick” action already implementable |
@@ -2163,7 +2168,7 @@ const VALID_TRANSITIONS: Record<SessionState, SessionState[]> = {
 
 Each enabled button shows a confirmation dialog before calling
 `POST /api/v1/admin/session/transition` with `{ to_state }` ([§6.3](#63-session-control)). The REST
-response is now authoritative: `200`/`ACCEPTED` confirms the transition immediately, and
+response is now authoritative: `202`/`APPLIED` confirms the transition immediately, and
 `409`/`TRANSITION_REJECTED` surfaces the engine's reason (e.g. sessions disabled,
 invalid-from-current-phase) directly in the error toast — no more inferring success from a
 `session.state` broadcast or timing out. The UI still watches `session.state` on `/market-data` to
@@ -3612,7 +3617,7 @@ correlator, echoed on their acks:
   turned out to be a real bug, not just a missing correlator — the handler returned early and
   published nothing when sessions were disabled or the state was unknown, so the endpoint answered
   `202`/`PENDING` regardless and a caller's only signal was an indistinguishable timeout. It now
-  answers `200`/`ACCEPTED` with a `command_id`, or `409`/`TRANSITION_REJECTED` with the engine's
+  answers `202`/`APPLIED` with a `command_id`, or `409`/`TRANSITION_REJECTED` with the engine's
   reason, on all three paths.
 
 **Deliberately declined:**

@@ -253,7 +253,7 @@ Full request:
   "quantity": 100,
   "price": 187.25,
   "tif": "DAY",
-  "smp_action": "CANCEL_NEW",
+  "smp_action": "CANCEL_AGGRESSOR",
   "client_order_id": "desk1-aapl-00042"
 }
 ```
@@ -289,7 +289,7 @@ Minimal response:
 
 ```json
 {
-  "symbols": {},
+  "symbols": [],
   "risk": {},
   "indexes": [],
   "schedule": {},
@@ -301,12 +301,13 @@ Full response:
 
 ```json
 {
-  "symbols": {
-    "AAPL": {
+  "symbols": [
+    {
+      "symbol": "AAPL",
       "tick_decimals": 2,
-      "lot_size": 1
+      "level": "L1"
     }
-  },
+  ],
   "risk": {
     "default_level": "L1",
     "levels": {
@@ -366,7 +367,7 @@ Minimal request:
 
 ```json
 {
-  "to_state": "OPEN"
+  "to_state": "CONTINUOUS"
 }
 ```
 
@@ -374,7 +375,7 @@ Full request:
 
 ```json
 {
-  "to_state": "OPEN"
+  "to_state": "CONTINUOUS"
 }
 ```
 
@@ -382,7 +383,7 @@ Minimal response:
 
 ```json
 {
-  "requested_state": "OPEN",
+  "requested_state": "CONTINUOUS",
   "status": "APPLIED",
   "command_id": "c_01K17P..."
 }
@@ -392,7 +393,7 @@ Full response:
 
 ```json
 {
-  "requested_state": "OPEN",
+  "requested_state": "CONTINUOUS",
   "status": "APPLIED",
   "command_id": "c_01K17P9B7C6W9X0Y8Z7"
 }
@@ -1015,7 +1016,7 @@ Purpose: return per-symbol tick and risk metadata.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "symbols": {...}, "config_version": "..." }` | Symbol metadata keyed by symbol |
+| `200 OK` | `{ "symbols": [...], "config_version": "..." }` | One object per symbol (each carries its own `symbol`) |
 
 **Errors**
 
@@ -1569,7 +1570,7 @@ Purpose: return the current active halts table.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "halts": [...] }` | Active halts for the venue |
+| `200 OK` | `{ "halted": [...] }` | Currently-halted symbols; each `{ symbol, resume_at_ns?, level?, halt_source? }` |
 
 **Errors**
 
@@ -1593,7 +1594,7 @@ Purpose: return live per-symbol risk state.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "symbols": {...} }` | Current collar and circuit-breaker state |
+| `200 OK` | `{ "symbols": [...] }` | Current collar and circuit-breaker state (one object per symbol) |
 
 **Errors**
 
