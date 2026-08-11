@@ -1583,16 +1583,12 @@ def make_log_subscribe_msg(
 
 def make_log_renew_msg(sub_id: str) -> list[bytes]:
     """Subscriber → pm-log-srv: lease keepalive; the liveness signal."""
-    return encode(
-        _gen_log.TOPIC_LOG_RENEW, {"sub_id": sub_id, "timestamp": time.time()}
-    )
+    return _gen_log.make_log_renew(sub_id=sub_id, timestamp=time.time())
 
 
 def make_log_unsubscribe_msg(sub_id: str) -> list[bytes]:
     """Subscriber → pm-log-srv: close a subscription immediately."""
-    return encode(
-        _gen_log.TOPIC_LOG_UNSUBSCRIBE, {"sub_id": sub_id, "timestamp": time.time()}
-    )
+    return _gen_log.make_log_unsubscribe(sub_id=sub_id, timestamp=time.time())
 
 
 def make_log_backfill_request_msg(
@@ -1612,6 +1608,4 @@ def make_log_backfill_request_msg(
 
 def make_log_status_request_msg(sub_id: str) -> list[bytes]:
     """Subscriber → pm-log-srv: request subscription/server diagnostics."""
-    return encode(
-        _gen_log.TOPIC_LOG_STATUS_REQUEST, {"sub_id": sub_id, "timestamp": time.time()}
-    )
+    return _gen_log.make_log_status_request(sub_id=sub_id, timestamp=time.time())

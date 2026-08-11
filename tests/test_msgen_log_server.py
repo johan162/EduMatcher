@@ -236,8 +236,8 @@ class TestTheRowShapeIsSharedByBothPaths:
     def _row(self) -> dict[str, Any]:
         return {
             "seq": 7,
-            "client_ts": 1700000000.0,
-            "server_ts": 1700000000.5,
+            "client_ts": "2026-07-29T10:00:00.000Z",
+            "server_ts": "2026-07-29T10:00:00.500Z",
             "process": "engine",
             "instance": "i1",
             "pid": 42,
@@ -320,7 +320,10 @@ class TestTheTopicsAreAllDeclared:
             Path(__file__).resolve().parents[1] / "src/edumatcher/log_srv/pubsub.py"
         ).read_text(encoding="utf-8")
         assert 'f"log.' not in source
-        assert "topic_log_subscribe_ack(sub_id)" in source
+        # Phase 6.3 adopted the server-side sends: the acks/events/state now
+        # build through the generated make_log_* builders, which own the topic,
+        # in place of the topic_log_* helpers they replaced.
+        assert "make_log_subscribe_ack(" in source
 
     def test_the_family_declares_every_lalf_ps_topic(self) -> None:
         """Five inbound control messages plus ten outbound."""

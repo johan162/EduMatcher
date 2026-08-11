@@ -1315,8 +1315,8 @@ One persisted log line, exactly the columns log_events stores. Carried by both l
 | Field | Type | Presence | Rules | Description |
 |---|---|---|---|---|
 | `seq` | `int` | required | unit `dimensionless` | Monotonic server sequence; the cursor for backfill. |
-| `client_ts` | `float` | required | unit `epoch_seconds` |  |
-| `server_ts` | `float` | required | unit `epoch_seconds` |  |
+| `client_ts` | `string` | required | — | Producer wall-clock, ISO-8601 (e.g. 2026-07-29T10:00:00.000Z). |
+| `server_ts` | `string` | required | — | Server receive time, ISO-8601; the log_events columns are TEXT. |
 | `process` | `string` | required | max_len 64 |  |
 | `instance` | `string` | required | max_len 64 |  |
 | `pid` | `int` | required | unit `dimensionless` |  |

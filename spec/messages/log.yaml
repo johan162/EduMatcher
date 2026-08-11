@@ -67,8 +67,10 @@ types:
     fields:
       - { name: seq, type: int, unit: dimensionless,
           doc: "Monotonic server sequence; the cursor for backfill." }
-      - { name: client_ts, type: float, unit: epoch_seconds }
-      - { name: server_ts, type: float, unit: epoch_seconds }
+      - { name: client_ts, type: string,
+          doc: "Producer wall-clock, ISO-8601 (e.g. 2026-07-29T10:00:00.000Z)." }
+      - { name: server_ts, type: string,
+          doc: "Server receive time, ISO-8601; the log_events columns are TEXT." }
       - { name: process, type: string, validate: { max_len: 64 } }
       - { name: instance, type: string, validate: { max_len: 64 } }
       - { name: pid, type: int, unit: dimensionless }

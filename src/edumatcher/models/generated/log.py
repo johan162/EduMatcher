@@ -144,8 +144,8 @@ class LogRow:
     """
 
     seq: int  # unit: dimensionless
-    client_ts: float  # unit: epoch_seconds
-    server_ts: float  # unit: epoch_seconds
+    client_ts: str
+    server_ts: str
     process: str
     instance: str
     pid: int  # unit: dimensionless
@@ -205,8 +205,8 @@ class LogRow:
         """
         return cls(
             seq=int(p["seq"]),
-            client_ts=float(p["client_ts"]),
-            server_ts=float(p["server_ts"]),
+            client_ts=str(p["client_ts"]),
+            server_ts=str(p["server_ts"]),
             process=str(p["process"]),
             instance=str(p["instance"]),
             pid=int(p["pid"]),

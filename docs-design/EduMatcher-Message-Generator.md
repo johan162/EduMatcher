@@ -4244,14 +4244,71 @@ dead tags), and its correct shape depends on the bot's market-data units, which
 is a change to a shipped process rather than a builder swap. `order.new` waits
 on that; it is a follow-up, not part of cluster B.
 
-### 31.5 What remains
+### 31.5 Cluster A: the log family, thirteen of fifteen, and the spec that disagreed with the wire
 
-Twenty-three unadopted after cluster B: `order.new` and `order.execution_report`
-in the `order` family (the latter the BALF frame of §31.2, a candidate to be
-struck from the count rather than adopted), plus clusters A, C and D untouched.
-The enumeration test §7.3 of the handover asks for is deferred until the residue
-is empty or the BALF frame alone; pinning 23 as an expectation would read as a
-target rather than a checkpoint.
+`pm-log-srv`'s fifteen log messages split as §5.1 of the handover had them: ten
+sent server-side through one generic `_publish(topic, payload)`, five built
+client-side in `models/message.py`. Thirteen are adopted this pass.
+
+**The ten server-side.** `_publish` was kept as the transport but narrowed to
+take pre-built frames rather than a topic and an untyped dict; each of its
+eleven call sites (the two `server_state` sends share a type) now builds through
+the generated checked builder, so the dict literal became keyword arguments and
+`_publish` never sees an untyped payload again. That is the second of §5.3's two
+options, chosen after reading the sites: ten typed methods would have duplicated
+the ten builders the generator already emits. The record-carrying sends
+(`log.event`, `log.backfill`) have no `_unchecked` variant — the generator
+withholds it where a record rides — so §5.3's hazard, a validating builder
+raising before the send and dropping a row on the feed whose purpose is being
+the record, had to be ruled out rather than avoided: `LogRow.message` carries no
+`max_len`, so no legitimate line can fail validation, and a 100 000-character
+message was confirmed to pass.
+
+**The spec disagreed with the wire.** Adopting `log.event` raised
+`ValueError: could not convert string to float` on the first real row.
+`LogRow.client_ts`/`server_ts` were specified `float, epoch_seconds`, but the
+entire stack has always carried them as ISO-8601 strings: `log_events` stores
+them `TEXT`, `WriterThread`'s row is `str`, `server.py` writes `iso_utc(...)`,
+and every `log_cli` query parses strings. The spec was wrong — written once and
+never checked against a real row, because nothing had ever routed one through
+the generated `LogRow`. The fix is the record's, not the producer's: both
+fields are now `type: string`. Only one test carried the float
+(`test_msgen_log_server.py`'s row fixture, written to match the spec it was
+testing); it now carries an ISO string, as the pubsub harness always did. This
+is §7.4's guarantee again — every phase's holistic pass finds one real bug, and
+this was cluster A's.
+
+**Two deliberate wire changes, recorded.** The `DOWN` `server_state` sent on
+`stop()` omitted five fields the periodic `UP` sends (`pub_addr`, `pull_addr`,
+`active_backfills`, `inbox_dropped`, `default_lease_sec`); the checked builder
+requires them, and `stop()` has them all, so `DOWN` now carries the same
+diagnostics as `UP`. And the builders emit the spec's canonical form where the
+hand-written dicts had drifted from it: `lease_sec` is a float, and empty-string
+optionals (`subscribe_ack.backfill_request_id`, `unsubscribe_ack.reason`) are
+omitted rather than sent blank. Every consumer reads these through `from_dict`,
+so none can tell.
+
+**The two not adopted.** `log.subscribe` and `log.backfill_request` carry a
+`LogFilter` and are checked-only. A guard from the literal-migration phase,
+`test_a_filter_rides_through_untouched`, asserts the client's raw filter dict
+rides through *un-coerced* — "adoption is constants only" — and routing these
+through the builder would canonicalise the filter (fill its defaults, drop
+`contains: null`, reorder) and, on a malformed filter, coerce it. The server
+re-canonicalises via `LogFilter.from_payload` regardless, so the change is inert
+for a well-formed client, but it overrides a documented decision on the one
+surface with no `src` caller (the client is the TypeScript log-gui; only tests
+build these in Python). That is a call to make with intent, not a mechanical
+sweep, so it is left for the next pass alongside the enumeration test.
+
+### 31.6 What remains
+
+Ten unadopted: `order.new` (§31.4) and `order.execution_report` (the BALF frame
+of §31.2, a candidate to be struck from the count rather than adopted);
+`log.subscribe` and `log.backfill_request` (§31.5); and clusters C (`book`, 3)
+and D (the three remaining singletons). The enumeration test §7.3 of the
+handover asks for is still deferred until the residue is empty or the excluded
+frames alone; pinning a partial count would read as a target rather than a
+checkpoint.
 
 ## Appendix A — Phase 1 implementation starter
 
