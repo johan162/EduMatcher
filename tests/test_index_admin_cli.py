@@ -487,6 +487,7 @@ class TestCmdShares:
                             "type": "CORP_ACTION",
                             "timestamp": 100.0,
                             "index_id": "TECH10",
+                            "level": 8401.09,
                             "symbol": "AAPL",
                             "action": "SHARES_ISSUANCE",
                             "detail": "shares=16000000000",
@@ -563,6 +564,7 @@ class TestCmdShares:
                             "type": "ADD_CONSTITUENT",
                             "timestamp": 50.0,
                             "index_id": "TECH10",
+                            "level": 100.0,
                             "symbol": "AAPL",
                             "reference_price": 118.5,
                         }
@@ -599,6 +601,7 @@ class TestCmdShares:
                             "type": "ADD_CONSTITUENT",
                             "timestamp": 50.0,
                             "index_id": "TECH10",
+                            "level": 100.0,
                             "symbol": "AAPL",
                             "shares_outstanding": 1000,
                             "reference_price": 118.5,
@@ -744,7 +747,7 @@ class TestCmdHistory:
                     records=[
                         {
                             "type": "CORP_ACTION",
-                            "timestamp": "2026-07-19T09:15:02Z",
+                            "timestamp": 1721380502.0,
                             "index_id": "TECH10",
                             "symbol": "AAPL",
                             "action": "SPLIT",
@@ -781,7 +784,14 @@ class TestCmdHistory:
                 make_index_history_msg(
                     gateway_id="OPS01",
                     index_id="TECH10",
-                    records=[{"type": "INIT", "timestamp": 1.0, "index_id": "TECH10"}],
+                    records=[
+                        {
+                            "type": "INIT",
+                            "timestamp": 1.0,
+                            "index_id": "TECH10",
+                            "level": 1000.0,
+                        }
+                    ],
                 )
             )
         )
@@ -843,7 +853,12 @@ class TestCmdHistory:
 
     def test_limit_truncates_records(self, capsys: pytest.CaptureFixture[str]) -> None:
         records = [
-            {"type": "INIT", "timestamp": float(i), "index_id": "TECH10"}
+            {
+                "type": "INIT",
+                "timestamp": float(i),
+                "index_id": "TECH10",
+                "level": 1000.0,
+            }
             for i in range(5)
         ]
         client, _push = _client(

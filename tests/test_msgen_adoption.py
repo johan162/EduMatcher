@@ -23,21 +23,19 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SPEC_ROOT = REPO_ROOT / "spec"
 SRC = REPO_ROOT / "src" / "edumatcher"
 
-#: The two messages deliberately built without their generated builder. Both
-#: are documented exclusions (design section 31.8), not omissions:
+#: The one message deliberately built without a generated ``make_*`` builder.
+#: It is a documented exclusion (design section 9), not an omission:
 #:
 #:   * ``order.execution_report`` — the BALF binary frame. It has no bus topic
 #:     and makes no ``make_*`` call; its layout already comes from the spec via
-#:     the generated C/Python projections (``test_msgen_balf_roundtrip.py``).
-#:   * ``index.index_history`` — replays records verbatim from an append-only
-#:     JSONL archive. Routing them through the generated ``HistoryRecord`` would
-#:     validate every one, so a single legacy row missing a now-required field
-#:     would raise in a handler with no guard and take pm-index down while
-#:     serving history.
+#:     the generated C/Python projections (``test_msgen_balf_roundtrip.py``), so
+#:     it is generated where it counts, just not as a JSON builder call.
 #:
-#: Anything else unadopted is a regression. To adopt one of these, delete it
-#: here in the same change that routes it through its builder.
-ADOPTION_EXCLUSIONS = frozenset({"execution_report", "index_history"})
+#: ``index.index_history`` was the second exclusion until its archive was made
+#: canonical by validating on write, letting the reply adopt the checked builder
+#: (design section 9). Anything else unadopted is a regression. To adopt this
+#: one, delete it here in the same change that routes it through its builder.
+ADOPTION_EXCLUSIONS = frozenset({"execution_report"})
 
 
 def _builder_calls() -> set[str]:

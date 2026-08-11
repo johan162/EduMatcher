@@ -26,8 +26,17 @@ def test_structural_record_types_are_exactly_the_audit_events() -> None:
 def test_append_and_query(tmp_path: Path) -> None:
     path = tmp_path / "index_history.jsonl"
     history = IndexHistory(str(path))
-    history.append({"type": "INIT", "timestamp": 1000.0, "level": 1000.0})
-    history.append({"type": "CORP_ACTION", "timestamp": 2000.0, "level": 1020.0})
+    history.append(
+        {"type": "INIT", "timestamp": 1000.0, "index_id": "IDX", "level": 1000.0}
+    )
+    history.append(
+        {
+            "type": "CORP_ACTION",
+            "timestamp": 2000.0,
+            "index_id": "IDX",
+            "level": 1020.0,
+        }
+    )
     history.flush()
 
     rows, warnings = history.query(0.0, 3000.0, {"INIT", "CORP_ACTION"})
@@ -39,8 +48,17 @@ def test_append_and_query(tmp_path: Path) -> None:
 def test_query_type_filter(tmp_path: Path) -> None:
     path = tmp_path / "index_history.jsonl"
     history = IndexHistory(str(path))
-    history.append({"type": "INIT", "timestamp": 1000.0, "level": 1000.0})
-    history.append({"type": "CORP_ACTION", "timestamp": 2000.0, "level": 1020.0})
+    history.append(
+        {"type": "INIT", "timestamp": 1000.0, "index_id": "IDX", "level": 1000.0}
+    )
+    history.append(
+        {
+            "type": "CORP_ACTION",
+            "timestamp": 2000.0,
+            "index_id": "IDX",
+            "level": 1020.0,
+        }
+    )
     history.flush()
 
     rows, _ = history.query(0.0, 3000.0, {"CORP_ACTION"})
@@ -51,7 +69,9 @@ def test_query_type_filter(tmp_path: Path) -> None:
 def test_query_ignores_malformed_lines(tmp_path: Path) -> None:
     path = tmp_path / "index_history.jsonl"
     path.write_text(
-        'not-json\n{"type":"CORP_ACTION","timestamp":5.0}\n', encoding="utf-8"
+        "not-json\n"
+        '{"type":"CORP_ACTION","timestamp":5.0,"index_id":"IDX","level":1.0}\n',
+        encoding="utf-8",
     )
     history = IndexHistory(str(path))
 
@@ -68,8 +88,12 @@ def test_query_invalid_time_window_rejected(tmp_path: Path) -> None:
 
 def test_query_max_records_limit(tmp_path: Path) -> None:
     history = IndexHistory(str(tmp_path / "x.jsonl"))
-    history.append({"type": "CORP_ACTION", "timestamp": 1.0})
-    history.append({"type": "CORP_ACTION", "timestamp": 2.0})
+    history.append(
+        {"type": "CORP_ACTION", "timestamp": 1.0, "index_id": "IDX", "level": 1.0}
+    )
+    history.append(
+        {"type": "CORP_ACTION", "timestamp": 2.0, "index_id": "IDX", "level": 2.0}
+    )
     history.flush()
 
     rows, _ = history.query(0.0, 5.0, {"CORP_ACTION"}, max_records=1)

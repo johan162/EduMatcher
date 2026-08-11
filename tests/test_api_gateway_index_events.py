@@ -97,7 +97,14 @@ async def test_index_client_resolves_on_history_reply(
             make_index_history_msg(
                 payload["gateway_id"],
                 payload["index_id"],
-                [{"type": "INIT", "timestamp": 1.0, "index_id": payload["index_id"]}],
+                [
+                    {
+                        "type": "INIT",
+                        "timestamp": 1.0,
+                        "index_id": payload["index_id"],
+                        "level": 1000.0,
+                    }
+                ],
             )
         )
 
@@ -118,7 +125,7 @@ async def test_index_client_resolves_on_history_reply(
     pool.shutdown(wait=False)
 
     assert reply["records"] == [
-        {"type": "INIT", "timestamp": 1.0, "index_id": "EDU100"}
+        {"type": "INIT", "timestamp": 1.0, "index_id": "EDU100", "level": 1000.0}
     ]
 
 

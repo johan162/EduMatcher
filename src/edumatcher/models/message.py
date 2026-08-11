@@ -1375,19 +1375,17 @@ def make_index_history_msg(
 ) -> list[bytes]:
     """pm-index → requestor: history response.
 
-    **Topic constant only, deliberately.** *records* are replayed verbatim
-    from an append-only JSONL archive, and routing them through the generated
-    ``HistoryRecord`` would coerce and validate every one — so a single
-    legacy row missing a field the spec calls required would raise here, in a
-    handler with no exception guard, and take pm-index down while serving
-    history. The spec states the record's shape; the archive stays the thing
-    that decides what a stored row looks like. Same call as ``log``'s filter
-    in 5.2c and ``order.new`` in 5.1b.
+    The archive is written through the generated ``HistoryRecord`` (validated on
+    append) and ``IndexHistory.query`` drops any non-conforming row on read, so
+    every record here is canonical and the checked builder replays it. See
+    design section 9.
     """
-    payload: dict[str, Any] = {"index_id": index_id, "records": records}
-    if warnings:
-        payload["warnings"] = warnings
-    return encode(_gen_index.topic_index_history(gateway_id), payload)
+    return _gen_index.make_index_history(
+        gateway_id=gateway_id,
+        index_id=index_id,
+        records=records,
+        warnings=warnings or [],
+    )
 
 
 def make_index_corp_action_msg(

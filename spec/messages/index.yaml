@@ -26,16 +26,16 @@
 # do not apply to a list (design section 20.2), so it now covers lists too and
 # the archive round-trips byte for byte.
 #
-# ADOPTION, WITH ONE EXCEPTION. Nine of the ten builders in models/message.py
-# delegate to the generated constructors; index/main.py, the CLIs and the four
-# subscribers take the generated topic helpers, and the family is at zero
-# topic literals.
+# FULL ADOPTION. All ten builders in models/message.py delegate to the
+# generated constructors; index/main.py, the CLIs and the four subscribers take
+# the generated topic helpers, and the family is at zero topic literals.
 #
-# make_index_history_msg takes the topic constant only. Its `records` are
-# replayed verbatim from an append-only JSONL archive, so coercing them
-# through HistoryRecord would make one legacy row missing a required field
-# raise inside a handler that has no exception guard - taking pm-index down
-# while serving history. Same call as log's filter in 5.2c.
+# make_index_history_msg now coerces its `records` through HistoryRecord like
+# every other builder. The archive is kept canonical instead of trusting it
+# blind: IndexHistory.append validates on write, and IndexHistory.query drops
+# any non-conforming row with a warning, so a record that would fail the builder
+# never reaches it - and pm-index, whose pull handlers have no exception guard,
+# cannot be taken down while serving history.
 #
 # index.corp_action's action-specific parameters stay flat - see section 20.3
 # for why the IDL did not grow a variant type to say them.
