@@ -16,7 +16,10 @@ from edumatcher.models.generated.order import (
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT, PREFIX_DEPTH
-from edumatcher.models.generated.auction import PREFIX_AUCTION_RESULT
+from edumatcher.models.generated.auction import (
+    PREFIX_AUCTION_INDICATIVE,
+    PREFIX_AUCTION_RESULT,
+)
 from edumatcher.models.generated.admin import PREFIX_ADMIN_ACTION
 from edumatcher.models.generated.risk import PREFIX_KILL_SWITCH_ACK
 from edumatcher.models.generated.structure import (
@@ -118,6 +121,12 @@ def websocket_type(topic: str) -> str:
         return "session"
     if topic.startswith("circuit_breaker."):
         return "circuit_breaker"
+    # Two tenses of the same mechanism: `auction.result` is what printed,
+    # `auction.indicative` is what would print if the call phase ended now.
+    # Both ride the client's `auction` channel; distinct types let the UI tell
+    # them apart without inspecting the payload.
+    if topic.startswith(PREFIX_AUCTION_INDICATIVE):
+        return "auction.indicative"
     if topic.startswith(PREFIX_AUCTION_RESULT):
         return "auction"
     parts = topic.split(".")
@@ -169,6 +178,8 @@ def market_data_symbol(topic: str, payload: dict[str, Any]) -> str | None:
     """Find the symbol associated with a public market-data event."""
     if topic.startswith(PREFIX_BOOK_SNAPSHOT) or topic.startswith(PREFIX_DEPTH):
         return topic.split(".", 1)[1]
+    if topic.startswith(PREFIX_AUCTION_INDICATIVE):
+        return topic[len(PREFIX_AUCTION_INDICATIVE) :].upper()
     if topic.startswith(PREFIX_AUCTION_RESULT):
         return topic[len(PREFIX_AUCTION_RESULT) :].upper()
     raw_symbol = payload.get("symbol")

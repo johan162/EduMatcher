@@ -13,7 +13,10 @@ from edumatcher.api_gateway.schemas import ALWAYS_ON_CHANNELS, MarketDataControl
 from edumatcher.api_gateway.sessions import SessionRegistry
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
-from edumatcher.models.generated.auction import topic_auction_result
+from edumatcher.models.generated.auction import (
+    topic_auction_indicative,
+    topic_auction_result,
+)
 from edumatcher.models.generated.book import (
     topic_book_snapshot,
     topic_depth,
@@ -366,7 +369,9 @@ async def _send_market_data(
 def _event_channel(event_type: str) -> str | None:
     if event_type == "trade":
         return "trades"
-    if event_type == "auction":
+    # Final uncross and its running indicative both belong to the `auction`
+    # channel a client subscribes to; the distinct `type` is what separates them.
+    if event_type in {"auction", "auction.indicative"}:
         return "auction"
     if event_type in {"book", "depth", "session", "circuit_breaker"}:
         return event_type
@@ -389,4 +394,6 @@ def _topic_from_event(event: dict[str, Any]) -> str:
         return "circuit_breaker.event"
     if event_type == "auction" and symbol:
         return topic_auction_result(symbol)
+    if event_type == "auction.indicative" and symbol:
+        return topic_auction_indicative(symbol)
     return event_type

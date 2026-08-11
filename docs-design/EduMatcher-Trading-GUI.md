@@ -1,6 +1,6 @@
-Version: 1.8.0
+Version: 1.9.0
 
-Date: 2026-08-05
+Date: 2026-08-11
 
 Status: Design and Research Proposal
 
@@ -9,6 +9,21 @@ Status: Design and Research Proposal
 
 > **Revision History**
 >
+> - **1.9.0 (2026-08-11)** — Aligned the client contract with the **pm-msgen** wire format after the
+>   message-structure rework. (1) Regenerated [Appendix A](#appendix-a-core-typescript-types): fixed
+>   `WsEnvelope` (added `topic`, `stream_seq`; `seq` is per-topic), `Fill` (no `trade_id`; engine names
+>   `qty`/`client_tag`), `QuoteLeg` (`leg_side`/`filled`/`remaining`, no price), `AuctionResult`
+>   (`reason`, not an `indicative` flag) plus a new `AuctionIndicative`, `CircuitBreakerHalt`/`Resume`
+>   (two topics; `level` is a name string; `resume_at_ns`), `AdminGateway` (`id`), and `HaltEntry`;
+>   added [Appendix A.1](#appendix-a1-websocket-event-data-payloads-pm-msgen-wire), a per-`type` WS
+>   `data` payload catalogue. (2) Corrected the fills Trade ID ([§13.5](#135-trade-history--fills-panel))
+>   and MM quote-legs ([§14.1.1](#1411-quote-card-anatomy), [§14.3](#143-quote-bootstrap-and-legs-view))
+>   to the real wire shapes. (3) **Backend:** wired `auction.indicative` onto the `auction` channel and
+>   rewrote [§6.10](#610-auction-market-data-channel-available-now), [§6.12](#612-open-questions-and-backend-prerequisites),
+>   [§16.6](#166-auction--indicative-price-panel), and the [§17.3.2](#1732-event-routing) routing table;
+>   the engine already publishes it. (4) Added [§17.3.4](#1734-bandwidth-and-the-100-symbol-overview) on
+>   snapshot fan-out and `seq`-gap blast radius at 100+ symbols. Also renamed the private-stream field
+>   from `event_seq` to its real name `stream_seq` throughout ([§17.2.1](#1721-authentication-frame), §26).
 > - **1.8.0 (2026-08-05)** — Backend implemented [§26.4.2 Reference-data service boundary](#2642-reference-data-service-boundary)
 >   and added two key stable endpoints for UI bootstrap: `GET /api/v1/reference/schedule` and
 >   `GET /api/v1/reference` (full bundle in one round-trip). The design now treats reference data as
@@ -43,7 +58,7 @@ Status: Design and Research Proposal
 >   [§26.3.7](#2637-uniform-command-acknowledgements), and [§26.5](#265-suggested-implementation-order)
 >   accordingly.
 > - **1.5.0 (2026-08-05)** — Backend shipped most of [§26.3.5 Private event recovery](#2635-private-event-recovery):
->   `/api/v1/events` now sends `event_seq` on auth, an `orders.snapshot` frame, and stable group ids on
+>   `/api/v1/events` now sends `stream_seq` on auth, an `orders.snapshot` frame, and stable group ids on
 >   `order.*`/`combo.*`/`oco.*`/`quote.*` events. Resume/replay (`{ "action": "resume", "from_seq": ... }`)
 >   was evaluated and deliberately deferred: the only gap it would close — fill/cancel transitions
 >   missed during a drop — is already covered by `/history/*` and drop copy. Updated
@@ -108,7 +123,7 @@ Status: Design and Research Proposal
     - [6.5 Gateway administration (available now)](#65-gateway-administration-available-now)
     - [6.6 Halts and risk configuration (runtime read-only)](#66-halts-and-risk-configuration-runtime-read-only)
     - [6.7 Symbol administration (still blocked on engine prerequisite)](#67-symbol-administration-still-blocked-on-engine-prerequisite)
-    - [6.8 Index administration (still dependent on `pm-index` bridge)](#68-index-administration-still-dependent-on-pm-index-bridge)
+    - [6.8 Index administration (read-only today, write/admin bridge missing)](#68-index-administration-read-only-today-writeadmin-bridge-missing)
     - [6.9 Admin monitor WebSocket (`/api/v1/admin/monitor`) (available now)](#69-admin-monitor-websocket-apiv1adminmonitor-available-now)
     - [6.10 Auction market-data channel (available now)](#610-auction-market-data-channel-available-now)
     - [6.11 Capability summary table](#611-capability-summary-table)
@@ -219,6 +234,7 @@ Status: Design and Research Proposal
       - [17.3.1 Authentication and subscription](#1731-authentication-and-subscription)
       - [17.3.2 Event routing](#1732-event-routing)
       - [17.3.3 Flash cell animation](#1733-flash-cell-animation)
+      - [17.3.4 Bandwidth and the 100-symbol overview](#1734-bandwidth-and-the-100-symbol-overview)
     - [17.4 Admin Monitor WebSocket (`/api/v1/admin/monitor`)](#174-admin-monitor-websocket-apiv1adminmonitor)
     - [17.5 Connection health monitoring](#175-connection-health-monitoring)
   - [18. State Management](#18-state-management)
@@ -261,9 +277,22 @@ Status: Design and Research Proposal
     - [26.1 Design principle](#261-design-principle)
     - [26.2 Highest-impact changes](#262-highest-impact-changes)
     - [26.3 Recommended protocol shape](#263-recommended-protocol-shape)
+      - [26.3.1 Uniform WebSocket envelope](#2631-uniform-websocket-envelope)
+      - [26.3.2 Snapshot, resume, and reset handshake](#2632-snapshot-resume-and-reset-handshake)
+      - [26.3.3 Per-symbol channel subscriptions](#2633-per-symbol-channel-subscriptions)
+      - [26.3.4 Authoritative depth and auction topics](#2634-authoritative-depth-and-auction-topics)
+      - [26.3.5 Private event recovery](#2635-private-event-recovery)
+      - [26.3.6 Admin monitor replay and order drill-down](#2636-admin-monitor-replay-and-order-drill-down)
+      - [26.3.7 Uniform command acknowledgements](#2637-uniform-command-acknowledgements)
     - [26.4 Recommended backend components](#264-recommended-backend-components)
+      - [26.4.1 API gateway stream cache](#2641-api-gateway-stream-cache)
+      - [26.4.2 Reference-data service boundary](#2642-reference-data-service-boundary)
+      - [26.4.3 Runtime admin commands](#2643-runtime-admin-commands)
+      - [26.4.4 Terminal-oriented aggregate endpoints](#2644-terminal-oriented-aggregate-endpoints)
+      - [26.4.5 Capability discovery](#2645-capability-discovery)
     - [26.5 Suggested implementation order](#265-suggested-implementation-order)
   - [Appendix A: Core TypeScript Types](#appendix-a-core-typescript-types)
+    - [Appendix A.1: WebSocket event `data` payloads (pm-msgen wire)](#appendix-a1-websocket-event-data-payloads-pm-msgen-wire)
 
 ---
 
@@ -846,31 +875,59 @@ regardless of age. For anything older than the retention window, use
 
 ### 6.10 Auction market-data channel (available now)
 
-The engine publishes `auction.result.{SYMBOL}` on its bus when a symbol uncrosses, and the current
-gateway already exposes that stream as an `auction` channel on `/market-data`, subscribed like
-`book`/`trades`/`depth`.
+The engine publishes **two** auction topics on its bus, and the gateway now exposes **both** on the
+`auction` channel of `/market-data`, subscribed like `book`/`trades`/`depth`:
+
+- `auction.result.{SYMBOL}` — a completed uncross (what printed), published for every uncross.
+- `auction.indicative.{SYMBOL}` — where the symbol *would* uncross if the call phase ended now,
+  republished on a timer (default 1 s, `auction_indicative_interval_sec`) throughout an opening or
+  closing auction. `eq_price` is `null` when the book would not cross — a real, informative reading,
+  not an error.
+
+The two are delivered as **distinct envelope `type`s on the same channel** — `type: "auction"` for the
+final result and `type: "auction.indicative"` for the running indicative — so the UI routes on `type`
+rather than inspecting the payload. The engine publishes the indicative for every symbol in a call
+phase (skipping halted symbols, which have their own circuit-breaker indicative), so no client-side
+approximation is needed.
 
 **Subscribe:** `{ "action": "subscribe", "symbols": ["AAPL"], "channels": ["auction"] }`
 
-**Event payload:**
+**Final-result payload (`type: "auction"`)** — note the pm-msgen shape carries `reason`, not an
+`indicative` flag:
 
 ```jsonc
 {
-  "type": "auction", "ts": "...",
+  "type": "auction", "topic": "auction.result.AAPL", "ts": "...", "seq": 4412,
   "data": {
     "symbol": "AAPL",
-    "eq_price": 150.50,            // indicative/uncross equilibrium price; null if no cross
-    "eq_qty": 5000,               // matched quantity at eq_price
-    "imbalance_side": "BUY",      // "BUY" | "SELL" | ""
-    "imbalance_qty": 500,
+    "eq_price": 150.50,          // uncross price; null if nothing crossed
+    "eq_qty": 5000,             // matched quantity at eq_price
     "trades_count": 12,
-    "indicative": true             // true during an auction phase (pre-uncross), false for the final result
+    "imbalance_qty": 500,
+    "imbalance_side": "BUY",     // "BUY" | "SELL" | null
+    "reason": "SCHEDULED"        // SCHEDULED | REOPEN | RECOVERY | BACKSTOP
   }
 }
 ```
 
-**Design consequence:** the auction / indicative-price panel should now be treated as a first-class
-surface, not as a speculative enhancement.
+**Indicative payload (`type: "auction.indicative"`):**
+
+```jsonc
+{
+  "type": "auction.indicative", "topic": "auction.indicative.AAPL", "ts": "...", "seq": 88,
+  "data": {
+    "symbol": "AAPL",
+    "phase": "OPENING_AUCTION", // OPENING_AUCTION | CLOSING_AUCTION
+    "eq_price": 150.50,          // null if the book would not cross yet
+    "eq_qty": 5000,
+    "imbalance_qty": 500,
+    "imbalance_side": "BUY"      // "BUY" | "SELL" | null
+  }
+}
+```
+
+**Design consequence:** the auction / indicative-price panel is a first-class surface backed by an
+authoritative engine feed, not a client-side approximation.
 
 ### 6.11 Capability summary table
 
@@ -890,7 +947,7 @@ surface, not as a speculative enhancement.
 | `WS /api/v1/admin/monitor` | Available now | Opens with a `monitor.snapshot` (orders/halts/gateways/last_seq); use as the primary ADMIN live feed |
 | `GET /api/v1/admin/orders?symbol=&gateway_id=&status=` | Available now | Current-state, cross-gateway; bounded by `order_retention_sec` |
 | `GET /api/v1/admin/orders/{order_id}` | Available now, requires `pm-audit` | Audit-trail lifecycle, unaffected by cache retention; `503` if the audit index isn't built |
-| `auction` channel on `/api/v1/market-data` | Available now | Use for auction panel, badges, and workspace cues |
+| `auction` channel on `/api/v1/market-data` | Available now | Carries both `type: "auction"` (final `auction.result`) and `type: "auction.indicative"` (running indicative); use for the auction panel, badges, and workspace cues |
 | Per-symbol subscription items + per-topic `seq` on `/api/v1/market-data` | Available now | One socket handles broad + focused subscriptions ([§17.3.1](#1731-authentication-and-subscription)); `seq` enables client-side gap detection |
 | Admin global/by-gateway kill switch | Not exposed | Current admin API supports symbol-scoped cancel only; global/by-gateway controls stay disabled |
 
@@ -904,10 +961,12 @@ surface, not as a speculative enhancement.
 2. **Live symbol addition/mutation.** The engine loads symbols from `engine_config.yaml` at startup
    (FR-ENG-017); there is no runtime add-symbol command. **Prerequisite** for
    [§6.7](#67-symbol-administration). Until added, Symbol Management stays read-only.
-3. **Indicative auction price.** Does the engine publish an *indicative* equilibrium during an
-   auction phase, or only the final `auction.result` on phase exit? If only the latter, the UI
-   computes an indicative client-side from the resting book (see
-   [§16.6](#166-auction--indicative-price-panel)). Confirmation needed.
+3. **Indicative auction price.** *Resolved.* The engine publishes an authoritative
+   `auction.indicative.{SYMBOL}` on a timer (default 1 s) throughout opening and closing auctions,
+   and the gateway forwards it on the `auction` channel as `type: "auction.indicative"`
+   ([§6.10](#610-auction-market-data-channel-available-now)). The UI renders the engine feed directly;
+   the client-side approximation in [§16.6](#166-auction--indicative-price-panel) is retained only as
+   an offline fallback for when the `auction` channel is unsubscribed.
 4. **`pm-index` availability.** Index admin ([§6.8](#68-index-administration)) depends on the
   separate `pm-index` process and a future `pm-api-gwy` bridge to it. Current API support is limited
   to read-only index history/statistics under `/history/index-*`, not `/admin/indexes`.
@@ -1728,8 +1787,16 @@ A paginated table of fill events for this gateway.
 
 #### 13.5.1 Data source
 
-- Initial load: `GET /api/v1/history/fills?limit=200`
+- Initial load: `GET /api/v1/history/fills?limit=200` (durable FILL order-events from `stats.db`).
 - Live updates: WebSocket `order.fill` events appended to the top of the table.
+
+> **Trade ID caveat (pm-msgen):** the private `order.fill` event has **no `trade_id`** — its wire
+> shape is `{gateway_id, order_id, fill_qty, fill_price, remaining_qty, status, …}`
+> ([order.py `OrderFill`](../src/edumatcher/models/generated/order.py)). A trade id exists only on the
+> **public** `trade.executed` print (`data.id`), which is not addressed to the gateway. The Trade ID
+> column is therefore populated from `/history/fills` (which carries the durable trade id) or by
+> correlating a live `order.fill` against the public `trade` tape on `(symbol, price, qty, ts)`;
+> live-appended rows show the Order ID immediately and fill in the Trade ID on reconciliation.
 
 #### 13.5.2 Columns
 
@@ -1741,7 +1808,7 @@ A paginated table of fill events for this gateway.
 | Fill Qty | |
 | Fill Price | |
 | Remaining | After this fill |
-| Trade ID | First 8 chars; hover shows full UUID |
+| Trade ID | First 8 chars; hover shows full UUID. Present on `/history/fills` and public `trade` rows; **blank on a live `order.fill` until reconciled** (see §13.5.1) |
 | Order ID | First 8 chars; click opens the Order Detail drawer ([§13.4](#134-order-detail-drawer)) |
 
 #### 13.5.3 Filters
@@ -1824,9 +1891,10 @@ active two-sided quote for that symbol.
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- **BID / ASK rows**: price, quantity, and a per-leg fill progress bar (`fill_qty / orig_qty`). The
-  authoritative per-leg fill flags come from `GET /api/v1/quotes/legs` (see
-  [§14.3](#143-quote-bootstrap-and-legs-view)).
+- **BID / ASK rows**: price, quantity, and a per-leg fill progress bar (`filled / qty`). The
+  authoritative per-leg fill quantities come from `GET /api/v1/quotes/legs`; the **prices** come from
+  `GET /api/v1/quotes/bootstrap` (`ActiveQuote.bid_price` / `ask_price`), because the `QuoteLeg`
+  record carries no price — see [§14.3](#143-quote-bootstrap-and-legs-view).
 - **Status badge**: ACTIVE (green), INACTIVE (amber), CANCELLED (slate), PENDING (slate).
 - **New Quote button**: opens the New Quote Form inline ([§14.2](#142-new-quote-form)).
 - **Cancel button**: calls `DELETE /api/v1/quotes/{symbol}` with confirmation.
@@ -1891,17 +1959,21 @@ These two endpoints should also define the MM reconnect/recovery path:
 - show a small “reconciled at HH:MM:SS” stamp so the user can see that the dashboard has been
   resynced after a disconnect
 
-The combined table shows:
+The combined table shows (note the pm-msgen `QuoteLeg` shape is per-side, keyed on `leg_side`, and
+carries **no price** — price is joined in from the bootstrap `ActiveQuote`):
 
-| Column | Source |
-|--------|--------|
-| Symbol | bootstrap / legs |
-| Quote ID | bootstrap / legs |
-| Side (bid/ask) | legs |
-| Price | legs |
-| Qty | legs |
-| Fill Qty | legs (per-leg fill flag) |
-| Status | bootstrap / legs |
+| Column | Source | pm-msgen field |
+|--------|--------|----------------|
+| Symbol | bootstrap / legs | `symbol` |
+| Quote ID | bootstrap / legs | `quote_id` |
+| Order ID | legs | `order_id` |
+| Side | legs | `leg_side` (`"BUY"` \| `"SELL"`, **not** bid/ask) |
+| Price | bootstrap (`ActiveQuote.bid_price`/`ask_price`) | — (absent from `QuoteLeg`) |
+| Qty | legs | `qty` |
+| Remaining | legs | `remaining` |
+| Filled | legs | `filled` |
+| Leg status | legs | `status` |
+| Quote status | bootstrap / legs | `quote_status` |
 
 ### 14.4 MM Position Panel
 
@@ -2313,14 +2385,14 @@ phases — a high-value teaching moment, since it shows *how* the opening/closin
   quantity that would remain unexecuted on the heavier side.
 - A small bid/ask cumulative-quantity curve highlighting the crossing point.
 
-**Data source:** the new `auction` market-data channel ([§6.10](#610-auction-market-data-channel)),
-carrying `auction.result.{SYMBOL}` payloads (`eq_price`, `eq_qty`, `imbalance_side`, `imbalance_qty`,
-`trades_count`, `indicative`). If the engine only publishes the **final** uncross result on phase
-exit (rather than periodic indicative values — see
-[§6.12](#612-open-questions-and-backend-prerequisites)), the panel shows the last indicative received
-and may compute an **educational approximation** client-side from available depth/book data. That
-approximation is labelled as non-authoritative; only engine-provided `auction` payloads are treated
-as the authoritative indicative or final auction result.
+**Data source:** the `auction` market-data channel ([§6.10](#610-auction-market-data-channel-available-now)),
+which now carries two engine-authoritative message types: `type: "auction.indicative"`
+(`symbol`, `phase`, `eq_price`, `eq_qty`, `imbalance_qty`, `imbalance_side`) republished on a timer
+throughout the call phase, and `type: "auction"` (the final `auction.result`, adding `trades_count`
+and `reason`, dropping `phase`). The panel renders the latest indicative live and locks to the final
+result on phase exit. A **client-side educational approximation** from the resting book is kept only
+as a fallback for when the `auction` channel is not subscribed; it is labelled non-authoritative and
+never overrides an engine-provided value.
 
 **Educational value:** the panel makes the equilibrium-price mechanism visible — students can watch
 the indicative price and imbalance move as auction orders arrive, then see it "lock in" at the
@@ -2386,15 +2458,17 @@ for its cross-gateway feed, since `/events` only carries the calling gateway's o
 
 Must be sent within 5 seconds of connection. Server responds with:
 ```jsonc
-{ "type": "authenticated", "gateway_id": "GW01", "event_seq": 9182 }
+{ "type": "authenticated", "gateway_id": "GW01", "stream_seq": 9182 }
 ```
 
 An `orders.snapshot` frame with the gateway's current active orders follows immediately after
 authentication, so the blotter can rebuild its state without a separate `/orders` round-trip.
 
-`/api/v1/events` now carries a private per-gateway `event_seq`, so the UI can detect a gap in private
-events the same way it does for market data ([§17.3.1](#1731-authentication-and-subscription)). There
-is **no resume/replay handshake, and none is planned**: replay's only advantage over `event_seq` +
+`/api/v1/events` carries a private per-gateway **`stream_seq`** (one contiguous counter across the
+whole private stream, since a private subscriber is unfiltered), so the UI can detect a gap in private
+events. This is distinct from the per-**topic** `seq` on market data ([§17.3.1](#1731-authentication-and-subscription)),
+which is filtered and therefore counted per topic. There
+is **no resume/replay handshake, and none is planned**: replay's only advantage over `stream_seq` +
 `orders.snapshot` is visibility into transitions missed during a gap (e.g. a fill immediately followed
 by a cancel, which the snapshot alone would only show as `CANCELLED`). Those transitions are already
 recoverable from `/history/*`, with drop copy as the authoritative fill record (see
@@ -2467,7 +2541,7 @@ state for that topic, and re-subscribes the affected item to force a fresh serie
 replay proposal). `session` and `circuit_breaker` remain always-on regardless of the subscribed
 items. `ManagedSocket` replays the full `items` list on every reconnect, and the UI still refreshes
 REST/bootstrap queries (`/orders`, `/positions`, `/quotes/bootstrap`, `/quotes/legs`) after reconnect
-to repair any private-event gap; `/api/v1/events` now carries `event_seq` for gap *detection*
+to repair any private-event gap; `/api/v1/events` now carries `stream_seq` for gap *detection*
 ([§17.2.1](#1721-authentication-frame)) but has no resume/replay handshake yet.
 
 #### 17.3.2 Event routing
@@ -2477,7 +2551,8 @@ to repair any private-event gap; `/api/v1/events` now carries `event_seq` for ga
 | `book` | `bookStore.updateBook(symbol, data)` — triggers flash cells |
 | `trade` | `bookStore.updateLastPrice(symbol, price, qty)` + chart tick handler |
 | `depth` | `bookStore.updateDepth(symbol, data)` |
-| `auction` | `bookStore.updateAuction(symbol, data)` — feeds Auction panel + Market Overview badge |
+| `auction` | `bookStore.updateAuction(symbol, data)` — final uncross result; feeds Auction panel + Market Overview badge |
+| `auction.indicative` | `bookStore.updateAuction(symbol, data, {indicative: true})` — running call-phase indicative on the same `auction` channel |
 | `session` | `sessionStore.setPhase(state, prevState)` + top-bar badge + Event Center |
 | `circuit_breaker` | `haltStore.setHalt(symbol, data)` / `haltStore.clearHalt(symbol)` + Event Center |
 
@@ -2500,6 +2575,35 @@ When `bookStore.updateBook` fires with a changed price:
   100% { background-color: transparent; }
 }
 ```
+
+#### 17.3.4 Bandwidth and the 100-symbol overview
+
+The market-data stream is **snapshot-based, not delta-based**, and this shapes how the UI subscribes
+at scale.
+
+- **`book` is a full snapshot on a timer.** Each `book` event is the entire aggregated book for one
+  symbol — all `bids`, all `asks`, **plus a `recent_trades` tail** ([book.py `BookSnapshot`](../src/edumatcher/models/generated/book.py)) —
+  republished about every 0.5 s (the engine's per-symbol `SNAPSHOT_INTERVAL`). A `*` `book`
+  subscription across 100+ symbols is therefore on the order of 200 full book payloads per second.
+- **`depth` is also a full snapshot** ([book.py `Depth`](../src/edumatcher/models/generated/book.py)),
+  and there is no incremental depth channel (the delta proposal in [§26.3.4](#2634-authoritative-depth-and-auction-topics)
+  is not built). Depth and `auction` must therefore be subscribed for the **focus set only**
+  (active symbol + watchlist), bounded by `VITE_MAX_FOCUS_SYMBOLS`.
+
+**Consequences for the subscription plan:**
+
+1. The overview grid needs only top-of-book (best bid/ask + last), which the `book` snapshot provides;
+   it must **not** request `depth`/`auction` broadly. The broad item stays `{"*": ["book","trades"]}`;
+   the narrow item carries `depth`/`auction` for the focus set ([§17.3.1](#1731-authentication-and-subscription)).
+2. Overview rendering must stay virtualized (TanStack Virtual) and use fine-grained `bookStore`
+   selectors so a 100-symbol snapshot storm re-renders only changed cells.
+3. **`seq`-gap blast radius:** because there is no `RESUME`, a detected per-topic `seq` gap is repaired
+   by re-subscribing the affected topic **and** refetching REST bootstrap. On a socket flap across a
+   broad `*` subscription that is one re-subscribe covering every symbol plus a `/orders` /
+   `/positions` / `/quotes/*` refresh — a brief refetch storm. Keeping the heavy (`depth`) focus set
+   small bounds it. This is acceptable for the stated educational scale (≤ a few hundred symbols on
+   localhost) but is not tuned for a production high-churn board; the [§26](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal)
+   snapshot/delta and `RESUME` work is what would remove the full re-subscribe.
 
 ### 17.4 Admin Monitor WebSocket (`/api/v1/admin/monitor`)
 
@@ -3210,7 +3314,7 @@ use the same operational model, even if the wire encoding remains JSON rather th
 
 > **Update (2026-08-05):** the former top two rows of this table — per-topic sequence numbers and the
 > per-symbol subscription model for `/api/v1/market-data` — have shipped and are documented in
-> [§17.3.1](#1731-authentication-and-subscription). `/api/v1/events` has also gained `event_seq` and
+> [§17.3.1](#1731-authentication-and-subscription). `/api/v1/events` has also gained `stream_seq` and
 > an `orders.snapshot` frame ([§17.2.1](#1721-authentication-frame)); resume/replay for private events
 > was evaluated and deliberately deferred (see [§26.3.5](#2635-private-event-recovery)). `command_id`
 > was also added, narrowly, to kill switch/mass cancel and session transition
@@ -3328,13 +3432,13 @@ should not reimplement the matching algorithm to manufacture authoritative price
 `/api/v1/events` now exposes most of this recovery contract:
 
 - **Done:** on authentication, the server sends
-  `{ "type": "authenticated", "gateway_id": "GW01", "event_seq": 9182 }`.
+  `{ "type": "authenticated", "gateway_id": "GW01", "stream_seq": 9182 }`.
 - **Done:** an `orders.snapshot` frame follows authentication with the gateway's current active
   orders.
 - **Done:** `order.*`/`combo.*`/`oco.*`/`quote.*` events carry stable group ids (`oco_group_id`,
   `combo_parent_id`, quote group id) for OCO/combo/quote workflows.
 - **Deliberately deferred:** `{ "action": "resume", "from_seq": 9000 }` support. This would need a
-  server-side event replay buffer that does not exist. What resume buys over `event_seq` +
+  server-side event replay buffer that does not exist. What resume buys over `stream_seq` +
   `orders.snapshot` is visibility into *transitions* missed during a gap — e.g. an order that filled
   and was then cancelled shows only as `CANCELLED` in the snapshot, and the UI never sees the fill.
   That matters for a blotter, but fills are already recoverable from `/history/*`, and drop copy
@@ -3491,10 +3595,10 @@ This keeps the terminal honest during staged backend work and makes demos less b
 
 1. ~~Unify WebSocket envelopes and sequence numbers.~~ **Done for market data and private events** —
    market data carries a per-topic `seq` ([§17.3.1](#1731-authentication-and-subscription)) and
-   `/api/v1/events` carries a private `event_seq` ([§17.2.1](#1721-authentication-frame)). Remaining:
+   `/api/v1/events` carries a private `stream_seq` ([§17.2.1](#1721-authentication-frame)). Remaining:
    extend the same convention to `/api/v1/admin/monitor`, and unify all three into one shared envelope.
 2. **Add snapshot/resume for market data.** Private-event resume/replay was evaluated and
-   deliberately deferred ([§26.3.5](#2635-private-event-recovery)) — `event_seq` + `orders.snapshot`
+   deliberately deferred ([§26.3.5](#2635-private-event-recovery)) — `stream_seq` + `orders.snapshot`
    plus `/history/*` and drop copy already cover the practical recovery cases. Market data still
    lacks a replay handshake, so this item stays scoped to `book`/`trades`/`depth`/`auction`.
 3. ~~Replace the market-data subscription shape with per-symbol channel items.~~ **Done** — see
@@ -3529,9 +3633,16 @@ a full re-subscribe.
 
 ## Appendix A: Core TypeScript Types
 
-Canonical interfaces for the main API response shapes and WebSocket event payloads. Field names are
-based on the Requirements document payloads (§3.3, §18.1) and the API Gateway JSON examples (§6–§8).
-These live in `src/types/`.
+Canonical interfaces for the main API response shapes and WebSocket event payloads.
+
+> **Source of truth (pm-msgen):** two different contracts meet here and must not be conflated.
+> **REST resource** shapes (e.g. `Order`, `Position`) are defined by the gateway's Pydantic models and
+> are published as OpenAPI at `/openapi.json` — generate these TS types with `openapi-typescript`
+> rather than hand-maintaining them. **WebSocket `data`** shapes are the engine's pm-msgen
+> `to_dict()` payloads, forwarded verbatim, and use the **engine field names** (`qty`, `client_tag`,
+> `oco_group_id`, …), which differ from the REST resource names (`quantity`, `client_order_id`). The
+> per-`type` WS `data` payloads are catalogued in [the WS payload reference](#appendix-a1-websocket-event-data-payloads-pm-msgen-wire)
+> below; the REST resource types follow here. These live in `src/types/`.
 
 ```typescript
 // ── Enums ──────────────────────────────────────────────────────────────────
@@ -3581,15 +3692,23 @@ export interface Order {
 }
 
 export interface Fill {
+  // The PRIVATE `order.fill` event (pm-msgen `OrderFill`). Note: NO `trade_id`
+  // — a trade id exists only on the public `trade` print (see TradeData).
+  gateway_id: string;
   order_id: string;
-  trade_id: string;
-  symbol: string;
-  side: Side;
   fill_qty: number;
   fill_price: number;
   remaining_qty: number;
   status: OrderStatus;             // PARTIAL | FILLED
-  ts: string;
+  symbol?: string;
+  side?: Side;
+  qty?: number;                    // original order qty (engine name, not `quantity`)
+  price?: number;
+  client_tag?: string;             // engine name for the client order id
+  oco_group_id?: string;
+  combo_parent_id?: string;
+  quote_id?: string;
+  leg_index?: number;
 }
 
 export interface Trade {
@@ -3623,30 +3742,59 @@ export interface DepthMetrics {
   cost_to_move: number;
 }
 
+// Final uncross result. pm-msgen carries `reason`, NOT an `indicative` flag; the
+// indicative is a separate message/type (see AuctionIndicative). `type: "auction"`.
+export type AuctionReason = "SCHEDULED" | "REOPEN" | "RECOVERY" | "BACKSTOP";
 export interface AuctionResult {
   symbol: string;
-  eq_price: number | null;         // null if no cross
+  eq_price: number | null;         // null if nothing crossed
   eq_qty: number;
-  imbalance_side: Side | "";
+  imbalance_side: Side | null;     // "BUY" | "SELL" | null
   imbalance_qty: number;
   trades_count: number;
-  indicative: boolean;             // true = ongoing-auction indicative; false = final uncross
+  reason: AuctionReason;
+}
+
+// Running call-phase indicative. `type: "auction.indicative"`, same `auction` channel.
+export interface AuctionIndicative {
+  symbol: string;
+  phase: "OPENING_AUCTION" | "CLOSING_AUCTION";
+  eq_price: number | null;         // null if the book would not cross yet
+  eq_qty: number;
+  imbalance_side: Side | null;
+  imbalance_qty: number;
 }
 
 // ── Session / Circuit breaker (market-data, always-on) ───────────────────────
 export interface SessionEvent {
   state: SessionState;
-  prev_state: SessionState | null;
+  prev_state?: SessionState;       // omitted (not null) when empty on the wire
+  next?: {                         // present only on a scheduler-driven transition
+    to_state: SessionState;
+    at: string;                    // scheduled transition time
+  };
 }
 
-export interface CircuitBreakerEvent {
-  action: "HALT" | "RESUME";
+// Two topics, one `type: "circuit_breaker"`; discriminate on the envelope `topic`
+// (circuit_breaker.halt.* vs circuit_breaker.resume.*), NOT on an `action` field.
+export interface CircuitBreakerHalt {
   symbol: string;
-  level: number;
-  trigger_price: number;
-  reference_price: number;
-  resume_at: string | null;
-  resumption_mode: ResumptionMode;
+  level: string | null;            // level NAME, e.g. "L2" (string, not a number)
+  trigger_price: number | null;    // null on an ADMIN (non-price) halt
+  reference_price: number | null;
+  resume_at_ns: number | null;     // epoch NANOSECONDS; null = indefinite halt
+  halt_source?: string;            // e.g. "CIRCUIT_BREAKER" | "ADMIN"
+  corridor_low?: number | null;
+  corridor_high?: number | null;
+  expansion?: number | null;
+}
+
+export interface CircuitBreakerResume {
+  symbol: string;
+  halt_source?: string;
+  reason?: string;
+  clamped?: boolean | null;        // closing backstop only
+  print_price?: number | null;     // closing backstop only
 }
 
 // ── Positions ────────────────────────────────────────────────────────────────
@@ -3664,14 +3812,18 @@ export interface PositionPnlExtension {
 }
 
 // ── MM quote legs (§14.3) ────────────────────────────────────────────────────
+// pm-msgen `QuoteLeg` is per-side and carries NO price (join price from the
+// bootstrap ActiveQuote). `leg_side` is "BUY"/"SELL", not "bid"/"ask".
 export interface QuoteLeg {
   quote_id: string;
+  order_id: string;
   symbol: string;
-  side: "bid" | "ask";
-  price: number;
+  leg_side: Side;                  // "BUY" | "SELL"
   qty: number;
-  fill_qty: number;                // per-leg fill flag
-  status: "ACTIVE" | "INACTIVE" | "CANCELLED" | "PENDING";
+  remaining: number;
+  filled: number;                  // per-leg filled quantity
+  status: string;                  // leg order status
+  quote_status: string;            // parent quote status
 }
 
 // ── Symbol metadata (§6.7, GET /symbols) ─────────────────────────────────────
@@ -3691,32 +3843,32 @@ export interface MarketDataSubscriptionItem {
 
 // ── WebSocket envelopes ──────────────────────────────────────────────────────
 export interface WsEnvelope<T> {
-  type: string;
+  type: string;                    // stable public type; the UI routes on this
+  topic: string;                   // engine topic; `seq` counts WITHIN this — gap-track on `topic`
   ts: string;
-  gateway_id?: string;
-  symbol?: string;                 // present on market-data events; combines with `type` as the seq topic key
-  seq?: number;                    // per-topic on market-data (§17.3.1); also used by admin monitor (§6.9)
+  gateway_id?: string;             // present on private events
+  seq?: number;                    // per-TOPIC counter (market data + admin monitor)
+  stream_seq?: number;             // private events only: one contiguous counter for the whole stream
   data: T;
 }
 
 // ── Admin (§6) ───────────────────────────────────────────────────────────────
 export interface AdminGateway {
-  gateway_id?: string;
-  id?: string;                     // current gateway-list payloads may use id
+  id: string;                      // pm-msgen `GatewayInfo.id` (not `gateway_id`)
   role: GatewayRole;
-  description?: string;
   connected: boolean;
+  description?: string;
 }
 
+// pm-msgen `HaltedSymbol` (in `system.halt_status`) / `circuit_breaker.halt` broadcast.
+// `level` is a NAME string; timing is `resume_at_ns` (epoch nanos), not an ISO `resume_at`.
 export interface HaltEntry {
   symbol: string;
-  level?: number | string | null;
-  trigger_price?: number | null;
-  reference_price?: number | null;
-  halted_at?: string;
-  resume_at?: string | null;
+  level?: string | null;
   resume_at_ns?: number | null;
-  resumption_mode?: ResumptionMode;
+  halt_source?: string | null;
+  trigger_price?: number | null;   // present on the circuit_breaker.halt broadcast
+  reference_price?: number | null;
 }
 
 export interface MonitorEvent {
@@ -3728,6 +3880,136 @@ export interface MonitorEvent {
   fill_price?: number;
   remaining_qty?: number;
   liquidity?: "MAKER" | "TAKER";
+}
+```
+
+### Appendix A.1: WebSocket event `data` payloads (pm-msgen wire)
+
+The envelope is `WsEnvelope<T>` (above). `T` is the engine's pm-msgen `to_dict()` payload, forwarded
+verbatim, so these use **engine field names** (`qty`, `client_tag`, `filled`, `resume_at_ns`, …), not
+the REST resource names. The UI routes on the envelope `type`; the map at the end binds `type` → `data`
+shape. Optional fields are those the engine omits from `to_dict()` when null.
+
+```typescript
+// ── Private events (/api/v1/events) ──────────────────────────────────────────
+export interface OrderAckData {
+  gateway_id: string;
+  order_id: string;
+  accepted: boolean;
+  reason: string;                  // "" on acceptance
+  symbol?: string; side?: Side; order_type?: OrderType; tif?: Tif;
+  qty?: number; price?: number;
+  client_tag?: string; oco_group_id?: string; combo_parent_id?: string;
+  quote_id?: string; leg_index?: number;
+}
+
+// `order.fill` data === the `Fill` interface above (no trade_id).
+
+export interface OrderAmendedData {
+  gateway_id: string;
+  order_id: string;
+  qty: number;
+  remaining_qty: number;
+  priority_reset: boolean;
+  price: number | null;            // always present; null for a MARKET order
+}
+
+// `order.cancelled` and `order.expired` share this shape.
+export interface OrderTerminalData {
+  gateway_id: string;
+  order_id: string;
+  client_tag?: string; oco_group_id?: string; combo_parent_id?: string;
+  quote_id?: string; leg_index?: number;
+}
+
+export interface ComboAckData    { gateway_id: string; combo_id: string; accepted: boolean; reason: string; }
+export interface ComboStatusData { gateway_id: string; combo_id: string; status: string; reason?: string; }
+export interface OcoAckData      { gateway_id: string; oco_id: string; accepted: boolean; reason: string; order_id_1: string; order_id_2: string; }
+export interface OcoCancelledData{ gateway_id: string; oco_id: string; cancelled_order_id: string; reason?: string; }
+export interface QuoteAckData    { gateway_id: string; accepted: boolean; quote_id: string; reason: string; bid_order_id: string; ask_order_id: string; }
+export interface QuoteStatusData { gateway_id: string; status: string; quote_id: string; reason?: string; }
+
+// `mass_cancel.ack` (pm-msgen `KillSwitchAck`) — carries the shared command_id.
+export interface MassCancelAckData {
+  gateway_id: string;
+  accepted: boolean;
+  reason: string;
+  cancelled_orders: number;
+  cancelled_quotes: number;
+  command_id: string;
+}
+
+// ── Market data (/api/v1/market-data) ────────────────────────────────────────
+export interface RecentTrade {
+  id: string; symbol: string;
+  buy_order_id: string; sell_order_id: string;
+  buy_gateway_id: string; sell_gateway_id: string;
+  price: number; quantity: number; timestamp: number; // epoch seconds
+}
+
+// `book` — full snapshot every ~0.5s (see §17.3.4). tick_decimals + recent_trades
+// tail are on the wire in addition to the fields on BookSnapshot above.
+export interface BookData {
+  symbol: string;
+  tick_decimals: number;
+  bids: BookLevel[];
+  asks: BookLevel[];
+  recent_trades: RecentTrade[];
+  last_price: number | null;
+  last_qty: number | null;
+  last_buy_price: number | null;
+  last_sell_price: number | null;
+}
+
+// `depth` — full snapshot (no deltas). Note tick + display + microprice fields.
+export interface DepthData {
+  symbol: string;
+  mid_price_ticks: number;
+  mid_price: number;
+  tolerance_ticks: number;
+  bid_depth: number;
+  ask_depth: number;
+  imbalance: number;               // [-1, 1]
+  microprice: number;
+  cost_to_move: number;
+}
+
+// `trade` — public print (pm-msgen `TradeExecuted`); the only event with a trade id.
+export interface TradeData {
+  id: string;
+  symbol: string;
+  buy_order_id: string; sell_order_id: string;
+  buy_gateway_id: string; sell_gateway_id: string;
+  price: number;
+  quantity: number;
+  aggressor_side: "BUY" | "SELL" | "AUCTION";
+  timestamp: number;               // epoch seconds
+  tick_decimals: number;
+}
+
+// ── type → data binding ──────────────────────────────────────────────────────
+export interface WsDataByType {
+  "order.ack": OrderAckData;
+  "order.fill": Fill;
+  "order.amended": OrderAmendedData;
+  "order.cancelled": OrderTerminalData;
+  "order.expired": OrderTerminalData;
+  "combo.ack": ComboAckData;
+  "combo.status": ComboStatusData;
+  "oco.ack": OcoAckData;
+  "oco.cancelled": OcoCancelledData;
+  "quote.ack": QuoteAckData;
+  "quote.status": QuoteStatusData;
+  "mass_cancel.ack": MassCancelAckData;
+  "book": BookData;
+  "depth": DepthData;
+  "trade": TradeData;
+  "auction": AuctionResult;
+  "auction.indicative": AuctionIndicative;
+  "session": SessionEvent;
+  // Both halt and resume arrive as type "circuit_breaker"; discriminate on the
+  // envelope `topic` (circuit_breaker.halt.* vs circuit_breaker.resume.*).
+  "circuit_breaker": CircuitBreakerHalt | CircuitBreakerResume;
 }
 ```
 
