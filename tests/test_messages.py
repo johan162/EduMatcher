@@ -254,7 +254,19 @@ class TestEncodeDecodeRoundtrip:
 
 class TestOrderMessages:
     def test_make_order_new_msg(self) -> None:
-        d = {"symbol": "AAPL", "side": "BUY"}
+        d = {
+            "id": "O1",
+            "symbol": "AAPL",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "tif": "DAY",
+            "quantity": 100,
+            "remaining_qty": 100,
+            "gateway_id": "GW01",
+            "timestamp": 1_700_000_000_000_000_000,
+            "status": "NEW",
+            "price": 15000,
+        }
         topic, payload = _rt(make_order_new_msg(d))
         assert topic == "order.new"
         assert payload["symbol"] == "AAPL"

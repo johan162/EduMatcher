@@ -23,12 +23,14 @@ from edumatcher.log_srv.writer import LogEventRow
 from edumatcher.logclient.protocol import PROTO_VERSION, build_header_line, iso_utc
 from edumatcher.models.message import (
     decode,
+    encode,
     make_log_backfill_request_msg,
     make_log_renew_msg,
     make_log_status_request_msg,
     make_log_subscribe_msg,
     make_log_unsubscribe_msg,
 )
+from edumatcher.models.generated.log import TOPIC_LOG_SUBSCRIBE
 
 _HOST = "127.0.0.1"
 
@@ -481,7 +483,10 @@ def test_resubscribe_is_idempotent_and_preserves_counters(
 
 
 def test_invalid_mode_is_rejected(harness: _PubSubHarness) -> None:
-    harness.send(make_log_subscribe_msg("v1", "SIDEWAYS"))
+    # The client builder now rejects an invalid mode at construction, so this
+    # sends one raw to exercise the server's own defence — a non-Python client
+    # (the log-gui) can still put ``SIDEWAYS`` on the wire.
+    harness.send(encode(TOPIC_LOG_SUBSCRIBE, {"sub_id": "v1", "mode": "SIDEWAYS"}))
     time.sleep(0.4)
     errs = [p for t, p in harness.drain(0.6) if t == "log.error.v1"]
     assert errs and errs[0]["code"] == "INVALID_MODE"

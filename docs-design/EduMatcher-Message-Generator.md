@@ -4236,13 +4236,9 @@ that adoption surfaced rather than caused. Its dict:
 * sends **display-money floats** for `price`, where `order.new` is integer
   ticks and no gateway sits between the bot and the engine to convert.
 
-So `pm-ai-trader` has never placed a valid order. Routing `make_order_new_msg`
-through the validating builder would move that failure from a swallowed engine
-`KeyError` to a raise at the bot, which is the correct place for it — but the
-fix belongs to `ai_trader` (build a real `Order`, in ticks, dropping the two
-dead tags), and its correct shape depends on the bot's market-data units, which
-is a change to a shipped process rather than a builder swap. `order.new` waits
-on that; it is a follow-up, not part of cluster B.
+So `pm-ai-trader` had never placed a valid order. The fix belonged to
+`ai_trader`, not the builder, and it landed as §31.8: the bot now builds a real
+`Order` in ticks the way a gateway does, and `order.new` adopts with it.
 
 ### 31.5 Cluster A: the log family, thirteen of fifteen, and the spec that disagreed with the wire
 
@@ -4361,23 +4357,33 @@ checked-only (a record rides), and it names itself the same call as `log`'s
 filter and `order.new`. `order.execution_report` is the BALF binary frame of
 §31.2. Both stay pass-throughs on purpose.
 
-### 31.8 What remains, and the shape of the end
+### 31.8 The ai_trader fix, `order.new` adopted, and the end
 
-Three unadopted, and two of them are settled exclusions:
+`order.new`'s one blocker was `ai_trader` (§31.4), and the fix is the one that
+section named: the bot now builds a real `Order` through `Order.create` — which
+assigns the `id`, `remaining_qty`, `timestamp` and `status` it was missing — in
+integer ticks via `to_ticks`, exactly as a gateway does, because it is the one
+producer that talks straight to the engine with no gateway to convert for it.
+The two undeclared tags it used to smuggle, `run_id` and `strategy`, move into
+the declared `client_tag` — which exists for precisely this, a client-supplied
+tag echoed on every lifecycle event — so the provenance survives on the wire
+instead of being silently dropped. `make_order_new_msg` then adopts like the
+rest of its cluster, and all six of its producers now build a valid order.
 
-* `order.execution_report` — the BALF frame; adopt nothing, strike it from the
-  count (§31.2).
-* `index.index_history` — a deliberate pass-through over a legacy archive
-  (§31.7).
+That empties the residue to its two deliberate exclusions — the BALF
+`execution_report` frame (§31.2) and `index.index_history`'s legacy-archive
+replay (§31.7) — and section 30.2's thirty are now all accounted for: **27
+adopted** across 6.3's four clusters, **two excluded by design**, and
+`system.position_request`, which was never unadopted at all (§31.1).
 
-The third, `order.new`, is the only message that *should* adopt and cannot yet,
-because one of its producers — ai_trader — does not build a valid order (§31.4).
-
-That is the shape the enumeration test §7.3 of the handover should freeze: not
-empty, but exactly this residue — two documented exclusions and `order.new`.
-Writing it now would pin `order.new` as if its exclusion were intended, which it
-is not; it waits only on the ai_trader fix, after which the set it asserts is the
-phase's actual end.
+The enumeration §7.3 of the handover asked for is now a test,
+`test_msgen_adoption.py`: it asserts the unadopted set is exactly
+`{execution_report, index_history}`, so a new `encode`-built producer or a
+deleted builder fails the suite instead of passing unnoticed, and adopting
+either exclusion later means deleting it from that set in the same change that
+routes it through its builder. With it the message set has no producer reaching
+the wire without the spec's say-so except the two that say so on purpose — which
+is the whole of what §1 set out to guarantee. There is no 6.4.
 
 ## Appendix A — Phase 1 implementation starter
 

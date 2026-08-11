@@ -117,7 +117,7 @@ def dumps(payload: dict[str, Any]) -> bytes:
 
 
 def make_order_new_msg(order_dict: dict[str, Any]) -> list[bytes]:
-    return encode(_gen_order.TOPIC_ORDER_NEW, order_dict)
+    return _gen_order.make_order_new(**order_dict)
 
 
 def make_gateway_connect_msg(gateway_id: str) -> list[bytes]:

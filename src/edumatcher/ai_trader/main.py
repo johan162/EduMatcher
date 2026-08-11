@@ -34,6 +34,8 @@ from edumatcher.models.message import (
     make_order_new_msg,
     make_symbols_request_msg,
 )
+from edumatcher.models.order import TIF, Order, OrderType, Side
+from edumatcher.models.price import to_ticks
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 from edumatcher.models.generated.order import (
@@ -406,17 +408,21 @@ class AITraderBot:
             else:
                 price = ref + self.profile.passive_offset_ticks * self.profile.tick_size
 
-        return {
-            "symbol": symbol,
-            "side": side,
-            "order_type": "LIMIT",
-            "quantity": qty,
-            "price": round(price, 4),
-            "tif": "DAY",
-            "gateway_id": self.gateway_id,
-            "run_id": self._run_id,
-            "strategy": self.profile.name,
-        }
+        # The bot talks straight to the engine, so it builds a complete order
+        # (id, remaining_qty, timestamp, status) in ticks, exactly as a gateway
+        # would; run/strategy provenance rides in the declared client_tag,
+        # echoed on every lifecycle event, not undeclared keys the engine drops.
+        order = Order.create(
+            symbol=symbol,
+            side=Side.BUY if side == "BUY" else Side.SELL,
+            order_type=OrderType.LIMIT,
+            quantity=qty,
+            gateway_id=self.gateway_id,
+            tif=TIF.DAY,
+            price=to_ticks(price, symbol),
+        )
+        order.client_tag = f"{self.profile.name}:{self._run_id}"
+        return order.to_dict()
 
     def _maybe_submit_order(self) -> None:
         now = time.monotonic()

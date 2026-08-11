@@ -13,7 +13,7 @@
     - What `pm-msgen check` guarantees, and why generation must be
       byte-for-byte deterministic for that guarantee to be worth anything
 
-!!! info "Current status: Phase 6.2 — complete"
+!!! info "Current status: Phase 6.3 — complete"
     **Fourteen families are specified and adopted — every family there is**,
     covering 106 messages and 34 record types: `trade`, `order`, `session`, `book`, `log`, `index`,
     `risk`, `structure`, `quote`, `circuit_breaker`, `auction`, `drop_copy`,
@@ -40,8 +40,13 @@
     `270-preamble.md`, which is hand-written and is where anything the spec
     cannot state belongs.
 
-    That closes all three surfaces this tool was built for. The full history
-    lives in `docs-design/EduMatcher-Message-Generator.md`.
+    Phase 6.3 finished the adoption: every producer now reaches the wire
+    through its generated builder except two frames that opt out on purpose —
+    the BALF `execution_report` and `index.index_history`'s legacy-archive
+    replay — which `tests/test_msgen_adoption.py` pins. That closes all three
+    surfaces this tool was built for, and there is no planned 6.4: the
+    generator is done. The full history lives in
+    `docs-design/EduMatcher-Message-Generator.md`.
 
 ## The problem
 
