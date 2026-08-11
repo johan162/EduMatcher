@@ -414,7 +414,19 @@ class TestSystemMessages:
         assert topic == "order.orders_request"
 
     def test_make_orders_msg(self) -> None:
-        topic, payload = _rt(make_orders_msg("GW01", [{"id": "O1"}]))
+        order = {
+            "id": "O1",
+            "symbol": "AAPL",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "tif": "DAY",
+            "quantity": 100,
+            "remaining_qty": 100,
+            "gateway_id": "GW01",
+            "timestamp": 1.0,
+            "status": "NEW",
+        }
+        topic, payload = _rt(make_orders_msg("GW01", [order]))
         assert topic == "order.orders.GW01"
         assert len(payload["orders"]) == 1
 

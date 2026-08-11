@@ -77,6 +77,7 @@ from edumatcher.models.generated.order import (
     TOPIC_ORDER_NEW,
     TOPIC_ORDER_OCO,
     TOPIC_ORDER_OCO_CANCEL,
+    TOPIC_ORDERS_REQUEST,
     topic_order_ack,
     topic_order_cancelled,
     topic_order_fill,
@@ -5080,7 +5081,7 @@ class Engine:
                 self._handle_reference_reload(payload)
             elif topic == TOPIC_BOOK_SNAPSHOT_REQUEST:
                 self._handle_book_snapshot_request(payload)
-            elif topic == "order.orders_request":
+            elif topic == TOPIC_ORDERS_REQUEST:
                 self._handle_orders_request(payload)
             elif topic == TOPIC_QUOTE_BOOTSTRAP_REQUEST:
                 self._handle_quote_bootstrap_request(payload)

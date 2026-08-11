@@ -81,6 +81,79 @@ types:
           explicit NONE. Combo-level in the ALF protocols, so every leg carries
           the same value.
 
+  OrderDisplay:
+    doc: >
+      One resting order as the engine reports it in an `order.orders` snapshot,
+      in display units. It is `Order.to_dict()` with price, stop_price and
+      trail_offset converted from ticks to display money and timestamp
+      expressed in seconds - the projection `order_to_display_dict` builds so an
+      operator reads prices in the same money the book shows, not raw ticks.
+      Every field the engine emits is declared; the eleven nullable ones ride
+      as null when unset, exactly as `order.new` carries `Order.to_dict()`.
+    fields:
+      - { name: id, type: string, validate: { max_len: 64 },
+          doc: "Engine order id; a UUID string." }
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - { name: side, type: enum, values: [BUY, SELL] }
+      - { name: order_type, type: enum,
+          values: [MARKET, LIMIT, STOP, STOP_LIMIT, FOK, ICEBERG, IOC,
+                   TRAILING_STOP] }
+      - { name: tif, type: enum, values: [DAY, GTC, ATO, ATC] }
+      - { name: quantity, type: int, unit: shares,
+          doc: "Total original quantity.", validate: { gt: 0 } }
+      - { name: remaining_qty, type: int, unit: shares,
+          doc: "Quantity yet to be filled.", validate: { ge: 0 } }
+      - { name: gateway_id, type: string, validate: { max_len: 32 } }
+      - { name: trail_offset, type: float, unit: display_price,
+          required: false, nullable: true,
+          doc: "TRAILING_STOP: trail distance, in display money." }
+      - { name: oco_group_id, type: string, required: false, nullable: true,
+          validate: { max_len: 64 } }
+      - name: timestamp
+        type: float
+        unit: epoch_seconds
+        validate: { ge: 0 }
+        doc: >
+          Client-supplied submission time, in seconds. NOT the book's time
+          priority key - see arrival_seq.
+      - { name: status, type: enum,
+          values: [NEW, PARTIAL, FILLED, CANCELLED, REJECTED, EXPIRED] }
+      - { name: price, type: float, unit: display_price, required: false,
+          nullable: true,
+          doc: "Limit price in display money. Null for MARKET, which has none." }
+      - { name: stop_price, type: float, unit: display_price, required: false,
+          nullable: true, doc: "STOP / STOP_LIMIT / TRAILING_STOP trigger." }
+      - { name: visible_qty, type: int, unit: shares, required: false,
+          nullable: true, doc: "ICEBERG: fixed peak size." }
+      - { name: displayed_qty, type: int, unit: shares, required: false,
+          nullable: true, doc: "ICEBERG: current visible slice on the book." }
+      - name: smp_action
+        type: enum
+        values: [NONE, CANCEL_AGGRESSOR, CANCEL_RESTING, CANCEL_BOTH]
+        required: false
+        nullable: true
+        doc: >
+          Self-match prevention. Null means the client did not specify SMP at
+          all, distinct from an explicit NONE. See SmpAction's docstring.
+      - { name: combo_parent_id, type: string, required: false, nullable: true,
+          validate: { max_len: 64 } }
+      - { name: leg_index, type: int, unit: dimensionless, required: false,
+          nullable: true, doc: "Position in the parent combo's legs, 0-based." }
+      - { name: origin, type: enum, values: [ORDER, QUOTE, IMPLIED],
+          required: false, default: "ORDER",
+          doc: "Defaulted rather than nullable: to_dict always supplies ORDER." }
+      - { name: quote_id, type: string, required: false, nullable: true,
+          validate: { max_len: 64 } }
+      - { name: client_tag, type: string, required: false, nullable: true,
+          validate: { max_len: 64 },
+          doc: "Client correlation tag, echoed on every lifecycle event." }
+      - name: arrival_seq
+        type: int
+        unit: dimensionless
+        required: false
+        default: 0
+        doc: "Engine-assigned monotonic arrival sequence; 0 = unassigned."
+
 messages:
   - name: execution_report
     # BALF-only: a private per-order fill sent to the owning gateway session.
@@ -654,3 +727,48 @@ messages:
           validate: { max_len: 32 } }
     encoding:
       engine_pub: { frames: [topic, json_payload], include: all }
+
+  # --------------------------------------------------------------------------
+  # Order snapshot query: a caller asks the engine for a gateway's resting
+  # orders, and the engine replies with them in display units. The reply mirrors
+  # system.symbols - gateway_id keys the topic and is dropped from the body by
+  # the default projection, so the body is just {orders: [...]}.
+  # --------------------------------------------------------------------------
+  - name: orders_request
+    topic: "order.orders_request"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Caller to engine: the resting (unfilled, non-cancelled) orders a
+        gateway currently has on the books, across all symbols.
+      published_by: [admin, api_gateway, gateway]
+      since: "1.0"
+      see_also: ["order.orders.{GW_ID}", "system.symbols_request"]
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Whose resting orders to return, and the reply's correlation
+                key." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }
+
+  - name: orders
+    topic: "order.orders.{gateway_id}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to caller: the gateway's resting orders in display units, one
+        OrderDisplay record each. Empty when the gateway is unknown or flat.
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["order.orders_request", "order.new"]
+      example_note: >
+        gateway_id names the caller in the topic and is dropped from the body
+        by the default projection, so the body is a single `orders` list -
+        the same shape system.symbols uses.
+    fields:
+      - { name: gateway_id, type: string, validate: { max_len: 32 },
+          doc: "Topic-only; dropped from the body by the default projection." }
+      - { name: orders, type: list, ref: OrderDisplay,
+          doc: "Resting orders, as the engine iterates its books." }
+    encoding:
+      engine_pub: { frames: [topic, json_payload] }

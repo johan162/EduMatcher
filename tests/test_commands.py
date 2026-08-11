@@ -322,7 +322,20 @@ class TestDataQueries:
         assert result["last_price"] == 150.25
 
     def test_order_list_returns_orders_array(self) -> None:
-        orders = [{"id": "abc", "symbol": "AAPL", "side": "BUY", "remaining_qty": 100}]
+        orders = [
+            {
+                "id": "abc",
+                "symbol": "AAPL",
+                "side": "BUY",
+                "order_type": "LIMIT",
+                "tif": "DAY",
+                "quantity": 100,
+                "remaining_qty": 100,
+                "gateway_id": "TRADER01",
+                "timestamp": 1.0,
+                "status": "NEW",
+            }
+        ]
         client, push = _client(recv_queue=_q(make_orders_msg("TRADER01", orders)))
         result = client.order_list("TRADER01")
 

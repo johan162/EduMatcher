@@ -15,7 +15,7 @@
 
 !!! info "Current status: Phase 6.3 — complete"
     **Fourteen families are specified and adopted — every family there is**,
-    covering 106 messages and 34 record types: `trade`, `order`, `session`, `book`, `log`, `index`,
+    covering 108 messages and 37 record types: `trade`, `order`, `session`, `book`, `log`, `index`,
     `risk`, `structure`, `quote`, `circuit_breaker`, `auction`, `drop_copy`,
     `admin` and `system`. Each has a Python binding; `trade` and `order` also
     have C bindings for their CALF projections and the BALF

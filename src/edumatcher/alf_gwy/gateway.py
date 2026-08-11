@@ -61,7 +61,9 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_CANCELLED,
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
+    PREFIX_ORDERS,
     topic_order_ack,
+    topic_orders,
     topic_order_amended,
     topic_order_cancelled,
     topic_order_expired,
@@ -930,7 +932,7 @@ class AlfGateway:
                 self._handle_symbols_response(gateway_id, payload)
                 continue
 
-            if topic.startswith("order.orders."):
+            if topic.startswith(PREFIX_ORDERS):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_orders_response(gateway_id, payload)
                 continue
@@ -1693,7 +1695,7 @@ class AlfGateway:
             topic_order_amended(gateway_id),
             topic_order_cancelled(gateway_id),
             topic_order_expired(gateway_id),
-            f"order.orders.{gateway_id}",
+            topic_orders(gateway_id),
             topic_quote_ack(gateway_id),
             topic_quote_status(gateway_id),
             topic_combo_ack(gateway_id),

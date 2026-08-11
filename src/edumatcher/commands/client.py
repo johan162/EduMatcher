@@ -58,6 +58,10 @@ from edumatcher.models.message import (
     make_volume_request_msg,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.order import (
+    PREFIX_ORDERS,
+    topic_orders,
+)
 from edumatcher.models.generated.book import (
     PREFIX_BOOK_SNAPSHOT,
     topic_book_snapshot,
@@ -121,7 +125,7 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     PREFIX_BOOK_SNAPSHOT,
     TOPIC_SESSION_STATE,
     PREFIX_SYMBOLS,
-    "order.orders.",
+    PREFIX_ORDERS,
     PREFIX_QUOTE_BOOTSTRAP,
     PREFIX_SESSION_STATUS,
     PREFIX_SESSION_SCHEDULE,
@@ -454,7 +458,7 @@ class ExchangeCommandClient:
         across all symbols.
         """
         self._send(make_orders_request_msg(target_gw.upper()))
-        result = self._recv(f"order.orders.{target_gw.upper()}")
+        result = self._recv(topic_orders(target_gw.upper()))
         return list(result.get("orders", []))
 
     def symbol_list(self) -> list[str]:

@@ -30,6 +30,7 @@ from edumatcher.models.generated.order import (
     topic_order_ack,
     topic_order_amended,
     topic_order_cancelled,
+    topic_orders,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["orders"])
@@ -205,7 +206,7 @@ async def list_orders(
         return cast(
             dict[str, Any],
             await request.app.state.engine.await_topic(
-                f"order.orders.{gateway_id}",
+                topic_orders(gateway_id),
                 request.app.state.config.timeouts.engine_reply_sec,
             ),
         )

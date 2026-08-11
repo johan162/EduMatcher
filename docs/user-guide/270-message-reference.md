@@ -520,6 +520,8 @@ Every topic in the system, and which process puts it on the wire.
 | `order.new` | `order` | `gateway` |
 | `order.oco` | `order` | `gateway` |
 | `order.oco_cancel` | `order` | `gateway` |
+| `order.orders.{gateway_id}` | `order` | `engine` |
+| `order.orders_request` | `order` | `admin`, `api_gateway`, `gateway` |
 | `quote.ack.{gateway_id}` | `quote` | `engine` |
 | `quote.cancel` | `quote` | `admin`, `api_gateway`, `gateway` |
 | `quote.new` | `quote` | `gateway` |
@@ -1706,6 +1708,36 @@ One leg of a combo. Unlike an OcoLeg it owns a symbol and a quantity: the legs o
 | `stop_price` | `ticks` | `null` when unset | unit `ticks` |  |
 | `smp_action` | enum: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | `null` when unset | — | Null means the client did not specify SMP, which is distinct from an explicit NONE. Combo-level in the ALF protocols, so every leg carries the same value. |
 
+#### `OrderDisplay`
+
+One resting order as the engine reports it in an `order.orders` snapshot, in display units. It is `Order.to_dict()` with price, stop_price and trail_offset converted from ticks to display money and timestamp expressed in seconds - the projection `order_to_display_dict` builds so an operator reads prices in the same money the book shows, not raw ticks. Every field the engine emits is declared; the eleven nullable ones ride as null when unset, exactly as `order.new` carries `Order.to_dict()`.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `id` | `string` | required | max_len 64 | Engine order id; a UUID string. |
+| `symbol` | `string` | required | max_len 16 |  |
+| `side` | enum: `BUY`, `SELL` | required | — |  |
+| `order_type` | enum: `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | required | — |  |
+| `tif` | enum: `DAY`, `GTC`, `ATO`, `ATC` | required | — |  |
+| `quantity` | `int` | required | gt 0, unit `shares` | Total original quantity. |
+| `remaining_qty` | `int` | required | ge 0, unit `shares` | Quantity yet to be filled. |
+| `gateway_id` | `string` | required | max_len 32 |  |
+| `trail_offset` | `float` | `null` when unset | unit `display_price` | TRAILING_STOP: trail distance, in display money. |
+| `oco_group_id` | `string` | `null` when unset | max_len 64 |  |
+| `timestamp` | `float` | required | ge 0, unit `epoch_seconds` | Client-supplied submission time, in seconds. NOT the book's time priority key - see arrival_seq. |
+| `status` | enum: `NEW`, `PARTIAL`, `FILLED`, `CANCELLED`, `REJECTED`, `EXPIRED` | required | — |  |
+| `price` | `float` | `null` when unset | unit `display_price` | Limit price in display money. Null for MARKET, which has none. |
+| `stop_price` | `float` | `null` when unset | unit `display_price` | STOP / STOP_LIMIT / TRAILING_STOP trigger. |
+| `visible_qty` | `int` | `null` when unset | unit `shares` | ICEBERG: fixed peak size. |
+| `displayed_qty` | `int` | `null` when unset | unit `shares` | ICEBERG: current visible slice on the book. |
+| `smp_action` | enum: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | `null` when unset | — | Self-match prevention. Null means the client did not specify SMP at all, distinct from an explicit NONE. See SmpAction's docstring. |
+| `combo_parent_id` | `string` | `null` when unset | max_len 64 |  |
+| `leg_index` | `int` | `null` when unset | unit `dimensionless` | Position in the parent combo's legs, 0-based. |
+| `origin` | enum: `ORDER`, `QUOTE`, `IMPLIED` | defaults to `'ORDER'` | — | Defaulted rather than nullable: to_dict always supplies ORDER. |
+| `quote_id` | `string` | `null` when unset | max_len 64 |  |
+| `client_tag` | `string` | `null` when unset | max_len 64 | Client correlation tag, echoed on every lifecycle event. |
+| `arrival_seq` | `int` | defaults to `0` | unit `dimensionless` | Engine-assigned monotonic arrival sequence; 0 = unassigned. |
+
 ### `execution_report` (no bus topic)
 
 **Published by:** `gateway`
@@ -2052,6 +2084,43 @@ Cancel an OCO pair and both of its legs.
 | `gateway_id` | `string` | defaults to `''` | max_len 32 |  |
 
 **See also:** `order.oco`, `order.cancel`
+
+### `order.orders_request`
+
+**Published by:** `admin`, `api_gateway`, `gateway`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.0
+
+Caller to engine: the resting (unfilled, non-cancelled) orders a gateway currently has on the books, across all symbols.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 | Whose resting orders to return, and the reply's correlation key. |
+
+**See also:** `order.orders.{GW_ID}`, `system.symbols_request`
+
+### `order.orders.{gateway_id}`
+
+**Published by:** `engine`
+
+**Transport:** `engine_pub`
+
+**Since:** 1.0
+
+Engine to caller: the gateway's resting orders in display units, one OrderDisplay record each. Empty when the gateway is unknown or flat.
+
+| Field | Type | Presence | Rules | Description |
+|---|---|---|---|---|
+| `gateway_id` | `string` | required | max_len 32 | Topic-only; dropped from the body by the default projection. |
+| `orders` | list of [`OrderDisplay`](#orderdisplay) | required | — | Resting orders, as the engine iterates its books. |
+
+!!! note
+
+    gateway_id names the caller in the topic and is dropped from the body by the default projection, so the body is a single `orders` list - the same shape system.symbols uses.
+
+**See also:** `order.orders_request`, `order.new`
 
 ## Family `quote`
 

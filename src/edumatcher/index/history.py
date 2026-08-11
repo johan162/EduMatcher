@@ -48,7 +48,11 @@ class IndexHistory:
             canonical.validate()
             record = canonical.to_dict()
         except (KeyError, MessageValidationError) as exc:
-            log.error("index history record failed validation, storing as-is: %s", exc)
+            log.error(
+                "index history record failed validation, storing as-is: %s | record=%s",
+                exc,
+                json.dumps(record, separators=(",", ":")),
+            )
         self._fh.write(json.dumps(record, separators=(",", ":")) + "\n")
         log.debug(
             "history append path=%s type=%s index_id=%s",
@@ -135,7 +139,16 @@ class IndexHistory:
                         if len(results) >= max_records:
                             break
         except FileNotFoundError:
+            # Benign: the archive is created lazily on the first append.
             return [], []
+        except OSError as exc:
+            # The file exists but cannot be read (permissions, disk error) —
+            # distinct from "no history yet" so an operator can act on it.
+            log.error(
+                "index history file unreadable: path=%s error=%s", self._path, exc
+            )
+            warnings.append(f"index history file unreadable: {exc}")
+            return [], warnings
 
         log.debug(
             "history query path=%s from_ts=%.3f to_ts=%.3f types=%s max_records=%d returned=%d warnings=%d",

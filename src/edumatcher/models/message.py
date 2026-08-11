@@ -318,12 +318,11 @@ def make_book_msg(symbol: str, book_snapshot: dict[str, Any]) -> list[bytes]:
 
 
 def make_orders_request_msg(gateway_id: str) -> list[bytes]:
-    return encode("order.orders_request", {"gateway_id": gateway_id})
+    return _gen_order.make_orders_request(gateway_id=gateway_id)
 
 
 def make_orders_msg(gateway_id: str, orders: list[dict[str, Any]]) -> list[bytes]:
-    topic = f"order.orders.{gateway_id}"
-    return encode(topic, {"orders": orders})
+    return _gen_order.make_orders(gateway_id=gateway_id, orders=orders)
 
 
 def make_book_snapshot_request_msg(symbol: str) -> list[bytes]:

@@ -12,6 +12,7 @@ from edumatcher.models.generated.order import (
     PREFIX_ORDER_CANCELLED,
     PREFIX_ORDER_EXPIRED,
     PREFIX_ORDER_FILL,
+    PREFIX_ORDERS,
 )
 from edumatcher.models.generated.session import TOPIC_SESSION_STATE
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT, PREFIX_DEPTH
@@ -57,7 +58,7 @@ PRIVATE_PREFIXES = (
     ORDER_AMENDED_PREFIX,
     ORDER_CANCELLED_PREFIX,
     ORDER_EXPIRED_PREFIX,
-    "order.orders.",
+    PREFIX_ORDERS,
     PREFIX_COMBO_ACK,
     PREFIX_COMBO_STATUS,
     PREFIX_OCO_ACK,

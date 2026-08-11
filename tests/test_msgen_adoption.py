@@ -64,3 +64,58 @@ def test_the_unadopted_set_is_exactly_the_documented_exclusions() -> None:
         and f"make_{message.name}_unchecked" not in calls
     }
     assert unadopted == ADOPTION_EXCLUSIONS
+
+
+def _bus_encode_call_sites() -> set[str]:
+    """Files that call the bus-level ``message.encode`` outside message.py.
+
+    A raw ``encode(topic, payload)`` is how a producer reaches the wire without
+    a builder, bypassing validation. The enumeration test above only sees
+    messages that made it into a spec; this catches the other direction — an
+    unspec'd producer wired straight to ``encode`` — which is how
+    ``order.orders`` slipped the net before it was specced.
+    """
+    offenders: set[str] = set()
+    for path in SRC.rglob("*.py"):
+        if "generated" in path.parts or "msgen" in path.parts:
+            continue
+        if path == SRC / "models" / "message.py":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+
+        # Names bound to the bus encode: `from ...message import encode` and
+        # module aliases of `edumatcher.models.message`.
+        by_name = False
+        module_aliases: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                if node.module == "edumatcher.models.message":
+                    by_name |= any(a.name == "encode" for a in node.names)
+            elif isinstance(node, ast.Import):
+                for a in node.names:
+                    if a.name == "edumatcher.models.message":
+                        module_aliases.add(a.asname or "edumatcher.models.message")
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if by_name and isinstance(func, ast.Name) and func.id == "encode":
+                offenders.add(path.name)
+            elif (
+                isinstance(func, ast.Attribute)
+                and func.attr == "encode"
+                and isinstance(func.value, ast.Name)
+                and func.value.id in module_aliases
+            ):
+                offenders.add(path.name)
+    return offenders
+
+
+def test_no_producer_reaches_the_wire_through_raw_encode() -> None:
+    """Every bus producer goes through a builder, never raw ``encode``.
+
+    ``models/message.py`` owns the primitive and generated code delegates to
+    it; no other module should call it directly.
+    """
+    assert _bus_encode_call_sites() == set()

@@ -133,11 +133,13 @@ from edumatcher.models.generated.index import (
 from edumatcher.models.generated.drop_copy import topic_drop_copy_event
 from edumatcher.models.generated.risk import topic_kill_switch_ack
 from edumatcher.models.generated.order import (
+    PREFIX_ORDERS,
     topic_order_ack,
     topic_order_amended,
     topic_order_cancelled,
     topic_order_expired,
     topic_order_fill,
+    topic_orders,
 )
 from edumatcher.models.generated.structure import (
     topic_combo_ack,
@@ -295,7 +297,7 @@ class Gateway:
             topic_order_amended(self.gateway_id),
             topic_order_cancelled(self.gateway_id),
             topic_order_expired(self.gateway_id),
-            f"order.orders.{self.gateway_id}",
+            topic_orders(self.gateway_id),
             topic_combo_ack(self.gateway_id),
             topic_combo_status(self.gateway_id),
             topic_oco_ack(self.gateway_id),
@@ -708,7 +710,7 @@ class Gateway:
             else:
                 console.print("[red]Malformed quote bootstrap response.[/red]")
 
-        elif "order.orders" in topic:
+        elif topic.startswith(PREFIX_ORDERS):
             orders = payload.get("orders", [])
             for od in orders:
                 oid = str(od.get("id") or "")
