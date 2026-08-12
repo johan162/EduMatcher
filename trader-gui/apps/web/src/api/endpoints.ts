@@ -16,6 +16,7 @@ import type {
   ReferenceBundle,
   ReferenceScheduleDTO,
   SessionStatusDTO,
+  DailyStatsResponse,
 } from "@/types/index.js";
 
 // ── Auth / status ─────────────────────────────────────────────────────────────
@@ -128,12 +129,25 @@ export const getHistoryTrades = (symbol: string, limit = 50) =>
     `/api/v1/history/trades?symbol=${encodeURIComponent(symbol)}&limit=${limit}`,
   );
 
-export const getHistoryDaily = (symbol?: string, date?: string) => {
-  const params = new URLSearchParams();
-  if (symbol) params.set("symbol", symbol);
-  if (date) params.set("date", date);
-  const qs = params.size ? `?${params.toString()}` : "";
-  return apiFetch<Record<string, unknown>>(`/api/v1/history/daily${qs}`);
+/**
+ * Daily OHLC rollup. Omitting `date` returns the latest available date, which
+ * would silently be *yesterday* before the first print of the session — so
+ * callers computing today's change % must pass today's date explicitly and
+ * accept an empty list until the first trade.
+ */
+export const getHistoryDaily = (params?: {
+  symbol?: string;
+  date?: string;
+  limit?: number;
+  after?: string;
+}) => {
+  const qs = new URLSearchParams();
+  if (params?.symbol) qs.set("symbol", params.symbol);
+  if (params?.date) qs.set("date", params.date);
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.after) qs.set("after", params.after);
+  const suffix = qs.size ? `?${qs.toString()}` : "";
+  return apiFetch<DailyStatsResponse>(`/api/v1/history/daily${suffix}`);
 };
 
 // ── Admin ─────────────────────────────────────────────────────────────────────

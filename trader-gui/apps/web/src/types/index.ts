@@ -255,6 +255,42 @@ export interface MonitorEvent {
   liquidity?: "MAKER" | "TAKER";
 }
 
+// ── History: daily rollup (GET /history/daily) ───────────────────────────────
+/**
+ * One row of `daily_stats`, already converted from integer ticks to display
+ * money by the gateway using the row's own `tick_decimals`.
+ */
+export interface DailyStat {
+  date: string; // YYYY-MM-DD
+  symbol: string;
+  open_price: number | null;
+  high_price: number | null;
+  low_price: number | null;
+  close_price: number | null;
+  open_bid: number | null;
+  open_ask: number | null;
+  close_bid: number | null;
+  close_ask: number | null;
+  volume: number;
+  trade_count: number;
+  turnover: number;
+  vwap: number | null;
+  largest_trade_qty: number | null;
+  largest_trade_price: number | null;
+  tick_decimals: number | null;
+}
+
+/**
+ * The standard paginated list envelope. Note the key is `daily`, not `stats`
+ * as an earlier revision of the design document had it.
+ */
+export interface DailyStatsResponse {
+  daily: DailyStat[];
+  count: number;
+  has_more: boolean;
+  next_cursor?: string;
+}
+
 // ── Reference bundle (GET /reference, and `reference` inside bootstrap) ──────
 /** One instrument's static configuration (pm-msgen ReferenceSymbol). */
 export interface ReferenceSymbol {

@@ -64,7 +64,7 @@ trader-gui/
         lib/               # formatters, validators (Zod), priceUtils, schedule, bootstrap
         types/             # Core TypeScript types (Appendix A)
         router/            # RoleGuard
-        components/        # layout/, shared/
+        components/        # layout/, market/, shared/
         pages/             # Route-level page stubs
       test/                # Vitest unit tests
   test/

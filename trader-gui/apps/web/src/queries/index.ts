@@ -4,7 +4,8 @@
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as api from "@/api/endpoints.js";
-import type { Order, Position, QuoteLeg } from "@/types/index.js";
+import { ApiError } from "@/api/apiFetch.js";
+import type { DailyStat, Order, Position, QuoteLeg } from "@/types/index.js";
 
 // ── Symbols ───────────────────────────────────────────────────────────────────
 export function useSymbolsQuery() {
@@ -144,8 +145,48 @@ export function useHistoryTradesQuery(symbol: string | null) {
 export function useHistoryDailyQuery(symbol?: string, date?: string) {
   return useQuery({
     queryKey: ["history/daily", symbol, date],
-    queryFn: () => api.getHistoryDaily(symbol, date),
+    queryFn: () => api.getHistoryDaily({ symbol, date }),
     staleTime: 5 * 60_000,
+  });
+}
+
+/** Local calendar date as YYYY-MM-DD, the venue-day approximation §10.3 uses. */
+export function todayIso(now = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/**
+ * Today's daily rollup for every symbol, keyed by symbol (§10.3).
+ *
+ * Supplies `open_price` for the change-% column and the day's `volume`. It is
+ * polled rather than pushed — there is no daily-rollup WebSocket channel —
+ * and the market-data `trade` stream tops the volume up between polls.
+ *
+ * A `503 STATS_DB` (no stats database yet, a normal state for a fresh
+ * install) resolves to an empty map rather than an error, so the board still
+ * renders live prices with the derived columns blank.
+ */
+export function useDailyStatsQuery() {
+  const date = todayIso();
+  return useQuery({
+    queryKey: ["history/daily", "board", date],
+    queryFn: async () => {
+      try {
+        const res = await api.getHistoryDaily({ date, limit: 5000 });
+        if (res.has_more) {
+          console.warn("[market] daily rollup truncated at 5000 rows");
+        }
+        const bySymbol: Record<string, DailyStat> = {};
+        for (const row of res.daily) bySymbol[row.symbol] = row;
+        return bySymbol;
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 503) return {};
+        throw err;
+      }
+    },
+    staleTime: 30_000,
+    refetchInterval: 30_000,
   });
 }
 
@@ -218,4 +259,4 @@ export function useDisconnectGatewayMutation() {
 }
 
 // Re-export some base types for convenience
-export type { Order, Position, QuoteLeg };
+export type { DailyStat, Order, Position, QuoteLeg };

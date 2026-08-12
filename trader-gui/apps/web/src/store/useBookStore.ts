@@ -22,6 +22,17 @@ export interface BookEntry {
   lastSellPrice: number | null;
   /** Most recent prints first, bounded to RECENT_TRADES_LIMIT. */
   recentTrades: TradeData[];
+  /**
+   * Quantity traded since the last daily-rollup refresh (§10.3).
+   *
+   * The board's volume column is `daily.volume + liveVolume`: the rollup is
+   * polled on a 30s timer, and this tops it up in between. It is reset — not
+   * accumulated from page load — every time a fresh rollup lands, because the
+   * rollup already contains everything up to its own query time. Only trades
+   * in the sub-second window between the server's read and our reset can be
+   * counted twice, and the next poll corrects that.
+   */
+  liveVolume: number;
   /** Decimals for price rendering, carried on the book snapshot. */
   tickDecimals: number | null;
   auction: {
@@ -46,6 +57,8 @@ interface BookStore {
   recordTrade: (data: TradeData) => void;
   /** Drop the cached tape for a symbol after a `trades.reset` (§26.3.2). */
   clearRecentTrades: (symbol: string) => void;
+  /** Zero every live-volume accumulator; called when a fresh rollup lands. */
+  resetLiveVolume: () => void;
   /** Drop all cached state for a symbol after an unrepairable gap. */
   clearSymbol: (symbol: string) => void;
   /**
@@ -70,6 +83,7 @@ function defaultEntry(symbol: string): BookEntry {
     lastBuyPrice: null,
     lastSellPrice: null,
     recentTrades: [],
+    liveVolume: 0,
     tickDecimals: null,
     auction: null,
     updatedAt: 0,
@@ -139,6 +153,7 @@ export const useBookStore = create<BookStore>((set, get) => ({
             lastQty: data.quantity,
             tickDecimals: data.tick_decimals ?? prev.tickDecimals,
             recentTrades: [data, ...prev.recentTrades].slice(0, RECENT_TRADES_LIMIT),
+            liveVolume: prev.liveVolume + data.quantity,
             updatedAt: Date.now(),
           },
         },
@@ -153,6 +168,22 @@ export const useBookStore = create<BookStore>((set, get) => ({
       return {
         books: { ...s.books, [symbol]: { ...prev, recentTrades: [] } },
       };
+    });
+  },
+
+  resetLiveVolume: () => {
+    set((s) => {
+      const next: Record<string, BookEntry> = {};
+      let changed = false;
+      for (const [symbol, entry] of Object.entries(s.books)) {
+        if (entry.liveVolume === 0) {
+          next[symbol] = entry;
+          continue;
+        }
+        next[symbol] = { ...entry, liveVolume: 0 };
+        changed = true;
+      }
+      return changed ? { books: next } : s;
     });
   },
 
