@@ -22,7 +22,7 @@ from edumatcher.api_gateway.config import (
 from edumatcher.api_gateway.engine_client import EngineClient
 from edumatcher.api_gateway.index_client import IndexClient
 from edumatcher.api_gateway.rate_limit import RateLimiter
-from edumatcher.api_gateway.routers import admin, history, orders, reference, ws
+from edumatcher.api_gateway.routers import admin, bootstrap, history, orders, reference, ws
 from edumatcher.api_gateway.sessions import SessionRegistry
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -137,6 +137,7 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
     app.include_router(reference.router)
     app.include_router(history.router)
     app.include_router(admin.router)
+    app.include_router(bootstrap.router)
     app.include_router(ws.router)
     return app
 

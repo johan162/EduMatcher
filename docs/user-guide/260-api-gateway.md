@@ -334,6 +334,9 @@ Base path: `/api/v1`.
 | `GET`    | `/history/index-snapshots`   | any valid key | Intraday index level time series     |
 | `GET`    | `/history/index-ids`         | any valid key | Index IDs with recorded statistics   |
 | `GET`    | `/history/index-events`      | any valid key | Index structural/audit log (live pm-index round-trip) |
+| `GET`    | `/bootstrap/trader`          | any valid key | One-request TRADER/MM/ADMIN startup payload          |
+| `GET`    | `/bootstrap/mm`              | MARKET\_MAKER | One-request MARKET\_MAKER startup payload (adds quote state) |
+| `GET`    | `/bootstrap/admin`           | admin         | One-request ADMIN startup payload                   |
 | `GET`    | `/healthz`                   | none          | Liveness probe (not in Swagger)      |
 
 Admin endpoints are documented separately under
@@ -750,6 +753,57 @@ reply to a subset of `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`
 four. There are no level or end-of-day tick records here — use
 `/history/index-daily` and `/history/index-snapshots` for those.
 
+
+## Bootstrap endpoints
+
+Bootstrap endpoints collapse the 6–13 sequential REST calls a browser client
+currently needs at login into a single round-trip per role.  Sub-queries
+inside each handler run in parallel; the total wall-clock time is the slowest
+of the concurrent engine queries, not their sum.
+
+### How partial failures work
+
+Each response carries an `incomplete` array.  When any optional sub-query
+times out or errors, the corresponding field is set to `null` and its name is
+appended to `incomplete`.  The rest of the response is still valid and useful.
+Required fields — `reference` and `orders` for `/bootstrap/trader` and
+`/bootstrap/mm`; `reference` for `/bootstrap/admin` — return `503
+ENGINE_TIMEOUT` if they fail rather than a partial response, because the UI
+cannot render anything meaningful without them.
+
+### Role access
+
+| Endpoint | Allowed | Returns `403` for |
+|---|---|---|
+| `GET /api/v1/bootstrap/trader` | Any valid key | — |
+| `GET /api/v1/bootstrap/mm` | MARKET\_MAKER | TRADER, ADMIN, read-only |
+| `GET /api/v1/bootstrap/admin` | ADMIN | TRADER, MARKET\_MAKER, read-only |
+
+Read-only credentials (no `gateway_id`) may call `/bootstrap/trader`.  They
+receive `gateway_role: "READ_ONLY"`, empty `positions`, and empty `orders`
+without triggering any engine round-trip for those fields.
+
+### `fills_limit` query parameter
+
+`/bootstrap/trader` and `/bootstrap/mm` accept an optional `fills_limit`
+integer query parameter (default `50`, max `500`) that controls how many of
+today's fill events are returned in the `recent_fills` field.  The engine
+session timezone in the stats database determines what "today" means,
+consistent with `GET /api/v1/history/fills`.
+
+### Updated login sequence
+
+With a bootstrap endpoint the login sequence becomes:
+
+1. `GET /api/v1/bootstrap/<role>` — one HTTP request with parallel internal
+   engine queries; populates identity, reference data, session state, orders,
+   positions, and capability flags before any WebSocket opens.
+2. Open WebSockets in parallel — `/events`, `/market-data`, and (ADMIN)
+   `/admin/monitor` — all of which can start immediately because
+   `gateway_id` and `gateway_role` are already known from step 1.
+
+For the full response shapes and error codes see
+[Appendix: REST API Reference — Bootstrap](950-app-REST-API-reference.md#bootstrap).
 
 ## Admin endpoints
 
@@ -1718,6 +1772,17 @@ Quick index of the endpoints on this page, grouped by how the UI uses them.
 
 For the full normative request/response contract for each endpoint, see the
 [Appendix: REST API Reference](950-app-REST-API-reference.md).
+
+### Bootstrap
+
+Single-fetch startup payloads.  Any valid key for `/bootstrap/trader`;
+MARKET\_MAKER key for `/bootstrap/mm`; ADMIN role for `/bootstrap/admin`.
+
+| Endpoint | Use |
+|---|---|
+| `GET /api/v1/bootstrap/trader` | Identity, reference, session, positions, orders, recent fills, capabilities |
+| `GET /api/v1/bootstrap/mm` | All of trader + quote bootstrap and quote legs |
+| `GET /api/v1/bootstrap/admin` | Reference, session, gateways, halts, order counts, monitor sequence |
 
 ### Trading REST
 

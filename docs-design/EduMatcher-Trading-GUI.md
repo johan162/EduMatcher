@@ -3746,7 +3746,7 @@ This keeps the terminal honest during staged backend work and makes demos less b
   `/reference*`; remaining work is symbol mutation, expanded kill-switch scopes, and `pm-index`
   admin bridge endpoints.
 
-Items 1, 3, 5, and 6 are complete for their narrowed scope: market data and private events for item 1,
+Items 1, 2, 3, 5, and 6 are complete for their narrowed scope: market data and private events for item 1,
 per-symbol subscriptions for item 3, admin monitor snapshot/order drill-down for item 5 (event backfill
 still open), and kill switch/mass cancel plus session transition for item 6. Item 7 is now partially
 complete: reference reads are stable via `/reference*`, while admin/index write surfaces remain.
