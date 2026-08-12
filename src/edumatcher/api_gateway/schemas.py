@@ -297,31 +297,52 @@ class MarketDataSubscriptionItem(StrictModel):
     An empty or ``["*"]`` ``symbols`` list means every symbol. An empty
     ``channels`` list subscribes to nothing and is reported back as rejected
     rather than silently ignored.
+
+    ``resume_from`` is an optional per-channel hint carrying the last ``seq``
+    the client processed on that channel's topic for this item's symbol(s). It
+    is honoured for ``trades`` (buffered prints after that ``seq`` are
+    replayed); for the self-healing snapshot channels the current snapshot is
+    sent instead. Absent means "just send me the current snapshot".
     """
 
     symbols: list[str] = Field(default_factory=list)
     channels: list[MarketDataChannel] = Field(default_factory=list)
+    resume_from: dict[MarketDataChannel, int] | None = None
 
 
 class MarketDataControl(StrictModel):
-    """Market-data subscribe/unsubscribe control frame.
+    """Market-data control frame.
 
-    Two forms, both accepted:
+    Four actions:
 
-    * **Flat** (original) — ``symbols`` and ``channels`` at the top level,
-      meaning the cross product of the two.
-    * **Items** — a list of independent rules, which is the only way to
-      express "book for everything, depth for one symbol". The flat form
-      cannot: it has a single symbol set shared by every channel.
+    * ``subscribe`` / ``unsubscribe`` — change the socket's active rule set.
+    * ``snapshot`` — re-emit the current cached snapshot for the given
+      symbols/channels without changing the subscription.
+    * ``resume`` — replay one dropped stream from ``from_seq``. Names the
+      topic either explicitly (``topic`` + optional ``symbol``) or, for
+      ``subscribe``, via a per-item ``resume_from`` hint.
 
-    The flat form is exactly equivalent to a single item, so a client using it
-    needs no changes.
+    Two subscription forms, both accepted (and unchanged):
+
+    * **Flat** — ``symbols`` and ``channels`` at the top level (their cross
+      product).
+    * **Items** — a list of independent rules, the only way to express "book
+      for everything, depth for one symbol".
+
+    The flat form equals a single item, so an existing client needs no change.
     """
 
-    action: Literal["subscribe", "unsubscribe"]
+    action: Literal["subscribe", "unsubscribe", "snapshot", "resume"]
     symbols: list[str] = Field(default_factory=list)
     channels: list[MarketDataChannel] = Field(default_factory=list)
     items: list[MarketDataSubscriptionItem] = Field(default_factory=list)
+    #: ``resume`` only: the engine topic to replay (e.g. ``"trade.executed"``)
+    #: and the last sequence the client processed. When the topic is not itself
+    #: symbol-qualified (``trade.executed``), the symbol is taken from the
+    #: ``symbols`` list above — there is deliberately no singular ``symbol``
+    #: field, so a ``symbol``/``symbols`` typo stays an error.
+    topic: str | None = None
+    from_seq: int | None = None
 
     def as_items(self) -> list[MarketDataSubscriptionItem]:
         """Normalise both forms to a list of items."""

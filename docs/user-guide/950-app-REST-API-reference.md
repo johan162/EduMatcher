@@ -1813,6 +1813,10 @@ Purpose: reload the compiled reference bundle in place.
   but not trading or admin write endpoints.
 - `order_retention_sec` bounds the live order cache, the private
   `orders.snapshot` frame, and `GET /api/v1/admin/orders`.
+- `market_data_cache_sec` bounds the market-data stream cache that backs the
+  snapshot-on-subscribe, `snapshot`, and `resume` controls on
+  `WS /api/v1/market-data` (latest `book`/`depth`/`auction` snapshots are kept
+  regardless of age; only the `trades` tail is bounded).
 - WebSocket streams use the chapter-level contracts in
   [API Gateway (REST/WebSocket)](260-api-gateway.md); this appendix is REST
   only.

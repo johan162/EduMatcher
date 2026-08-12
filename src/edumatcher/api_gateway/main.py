@@ -48,7 +48,12 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         loop = asyncio.get_running_loop()
-        engine = EngineClient(config.engine_pull_addr, config.engine_pub_addr, loop)
+        engine = EngineClient(
+            config.engine_pull_addr,
+            config.engine_pub_addr,
+            loop,
+            market_cache_sec=config.market_data_cache_sec,
+        )
         engine.start_listener()
         index_client = IndexClient(config.index_pull_addr, config.index_pub_addr, loop)
         index_client.start_listener()
@@ -157,6 +162,7 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
         index_pull_addr=index_pull_addr,
         index_pub_addr=index_pub_addr,
         stats_db=Path(args.stats_db).expanduser() if args.stats_db else config.stats_db,
+        market_data_cache_sec=config.market_data_cache_sec,
         log_level=args.log_level.lower() if args.log_level else config.log_level,
         swagger_enabled=config.swagger_enabled,
         credentials=config.credentials,

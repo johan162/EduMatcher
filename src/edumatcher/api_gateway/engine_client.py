@@ -14,6 +14,7 @@ import zmq
 from fastapi import HTTPException, status
 
 from edumatcher.api_gateway.caches import SessionCaches
+from edumatcher.api_gateway.market_cache import MarketDataCache
 from edumatcher.api_gateway.events import (
     ADMIN_ACTION_PREFIX,
     envelope,
@@ -81,7 +82,11 @@ class EngineClient:
     """Owns engine sockets, event fan-out, futures, and session caches."""
 
     def __init__(
-        self, pull_addr: str, pub_addr: str, loop: asyncio.AbstractEventLoop
+        self,
+        pull_addr: str,
+        pub_addr: str,
+        loop: asyncio.AbstractEventLoop,
+        market_cache_sec: int = 60,
     ) -> None:
         self._loop = loop
         self._pull_addr = pull_addr
@@ -105,6 +110,9 @@ class EngineClient:
         self._caches: dict[str, SessionCaches] = defaultdict(SessionCaches)
         self._sinks: dict[str, set[asyncio.Queue[dict[str, Any]]]] = defaultdict(set)
         self._market_data_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
+        # Latest-snapshot-per-topic plus a bounded trades tail, feeding the
+        # snapshot/resume verbs on WS /api/v1/market-data.
+        self._market_cache = MarketDataCache(market_cache_sec)
         # ADMIN monitor sinks receive every event across all gateways.
         self._admin_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
         # Cache of resolved gateway roles (keyed by upper-cased gateway id).
@@ -490,6 +498,10 @@ class EngineClient:
             for cache in self._caches.values():
                 cache.apply(topic, payload)
             event = envelope(topic, payload, seq=seq)
+            # Retain latest snapshot / recent trade tail so a (re)subscribing
+            # or gap-detecting client can be served without waiting for the
+            # next live tick.
+            self._market_cache.record(event)
             for queue in list(self._market_data_sinks):
                 if self._try_put(queue, event):
                     self._dbg_count("market_data_sink_events")
@@ -540,6 +552,11 @@ class EngineClient:
 
     def remove_market_data_sink(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
         self._market_data_sinks.discard(queue)
+
+    @property
+    def market_cache(self) -> MarketDataCache:
+        """The market-data snapshot/resume cache (see ``market_cache.py``)."""
+        return self._market_cache
 
     def add_admin_sink(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
         self._admin_sinks.add(queue)

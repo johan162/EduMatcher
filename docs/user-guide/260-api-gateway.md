@@ -60,6 +60,10 @@ api_gateways:
     # Seconds a terminal order stays in the in-memory cache. 0 disables
     # eviction (unbounded growth).
     order_retention_sec: 3600
+    # Seconds the market-data stream cache retains the per-symbol trades tail
+    # for WS snapshot/resume. Latest book/depth/auction snapshots are kept
+    # regardless of age; 0 disables the trade buffer but still serves snapshots.
+    market_data_cache_sec: 60
 
     credentials:
       - api_key: key-trader-demo
@@ -89,6 +93,7 @@ api_gateways:
 | `stats_db` | `pm-stats`' SQLite file, read-only, for `/history/*` |
 | `audit_db` | `pm-audit`'s index, read-only, for `/admin/orders/{order_id}`. Optional |
 | `order_retention_sec` | Seconds a terminal order stays cached (default `3600`; `0` disables eviction) |
+| `market_data_cache_sec` | Seconds the market-data cache retains the per-symbol `trades` tail for WS snapshot/resume (default `60`; latest book/depth/auction snapshots are kept regardless of age; `0` disables the trade buffer) |
 | `rate_limit` | Per-key write limiting for POST/PATCH/DELETE endpoints |
 | `timeouts` | Engine auth, request/reply, and synchronous ACK wait timeouts |
 
@@ -1194,7 +1199,8 @@ async for raw in websocket:
         if previous is not None and seq != previous + 1:
             print(f"gap on {topic}: {seq - previous - 1} event(s) lost")
             # book/depth carry full state, so the next message re-syncs you.
-            # A missed trade is gone — refetch from the history endpoints.
+            # A missed trade can be replayed with a `resume` (see below),
+            # or refetched from the history endpoints if it aged out.
         last[topic] = seq
 ```
 
@@ -1208,8 +1214,12 @@ async for raw in websocket:
 
 `book` and `depth` events carry **complete state**, not deltas, so a client
 that missed some simply takes the next one. Trades are the events worth
-reacting to: a dropped `trade` is not repeated, and the
-[history endpoints](#history-endpoints) are the way to recover it.
+reacting to: a dropped `trade` is not repeated on the live feed, but it can be
+recovered without leaving the socket — send a
+[`resume`](#market-data-snapshot-and-resume) with the last `seq` you saw, and
+the gateway replays the buffered prints (falling back to the
+[history endpoints](#history-endpoints) only when the gap is older than
+`market_data_cache_sec`).
 
 The server side of the same signal is on `GET /healthz`, which reports
 `dropped_events` per sink (`market_data`, `private`, `admin`). The gateway also
@@ -1388,6 +1398,89 @@ silently:
     subscribing `{AAPL, [book]}` and then `{MSFT, [depth]}` also delivered
     depth for `AAPL` and book for `MSFT`. Each rule is now independent. A
     single control frame behaves exactly as before.
+
+### Market-data snapshot and resume
+
+Unlike the private stream, market data can be recovered without a REST round
+trip: the gateway keeps a small in-memory cache of the latest `book`, `depth`,
+and `auction` snapshot per symbol, plus a time-bounded tail of recent `trade`
+prints. It serves that cache three ways.
+
+**Snapshot on subscribe.** A `subscribe` is answered — after the `subscription`
+ack — with the current cached snapshot for each newly matched symbol/channel,
+so a (re)subscribing client renders immediately instead of waiting for the next
+tick. When the cache is cold (nothing seen yet) the burst is simply empty and
+the client waits for the first live event, exactly as before. This is additive:
+a client that ignores the extra frames is unaffected, since they are ordinary
+`book`/`depth`/`auction`/`trade` envelopes it already routes.
+
+**Explicit `snapshot`.** Re-request the current snapshot for some
+symbols/channels without changing the subscription — useful after a detected
+gap on a snapshot channel:
+
+```json
+{ "action": "snapshot", "items": [ { "symbols": ["AAPL"], "channels": ["book", "depth"] } ] }
+```
+
+**`resume`.** Recover the events missed on one stream after the last `seq` you
+processed:
+
+```json
+{ "action": "resume", "topic": "trade.executed", "symbols": ["AAPL"], "from_seq": 128400 }
+```
+
+The topic names the stream; a symbol-qualified topic (`book.AAPL`,
+`depth.AAPL`, `auction.result.AAPL`) carries its own symbol, while
+`trade.executed` takes it from `symbols`. What happens next depends on the
+channel:
+
+| Channel | `resume` behaviour |
+|---|---|
+| `trades` | Buffered prints with `seq > from_seq` are replayed. If `from_seq` predates the retained window, the server sends a `trades.reset`, then a `resume.rejected` with `reason: "too_old"`, then a fresh tail |
+| `book` / `depth` / `auction` | Self-healing — the current snapshot **is** the resume, so the latest snapshot is sent. These channels carry full state, not deltas, so there is nothing older to replay |
+
+You can also fold a resume into a `subscribe` with a per-item `resume_from`
+hint, mapping a channel to the last `seq` you saw:
+
+```json
+{
+  "action": "subscribe",
+  "items": [
+    { "symbols": ["AAPL"], "channels": ["trades"], "resume_from": { "trades": 128400 } }
+  ]
+}
+```
+
+`resume_from` is honoured for `trades` (prints after that `seq` are replayed
+instead of the whole tail) and ignored for the self-healing channels (which get
+a plain snapshot).
+
+Rejections arrive as a `resume.rejected` envelope rather than silently:
+
+```json
+{ "type": "resume.rejected", "ts": "...", "data": { "topic": "trade.executed", "from_seq": 100, "reason": "too_old" } }
+```
+
+| `reason` | Meaning |
+|---|---|
+| `too_old` | `from_seq` predates the retained `trades` window; a `trades.reset` and fresh tail follow |
+| `unknown_topic` | The topic is not a cached market-data topic, or nothing has ever been seen for it |
+
+!!! note "Retention is set by `market_data_cache_sec`"
+    Default 60 s. It bounds only the `trades` tail — the latest
+    `book`/`depth`/`auction` snapshot per topic is kept regardless of age, so a
+    snapshot is always available even for a symbol that has been quiet longer
+    than the window. `0` disables the trade buffer while still serving
+    snapshots. There is intentionally no on-disk retention: this is the
+    classroom/local scale the gateway targets, and older trades live in the
+    [history endpoints](#history-endpoints).
+
+!!! warning "This does not exist for private events"
+    `/api/v1/events` keeps no replay buffer — see
+    [Private event recovery](#private-event-recovery). Market data can offer
+    `resume` because `book`/`depth`/`auction` are self-healing snapshots and
+    the `trades` tail is cheap to retain; private order state is recovered in
+    full from `orders.snapshot` instead.
 
 
 ## Python REST example

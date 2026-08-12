@@ -3724,7 +3724,7 @@ This keeps the terminal honest during staged backend work and makes demos less b
    market data carries a per-topic `seq` ([§17.3.1](#1731-authentication-and-subscription)) and
    `/api/v1/events` carries a private `stream_seq` ([§17.2.1](#1721-authentication-frame)). Remaining:
    extend the same convention to `/api/v1/admin/monitor`, and unify all three into one shared envelope.
-2. **Add snapshot/resume for market data.** Private-event resume/replay was evaluated and
+2. ~~Add snapshot/resume for market data.~~ ** Private-event resume/replay was evaluated and
    deliberately deferred ([§26.3.5](#2635-private-event-recovery)) — `stream_seq` + `orders.snapshot`
    plus `/history/*` and drop copy already cover the practical recovery cases. Market data still
    lacks a replay handshake, so this item stays scoped to `book`/`trades`/`depth`/`auction`.

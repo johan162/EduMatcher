@@ -17,6 +17,7 @@ from fastapi import HTTPException, WebSocketDisconnect, status
 from edumatcher.api_gateway import engine_client, main
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
 from edumatcher.api_gateway.engine_client import EngineClient
+from edumatcher.api_gateway.market_cache import MarketDataCache
 from edumatcher.api_gateway.routers import history, ws
 from edumatcher.api_gateway.schemas import MarketDataControl
 from edumatcher.api_gateway.sessions import Session, SessionRegistry, auth
@@ -380,8 +381,15 @@ def test_main_cli_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.anyio
 async def test_create_app_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
     class FakeEngineClient:
-        def __init__(self, pull_addr: str, pub_addr: str, loop: Any) -> None:
+        def __init__(
+            self,
+            pull_addr: str,
+            pub_addr: str,
+            loop: Any,
+            market_cache_sec: int = 60,
+        ) -> None:
             self.args = (pull_addr, pub_addr, loop)
+            self.market_cache_sec = market_cache_sec
             self.started = False
             self.stopped = False
             self.disconnects: list[tuple[str, str]] = []
@@ -587,7 +595,10 @@ async def test_websocket_auth_controls_and_filtering() -> None:
                         ApiGatewayConfig(
                             credentials=(ApiCredential("key", "GW01", "test"),)
                         )
-                    )
+                    ),
+                    # _receive_market_controls now consults the market-data
+                    # snapshot cache to answer a subscribe with current state.
+                    engine=SimpleNamespace(market_cache=MarketDataCache()),
                 )
             )
 

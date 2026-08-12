@@ -85,6 +85,13 @@ class ApiGatewayConfig:
     #: memory; older orders live in the audit trail, which is durable.
     #: Set to 0 to disable eviction (the previous, unbounded behaviour).
     order_retention_sec: int = 3600
+    #: How long the market-data stream cache retains the per-symbol ``trades``
+    #: tail that backs the snapshot/resume verbs on WS /api/v1/market-data.
+    #: The latest ``book``/``depth``/``auction`` snapshot per topic is kept
+    #: regardless of age (a gap there is self-healing); only the trade tail is
+    #: bounded. 30–60s is enough for a browser to repair a brief drop; 0
+    #: disables the trade buffer while still serving latest snapshots.
+    market_data_cache_sec: int = 60
     #: Optional override for the session timezone that ``date`` filters on the
     #: history endpoints resolve their trading day in. ``None`` — the default —
     #: means "use the timezone ``stats_db`` was recorded with", which is what
@@ -210,6 +217,12 @@ def _load_api_gateway_section(
     if order_retention_sec < 0:
         raise ValueError(f"{section_name}.order_retention_sec must be >= 0")
 
+    market_data_cache_sec = _as_int(
+        section.get("market_data_cache_sec", 60), section_name, "market_data_cache_sec"
+    )
+    if market_data_cache_sec < 0:
+        raise ValueError(f"{section_name}.market_data_cache_sec must be >= 0")
+
     session_timezone_raw = section.get("session_timezone")
     session_timezone = (
         None if session_timezone_raw is None else str(session_timezone_raw)
@@ -231,6 +244,7 @@ def _load_api_gateway_section(
         stats_db=stats_db,
         audit_db=audit_db,
         order_retention_sec=order_retention_sec,
+        market_data_cache_sec=market_data_cache_sec,
         session_timezone=session_timezone,
         log_level=str(section.get("log_level", "info")),
         swagger_enabled=bool(section.get("swagger_enabled", True)),
