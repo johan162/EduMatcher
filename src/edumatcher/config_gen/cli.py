@@ -779,6 +779,21 @@ def _resolve_emit_schedule(args: argparse.Namespace) -> bool:
     return bool(args.schedule)
 
 
+def _engine_tuning_was_requested(argv: list[str]) -> bool:
+    tuning_options = (
+        "--snapshot-interval",
+        "--quote-history-maxlen",
+        "--drop-copy-buffer-size",
+        "--recent-trades-maxlen",
+        "--depth-snapshot-tolerance-ticks",
+    )
+    return any(
+        argument == option or argument.startswith(f"{option}=")
+        for argument in argv
+        for option in tuning_options
+    )
+
+
 def _print_diagnostics(lines: list[str]) -> None:
     for line in lines:
         print(line, file=sys.stderr)
@@ -1673,6 +1688,7 @@ def main() -> None:
             drop_copy_buffer_size=int(args.drop_copy_buffer_size),
             recent_trades_maxlen=int(args.recent_trades_maxlen),
             depth_snapshot_tolerance_ticks=int(args.depth_snapshot_tolerance_ticks),
+            emit_engine_tuning=_engine_tuning_was_requested(sys.argv[1:]),
             enforce_collars=not args.no_collars,
             enforce_circuit_breakers=not args.no_circuit_breakers,
             static_band_pct=args.static_band,

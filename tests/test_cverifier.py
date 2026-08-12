@@ -135,6 +135,19 @@ class TestLayer2TopLevel:
 
 
 class TestLayer2Symbols:
+    def test_symbol_cb_halt_inherits_default_price_shift(self) -> None:
+        raw = _raw(
+            "symbols:\n  TSLA:\n    tick_decimals: 2\n    circuit_breaker:\n"
+            "      levels:\n        L1:\n          halt_duration_ns: 600000000000\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "circuit_breaker_defaults:\n  levels:\n    L1:\n"
+            "      price_shift_pct: 0.07\n      halt_duration_ns: 300000000000\n"
+        )
+
+        results = layer2_schema.check(raw, Path("x.yaml"))
+
+        assert "S066" not in _codes(results)
+
     def test_tick_decimals_out_of_range(self) -> None:
         raw = _raw(
             "symbols:\n  AAPL:\n    tick_decimals: 9\ngateways:\n  alf:\n    - id: GW01\n"

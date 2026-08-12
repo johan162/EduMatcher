@@ -41,6 +41,49 @@ def test_minimal_output_parses(
     assert "Wrote generated config" in stderr
 
 
+def test_engine_tuning_is_omitted_without_tuning_options(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    raw = yaml.safe_load(out_file.read_text(encoding="utf-8"))
+    assert "engine_tuning" not in raw
+
+
+def test_engine_tuning_is_emitted_for_explicit_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--snapshot-interval=0.5",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    raw = yaml.safe_load(out_file.read_text(encoding="utf-8"))
+    assert raw["engine_tuning"]["snapshot_interval_sec"] == 0.5
+
+
 def test_gateway_smp_emitted_and_parses(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -620,10 +663,8 @@ def test_comment_default_config_fields_emits_engine_field_defaults(
         "# true lets pm-scheduler drive session transitions;\n# false keeps the engine in continuous mode\nsessions_enabled: false"
         in captured.out
     )
-    assert (
-        "# runtime retention and throttling knobs with memory/latency trade-offs\nengine_tuning:\n  # seconds between book snapshot publications for dirty books\n  snapshot_interval_sec: 0.5"
-        in captured.out
-    )
+    assert "#   engine_tuning:\n#     snapshot_interval_sec: 0.5" in captured.out
+    assert "# -- Engine tuning --" not in captured.out
     # Check for circuit_breaker_defaults documentation in "Field Notes and Accepted Values" section
     assert (
         "#   reference_window_ns: 300000000000\n#     Lookback window used to compute the rolling reference price for halt triggers."
