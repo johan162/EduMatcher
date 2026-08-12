@@ -14,10 +14,10 @@ const config: Config = {
       colors: {
         // ── Backgrounds ────────────────────────────────────────────────────
         bg: {
-          primary: "#0a0a0f",   // near-black main background
+          primary: "#0a0a0f", // near-black main background
           secondary: "#12121a", // panel background
-          tertiary: "#1a1a28",  // table row / input background
-          elevated: "#20203a",  // modal / dialog background
+          tertiary: "#1a1a28", // table row / input background
+          elevated: "#20203a", // modal / dialog background
         },
         // ── Borders ────────────────────────────────────────────────────────
         border: {
@@ -31,8 +31,8 @@ const config: Config = {
           muted: "#505070",
         },
         // ── Semantic trading colours ───────────────────────────────────────
-        bid: "#22c55e",   // green — buy/bid / BUY action button
-        ask: "#ef4444",   // red   — sell/ask / SELL action button
+        bid: "#22c55e", // green — buy/bid / BUY action button
+        ask: "#ef4444", // red   — sell/ask / SELL action button
         flash: {
           up: "rgba(34, 197, 94, 0.4)",
           down: "rgba(239, 68, 68, 0.4)",

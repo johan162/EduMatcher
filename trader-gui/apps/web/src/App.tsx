@@ -3,6 +3,7 @@ import { AppShell } from "@/components/layout/AppShell.js";
 import { RoleGuard } from "@/router/RoleGuard.js";
 import { useAuthStore } from "@/store/useAuthStore.js";
 import { useWebSocketManager } from "@/ws/WebSocketManager.js";
+import { useMarketDataSubscription } from "@/hooks/useMarketDataSubscription.js";
 
 // Pages (lazy-loaded stubs for now)
 import { LoginPage } from "@/pages/LoginPage.js";
@@ -33,8 +34,10 @@ function RoleLanding() {
 }
 
 export default function App() {
-  // Connect WebSockets once the user is authenticated.
+  // Connect WebSockets once the user is authenticated, and keep the
+  // market-data focus subscription bound to the active symbol + watchlist.
   useWebSocketManager();
+  useMarketDataSubscription();
 
   return (
     <Routes>

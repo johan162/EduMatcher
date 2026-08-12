@@ -12,8 +12,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
   // We are inside a jsdom environment. Patch localStorage if it is the inert
   // Node-built-in stub rather than jsdom's own implementation.
   const isInert =
-    typeof localStorage === "undefined" ||
-    localStorage?.constructor?.name === "Storage";
+    typeof localStorage === "undefined" || localStorage?.constructor?.name === "Storage";
 
   if (isInert) {
     const store: Record<string, string> = {};

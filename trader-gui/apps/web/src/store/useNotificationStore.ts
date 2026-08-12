@@ -1,13 +1,6 @@
 import { create } from "zustand";
 
-export type NotificationKind =
-  | "ACK"
-  | "FILL"
-  | "REJECT"
-  | "CANCEL"
-  | "CB"
-  | "SESSION"
-  | "SYSTEM";
+export type NotificationKind = "ACK" | "FILL" | "REJECT" | "CANCEL" | "CB" | "SESSION" | "SYSTEM";
 
 export interface NotificationEntry {
   id: string;

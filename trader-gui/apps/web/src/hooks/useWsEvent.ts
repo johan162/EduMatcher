@@ -16,6 +16,6 @@ export function useWsEvent<T extends WsEventType>(
   useEffect(() => {
     const off = wsOn(type, handler as (env: WsEnvelope<unknown>) => void);
     return off;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type]);
 }

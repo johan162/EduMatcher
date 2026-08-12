@@ -45,10 +45,7 @@ export function bucketTimestamp(epochSec: number, tf: "1m" | "5m" | "1h" | "1D")
 }
 
 /** Build a flatten order payload for a net position (§13.6). */
-export function flattenPayload(
-  symbol: string,
-  netQty: number,
-): Record<string, unknown> | null {
+export function flattenPayload(symbol: string, netQty: number): Record<string, unknown> | null {
   if (netQty === 0) return null;
   return {
     symbol,

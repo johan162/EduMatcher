@@ -12,38 +12,17 @@
 export type Side = "BUY" | "SELL";
 
 export type OrderType =
-  | "MARKET"
-  | "LIMIT"
-  | "STOP"
-  | "STOP_LIMIT"
-  | "FOK"
-  | "ICEBERG"
-  | "IOC"
-  | "TRAILING_STOP";
+  "MARKET" | "LIMIT" | "STOP" | "STOP_LIMIT" | "FOK" | "ICEBERG" | "IOC" | "TRAILING_STOP";
 
 export type Tif = "DAY" | "GTC" | "ATO" | "ATC";
 
-export type SmpAction =
-  | "NONE"
-  | "CANCEL_AGGRESSOR"
-  | "CANCEL_RESTING"
-  | "CANCEL_BOTH";
+export type SmpAction = "NONE" | "CANCEL_AGGRESSOR" | "CANCEL_RESTING" | "CANCEL_BOTH";
 
 export type OrderStatus =
-  | "NEW"
-  | "PARTIAL"
-  | "FILLED"
-  | "CANCELLED"
-  | "REJECTED"
-  | "EXPIRED"
-  | "PENDING"; // local-only — not yet acked
+  "NEW" | "PARTIAL" | "FILLED" | "CANCELLED" | "REJECTED" | "EXPIRED" | "PENDING"; // local-only — not yet acked
 
 export type SessionState =
-  | "PRE_OPEN"
-  | "OPENING_AUCTION"
-  | "CONTINUOUS"
-  | "CLOSING_AUCTION"
-  | "CLOSED";
+  "PRE_OPEN" | "OPENING_AUCTION" | "CONTINUOUS" | "CLOSING_AUCTION" | "CLOSED";
 
 export type GatewayRole = "TRADER" | "MARKET_MAKER" | "ADMIN";
 
@@ -266,15 +245,7 @@ export interface HaltEntry {
 }
 
 export interface MonitorEvent {
-  event_type:
-    | "ACK"
-    | "FILL"
-    | "CANCEL"
-    | "AMEND"
-    | "EXPIRE"
-    | "REJECT"
-    | "SESSION"
-    | "CB";
+  event_type: "ACK" | "FILL" | "CANCEL" | "AMEND" | "EXPIRE" | "REJECT" | "SESSION" | "CB";
   order_id?: string;
   gateway_id?: string;
   symbol?: string;
@@ -282,6 +253,85 @@ export interface MonitorEvent {
   fill_price?: number;
   remaining_qty?: number;
   liquidity?: "MAKER" | "TAKER";
+}
+
+// ── Reference bundle (GET /reference, and `reference` inside bootstrap) ──────
+/** One instrument's static configuration (pm-msgen ReferenceSymbol). */
+export interface ReferenceSymbol {
+  symbol: string;
+  tick_decimals: number;
+  level?: string | null;
+  collar?: Record<string, unknown> | null;
+  circuit_breaker?: Record<string, unknown> | null;
+}
+
+/** Five wall-clock times; each is individually nullable (partial config is legal). */
+export interface SessionTimesDTO {
+  pre_open?: string | null;
+  opening_auction_start?: string | null;
+  continuous_start?: string | null;
+  closing_auction_start?: string | null;
+  closing_auction_end?: string | null;
+}
+
+/** pm-msgen ReferenceSchedule — note `schedule` is nested, not flattened. */
+export interface ReferenceScheduleDTO {
+  sessions_enabled: boolean;
+  country?: string | null;
+  schedule?: SessionTimesDTO | null;
+}
+
+export interface ReferenceBundle {
+  gateway_id?: string;
+  symbols: ReferenceSymbol[];
+  risk: { levels: unknown[]; default_level?: string | null };
+  indexes: unknown[];
+  schedule: ReferenceScheduleDTO;
+  config_version: string | null;
+}
+
+/** pm-msgen SessionStatus — the polled answer to the `session.state` broadcast. */
+export interface SessionStatusDTO {
+  gateway_id?: string;
+  state: SessionState;
+  sessions_enabled: boolean;
+}
+
+export interface BootstrapCapabilities {
+  sessions_enabled: boolean;
+  stats_db_available: boolean;
+  audit_db_available: boolean;
+  index_available: boolean;
+}
+
+/** GET /api/v1/bootstrap/trader — also serves MARKET_MAKER (§7.2). */
+export interface BootstrapTrader {
+  ts: string;
+  /** Names of optional fields whose engine query timed out; retry those. */
+  incomplete: string[];
+  gateway_id: string | null;
+  gateway_role: GatewayRole | "READ_ONLY";
+  reference: ReferenceBundle;
+  session: SessionStatusDTO | null;
+  positions: Position[];
+  orders: { orders: Order[] };
+  recent_fills: { events: unknown[]; count: number } | null;
+  capabilities: BootstrapCapabilities;
+}
+
+/** GET /api/v1/bootstrap/admin. */
+export interface BootstrapAdmin {
+  ts: string;
+  incomplete: string[];
+  gateway_id: string;
+  gateway_role: "ADMIN";
+  reference: ReferenceBundle;
+  session: SessionStatusDTO | null;
+  gateways: { gateways: AdminGateway[] } | null;
+  halts: { halted: HaltEntry[] } | null;
+  active_order_counts: Record<string, number>;
+  monitor_last_seq: Record<string, number>;
+  capabilities: BootstrapCapabilities;
 }
 
 // ── Market-data subscription item ────────────────────────────────────────────

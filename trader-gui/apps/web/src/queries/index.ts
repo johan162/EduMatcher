@@ -161,8 +161,7 @@ export function useQuoteBootstrapQuery() {
 export function useQuoteLegsQuery() {
   return useQuery({
     queryKey: ["quotes/legs"],
-    queryFn: () =>
-      api.getQuoteLegs().then((r) => r.legs as QuoteLeg[]),
+    queryFn: () => api.getQuoteLegs().then((r) => r.legs as QuoteLeg[]),
     staleTime: 10_000,
   });
 }

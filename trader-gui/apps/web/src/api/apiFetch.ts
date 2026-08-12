@@ -44,14 +44,15 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     const code =
       typeof err === "string"
         ? err
-        : ((err as Record<string, unknown>)["code"] as string | undefined) ?? "UNKNOWN";
+        : (((err as Record<string, unknown>)["code"] as string | undefined) ?? "UNKNOWN");
     const message =
       typeof err === "string"
         ? err
-        : ((err as Record<string, unknown>)["message"] as string | undefined) ?? res.statusText;
-    const field = typeof err === "object"
-      ? ((err as Record<string, unknown>)["field"] as string | undefined)
-      : undefined;
+        : (((err as Record<string, unknown>)["message"] as string | undefined) ?? res.statusText);
+    const field =
+      typeof err === "object"
+        ? ((err as Record<string, unknown>)["field"] as string | undefined)
+        : undefined;
     throw new ApiError(res.status, code, message, field);
   }
 

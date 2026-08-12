@@ -23,13 +23,7 @@ createRoot(root).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <App />
-        <Toaster
-          position="bottom-right"
-          theme="dark"
-          richColors
-          closeButton
-          duration={5000}
-        />
+        <Toaster position="bottom-right" theme="dark" richColors closeButton duration={5000} />
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

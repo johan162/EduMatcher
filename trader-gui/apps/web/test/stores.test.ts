@@ -7,7 +7,12 @@ import { useNotificationStore } from "@/store/useNotificationStore";
 
 beforeEach(() => {
   useAuthStore.setState({ apiKey: null, gatewayId: null, role: null, gatewayCount: null });
-  useSessionStore.setState({ phase: "CLOSED", prevPhase: null, phaseSince: null, nextTransitionAt: null });
+  useSessionStore.setState({
+    phase: "CLOSED",
+    prevPhase: null,
+    phaseSince: null,
+    nextTransitionAt: null,
+  });
   useBookStore.setState({ books: {} });
   useHaltStore.setState({ halts: {} });
   useNotificationStore.setState({ entries: [], unread: 0 });

@@ -1,15 +1,14 @@
 import { useState, useEffect } from "react";
-import { getConnectionHealth, onHealthChange, type HealthStatus } from "@/ws/WebSocketManager.js";
+import {
+  getConnectionHealth,
+  onHealthChange,
+  type ConnectionHealthSnapshot,
+} from "@/ws/WebSocketManager.js";
 
-export interface ConnectionHealth {
-  events: HealthStatus;
-  marketData: HealthStatus;
-  adminMonitor: HealthStatus | null;
-  overall: HealthStatus;
-}
+export type ConnectionHealth = ConnectionHealthSnapshot;
 
 /**
- * Reactive view over WebSocketManager's connection health.
+ * Reactive view over WebSocketManager's connection health (§17.5).
  * Re-renders when any socket changes state.
  */
 export function useConnectionHealth(): ConnectionHealth {
@@ -17,6 +16,9 @@ export function useConnectionHealth(): ConnectionHealth {
 
   useEffect(() => {
     const off = onHealthChange(() => setHealth(getConnectionHealth()));
+    // A status change between the initial render and this subscription would
+    // otherwise be missed, leaving the dot stale until the next transition.
+    setHealth(getConnectionHealth());
     return off;
   }, []);
 

@@ -18,8 +18,7 @@ export interface SettingsStore {
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
   confirmCancellations: true,
-  toggleConfirmCancellations: () =>
-    set((s) => ({ confirmCancellations: !s.confirmCancellations })),
+  toggleConfirmCancellations: () => set((s) => ({ confirmCancellations: !s.confirmCancellations })),
 
   maxOverviewSymbols: parseInt(env("VITE_MAX_OVERVIEW_SYMBOLS", "250"), 10),
 

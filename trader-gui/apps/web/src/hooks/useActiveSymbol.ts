@@ -1,20 +1,16 @@
 import { useActiveSymbolStore } from "@/store/useActiveSymbolStore.js";
-import { subscribeMarketData } from "@/ws/WebSocketManager.js";
 
 /**
  * Returns [activeSymbol, setActiveSymbol].
- * Setting a new symbol also ensures it is subscribed on the focused channels
- * (book, trades, depth, auction).
+ *
+ * Setting a symbol only writes the store: `useMarketDataSubscription`
+ * (mounted at the app root) derives the focus subscription from the store and
+ * diffs it. Subscribing here as a side effect of the setter was what let the
+ * old focus set grow without bound — nothing ever unsubscribed the symbol
+ * that had just been replaced.
  */
 export function useActiveSymbol(): [string | null, (sym: string) => void] {
   const activeSymbol = useActiveSymbolStore((s) => s.activeSymbol);
-  const rawSet = useActiveSymbolStore((s) => s.setActiveSymbol);
-
-  const setActiveSymbol = (sym: string) => {
-    rawSet(sym);
-    // Ensure this symbol has depth + auction subscriptions.
-    subscribeMarketData([{ symbols: [sym], channels: ["book", "trades", "depth", "auction"] }]);
-  };
-
+  const setActiveSymbol = useActiveSymbolStore((s) => s.setActiveSymbol);
   return [activeSymbol, setActiveSymbol];
 }

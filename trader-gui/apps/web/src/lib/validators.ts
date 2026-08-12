@@ -24,9 +24,7 @@ export const orderSchema = z
     stop_price: z.coerce.number().positive().optional(),
     visible_qty: z.coerce.number().int().positive().optional(),
     trail_offset: z.coerce.number().positive().optional(),
-    smp_action: z
-      .enum(["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"])
-      .optional(),
+    smp_action: z.enum(["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]).optional(),
     client_order_id: z.string().max(64).optional(),
   })
   .superRefine((data, ctx) => {
@@ -95,9 +93,7 @@ export const comboSchema = z.object({
   combo_id: z.string().min(1),
   combo_type: z.literal("AON").default("AON"),
   tif: z.enum(["DAY", "GTC"]).default("DAY"),
-  smp_action: z
-    .enum(["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"])
-    .default("NONE"),
+  smp_action: z.enum(["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]).default("NONE"),
   legs: z
     .array(
       z.object({

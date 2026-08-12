@@ -21,7 +21,7 @@ body {
   color: #e8e8f0;
   font-family: Inter, system-ui, sans-serif;
   min-height: 100vh;
-  min-width: 1440px;       /* desktop-only — §3.2 non-goal */
+  min-width: 1440px; /* desktop-only — §3.2 non-goal */
   overflow-x: auto;
 }
 
@@ -49,17 +49,29 @@ body {
 
 /* ── Flash cell animations (§17.3.3) ─────────────────────────────────────── */
 @keyframes flash-up {
-  0%   { background-color: rgba(34, 197, 94, 0.4); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: rgba(34, 197, 94, 0.4);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 
 @keyframes flash-down {
-  0%   { background-color: rgba(239, 68, 68, 0.4); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: rgba(239, 68, 68, 0.4);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 
-.flash-up   { animation: flash-up   500ms ease-out forwards; }
-.flash-down { animation: flash-down 500ms ease-out forwards; }
+.flash-up {
+  animation: flash-up 500ms ease-out forwards;
+}
+.flash-down {
+  animation: flash-down 500ms ease-out forwards;
+}
 
 /* ── Respect reduced-motion (§24.5) ─────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {

@@ -42,14 +42,10 @@ export function FlashCell({ value, formatter, className = "" }: FlashCellProps) 
     }, FLASH_DURATION);
   }, [value]);
 
-  const display =
-    value === null ? "—" : formatter ? formatter(value) : String(value);
+  const display = value === null ? "—" : formatter ? formatter(value) : String(value);
 
   return (
-    <span
-      ref={ref}
-      className={`price-cell transition-colors ${className}`}
-    >
+    <span ref={ref} className={`price-cell transition-colors ${className}`}>
       {display}
     </span>
   );

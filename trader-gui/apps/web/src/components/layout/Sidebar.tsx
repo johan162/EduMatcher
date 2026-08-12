@@ -27,9 +27,7 @@ interface NavItem {
   Icon: React.ComponentType<{ size?: number }>;
 }
 
-const ALL_ROLES: NavItem[] = [
-  { to: "/market", label: "Market Overview", Icon: BarChart2 },
-];
+const ALL_ROLES: NavItem[] = [{ to: "/market", label: "Market Overview", Icon: BarChart2 }];
 
 const TRADER_ITEMS: NavItem[] = [
   { to: "/workspace", label: "Trading Workspace", Icon: Layers },
@@ -96,9 +94,7 @@ export function Sidebar() {
           <SidebarLink key={item.to} {...item} />
         ))}
 
-        {roleItems.length > 0 && (
-          <div className="border-t border-[#2a2a45] my-2" />
-        )}
+        {roleItems.length > 0 && <div className="border-t border-[#2a2a45] my-2" />}
 
         {roleItems.map((item) => (
           <SidebarLink key={item.to} {...item} />

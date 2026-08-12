@@ -7,9 +7,11 @@ export interface HaltStore {
   clearHalt: (symbol: string) => void;
   /** Bulk-load from GET /api/v1/admin/halts bootstrap. */
   setHalts: (entries: HaltEntry[]) => void;
+  /** True if the symbol is currently halted. */
+  isHalted: (symbol: string) => boolean;
 }
 
-export const useHaltStore = create<HaltStore>((set) => ({
+export const useHaltStore = create<HaltStore>((set, get) => ({
   halts: {},
 
   setHalt: (symbol, data) =>
@@ -23,6 +25,8 @@ export const useHaltStore = create<HaltStore>((set) => ({
       delete next[symbol];
       return { halts: next };
     }),
+
+  isHalted: (symbol) => get().halts[symbol] !== undefined,
 
   setHalts: (entries) => {
     const map: Record<string, HaltEntry> = {};
