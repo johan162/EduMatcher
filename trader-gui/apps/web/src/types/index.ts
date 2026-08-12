@@ -1,0 +1,474 @@
+/**
+ * Core TypeScript types mirroring the pm-api-gwy REST shapes and pm-msgen
+ * WebSocket payloads defined in Appendix A of EduMatcher-Trading-GUI.md.
+ *
+ * Two contracts live here:
+ *  • REST resource shapes  — defined by gateway Pydantic models / OpenAPI
+ *  • WS `data` payloads    — pm-msgen `to_dict()` payloads forwarded verbatim,
+ *                            using ENGINE field names (qty, client_tag, …)
+ */
+
+// ── Enums ─────────────────────────────────────────────────────────────────────
+export type Side = "BUY" | "SELL";
+
+export type OrderType =
+  | "MARKET"
+  | "LIMIT"
+  | "STOP"
+  | "STOP_LIMIT"
+  | "FOK"
+  | "ICEBERG"
+  | "IOC"
+  | "TRAILING_STOP";
+
+export type Tif = "DAY" | "GTC" | "ATO" | "ATC";
+
+export type SmpAction =
+  | "NONE"
+  | "CANCEL_AGGRESSOR"
+  | "CANCEL_RESTING"
+  | "CANCEL_BOTH";
+
+export type OrderStatus =
+  | "NEW"
+  | "PARTIAL"
+  | "FILLED"
+  | "CANCELLED"
+  | "REJECTED"
+  | "EXPIRED"
+  | "PENDING"; // local-only — not yet acked
+
+export type SessionState =
+  | "PRE_OPEN"
+  | "OPENING_AUCTION"
+  | "CONTINUOUS"
+  | "CLOSING_AUCTION"
+  | "CLOSED";
+
+export type GatewayRole = "TRADER" | "MARKET_MAKER" | "ADMIN";
+
+export type ResumptionMode = "AUCTION" | "CONTINUOUS";
+
+// ── REST: status ──────────────────────────────────────────────────────────────
+export interface StatusResponse {
+  orders: number;
+  quote_legs: number;
+  positions: Record<string, unknown>;
+  known_symbols: string[];
+  gateway_role: GatewayRole;
+  gateway_count?: number; // ADMIN keys only
+}
+
+// ── REST: Order ───────────────────────────────────────────────────────────────
+export interface Order {
+  order_id: string;
+  client_order_id?: string | null;
+  symbol: string;
+  side: Side;
+  order_type: OrderType;
+  tif: Tif;
+  quantity: number;
+  remaining_qty: number;
+  price: number | null;
+  stop_price: number | null;
+  visible_qty: number | null;
+  trail_offset: number | null;
+  smp_action: SmpAction;
+  status: OrderStatus;
+  oco_group_id?: string | null;
+  combo_parent_id?: string | null;
+  /** Present on admin cross-gateway views; absent on own-gateway /orders */
+  gateway_id?: string;
+  updated_at: string; // ISO-8601
+}
+
+// ── REST: Fill (private order.fill event / pm-msgen OrderFill) ────────────────
+export interface Fill {
+  gateway_id: string;
+  order_id: string;
+  fill_qty: number;
+  fill_price: number;
+  remaining_qty: number;
+  status: OrderStatus; // PARTIAL | FILLED
+  /** Public trade id(s) composing this fill; [] if none. */
+  trade_ids: string[];
+  symbol?: string;
+  side?: Side;
+  qty?: number; // original order qty (engine name)
+  price?: number;
+  client_tag?: string; // engine name for client_order_id
+  oco_group_id?: string;
+  combo_parent_id?: string;
+  quote_id?: string;
+  leg_index?: number;
+}
+
+// ── REST: Trade (public print) ────────────────────────────────────────────────
+export interface Trade {
+  id: string;
+  symbol: string;
+  price: number;
+  quantity: number;
+  aggressor_side: Side;
+  ts: string;
+}
+
+// ── Book / Depth / Auction (market-data) ─────────────────────────────────────
+export interface BookLevel {
+  price: number;
+  qty: number;
+  count: number;
+}
+
+export interface BookSnapshot {
+  symbol: string;
+  bids: BookLevel[];
+  asks: BookLevel[];
+  last_price: number | null;
+  last_qty: number | null;
+  last_buy_price?: number | null;
+  last_sell_price?: number | null;
+}
+
+export interface DepthMetrics {
+  symbol: string;
+  mid_price: number;
+  bid_depth: number;
+  ask_depth: number;
+  imbalance: number;
+  cost_to_move: number;
+}
+
+/**
+ * Final uncross result. pm-msgen carries `reason`, NOT an `indicative` flag.
+ * The indicative is a separate message type (AuctionIndicative).
+ * Envelope type: "auction"
+ */
+export type AuctionReason = "SCHEDULED" | "REOPEN" | "RECOVERY" | "BACKSTOP";
+
+export interface AuctionResult {
+  symbol: string;
+  eq_price: number | null; // null if nothing crossed
+  eq_qty: number;
+  imbalance_side: Side | null;
+  imbalance_qty: number;
+  trades_count: number;
+  reason: AuctionReason;
+}
+
+/**
+ * Running call-phase indicative.
+ * Envelope type: "auction.indicative" (same `auction` channel).
+ */
+export interface AuctionIndicative {
+  symbol: string;
+  phase: "OPENING_AUCTION" | "CLOSING_AUCTION";
+  eq_price: number | null; // null if book would not cross yet
+  eq_qty: number;
+  imbalance_side: Side | null;
+  imbalance_qty: number;
+}
+
+// ── Session event ─────────────────────────────────────────────────────────────
+export interface SessionEvent {
+  state: SessionState;
+  prev_state?: SessionState;
+  next?: {
+    to_state: SessionState;
+    at: string; // scheduled transition time (ISO-8601)
+  };
+}
+
+// ── Circuit breaker events ────────────────────────────────────────────────────
+/** Discriminate halt vs resume on the envelope `topic`, not an `action` field. */
+export interface CircuitBreakerHalt {
+  symbol: string;
+  level: string | null; // level NAME, e.g. "L2"; null on ADMIN halt
+  trigger_price: number | null; // null on non-price halt
+  reference_price: number | null;
+  resume_at_ns: number | null; // epoch nanoseconds; null = indefinite halt
+  halt_source?: string; // "CIRCUIT_BREAKER" | "ADMIN"
+  corridor_low?: number | null;
+  corridor_high?: number | null;
+  expansion?: number | null;
+}
+
+export interface CircuitBreakerResume {
+  symbol: string;
+  halt_source?: string;
+  reason?: string;
+  clamped?: boolean | null;
+  print_price?: number | null;
+}
+
+// ── Positions ─────────────────────────────────────────────────────────────────
+export interface Position {
+  symbol: string;
+  net_qty: number; // + long, - short
+  last_price: number | null;
+}
+
+// ── MM quote legs (§14.3) ─────────────────────────────────────────────────────
+/** pm-msgen QuoteLeg. leg_side is "BUY"/"SELL", not "bid"/"ask". */
+export interface QuoteLeg {
+  quote_id: string;
+  order_id: string;
+  symbol: string;
+  leg_side: Side;
+  price?: number | null;
+  qty: number;
+  remaining: number;
+  filled: number;
+  status: string;
+  quote_status: string;
+}
+
+// ── Symbol metadata ───────────────────────────────────────────────────────────
+/** Raw shape from GET /api/v1/symbols (pm-msgen SymbolInfo). */
+export interface SymbolInfoDTO {
+  symbol: string;
+  tick_decimals: number;
+  prev_close?: number | null;
+  enforce_mm_obligation?: boolean | null;
+  mm_max_spread_ticks?: number | null;
+  mm_min_qty?: number | null;
+}
+
+/**
+ * Merged view stored in useSymbolStore (§18.1.5).
+ * tick_decimals/prev_close from /symbols, level from /reference
+ * (ReferenceSymbol), reference_price from /reference/risk (SymbolRiskState).
+ */
+export interface Symbol {
+  symbol: string;
+  tick_decimals: number;
+  prev_close: number | null;
+  reference_price: number | null; // from /reference/risk
+  level?: string | null; // collar profile name from /reference
+}
+
+// ── Admin types ───────────────────────────────────────────────────────────────
+export interface AdminGateway {
+  id: string; // pm-msgen GatewayInfo.id
+  role: GatewayRole;
+  connected: boolean;
+  description?: string;
+}
+
+/** pm-msgen HaltedSymbol / circuit_breaker.halt broadcast. */
+export interface HaltEntry {
+  symbol: string;
+  level?: string | null;
+  resume_at_ns?: number | null;
+  halt_source?: string | null;
+  trigger_price?: number | null;
+  reference_price?: number | null;
+}
+
+export interface MonitorEvent {
+  event_type:
+    | "ACK"
+    | "FILL"
+    | "CANCEL"
+    | "AMEND"
+    | "EXPIRE"
+    | "REJECT"
+    | "SESSION"
+    | "CB";
+  order_id?: string;
+  gateway_id?: string;
+  symbol?: string;
+  fill_qty?: number;
+  fill_price?: number;
+  remaining_qty?: number;
+  liquidity?: "MAKER" | "TAKER";
+}
+
+// ── Market-data subscription item ────────────────────────────────────────────
+export interface MarketDataSubscriptionItem {
+  symbols: string[]; // may include "*" for broad coverage
+  channels: Array<"book" | "trades" | "depth" | "auction">;
+}
+
+// ── WebSocket envelope ────────────────────────────────────────────────────────
+export interface WsEnvelope<T = unknown> {
+  type: string;
+  topic: string;
+  ts: string;
+  gateway_id?: string;
+  seq?: number; // per-TOPIC counter (market data + admin monitor)
+  stream_seq?: number; // private events only
+  data: T;
+}
+
+// ── WS data payloads (pm-msgen wire) ─────────────────────────────────────────
+export interface OrderAckData {
+  gateway_id: string;
+  order_id: string;
+  accepted: boolean;
+  reason: string;
+  symbol?: string;
+  side?: Side;
+  order_type?: OrderType;
+  tif?: Tif;
+  qty?: number;
+  price?: number;
+  client_tag?: string;
+  oco_group_id?: string;
+  combo_parent_id?: string;
+  quote_id?: string;
+  leg_index?: number;
+}
+
+export interface OrderAmendedData {
+  gateway_id: string;
+  order_id: string;
+  qty: number;
+  remaining_qty: number;
+  priority_reset: boolean;
+  price: number | null;
+}
+
+export interface OrderTerminalData {
+  gateway_id: string;
+  order_id: string;
+  client_tag?: string;
+  oco_group_id?: string;
+  combo_parent_id?: string;
+  quote_id?: string;
+  leg_index?: number;
+}
+
+export interface ComboAckData {
+  gateway_id: string;
+  combo_id: string;
+  accepted: boolean;
+  reason: string;
+}
+
+export interface ComboStatusData {
+  gateway_id: string;
+  combo_id: string;
+  status: string;
+  reason?: string;
+}
+
+export interface OcoAckData {
+  gateway_id: string;
+  oco_id: string;
+  accepted: boolean;
+  reason: string;
+  order_id_1: string;
+  order_id_2: string;
+}
+
+export interface OcoCancelledData {
+  gateway_id: string;
+  oco_id: string;
+  cancelled_order_id: string;
+  reason?: string;
+}
+
+export interface QuoteAckData {
+  gateway_id: string;
+  accepted: boolean;
+  quote_id: string;
+  reason: string;
+  bid_order_id: string;
+  ask_order_id: string;
+}
+
+export interface QuoteStatusData {
+  gateway_id: string;
+  status: string;
+  quote_id: string;
+  reason?: string;
+}
+
+export interface MassCancelAckData {
+  gateway_id: string;
+  accepted: boolean;
+  reason: string;
+  cancelled_orders: number;
+  cancelled_quotes: number;
+  command_id: string;
+}
+
+export interface RecentTrade {
+  id: string;
+  symbol: string;
+  buy_order_id: string;
+  sell_order_id: string;
+  buy_gateway_id: string;
+  sell_gateway_id: string;
+  price: number;
+  quantity: number;
+  timestamp: number; // epoch seconds
+}
+
+/** Full book snapshot — includes tick_decimals and recent_trades tail. */
+export interface BookData {
+  symbol: string;
+  tick_decimals: number;
+  bids: BookLevel[];
+  asks: BookLevel[];
+  recent_trades: RecentTrade[];
+  last_price: number | null;
+  last_qty: number | null;
+  last_buy_price: number | null;
+  last_sell_price: number | null;
+}
+
+/** Full depth snapshot (no deltas). */
+export interface DepthData {
+  symbol: string;
+  mid_price_ticks: number;
+  mid_price: number;
+  tolerance_ticks: number;
+  bid_depth: number;
+  ask_depth: number;
+  imbalance: number; // [-1, 1]
+  microprice: number;
+  cost_to_move: number;
+}
+
+/** Public print (pm-msgen TradeExecuted). */
+export interface TradeData {
+  id: string;
+  symbol: string;
+  buy_order_id: string;
+  sell_order_id: string;
+  buy_gateway_id: string;
+  sell_gateway_id: string;
+  price: number;
+  quantity: number;
+  aggressor_side: "BUY" | "SELL" | "AUCTION";
+  timestamp: number; // epoch seconds
+  tick_decimals: number;
+}
+
+/** type → data binding map. */
+export interface WsDataByType {
+  "order.ack": OrderAckData;
+  "order.fill": Fill;
+  "order.amended": OrderAmendedData;
+  "order.cancelled": OrderTerminalData;
+  "order.expired": OrderTerminalData;
+  "combo.ack": ComboAckData;
+  "combo.status": ComboStatusData;
+  "oco.ack": OcoAckData;
+  "oco.cancelled": OcoCancelledData;
+  "quote.ack": QuoteAckData;
+  "quote.status": QuoteStatusData;
+  "mass_cancel.ack": MassCancelAckData;
+  book: BookData;
+  depth: DepthData;
+  trade: TradeData;
+  auction: AuctionResult;
+  "auction.indicative": AuctionIndicative;
+  session: SessionEvent;
+  /** Discriminate halt vs resume on envelope `topic`. */
+  circuit_breaker: CircuitBreakerHalt | CircuitBreakerResume;
+}
+
+export type WsEventType = keyof WsDataByType;
