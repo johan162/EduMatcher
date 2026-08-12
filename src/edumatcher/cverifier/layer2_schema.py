@@ -148,6 +148,7 @@ def _check_symbols(raw: dict[str, Any], results: list[CheckResult]) -> None:
         return
 
     defined_levels = _get_defined_risk_levels(raw)
+    cb_default_levels = _get_cb_default_levels(raw)
 
     for sym_raw, cfg in symbols.items():
         sym = str(sym_raw).upper()
@@ -160,7 +161,7 @@ def _check_symbols(raw: dict[str, Any], results: list[CheckResult]) -> None:
         _check_symbol_level(sym, cfg, defined_levels, results)
         _check_symbol_mm_quotes(sym, cfg, results)
         _check_symbol_collar(sym, cfg, results)
-        _check_symbol_circuit_breaker(sym, cfg, results)
+        _check_symbol_circuit_breaker(sym, cfg, cb_default_levels, results)
 
 
 def _check_symbol_tick_decimals(
@@ -493,7 +494,10 @@ def _check_symbol_collar(
 
 
 def _check_symbol_circuit_breaker(
-    sym: str, cfg: dict[str, Any], results: list[CheckResult]
+    sym: str,
+    cfg: dict[str, Any],
+    cb_default_levels: dict[str, dict[str, Any]],
+    results: list[CheckResult],
 ) -> None:
     """S065–S069 — inline ``symbols.<SYM>.circuit_breaker.levels`` override.
 
@@ -544,7 +548,8 @@ def _check_symbol_circuit_breaker(
     for name, level_cfg in levels.items():
         if not isinstance(level_cfg, dict):
             continue
-        psp = level_cfg.get("price_shift_pct")
+        default_level = cb_default_levels.get(str(name).upper(), {})
+        psp = level_cfg.get("price_shift_pct", default_level.get("price_shift_pct"))
         if psp is None:
             results.append(
                 CheckResult(
@@ -601,6 +606,20 @@ def _check_symbol_circuit_breaker(
 # ---------------------------------------------------------------------------
 # Gateway validation
 # ---------------------------------------------------------------------------
+
+
+def _get_cb_default_levels(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    cb_defaults = raw.get("circuit_breaker_defaults")
+    if not isinstance(cb_defaults, dict):
+        return {}
+    levels = cb_defaults.get("levels")
+    if not isinstance(levels, dict):
+        return {}
+    return {
+        str(name).upper(): level
+        for name, level in levels.items()
+        if isinstance(level, dict)
+    }
 
 
 def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:

@@ -118,6 +118,7 @@ class ConfigSpec:
     drop_copy_buffer_size: int = DEFAULT_DROP_COPY_BUFFER_SIZE
     recent_trades_maxlen: int = DEFAULT_RECENT_TRADES_MAXLEN
     depth_snapshot_tolerance_ticks: int = DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS
+    emit_engine_tuning: bool = False
     enforce_collars: bool = True
     enforce_circuit_breakers: bool = True
     static_band_pct: float | None = None
@@ -312,14 +313,16 @@ class ConfigBuilder:
             "sessions_enabled": self.spec.sessions_enabled,
             "enforce_collars": self.spec.enforce_collars,
             "enforce_circuit_breakers": self.spec.enforce_circuit_breakers,
-            "engine_tuning": {
+        }
+
+        if self.spec.emit_engine_tuning:
+            cfg["engine_tuning"] = {
                 "snapshot_interval_sec": self.spec.snapshot_interval_sec,
                 "quote_history_maxlen": self.spec.quote_history_maxlen,
                 "drop_copy_buffer_size": self.spec.drop_copy_buffer_size,
                 "recent_trades_maxlen": self.spec.recent_trades_maxlen,
                 "depth_snapshot_tolerance_ticks": self.spec.depth_snapshot_tolerance_ticks,
-            },
-        }
+            }
 
         if self.spec.country is not None:
             cfg["country"] = self.spec.country

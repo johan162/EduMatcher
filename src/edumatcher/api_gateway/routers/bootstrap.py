@@ -64,26 +64,20 @@ _FILLS_LIMIT_DEFAULT = 50
 # ---------------------------------------------------------------------------
 
 
-async def _fetch_reference(
-    request: Request, session: Session
-) -> dict[str, Any]:
+async def _fetch_reference(request: Request, session: Session) -> dict[str, Any]:
     """Fetch the compiled reference bundle.  503 on timeout — caller treats
     this as a *required* field and re-raises immediately."""
     return await fetch_reference_bundle(request, session)
 
 
-async def _fetch_session(
-    request: Request, gateway_id: str
-) -> dict[str, Any]:
+async def _fetch_session(request: Request, gateway_id: str) -> dict[str, Any]:
     engine = request.app.state.engine
     timeout = request.app.state.config.timeouts.engine_reply_sec
     engine.request_session(gateway_id)
     return await engine.await_topic(topic_session_status(gateway_id), timeout)
 
 
-async def _fetch_orders(
-    request: Request, gateway_id: str
-) -> dict[str, Any]:
+async def _fetch_orders(request: Request, gateway_id: str) -> dict[str, Any]:
     """Fetch active orders.  No cache fallback — stale order state at login
     is more dangerous than a 503."""
     engine = request.app.state.engine
@@ -134,18 +128,14 @@ async def _fetch_fills(
     )
 
 
-async def _fetch_quote_bootstrap(
-    request: Request, gateway_id: str
-) -> dict[str, Any]:
+async def _fetch_quote_bootstrap(request: Request, gateway_id: str) -> dict[str, Any]:
     engine = request.app.state.engine
     timeout = request.app.state.config.timeouts.engine_reply_sec
     engine.request_quote_bootstrap(gateway_id)
     return await engine.await_topic(topic_quote_bootstrap(gateway_id), timeout)
 
 
-async def _fetch_quote_legs(
-    request: Request, gateway_id: str
-) -> dict[str, Any]:
+async def _fetch_quote_legs(request: Request, gateway_id: str) -> dict[str, Any]:
     engine = request.app.state.engine
     timeout = request.app.state.config.timeouts.engine_reply_sec
     cache = engine.get_caches(gateway_id)
@@ -155,18 +145,14 @@ async def _fetch_quote_legs(
     return await engine.await_topic(topic_quote_legs(gateway_id), timeout)
 
 
-async def _fetch_gateways(
-    request: Request, gateway_id: str
-) -> dict[str, Any]:
+async def _fetch_gateways(request: Request, gateway_id: str) -> dict[str, Any]:
     engine = request.app.state.engine
     timeout = request.app.state.config.timeouts.engine_reply_sec
     engine.request_gateways(gateway_id)
     return await engine.await_topic(topic_gateways(gateway_id), timeout)
 
 
-async def _fetch_halts(
-    request: Request, gateway_id: str
-) -> dict[str, Any]:
+async def _fetch_halts(request: Request, gateway_id: str) -> dict[str, Any]:
     engine = request.app.state.engine
     timeout = request.app.state.config.timeouts.engine_reply_sec
     engine.request_halt_status(gateway_id)
