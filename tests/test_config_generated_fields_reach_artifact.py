@@ -180,9 +180,7 @@ class TestGeneratedFieldsReachTheArtifact:
         config, payload = compiled
         generated_symbols = payload["symbols"]
         assert isinstance(generated_symbols, dict)
-        generated_level = generated_symbols["MSFT"]["circuit_breaker"]["levels"][
-            "L1"
-        ]
+        generated_level = generated_symbols["MSFT"]["circuit_breaker"]["levels"]["L1"]
         assert generated_level == {"halt_duration_ns": 600_000_000_000}
 
         compiled_level = config.engine.symbols["MSFT"].circuit_breaker

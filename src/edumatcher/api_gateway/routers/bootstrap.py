@@ -17,7 +17,7 @@ import asyncio
 import logging
 import time
 from contextlib import closing
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeAlias, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
@@ -55,6 +55,7 @@ _TERMINAL = frozenset({"FILLED", "CANCELLED", "EXPIRED", "REJECTED"})
 
 _FILLS_LIMIT_MAX = 500
 _FILLS_LIMIT_DEFAULT = 50
+_QueryResult: TypeAlias = dict[str, Any] | BaseException
 
 
 # ---------------------------------------------------------------------------
@@ -70,20 +71,27 @@ async def _fetch_reference(request: Request, session: Session) -> dict[str, Any]
     return await fetch_reference_bundle(request, session)
 
 
+async def _await_topic(request: Request, topic: str) -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        await request.app.state.engine.await_topic(
+            topic, request.app.state.config.timeouts.engine_reply_sec
+        ),
+    )
+
+
 async def _fetch_session(request: Request, gateway_id: str) -> dict[str, Any]:
     engine = request.app.state.engine
-    timeout = request.app.state.config.timeouts.engine_reply_sec
     engine.request_session(gateway_id)
-    return await engine.await_topic(topic_session_status(gateway_id), timeout)
+    return await _await_topic(request, topic_session_status(gateway_id))
 
 
 async def _fetch_orders(request: Request, gateway_id: str) -> dict[str, Any]:
     """Fetch active orders.  No cache fallback — stale order state at login
     is more dangerous than a 503."""
     engine = request.app.state.engine
-    timeout = request.app.state.config.timeouts.engine_reply_sec
     engine.request_orders(gateway_id)
-    return await engine.await_topic(topic_orders(gateway_id), timeout)
+    return await _await_topic(request, topic_orders(gateway_id))
 
 
 def _query_fills_sync(
@@ -130,33 +138,29 @@ async def _fetch_fills(
 
 async def _fetch_quote_bootstrap(request: Request, gateway_id: str) -> dict[str, Any]:
     engine = request.app.state.engine
-    timeout = request.app.state.config.timeouts.engine_reply_sec
     engine.request_quote_bootstrap(gateway_id)
-    return await engine.await_topic(topic_quote_bootstrap(gateway_id), timeout)
+    return await _await_topic(request, topic_quote_bootstrap(gateway_id))
 
 
 async def _fetch_quote_legs(request: Request, gateway_id: str) -> dict[str, Any]:
     engine = request.app.state.engine
-    timeout = request.app.state.config.timeouts.engine_reply_sec
     cache = engine.get_caches(gateway_id)
     if cache.quote_legs:
         return {"legs": list(cache.quote_legs.values())}
     engine.request_quote_legs(gateway_id)
-    return await engine.await_topic(topic_quote_legs(gateway_id), timeout)
+    return await _await_topic(request, topic_quote_legs(gateway_id))
 
 
 async def _fetch_gateways(request: Request, gateway_id: str) -> dict[str, Any]:
     engine = request.app.state.engine
-    timeout = request.app.state.config.timeouts.engine_reply_sec
     engine.request_gateways(gateway_id)
-    return await engine.await_topic(topic_gateways(gateway_id), timeout)
+    return await _await_topic(request, topic_gateways(gateway_id))
 
 
 async def _fetch_halts(request: Request, gateway_id: str) -> dict[str, Any]:
     engine = request.app.state.engine
-    timeout = request.app.state.config.timeouts.engine_reply_sec
     engine.request_halt_status(gateway_id)
-    return await engine.await_topic(topic_halt_status(gateway_id), timeout)
+    return await _await_topic(request, topic_halt_status(gateway_id))
 
 
 # ---------------------------------------------------------------------------
@@ -305,13 +309,16 @@ async def bootstrap_trader(
 
     # --- trading credential: all sub-queries in parallel --------------------
     gateway_role = await engine.resolve_role(gateway_id, timeout)
-    ref_r, sess_r, orders_r, fills_r = await asyncio.gather(
-        _fetch_reference(request, session),
-        _fetch_session(request, gateway_id),
-        _fetch_orders(request, gateway_id),
-        _fetch_fills(request, gateway_id, fills_limit),
-        return_exceptions=True,
+    results: tuple[_QueryResult, _QueryResult, _QueryResult, _QueryResult] = (
+        await asyncio.gather(
+            _fetch_reference(request, session),
+            _fetch_session(request, gateway_id),
+            _fetch_orders(request, gateway_id),
+            _fetch_fills(request, gateway_id, fills_limit),
+            return_exceptions=True,
+        )
     )
+    ref_r, sess_r, orders_r, fills_r = results
 
     required = _require_or_503([("reference", ref_r), ("orders", orders_r)])
     reference = required["reference"]
@@ -374,14 +381,14 @@ async def bootstrap_mm(
         )
 
     # --- all sub-queries in parallel ----------------------------------------
-    (
-        ref_r,
-        sess_r,
-        orders_r,
-        fills_r,
-        qb_r,
-        ql_r,
-    ) = await asyncio.gather(
+    results: tuple[
+        _QueryResult,
+        _QueryResult,
+        _QueryResult,
+        _QueryResult,
+        _QueryResult,
+        _QueryResult,
+    ] = await asyncio.gather(
         _fetch_reference(request, session),
         _fetch_session(request, gateway_id),
         _fetch_orders(request, gateway_id),
@@ -390,6 +397,7 @@ async def bootstrap_mm(
         _fetch_quote_legs(request, gateway_id),
         return_exceptions=True,
     )
+    ref_r, sess_r, orders_r, fills_r, qb_r, ql_r = results
 
     # --- required fields (503 on failure) -----------------------------------
     required = _require_or_503([("reference", ref_r), ("orders", orders_r)])
@@ -446,13 +454,16 @@ async def bootstrap_admin(
     gateway_id = await require_admin(request, session)
 
     # --- all sub-queries in parallel ----------------------------------------
-    ref_r, sess_r, gw_r, halts_r = await asyncio.gather(
-        _fetch_reference(request, session),
-        _fetch_session(request, gateway_id),
-        _fetch_gateways(request, gateway_id),
-        _fetch_halts(request, gateway_id),
-        return_exceptions=True,
+    results: tuple[_QueryResult, _QueryResult, _QueryResult, _QueryResult] = (
+        await asyncio.gather(
+            _fetch_reference(request, session),
+            _fetch_session(request, gateway_id),
+            _fetch_gateways(request, gateway_id),
+            _fetch_halts(request, gateway_id),
+            return_exceptions=True,
+        )
     )
+    ref_r, sess_r, gw_r, halts_r = results
 
     # --- required fields (503 on failure) -----------------------------------
     required = _require_or_503([("reference", ref_r)])
