@@ -1,134 +1,12 @@
-Version: 1.11.2
+Version: 1.11.3
 
-Date: 2026-08-11
+Date: 2026-08-12
 
 Status: Design and Research Proposal
 
 
 # EduMatcher — Trading Web UI (`pm-trading-ui`)
 
-> **Revision History**
->
-> - **1.11.2 (2026-08-11)** — Aligned the session-transition response with the code and the REST API
->   reference: `POST /api/v1/admin/session/transition` returns **`202`/`APPLIED`** on success (not
->   `200`/`ACCEPTED`), or `409`/`TRANSITION_REJECTED`. Updated
->   [§6.3](#63-session-control-available-now), [§6.11](#611-capability-summary-table),
->   [§15.4](#154-session-control), and [§26.3.7](#2637-uniform-command-acknowledgements).
-> - **1.11.1 (2026-08-11)** — Backend confirmation for the ADMIN halts table. `GET /api/v1/admin/halts`
->   returns the engine `system.halt_status` reply verbatim (`HaltStatus` → `HaltedSymbol[]`): key
->   `halted`, each entry `{ symbol, resume_at_ns?, level?(string), halt_source? }` — **no**
->   `trigger_price`/`reference_price`/`halted_at`/ISO `resume_at`/`resumption_mode` (those price fields
->   are on the live `circuit_breaker` WS event only). Corrected [§6.6](#66-halts-and-risk-configuration-runtime-read-only)
->   and the [§15.6.1](#1561-active-halts-table) columns/sources accordingly. This clears the last
->   sign-off caveat.
-> - **1.11.0 (2026-08-11)** — Final pre-handover review. (1) **Order-ACK safety:** documented the
->   engine's two-ACK model — `accepted:true` is a pre-match *gateway* ACK, and MARKET/FOK/IOC may get a
->   later authoritative `accepted:false` — in a new [§17.2.4](#1724-order-acknowledgement-safety), and
->   made [§12.9](#129-submit-flow-and-feedback-buysell-actions) and [§18.3](#183-order-cache-reconciliation)
->   apply the later ACK, treat a `4xx` POST as a synchronous rejection (no PENDING row), and reconcile
->   a missing ACK via `stream_seq` + `orders.snapshot`/`GET /orders` so an ACK can be neither lost nor
->   falsely granted. (2) **Symbol metadata:** corrected the source — `reference_price`/`level` are not
->   on `GET /symbols` (`SymbolInfo`); `level` comes from `/reference` (`ReferenceSymbol`) and
->   `reference_price` from `/reference/risk` (`SymbolRiskState`). Updated
->   [§10.6](#106-relevant-api-calls), [§12.6](#126-symbol-picker), [§15.2.1](#1521-symbol-table),
->   [§18.1.5](#1815-usesymbolstore), and Appendix A. (3) Fixed example code: `o.order_id` in
->   [§18.2](#182-tanstack-query-key-conventions), an indicative-aware `updateAuction` in
->   [§18.1.3](#1813-usebookstore), and `TradeData.timestamp` in [§16.2.3](#1623-live-tick-append).
-> - **1.10.0 (2026-08-11)** — Backend closed the two wire gaps 1.9.0 flagged as not-yet-buildable.
->   (1) `order.fill` now carries a `trade_ids` array — the public `trade.executed` id(s) that composed
->   the fill (VWAP-coalesced per H5/H6) — so the Fills panel Trade ID is buildable straight from the
->   live event, no join against the public `trade` tape ([§13.5](#135-trade-history--fills-panel),
->   Appendix A `Fill`). (2) `QuoteLeg` now carries `price`, so the MM quote-card fill bars and legs
->   table read price directly from `/quotes/legs` without joining the bootstrap `ActiveQuote`
->   ([§14.1.1](#1411-quote-card-anatomy), [§14.3](#143-quote-bootstrap-and-legs-view), Appendix A
->   `QuoteLeg`). Regenerated the affected Appendix A types.
-> - **1.9.0 (2026-08-11)** — Aligned the client contract with the **pm-msgen** wire format after the
->   message-structure rework. (1) Regenerated [Appendix A](#appendix-a-core-typescript-types): fixed
->   `WsEnvelope` (added `topic`, `stream_seq`; `seq` is per-topic), `Fill` (no `trade_id`; engine names
->   `qty`/`client_tag`), `QuoteLeg` (`leg_side`/`filled`/`remaining`, no price), `AuctionResult`
->   (`reason`, not an `indicative` flag) plus a new `AuctionIndicative`, `CircuitBreakerHalt`/`Resume`
->   (two topics; `level` is a name string; `resume_at_ns`), `AdminGateway` (`id`), and `HaltEntry`;
->   added [Appendix A.1](#appendix-a1-websocket-event-data-payloads-pm-msgen-wire), a per-`type` WS
->   `data` payload catalogue. (2) Corrected the fills Trade ID ([§13.5](#135-trade-history--fills-panel))
->   and MM quote-legs ([§14.1.1](#1411-quote-card-anatomy), [§14.3](#143-quote-bootstrap-and-legs-view))
->   to the real wire shapes. (3) **Backend:** wired `auction.indicative` onto the `auction` channel and
->   rewrote [§6.10](#610-auction-market-data-channel-available-now), [§6.12](#612-open-questions-and-backend-prerequisites),
->   [§16.6](#166-auction--indicative-price-panel), and the [§17.3.2](#1732-event-routing) routing table;
->   the engine already publishes it. (4) Added [§17.3.4](#1734-bandwidth-and-the-100-symbol-overview) on
->   snapshot fan-out and `seq`-gap blast radius at 100+ symbols. Also renamed the private-stream field
->   from `event_seq` to its real name `stream_seq` throughout ([§17.2.1](#1721-authentication-frame), §26).
-> - **1.8.0 (2026-08-05)** — Backend implemented [§26.4.2 Reference-data service boundary](#2642-reference-data-service-boundary)
->   and added two key stable endpoints for UI bootstrap: `GET /api/v1/reference/schedule` and
->   `GET /api/v1/reference` (full bundle in one round-trip). The design now treats reference data as
->   a runtime API artifact rather than a planned/config-backed fallback: updated
->   [§6.6](#66-halts-and-risk-configuration-runtime-read-only), [§6.11](#611-capability-summary-table),
->   [§15.5](#155-risk-control-panel), [§18.2](#182-tanstack-query-for-server-state),
->   [§23](#23-implementation-plan), [§26.2](#262-highest-impact-changes),
->   [§26.4.2](#2642-reference-data-service-boundary), and [§26.5](#265-suggested-implementation-order)
->   accordingly.
-> - **1.7.0 (2026-08-05)** — Backend shipped three of the four items in
->   [§26.3.6 Admin monitor replay and order drill-down](#2636-admin-monitor-replay-and-order-drill-down):
->   `WS /api/v1/admin/monitor` now opens with a `monitor.snapshot` (orders/halts/gateways/last_seq),
->   and `GET /api/v1/admin/orders` / `GET /api/v1/admin/orders/{order_id}` give a cross-gateway
->   current-state view and an audit-trail-backed lifecycle drill-down, respectively. Only
->   cross-gateway *event* backfill remains proposed. Also added, as a related backend hardening item
->   not originally in the addendum: an `order_retention_sec` cache-eviction policy for terminal
->   orders. Updated [§6.9](#69-admin-monitor-websocket-apiv1adminmonitor),
->   [§6.11](#611-capability-summary-table), [§13.4](#134-order-detail-drawer),
->   [§15.1](#151-system-dashboard), [§15.9](#159-audit--monitor-log-viewer),
->   [§17.4](#174-admin-monitor-websocket-apiv1adminmonitor), Appendix A's `Order` type,
->   [§26.2](#262-highest-impact-changes), [§26.3.6](#2636-admin-monitor-replay-and-order-drill-down),
->   and [§26.5](#265-suggested-implementation-order) accordingly.
-> - **1.6.0 (2026-08-05)** — Backend implemented [§26.3.7 Uniform command acknowledgements](#2637-uniform-command-acknowledgements)
->   narrowly rather than as originally proposed: `command_id` was added only to kill switch/mass
->   cancel and session transition (the two commands with no completion signal), echoed on their acks;
->   cascading `command_id` onto every triggered event and blanket adoption across all async endpoints
->   were evaluated and declined. Fixed a real bug along the way — `POST /api/v1/admin/session/transition`
->   used to answer `202`/`PENDING` even when the handler silently dropped the request (sessions
->   disabled or unknown state); it now answers `202`/`APPLIED` or `409`/`TRANSITION_REJECTED` with a
->   reason. Updated [§6.3](#63-session-control), [§6.11](#611-capability-summary-table),
->   [§15.4](#154-session-control), [§26.2](#262-highest-impact-changes),
->   [§26.3.7](#2637-uniform-command-acknowledgements), and [§26.5](#265-suggested-implementation-order)
->   accordingly.
-> - **1.5.0 (2026-08-05)** — Backend shipped most of [§26.3.5 Private event recovery](#2635-private-event-recovery):
->   `/api/v1/events` now sends `stream_seq` on auth, an `orders.snapshot` frame, and stable group ids on
->   `order.*`/`combo.*`/`oco.*`/`quote.*` events. Resume/replay (`{ "action": "resume", "from_seq": ... }`)
->   was evaluated and deliberately deferred: the only gap it would close — fill/cancel transitions
->   missed during a drop — is already covered by `/history/*` and drop copy. Updated
->   [§17.2.1](#1721-authentication-frame), [§17.3.1](#1731-authentication-and-subscription),
->   [§26.2](#262-highest-impact-changes), [§26.3.5](#2635-private-event-recovery), and
->   [§26.5](#265-suggested-implementation-order) accordingly.
-> - **1.4.0 (2026-08-05)** — Backend shipped two items from the [§26 addendum](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal):
->   `/api/v1/market-data` now carries a per-topic `seq` on every event, and the subscription model now
->   supports per-symbol channel groups (an `items` list) on a single connection. Replaced the earlier
->   two-socket (overview/focus) workaround with one `marketDataWs` carrying both a broad and a narrow
->   subscription item ([§17.3.1](#1731-authentication-and-subscription)), updated the `WebSocketManager`
->   API, `ActiveSymbolStore`/watchlist wording, environment variable descriptions, and Appendix A, and
->   removed the corresponding rows from [§26.2](#262-highest-impact-changes).
-> - **1.3.0 (2026-08-05)** — Added [§26 Addendum: Protocol and Backend Changes That Would Improve
->   the Trading Terminal](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal),
->   covering protocol/API changes that are worth making before release because backwards compatibility
->   is not yet a constraint: sequenced snapshot/delta streams, richer subscription semantics,
->   browser-friendly CALF evolution, admin history/replay, uniform command acknowledgements, and
->   runtime reference/risk/index management.
-> - **1.2.0 (2026-07-09)** — Major revision. Formalised the ADMIN persona's backend
->   dependency into a dedicated section, [§6 Backend Capability Matrix](#6-backend-capability-matrix-pm-api-gwy),
->   replacing the earlier "future endpoint" hand-waving. Resolved the ADMIN data-source
->   contradictions (events WebSocket vs. admin monitor). Added the previously missing feature
->   surfaces (cancel-replace, OCO/combo group cancel, order-lifecycle drill-down, MM quote-leg
->   source). Added auction support (indicative price panel, `auction` market-data channel).
->   Introduced a workspace-centric TRADER UX: a new [§11 Trading Workspace](#11-screen-design--trading-workspace-trader),
->   a global active-symbol context, click-to-trade from the depth ladder, dual BUY/SELL order
->   ticket, one-click position flatten, a session clock/countdown, a [§20 Notification / Event
->   Center](#20-notification--event-center), a power-user mode, and a promoted watchlist feature.
->   Added routing (React Router v7), renamed the WebSocket wrapper to `ManagedSocket`, added
->   [Appendix A: Core TypeScript Types](#appendix-a-core-typescript-types), and fixed two bugs
->   (Tailwind `muted` colour, change-% definition). Sections 6–25 were renumbered from the 1.0.0
->   layout; the Table of Contents, Feature Matrix, Implementation Plan, Keyboard Shortcuts, and
->   Summary were regenerated accordingly.
-> - **1.0.0 (2026-07-09)** — Initial design and research proposal.
-
----
 
 ## Table of Contents
 
@@ -540,9 +418,10 @@ The UI **does not connect directly to CALF** from the browser. Recent CALF capab
 `pm-api-gwy`'s JSON WebSocket. The current API WebSocket exposes the useful channels (`book`,
 `trades`, `depth`, `auction`, plus always-on `session`/`circuit_breaker`) and now carries a per-topic
 `seq` on every market-data event ([§17.3.1](#1731-authentication-and-subscription)), so the UI can
-detect a gap the same way a CALF client detects a sequence break. It does **not** yet expose a
-CALF-style `SNAP`/`RESUME` replay handshake, so a detected gap is repaired with a fresh subscribe plus
-a REST/bootstrap refresh rather than a targeted replay.
+detect a gap the same way a CALF client detects a sequence break. It now also exposes a
+`SNAP`/`RESUME` replay handshake ([§26.3.2](#2632-snapshot-resume-and-reset-handshake)), so a
+detected gap is repaired with a targeted `{ "action": "resume" }` rather than a full re-subscribe
+and REST refresh.
 
 ### 5.3 Client-side state layers
 
@@ -1048,9 +927,11 @@ sequenceDiagram
     alt key valid
         GW-->>UI: 200 OK { gateway_role, gateway_count?, cache summary }
         UI->>UI: Store key and role in Zustand
+        UI->>GW: GET /api/v1/bootstrap/{role}  (trader | mm | admin)
+        GW-->>UI: 200 OK { gateway_id, symbols, session, positions, orders, ... }
+        UI->>UI: Hydrate Zustand + TanStack Query cache from bootstrap response
         UI->>GW: WS /api/v1/events  { api_key: "..." }
         GW-->>UI: { type: "authenticated", gateway_id: "GW01" }
-        UI->>UI: Store gateway_id from events auth response
         UI->>GW: WS /api/v1/market-data  { api_key: "..." }
         GW-->>UI: { type: "authenticated" }
         opt role == ADMIN
@@ -1066,8 +947,12 @@ sequenceDiagram
 
 The role is read from the `gateway_role` field of `GET /api/v1/status` (see
 [§6.2](#62-extended-get-apiv1status)); it maps to TRADER / MARKET_MAKER / ADMIN. Using `/status`
-(rather than `/symbols`) as the login probe gives the UI the role in a single call. The authenticated
-`gateway_id` is learned from the `/events` WebSocket authentication reply for trading credentials.
+(rather than `/symbols`) as the login probe gives the UI the role in a single call. The
+`GET /api/v1/bootstrap/{role}` call then replaces the subsequent multi-request waterfall (symbols,
+session, positions, orders, etc.) with one round-trip that hydrates the Zustand stores and TanStack
+Query cache before the WebSockets open. The authenticated `gateway_id` is available from the bootstrap
+response; the `/events` WebSocket auth reply confirms it and is still the canonical source for the
+running session.
 
 ### 7.3 HTTP client wrapper
 
@@ -2707,13 +2592,12 @@ at scale.
    the narrow item carries `depth`/`auction` for the focus set ([§17.3.1](#1731-authentication-and-subscription)).
 2. Overview rendering must stay virtualized (TanStack Virtual) and use fine-grained `bookStore`
    selectors so a 100-symbol snapshot storm re-renders only changed cells.
-3. **`seq`-gap blast radius:** because there is no `RESUME`, a detected per-topic `seq` gap is repaired
-   by re-subscribing the affected topic **and** refetching REST bootstrap. On a socket flap across a
-   broad `*` subscription that is one re-subscribe covering every symbol plus a `/orders` /
-   `/positions` / `/quotes/*` refresh — a brief refetch storm. Keeping the heavy (`depth`) focus set
-   small bounds it. This is acceptable for the stated educational scale (≤ a few hundred symbols on
-   localhost) but is not tuned for a production high-churn board; the [§26](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal)
-   snapshot/delta and `RESUME` work is what would remove the full re-subscribe.
+3. **`seq`-gap handling:** a detected per-topic `seq` gap is now repaired with a targeted
+   `{ "action": "resume" }` ([§26.3.2](#2632-snapshot-resume-and-reset-handshake)), avoiding the
+   earlier full re-subscribe + REST refresh storm. On reconnect, `ManagedSocket` passes `resume_from`
+   per topic in the `subscribe` frame so each channel picks up where it left off. A `resume.rejected`
+   (e.g. `too_old`) falls back to a `{ "action": "snapshot" }` for that topic only. Keeping the heavy
+   (`depth`) focus set small bounds worst-case snapshot fan-out when the replay window has expired.
 
 ### 17.4 Admin Monitor WebSocket (`/api/v1/admin/monitor`)
 
@@ -2921,6 +2805,9 @@ interface NotificationStore {
 
 | Query key | Endpoint | Stale time |
 |-----------|----------|------------|
+| `["bootstrap/trader"]` | `GET /bootstrap/trader` | load-once on login / reconnect |
+| `["bootstrap/mm"]` | `GET /bootstrap/mm` | load-once on login / reconnect |
+| `["bootstrap/admin"]` | `GET /bootstrap/admin` | load-once on login / reconnect |
 | `["orders"]` | `GET /orders` | 30s (refreshed by WS events) |
 | `["orders", id]` | `GET /orders/{id}` | 60s |
 | `["order-history", id]` | `GET /history/orders/{id}` | 30s (Order Detail drawer) |
@@ -3452,11 +3339,14 @@ use the same operational model, even if the wire encoding remains JSON rather th
 > stable runtime bootstrap APIs ([§26.4.2](#2642-reference-data-service-boundary)), so the
 > "Reference/risk/admin APIs" row now covers only remaining runtime admin write surfaces and index
 > admin bridging. The "Private order events" and "Command lifecycle" rows have been dropped entirely.
-> The other items remain proposed.
+> The market-data snapshot/resume handshake ([§26.3.2](#2632-snapshot-resume-and-reset-handshake)) and
+> the terminal bootstrap endpoints ([§26.4.4](#2644-terminal-oriented-aggregate-endpoints)) have also
+> shipped; the "CALF/browser bridge" row below reflects that `SNAP`/`RESUME` is complete for market
+> data, and §26.4.4 is now a description of what exists rather than a proposal.
 
 | Area | Recommended change | Why it helps the terminal |
 |---|---|---|
-| CALF/browser bridge | Define a canonical JSON envelope that mirrors CALF `SEQ`/`SNAP`/`RESUME` semantics | Lets the UI, API gateway, and external protocol stay conceptually aligned |
+| CALF/browser bridge | `SEQ` and `SNAP`/`RESUME` **implemented for market data** ([§26.3.2](#2632-snapshot-resume-and-reset-handshake)); remaining: uniform envelope across private events and admin monitor, `snapshot_id`/`*.reset` framing | Market-data gap repair is now targeted rather than a full re-subscribe; envelope unification across all three streams is still proposed |
 | Book/depth data | Publish full depth snapshots plus incremental depth deltas with clear reset markers | Makes DOM ladders precise and efficient |
 | Auction data | Publish periodic authoritative indicative auction updates during auction phases | Removes client-side approximation and makes the teaching panel trustworthy |
 | Admin monitor | Add cross-gateway *event* backfill (`GET /api/v1/admin/monitor/events?from_seq=&limit=`) — snapshot and order drill-down already ship | Repairs the Monitor Log Viewer's gap after a dropped connection |
@@ -3497,10 +3387,9 @@ Rules:
 
 #### 26.3.2 Snapshot, resume, and reset handshake
 
-Per-symbol channel items and per-topic `seq` are now implemented
-([§17.3.1](#1731-authentication-and-subscription)); this section proposes the remaining piece — an
-explicit snapshot/resume/reset handshake so a detected gap can be repaired with a targeted replay
-instead of a full re-subscribe. It extends the implemented `items` subscribe shape:
+**Implemented.** Per-symbol channel items, per-topic `seq`, and the snapshot/resume/reset handshake
+are all now in place ([§17.3.1](#1731-authentication-and-subscription)). The wire shapes below are
+the live contract:
 
 ```jsonc
 // subscribe with optional resume point
@@ -3526,8 +3415,7 @@ Server responses:
 - `*.reset` tells the client to discard cached state and request a new snapshot.
 - `resume.rejected` includes a reason such as `too_old`, `unknown_topic`, or `snapshot_required`.
 
-This is the browser equivalent of CALF `SNAP`/`RESUME`, expressed in JSON and aligned with React
-state management.
+This is the browser-JSON equivalent of CALF `SNAP`/`RESUME`.
 
 #### 26.3.3 Per-symbol channel subscriptions
 
@@ -3691,7 +3579,8 @@ Each command should accept an optional `reason` field and emit an admin monitor 
 
 #### 26.4.4 Terminal-oriented aggregate endpoints
 
-Small aggregate endpoints reduce UI boot time and avoid waterfalls:
+**Implemented.** Aggregate endpoints now ship for all three roles, eliminating the startup
+waterfall:
 
 - `GET /api/v1/bootstrap/trader` returns status, gateway id, symbols, session, positions, active
   orders, recent fills, and watchable capabilities.
@@ -3699,8 +3588,9 @@ Small aggregate endpoints reduce UI boot time and avoid waterfalls:
 - `GET /api/v1/bootstrap/admin` adds gateways, halts, current active order counts, reference-data
   version, and monitor last sequence.
 
-These endpoints should be thin composition layers over existing services. They are not a replacement
-for normalized REST resources; they make browser startup predictable.
+These are thin composition layers over existing services, not a replacement for normalized REST
+resources. See [§7.2](#72-login-flow) for the updated startup sequence and
+[§18.2](#182-tanstack-query-key-conventions) for the corresponding TanStack Query keys.
 
 #### 26.4.5 Capability discovery
 
@@ -3724,10 +3614,12 @@ This keeps the terminal honest during staged backend work and makes demos less b
    market data carries a per-topic `seq` ([§17.3.1](#1731-authentication-and-subscription)) and
    `/api/v1/events` carries a private `stream_seq` ([§17.2.1](#1721-authentication-frame)). Remaining:
    extend the same convention to `/api/v1/admin/monitor`, and unify all three into one shared envelope.
-2. ~~Add snapshot/resume for market data.~~ ** Private-event resume/replay was evaluated and
-   deliberately deferred ([§26.3.5](#2635-private-event-recovery)) — `stream_seq` + `orders.snapshot`
-   plus `/history/*` and drop copy already cover the practical recovery cases. Market data still
-   lacks a replay handshake, so this item stays scoped to `book`/`trades`/`depth`/`auction`.
+2. ~~Add snapshot/resume for market data.~~ **Done** — the full `snapshot`/`resume`/`reset`
+   handshake now ships for `/api/v1/market-data` ([§26.3.2](#2632-snapshot-resume-and-reset-handshake)).
+   A detected `seq` gap is repaired with a targeted `{ "action": "resume" }` rather than a full
+   re-subscribe + REST refresh storm; `resume.rejected` falls back to a fresh `snapshot` for that
+   topic only. Private-event resume/replay remains deliberately deferred
+   ([§26.3.5](#2635-private-event-recovery)).
 3. ~~Replace the market-data subscription shape with per-symbol channel items.~~ **Done** — see
    [§17.3.1](#1731-authentication-and-subscription) and
    [§26.3.3](#2633-per-symbol-channel-subscriptions).
@@ -3746,15 +3638,15 @@ This keeps the terminal honest during staged backend work and makes demos less b
   `/reference*`; remaining work is symbol mutation, expanded kill-switch scopes, and `pm-index`
   admin bridge endpoints.
 
-Items 1, 2, 3, 5, and 6 are complete for their narrowed scope: market data and private events for item 1,
-per-symbol subscriptions for item 3, admin monitor snapshot/order drill-down for item 5 (event backfill
-still open), and kill switch/mass cancel plus session transition for item 6. Item 7 is now partially
-complete: reference reads are stable via `/reference*`, while admin/index write surfaces remain.
-Private-event
-resume/replay (originally part of item 2) has been deliberately deferred — see
-[§26.3.5](#2635-private-event-recovery). The next highest-leverage remaining step is item 2 for market
-data: sequence numbers alone only let the UI detect a gap — they do not yet let it repair one without
-a full re-subscribe.
+Items 1, 2, 3, 5, and 6 are complete for their narrowed scope: market data and private events for
+item 1, full snapshot/resume for market data for item 2, per-symbol subscriptions for item 3, admin
+monitor snapshot/order drill-down for item 5 (event backfill still open), and kill switch/mass cancel
+plus session transition for item 6. Item 7 is now partially complete: reference reads are stable via
+`/reference*`, while admin/index write surfaces remain. The bootstrap endpoints
+([§26.4.4](#2644-terminal-oriented-aggregate-endpoints)) have also shipped (not a numbered item above,
+but eliminating the startup waterfall). Private-event resume/replay (originally part of item 2) has
+been deliberately deferred — see [§26.3.5](#2635-private-event-recovery). The highest-leverage
+remaining steps are item 5 (monitor event backfill) and item 7 (runtime admin/index write APIs).
 
 ---
 
@@ -4154,3 +4046,139 @@ export interface WsDataByType {
 }
 ```
 
+
+---
+
+> **Revision History**
+>
+> - **1.11.3 (2026-08-12)** — Two more §26 gaps closed. (1) **Market-data snapshot/resume:**
+>   `/api/v1/market-data` now supports the full `snapshot`/`resume`/`reset` handshake from
+>   [§26.3.2](#2632-snapshot-resume-and-reset-handshake) — a detected `seq` gap is repaired with a
+>   targeted `{ "action": "resume" }` rather than a full re-subscribe + REST refresh storm. Updated
+>   [§5.2](#52-data-flow-summary), [§17.3.1](#1731-authentication-and-subscription),
+>   [§17.3.4](#1734-bandwidth-and-the-100-symbol-overview), [§26.2](#262-highest-impact-changes),
+>   [§26.3.2](#2632-snapshot-resume-and-reset-handshake), and [§26.5](#265-suggested-implementation-order).
+>   (2) **Bootstrap endpoints:** `GET /api/v1/bootstrap/trader`, `/bootstrap/mm`, and
+>   `/bootstrap/admin` are now available, replacing the multi-request startup waterfall. Updated
+>   [§7.2](#72-login-flow), [§18.2](#182-tanstack-query-key-conventions),
+>   [§26.4.4](#2644-terminal-oriented-aggregate-endpoints), and [§26.5](#265-suggested-implementation-order).
+> - **1.11.2 (2026-08-11)** — Aligned the session-transition response with the code and the REST API
+>   reference: `POST /api/v1/admin/session/transition` returns **`202`/`APPLIED`** on success (not
+>   `200`/`ACCEPTED`), or `409`/`TRANSITION_REJECTED`. Updated
+>   [§6.3](#63-session-control-available-now), [§6.11](#611-capability-summary-table),
+>   [§15.4](#154-session-control), and [§26.3.7](#2637-uniform-command-acknowledgements).
+> - **1.11.1 (2026-08-11)** — Backend confirmation for the ADMIN halts table. `GET /api/v1/admin/halts`
+>   returns the engine `system.halt_status` reply verbatim (`HaltStatus` → `HaltedSymbol[]`): key
+>   `halted`, each entry `{ symbol, resume_at_ns?, level?(string), halt_source? }` — **no**
+>   `trigger_price`/`reference_price`/`halted_at`/ISO `resume_at`/`resumption_mode` (those price fields
+>   are on the live `circuit_breaker` WS event only). Corrected [§6.6](#66-halts-and-risk-configuration-runtime-read-only)
+>   and the [§15.6.1](#1561-active-halts-table) columns/sources accordingly. This clears the last
+>   sign-off caveat.
+> - **1.11.0 (2026-08-11)** — Final pre-handover review. (1) **Order-ACK safety:** documented the
+>   engine's two-ACK model — `accepted:true` is a pre-match *gateway* ACK, and MARKET/FOK/IOC may get a
+>   later authoritative `accepted:false` — in a new [§17.2.4](#1724-order-acknowledgement-safety), and
+>   made [§12.9](#129-submit-flow-and-feedback-buysell-actions) and [§18.3](#183-order-cache-reconciliation)
+>   apply the later ACK, treat a `4xx` POST as a synchronous rejection (no PENDING row), and reconcile
+>   a missing ACK via `stream_seq` + `orders.snapshot`/`GET /orders` so an ACK can be neither lost nor
+>   falsely granted. (2) **Symbol metadata:** corrected the source — `reference_price`/`level` are not
+>   on `GET /symbols` (`SymbolInfo`); `level` comes from `/reference` (`ReferenceSymbol`) and
+>   `reference_price` from `/reference/risk` (`SymbolRiskState`). Updated
+>   [§10.6](#106-relevant-api-calls), [§12.6](#126-symbol-picker), [§15.2.1](#1521-symbol-table),
+>   [§18.1.5](#1815-usesymbolstore), and Appendix A. (3) Fixed example code: `o.order_id` in
+>   [§18.2](#182-tanstack-query-key-conventions), an indicative-aware `updateAuction` in
+>   [§18.1.3](#1813-usebookstore), and `TradeData.timestamp` in [§16.2.3](#1623-live-tick-append).
+> - **1.10.0 (2026-08-11)** — Backend closed the two wire gaps 1.9.0 flagged as not-yet-buildable.
+>   (1) `order.fill` now carries a `trade_ids` array — the public `trade.executed` id(s) that composed
+>   the fill (VWAP-coalesced per H5/H6) — so the Fills panel Trade ID is buildable straight from the
+>   live event, no join against the public `trade` tape ([§13.5](#135-trade-history--fills-panel),
+>   Appendix A `Fill`). (2) `QuoteLeg` now carries `price`, so the MM quote-card fill bars and legs
+>   table read price directly from `/quotes/legs` without joining the bootstrap `ActiveQuote`
+>   ([§14.1.1](#1411-quote-card-anatomy), [§14.3](#143-quote-bootstrap-and-legs-view), Appendix A
+>   `QuoteLeg`). Regenerated the affected Appendix A types.
+> - **1.9.0 (2026-08-11)** — Aligned the client contract with the **pm-msgen** wire format after the
+>   message-structure rework. (1) Regenerated [Appendix A](#appendix-a-core-typescript-types): fixed
+>   `WsEnvelope` (added `topic`, `stream_seq`; `seq` is per-topic), `Fill` (no `trade_id`; engine names
+>   `qty`/`client_tag`), `QuoteLeg` (`leg_side`/`filled`/`remaining`, no price), `AuctionResult`
+>   (`reason`, not an `indicative` flag) plus a new `AuctionIndicative`, `CircuitBreakerHalt`/`Resume`
+>   (two topics; `level` is a name string; `resume_at_ns`), `AdminGateway` (`id`), and `HaltEntry`;
+>   added [Appendix A.1](#appendix-a1-websocket-event-data-payloads-pm-msgen-wire), a per-`type` WS
+>   `data` payload catalogue. (2) Corrected the fills Trade ID ([§13.5](#135-trade-history--fills-panel))
+>   and MM quote-legs ([§14.1.1](#1411-quote-card-anatomy), [§14.3](#143-quote-bootstrap-and-legs-view))
+>   to the real wire shapes. (3) **Backend:** wired `auction.indicative` onto the `auction` channel and
+>   rewrote [§6.10](#610-auction-market-data-channel-available-now), [§6.12](#612-open-questions-and-backend-prerequisites),
+>   [§16.6](#166-auction--indicative-price-panel), and the [§17.3.2](#1732-event-routing) routing table;
+>   the engine already publishes it. (4) Added [§17.3.4](#1734-bandwidth-and-the-100-symbol-overview) on
+>   snapshot fan-out and `seq`-gap blast radius at 100+ symbols. Also renamed the private-stream field
+>   from `event_seq` to its real name `stream_seq` throughout ([§17.2.1](#1721-authentication-frame), §26).
+> - **1.8.0 (2026-08-05)** — Backend implemented [§26.4.2 Reference-data service boundary](#2642-reference-data-service-boundary)
+>   and added two key stable endpoints for UI bootstrap: `GET /api/v1/reference/schedule` and
+>   `GET /api/v1/reference` (full bundle in one round-trip). The design now treats reference data as
+>   a runtime API artifact rather than a planned/config-backed fallback: updated
+>   [§6.6](#66-halts-and-risk-configuration-runtime-read-only), [§6.11](#611-capability-summary-table),
+>   [§15.5](#155-risk-control-panel), [§18.2](#182-tanstack-query-for-server-state),
+>   [§23](#23-implementation-plan), [§26.2](#262-highest-impact-changes),
+>   [§26.4.2](#2642-reference-data-service-boundary), and [§26.5](#265-suggested-implementation-order)
+>   accordingly.
+> - **1.7.0 (2026-08-05)** — Backend shipped three of the four items in
+>   [§26.3.6 Admin monitor replay and order drill-down](#2636-admin-monitor-replay-and-order-drill-down):
+>   `WS /api/v1/admin/monitor` now opens with a `monitor.snapshot` (orders/halts/gateways/last_seq),
+>   and `GET /api/v1/admin/orders` / `GET /api/v1/admin/orders/{order_id}` give a cross-gateway
+>   current-state view and an audit-trail-backed lifecycle drill-down, respectively. Only
+>   cross-gateway *event* backfill remains proposed. Also added, as a related backend hardening item
+>   not originally in the addendum: an `order_retention_sec` cache-eviction policy for terminal
+>   orders. Updated [§6.9](#69-admin-monitor-websocket-apiv1adminmonitor),
+>   [§6.11](#611-capability-summary-table), [§13.4](#134-order-detail-drawer),
+>   [§15.1](#151-system-dashboard), [§15.9](#159-audit--monitor-log-viewer),
+>   [§17.4](#174-admin-monitor-websocket-apiv1adminmonitor), Appendix A's `Order` type,
+>   [§26.2](#262-highest-impact-changes), [§26.3.6](#2636-admin-monitor-replay-and-order-drill-down),
+>   and [§26.5](#265-suggested-implementation-order) accordingly.
+> - **1.6.0 (2026-08-05)** — Backend implemented [§26.3.7 Uniform command acknowledgements](#2637-uniform-command-acknowledgements)
+>   narrowly rather than as originally proposed: `command_id` was added only to kill switch/mass
+>   cancel and session transition (the two commands with no completion signal), echoed on their acks;
+>   cascading `command_id` onto every triggered event and blanket adoption across all async endpoints
+>   were evaluated and declined. Fixed a real bug along the way — `POST /api/v1/admin/session/transition`
+>   used to answer `202`/`PENDING` even when the handler silently dropped the request (sessions
+>   disabled or unknown state); it now answers `202`/`APPLIED` or `409`/`TRANSITION_REJECTED` with a
+>   reason. Updated [§6.3](#63-session-control), [§6.11](#611-capability-summary-table),
+>   [§15.4](#154-session-control), [§26.2](#262-highest-impact-changes),
+>   [§26.3.7](#2637-uniform-command-acknowledgements), and [§26.5](#265-suggested-implementation-order)
+>   accordingly.
+> - **1.5.0 (2026-08-05)** — Backend shipped most of [§26.3.5 Private event recovery](#2635-private-event-recovery):
+>   `/api/v1/events` now sends `stream_seq` on auth, an `orders.snapshot` frame, and stable group ids on
+>   `order.*`/`combo.*`/`oco.*`/`quote.*` events. Resume/replay (`{ "action": "resume", "from_seq": ... }`)
+>   was evaluated and deliberately deferred: the only gap it would close — fill/cancel transitions
+>   missed during a drop — is already covered by `/history/*` and drop copy. Updated
+>   [§17.2.1](#1721-authentication-frame), [§17.3.1](#1731-authentication-and-subscription),
+>   [§26.2](#262-highest-impact-changes), [§26.3.5](#2635-private-event-recovery), and
+>   [§26.5](#265-suggested-implementation-order) accordingly.
+> - **1.4.0 (2026-08-05)** — Backend shipped two items from the [§26 addendum](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal):
+>   `/api/v1/market-data` now carries a per-topic `seq` on every event, and the subscription model now
+>   supports per-symbol channel groups (an `items` list) on a single connection. Replaced the earlier
+>   two-socket (overview/focus) workaround with one `marketDataWs` carrying both a broad and a narrow
+>   subscription item ([§17.3.1](#1731-authentication-and-subscription)), updated the `WebSocketManager`
+>   API, `ActiveSymbolStore`/watchlist wording, environment variable descriptions, and Appendix A, and
+>   removed the corresponding rows from [§26.2](#262-highest-impact-changes).
+> - **1.3.0 (2026-08-05)** — Added [§26 Addendum: Protocol and Backend Changes That Would Improve
+>   the Trading Terminal](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal),
+>   covering protocol/API changes that are worth making before release because backwards compatibility
+>   is not yet a constraint: sequenced snapshot/delta streams, richer subscription semantics,
+>   browser-friendly CALF evolution, admin history/replay, uniform command acknowledgements, and
+>   runtime reference/risk/index management.
+> - **1.2.0 (2026-07-09)** — Major revision. Formalised the ADMIN persona's backend
+>   dependency into a dedicated section, [§6 Backend Capability Matrix](#6-backend-capability-matrix-pm-api-gwy),
+>   replacing the earlier "future endpoint" hand-waving. Resolved the ADMIN data-source
+>   contradictions (events WebSocket vs. admin monitor). Added the previously missing feature
+>   surfaces (cancel-replace, OCO/combo group cancel, order-lifecycle drill-down, MM quote-leg
+>   source). Added auction support (indicative price panel, `auction` market-data channel).
+>   Introduced a workspace-centric TRADER UX: a new [§11 Trading Workspace](#11-screen-design--trading-workspace-trader),
+>   a global active-symbol context, click-to-trade from the depth ladder, dual BUY/SELL order
+>   ticket, one-click position flatten, a session clock/countdown, a [§20 Notification / Event
+>   Center](#20-notification--event-center), a power-user mode, and a promoted watchlist feature.
+>   Added routing (React Router v7), renamed the WebSocket wrapper to `ManagedSocket`, added
+>   [Appendix A: Core TypeScript Types](#appendix-a-core-typescript-types), and fixed two bugs
+>   (Tailwind `muted` colour, change-% definition). Sections 6–25 were renumbered from the 1.0.0
+>   layout; the Table of Contents, Feature Matrix, Implementation Plan, Keyboard Shortcuts, and
+>   Summary were regenerated accordingly.
+> - **1.0.0 (2026-07-09)** — Initial design and research proposal.
+
+---
