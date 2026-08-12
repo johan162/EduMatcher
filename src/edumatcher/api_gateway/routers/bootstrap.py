@@ -71,6 +71,15 @@ async def _fetch_reference(request: Request, session: Session) -> dict[str, Any]
     return await fetch_reference_bundle(request, session)
 
 
+async def _await_topic(request: Request, topic: str) -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        await request.app.state.engine.await_topic(
+            topic, request.app.state.config.timeouts.engine_reply_sec
+        ),
+    )
+
+
 async def _fetch_session(request: Request, gateway_id: str) -> dict[str, Any]:
     engine = request.app.state.engine
     engine.request_session(gateway_id)
