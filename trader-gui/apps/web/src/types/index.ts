@@ -39,6 +39,15 @@ export interface StatusResponse {
 }
 
 // ── REST: Order ───────────────────────────────────────────────────────────────
+/**
+ * Canonical order shape used across the UI. It is NOT the raw wire shape:
+ * `GET /orders` returns the engine's pm-msgen `OrderDisplay`, whose id key is
+ * `id`, whose timestamp is `timestamp` (epoch seconds), and whose client tag
+ * is `client_tag`; the timeout-fallback path returns a thinner row keyed on
+ * `order_id`. `normalizeOrder()` (below) folds both into this one shape, so
+ * every screen reads `order_id`/`updated_at`/`client_order_id` regardless of
+ * which path served the data.
+ */
 export interface Order {
   order_id: string;
   client_order_id?: string | null;
@@ -52,13 +61,75 @@ export interface Order {
   stop_price: number | null;
   visible_qty: number | null;
   trail_offset: number | null;
-  smp_action: SmpAction;
+  smp_action: SmpAction | null;
   status: OrderStatus;
   oco_group_id?: string | null;
   combo_parent_id?: string | null;
   /** Present on admin cross-gateway views; absent on own-gateway /orders */
   gateway_id?: string;
-  updated_at: string; // ISO-8601
+  /** Epoch-seconds order timestamp, ISO-normalised for display. */
+  updated_at: string | null;
+}
+
+/**
+ * The two shapes `GET /orders` can return: the rich engine `OrderDisplay`
+ * (id/timestamp/client_tag) and the thin gateway cache fallback that a reply
+ * timeout produces (order_id, no display prices). Everything is optional so a
+ * single normalizer can accept either.
+ */
+export interface RawOrder {
+  id?: string;
+  order_id?: string;
+  symbol?: string;
+  side?: Side;
+  order_type?: OrderType;
+  tif?: Tif;
+  quantity?: number;
+  remaining_qty?: number;
+  price?: number | null;
+  stop_price?: number | null;
+  visible_qty?: number | null;
+  trail_offset?: number | null;
+  smp_action?: SmpAction | null;
+  status?: OrderStatus;
+  oco_group_id?: string | null;
+  combo_parent_id?: string | null;
+  gateway_id?: string;
+  timestamp?: number | null; // OrderDisplay: epoch seconds
+  client_tag?: string | null; // OrderDisplay
+  client_order_id?: string | null; // thin cache fallback
+  updated_at?: string | null;
+}
+
+/**
+ * Fold either `/orders` shape into the canonical {@link Order}. The engine
+ * `OrderDisplay` uses `id`/`timestamp`/`client_tag`; the reply-timeout cache
+ * fallback uses `order_id` and omits the display fields — this reconciles both
+ * so no screen has to know which one it got.
+ */
+export function normalizeOrder(raw: RawOrder): Order {
+  const tsSec = raw.timestamp ?? null;
+  return {
+    order_id: raw.id ?? raw.order_id ?? "",
+    client_order_id: raw.client_order_id ?? raw.client_tag ?? null,
+    symbol: raw.symbol ?? "",
+    side: raw.side ?? "BUY",
+    order_type: raw.order_type ?? "LIMIT",
+    tif: raw.tif ?? "DAY",
+    quantity: raw.quantity ?? 0,
+    remaining_qty: raw.remaining_qty ?? raw.quantity ?? 0,
+    price: raw.price ?? null,
+    stop_price: raw.stop_price ?? null,
+    visible_qty: raw.visible_qty ?? null,
+    trail_offset: raw.trail_offset ?? null,
+    smp_action: raw.smp_action ?? null,
+    status: raw.status ?? "PENDING",
+    oco_group_id: raw.oco_group_id ?? null,
+    combo_parent_id: raw.combo_parent_id ?? null,
+    gateway_id: raw.gateway_id,
+    updated_at:
+      raw.updated_at ?? (tsSec === null ? null : new Date(tsSec * 1000).toISOString()),
+  };
 }
 
 // ── REST: Fill (private order.fill event / pm-msgen OrderFill) ────────────────
@@ -176,8 +247,10 @@ export interface AuctionIndicative {
 export interface SessionEvent {
   state: SessionState;
   prev_state?: SessionState;
+  /** Present only on a scheduler-driven transition. pm-msgen NextTransition:
+   * the phase moved-to is `state` (NOT `to_state`), plus an ISO `at`. */
   next?: {
-    to_state: SessionState;
+    state: SessionState;
     at: string; // scheduled transition time (ISO-8601)
   };
 }

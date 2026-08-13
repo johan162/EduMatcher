@@ -66,7 +66,7 @@ describe("useSessionStore.countdownTarget", () => {
   it("prefers session.next over the configured schedule", () => {
     useSessionStore.setState({ schedule: SCHEDULE });
     useSessionStore.getState().setPhase("CONTINUOUS", "OPENING_AUCTION", {
-      to_state: "CLOSING_AUCTION",
+      state: "CLOSING_AUCTION",
       at: new Date(at(16, 0)).toISOString(),
     });
     expect(useSessionStore.getState().countdownTarget(at(9, 30))).toEqual({
@@ -80,7 +80,7 @@ describe("useSessionStore.countdownTarget", () => {
     // pinning the countdown at 00:00 there is the bug this guards.
     useSessionStore.setState({ schedule: SCHEDULE });
     useSessionStore.getState().setPhase("CONTINUOUS", "PRE_OPEN", {
-      to_state: "CLOSING_AUCTION",
+      state: "CLOSING_AUCTION",
       at: new Date(at(9, 0)).toISOString(),
     });
     expect(useSessionStore.getState().countdownTarget(at(9, 30))).toEqual({
@@ -98,7 +98,7 @@ describe("useSessionStore.countdownTarget", () => {
   it("ignores an unparseable next.at", () => {
     useSessionStore.setState({ schedule: null });
     useSessionStore.getState().setPhase("CONTINUOUS", null, {
-      to_state: "CLOSED",
+      state: "CLOSED",
       at: "not-a-date",
     });
     expect(useSessionStore.getState().nextTransitionAt).toBeNull();

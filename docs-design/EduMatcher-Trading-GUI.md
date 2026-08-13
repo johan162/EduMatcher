@@ -2,7 +2,7 @@ Version: 1.11.3
 
 Date: 2026-08-12
 
-Status: Design and Research Proposal — partially implemented (phases 1–4 of §23 built in `trader-gui/`)
+Status: Design and Research Proposal — partially implemented (phases 1–5 of §23 built in `trader-gui/`)
 
 
 # EduMatcher — Trading Web UI (`pm-trading-ui`)
@@ -3166,7 +3166,7 @@ demonstrated in isolation.
 | 2 | ✅ Implemented | `ManagedSocket` + `WebSocketManager` with a single market-data socket (overview + focus subscription items); `useBookStore`; `useSessionStore`; `useHaltStore`; top bar with health dot, session badge + clock/countdown | Book events update Zustand; session badge changes colour; countdown ticks; depth is received only for focus symbols |
 | 3 | ✅ Implemented | Market Overview table with FlashCell; `GET /symbols`; `GET /history/daily` for change % (vs today's open); auction + halt badges | Real-time price table with green/red flashes and correct change % |
 | 4 | ✅ Implemented | Symbol Detail right panel: Chart, Depth (with click-to-trade), Trades tape, Stats, Auction tab; `useActiveSymbolStore` | Click a row → active symbol set; panel opens; candles load; auction panel populates during auction |
-| 5 | ⬜ Planned | **Trading Workspace**: 4-quadrant layout bound to the active symbol; embed chart + DOM + ticket + compact blotter; click-to-trade wiring | Click a DOM level → ticket price prefilled; all quadrants follow active symbol |
+| 5 | ✅ Implemented | **Trading Workspace**: 4-quadrant layout bound to the active symbol; embed chart + DOM + ticket + compact blotter; click-to-trade wiring | Click a DOM level → ticket price prefilled; all quadrants follow active symbol |
 | 6 | ⬜ Planned | TRADER Order Ticket (all 8 single-leg types, Zod validation, TIF phase restrictions, dual BUY/SELL buttons + `B`/`S`, auction banner) | Submit LIMIT via BUY; receive ACK toast + Event Center entry |
 | 7 | ⬜ Planned | TRADER Active Orders Blotter (TanStack Table, WS updates, Amend, **Cancel-Replace**, cancel); Order Detail drawer | Cancel-replace an order; open drawer; lifecycle timeline renders |
 | 8 | ⬜ Planned | TRADER OCO/Combo entry + **group rows/badges + group cancel**; Trade History; Position Panel + **Flatten / Flatten All** | Submit OCO; watch one leg fill and sibling cancel; flatten a position |
@@ -3189,7 +3189,7 @@ demonstrated in isolation.
 ### 23.1 Implementation status and findings (phases 1–4)
 
 The application lives in **`trader-gui/`** (an npm workspace, app at `trader-gui/apps/web/`),
-not the `pm-trading-ui/` directory name used illustratively elsewhere in this document. Phases 1–4
+not the `pm-trading-ui/` directory name used illustratively elsewhere in this document. Phases 1–5
 are implemented and green under `npm run typecheck`, `npm run test` (Vitest), and `npm run build`.
 
 Findings and deviations recorded during implementation:
@@ -3224,6 +3224,45 @@ Findings and deviations recorded during implementation:
 - **Live chart append reads refs, not closures.** `useWsEvent` binds its handler once (keyed on
   event type), so the live-tick handler reads the current symbol/timeframe/series/last-bar from refs
   updated each render rather than from a stale closure.
+
+Phase 5 (Trading Workspace) findings:
+
+- **The Workspace reuses the phase-4 chart and depth ladder.** The four-quadrant cockpit
+  (`pages/TradingWorkspacePage.tsx`) embeds `SymbolChart` and `DepthLadder` directly; the DOM
+  ladder's default `onPriceClick` already writes to `useTicketPrefillStore`, so click-to-trade is
+  wired without any Workspace-specific handler.
+- **Ticket ⇄ DOM coupling is via the prefill store, not props.** `WorkspaceTicket` reads the latest
+  `{ symbol, price, side, nonce }` from `useTicketPrefillStore`; a bid click suggests SELL, an ask
+  click BUY (side-inference default-on per §11.4), and the suggested side's button is highlighted.
+  The ticket never auto-submits.
+- **The embedded ticket is the compact subset, by design.** Phase 5 ships LIMIT/MARKET with dual
+  BUY/SELL buttons, quantity, price, and TIF, validated with the existing `orderSchema`
+  ([§12.4](#124-field-validation-rules-zod-schema)) and posting to `POST /api/v1/orders`. The full
+  eight-type ticket, TIF-phase restrictions, `B`/`S` hotkeys, and auction banner remain **phase 6**;
+  the standalone Order Entry screen is still a stub.
+- **The compact blotter is a filtered slice of `GET /orders`.** It shows the active symbol's working
+  orders with inline cancel and reflects cancels via query invalidation; live `/events` blotter
+  updates and the full Active Orders Blotter are **phase 7**. Fixed a latent typing bug along the
+  way — `GET /orders` returns `{ orders: [...] }`, not a bare array, so `getOrders`/`useOrdersQuery`
+  were corrected.
+- **The Workspace adopts the first symbol when none is active** so all four quadrants have something
+  to bind to on first landing; it sets the active symbol directly (not via `useSymbolDetailStore`),
+  so the §16 detail overlay does not appear over the cockpit.
+
+Post-phase-5 review — two wire-contract mismatches found and fixed:
+
+- **Order identity is `id`, not `order_id`.** `GET /orders` returns the engine pm-msgen
+  `OrderDisplay`, whose id key is `id`, timestamp is `timestamp` (epoch seconds), and client tag is
+  `client_tag`; a reply-timeout fallback returns a thinner cache row keyed on `order_id`. The client
+  now folds both into the canonical `Order` (§ Appendix A) via `normalizeOrder()` in `useOrdersQuery`,
+  so screens read `order_id`/`updated_at`/`client_order_id` uniformly. Without this the compact
+  blotter's cancel button and row keys were driven by an `undefined` id. Appendix A's `Order` type was
+  corrected to match (`smp_action`/`updated_at` are now nullable).
+- **The `session.state` broadcast's `next` object uses `state`, not `to_state`.** (`to_state` is the
+  field on the separate `session.transition` *command*.) The client read `next.to_state`, so the
+  engine's authoritative countdown target was silently discarded and the top bar always fell back to
+  its schedule-derived guess. Fixed in `NextTransitionEvent`/`SessionEvent` and the Appendix A type.
+  Both fixes carry regression tests (`test/reviewFixes.test.ts`).
 
 ---
 
@@ -3729,6 +3768,14 @@ export interface StatusResponse {
 }
 
 // ── Order / Fill / Trade ─────────────────────────────────────────────────────
+// CANONICAL client shape, NOT the raw wire shape. `GET /orders` returns the
+// engine pm-msgen `OrderDisplay`, whose id key is `id`, timestamp is
+// `timestamp` (epoch seconds), and client tag is `client_tag`; a reply timeout
+// makes the gateway fall back to a thinner cache row keyed on `order_id` with
+// no display prices. The client folds BOTH into this shape via
+// `normalizeOrder()` (id||order_id → order_id, timestamp → updated_at ISO,
+// client_tag||client_order_id → client_order_id), so every screen reads
+// `order_id`/`updated_at`/`client_order_id` regardless of which path served it.
 export interface Order {
   order_id: string;
   client_order_id?: string | null;
@@ -3742,12 +3789,12 @@ export interface Order {
   stop_price: number | null;
   visible_qty: number | null;
   trail_offset: number | null;
-  smp_action: SmpAction;
+  smp_action: SmpAction | null;    // OrderDisplay omits it when unset
   status: OrderStatus;
   oco_group_id?: string | null;
   combo_parent_id?: string | null;
   gateway_id?: string;              // present on admin cross-gateway views (§6.9); absent on own-gateway `/orders`
-  updated_at: string;              // ISO-8601
+  updated_at: string | null;       // ISO-8601, derived from OrderDisplay `timestamp`; null on the thin fallback row
 }
 
 export interface Fill {
@@ -3829,8 +3876,8 @@ export interface SessionEvent {
   state: SessionState;
   prev_state?: SessionState;       // omitted (not null) when empty on the wire
   next?: {                         // present only on a scheduler-driven transition
-    to_state: SessionState;
-    at: string;                    // scheduled transition time
+    state: SessionState;           // pm-msgen NextTransition: phase moved-to is `state`, NOT `to_state`
+    at: string;                    // scheduled transition time (ISO-8601)
   };
 }
 

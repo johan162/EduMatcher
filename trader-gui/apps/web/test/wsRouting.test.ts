@@ -134,7 +134,7 @@ describe("market-data routing", () => {
       data: {
         state: "CONTINUOUS",
         prev_state: "OPENING_AUCTION",
-        next: { to_state: "CLOSING_AUCTION", at: "2099-01-01T17:20:00Z" },
+        next: { state: "CLOSING_AUCTION", at: "2099-01-01T17:20:00Z" },
       },
     });
     const s = useSessionStore.getState();

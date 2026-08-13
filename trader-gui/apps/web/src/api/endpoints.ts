@@ -18,6 +18,7 @@ import type {
   SessionStatusDTO,
   DailyStatsResponse,
   HistoryTradesResponse,
+  RawOrder,
 } from "@/types/index.js";
 
 // ── Auth / status ─────────────────────────────────────────────────────────────
@@ -48,7 +49,9 @@ export const getReferenceSchedule = () =>
 export const getSession = () => apiFetch<SessionStatusDTO>("/api/v1/session");
 
 // ── Orders ────────────────────────────────────────────────────────────────────
-export const getOrders = () => apiFetch<Order[]>("/api/v1/orders");
+// Raw rows: the engine `OrderDisplay` (id/timestamp/client_tag) or the thin
+// timeout-fallback cache row (order_id). Callers normalize via normalizeOrder.
+export const getOrders = () => apiFetch<{ orders: RawOrder[] }>("/api/v1/orders");
 
 export const getOrder = (orderId: string) => apiFetch<Order>(`/api/v1/orders/${orderId}`);
 

@@ -4,7 +4,9 @@ import { nextScheduledTransition, type ScheduleInfo } from "@/lib/schedule.js";
 
 /** `session.next` as it arrives on the wire. */
 export interface NextTransitionEvent {
-  to_state: SessionState;
+  // The phase moved-to is `state` (pm-msgen NextTransition), NOT `to_state` —
+  // `to_state` is the field on the separate session.transition command.
+  state: SessionState;
   at: string; // ISO-8601
 }
 
@@ -54,7 +56,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       prevPhase: prev,
       phaseSince: Date.now(),
       nextTransitionAt: Number.isFinite(at) ? at : null,
-      nextState: next?.to_state ?? null,
+      nextState: next?.state ?? null,
     });
   },
 

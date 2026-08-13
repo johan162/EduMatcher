@@ -5,6 +5,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as api from "@/api/endpoints.js";
 import { ApiError } from "@/api/apiFetch.js";
+import { normalizeOrder } from "@/types/index.js";
 import type { DailyStat, Order, Position, QuoteLeg } from "@/types/index.js";
 
 // ── Symbols ───────────────────────────────────────────────────────────────────
@@ -54,7 +55,10 @@ export function useSessionQuery() {
 export function useOrdersQuery() {
   return useQuery({
     queryKey: ["orders"],
-    queryFn: api.getOrders,
+    // Both `/orders` shapes (engine OrderDisplay keyed on `id`, and the
+    // timeout-fallback cache row keyed on `order_id`) are folded into the
+    // canonical Order here, so consumers only ever see `order_id`.
+    queryFn: () => api.getOrders().then((r) => r.orders.map(normalizeOrder)),
     staleTime: 30_000,
   });
 }
