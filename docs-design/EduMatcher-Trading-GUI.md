@@ -2,7 +2,7 @@ Version: 1.11.3
 
 Date: 2026-08-12
 
-Status: Design and Research Proposal — partially implemented (phases 1–6 of §23 built in `trader-gui/`)
+Status: Design and Research Proposal — partially implemented (phases 1–7 of §23 built in `trader-gui/`)
 
 
 # EduMatcher — Trading Web UI (`pm-trading-ui`)
@@ -178,7 +178,7 @@ Status: Design and Research Proposal — partially implemented (phases 1–6 of 
     - [22.2 `vite.config.ts`](#222-viteconfigts)
     - [22.3 Tailwind theme](#223-tailwind-theme)
   - [23. Implementation Plan](#23-implementation-plan)
-    - [23.1 Implementation status and findings (phases 1–6)](#231-implementation-status-and-findings-phases-16)
+    - [23.1 Implementation status and findings (phases 1–7)](#231-implementation-status-and-findings-phases-17)
   - [24. Testing Plan](#24-testing-plan)
     - [24.1 Unit tests (Vitest)](#241-unit-tests-vitest)
     - [24.2 Component tests (React Testing Library + Vitest)](#242-component-tests-react-testing-library--vitest)
@@ -3168,7 +3168,7 @@ demonstrated in isolation.
 | 4 | ✅ Implemented | Symbol Detail right panel: Chart, Depth (with click-to-trade), Trades tape, Stats, Auction tab; `useActiveSymbolStore` | Click a row → active symbol set; panel opens; candles load; auction panel populates during auction |
 | 5 | ✅ Implemented | **Trading Workspace**: 4-quadrant layout bound to the active symbol; embed chart + DOM + ticket + compact blotter; click-to-trade wiring | Click a DOM level → ticket price prefilled; all quadrants follow active symbol |
 | 6 | ✅ Implemented | TRADER Order Ticket (all 8 single-leg types, Zod validation, TIF phase restrictions, dual BUY/SELL buttons + `B`/`S`, auction banner) | Submit LIMIT via BUY; receive ACK toast + Event Center entry |
-| 7 | ⬜ Planned | TRADER Active Orders Blotter (TanStack Table, WS updates, Amend, **Cancel-Replace**, cancel); Order Detail drawer | Cancel-replace an order; open drawer; lifecycle timeline renders |
+| 7 | ✅ Implemented | TRADER Active Orders Blotter (TanStack Table, WS updates, Amend, **Cancel-Replace**, cancel); Order Detail drawer | Cancel-replace an order; open drawer; lifecycle timeline renders |
 | 8 | ⬜ Planned | TRADER OCO/Combo entry + **group rows/badges + group cancel**; Trade History; Position Panel + **Flatten / Flatten All** | Submit OCO; watch one leg fill and sibling cancel; flatten a position |
 | 9 | ⬜ Planned | MARKET_MAKER: Quote card grid, New Quote form, fill alerts, bootstrap + **quotes/legs** fill indicators | Submit two-sided quote; simulate fill; per-leg fill bar updates from `/quotes/legs` |
 | 10 | ⬜ Planned | **Notification / Event Center** + bell; **power-user mode** (undo-toast + always-confirm exceptions); **Watchlist** | Fills/rejects persist in Event Center; toggle confirmations; curate watchlist |
@@ -3186,10 +3186,10 @@ demonstrated in isolation.
 > and global/by-gateway admin kill switch) must be tracked as backend work items. The TRADER/MM phases
 > (1–10) have no backend dependency beyond the existing API and current `auction` market-data channel.
 
-### 23.1 Implementation status and findings (phases 1–6)
+### 23.1 Implementation status and findings (phases 1–7)
 
 The application lives in **`trader-gui/`** (an npm workspace, app at `trader-gui/apps/web/`),
-not the `pm-trading-ui/` directory name used illustratively elsewhere in this document. Phases 1–6
+not the `pm-trading-ui/` directory name used illustratively elsewhere in this document. Phases 1–7
 are implemented and green under `npm run typecheck`, `npm run test` (Vitest), and `npm run build`.
 
 Findings and deviations recorded during implementation:
@@ -3305,6 +3305,63 @@ Phase 6 (Order Ticket) findings:
 - **The symbol picker is a native `<input list>` + `<datalist>`.** Accessible and dependency-free
   (shadcn's Combobox is not set up); typing filters by the datalist, and selecting a known symbol
   sets the active symbol so the rest of the app follows (§12.6).
+
+Phase 7 (Active Orders Blotter, Amend/Replace, Order Detail) findings:
+
+- **The blotter is driven by a live `useOrderStore`, seeded from the `/events` `orders.snapshot`, not
+  by polling `GET /orders`.** The private events socket sends an `orders.snapshot` frame on every
+  (re)connect specifically to remove the reconnect round-trip to `GET /orders`; a root-level
+  `useOrderStream` hook seeds the store from it and folds each live `order.ack/fill/amended/
+  cancelled/expired` event, mirroring the gateway's own `SessionCaches.apply` status transitions so
+  the client agrees with the server without polling. `GET /orders` is retained only as a manual
+  **Refresh** reconcile (`hydrate`), which upserts rows but never resurrects an order already seen
+  terminal locally. The Workspace `CompactBlotter` now reads the same store, so both blotters are
+  live from one source.
+- **The snapshot/event rows are the accreted session-cache shape, not engine `OrderDisplay`.** They
+  are keyed on `order_id` (not `id`), carry `qty` rather than `quantity`, and can carry a cache-only
+  `status: "AMENDED"`. `normalizeOrder` was extended to fold `qty`→`quantity` and to resolve
+  `"AMENDED"` back to a canonical working status (`PARTIAL` if partly filled, else `NEW`), since the
+  design's status vocabulary (§13.1.2) has no `AMENDED`. `order.amended` carries only
+  `order_id/price/qty/remaining_qty/priority_reset` — no symbol/side — so it can only *update* an
+  existing row, which the snapshot guarantees exists.
+- **Amend, Replace, and Cancel are all fire-and-forget 202s with no existence check.** There is no
+  `404`/`409` for an unknown or already-terminal order on `PATCH`/`DELETE`/`replace`; the row simply
+  updates (or not) from the live event. `Replace` performs an atomic cancel-then-new server-side and
+  does **not** accept `?wait=ack`; if the cancel leg's ack never arrives (the order already filled),
+  it returns **503 `ENGINE_TIMEOUT`** and no replacement is sent — the Replace dialog surfaces this
+  as "the order may have already filled" rather than a generic error. Cancel/amend `503` timeouts are
+  likewise shown as "awaiting confirmation", consistent with the phase-6 ticket.
+- **`mass-cancel` is an alias of `kill-switch` and cannot target a set of ids.** `POST
+  /api/v1/mass-cancel` and `POST /api/v1/kill-switch` are the *same* handler and take only an optional
+  `symbol` (gateway-wide or symbol-wide). The blotter's bulk "Cancel selected" therefore issues
+  individual `DELETE /orders/{id}` calls for the chosen rows rather than a single mass-cancel.
+- **The Order Detail drawer merges durable history with a live tail.** It seeds from
+  `GET /history/orders/{order_id}` (chronological `order_events`, display prices, `event_type` in the
+  stats vocabulary ACK/REJECT/FILL/AMEND/CANCEL/EXPIRE) and appends live `order.*` events for that id
+  while open, so it stays current even when stats.db lags. An unknown id returns `200` with an empty
+  list (not `404`); a missing stats DB returns `503 STATS_DB`, rendered as "history unavailable" with
+  the live tail still active. The drawer is remounted per `order_id` (React `key`) so its once-bound
+  WS handlers always read the current id.
+
+Phase 7 review — one logical fix and known simplifications:
+
+- **A fill must not resurrect a pre-amend quantity (fixed in review).** The engine's `order.fill`
+  carries the order's *original* `qty`; if an amend had already reduced the total, folding the fill's
+  `qty` back over it would wrongly restore the old quantity. `useOrderStore.applyFill` now updates
+  only `remaining_qty`/`status` and never overwrites an already-known positive `quantity`, with a
+  regression test.
+- **Row interactions are the essential subset of §13.1.3.** Single row-click opens the Order Detail
+  drawer, a per-row checkbox drives multi-select + bulk cancel, and per-row buttons do Amend/Replace/
+  Cancel. The spec's `Delete`/`Backspace`-to-cancel, `Enter`-to-open, and shift-click range select
+  are not yet wired; power-user "confirmations off" + undo-toast is phase 10, so cancels always
+  confirm for now.
+- **`["orders"]` TanStack Query is now unused.** The blotter reads the live store, so the
+  cancel/amend/replace mutations' `invalidateQueries(["orders"])` is a harmless no-op kept for any
+  future REST consumer; the Refresh button reconciles by calling `GET /orders` and `hydrate()`ing the
+  store directly.
+- **Terminal orders accrue within a connection.** The store keeps FILLED/CANCELLED/REJECTED/EXPIRED
+  rows so their pill shows; there is no client-side eviction, but a fresh `orders.snapshot` on
+  reconnect (which `seed` applies as a full replace) drops the ones the gateway has since evicted.
 
 ---
 

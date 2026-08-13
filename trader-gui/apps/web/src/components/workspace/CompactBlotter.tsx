@@ -1,11 +1,11 @@
 import { useMemo } from "react";
 import { X } from "lucide-react";
-import { useOrdersQuery, useCancelOrderMutation } from "@/queries/index.js";
+import { toast } from "sonner";
+import { useCancelOrderMutation } from "@/queries/index.js";
+import { useOrderStore, isTerminal } from "@/store/useOrderStore.js";
+import { ApiError } from "@/api/apiFetch.js";
 import { formatPrice, formatQty } from "@/lib/formatters.js";
 import type { Order } from "@/types/index.js";
-
-/** Orders that are still working and can be cancelled. */
-const RESTING = new Set(["NEW", "PARTIAL", "PENDING"]);
 
 interface CompactBlotterProps {
   symbol: string;
@@ -14,22 +14,30 @@ interface CompactBlotterProps {
 
 /**
  * Compact blotter for the Workspace bottom strip (§11.2): the active symbol's
- * resting orders with an inline cancel. A filtered slice of the full Active
- * Orders Blotter (phase 7); it reads `GET /orders` and reflects cancels
- * optimistically via query invalidation. Live `/events` wiring lands in
- * phase 6/7.
+ * working orders with an inline cancel. A filtered slice of the full Active
+ * Orders Blotter, reading the same live {@link useOrderStore} (seeded from
+ * `orders.snapshot`, kept current by `order.*`) so it needs no polling.
  */
 export function CompactBlotter({ symbol, tickDecimals }: CompactBlotterProps) {
-  const ordersQuery = useOrdersQuery();
+  const ordersMap = useOrderStore((s) => s.orders);
   const cancel = useCancelOrderMutation();
 
   const rows = useMemo<Order[]>(
     () =>
-      (ordersQuery.data ?? []).filter(
-        (o) => o.symbol === symbol && RESTING.has(o.status),
-      ),
-    [ordersQuery.data, symbol],
+      Object.values(ordersMap).filter((o) => o.symbol === symbol && !isTerminal(o.status)),
+    [ordersMap, symbol],
   );
+
+  const doCancel = (orderId: string) =>
+    cancel.mutate(orderId, {
+      onError: (err) => {
+        if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+          toast(`Cancel submitted — awaiting confirmation for ${orderId.slice(0, 8)}`);
+          return;
+        }
+        toast.error(err instanceof ApiError ? `${err.code}: ${err.message}` : "Cancel failed");
+      },
+    });
 
   return (
     <div className="flex flex-col gap-1 h-full">
@@ -42,9 +50,7 @@ export function CompactBlotter({ symbol, tickDecimals }: CompactBlotterProps) {
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-[11px] text-[#505070] py-2">
-          {ordersQuery.isLoading ? "Loading orders…" : `No working orders for ${symbol}.`}
-        </p>
+        <p className="text-[11px] text-[#505070] py-2">No working orders for {symbol}.</p>
       ) : (
         <div className="overflow-auto">
           <table className="w-full text-xs font-mono border-collapse">
@@ -77,7 +83,7 @@ export function CompactBlotter({ symbol, tickDecimals }: CompactBlotterProps) {
                   <td className="px-2 py-0.5 text-right">
                     <button
                       type="button"
-                      onClick={() => cancel.mutate(o.order_id)}
+                      onClick={() => doCancel(o.order_id)}
                       disabled={cancel.isPending}
                       aria-label={`Cancel order ${o.order_id}`}
                       className="text-[#9090b0] hover:text-ask disabled:opacity-50"

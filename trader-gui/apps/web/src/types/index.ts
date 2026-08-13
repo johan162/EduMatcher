@@ -105,13 +105,16 @@ export interface RawOrder {
   order_type?: OrderType;
   tif?: Tif;
   quantity?: number;
+  qty?: number; // ack/fill/amend events and the /events snapshot cache use `qty`
   remaining_qty?: number;
   price?: number | null;
   stop_price?: number | null;
   visible_qty?: number | null;
   trail_offset?: number | null;
   smp_action?: SmpAction | null;
-  status?: OrderStatus;
+  // The gateway session cache (snapshot rows) also emits "AMENDED", which is
+  // not a canonical OrderStatus — normalizeOrder folds it back to NEW/PARTIAL.
+  status?: OrderStatus | "AMENDED";
   oco_group_id?: string | null;
   combo_parent_id?: string | null;
   gateway_id?: string;
@@ -129,6 +132,16 @@ export interface RawOrder {
  */
 export function normalizeOrder(raw: RawOrder): Order {
   const tsSec = raw.timestamp ?? null;
+  const quantity = raw.quantity ?? raw.qty ?? 0;
+  const remaining = raw.remaining_qty ?? quantity;
+  // "AMENDED" is a cache-only marker; an amended order is still working, so
+  // resolve it to PARTIAL (some already filled) or NEW from the quantities.
+  const status: OrderStatus =
+    raw.status === "AMENDED"
+      ? remaining < quantity
+        ? "PARTIAL"
+        : "NEW"
+      : (raw.status ?? "PENDING");
   return {
     order_id: raw.id ?? raw.order_id ?? "",
     client_order_id: raw.client_order_id ?? raw.client_tag ?? null,
@@ -136,20 +149,55 @@ export function normalizeOrder(raw: RawOrder): Order {
     side: raw.side ?? "BUY",
     order_type: raw.order_type ?? "LIMIT",
     tif: raw.tif ?? "DAY",
-    quantity: raw.quantity ?? 0,
-    remaining_qty: raw.remaining_qty ?? raw.quantity ?? 0,
+    quantity,
+    remaining_qty: remaining,
     price: raw.price ?? null,
     stop_price: raw.stop_price ?? null,
     visible_qty: raw.visible_qty ?? null,
     trail_offset: raw.trail_offset ?? null,
     smp_action: raw.smp_action ?? null,
-    status: raw.status ?? "PENDING",
+    status,
     oco_group_id: raw.oco_group_id ?? null,
     combo_parent_id: raw.combo_parent_id ?? null,
     gateway_id: raw.gateway_id,
     updated_at:
       raw.updated_at ?? (tsSec === null ? null : new Date(tsSec * 1000).toISOString()),
   };
+}
+
+/**
+ * One row of `GET /api/v1/history/orders/{order_id}` — a durable `order_events`
+ * record from stats.db, in chronological order. Prices are display money.
+ * `event_type` is the stats vocabulary (ACK/REJECT/FILL/AMEND/CANCEL/EXPIRE and
+ * combo/oco/quote variants), NOT the live OrderStatus. `priority_reset` is 0/1.
+ */
+export interface OrderHistoryEvent {
+  seq: number;
+  ts: string; // ISO-8601 UTC ms
+  event_type: string;
+  order_id: string;
+  gateway_id: string;
+  symbol: string;
+  side: string | null;
+  order_type: string | null;
+  tif: string | null;
+  price: number | null;
+  quantity: number | null;
+  remaining_qty: number | null;
+  status: string | null;
+  fill_price: number | null;
+  fill_qty: number | null;
+  trade_id: string | null;
+  reason: string | null;
+  client_order_id: string | null;
+  combo_parent_id: string | null;
+  oco_group_id: string | null;
+  priority_reset: number | null;
+}
+
+export interface OrderHistoryResponse {
+  events: OrderHistoryEvent[];
+  count: number;
 }
 
 // ── REST: Fill (private order.fill event / pm-msgen OrderFill) ────────────────
@@ -164,6 +212,8 @@ export interface Fill {
   trade_ids: string[];
   symbol?: string;
   side?: Side;
+  order_type?: OrderType; // present when the engine had the order to hand
+  tif?: Tif;
   qty?: number; // original order qty (engine name)
   price?: number;
   client_tag?: string; // engine name for client_order_id
@@ -656,8 +706,22 @@ export interface TradeData {
   tick_decimals: number;
 }
 
+/**
+ * The `/events` socket's first data frame on (re)connect — a point-in-time
+ * snapshot of this gateway's cached orders/positions/quote legs, accurate as of
+ * `stream_seq`. `orders` rows are the accreted session-cache shape (keyed
+ * `order_id`, `qty`/`quantity` both possible, status incl. PENDING/AMENDED),
+ * so they normalize through {@link normalizeOrder} like `GET /orders` rows.
+ */
+export interface OrdersSnapshotData {
+  orders: RawOrder[];
+  positions: Record<string, number>;
+  quote_legs: unknown[];
+}
+
 /** type → data binding map. */
 export interface WsDataByType {
+  "orders.snapshot": OrdersSnapshotData;
   "order.ack": OrderAckData;
   "order.fill": Fill;
   "order.amended": OrderAmendedData;

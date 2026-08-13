@@ -20,6 +20,7 @@ import type {
   HistoryTradesResponse,
   RawOrder,
   OrderAccepted,
+  OrderHistoryResponse,
 } from "@/types/index.js";
 
 // ── Auth / status ─────────────────────────────────────────────────────────────
@@ -125,7 +126,7 @@ export const cancelQuote = (symbol: string) =>
 
 // ── History ───────────────────────────────────────────────────────────────────
 export const getHistoryOrders = (orderId: string) =>
-  apiFetch<Record<string, unknown>>(`/api/v1/history/orders/${orderId}`);
+  apiFetch<OrderHistoryResponse>(`/api/v1/history/orders/${encodeURIComponent(orderId)}`);
 
 export const getHistoryFills = (params?: Record<string, string>) => {
   const qs = params ? `?${new URLSearchParams(params).toString()}` : "";

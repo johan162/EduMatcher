@@ -5,6 +5,7 @@ import { useAuthStore } from "@/store/useAuthStore.js";
 import { useWebSocketManager } from "@/ws/WebSocketManager.js";
 import { useMarketDataSubscription } from "@/hooks/useMarketDataSubscription.js";
 import { useOrderEventNotifications } from "@/hooks/useOrderEventNotifications.js";
+import { useOrderStream } from "@/hooks/useOrderStream.js";
 
 // Pages (lazy-loaded stubs for now)
 import { LoginPage } from "@/pages/LoginPage.js";
@@ -42,6 +43,8 @@ export default function App() {
   // Surface live fills/terminals from /events as toasts + Event Center entries
   // (TRADER/MM private stream; inert for ADMIN which has no order.* events).
   useOrderEventNotifications();
+  // Keep the live order store (blotter) seeded from orders.snapshot + order.*.
+  useOrderStream();
 
   return (
     <Routes>
