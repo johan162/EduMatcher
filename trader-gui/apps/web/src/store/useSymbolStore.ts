@@ -6,8 +6,8 @@ export interface SymbolStore {
   setSymbols: (list: Symbol[]) => void;
   /**
    * Seed from the reference bundle (login bootstrap). Carries `tick_decimals`
-   * and the collar `level`; `prev_close` and `reference_price` come from
-   * `GET /symbols` and the live risk state respectively and are merged in
+   * and the collar `level`; `prev_close` comes from `GET /symbols` and
+   * `collar_reference_price` from the ADMIN-only `/admin/risk/state`, merged in
    * later by the screens that need them, so they start null rather than 0.
    */
   hydrateFromReference: (list: ReferenceSymbol[]) => void;
@@ -30,7 +30,7 @@ export const useSymbolStore = create<SymbolStore>((set, get) => ({
             symbol: r.symbol,
             tick_decimals: r.tick_decimals,
             prev_close: prev?.prev_close ?? null,
-            reference_price: prev?.reference_price ?? null,
+            collar_reference_price: prev?.collar_reference_price ?? null,
             level: r.level ?? null,
           };
         }),

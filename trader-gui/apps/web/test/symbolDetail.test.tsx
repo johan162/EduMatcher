@@ -86,7 +86,7 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
   useSymbolStore.setState({
     symbols: [
-      { symbol: "AAPL", tick_decimals: 2, prev_close: null, reference_price: null, level: null },
+      { symbol: "AAPL", tick_decimals: 2, prev_close: null, collar_reference_price: null, level: null },
     ],
   });
   useSessionStore.setState({

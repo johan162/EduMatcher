@@ -11,8 +11,8 @@ import type { BookEntry } from "@/store/useBookStore";
 import type { DailyStat, HaltEntry, Symbol } from "@/types/index";
 
 const SYMBOLS: Symbol[] = [
-  { symbol: "AAPL", tick_decimals: 2, prev_close: 149, reference_price: null, level: null },
-  { symbol: "MSFT", tick_decimals: 2, prev_close: 400, reference_price: null, level: null },
+  { symbol: "AAPL", tick_decimals: 2, prev_close: 149, collar_reference_price: null, level: null },
+  { symbol: "MSFT", tick_decimals: 2, prev_close: 400, collar_reference_price: null, level: null },
 ];
 
 function book(partial: Partial<BookEntry>): BookEntry {

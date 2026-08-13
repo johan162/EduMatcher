@@ -3279,7 +3279,17 @@ Phase 6 (Order Ticket) findings:
   Center entry. The PENDING-row blotter machinery and the two-ACK "later ACK wins" reconciliation
   stay in **phase 7** (the blotter). A lightweight `useOrderEventNotifications` hook still bridges
   live `order.fill`/`order.cancelled`/`order.expired` to toasts + the Event Center, mounted at the
-  app root for TRADER/MM.
+  app root for TRADER/MM. (Verified against the backend: those three engine topics map through
+  `events.websocket_type()` to exactly the `order.*` envelope types the bridge subscribes to, and
+  `order.fill.fill_price` is already in display units — no client-side tick conversion needed.)
+- **A `wait=ack` timeout is `503 ENGINE_TIMEOUT`, not a `PENDING` body — and must not read as a
+  rejection.** The gateway's `_await_order_event` raises `503` when the ack does not arrive in
+  `wait_ack_sec`, *after* `send_new_order` has already been dispatched. The first cut treated every
+  submit error as a REJECT, which would falsely tell a trader a possibly-live order had failed and
+  invite a duplicate resubmit. The ticket now special-cases `503`/`ENGINE_TIMEOUT` as "submitted —
+  awaiting confirmation (check blotter)" with a neutral ACK-pending Event Center entry, per §12.9
+  step 6; genuine `4xx` (422/409/429) remain rejections. (The `accepted == null` success branch is
+  consequently only reachable if `wait` is omitted, and is kept as defensive code.)
 - **The reference-price hint is sourced from the symbol store, not `/reference/risk`.** §12.6/§15.2.1
   say per-symbol `reference_price` lives on `GET /api/v1/reference/risk` → `SymbolRiskState`, but that
   endpoint returns the static named collar *levels* bundle, not per-symbol reference prices (those are

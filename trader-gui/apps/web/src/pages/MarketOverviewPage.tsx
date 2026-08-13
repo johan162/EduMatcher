@@ -50,7 +50,7 @@ export function MarketOverviewPage() {
         symbol: dto.symbol,
         tick_decimals: dto.tick_decimals,
         prev_close: dto.prev_close ?? null,
-        reference_price: existing.get(dto.symbol)?.reference_price ?? null,
+        collar_reference_price: existing.get(dto.symbol)?.collar_reference_price ?? null,
         level: existing.get(dto.symbol)?.level ?? null,
       })),
     );

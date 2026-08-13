@@ -3,6 +3,8 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
 import { useSubmitOrderMutation } from "@/queries/index.js";
 import { useOrderFields } from "@/hooks/useOrderFields.js";
+import { useEventCallback } from "@/hooks/useEventCallback.js";
+import { usePriceHint } from "@/hooks/usePriceHint.js";
 import { useSessionStore } from "@/store/useSessionStore.js";
 import { useSymbolStore } from "@/store/useSymbolStore.js";
 import { useActiveSymbolStore } from "@/store/useActiveSymbolStore.js";
@@ -80,8 +82,9 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
   const submit = useSubmitOrderMutation();
 
   const symbol = (lockedSymbol ?? typedSymbol).toUpperCase();
-  const meta = useSymbolStore((s) => s.symbols.find((m) => m.symbol === symbol));
-  const refPrice = meta?.reference_price ?? meta?.prev_close ?? null;
+  // Live anchor for the "Ref:" hint (last trade → mid → prev_close); traders
+  // have no per-symbol reference price over REST (see usePriceHint / §12.6).
+  const refPrice = usePriceHint(symbol || null);
 
   const allowedTif = ALLOWED_TIF[phase];
   const isAuction = phase === "OPENING_AUCTION" || phase === "CLOSING_AUCTION";
@@ -206,7 +209,9 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
             });
             return;
           }
-          // accepted == null → the ack timed out; the order is still submitted.
+          // accepted == null → gateway returned status PENDING without waiting
+          // (only happens if wait=ack was omitted). Defensive; the ticket always
+          // waits, so a genuine ack timeout arrives on the onError path as a 503.
           toast(`${side} ${symbol} submitted — pending ACK`);
           pushNotification({
             ts: Date.now(),
@@ -217,6 +222,21 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
           });
         },
         onError: (err) => {
+          // A wait=ack timeout is 503 ENGINE_TIMEOUT — NOT a rejection. The order
+          // was already sent to the engine (send_new_order fired) and may be
+          // working; only the ack didn't return in time (§12.9 step 6). Surface
+          // "awaiting confirmation" so the trader reconciles via the blotter
+          // rather than resubmitting a possibly-live order.
+          if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+            toast(`${side} ${symbol} submitted — awaiting confirmation (check blotter)`);
+            pushNotification({
+              ts: Date.now(),
+              kind: "ACK",
+              title: `${side} ${symbol} — awaiting ACK`,
+              detail: `${orderType} · no ack yet; reconcile via the blotter`,
+            });
+            return;
+          }
           const msg =
             err instanceof ApiError ? `${err.code}: ${err.message}` : "Order submission failed";
           setErrors({ _form: msg });
@@ -232,14 +252,15 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
     );
   };
 
-  // `B`/`S` submit BUY/SELL. enableOnFormTags is false so a keypress inside an
-  // input/textarea/select is ignored — the explicit buttons stay unambiguous
-  // (§12.11). Guarded so we never fire a submit that the buttons would block.
-  // No deps array: react-hotkeys-hook only tracks the latest callback when deps
-  // are omitted (with deps it freezes a stale closure), so this always sees the
-  // current order type / fields / phase.
-  useHotkeys("b", () => canSubmit && doSubmit("BUY"), { enableOnFormTags: false });
-  useHotkeys("s", () => canSubmit && doSubmit("SELL"), { enableOnFormTags: false });
+  // Route the B/S handlers through a latest-ref stable callback so they always
+  // run the current closure (order type / fields / phase). react-hotkeys-hook
+  // freezes a stale callback when given a deps array; useEventCallback makes
+  // that irrelevant. enableOnFormTags:false gives the §12.11 "ignore
+  // input/textarea/select" behaviour so the explicit buttons stay unambiguous.
+  const submitBuy = useEventCallback(() => canSubmit && doSubmit("BUY"));
+  const submitSell = useEventCallback(() => canSubmit && doSubmit("SELL"));
+  useHotkeys("b", submitBuy, { enableOnFormTags: false });
+  useHotkeys("s", submitSell, { enableOnFormTags: false });
   // F1 focuses the ticket's first field from anywhere; Escape clears errors.
   useHotkeys("f1", () => (lockedSymbol ? qtyFieldRef : symbolFieldRef).current?.focus(), {
     enableOnFormTags: true,

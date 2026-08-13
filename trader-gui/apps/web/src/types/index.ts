@@ -77,7 +77,9 @@ export interface Order {
  * `order.ack` event. Submitting with `?wait=ack` folds the first ack into this
  * response: `status` becomes `"ACKED"`, `accepted` is the ack verdict, and
  * `event` is the raw `order.ack` payload. Without `wait`, `status` is
- * `"PENDING"` and `accepted`/`event` are null (§12.9).
+ * `"PENDING"` and `accepted`/`event` are null. Note: under `wait=ack` an ack
+ * that does not arrive in time is returned as HTTP `503 ENGINE_TIMEOUT`, NOT a
+ * `PENDING` body — the order is still submitted and must be reconciled (§12.9).
  */
 export interface OrderAccepted {
   order_id: string;
@@ -330,14 +332,20 @@ export interface SymbolInfoDTO {
 
 /**
  * Merged view stored in useSymbolStore (§18.1.5).
- * tick_decimals/prev_close from /symbols, level from /reference
- * (ReferenceSymbol), reference_price from /reference/risk (SymbolRiskState).
+ * tick_decimals/prev_close from /symbols, level from /reference (ReferenceSymbol).
+ *
+ * `collar_reference_price` is the live per-symbol collar anchor. It is NOT in
+ * /symbols, /reference or /reference/risk (those carry no per-symbol price); it
+ * is exposed ONLY on the ADMIN-only GET /api/v1/admin/risk/state as
+ * `collar_reference_price`, so it stays null for TRADER/MARKET_MAKER and is
+ * populated only by the ADMIN Symbol/Risk screens. Order-entry uses a live
+ * price hint instead (see usePriceHint).
  */
 export interface Symbol {
   symbol: string;
   tick_decimals: number;
   prev_close: number | null;
-  reference_price: number | null; // from /reference/risk
+  collar_reference_price: number | null; // ADMIN-only, from /admin/risk/state
   level?: string | null; // collar profile name from /reference
 }
 

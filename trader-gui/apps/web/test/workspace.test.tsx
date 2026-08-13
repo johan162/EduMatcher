@@ -45,8 +45,8 @@ class ResizeObserverStub {
 }
 
 const SYMBOLS: Symbol[] = [
-  { symbol: "AAPL", tick_decimals: 2, prev_close: null, reference_price: null, level: null },
-  { symbol: "MSFT", tick_decimals: 2, prev_close: null, reference_price: null, level: null },
+  { symbol: "AAPL", tick_decimals: 2, prev_close: null, collar_reference_price: null, level: null },
+  { symbol: "MSFT", tick_decimals: 2, prev_close: null, collar_reference_price: null, level: null },
 ];
 
 function bookEntry(symbol: string): BookEntry {

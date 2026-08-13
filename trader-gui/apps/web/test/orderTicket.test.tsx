@@ -19,21 +19,49 @@ const apiFetchMock = vi.fn(async () => ({
 vi.mock("@/api/apiFetch", () => ({
   apiFetch: (...args: unknown[]) => apiFetchMock(...(args as [])),
   ApiError: class ApiError extends Error {
-    status = 0;
-    code = "UNKNOWN";
+    constructor(
+      public status = 0,
+      public code = "UNKNOWN",
+      message = "",
+    ) {
+      super(message);
+      this.name = "ApiError";
+    }
   },
 }));
 
 import { OrderTicket } from "@/components/orders/OrderTicket";
+import { ApiError } from "@/api/apiFetch";
 import { useOrderFields } from "@/hooks/useOrderFields";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useSymbolStore } from "@/store/useSymbolStore";
+import { useBookStore } from "@/store/useBookStore";
 import { useTicketPrefillStore } from "@/store/useTicketPrefillStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import type { BookEntry } from "@/store/useBookStore";
 import type { Symbol } from "@/types/index";
 
+function bookEntry(symbol: string, patch: Partial<BookEntry> = {}): BookEntry {
+  return {
+    symbol,
+    bids: [],
+    asks: [],
+    depth: null,
+    lastPrice: null,
+    lastQty: null,
+    lastBuyPrice: null,
+    lastSellPrice: null,
+    recentTrades: [],
+    liveVolume: 0,
+    tickDecimals: 2,
+    auction: null,
+    updatedAt: Date.now(),
+    ...patch,
+  };
+}
+
 const SYMBOLS: Symbol[] = [
-  { symbol: "AAPL", tick_decimals: 2, prev_close: 150.0, reference_price: null, level: null },
+  { symbol: "AAPL", tick_decimals: 2, prev_close: 150.0, collar_reference_price: null, level: null },
 ];
 
 function renderTicket(props: Parameters<typeof OrderTicket>[0] = {}): void {
@@ -53,6 +81,7 @@ beforeEach(() => {
   cleanup();
   apiFetchMock.mockClear();
   useSymbolStore.setState({ symbols: SYMBOLS });
+  useBookStore.setState({ books: {} });
   useSessionStore.setState({ phase: "CONTINUOUS" });
   useTicketPrefillStore.setState({ prefill: null });
   useNotificationStore.setState({ entries: [], unread: 0 });
@@ -165,6 +194,18 @@ describe("OrderTicket submit side (§12.9)", () => {
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
     expect(lastBody()).not.toHaveProperty("smp_action");
   });
+
+  it("treats a wait=ack timeout (503) as awaiting-confirmation, not a rejection", async () => {
+    apiFetchMock.mockRejectedValueOnce(new ApiError(503, "ENGINE_TIMEOUT", "no ack in time"));
+    renderTicket();
+    fireEvent.change(screen.getByLabelText("Price"), { target: { value: "150.25" } });
+    fireEvent.click(screen.getByRole("button", { name: "BUY" }));
+    await waitFor(() => expect(useNotificationStore.getState().entries.length).toBe(1));
+    const entry = useNotificationStore.getState().entries[0]!;
+    // A submitted-but-unacked order must NOT be reported as REJECT (§12.9 step 6).
+    expect(entry.kind).toBe("ACK");
+    expect(entry.title).toMatch(/awaiting ACK/);
+  });
 });
 
 describe("OrderTicket B/S hotkeys (§12.11)", () => {
@@ -175,6 +216,35 @@ describe("OrderTicket B/S hotkeys (§12.11)", () => {
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
     expect(lastBody().side).toBe("BUY");
     expect(lastBody().order_type).toBe("MARKET");
+  });
+});
+
+describe("OrderTicket reference-price hint (§12.6)", () => {
+  it("uses the live last trade price as the Ref hint", () => {
+    useBookStore.setState({ books: { AAPL: bookEntry("AAPL", { lastPrice: 151.4 }) } });
+    renderTicket();
+    const price = screen.getByLabelText("Price") as HTMLInputElement;
+    expect(price.placeholder).toBe("Ref: 151.40");
+  });
+
+  it("falls back to the bid/ask mid when no trade has printed", () => {
+    useBookStore.setState({
+      books: {
+        AAPL: bookEntry("AAPL", {
+          bids: [{ price: 150.0, qty: 10, count: 1 }],
+          asks: [{ price: 150.2, qty: 10, count: 1 }],
+        }),
+      },
+    });
+    renderTicket();
+    const price = screen.getByLabelText("Price") as HTMLInputElement;
+    expect(price.placeholder).toBe("Ref: 150.10");
+  });
+
+  it("falls back to prev_close when the book has not streamed yet", () => {
+    renderTicket(); // no book set; AAPL prev_close is 150.0
+    const price = screen.getByLabelText("Price") as HTMLInputElement;
+    expect(price.placeholder).toBe("Ref: 150.00");
   });
 });
 
