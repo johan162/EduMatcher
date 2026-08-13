@@ -2,7 +2,9 @@ Version: 1.0.0
 
 Date: 2026-07-27
 
-Status: Design Proposal
+Status: Implemented — all three endpoints ship in `pm-api-gwy`
+(`src/edumatcher/api_gateway/routers/bootstrap.py`) and are consumed by the
+Trading UI login flow (`trader-gui/`, §23 phases 1–4).
 
 ---
 
@@ -10,6 +12,11 @@ Status: Design Proposal
 
 > **Revision History**
 >
+> - **1.1.0 (2026-08-13)** — Marked implemented. `/api/v1/bootstrap/{trader,mm,admin}`
+>   ship in `routers/bootstrap.py` (parallel sub-queries via `asyncio.gather`,
+>   required-field `503` vs optional-field `incomplete[]`, read-only key handling)
+>   and are documented in the REST API reference and the API-gateway user guide.
+>   `trader-gui` calls `GET /api/v1/bootstrap/trader` (`/admin` for ADMIN) at login.
 > - **1.0.0 (2026-07-27)** — Initial proposal, drafted from §26.4.4 of
 >   [EduMatcher-Trading-GUI.md](./EduMatcher-Trading-GUI.md) and grounded in the
 >   current `pm-api-gwy` router code.

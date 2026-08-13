@@ -2,7 +2,7 @@ Version: 1.11.3
 
 Date: 2026-08-12
 
-Status: Design and Research Proposal
+Status: Design and Research Proposal — partially implemented (phases 1–4 of §23 built in `trader-gui/`)
 
 
 # EduMatcher — Trading Web UI (`pm-trading-ui`)
@@ -178,6 +178,7 @@ Status: Design and Research Proposal
     - [22.2 `vite.config.ts`](#222-viteconfigts)
     - [22.3 Tailwind theme](#223-tailwind-theme)
   - [23. Implementation Plan](#23-implementation-plan)
+    - [23.1 Implementation status and findings (phases 1–4)](#231-implementation-status-and-findings-phases-14)
   - [24. Testing Plan](#24-testing-plan)
     - [24.1 Unit tests (Vitest)](#241-unit-tests-vitest)
     - [24.2 Component tests (React Testing Library + Vitest)](#242-component-tests-react-testing-library--vitest)
@@ -3159,31 +3160,70 @@ action buttons ([§12.2](#122-layout-overview)) use `bid`/`ask` as their backgro
 Build incrementally. Each phase produces a working, visually functional slice that can be
 demonstrated in isolation.
 
-| Phase | Deliverable | Verification |
-|-------|-------------|-------------|
-| 1 | Project scaffold: Vite + React + TS + Tailwind + shadcn/ui + React Router v7; login page; `apiFetch`; `useAuthStore`; role detection via `GET /status` | Enter API key, see "Connected as GW01 (TRADER)"; routed to role landing |
-| 2 | `ManagedSocket` + `WebSocketManager` with a single market-data socket (overview + focus subscription items); `useBookStore`; `useSessionStore`; `useHaltStore`; top bar with health dot, session badge + clock/countdown | Book events update Zustand; session badge changes colour; countdown ticks; depth is received only for focus symbols |
-| 3 | Market Overview table with FlashCell; `GET /symbols`; `GET /history/daily` for change % (vs today's open); auction + halt badges | Real-time price table with green/red flashes and correct change % |
-| 4 | Symbol Detail right panel: Chart, Depth (with click-to-trade), Trades tape, Stats, Auction tab; `useActiveSymbolStore` | Click a row → active symbol set; panel opens; candles load; auction panel populates during auction |
-| 5 | **Trading Workspace**: 4-quadrant layout bound to the active symbol; embed chart + DOM + ticket + compact blotter; click-to-trade wiring | Click a DOM level → ticket price prefilled; all quadrants follow active symbol |
-| 6 | TRADER Order Ticket (all 8 single-leg types, Zod validation, TIF phase restrictions, dual BUY/SELL buttons + `B`/`S`, auction banner) | Submit LIMIT via BUY; receive ACK toast + Event Center entry |
-| 7 | TRADER Active Orders Blotter (TanStack Table, WS updates, Amend, **Cancel-Replace**, cancel); Order Detail drawer | Cancel-replace an order; open drawer; lifecycle timeline renders |
-| 8 | TRADER OCO/Combo entry + **group rows/badges + group cancel**; Trade History; Position Panel + **Flatten / Flatten All** | Submit OCO; watch one leg fill and sibling cancel; flatten a position |
-| 9 | MARKET_MAKER: Quote card grid, New Quote form, fill alerts, bootstrap + **quotes/legs** fill indicators | Submit two-sided quote; simulate fill; per-leg fill bar updates from `/quotes/legs` |
-| 10 | **Notification / Event Center** + bell; **power-user mode** (undo-toast + always-confirm exceptions); **Watchlist** | Fills/rejects persist in Event Center; toggle confirmations; curate watchlist |
-| 11 | **Admin API client for existing endpoints** (`GET /status` role, `/admin/session`, `/admin/gateways`, `/admin/halts`, `/admin/kill-switch/symbol`); System Dashboard; `/admin/monitor` WS; Monitor Log Viewer | Dashboard KPIs from monitor stream; monitor log tails cross-gateway events; unsupported admin controls render disabled |
-| 12 | ADMIN Session Control, Gateway Management (Kick), symbol-scoped Kill Switch, disabled global/by-gateway kill-switch placeholders | Transition session from UI; kick a gateway; symbol kill switch works; unsupported scopes stay disabled |
-| 13 | ADMIN Risk Control panel (runtime read-only from `/reference`/`/reference/risk`), Circuit Breaker Management (level selector disabled where unsupported), Symbol Management (read-only until backend), Index Admin read-only history plus disabled write controls | Risk panel renders from stable reference API; unsupported write controls show prerequisite tooltips |
-| 14 | Help system: help drawer, field tooltips, shortcut reference, `F1`/`Ctrl+/` | All help content accessible; tooltips visible on ticket fields |
-| 15 | Command palette (`Ctrl+K`), full keyboard shortcut implementation (incl. `B`/`S`, flatten, `Ctrl+.`, `Ctrl+L`) | Navigate entire UI without mouse |
-| 16 | Polish: confirmation dialogs / undo-toasts; empty states; loading skeletons; error boundaries | No uncaught errors; graceful degradation when engine is stopped |
-| 17 | Build pipeline: `vite build`, output to `dist/`, serve via `pm-trading-ui-serve` script | `npm run build` produces deployable `dist/` |
+| Phase | Status | Deliverable | Verification |
+|-------|--------|-------------|-------------|
+| 1 | ✅ Implemented | Project scaffold: Vite + React + TS + Tailwind + shadcn/ui + React Router v7; login page; `apiFetch`; `useAuthStore`; role detection via `GET /status` | Enter API key, see "Connected as GW01 (TRADER)"; routed to role landing |
+| 2 | ✅ Implemented | `ManagedSocket` + `WebSocketManager` with a single market-data socket (overview + focus subscription items); `useBookStore`; `useSessionStore`; `useHaltStore`; top bar with health dot, session badge + clock/countdown | Book events update Zustand; session badge changes colour; countdown ticks; depth is received only for focus symbols |
+| 3 | ✅ Implemented | Market Overview table with FlashCell; `GET /symbols`; `GET /history/daily` for change % (vs today's open); auction + halt badges | Real-time price table with green/red flashes and correct change % |
+| 4 | ✅ Implemented | Symbol Detail right panel: Chart, Depth (with click-to-trade), Trades tape, Stats, Auction tab; `useActiveSymbolStore` | Click a row → active symbol set; panel opens; candles load; auction panel populates during auction |
+| 5 | ⬜ Planned | **Trading Workspace**: 4-quadrant layout bound to the active symbol; embed chart + DOM + ticket + compact blotter; click-to-trade wiring | Click a DOM level → ticket price prefilled; all quadrants follow active symbol |
+| 6 | ⬜ Planned | TRADER Order Ticket (all 8 single-leg types, Zod validation, TIF phase restrictions, dual BUY/SELL buttons + `B`/`S`, auction banner) | Submit LIMIT via BUY; receive ACK toast + Event Center entry |
+| 7 | ⬜ Planned | TRADER Active Orders Blotter (TanStack Table, WS updates, Amend, **Cancel-Replace**, cancel); Order Detail drawer | Cancel-replace an order; open drawer; lifecycle timeline renders |
+| 8 | ⬜ Planned | TRADER OCO/Combo entry + **group rows/badges + group cancel**; Trade History; Position Panel + **Flatten / Flatten All** | Submit OCO; watch one leg fill and sibling cancel; flatten a position |
+| 9 | ⬜ Planned | MARKET_MAKER: Quote card grid, New Quote form, fill alerts, bootstrap + **quotes/legs** fill indicators | Submit two-sided quote; simulate fill; per-leg fill bar updates from `/quotes/legs` |
+| 10 | ⬜ Planned | **Notification / Event Center** + bell; **power-user mode** (undo-toast + always-confirm exceptions); **Watchlist** | Fills/rejects persist in Event Center; toggle confirmations; curate watchlist |
+| 11 | ⬜ Planned | **Admin API client for existing endpoints** (`GET /status` role, `/admin/session`, `/admin/gateways`, `/admin/halts`, `/admin/kill-switch/symbol`); System Dashboard; `/admin/monitor` WS; Monitor Log Viewer | Dashboard KPIs from monitor stream; monitor log tails cross-gateway events; unsupported admin controls render disabled |
+| 12 | ⬜ Planned | ADMIN Session Control, Gateway Management (Kick), symbol-scoped Kill Switch, disabled global/by-gateway kill-switch placeholders | Transition session from UI; kick a gateway; symbol kill switch works; unsupported scopes stay disabled |
+| 13 | ⬜ Planned | ADMIN Risk Control panel (runtime read-only from `/reference`/`/reference/risk`), Circuit Breaker Management (level selector disabled where unsupported), Symbol Management (read-only until backend), Index Admin read-only history plus disabled write controls | Risk panel renders from stable reference API; unsupported write controls show prerequisite tooltips |
+| 14 | ⬜ Planned | Help system: help drawer, field tooltips, shortcut reference, `F1`/`Ctrl+/` | All help content accessible; tooltips visible on ticket fields |
+| 15 | ⬜ Planned | Command palette (`Ctrl+K`), full keyboard shortcut implementation (incl. `B`/`S`, flatten, `Ctrl+.`, `Ctrl+L`) | Navigate entire UI without mouse |
+| 16 | ⬜ Planned | Polish: confirmation dialogs / undo-toasts; empty states; loading skeletons; error boundaries | No uncaught errors; graceful degradation when engine is stopped |
+| 17 | ⬜ Planned | Build pipeline: `vite build`, output to `dist/`, serve via `pm-trading-ui-serve` script | `npm run build` produces deployable `dist/` |
 
 > **Backend dependency callout:** Phases 11–13 must implement only the ADMIN endpoints that exist
 > today and render the rest as disabled or placeholder controls. Unmet backend prerequisites (live
 > symbol add/update, `pm-index` write/admin bridge, level-aware CB trigger,
 > and global/by-gateway admin kill switch) must be tracked as backend work items. The TRADER/MM phases
 > (1–10) have no backend dependency beyond the existing API and current `auction` market-data channel.
+
+### 23.1 Implementation status and findings (phases 1–4)
+
+The application lives in **`trader-gui/`** (an npm workspace, app at `trader-gui/apps/web/`),
+not the `pm-trading-ui/` directory name used illustratively elsewhere in this document. Phases 1–4
+are implemented and green under `npm run typecheck`, `npm run test` (Vitest), and `npm run build`.
+
+Findings and deviations recorded during implementation:
+
+- **Login uses the bootstrap endpoint, not the `/status` waterfall.** The backend shipped the
+  aggregate bootstrap endpoints ([EduMatcher-bootstrap-api.md](./EduMatcher-bootstrap-api.md)) ahead
+  of the UI, so login calls `GET /api/v1/bootstrap/trader` (`/admin` for ADMIN) in one round-trip
+  instead of the §7.2 sequence. Role is still resolved from the payload; the WebSocket auth reply
+  still supplies the authenticated `gateway_id`.
+- **Market Overview is rendered off a throttled book snapshot.** `useThrottledBooks`
+  (`VITE_MARKET_THROTTLE_MS`, default 250 ms) bounds table re-renders under a 100-symbol wildcard
+  feed, keeping the row model coherent while staying inside the 500 ms flash window
+  ([§17.3.4](#1734-bandwidth-and-the-100-symbol-overview)).
+- **Depth ladder reads the `book` snapshot's multi-level arrays.** In the pm-msgen wire format the
+  `book` channel carries full `bids[]`/`asks[]` (price/qty/count), and the `depth` channel carries
+  aggregate metrics (imbalance, microprice, cost-to-move) rather than a ladder. The §16.3 ladder is
+  therefore built from `book` levels; `depth` metrics remain available for future use.
+- **Click-to-trade is mediated by a `useTicketPrefillStore`.** Clicking a depth level records
+  `{ symbol, price, side, nonce }` (bid → SELL, ask → BUY). The order ticket (phase 6) consumes the
+  latest prefill; the shared `DepthLadder` accepts an `onPriceClick` override so the Trading
+  Workspace DOM (phase 5) can target its own ticket.
+- **Chart uses Lightweight Charts v5.** Series are created with `chart.addSeries(CandlestickSeries |
+  LineSeries, …)` (the v4 `addCandlestickSeries()` helper was removed). Intraday timeframes
+  (1m/5m/1h) are bucketed client-side from `GET /history/trades`; **1D/All** render `GET
+  /history/daily`, which is keyset-paginated one trading day per call — so 1D/All currently show the
+  latest day only. A multi-day backfill (paging backwards) is a follow-up, tracked as a phase-4
+  limitation rather than a blocker; the live intraday candles are the primary chart experience.
+- **Symbol Detail is a global overlay gated on an explicit open flag.** `useSymbolDetailStore.isOpen`
+  is set by the Market Overview row click (which also sets the active symbol). Gating on `isOpen`
+  rather than on `activeSymbol` keeps the overlay from appearing when the Trading Workspace (phase 5)
+  sets the active symbol for its own embedded chart/DOM.
+- **Live chart append reads refs, not closures.** `useWsEvent` binds its handler once (keyed on
+  event type), so the live-tick handler reads the current symbol/timeframe/series/last-bar from refs
+  updated each render rather than from a stale closure.
 
 ---
 

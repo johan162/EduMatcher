@@ -2,6 +2,7 @@ import { Outlet, Navigate } from "react-router-dom";
 import { useAuthStore } from "@/store/useAuthStore.js";
 import { TopBar } from "./TopBar.js";
 import { Sidebar } from "./Sidebar.js";
+import { SymbolDetailPanel } from "@/components/symbol/SymbolDetailPanel.js";
 
 /**
  * AppShell — the persistent chrome wrapping all authenticated screens.
@@ -28,6 +29,9 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      {/* Right-panel overlay; renders only when opened from a symbol click (§16). */}
+      <SymbolDetailPanel />
     </div>
   );
 }

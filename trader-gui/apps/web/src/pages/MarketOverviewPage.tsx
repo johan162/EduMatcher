@@ -5,6 +5,7 @@ import { MarketTable } from "@/components/market/MarketTable.js";
 import { useDailyStatsQuery, useSymbolsQuery } from "@/queries/index.js";
 import { useThrottledBooks } from "@/hooks/useThrottledBooks.js";
 import { useActiveSymbol } from "@/hooks/useActiveSymbol.js";
+import { useSymbolDetailStore } from "@/store/useSymbolDetailStore.js";
 import { useBookStore } from "@/store/useBookStore.js";
 import { useHaltStore } from "@/store/useHaltStore.js";
 import { useSessionStore } from "@/store/useSessionStore.js";
@@ -31,7 +32,8 @@ export function MarketOverviewPage() {
   const watchlist = useWatchlistStore((s) => s.symbols);
   const toggleWatch = useWatchlistStore((s) => s.toggle);
   const books = useThrottledBooks();
-  const [activeSymbol, setActiveSymbol] = useActiveSymbol();
+  const [activeSymbol] = useActiveSymbol();
+  const openDetail = useSymbolDetailStore((s) => s.open);
 
   const [query, setQuery] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "symbol", desc: false }]);
@@ -149,7 +151,7 @@ export function MarketOverviewPage() {
           onSortingChange={setSorting}
           activeSymbol={activeSymbol}
           showAuction={isAuctionPhase(phase)}
-          onSelect={setActiveSymbol}
+          onSelect={openDetail}
           onToggleWatch={toggleWatch}
         />
       )}

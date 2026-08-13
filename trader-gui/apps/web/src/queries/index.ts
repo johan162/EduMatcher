@@ -133,10 +133,10 @@ export function useHistoryFillsQuery(params?: Record<string, string>) {
   });
 }
 
-export function useHistoryTradesQuery(symbol: string | null) {
+export function useHistoryTradesQuery(symbol: string | null, limit = 50) {
   return useQuery({
-    queryKey: ["history/trades", symbol],
-    queryFn: () => api.getHistoryTrades(symbol!),
+    queryKey: ["history/trades", symbol, limit],
+    queryFn: () => api.getHistoryTrades(symbol!, limit),
     enabled: symbol !== null,
     staleTime: 60_000,
   });
@@ -146,6 +146,24 @@ export function useHistoryDailyQuery(symbol?: string, date?: string) {
   return useQuery({
     queryKey: ["history/daily", symbol, date],
     queryFn: () => api.getHistoryDaily({ symbol, date }),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Daily candles for one symbol for the chart's 1D/All timeframes (§16.2.1).
+ *
+ * Omits `date`, so the gateway returns the most recent trading day it has for
+ * that symbol. The keyset-paginated `/history/daily` returns one date per
+ * call, so this is effectively the latest day; a multi-day backfill would
+ * page backwards and is out of scope for phase 4. Disabled when `symbol` is
+ * null so the query is inert on the intraday timeframes.
+ */
+export function useHistoryDailyChartQuery(symbol: string | null) {
+  return useQuery({
+    queryKey: ["history/daily", "chart", symbol],
+    queryFn: () => api.getHistoryDaily({ symbol: symbol!, limit: 1000 }),
+    enabled: symbol !== null,
     staleTime: 5 * 60_000,
   });
 }

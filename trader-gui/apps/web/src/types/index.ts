@@ -92,6 +92,30 @@ export interface Trade {
   ts: string;
 }
 
+/**
+ * One row of `GET /api/v1/history/trades` (stats `trade_log`, prices already
+ * converted to display money). Note the id field is `trade_id`, `ts` is ISO,
+ * and an auction print carries `aggressor_side: "AUCTION"`.
+ */
+export interface HistoryTrade {
+  ts: string;
+  trade_id: string;
+  symbol: string;
+  price: number;
+  quantity: number;
+  tick_decimals: number;
+  aggressor_side: "BUY" | "SELL" | "AUCTION";
+  buy_gateway_id?: string;
+  sell_gateway_id?: string;
+}
+
+export interface HistoryTradesResponse {
+  trades: HistoryTrade[];
+  count: number;
+  has_more: boolean;
+  next_cursor?: string;
+}
+
 // ── Book / Depth / Auction (market-data) ─────────────────────────────────────
 export interface BookLevel {
   price: number;

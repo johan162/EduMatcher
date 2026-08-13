@@ -17,6 +17,7 @@ import type {
   ReferenceScheduleDTO,
   SessionStatusDTO,
   DailyStatsResponse,
+  HistoryTradesResponse,
 } from "@/types/index.js";
 
 // ── Auth / status ─────────────────────────────────────────────────────────────
@@ -125,7 +126,7 @@ export const getHistoryFills = (params?: Record<string, string>) => {
 };
 
 export const getHistoryTrades = (symbol: string, limit = 50) =>
-  apiFetch<Record<string, unknown>>(
+  apiFetch<HistoryTradesResponse>(
     `/api/v1/history/trades?symbol=${encodeURIComponent(symbol)}&limit=${limit}`,
   );
 
