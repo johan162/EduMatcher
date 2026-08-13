@@ -49,10 +49,37 @@ describe("OrdersBlotter", () => {
     expect(screen.getByText("NEW")).toBeTruthy();
   });
 
-  it("row click opens the detail drawer", () => {
+  it("single click selects the row (does not open the drawer)", () => {
     const props = renderBlotter([order({ order_id: "o1" })]);
     fireEvent.click(screen.getByText("AAPL"));
+    expect(props.onOpenDetail).not.toHaveBeenCalled();
+    expect(screen.getByText(/1 order selected/)).toBeTruthy();
+  });
+
+  it("double-click opens the detail drawer (§13.1.3)", () => {
+    const props = renderBlotter([order({ order_id: "o1" })]);
+    fireEvent.doubleClick(screen.getByText("AAPL"));
     expect(props.onOpenDetail).toHaveBeenCalledWith("o1");
+  });
+
+  it("Enter opens the drawer; Delete cancels the selection (§13.1.3)", () => {
+    const props = renderBlotter([order({ order_id: "o1" })]);
+    const row = screen.getByText("AAPL").closest("tr")!;
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(props.onOpenDetail).toHaveBeenCalledWith("o1");
+    fireEvent.click(screen.getByText("AAPL")); // select it
+    fireEvent.keyDown(row, { key: "Delete" });
+    expect(props.onBulkCancel).toHaveBeenCalledWith(["o1"]);
+  });
+
+  it("shift-click selects a contiguous range (§13.1.3)", () => {
+    const props = renderBlotter([order({ order_id: "o1" }), order({ order_id: "o2" })]);
+    const [r1, r2] = screen.getAllByText("AAPL");
+    fireEvent.click(r1!); // anchor
+    fireEvent.click(r2!, { shiftKey: true });
+    expect(screen.getByText(/2 orders selected/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel all selected" }));
+    expect(props.onBulkCancel).toHaveBeenCalledWith(["o1", "o2"]);
   });
 
   it("cancel button calls onCancel and does not open the drawer", () => {

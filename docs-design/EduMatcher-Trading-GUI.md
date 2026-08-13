@@ -3350,18 +3350,21 @@ Phase 7 review — one logical fix and known simplifications:
   `qty` back over it would wrongly restore the old quantity. `useOrderStore.applyFill` now updates
   only `remaining_qty`/`status` and never overwrites an already-known positive `quantity`, with a
   regression test.
-- **Row interactions are the essential subset of §13.1.3.** Single row-click opens the Order Detail
-  drawer, a per-row checkbox drives multi-select + bulk cancel, and per-row buttons do Amend/Replace/
-  Cancel. The spec's `Delete`/`Backspace`-to-cancel, `Enter`-to-open, and shift-click range select
-  are not yet wired; power-user "confirmations off" + undo-toast is phase 10, so cancels always
-  confirm for now.
+- **Row interactions now cover §13.1.3.** Single row-click selects (highlights), Shift-click selects
+  a contiguous range, ⌘/Ctrl-click toggles, double-click or `Enter` opens the Order Detail drawer,
+  and `Delete`/`Backspace` cancels the current selection (or the focused row when none is selected);
+  a per-row checkbox column remains for explicit additive multi-select, and per-row buttons do
+  Amend/Replace/Cancel. Rows are focusable (`tabIndex`) with a visible focus ring. The only deferred
+  piece is power-user "confirmations off" + undo-toast (phase 10, §20.3) — for now cancels always
+  confirm.
 - **`["orders"]` TanStack Query is now unused.** The blotter reads the live store, so the
   cancel/amend/replace mutations' `invalidateQueries(["orders"])` is a harmless no-op kept for any
   future REST consumer; the Refresh button reconciles by calling `GET /orders` and `hydrate()`ing the
   store directly.
-- **Terminal orders accrue within a connection.** The store keeps FILLED/CANCELLED/REJECTED/EXPIRED
-  rows so their pill shows; there is no client-side eviction, but a fresh `orders.snapshot` on
-  reconnect (which `seed` applies as a full replace) drops the ones the gateway has since evicted.
+- **Terminal orders are capped to bound growth.** The store keeps FILLED/CANCELLED/REJECTED/EXPIRED
+  rows so their pill shows, but retains at most `MAX_TERMINAL` (200) of them, dropping the oldest by
+  `updated_at` — working orders are never dropped. A fresh `orders.snapshot` on reconnect (which
+  `seed` applies as a full replace) additionally reconciles to whatever the gateway still holds.
 
 ---
 

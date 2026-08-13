@@ -51,6 +51,8 @@ export function OrdersBlotter({
 }: OrdersBlotterProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  /** Anchor row id for shift-click range select and Enter/Delete targeting. */
+  const [anchorId, setAnchorId] = useState<string | null>(null);
 
   const columns = useMemo<ColumnDef<Order>[]>(() => {
     const stop = (e: React.MouseEvent) => e.stopPropagation();
@@ -185,6 +187,49 @@ export function OrdersBlotter({
 
   const selectedIds = table.getSelectedRowModel().rows.map((r) => r.original.order_id);
 
+  /** Select the inclusive range of selectable rows between two ids (display order). */
+  const selectRange = (fromId: string, toId: string) => {
+    const rows = table.getRowModel().rows;
+    const i = rows.findIndex((r) => r.id === fromId);
+    const j = rows.findIndex((r) => r.id === toId);
+    if (i === -1 || j === -1) return;
+    const [lo, hi] = i <= j ? [i, j] : [j, i];
+    const next: RowSelectionState = {};
+    for (let k = lo; k <= hi; k++) {
+      const r = rows[k];
+      if (r?.getCanSelect()) next[r.id] = true;
+    }
+    setRowSelection(next);
+  };
+
+  // Row interactions (§13.1.3): click selects (shift = range, ⌘/ctrl = toggle),
+  // double-click / Enter opens the drawer, Delete/Backspace cancels the
+  // selection (or the focused row when nothing is selected).
+  const onRowClick = (id: string, canSelect: boolean, e: React.MouseEvent) => {
+    if (e.shiftKey && anchorId) {
+      selectRange(anchorId, id);
+      return;
+    }
+    setAnchorId(id);
+    if (!canSelect) return;
+    if (e.metaKey || e.ctrlKey) {
+      setRowSelection((prev) => ({ ...prev, [id]: !prev[id] }));
+    } else {
+      setRowSelection({ [id]: true });
+    }
+  };
+
+  const onRowKeyDown = (order: Order, e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      onOpenDetail(order.order_id);
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      if (selectedIds.length > 0) onBulkCancel(selectedIds);
+      else if (!isTerminal(order.status)) onCancel(order);
+    }
+  };
+
   if (orders.length === 0) {
     return (
       <div className="border border-[#2a2a45] rounded p-8 text-center text-sm text-[#9090b0]">
@@ -195,6 +240,9 @@ export function OrdersBlotter({
 
   return (
     <div className="flex flex-col gap-2">
+      <p className="text-[10px] text-[#505070]">
+        Click to select · Shift-click for a range · double-click or Enter to open · Delete to cancel
+      </p>
       <div className="overflow-auto border border-[#2a2a45] rounded">
         <table className="w-full text-xs border-collapse">
           <thead className="sticky top-0 z-10 bg-[#12121a]">
@@ -241,8 +289,12 @@ export function OrdersBlotter({
             {table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                onClick={() => onOpenDetail(row.original.order_id)}
-                className={`cursor-pointer border-b border-[#1a1a28] hover:bg-[#1a1a28] ${
+                tabIndex={0}
+                aria-selected={row.getIsSelected()}
+                onClick={(e) => onRowClick(row.id, row.getCanSelect(), e)}
+                onDoubleClick={() => onOpenDetail(row.original.order_id)}
+                onKeyDown={(e) => onRowKeyDown(row.original, e)}
+                className={`cursor-pointer border-b border-[#1a1a28] hover:bg-[#1a1a28] focus:outline-none focus:ring-1 focus:ring-inset focus:ring-[#3a3a60] ${
                   row.getIsSelected() ? "bg-[#20203a]" : ""
                 }`}
               >

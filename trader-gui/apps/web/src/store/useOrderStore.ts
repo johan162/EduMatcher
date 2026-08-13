@@ -37,6 +37,22 @@ export function isTerminal(status: OrderStatus): boolean {
   return TERMINAL.has(status);
 }
 
+/** Cap on retained terminal orders, so a long, busy session cannot grow the
+ * store without bound. Working orders are never dropped; a fresh snapshot on
+ * reconnect reconciles the set regardless. */
+const MAX_TERMINAL = 200;
+
+function pruneTerminal(orders: Record<string, Order>): Record<string, Order> {
+  const terminal = Object.values(orders).filter((o) => isTerminal(o.status));
+  if (terminal.length <= MAX_TERMINAL) return orders;
+  // Keep the most recently-updated terminal orders; drop the oldest overflow.
+  terminal.sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
+  const drop = new Set(terminal.slice(MAX_TERMINAL).map((o) => o.order_id));
+  const next: Record<string, Order> = {};
+  for (const [id, o] of Object.entries(orders)) if (!drop.has(id)) next[id] = o;
+  return next;
+}
+
 interface OrderStore {
   orders: Record<string, Order>;
   /** Unix ms of the last snapshot/hydrate, for a "reconciled at" stamp. */
@@ -100,7 +116,7 @@ export const useOrderStore = create<OrderStore>((set) => {
           const o = normalizeOrder(raw);
           if (o.order_id) orders[o.order_id] = o;
         }
-        return { orders, syncedAt: Date.now() };
+        return { orders: pruneTerminal(orders), syncedAt: Date.now() };
       }),
 
     hydrate: (rows) =>
@@ -115,7 +131,7 @@ export const useOrderStore = create<OrderStore>((set) => {
           if (existing && isTerminal(existing.status) && !isTerminal(o.status)) continue;
           orders[o.order_id] = o;
         }
-        return { orders, syncedAt: Date.now() };
+        return { orders: pruneTerminal(orders), syncedAt: Date.now() };
       }),
 
     applyAck: (d) =>
@@ -128,7 +144,7 @@ export const useOrderStore = create<OrderStore>((set) => {
           const prev = state.orders[d.order_id];
           patch.remaining_qty = patch.quantity ?? prev?.remaining_qty ?? prev?.quantity ?? 0;
         }
-        return { orders: upsert(state, d.order_id, patch) };
+        return { orders: pruneTerminal(upsert(state, d.order_id, patch)) };
       }),
 
     applyFill: (d) =>
@@ -142,7 +158,7 @@ export const useOrderStore = create<OrderStore>((set) => {
         // stale total — it only moves remaining/status.
         const prev = state.orders[d.order_id];
         if (prev && prev.quantity > 0) delete patch.quantity;
-        return { orders: upsert(state, d.order_id, patch) };
+        return { orders: pruneTerminal(upsert(state, d.order_id, patch)) };
       }),
 
     applyAmended: (d) =>
@@ -160,12 +176,16 @@ export const useOrderStore = create<OrderStore>((set) => {
 
     applyCancelled: (d) =>
       set((state) =>
-        d.order_id ? { orders: upsert(state, d.order_id, { status: "CANCELLED" }) } : state,
+        d.order_id
+          ? { orders: pruneTerminal(upsert(state, d.order_id, { status: "CANCELLED" })) }
+          : state,
       ),
 
     applyExpired: (d) =>
       set((state) =>
-        d.order_id ? { orders: upsert(state, d.order_id, { status: "EXPIRED" }) } : state,
+        d.order_id
+          ? { orders: pruneTerminal(upsert(state, d.order_id, { status: "EXPIRED" })) }
+          : state,
       ),
 
     clear: () => set({ orders: {}, syncedAt: null }),
