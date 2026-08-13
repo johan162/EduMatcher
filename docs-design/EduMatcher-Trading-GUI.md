@@ -2,7 +2,7 @@ Version: 1.11.3
 
 Date: 2026-08-12
 
-Status: Design and Research Proposal — partially implemented (phases 1–5 of §23 built in `trader-gui/`)
+Status: Design and Research Proposal — partially implemented (phases 1–6 of §23 built in `trader-gui/`)
 
 
 # EduMatcher — Trading Web UI (`pm-trading-ui`)
@@ -178,7 +178,7 @@ Status: Design and Research Proposal — partially implemented (phases 1–5 of 
     - [22.2 `vite.config.ts`](#222-viteconfigts)
     - [22.3 Tailwind theme](#223-tailwind-theme)
   - [23. Implementation Plan](#23-implementation-plan)
-    - [23.1 Implementation status and findings (phases 1–4)](#231-implementation-status-and-findings-phases-14)
+    - [23.1 Implementation status and findings (phases 1–6)](#231-implementation-status-and-findings-phases-16)
   - [24. Testing Plan](#24-testing-plan)
     - [24.1 Unit tests (Vitest)](#241-unit-tests-vitest)
     - [24.2 Component tests (React Testing Library + Vitest)](#242-component-tests-react-testing-library--vitest)
@@ -3167,7 +3167,7 @@ demonstrated in isolation.
 | 3 | ✅ Implemented | Market Overview table with FlashCell; `GET /symbols`; `GET /history/daily` for change % (vs today's open); auction + halt badges | Real-time price table with green/red flashes and correct change % |
 | 4 | ✅ Implemented | Symbol Detail right panel: Chart, Depth (with click-to-trade), Trades tape, Stats, Auction tab; `useActiveSymbolStore` | Click a row → active symbol set; panel opens; candles load; auction panel populates during auction |
 | 5 | ✅ Implemented | **Trading Workspace**: 4-quadrant layout bound to the active symbol; embed chart + DOM + ticket + compact blotter; click-to-trade wiring | Click a DOM level → ticket price prefilled; all quadrants follow active symbol |
-| 6 | ⬜ Planned | TRADER Order Ticket (all 8 single-leg types, Zod validation, TIF phase restrictions, dual BUY/SELL buttons + `B`/`S`, auction banner) | Submit LIMIT via BUY; receive ACK toast + Event Center entry |
+| 6 | ✅ Implemented | TRADER Order Ticket (all 8 single-leg types, Zod validation, TIF phase restrictions, dual BUY/SELL buttons + `B`/`S`, auction banner) | Submit LIMIT via BUY; receive ACK toast + Event Center entry |
 | 7 | ⬜ Planned | TRADER Active Orders Blotter (TanStack Table, WS updates, Amend, **Cancel-Replace**, cancel); Order Detail drawer | Cancel-replace an order; open drawer; lifecycle timeline renders |
 | 8 | ⬜ Planned | TRADER OCO/Combo entry + **group rows/badges + group cancel**; Trade History; Position Panel + **Flatten / Flatten All** | Submit OCO; watch one leg fill and sibling cancel; flatten a position |
 | 9 | ⬜ Planned | MARKET_MAKER: Quote card grid, New Quote form, fill alerts, bootstrap + **quotes/legs** fill indicators | Submit two-sided quote; simulate fill; per-leg fill bar updates from `/quotes/legs` |
@@ -3186,10 +3186,10 @@ demonstrated in isolation.
 > and global/by-gateway admin kill switch) must be tracked as backend work items. The TRADER/MM phases
 > (1–10) have no backend dependency beyond the existing API and current `auction` market-data channel.
 
-### 23.1 Implementation status and findings (phases 1–4)
+### 23.1 Implementation status and findings (phases 1–6)
 
 The application lives in **`trader-gui/`** (an npm workspace, app at `trader-gui/apps/web/`),
-not the `pm-trading-ui/` directory name used illustratively elsewhere in this document. Phases 1–5
+not the `pm-trading-ui/` directory name used illustratively elsewhere in this document. Phases 1–6
 are implemented and green under `npm run typecheck`, `npm run test` (Vitest), and `npm run build`.
 
 Findings and deviations recorded during implementation:
@@ -3235,11 +3235,10 @@ Phase 5 (Trading Workspace) findings:
   `{ symbol, price, side, nonce }` from `useTicketPrefillStore`; a bid click suggests SELL, an ask
   click BUY (side-inference default-on per §11.4), and the suggested side's button is highlighted.
   The ticket never auto-submits.
-- **The embedded ticket is the compact subset, by design.** Phase 5 ships LIMIT/MARKET with dual
-  BUY/SELL buttons, quantity, price, and TIF, validated with the existing `orderSchema`
-  ([§12.4](#124-field-validation-rules-zod-schema)) and posting to `POST /api/v1/orders`. The full
-  eight-type ticket, TIF-phase restrictions, `B`/`S` hotkeys, and auction banner remain **phase 6**;
-  the standalone Order Entry screen is still a stub.
+- **The embedded ticket started as a compact subset and was replaced in phase 6.** Phase 5 shipped a
+  stopgap `WorkspaceTicket` (LIMIT/MARKET only); phase 6 replaced it with the single shared
+  `OrderTicket` in `compact` mode, so the Workspace now hosts the full eight-type ticket. The stopgap
+  component was deleted.
 - **The compact blotter is a filtered slice of `GET /orders`.** It shows the active symbol's working
   orders with inline cancel and reflects cancels via query invalidation; live `/events` blotter
   updates and the full Active Orders Blotter are **phase 7**. Fixed a latent typing bug along the
@@ -3263,6 +3262,39 @@ Post-phase-5 review — two wire-contract mismatches found and fixed:
   engine's authoritative countdown target was silently discarded and the top bar always fell back to
   its schedule-derived guess. Fixed in `NextTransitionEvent`/`SessionEvent` and the Appendix A type.
   Both fixes carry regression tests (`test/reviewFixes.test.ts`).
+
+Phase 6 (Order Ticket) findings:
+
+- **One shared `OrderTicket` serves both surfaces.** `components/orders/OrderTicket.tsx` is used by
+  the standalone Order Entry screen (`OrderEntryPage`, symbol picker unlocked) and, with `compact` +
+  `lockedSymbol`, by the Trading Workspace quadrant — replacing (and deleting) the phase-5
+  `WorkspaceTicket`. Field visibility per order type is driven by `useOrderFields(type)`
+  ([§12.3](#123-order-type-tabs-and-field-visibility)); the eight type tabs, `orderSchema`
+  validation, `ALLOWED_TIF` phase gating, the auction banner, and click-to-trade prefill are all
+  wired through it.
+- **ACK feedback uses `?wait=ack`, not a PENDING-row + `/events` reconciliation.** §12.9 step 6
+  explicitly offers this: the ticket submits with `POST /api/v1/orders?wait=ack`, the gateway folds
+  the first `order.ack` into the HTTP response (`schemas.OrderAccepted` → `{ status, accepted,
+  event }`), and the ticket toasts accepted/rejected/pending synchronously and records an Event
+  Center entry. The PENDING-row blotter machinery and the two-ACK "later ACK wins" reconciliation
+  stay in **phase 7** (the blotter). A lightweight `useOrderEventNotifications` hook still bridges
+  live `order.fill`/`order.cancelled`/`order.expired` to toasts + the Event Center, mounted at the
+  app root for TRADER/MM.
+- **The reference-price hint is sourced from the symbol store, not `/reference/risk`.** §12.6/§15.2.1
+  say per-symbol `reference_price` lives on `GET /api/v1/reference/risk` → `SymbolRiskState`, but that
+  endpoint returns the static named collar *levels* bundle, not per-symbol reference prices (those are
+  live per-symbol risk state on the admin-only `/admin/risk/state`). To avoid baking in an incorrect
+  assumption, the ticket shows `reference_price ?? prev_close` from `useSymbolStore` (both already
+  hydrated at login), and simply omits the hint when neither is known. **This is a doc-vs-backend
+  discrepancy to reconcile before the ADMIN Risk/Symbol screens (phase 13) rely on that field.**
+- **`B`/`S` hotkeys must omit the react-hotkeys-hook dependency array.** With a deps array the hook
+  freezes a *stale* callback closure (it only assigns `cbRef.current = callback` when no deps are
+  given); passing `[canSubmit]` captured the first render's order type and fields. The handlers are
+  registered without deps so they always read current state, and `enableOnFormTags: false` gives the
+  §12.11 "ignore input/textarea/select" behaviour for free.
+- **The symbol picker is a native `<input list>` + `<datalist>`.** Accessible and dependency-free
+  (shadcn's Combobox is not set up); typing filters by the datalist, and selecting a known symbol
+  sets the active symbol so the rest of the app follows (§12.6).
 
 ---
 

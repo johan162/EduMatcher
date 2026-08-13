@@ -4,7 +4,7 @@ import { useSymbolStore } from "@/store/useSymbolStore.js";
 import { useBookStore } from "@/store/useBookStore.js";
 import { SymbolChart } from "@/components/symbol/SymbolChart.js";
 import { DepthLadder } from "@/components/symbol/DepthLadder.js";
-import { WorkspaceTicket } from "@/components/workspace/WorkspaceTicket.js";
+import { OrderTicket } from "@/components/orders/OrderTicket.js";
 import { CompactBlotter } from "@/components/workspace/CompactBlotter.js";
 
 const PANEL = "border border-[#2a2a45] rounded bg-[#0d0d14] p-3 overflow-auto";
@@ -78,7 +78,7 @@ export function TradingWorkspacePage() {
         </section>
 
         <section className={`col-span-2 ${PANEL}`} aria-label="Order ticket">
-          <WorkspaceTicket symbol={activeSymbol} tickDecimals={tickDecimals} />
+          <OrderTicket compact lockedSymbol={activeSymbol} tickDecimals={tickDecimals} />
         </section>
       </div>
 

@@ -82,7 +82,10 @@ export function useOrderHistoryQuery(orderId: string | null) {
 }
 
 export function useSubmitOrderMutation() {
-  return useMutation({ mutationFn: api.submitOrder });
+  return useMutation({
+    mutationFn: ({ body, wait }: { body: Record<string, unknown>; wait?: "ack" }) =>
+      api.submitOrder(body, wait),
+  });
 }
 
 export function useCancelOrderMutation() {

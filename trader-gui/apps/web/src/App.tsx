@@ -4,6 +4,7 @@ import { RoleGuard } from "@/router/RoleGuard.js";
 import { useAuthStore } from "@/store/useAuthStore.js";
 import { useWebSocketManager } from "@/ws/WebSocketManager.js";
 import { useMarketDataSubscription } from "@/hooks/useMarketDataSubscription.js";
+import { useOrderEventNotifications } from "@/hooks/useOrderEventNotifications.js";
 
 // Pages (lazy-loaded stubs for now)
 import { LoginPage } from "@/pages/LoginPage.js";
@@ -38,6 +39,9 @@ export default function App() {
   // market-data focus subscription bound to the active symbol + watchlist.
   useWebSocketManager();
   useMarketDataSubscription();
+  // Surface live fills/terminals from /events as toasts + Event Center entries
+  // (TRADER/MM private stream; inert for ADMIN which has no order.* events).
+  useOrderEventNotifications();
 
   return (
     <Routes>

@@ -72,6 +72,24 @@ export interface Order {
 }
 
 /**
+ * Response of `POST /api/v1/orders` (schemas.OrderAccepted). `202` means the
+ * order reached the engine, NOT that it was accepted — that authority is the
+ * `order.ack` event. Submitting with `?wait=ack` folds the first ack into this
+ * response: `status` becomes `"ACKED"`, `accepted` is the ack verdict, and
+ * `event` is the raw `order.ack` payload. Without `wait`, `status` is
+ * `"PENDING"` and `accepted`/`event` are null (§12.9).
+ */
+export interface OrderAccepted {
+  order_id: string;
+  client_order_id?: string | null;
+  status: "PENDING" | "ACKED";
+  /** null when not waited-on or the ack timed out; otherwise the ack verdict. */
+  accepted: boolean | null;
+  /** Raw `order.ack` payload when `wait=ack` resolved, else null. */
+  event: OrderAckData | null;
+}
+
+/**
  * The two shapes `GET /orders` can return: the rich engine `OrderDisplay`
  * (id/timestamp/client_tag) and the thin gateway cache fallback that a reply
  * timeout produces (order_id, no display prices). Everything is optional so a

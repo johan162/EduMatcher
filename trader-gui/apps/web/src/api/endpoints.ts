@@ -19,6 +19,7 @@ import type {
   DailyStatsResponse,
   HistoryTradesResponse,
   RawOrder,
+  OrderAccepted,
 } from "@/types/index.js";
 
 // ── Auth / status ─────────────────────────────────────────────────────────────
@@ -55,8 +56,11 @@ export const getOrders = () => apiFetch<{ orders: RawOrder[] }>("/api/v1/orders"
 
 export const getOrder = (orderId: string) => apiFetch<Order>(`/api/v1/orders/${orderId}`);
 
-export const submitOrder = (body: Record<string, unknown>) =>
-  apiFetch<{ order_id: string }>("/api/v1/orders", {
+// `wait: "ack"` asks the gateway to fold the first `order.ack` into the HTTP
+// response (§12.9) — the ticket uses this so a LIMIT submit yields a synchronous
+// accepted/rejected verdict without needing the /events + PENDING-row machinery.
+export const submitOrder = (body: Record<string, unknown>, wait?: "ack") =>
+  apiFetch<OrderAccepted>(`/api/v1/orders${wait ? `?wait=${wait}` : ""}`, {
     method: "POST",
     body: JSON.stringify(body),
   });
