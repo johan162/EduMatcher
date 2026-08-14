@@ -72,6 +72,49 @@ describe("OrdersBlotter", () => {
     expect(props.onBulkCancel).toHaveBeenCalledWith(["o1"]);
   });
 
+  it("ArrowDown / ArrowUp move focus between rows without changing selection (§21)", () => {
+    renderBlotter([order({ order_id: "o1" }), order({ order_id: "o2" })]);
+    const [r1, r2] = screen.getAllByText("AAPL").map((c) => c.closest("tr")!);
+    r1!.focus();
+    fireEvent.keyDown(r1!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(r2);
+    fireEvent.keyDown(r2!, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(r1);
+    // Focus moved, but nothing was selected — the bulk bar never appeared.
+    expect(screen.queryByText(/selected/)).toBeNull();
+  });
+
+  it("ArrowUp on the first row and ArrowDown on the last are no-ops (§21)", () => {
+    renderBlotter([order({ order_id: "o1" }), order({ order_id: "o2" })]);
+    const [r1, r2] = screen.getAllByText("AAPL").map((c) => c.closest("tr")!);
+    r1!.focus();
+    fireEvent.keyDown(r1!, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(r1);
+    r2!.focus();
+    fireEvent.keyDown(r2!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(r2);
+  });
+
+  it("Ctrl+A selects every cancellable row, skipping terminal ones (§21)", () => {
+    const props = renderBlotter([
+      order({ order_id: "o1" }),
+      order({ order_id: "o2", status: "FILLED", remaining_qty: 0 }),
+      order({ order_id: "o3" }),
+    ]);
+    const row = screen.getAllByText("AAPL")[0]!.closest("tr")!;
+    fireEvent.keyDown(row, { key: "a", ctrlKey: true });
+    expect(screen.getByText(/2 orders selected/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel all selected" }));
+    expect(props.onBulkCancel).toHaveBeenCalledWith(["o1", "o3"]);
+  });
+
+  it("Meta+A selects all as well (macOS)", () => {
+    renderBlotter([order({ order_id: "o1" }), order({ order_id: "o2" })]);
+    const row = screen.getAllByText("AAPL")[0]!.closest("tr")!;
+    fireEvent.keyDown(row, { key: "a", metaKey: true });
+    expect(screen.getByText(/2 orders selected/)).toBeTruthy();
+  });
+
   it("shift-click selects a contiguous range (§13.1.3)", () => {
     const props = renderBlotter([order({ order_id: "o1" }), order({ order_id: "o2" })]);
     const [r1, r2] = screen.getAllByText("AAPL");

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -53,6 +53,8 @@ export function OrdersBlotter({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   /** Anchor row id for shift-click range select and Enter/Delete targeting. */
   const [anchorId, setAnchorId] = useState<string | null>(null);
+  /** The <tbody>, so arrow-key navigation can move focus between row elements. */
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
 
   const columns = useMemo<ColumnDef<Order>[]>(() => {
     const stop = (e: React.MouseEvent) => e.stopPropagation();
@@ -219,7 +221,28 @@ export function OrdersBlotter({
     }
   };
 
+  /**
+   * Move focus `delta` rows along in display order. Focus only — the selection
+   * is left alone, so arrowing past a multi-row selection does not clear it.
+   * The <tbody> renders exactly one <tr> per row (no spacer rows), so the row
+   * index and the child index agree.
+   */
+  const focusRowBy = (fromId: string, delta: number) => {
+    const rows = table.getRowModel().rows;
+    const from = rows.findIndex((r) => r.id === fromId);
+    if (from === -1) return;
+    const target = bodyRef.current?.children[from + delta];
+    if (target instanceof HTMLElement) target.focus();
+  };
+
   const onRowKeyDown = (order: Order, e: React.KeyboardEvent) => {
+    // ⌘/Ctrl+A selects every cancellable row; preventDefault stops the
+    // browser's page-wide select-all from firing instead.
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+      e.preventDefault();
+      table.toggleAllRowsSelected(true);
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
       onOpenDetail(order.order_id);
@@ -227,6 +250,9 @@ export function OrdersBlotter({
       e.preventDefault();
       if (selectedIds.length > 0) onBulkCancel(selectedIds);
       else if (!isTerminal(order.status)) onCancel(order);
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      focusRowBy(order.order_id, e.key === "ArrowDown" ? 1 : -1);
     }
   };
 
@@ -241,7 +267,8 @@ export function OrdersBlotter({
   return (
     <div className="flex flex-col gap-2">
       <p className="text-[10px] text-[#505070]">
-        Click to select · Shift-click for a range · double-click or Enter to open · Delete to cancel
+        Click to select · Shift-click for a range · ↑↓ to move · Ctrl+A to select all · double-click
+        or Enter to open · Delete to cancel
       </p>
       <div className="overflow-auto border border-[#2a2a45] rounded">
         <table className="w-full text-xs border-collapse">
@@ -285,7 +312,7 @@ export function OrdersBlotter({
               </tr>
             ))}
           </thead>
-          <tbody>
+          <tbody ref={bodyRef}>
             {table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
