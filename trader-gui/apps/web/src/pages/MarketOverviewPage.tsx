@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { SortingState } from "@tanstack/react-table";
-import { Search, RefreshCw, Loader2 } from "lucide-react";
+import { Search, RefreshCw } from "lucide-react";
 import { MarketTable } from "@/components/market/MarketTable.js";
+import { TableSkeleton } from "@/components/shared/Skeleton.js";
 import { useDailyStatsQuery, useSymbolsQuery } from "@/queries/index.js";
 import { useThrottledBooks } from "@/hooks/useThrottledBooks.js";
 import { useActiveSymbol } from "@/hooks/useActiveSymbol.js";
@@ -121,12 +122,7 @@ export function MarketOverviewPage() {
         </button>
       </div>
 
-      {loading && (
-        <div className="flex items-center gap-2 text-xs text-[#9090b0]">
-          <Loader2 size={14} className="animate-spin" />
-          Loading symbols…
-        </div>
-      )}
+      {loading && <TableSkeleton rows={10} columns={7} />}
 
       {empty && (
         <div className="flex flex-col items-start gap-2 border border-[#2a2a45] rounded p-6">

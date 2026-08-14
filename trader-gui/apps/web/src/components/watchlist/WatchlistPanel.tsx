@@ -10,6 +10,8 @@ import { useWatchlistStore } from "@/store/useWatchlistStore.js";
 import { useSymbolDetailStore } from "@/store/useSymbolDetailStore.js";
 import { buildMarketRows } from "@/lib/marketRows.js";
 import { formatPrice } from "@/lib/formatters.js";
+import { EmptyState } from "@/components/shared/EmptyState.js";
+import { Star } from "lucide-react";
 
 /**
  * Watchlist panel (§20.4) — a compact board of the user's starred symbols. The
@@ -38,9 +40,11 @@ export function WatchlistPanel() {
 
   if (watchlist.length === 0) {
     return (
-      <div className="rounded border border-[#2a2a45] p-6 text-center text-sm text-[#9090b0]">
-        Your watchlist is empty. Star symbols on Market Overview to add them here.
-      </div>
+      <EmptyState
+        icon={Star}
+        title="Your watchlist is empty"
+        hint="Star symbols on Market Overview to add them here."
+      />
     );
   }
 

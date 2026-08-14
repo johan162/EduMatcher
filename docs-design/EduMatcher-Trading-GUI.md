@@ -1,8 +1,8 @@
-Version: 1.11.11
+Version: 1.11.12
 
 Date: 2026-08-14
 
-Status: Design and Research Proposal — partially implemented (phases 1–15 of §23 built in `trader-gui/`)
+Status: Design and Research Proposal — partially implemented (phases 1–16 of §23 built in `trader-gui/`)
 
 
 # EduMatcher — Trading Web UI (`pm-trading-ui`)
@@ -3232,7 +3232,7 @@ demonstrated in isolation.
 | 13 | ✅ Implemented | ADMIN Risk Control panel (read-only from `/reference`/`/reference/risk`), Circuit Breaker Management (**functional** per-symbol level selector — see §23.1), Symbol Management (read-only; Add/Edit genuinely unsupported → disabled + tooltip), Index Admin read-only config + history (rebalance API exists; write UI out of scope) | Risk panel renders from stable reference API; Symbol Add/Edit shows prerequisite tooltip; CB level halt works |
 | 14 | ✅ Implemented | Help system: help drawer (`Ctrl+/` + top-bar button), field tooltips on the ticket, shortcut reference dialog (`?`), `F1` (already wired) | All help content accessible; tooltips visible on ticket fields |
 | 15 | ✅ Implemented | Command palette (`Ctrl+K`), global shortcuts (`Ctrl+.`, `Ctrl+L`, `F3`, `F4`, `Ctrl+Shift+F`, `Ctrl+Enter`); `B`/`S`/`F1`/blotter keys already wired. "Toggle panel" shortcuts navigate to the panel's route (see §23.1) | Navigate entire UI without mouse |
-| 16 | ⬜ Planned | Polish: confirmation dialogs / undo-toasts; empty states; loading skeletons; error boundaries | No uncaught errors; graceful degradation when engine is stopped |
+| 16 | ✅ Implemented | Polish: route-level **error boundary** (crash → inline recoverable alert, chrome stays live); app-wide **connection banner** (reconnecting/disconnected); reusable **loading skeletons** + **empty state** (confirmations/undo-toasts already shipped in phase 10 — see §23.1) | No uncaught errors (crashing screen degrades gracefully); disconnected engine surfaces a banner instead of silent staleness |
 | 17 | ⬜ Planned | Build pipeline: `vite build`, output to `dist/`, serve via `pm-trading-ui-serve` script | `npm run build` produces deployable `dist/` |
 
 > **Backend dependency callout:** Phases 11–13 must implement only the ADMIN endpoints that exist
@@ -3698,6 +3698,40 @@ Phase 15 (Command palette + global shortcuts) findings:
   address-bar shortcut and `F3`/`Ctrl+K` are used by some browsers; `preventDefault` wins while the
   app has focus, but a hardened browser extension could still intercept them — the top-bar search
   affordance and the palette action list provide mouse-reachable equivalents.
+
+Phase 16 (Polish) findings:
+
+- **Scope was reconciled against what earlier phases already shipped.** The phase-16 line item lists
+  four polish tasks; two were already delivered: confirmation dialogs (`CancelConfirm`,
+  `ConfirmTypedDialog` for the global kill switch) and undo-toasts (power-user single-order cancel)
+  landed in phases 7/10/12, and most data views already carry bespoke empty states (Market Overview
+  "is pm-api-gwy running?", blotter/positions/trade-history/admin "No …" rows). Phase 16 therefore
+  focused on the two genuinely-missing pieces — **error boundaries** and an app-wide **connection
+  banner** — plus factoring out reusable **skeleton** and **empty-state** primitives.
+- **`ErrorBoundary` is a class component** (`components/shared/ErrorBoundary.tsx`; React error
+  boundaries have no hook equivalent) using `getDerivedStateFromError` + `componentDidCatch`. It
+  renders a `role="alert"` fallback with the error message and a "Try again" button that resets the
+  boundary in place. It wraps **only the routed `<Outlet/>`** inside `<main>`, keyed by
+  `location.pathname`, so: (a) the persistent chrome (top bar, sidebar, connection banner) stays
+  mounted and usable when a screen crashes, and (b) navigating to a different route auto-remounts the
+  boundary and clears the error. App-level overlays (Event Center, drawers, command palette) sit
+  outside this boundary by design — they are independently, conditionally mounted from `useUiStore`
+  and a crash in one should not blank the route content, nor vice-versa. `tsconfig` has
+  `noImplicitOverride`, so the lifecycle members carry explicit `override`.
+- **`ConnectionBanner`** (`components/layout/ConnectionBanner.tsx`) renders under the top bar and is
+  driven by `useConnectionHealth().overall` (§17.5). It is `null` while `connected`, amber
+  ("Reconnecting… live data is paused") while `reconnecting`, and red ("Disconnected … is pm-api-gwy /
+  the engine running?") while `disconnected` — the "graceful degradation when the engine is stopped"
+  verification. `overall` is computed only from the sockets a role actually owns, so an ADMIN with no
+  market-data socket is not dragged red by it, and REST panels keep their own 503 notes. `role="status"`
+  so the change is announced without stealing focus.
+- **Skeletons + empty state are reusable primitives.** `Skeleton`/`TableSkeleton`
+  (`components/shared/Skeleton.tsx`) use Tailwind's built-in `animate-pulse` with a `motion-reduce`
+  opt-out; `TableSkeleton` is a `role="status" aria-busy` region with an `sr-only` "Loading…" label.
+  They replaced the bare "Loading…" spinner/text on **Market Overview** and **Risk Controls** (the
+  admin view also now hides its otherwise-empty tables while the reference fetch is in flight). The
+  shared `EmptyState` (icon + title + hint + optional action) now backs the Watchlist empty case;
+  other views keep their existing tailored empty states to avoid churn.
 
 ---
 
@@ -4573,6 +4607,19 @@ export interface WsDataByType {
 
 > **Revision History**
 >
+> - **1.11.12 (2026-08-14)** — Phase 16 (Polish) implemented in `trader-gui/`. Added a route-level
+>   `ErrorBoundary` (class component wrapping the `<Outlet/>`, keyed by pathname) so a crashing screen
+>   degrades to an inline `role="alert"` "Try again" panel while the chrome stays live and navigating
+>   away auto-recovers; an app-wide `ConnectionBanner` under the top bar driven by
+>   `useConnectionHealth().overall` (amber reconnecting / red disconnected) for graceful degradation
+>   when the engine/gateway is stopped; and reusable `Skeleton`/`TableSkeleton` + `EmptyState`
+>   primitives, applied to Market Overview + Risk Controls loading states and the Watchlist empty
+>   case. Confirmation dialogs and undo-toasts were already shipped in phases 7/10/12, and most views
+>   already had bespoke empty states, so those items were reconciled rather than rebuilt. Marked phase
+>   16 ✅ in [§23](#23-implementation-plan) and recorded findings in
+>   [§23.1](#231-implementation-status-and-findings-phases-17). Added `phase16Polish.test.tsx` (error
+>   boundary fallback + recovery, connection banner states, skeleton a11y/shape, empty state). Suite:
+>   327 tests / 46 files green; typecheck + `vite build` clean.
 > - **1.11.11 (2026-08-14)** — Phase 15 implemented in `trader-gui/` (command palette on `Ctrl+K` —
 >   dependency-free, keyboard-navigable symbol + role-aware action search — plus the global shortcuts
 >   `Ctrl+.`, `Ctrl+L`, `F3`, `F4`, `Ctrl+Shift+F`, and `Ctrl+Enter`; a top-bar search affordance). The

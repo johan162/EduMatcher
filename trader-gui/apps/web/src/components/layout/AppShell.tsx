@@ -1,8 +1,10 @@
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/store/useAuthStore.js";
 import { useUiStore } from "@/store/useUiStore.js";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary.js";
 import { TopBar } from "./TopBar.js";
 import { Sidebar } from "./Sidebar.js";
+import { ConnectionBanner } from "./ConnectionBanner.js";
 import { SymbolDetailPanel } from "@/components/symbol/SymbolDetailPanel.js";
 import { EventCenter } from "@/components/notifications/EventCenter.js";
 import { OrderDetailDrawer } from "@/components/orders/OrderDetailDrawer.js";
@@ -22,6 +24,7 @@ export function AppShell() {
   const helpOpen = useUiStore((s) => s.helpOpen);
   const shortcutsOpen = useUiStore((s) => s.shortcutsOpen);
   const commandPaletteOpen = useUiStore((s) => s.commandPaletteOpen);
+  const location = useLocation();
 
   if (!apiKey) {
     return <Navigate to="/login" replace />;
@@ -32,13 +35,20 @@ export function AppShell() {
       {/* Fixed top bar (h-10) */}
       <TopBar />
 
+      {/* App-wide degradation signal when a live socket is down (§23 phase 16). */}
+      <ConnectionBanner />
+
       <div className="flex flex-1 overflow-hidden">
         {/* Persistent sidebar (w-56) */}
         <Sidebar />
 
-        {/* Main content area */}
+        {/* Main content area. The route subtree is wrapped in an ErrorBoundary
+            keyed by pathname so a crashing screen degrades to an inline message
+            while the chrome stays usable, and navigating away clears it. */}
         <main className="flex-1 overflow-auto p-4">
-          <Outlet />
+          <ErrorBoundary key={location.pathname} label="This screen">
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
 

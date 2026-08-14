@@ -1,4 +1,5 @@
 import { useReferenceQuery, useReferenceRiskQuery } from "@/queries/index.js";
+import { TableSkeleton } from "@/components/shared/Skeleton.js";
 import { formatNsDuration, formatPct } from "@/lib/formatters.js";
 import type { Collar, ReferenceSymbol, RiskLevel } from "@/types/index.js";
 
@@ -45,7 +46,7 @@ export function AdminRiskPage() {
         )}
       </div>
 
-      {loading && <p className="text-xs text-[#9090b0]">Loading reference data…</p>}
+      {loading && <TableSkeleton rows={8} columns={4} />}
       {error && <p className="text-xs text-ask">Could not load risk configuration from the engine.</p>}
 
       {/* Named risk levels */}
@@ -81,6 +82,7 @@ export function AdminRiskPage() {
       )}
 
       {/* Per-symbol collar settings (§15.5.1) */}
+      {!loading && (
       <section aria-label="Collar settings" className="flex flex-col gap-1">
         <h2 className="text-[11px] font-semibold uppercase tracking-wide text-[#9090b0]">
           Collar Settings (per symbol)
@@ -117,7 +119,10 @@ export function AdminRiskPage() {
         </div>
       </section>
 
+      )}
+
       {/* Per-symbol circuit-breaker ladder (§15.5.2) */}
+      {!loading && (
       <section aria-label="Circuit breaker ladder" className="flex flex-col gap-1">
         <h2 className="text-[11px] font-semibold uppercase tracking-wide text-[#9090b0]">
           Circuit Breaker Ladder (per symbol)
@@ -158,6 +163,7 @@ export function AdminRiskPage() {
           </table>
         </div>
       </section>
+      )}
     </div>
   );
 }
