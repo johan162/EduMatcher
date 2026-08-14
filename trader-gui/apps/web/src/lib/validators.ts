@@ -149,3 +149,70 @@ export const quoteSchema = z
   });
 
 export type QuoteFormValues = z.infer<typeof quoteSchema>;
+
+/** The resting order an amend is being applied to. */
+export interface AmendTarget {
+  /** Current total quantity. */
+  quantity: number;
+  /** Quantity already filled (`quantity - remaining_qty`). */
+  filled: number;
+  /** Current limit price, or null for a type that carries none. */
+  price: number | null;
+}
+
+/** The edited values, as typed (raw strings straight from the inputs). */
+export interface AmendDraft {
+  price: string;
+  quantity: string;
+}
+
+export type AmendResult =
+  | { ok: true; body: { price?: number; quantity?: number } }
+  | { ok: false; error: string };
+
+/**
+ * Validate an amend before it is sent (§13.2).
+ *
+ * These rules mirror the engine's own, so the dialog rejects locally exactly
+ * what `pm-engine` would reject remotely — keeping them in one place here is
+ * what stops the two drifting apart. Source of truth:
+ * `engine/order_book.py::OrderBook.amend` ("Quantity must be positive",
+ * "New quantity must exceed already-filled quantity", "Price must be
+ * positive") and `engine/main.py` ("Amend requires at least PRICE or QTY").
+ *
+ * Note the boundary: the engine requires the new quantity to *exceed* the
+ * filled quantity, not merely to reach it — amending down to exactly what has
+ * filled is a rejection, so cancel the order instead.
+ *
+ * Rules the engine owns but the client cannot pre-check (order ownership,
+ * price collars, market phase, whether the type is amendable at all) are left
+ * to the engine and surface as a rejection reason.
+ */
+export function validateAmend(order: AmendTarget, draft: AmendDraft): AmendResult {
+  const body: { price?: number; quantity?: number } = {};
+
+  if (order.price !== null) {
+    const price = Number(draft.price);
+    if (!Number.isFinite(price) || price <= 0) {
+      return { ok: false, error: "Price must be a positive number" };
+    }
+    if (price !== order.price) body.price = price;
+  }
+
+  const quantity = Number(draft.quantity);
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    return { ok: false, error: "Quantity must be a positive integer" };
+  }
+  if (quantity <= order.filled) {
+    return {
+      ok: false,
+      error: `Quantity must exceed the ${order.filled} already filled — cancel the order instead`,
+    };
+  }
+  if (quantity !== order.quantity) body.quantity = quantity;
+
+  if (Object.keys(body).length === 0) {
+    return { ok: false, error: "No changes to submit" };
+  }
+  return { ok: true, body };
+}

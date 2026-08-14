@@ -88,7 +88,19 @@ describe("AmendDialog (§13.2)", () => {
     wrap(<AmendDialog order={partial} onClose={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Amend quantity"), { target: { value: "10" } });
     fireEvent.click(screen.getByRole("button", { name: "Amend order" }));
-    expect(screen.getByText(/cannot be below/)).toBeTruthy();
+    expect(screen.getByText(/must exceed the 70 already filled/)).toBeTruthy();
+    expect(callFor("/api/v1/orders/o1")).toBeUndefined();
+  });
+
+  // The engine requires the new quantity to exceed the filled quantity, not
+  // merely to reach it (engine/order_book.py::amend), so the dialog must stop
+  // an amend down to exactly the filled amount rather than let it round-trip.
+  it("rejects a quantity equal to the already-filled amount", () => {
+    const partial = normalizeOrder({ ...ORDER, remaining_qty: 30 }); // 70 filled
+    wrap(<AmendDialog order={partial} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Amend quantity"), { target: { value: "70" } });
+    fireEvent.click(screen.getByRole("button", { name: "Amend order" }));
+    expect(screen.getByText(/must exceed the 70 already filled/)).toBeTruthy();
     expect(callFor("/api/v1/orders/o1")).toBeUndefined();
   });
 });

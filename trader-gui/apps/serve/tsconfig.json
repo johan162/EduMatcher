@@ -9,5 +9,5 @@
     "rootDir": ".",
     "noEmit": true
   },
-  "include": ["serve.ts"]
+  "include": ["serve.ts", "test"]
 }

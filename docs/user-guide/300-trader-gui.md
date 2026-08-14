@@ -741,14 +741,27 @@ gateway, merging rows without resurrecting anything already terminal locally.
 
 Every column except the checkbox, Group and the action cell is sortable.
 
-#### Selecting rows
+#### Selecting rows and moving around
 
-Click selects a row; **Shift-click** selects an inclusive range; **Ctrl/⌘-click**
-toggles one row without clearing the rest; the header checkbox selects every
-*cancellable* row. Terminal orders (filled, cancelled, rejected, expired)
-cannot be selected. **Double-click** or `Enter` opens the Order Detail drawer;
-`Delete`/`Backspace` cancels the selection, or the focused row when nothing is
-selected.
+With the mouse: click selects a row; **Shift-click** selects an inclusive
+range; **Ctrl/⌘-click** toggles one row without clearing the rest; the header
+checkbox selects every *cancellable* row. Terminal orders (filled, cancelled,
+rejected, expired) can never be selected.
+
+The blotter is also fully keyboard-driveable — click a row once (or Tab into
+the table) and then:
+
+| Key | Effect |
+|---|---|
+| `↑` / `↓` | Move between rows. This moves the **focus outline only** and deliberately leaves the selection alone, so you can arrow through a busy blotter without disturbing a multi-row selection you have already built up. It stops at the first and last row rather than wrapping. |
+| `Ctrl+A` / `⌘+A` | Select every cancellable row — the keyboard equivalent of the header checkbox. Terminal rows are skipped. |
+| `Enter` | Open the Order Detail drawer for the focused row (same as double-click) |
+| `Delete` / `Backspace` | Cancel the current selection, or — when nothing is selected — the focused row |
+
+The combination worth learning is `↑`/`↓` to the order you want, then
+`Delete`: because `Delete` falls back to the focused row when no row is
+selected, that is the fastest way to pull a single order without touching the
+mouse.
 
 !!! note "Terminal orders stay visible for a while"
     The blotter does not immediately drop a filled or cancelled order — the
@@ -763,9 +776,11 @@ Click the pencil icon on a working order to open **Amend**. The dialog shows
 symbol, side, type, TIF, original quantity and filled quantity read-only, and
 lets you edit **price** (when the type has one) and **quantity**. It does not
 block a price change or a quantity increase, but it warns you about the
-priority consequence and refuses a quantity below what is already filled
-(*"Quantity cannot be below the `{filled}` already filled"*). Submitting with
-nothing changed is refused with *"No changes to submit"*.
+priority consequence, and it applies the engine's own rules locally so an
+amend the engine would refuse never leaves the browser: the quantity must be a
+positive whole number that exceeds what has already filled, the price must be
+positive, and at least one of the two must actually change (*"No changes to
+submit"*). Only the fields you changed are sent.
 
 Which change you make matters for your place in the queue:
 
@@ -789,12 +804,13 @@ rest long enough, and STOP / STOP_LIMIT / TRAILING_STOP have ambiguous trigger
 semantics once amended, so the engine rejects the attempt with *"Cannot amend
 `{TYPE}` orders"*. The dialog itself doesn't stop you trying.
 
-!!! tip "The engine wants strictly more than filled"
-    The dialog allows a new quantity *equal* to the filled quantity, but the
-    engine requires it to exceed the filled quantity — you'll get *"New
-    quantity must exceed already-filled quantity"* back. If your intent is to
-    stop trading the remainder, cancel the order instead of amending it down
-    to the filled size.
+!!! tip "You cannot amend down to exactly what has filled"
+    The new quantity must **exceed** the filled quantity, not merely reach it.
+    Amending a 100-lot with 40 filled down to 40 is refused — the dialog stops
+    it with *"Quantity must exceed the 40 already filled — cancel the order
+    instead"*, which is also precisely what the engine would have answered. If
+    your intent is to stop trading the remainder, cancel the order; the 40
+    already filled are yours either way.
 
 An amend that times out waiting for its ack shows *"Amend submitted —
 awaiting confirmation (check blotter)"* and closes the dialog, exactly like a
@@ -1279,7 +1295,8 @@ the relevant field. Nothing reached the gateway.
 | "Market is closed — no orders accepted" | Submitting while the phase is `CLOSED` |
 | "`{TYPE}` orders are not accepted during an auction" | MARKET / FOK / IOC during a call phase |
 | "Price must be a positive number" | Amend dialog, non-numeric or non-positive price |
-| "Quantity cannot be below the `{filled}` already filled" | Amend dialog |
+| "Quantity must be a positive integer" | Amend dialog, blank / zero / negative / fractional quantity |
+| "Quantity must exceed the `{filled}` already filled — cancel the order instead" | Amend dialog; mirrors the engine's `qty > filled` rule exactly, including the boundary |
 | "No changes to submit" | Amend dialog with nothing edited |
 | "Ask price must be strictly greater than bid price" | New Quote form, crossed or locked quote |
 
@@ -1311,10 +1328,16 @@ Amend and cancel have their own rejection set:
 | `Cannot amend FILLED order` (or CANCELLED / REJECTED / EXPIRED) | Terminal orders cannot be amended |
 | `Cannot amend {TYPE} orders` | Only LIMIT and ICEBERG are amendable |
 | `Cannot amend an order owned by another gateway` / `Cannot cancel an order owned by another gateway` | Cross-gateway attempt |
-| `Amend requires at least PRICE or QTY` | Empty amend |
-| `Amend quantity must be an integer` | Non-integer quantity |
-| `New quantity must exceed already-filled quantity` | See the tip under [Amending an order](#amending-an-order) |
+| `Amend requires at least PRICE or QTY` | Empty amend — normally caught locally first |
+| `Amend quantity must be an integer` | Non-integer quantity — normally caught locally first |
+| `New quantity must exceed already-filled quantity` | Normally caught locally first; see the tip under [Amending an order](#amending-an-order) |
 | A collar breach | A price amend is collar-checked exactly like a new order |
+
+The last three are the engine's wording for rules the Amend dialog also
+enforces client-side, so in practice you meet the dialog's phrasing rather
+than these. They are listed because the engine remains the authority — a
+direct API client, or a race against a fill that changes the filled quantity
+under you, can still produce them.
 
 OCO cascades are not errors: *"OCO sibling `{id}` reached `{STATUS}`"* is the
 expected cancel reason on the surviving leg.
@@ -1517,6 +1540,10 @@ A few behavioural notes:
   blind from wherever you were.
 - `Escape` inside the order ticket also clears the ticket's error messages and
   blurs the focused field.
+- The four **blotter** keys (`↑`, `↓`, `Ctrl+A`, `Enter`, `Delete`) need a row
+  to have focus first — click one, or Tab into the table. `↑`/`↓` move focus
+  without changing the selection, and `Ctrl+A` selects only *cancellable*
+  rows; see [Selecting rows and moving around](#selecting-rows-and-moving-around).
 
 ### Power-user mode
 
@@ -1572,6 +1599,11 @@ values:
 | `PORT` | `4173` | Listen port. |
 | `STATIC_DIR` | `apps/web/dist/` | Path to the built SPA. |
 | `API_PROXY_TARGET` | *(unset — `/api/*` returns 503)* | Forward `/api/*` to this URL, e.g. `http://localhost:8080`. |
+
+This table is generated from the same declaration the server reads at startup,
+so `npm run serve -- --help` prints exactly these four options and their real
+defaults — including the absolute `STATIC_DIR` path resolved for your checkout.
+Treat that output as authoritative if it ever disagrees with this page.
 
 The container (`docker-compose.yml`) sets the same `pm-trading-ui-serve`
 variables above, plus a host-side port mapping. Most installations only need

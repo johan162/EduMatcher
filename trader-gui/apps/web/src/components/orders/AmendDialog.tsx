@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/shared/Modal.js";
 import { useAmendOrderMutation } from "@/queries/index.js";
+import { validateAmend } from "@/lib/validators.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { Order } from "@/types/index.js";
 
@@ -30,35 +31,19 @@ export function AmendDialog({ order, onClose }: AmendDialogProps) {
 
   const submit = () => {
     setError(null);
-    const body: Record<string, unknown> = {};
-
-    if (hasPrice) {
-      const p = Number(price);
-      if (!Number.isFinite(p) || p <= 0) {
-        setError("Price must be a positive number");
-        return;
-      }
-      if (p !== order.price) body.price = p;
-    }
-
-    const q = Number(qty);
-    if (!Number.isInteger(q) || q <= 0) {
-      setError("Quantity must be a positive integer");
-      return;
-    }
-    if (q < filled) {
-      setError(`Quantity cannot be below the ${filled} already filled`);
-      return;
-    }
-    if (q !== order.quantity) body.quantity = q;
-
-    if (Object.keys(body).length === 0) {
-      setError("No changes to submit");
+    // Engine-mirroring rules live in lib/validators so the dialog and the
+    // engine cannot drift apart (§13.2).
+    const result = validateAmend(
+      { quantity: order.quantity, filled, price: order.price },
+      { price, quantity: qty },
+    );
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
 
     amend.mutate(
-      { orderId: order.order_id, body },
+      { orderId: order.order_id, body: result.body },
       {
         onSuccess: () => {
           toast.success(`Amend submitted for ${order.symbol} ${order.order_id.slice(0, 8)}`);
