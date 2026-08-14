@@ -21,6 +21,7 @@ SHELL := /bin/bash
 # Variables
 # --------------------------------------------------------------------------------------------
 NPM          ?= npm
+UNAME_S      := $(shell uname -s)
 APP_NAME     := edumatcher-trader-gui
 SERVICE_NAME := trader-gui
 VERSION      ?= $(shell node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
@@ -51,9 +52,11 @@ NC        := \033[0m
 
 .PHONY: \
 	help \
-	check-npm \
+	check-npm check-container check-container-env \
 	install build build-debug typecheck test lint format \
 	dev serve \
+	cnt-build proxy-up up down restart logs ps \
+	dist \
 	clean
 
 # --------------------------------------------------------------------------------------------
@@ -74,6 +77,41 @@ check-npm:
 	@command -v "$(NPM)" >/dev/null 2>&1 || { \
 		echo -e "$(RED)✗ npm not found in PATH$(NC)"; exit 1; \
 	}
+
+check-container:
+	@if [[ -z "$(CONTAINER_RUNTIME)" ]]; then \
+		echo -e "$(RED)✗ neither podman nor docker found in PATH$(NC)"; \
+		exit 1; \
+	fi
+	@$(DOCKER_COMPOSE) version >/dev/null 2>&1 || { \
+		echo -e "$(RED)✗ compose support is not available for $(CONTAINER_RUNTIME)$(NC)"; \
+		exit 1; \
+	}
+
+check-container-env: check-container ## Ensure container runtime environment is running
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@if [[ "$(CONTAINER_RUNTIME)" == "podman" ]]; then \
+		if podman info >/dev/null 2>&1; then \
+			echo -e "$(GREEN)✓ Podman environment is running$(NC)"; \
+		elif [[ "$(UNAME_S)" == "Darwin" ]]; then \
+			echo -e "$(YELLOW)- Podman machine is not running. Starting it...$(NC)"; \
+			podman machine start >/dev/null 2>&1 || { \
+				echo -e "$(RED)✗ Failed to start podman machine$(NC)"; \
+				exit 1; \
+			}; \
+			echo -e "$(GREEN)✓ Podman machine started$(NC)"; \
+		else \
+			echo -e "$(RED)✗ Podman is installed but not ready (podman info failed)$(NC)"; \
+			exit 1; \
+		fi; \
+	else \
+		docker info >/dev/null 2>&1 || { \
+			echo -e "$(RED)✗ Docker daemon is not running$(NC)"; \
+			echo -e "$(YELLOW)  Start Docker Desktop or the docker service, then retry$(NC)"; \
+			exit 1; \
+		}; \
+		echo -e "$(GREEN)✓ Docker daemon is running$(NC)"; \
+	fi
 
 # --------------------------------------------------------------------------------------------
 # Install / build
@@ -123,6 +161,77 @@ serve: check-npm ## Serve the production build (apps/web/dist/) on :4173
 	@echo -e "$(CYAN)→ Serving production build on http://localhost:4173$(NC)"
 	@echo -e "$(YELLOW)   Set PORT / HOST / API_PROXY_TARGET to override defaults.$(NC)"
 	$(NPM) run pm-trading-ui-serve
+
+# --------------------------------------------------------------------------------------------
+# Container workflow
+# --------------------------------------------------------------------------------------------
+cnt-build: check-container ## Build container image via compose (podman/docker)
+	@echo -e "$(YELLOW)- Building container image...$(NC)"
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@$(DOCKER_COMPOSE) build --build-arg NPM_STRICT_SSL=false \
+	    --build-arg HTTP_PROXY="$${HTTP_PROXY:-}" \
+	    --build-arg HTTPS_PROXY="$${HTTPS_PROXY:-}" \
+	    --build-arg NO_PROXY="$${NO_PROXY:-}"
+	@echo -e "$(GREEN)✓ Container image built$(NC)"
+
+proxy-up: check-container-env ## Start the stack through a local dev proxy (optional)
+	@echo -e "$(YELLOW)- Starting container stack via local proxy...$(NC)"
+	HTTP_PROXY=http://host.containers.internal:9000 HTTPS_PROXY=http://host.containers.internal:9000 NO_PROXY=localhost,127.0.0.1  $(MAKE) up
+
+up: check-container-env ## Start container stack (detached) with build
+	@echo -e "$(YELLOW)- Starting container stack...$(NC)"
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@$(DOCKER_COMPOSE) up -d --build \
+	    --build-arg NPM_STRICT_SSL=false \
+	    --build-arg HTTP_PROXY="$${HTTP_PROXY:-}" \
+	    --build-arg HTTPS_PROXY="$${HTTPS_PROXY:-}" \
+	    --build-arg NO_PROXY="$${NO_PROXY:-}"
+	@echo -e "$(GREEN)✓ Container stack is up$(NC)"
+
+down: check-container ## Stop and remove container stack
+	@echo -e "$(YELLOW)- Stopping container stack...$(NC)"
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@$(DOCKER_COMPOSE) down
+	@echo -e "$(GREEN)✓ Container stack is down$(NC)"
+
+restart: check-container-env ## Restart container stack
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@$(DOCKER_COMPOSE) down
+	@$(DOCKER_COMPOSE) up -d --build \
+	    --build-arg NPM_STRICT_SSL=false \
+	    --build-arg HTTP_PROXY="$${HTTP_PROXY:-}" \
+	    --build-arg HTTPS_PROXY="$${HTTPS_PROXY:-}" \
+	    --build-arg NO_PROXY="$${NO_PROXY:-}"
+
+logs: check-container ## Follow container logs
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@$(DOCKER_COMPOSE) logs -f $(SERVICE_NAME)
+
+ps: check-container ## Show container stack status
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@$(DOCKER_COMPOSE) ps
+
+# --------------------------------------------------------------------------------------------
+# Distributable package
+# --------------------------------------------------------------------------------------------
+dist: check-container-env ## Build a distributable: container image + exported OCI tarball in dist
+	@echo -e "$(YELLOW)- Building distributable package v$(VERSION)...$(NC)"
+	@echo -e "$(BLUE)- Runtime:  $(CONTAINER_RUNTIME)$(NC)"
+	@echo -e "$(BLUE)- Image:    $(IMAGE)$(NC)"
+	@echo -e "$(BLUE)- Output:   $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar$(NC)"
+	@$(DOCKER_COMPOSE) build \
+	    --build-arg NPM_STRICT_SSL=false \
+		--build-arg HTTP_PROXY="$${HTTP_PROXY:-}" \
+		--build-arg HTTPS_PROXY="$${HTTPS_PROXY:-}" \
+		--build-arg NO_PROXY="$${NO_PROXY:-}"
+	@$(CONTAINER_RUNTIME) tag $(APP_NAME):latest $(IMAGE)
+	@mkdir -p $(DIST_DIR)
+	@$(CONTAINER_RUNTIME) save --output $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar $(IMAGE)
+	@gzip -f $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar
+	@echo -e "$(GREEN)✓ Distributable ready: $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar.gz$(NC)"
+	@echo -e "$(BLUE)  Load on another host:$(NC)"
+	@echo -e "$(BLUE)    $(CONTAINER_RUNTIME) load --input $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar.gz$(NC)"
+	@echo -e "$(BLUE)  Then run: $(CONTAINER_RUNTIME) run -p 4173:4173 $(IMAGE)$(NC)"
 
 # --------------------------------------------------------------------------------------------
 # Clean

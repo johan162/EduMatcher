@@ -7,5 +7,8 @@
   "scripts": {
     "start": "tsx serve.ts",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "tsx": "^4.23.0"
   }
 }
