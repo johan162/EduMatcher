@@ -29,6 +29,12 @@ import type {
   AdminSymbolKillSwitchResponse,
   AdminGatewayKillSwitchResponse,
   AdminGlobalKillSwitchResponse,
+  RiskConfig,
+  SymbolHaltAckResponse,
+  SymbolResumeAckResponse,
+  AdminIndexesResponse,
+  IndexIdsResponse,
+  IndexDailyResponse,
 } from "@/types/index.js";
 
 // ── Auth / status ─────────────────────────────────────────────────────────────
@@ -50,7 +56,7 @@ export const getSymbols = () => apiFetch<{ symbols: SymbolInfoDTO[] }>("/api/v1/
 // ── Reference bundle ──────────────────────────────────────────────────────────
 export const getReference = () => apiFetch<ReferenceBundle>("/api/v1/reference");
 
-export const getReferenceRisk = () => apiFetch<Record<string, unknown>>("/api/v1/reference/risk");
+export const getReferenceRisk = () => apiFetch<RiskConfig>("/api/v1/reference/risk");
 
 export const getReferenceSchedule = () =>
   apiFetch<ReferenceScheduleDTO & { config_version: string | null }>("/api/v1/reference/schedule");
@@ -195,17 +201,35 @@ export const disconnectGateway = (id: string, reason?: string) =>
 
 export const getAdminHalts = () => apiFetch<{ halted: HaltEntry[] }>("/api/v1/admin/halts");
 
+// Halt one symbol. `level` (one of the symbol's configured CB levels) runs the
+// real breaker activation with auto-resume; omitting it halts indefinitely.
+// 202 SymbolHaltAck; a rejection is 403 ROLE_DENIED.
 export const triggerCircuitBreaker = (symbol: string, level?: string) =>
-  apiFetch<{ symbol: string; status: string }>("/api/v1/admin/circuit-breaker/trigger", {
+  apiFetch<SymbolHaltAckResponse>("/api/v1/admin/circuit-breaker/trigger", {
     method: "POST",
     body: JSON.stringify({ symbol, ...(level ? { level } : {}) }),
   });
 
 export const resumeCircuitBreaker = (symbol: string) =>
-  apiFetch<{ symbol: string; status: string }>("/api/v1/admin/circuit-breaker/resume", {
+  apiFetch<SymbolResumeAckResponse>("/api/v1/admin/circuit-breaker/resume", {
     method: "POST",
     body: JSON.stringify({ symbol }),
   });
+
+// ── Index administration (read-only for phase 13) ───────────────────────────
+export const getAdminIndexes = () => apiFetch<AdminIndexesResponse>("/api/v1/admin/indexes");
+
+export const getHistoryIndexIds = (date?: string) =>
+  apiFetch<IndexIdsResponse>(`/api/v1/history/index-ids${date ? `?date=${encodeURIComponent(date)}` : ""}`);
+
+export const getHistoryIndexDaily = (params?: { index_id?: string; date?: string; limit?: number }) => {
+  const qs = new URLSearchParams();
+  if (params?.index_id) qs.set("index_id", params.index_id);
+  if (params?.date) qs.set("date", params.date);
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const suffix = qs.size ? `?${qs.toString()}` : "";
+  return apiFetch<IndexDailyResponse>(`/api/v1/history/index-daily${suffix}`);
+};
 
 export const transitionSession = (toState: string) =>
   apiFetch<{ command_id: string; requested_state: string; status: string }>(

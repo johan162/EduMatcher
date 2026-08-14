@@ -629,6 +629,71 @@ export interface AdminGlobalKillSwitchResponse {
   command_id?: string;
 }
 
+/**
+ * `POST /api/v1/admin/circuit-breaker/trigger` response (engine `SymbolHaltAck`).
+ * `level` is honoured end-to-end: naming one of the symbol's configured CB
+ * levels runs the real breaker activation (auto-resume); omitting it is an
+ * indefinite halt. Rejection → `403 ROLE_DENIED`.
+ */
+export interface SymbolHaltAckResponse {
+  accepted: boolean;
+  symbol: string;
+  reason: string;
+  cancelled_quotes: number;
+  command_id?: string;
+}
+
+/** `POST /api/v1/admin/circuit-breaker/resume` response (engine `SymbolResumeAck`). */
+export interface SymbolResumeAckResponse {
+  accepted: boolean;
+  symbol: string;
+  reason: string;
+  command_id?: string;
+}
+
+/** One configured exchange index (static config from `/admin/indexes`). */
+export interface AdminIndex {
+  id: string;
+  description: string;
+  base_value: number;
+  constituents: string[];
+}
+
+/** `GET /api/v1/admin/indexes` — static index config (not live level/divisor). */
+export interface AdminIndexesResponse {
+  indexes: AdminIndex[];
+  config_version: string | null;
+}
+
+/** `GET /api/v1/history/index-ids` — index ids with recorded stats. */
+export interface IndexIdsResponse {
+  index_ids: string[];
+  count: number;
+}
+
+/**
+ * One `daily_stats`-style row for an index (dimensionless levels, no tick
+ * conversion). Columns beyond the documented ones are passed through.
+ */
+export interface IndexDailyRow {
+  date?: string;
+  index_id?: string;
+  open_level?: number | null;
+  high_level?: number | null;
+  low_level?: number | null;
+  close_level?: number | null;
+  close_session_state?: string | null;
+  [key: string]: unknown;
+}
+
+/** `GET /api/v1/history/index-daily` — keyset-paginated index OHLC. */
+export interface IndexDailyResponse {
+  daily: IndexDailyRow[];
+  count: number;
+  has_more: boolean;
+  next_cursor?: string;
+}
+
 // ── History: daily rollup (GET /history/daily) ───────────────────────────────
 /**
  * One row of `daily_stats`, already converted from integer ticks to display
@@ -666,13 +731,51 @@ export interface DailyStatsResponse {
 }
 
 // ── Reference bundle (GET /reference, and `reference` inside bootstrap) ──────
-/** One instrument's static configuration (pm-msgen ReferenceSymbol). */
+/** Static price-collar bands, in percent. Omitted (undefined) when unconfigured. */
+export interface Collar {
+  static_band_pct: number | null;
+  dynamic_band_pct: number | null;
+}
+
+/** One rung of a symbol's circuit-breaker ladder (§15.5.2). */
+export interface CircuitBreakerLevel {
+  name: string;
+  price_shift_pct: number | null;
+  /** Halt duration in NANOSECONDS (note the `_ns`). */
+  halt_duration_ns: number | null;
+}
+
+/**
+ * A symbol's circuit-breaker configuration. The ladder lives HERE, per symbol —
+ * NOT on the named risk levels (which carry only a collar). Omitted when the
+ * symbol has no circuit breaker configured.
+ */
+export interface SymbolCircuitBreaker {
+  reference_window_ns?: number | null;
+  levels: CircuitBreakerLevel[];
+}
+
+/** One instrument's static configuration (from the `/reference` bundle). */
 export interface ReferenceSymbol {
   symbol: string;
   tick_decimals: number;
+  /** Assigned risk-level name, or null to inherit `default_level`. */
   level?: string | null;
-  collar?: Record<string, unknown> | null;
-  circuit_breaker?: Record<string, unknown> | null;
+  collar?: Collar | null;
+  circuit_breaker?: SymbolCircuitBreaker | null;
+}
+
+/** One named risk level — carries only a collar (no CB ladder). */
+export interface RiskLevel {
+  name: string;
+  collar?: Collar | null;
+}
+
+/** `GET /api/v1/reference/risk` — the static risk config plus config_version. */
+export interface RiskConfig {
+  default_level: string | null;
+  levels: RiskLevel[];
+  config_version?: string | null;
 }
 
 /** Five wall-clock times; each is individually nullable (partial config is legal). */
@@ -694,8 +797,8 @@ export interface ReferenceScheduleDTO {
 export interface ReferenceBundle {
   gateway_id?: string;
   symbols: ReferenceSymbol[];
-  risk: { levels: unknown[]; default_level?: string | null };
-  indexes: unknown[];
+  risk: { levels: RiskLevel[]; default_level?: string | null };
+  indexes: AdminIndex[];
   schedule: ReferenceScheduleDTO;
   config_version: string | null;
 }

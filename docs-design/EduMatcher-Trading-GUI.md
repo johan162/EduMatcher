@@ -1,8 +1,8 @@
-Version: 1.11.8
+Version: 1.11.9
 
 Date: 2026-08-14
 
-Status: Design and Research Proposal — partially implemented (phases 1–12 of §23 built in `trader-gui/`)
+Status: Design and Research Proposal — partially implemented (phases 1–13 of §23 built in `trader-gui/`)
 
 
 # EduMatcher — Trading Web UI (`pm-trading-ui`)
@@ -2040,9 +2040,15 @@ endpoints:
 - `GET /api/v1/history/index-snapshots`
 - `GET /api/v1/history/index-events`
 
-The panel shows current/recorded index data when those endpoints are available and displays this
-placeholder for write controls: "Index administration requires a future pm-api-gwy bridge to
-pm-index. Use `pm-index-admin-cli` for index write operations until then."
+The panel shows configured indexes (`GET /admin/indexes` — id, description, base value,
+constituents) and, for a selected index, recorded daily levels (`GET /history/index-daily`).
+
+> **Corrected in phase 13.** `POST /admin/indexes/{id}/rebalance` DOES exist and is wired to a live
+> `pm-index` bridge (`request.app.state.index_client`, constructed at startup; `503 INDEX_TIMEOUT` if
+> pm-index is down, `409 REBALANCE_REJECTED` on refusal) — so index writes are no longer "blocked on a
+> future bridge." A corporate-action rebalance UI is nonetheless **out of scope for this read-only
+> admin phase**; the panel shows no write control and notes that rebalancing is available via the API
+> / `pm-index-admin-cli`. This is a deliberate scoping choice, not a disabled placeholder.
 
 ### 15.4 Session Control
 
@@ -2102,17 +2108,22 @@ config-file import fallback.
 
 #### 15.5.2 Circuit breaker ladder
 
-For each circuit breaker level (L1/L2/L3):
+> **Corrected in phase 13.** Reading the engine's reference builder showed the circuit-breaker ladder
+> is configured **per symbol**, not per named risk level — and the named `risk.levels` from
+> `/reference/risk` carry **only** a collar, no CB rungs. So this ladder is sourced from
+> `GET /reference` → `symbols[].circuit_breaker.levels[]`, one block per symbol.
 
-| Field | Description |
-|-------|-------------|
-| Level | L1 / L2 / L3 |
-| Price Shift % | Threshold for trigger |
-| Halt Duration | Minutes or "Rest of day" |
-| Resumption Mode | AUCTION / CONTINUOUS |
+Per symbol, for each configured rung:
 
-This view has the same backing as the collar table above: runtime reference-data (`/reference/risk`)
-for level definitions and display metadata.
+| Field | Source |
+|-------|--------|
+| Symbol | `symbols[].symbol` |
+| Level | `circuit_breaker.levels[].name` |
+| Price Shift % | `circuit_breaker.levels[].price_shift_pct` |
+| Halt Duration | `circuit_breaker.levels[].halt_duration_ns` (NANOSECONDS — formatted to `Xm`/`Xh Ym`) |
+
+There is **no** Resumption Mode column — every halt reopens via a call auction. A symbol with no
+`circuit_breaker` block simply contributes no rows.
 
 ### 15.6 Circuit Breaker Management
 
@@ -2133,15 +2144,17 @@ auction.
 
 #### 15.6.2 Manual CB trigger
 
-A form with: Symbol picker + Level selector (L1/L2/L3) + Confirm button, mapping to
-`POST /api/v1/admin/circuit-breaker/trigger` `{ symbol, level }`
-([§6.4](#64-circuit-breaker-control)). Confirmation dialog: "Trigger L2 circuit breaker for AAPL?
-This will halt the symbol for 15 minutes."
+A form with: Symbol picker + Level selector + Confirm button, mapping to
+`POST /api/v1/admin/circuit-breaker/trigger` `{ symbol, level? }`
+([§6.4](#64-circuit-breaker-control)), returning `SymbolHaltAck`
+`{ accepted, symbol, cancelled_quotes }` (rejection → `403 ROLE_DENIED`).
 
-> **Current limitation:** the gateway currently exposes this endpoint, but the backend semantics are
-> closer to a manual symbol halt than a true level-aware simulated breaker trigger. The UI should
-> therefore either (a) remove the Level selector for now, or (b) keep it visibly disabled / marked as
-> informational until the backend honours `level` as an input.
+> **Corrected in phase 13.** `level` IS honoured end-to-end: naming one of the symbol's configured
+> circuit-breaker levels runs the real `CircuitBreakerState.activate()` path (real `resume_at_ns`,
+> auto-resume), while omitting it halts indefinitely until an explicit clear; the engine **rejects**
+> a level for a symbol with no circuit breaker configured. So the Level selector is **functional**,
+> populated from the *selected symbol's own* ladder (`/reference` → `circuit_breaker.levels`), with an
+> "Indefinite (no level)" option; it is disabled only when the chosen symbol has no CB configured.
 
 #### 15.6.3 Manual CB clear
 
@@ -3207,7 +3220,7 @@ demonstrated in isolation.
 | 10 | ✅ Implemented | **Notification / Event Center** + bell; **power-user mode** (undo-toast + always-confirm exceptions); **Watchlist** | Fills/rejects persist in Event Center; toggle confirmations; curate watchlist |
 | 11 | ✅ Implemented | **Admin API client for existing endpoints** (`GET /status` role, `/admin/session`, `/admin/gateways`, `/admin/halts`, `/admin/kill-switch/symbol`); System Dashboard; `/admin/monitor` WS; Monitor Log Viewer | Dashboard KPIs from monitor stream; monitor log tails cross-gateway events; unsupported admin controls render disabled |
 | 12 | ✅ Implemented | ADMIN Session Control, Gateway Management (Kick), Kill Switch — symbol / by-gateway / **global** (all backend-supported; see §23.1 — the design's "disabled placeholder" premise was obsolete) | Transition session from UI; kick a gateway; all three kill-switch scopes work with escalating confirmation |
-| 13 | ⬜ Planned | ADMIN Risk Control panel (runtime read-only from `/reference`/`/reference/risk`), Circuit Breaker Management (level selector disabled where unsupported), Symbol Management (read-only until backend), Index Admin read-only history plus disabled write controls | Risk panel renders from stable reference API; unsupported write controls show prerequisite tooltips |
+| 13 | ✅ Implemented | ADMIN Risk Control panel (read-only from `/reference`/`/reference/risk`), Circuit Breaker Management (**functional** per-symbol level selector — see §23.1), Symbol Management (read-only; Add/Edit genuinely unsupported → disabled + tooltip), Index Admin read-only config + history (rebalance API exists; write UI out of scope) | Risk panel renders from stable reference API; Symbol Add/Edit shows prerequisite tooltip; CB level halt works |
 | 14 | ⬜ Planned | Help system: help drawer, field tooltips, shortcut reference, `F1`/`Ctrl+/` | All help content accessible; tooltips visible on ticket fields |
 | 15 | ⬜ Planned | Command palette (`Ctrl+K`), full keyboard shortcut implementation (incl. `B`/`S`, flatten, `Ctrl+.`, `Ctrl+L`) | Navigate entire UI without mouse |
 | 16 | ⬜ Planned | Polish: confirmation dialogs / undo-toasts; empty states; loading skeletons; error boundaries | No uncaught errors; graceful degradation when engine is stopped |
@@ -3591,6 +3604,42 @@ Phase 12 (Session Control, Gateway Management + Kick, Kill Switch) findings:
   ROLE_DENIED` with the engine's reason when the engine rejects, so the success handlers never have
   to inspect `accepted`; the error handler maps `ROLE_DENIED` → an error toast and `503`/
   `ENGINE_TIMEOUT` → "submitted, awaiting confirmation."
+
+Phase 13 (Risk / Circuit Breaker / Symbol / Index admin — mostly read-only) findings:
+
+- **The circuit-breaker ladder is per-SYMBOL, not per risk level.** `GET /reference/risk` `levels[]`
+  carry only `{name, collar?: {static_band_pct, dynamic_band_pct}}` — no CB rungs. The ladder lives
+  on `GET /reference` `symbols[].circuit_breaker.levels[]` = `{name, price_shift_pct,
+  halt_duration_ns}` (+ `reference_window_ns`). §15.5.2 was corrected. Halt duration is in
+  **nanoseconds** (`formatNsDuration` → `Xm`/`Xh Ym`); there is no resumption-mode column (every halt
+  reopens via a call auction). The Risk panel resolves each symbol's *effective* collar (its own,
+  else its risk level's, else the default level's).
+- **The CB manual-trigger `level` is functional, not cosmetic.** `POST /admin/circuit-breaker/trigger`
+  honours `level` end-to-end (`SymbolHalt` → engine `CircuitBreakerState.activate()`): a named level
+  runs the real breaker with auto-resume, no level halts indefinitely, and the engine **rejects** a
+  level for a symbol with no CB configured. So the selector is populated from the *selected symbol's*
+  ladder (from `/reference`) with an "Indefinite" option, and disabled when that symbol has no CB —
+  §15.6.2's "disable the selector" limitation was obsolete. Acks: `SymbolHaltAck`
+  `{accepted, symbol, cancelled_quotes}`, `SymbolResumeAck` `{accepted, symbol}`; rejection → `403`.
+- **Symbol add/edit is the one genuinely-absent write control.** `POST/PATCH /admin/symbols` do NOT
+  exist (grepped the whole admin router); symbols are static `engine_config.yaml`, changed only by a
+  config reload (which itself rejects a changed symbol set). So Symbol Management is read-only with
+  Add/Edit rendered **disabled with a prerequisite tooltip** — this is the phase's "unsupported write
+  control shows a prerequisite tooltip." (The design's §15.2 "Reference Price ← /reference/risk"
+  column was inaccurate — per-symbol reference price is live on `GET /admin/risk/state`, not the
+  static `/reference/risk`; the read-only table omits it and shows live top-of-book from the book
+  store instead.)
+- **Index rebalance exists (like the phase-12 kill-switch discrepancy).** `POST
+  /admin/indexes/{id}/rebalance` is wired to a live pm-index bridge (`503 INDEX_TIMEOUT` if pm-index
+  is down, `409 REBALANCE_REJECTED` on refusal). Rather than a false "requires a future bridge"
+  placeholder, the Index panel is read-only (config from `/admin/indexes`; recent levels from
+  `/history/index-daily`, degrading to a note on `503 STATS_DB`) with an accurate statement that
+  rebalancing is available via the API — a corporate-action UI is a deliberate out-of-scope choice
+  for this read-only phase, not a block.
+- **All the read panels source static config from `/reference`** (open to any key; ADMIN already
+  bootstraps it at login), and the CB active-halts table reuses the live `haltStore` (bootstrapped by
+  `GET /admin/halts`, kept current by the always-on `circuit_breaker` channel that ADMIN also
+  receives on its market-data socket).
 
 ---
 
@@ -4466,6 +4515,19 @@ export interface WsDataByType {
 
 > **Revision History**
 >
+> - **1.11.9 (2026-08-14)** — Phase 13 implemented in `trader-gui/` (ADMIN read-only Risk Control
+>   panel, Circuit Breaker Management with a functional per-symbol level selector + manual trigger/
+>   clear, read-only Symbol Management with disabled Add/Edit, read-only Index Admin config + history).
+>   **Corrected the design** against the gateway source: the circuit-breaker ladder is per-symbol (not
+>   per risk level) with `halt_duration_ns` in nanoseconds ([§15.5.2](#1552-circuit-breaker-ladder));
+>   the CB trigger `level` is honoured end-to-end so the selector is functional
+>   ([§15.6.2](#1562-manual-cb-trigger)); and `POST /admin/indexes/{id}/rebalance` already exists
+>   (pm-index bridge), so §15.3's "requires a future bridge" was obsolete (write UI left out of scope
+>   deliberately). Symbol add/edit remains genuinely absent → disabled with a prerequisite tooltip.
+>   Marked phase 13 ✅ in [§23](#23-implementation-plan) and recorded findings in
+>   [§23.1](#231-implementation-status-and-findings-phases-17). Added tests (risk collar/ladder
+>   resolution + ns formatting, CB level selector + trigger/resume, symbol read-only + disabled write,
+>   index read-only config/history + 503 degradation).
 > - **1.11.8 (2026-08-14)** — Phase 12 implemented in `trader-gui/` (ADMIN Session Control with
 >   valid-transition buttons + 202/409/503 handling; Gateway Management with Kick; a Kill Switch panel
 >   covering symbol / by-gateway / global scopes). **Adapted the design**: reading the gateway source

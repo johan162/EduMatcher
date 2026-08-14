@@ -75,3 +75,27 @@ export function formatNsTimestamp(ns: number | null | undefined): string {
   if (ns === null || ns === undefined) return "—";
   return new Date(ns / 1_000_000).toLocaleString();
 }
+
+/**
+ * Format a *duration* in nanoseconds as a compact human string (e.g. "15m",
+ * "1h 30m", "45s"). Used for circuit-breaker `halt_duration_ns` (§15.5.2).
+ */
+export function formatNsDuration(ns: number | null | undefined): string {
+  if (ns === null || ns === undefined) return "—";
+  const totalSec = Math.round(ns / 1_000_000_000);
+  if (totalSec <= 0) return "0s";
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const parts: string[] = [];
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  if (s > 0 && h === 0) parts.push(`${s}s`);
+  return parts.join(" ") || "0s";
+}
+
+/** Format a percentage value already expressed in percent units (e.g. 5 → "5.00%"). */
+export function formatPct(pct: number | null | undefined): string {
+  if (pct === null || pct === undefined) return "—";
+  return `${pct.toFixed(2)}%`;
+}

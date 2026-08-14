@@ -337,5 +337,50 @@ export function useGlobalKillSwitchMutation() {
   });
 }
 
+// ── Circuit breaker admin (§15.6) ────────────────────────────────────────────
+export function useTriggerCircuitBreakerMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ symbol, level }: { symbol: string; level?: string }) =>
+      api.triggerCircuitBreaker(symbol, level),
+    // The halt also arrives live over circuit_breaker; refresh the bootstrap too.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin/halts"] }),
+  });
+}
+
+export function useResumeCircuitBreakerMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (symbol: string) => api.resumeCircuitBreaker(symbol),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin/halts"] }),
+  });
+}
+
+// ── Index administration (read-only, §15.3) ──────────────────────────────────
+export function useAdminIndexesQuery() {
+  return useQuery({
+    queryKey: ["admin/indexes"],
+    queryFn: api.getAdminIndexes,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useHistoryIndexIdsQuery() {
+  return useQuery({
+    queryKey: ["history/index-ids"],
+    queryFn: () => api.getHistoryIndexIds(),
+    staleTime: 60_000,
+  });
+}
+
+export function useHistoryIndexDailyQuery(indexId: string | null) {
+  return useQuery({
+    queryKey: ["history/index-daily", indexId],
+    queryFn: () => api.getHistoryIndexDaily(indexId ? { index_id: indexId, limit: 30 } : { limit: 30 }),
+    enabled: indexId !== null,
+    staleTime: 60_000,
+  });
+}
+
 // Re-export some base types for convenience
 export type { ActiveQuote, DailyStat, Order, Position, QuoteLeg };
