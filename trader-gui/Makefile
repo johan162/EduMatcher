@@ -53,7 +53,7 @@ NC        := \033[0m
 	help \
 	check-npm \
 	install build build-debug typecheck test lint format \
-	dev \
+	dev serve \
 	clean
 
 # --------------------------------------------------------------------------------------------
@@ -115,6 +115,14 @@ format: check-npm ## Format all source files with Prettier
 dev: check-npm ## Start the Vite dev server (hot-reload on :5173)
 	@echo -e "$(CYAN)→ Starting dev server on http://localhost:5173$(NC)"
 	$(NPM) run dev
+
+# --------------------------------------------------------------------------------------------
+# Production serve
+# --------------------------------------------------------------------------------------------
+serve: check-npm ## Serve the production build (apps/web/dist/) on :4173
+	@echo -e "$(CYAN)→ Serving production build on http://localhost:4173$(NC)"
+	@echo -e "$(YELLOW)   Set PORT / HOST / API_PROXY_TARGET to override defaults.$(NC)"
+	$(NPM) run pm-trading-ui-serve
 
 # --------------------------------------------------------------------------------------------
 # Clean

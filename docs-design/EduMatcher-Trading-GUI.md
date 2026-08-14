@@ -1,8 +1,8 @@
-Version: 1.11.12
+Version: 1.11.13
 
 Date: 2026-08-14
 
-Status: Design and Research Proposal — partially implemented (phases 1–16 of §23 built in `trader-gui/`)
+Status: Design and Research Proposal — fully implemented (all 17 phases of §23 built in `trader-gui/`)
 
 
 # EduMatcher — Trading Web UI (`pm-trading-ui`)
@@ -3233,7 +3233,7 @@ demonstrated in isolation.
 | 14 | ✅ Implemented | Help system: help drawer (`Ctrl+/` + top-bar button), field tooltips on the ticket, shortcut reference dialog (`?`), `F1` (already wired) | All help content accessible; tooltips visible on ticket fields |
 | 15 | ✅ Implemented | Command palette (`Ctrl+K`), global shortcuts (`Ctrl+.`, `Ctrl+L`, `F3`, `F4`, `Ctrl+Shift+F`, `Ctrl+Enter`); `B`/`S`/`F1`/blotter keys already wired. "Toggle panel" shortcuts navigate to the panel's route (see §23.1) | Navigate entire UI without mouse |
 | 16 | ✅ Implemented | Polish: route-level **error boundary** (crash → inline recoverable alert, chrome stays live); app-wide **connection banner** (reconnecting/disconnected); reusable **loading skeletons** + **empty state** (confirmations/undo-toasts already shipped in phase 10 — see §23.1) | No uncaught errors (crashing screen degrades gracefully); disconnected engine surfaces a banner instead of silent staleness |
-| 17 | ⬜ Planned | Build pipeline: `vite build`, output to `dist/`, serve via `pm-trading-ui-serve` script | `npm run build` produces deployable `dist/` |
+| 17 | ✅ Implemented | `pm-trading-ui-serve`: zero-extra-dep Node `http` static file server (`apps/serve/serve.ts`), SPA fallback routing, immutable cache headers for hashed Vite assets, `no-cache` for `index.html`, optional `/api/*` proxy (`API_PROXY_TARGET`), `HOST`/`PORT`/`STATIC_DIR` env vars, `--help` flag, SIGTERM/SIGINT graceful shutdown; wired as `npm run pm-trading-ui-serve` + `make serve` | `npm run build && npm run pm-trading-ui-serve` starts a production server; SPA deep-links resolve; `/api/*` returns 503 with guidance when proxy not configured |
 
 > **Backend dependency callout:** Phases 11–13 must implement only the ADMIN endpoints that exist
 > today and render the rest as disabled or placeholder controls. Unmet backend prerequisites (live
@@ -3732,6 +3732,45 @@ Phase 16 (Polish) findings:
   admin view also now hides its otherwise-empty tables while the reference fetch is in flight). The
   shared `EmptyState` (icon + title + hint + optional action) now backs the Watchlist empty case;
   other views keep their existing tailored empty states to avoid churn.
+
+Phase 17 (Build pipeline / pm-trading-ui-serve) findings:
+
+- **`vite build` was already working** before this phase (the CI smoke-test from phase 1 ran it);
+  phase 17's deliverable is the named `pm-trading-ui-serve` entry point that makes the built `dist/`
+  runnable without an external static server.
+- **Zero additional runtime dependencies.** `apps/serve/serve.ts` uses only Node built-in modules
+  (`node:http`, `node:fs`, `node:path`, `node:url`) and the existing `tsx` dev-dependency already in
+  the workspace root. No Express, Fastify, `serve`, or `http-server` packages were added. This
+  matches the project's philosophy of not growing the dependency surface for infrastructure glue.
+- **Why not `vite preview`?** `vite preview` is intentionally a smoke-test tool, not a production
+  server — it has no graceful-shutdown hook, no environment-variable-driven configuration, and no
+  `/api/*` proxy forwarding. `pm-trading-ui-serve` is the production-ready equivalent.
+- **SPA fallback is the critical behaviour.** React Router v7 uses client-side routing; every
+  path except real asset files must return `index.html` with a 200 so the router can hydrate the
+  correct component. The server resolves each request against `STATIC_DIR`, falls through to
+  `index.html` on a miss, and never returns 404 for a `GET` that could be a valid client route.
+- **Caching strategy mirrors Vite's output convention.** Vite names hashed bundles
+  `assets/index-<hash>.js`; the server detects the `assets/` subdirectory and the `.[a-f0-9]{8,}.\w+$`
+  pattern and applies `Cache-Control: public, max-age=31536000, immutable`. `index.html` gets
+  `no-cache` so browsers re-fetch the entry point on every deploy and immediately pick up new
+  hashed bundle filenames.
+- **`/api/*` proxy is opt-in.** Setting `API_PROXY_TARGET=http://localhost:8080` makes the server
+  forward `/api/*` to `pm-api-gwy`, matching the Vite dev-server proxy behaviour. When unset the
+  server returns 503 with an explicit message — clear in the browser console, avoids silently serving
+  stale cached responses. The recommended production topology is a reverse proxy (nginx/Caddy/Traefik)
+  in front; the built-in proxy covers single-machine dev/staging deployments.
+- **Path-traversal protection.** `path.normalize` + a `startsWith(STATIC_DIR + sep)` guard ensures
+  URL-encoded traversal (`/..%2F..%2Fetc%2Fpasswd`) returns 403. Plain `/../` is normalised by the
+  browser/curl before it reaches the server.
+- **Smoke-test results (all green):** `GET /` → 200 HTML; deep React Router path → 200 SPA fallback;
+  hashed `.js` asset → `immutable` cache header; `/api/v1/status` without proxy target → 503;
+  URL-encoded traversal → 403; `HEAD /` → 200; `--help` → prints usage.
+- **Typecheck fix:** the base `tsconfig.base.json` has `noUncheckedIndexedAccess`; the regex
+  `match[1]` in the `--help` handler had to be guarded as `match?.[1]`.
+- **`apps/serve` workspace.** A minimal `package.json` + `tsconfig.json` was added so
+  `npm run typecheck --workspaces` covers the serve script alongside the web app. The tsconfig
+  uses `moduleResolution: Node` (not `Bundler`) because it is a plain Node script, not a Vite-
+  bundled browser app.
 
 ---
 
@@ -4607,6 +4646,18 @@ export interface WsDataByType {
 
 > **Revision History**
 >
+> - **1.11.13 (2026-08-14)** — Phase 17 implemented in `trader-gui/`. Added `apps/serve/serve.ts`
+>   (`pm-trading-ui-serve`): a zero-extra-dependency Node built-in `http` static file server for the
+>   production SPA. Features: SPA fallback routing (`/* → index.html`), `Cache-Control: immutable`
+>   for Vite hashed assets, `no-cache` for `index.html`, opt-in `/api/*` proxy via
+>   `API_PROXY_TARGET`, `HOST`/`PORT`/`STATIC_DIR` env vars, URL-encoded path-traversal guard (403),
+>   `--help` flag, SIGTERM/SIGINT graceful shutdown. Wired as `npm run pm-trading-ui-serve` and
+>   `make serve`. Also added `apps/serve/package.json` + `tsconfig.json` so the workspace typecheck
+>   covers the script. Updated `trader-gui/README.md`: all 17 phases marked ✅, added
+>   "Serving the production build" section. Marked phase 17 ✅ in [§23](#23-implementation-plan),
+>   recorded findings in [§23.1](#231-implementation-status-and-findings-phases-17). Suite: 327
+>   tests / 46 files green; typecheck (fix: `match?.[1]` for `noUncheckedIndexedAccess`) + `vite
+>   build` clean. Status line updated to "fully implemented".
 > - **1.11.12 (2026-08-14)** — Phase 16 (Polish) implemented in `trader-gui/`. Added a route-level
 >   `ErrorBoundary` (class component wrapping the `<Outlet/>`, keyed by pathname) so a crashing screen
 >   degrades to an inline `role="alert"` "Try again" panel while the chrome stays live and navigating
