@@ -24,6 +24,11 @@ import type {
   OrderHistoryResponse,
   HistoryFillsResponse,
   PendingIdResponse,
+  AdminOrdersResponse,
+  AdminOrderLifecycleResponse,
+  AdminSymbolKillSwitchResponse,
+  AdminGatewayKillSwitchResponse,
+  AdminGlobalKillSwitchResponse,
 } from "@/types/index.js";
 
 // ── Auth / status ─────────────────────────────────────────────────────────────
@@ -211,16 +216,42 @@ export const transitionSession = (toState: string) =>
     },
   );
 
+// Current-state cross-gateway orders (bounded by order_retention_sec). Filters:
+// symbol, gateway_id, status — all matched case-insensitively server-side.
 export const getAdminOrders = (params?: Record<string, string>) => {
   const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
-  return apiFetch<Record<string, unknown>>(`/api/v1/admin/orders${qs}`);
+  return apiFetch<AdminOrdersResponse>(`/api/v1/admin/orders${qs}`);
 };
 
-export const getAdminOrderDetail = (orderId: string) =>
-  apiFetch<Record<string, unknown>>(`/api/v1/admin/orders/${orderId}`);
+// Full cross-gateway lifecycle from the pm-audit index (independent of cache
+// retention). 503 AUDIT_INDEX_UNAVAILABLE when pm-audit isn't running; 404
+// UNKNOWN_ORDER when the order has no audited events.
+export const getAdminOrderDetail = (orderId: string, limit?: number) =>
+  apiFetch<AdminOrderLifecycleResponse>(
+    `/api/v1/admin/orders/${encodeURIComponent(orderId)}${limit ? `?limit=${limit}` : ""}`,
+  );
 
-export const adminSymbolKillSwitch = (symbol: string) =>
-  apiFetch<Record<string, unknown>>("/api/v1/admin/kill-switch/symbol", {
+// Admin kill-switch scopes (§15.8). All 202 with an engine ack; a rejection is a
+// 403 ROLE_DENIED, not an `accepted: false` body.
+export const adminSymbolKillSwitch = (symbol: string, reason?: string) =>
+  apiFetch<AdminSymbolKillSwitchResponse>("/api/v1/admin/kill-switch/symbol", {
     method: "POST",
-    body: JSON.stringify({ symbol }),
+    body: JSON.stringify(reason ? { symbol, reason } : { symbol }),
+  });
+
+// Cancel every resting order/quote of one named gateway (does NOT disconnect it
+// — that is the separate Kick action). Body key is `target_gateway_id`.
+export const adminGatewayKillSwitch = (targetGatewayId: string, reason?: string) =>
+  apiFetch<AdminGatewayKillSwitchResponse>("/api/v1/admin/kill-switch/gateway", {
+    method: "POST",
+    body: JSON.stringify(
+      reason ? { target_gateway_id: targetGatewayId, reason } : { target_gateway_id: targetGatewayId },
+    ),
+  });
+
+// Full-market emergency stop: cancel every resting order/quote for every gateway.
+export const adminGlobalKillSwitch = (reason?: string) =>
+  apiFetch<AdminGlobalKillSwitchResponse>("/api/v1/admin/kill-switch/global", {
+    method: "POST",
+    body: JSON.stringify(reason ? { reason } : {}),
   });

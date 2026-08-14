@@ -1,8 +1,8 @@
-Version: 1.11.6
+Version: 1.11.8
 
 Date: 2026-08-14
 
-Status: Design and Research Proposal — partially implemented (phases 1–10 of §23 built in `trader-gui/`)
+Status: Design and Research Proposal — partially implemented (phases 1–12 of §23 built in `trader-gui/`)
 
 
 # EduMatcher — Trading Web UI (`pm-trading-ui`)
@@ -729,31 +729,39 @@ ADMIN monitoring no longer needs a design-time trade-off: the current gateway al
 read-only `/api/v1/admin/monitor` WebSocket for cross-gateway order/fill/session/CB activity.
 
 **Connection lifecycle:** identical to `/events` — the client opens the socket, sends
-`{ "api_key": "..." }` (must resolve to an ADMIN key, else close code `4003`), receives
-`{ "type": "authenticated" }`, then receives a merged stream. `pm-api-gwy` subscribes to the engine
-drop-copy socket and to `session.state` / `circuit_breaker.*`, and fans them out here.
+`{ "api_key": "..." }`, receives `{ "type": "authenticated" }`, then receives a merged stream.
+`pm-api-gwy` subscribes to the engine drop-copy socket and to `session.state` /
+`circuit_breaker.*`, and fans them out here.
 
-**Event envelope** (uniform with `/events`):
+> **Verified backend behaviour (phase 11):** a key that is read-only or not ADMIN gets a
+> `{ "type": "error", "data": { "message": "ADMIN role required" } }` frame followed by close code
+> **`1008`** (WS policy violation) — NOT `4003` as an earlier revision stated.
+
+**Event envelope** — the admin monitor forwards the **same uniform envelopes** as `/events` and
+`/market-data`, keyed by `type`. There is **no** `monitor.event` wrapper and **no**
+`data.event_type` discriminator (an earlier revision invented both). A live frame is:
 
 ```jsonc
 {
-  "type": "monitor.event",
+  "type": "order.fill",             // websocket_type(topic): order.ack | order.fill | order.cancelled
+                                    // | order.amended | order.expired | session | circuit_breaker
+                                    // | admin.action | trade | book | depth | auction | ...
+  "topic": "order.fill.GW01",       // the engine topic; `seq` counts within it
   "ts": "2026-07-09T14:15:03.221Z",
-  "seq": 100482,                    // from drop-copy sequence (FR-OPS-001)
-  "gateway_id": "GW01",
-  "data": {
-    "event_type": "FILL",           // ACK | FILL | CANCEL | AMEND | EXPIRE | REJECT | SESSION | CB
-    "order_id": "ORD-...",
-    "symbol": "AAPL",
-    "fill_qty": 50, "fill_price": 150.50, "remaining_qty": 50, "liquidity": "MAKER"
-  }
+  "seq": 100482,
+  "gateway_id": "GW01",             // present only on private/order-scoped frames (order.*/quote.*)
+  "stream_seq": 42,                 // ditto
+  "data": { "order_id": "ORD-...", "symbol": "AAPL", "fill_qty": 50, "fill_price": 150.50, "remaining_qty": 50 }
 }
 ```
 
-Session and circuit-breaker transitions arrive as `event_type: "SESSION"` / `"CB"` with the
-corresponding payloads. This one socket powers both the System Dashboard recent-events feed
-([§15.1](#151-system-dashboard)) and the Audit / Monitor Log Viewer
-([§15.9](#159-audit--monitor-log-viewer)).
+So a client classifies events by the envelope `type` (and `topic` for the
+`circuit_breaker.halt`/`.resume` split), not a payload field. Session and circuit-breaker
+transitions arrive as ordinary `type: "session"` / `type: "circuit_breaker"` frames; ADMIN-initiated
+commands arrive as `type: "admin.action"`. Cross-gateway `order.*` events (which an ADMIN receives
+**only** here, having no `/events` socket) carry `gateway_id`; market-data frames carry `seq` only.
+This one socket powers both the System Dashboard recent-events feed ([§15.1](#151-system-dashboard))
+and the Audit / Monitor Log Viewer ([§15.9](#159-audit--monitor-log-viewer)).
 
 **UX implication:** the ADMIN dashboard and monitor log can now be designed around a true live feed,
 not around polling or speculative backend work.
@@ -2168,18 +2176,29 @@ mode (truly destructive, affects another participant).
 
 ### 15.8 Kill Switch (Admin)
 
-The current implementable ADMIN kill switch is **symbol-scoped only**:
+> **Adapted in phase 12.** An earlier revision treated By Gateway / Global as disabled placeholders
+> "pending a future admin endpoint." Reading the gateway source confirmed all three scopes now exist
+> as ADMIN endpoints with their own acks, so all three are implemented and working. Each **always
+> confirms** regardless of power-user mode; the market-wide Global scope requires typing `CONFIRM`.
 
-- **By Symbol**: select a symbol → calls `POST /api/v1/admin/kill-switch/symbol` with
-  `{ "symbol": "AAPL" }`, cancelling orders for that symbol through the engine's admin cancel-symbol
-  path.
+All three scopes cancel resting orders/quotes (they do **not** halt trading — a participant may
+re-submit immediately). A rejection comes back as `403 ROLE_DENIED` with the engine's reason, not an
+`accepted: false` body, so a `202` always means it ran.
 
-The following controls are shown disabled with explicit prerequisite text, not wired to the trading
-`/kill-switch` endpoint:
+- **By Symbol**: `POST /api/v1/admin/kill-switch/symbol` `{ symbol }` → `CancelSymbolAck`
+  `{ accepted, symbol, cancelled_orders, cancelled_quotes, command_id? }`. Cancels that symbol across
+  every gateway.
+- **By Gateway**: `POST /api/v1/admin/kill-switch/gateway` `{ target_gateway_id, reason? }` →
+  `KillSwitchGatewayAck` `{ accepted, target_gateway_id, cancelled_orders, cancelled_quotes }`.
+  Cancels one named participant's resting exposure **without disconnecting it** — distinct from the
+  Gateway Kick ([§15.7.2](#1572-kick-disconnect-gateway)), which disconnects and cancels as a side
+  effect.
+- **Global**: `POST /api/v1/admin/kill-switch/global` `{ reason? }` → `KillSwitchGlobalAck`
+  `{ accepted, cancelled_orders, cancelled_quotes, affected_gateways }`. Full-market emergency stop;
+  guarded by the type-`CONFIRM` dialog ([§20.3](#203-power-user-mode)).
 
-- **By Gateway**: requires a future admin endpoint; `POST /api/v1/kill-switch` is caller-gateway
-  scoped and cannot cancel another gateway's orders.
-- **Global**: requires a future admin endpoint and engine acknowledgement semantics.
+The panel lives on the Gateway Management screen ([§15.7](#157-gateway-management)) alongside the
+roster, since two of the three scopes are gateway-oriented.
 
 The enabled symbol-scoped action always confirms, even in power-user mode. If global kill switch is
 added later, it should use the three-step confirmation pattern: first dialog → second dialog → type
@@ -2618,12 +2637,14 @@ Used by: ADMIN only. This is a **required gateway extension**
 ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor)) that fans out the engine drop-copy stream
 (`drop_copy.event.*`) plus `session`/`circuit_breaker` transitions.
 
-- **Auth:** `{ "api_key": "..." }`; the key must resolve to ADMIN or the server closes with code
-  `4003`.
+- **Auth:** `{ "api_key": "..." }`; a non-ADMIN key gets an `error` frame then close code **`1008`**
+  (not `4003`).
 - **Opening state:** a `monitor.snapshot` frame ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor))
   with current active orders, active halts, connected gateways, and last sequence per gateway.
-- **Envelope:** `monitor.event` with `seq`, `gateway_id`, and a `data.event_type`
-  (`ACK`/`FILL`/`CANCEL`/`AMEND`/`EXPIRE`/`REJECT`/`SESSION`/`CB`).
+- **Envelope:** the **uniform** envelope keyed by `type` (`order.ack`/`order.fill`/`order.cancelled`/
+  `order.amended`/`order.expired`/`session`/`circuit_breaker`/`admin.action`/…), with per-topic `seq`
+  and `gateway_id` on the private/order-scoped frames — **not** a `monitor.event`/`event_type` shape
+  (see the §6.9 correction). The client classifies by `type`/`topic`.
 - **Cross-gateway order REST views:** `GET /api/v1/admin/orders` (current-state, filtered, bounded by
   `order_retention_sec`) and `GET /api/v1/admin/orders/{order_id}` (full lifecycle from the audit
   trail) complement the WebSocket for tabular/drill-down views ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor)).
@@ -3184,8 +3205,8 @@ demonstrated in isolation.
 | 8 | ✅ Implemented | TRADER OCO/Combo entry + **group rows/badges + group cancel**; Trade History; Position Panel + **Flatten / Flatten All** | Submit OCO; watch one leg fill and sibling cancel; flatten a position |
 | 9 | ✅ Implemented | MARKET_MAKER: Quote card grid, New Quote form, fill alerts, bootstrap + **quotes/legs** fill indicators | Submit two-sided quote; simulate fill; per-leg fill bar updates from `/quotes/bootstrap` (see §23.1 — `/legs` is dual-shaped and not card-authoritative) |
 | 10 | ✅ Implemented | **Notification / Event Center** + bell; **power-user mode** (undo-toast + always-confirm exceptions); **Watchlist** | Fills/rejects persist in Event Center; toggle confirmations; curate watchlist |
-| 11 | ⬜ Planned | **Admin API client for existing endpoints** (`GET /status` role, `/admin/session`, `/admin/gateways`, `/admin/halts`, `/admin/kill-switch/symbol`); System Dashboard; `/admin/monitor` WS; Monitor Log Viewer | Dashboard KPIs from monitor stream; monitor log tails cross-gateway events; unsupported admin controls render disabled |
-| 12 | ⬜ Planned | ADMIN Session Control, Gateway Management (Kick), symbol-scoped Kill Switch, disabled global/by-gateway kill-switch placeholders | Transition session from UI; kick a gateway; symbol kill switch works; unsupported scopes stay disabled |
+| 11 | ✅ Implemented | **Admin API client for existing endpoints** (`GET /status` role, `/admin/session`, `/admin/gateways`, `/admin/halts`, `/admin/kill-switch/symbol`); System Dashboard; `/admin/monitor` WS; Monitor Log Viewer | Dashboard KPIs from monitor stream; monitor log tails cross-gateway events; unsupported admin controls render disabled |
+| 12 | ✅ Implemented | ADMIN Session Control, Gateway Management (Kick), Kill Switch — symbol / by-gateway / **global** (all backend-supported; see §23.1 — the design's "disabled placeholder" premise was obsolete) | Transition session from UI; kick a gateway; all three kill-switch scopes work with escalating confirmation |
 | 13 | ⬜ Planned | ADMIN Risk Control panel (runtime read-only from `/reference`/`/reference/risk`), Circuit Breaker Management (level selector disabled where unsupported), Symbol Management (read-only until backend), Index Admin read-only history plus disabled write controls | Risk panel renders from stable reference API; unsupported write controls show prerequisite tooltips |
 | 14 | ⬜ Planned | Help system: help drawer, field tooltips, shortcut reference, `F1`/`Ctrl+/` | All help content accessible; tooltips visible on ticket fields |
 | 15 | ⬜ Planned | Command palette (`Ctrl+K`), full keyboard shortcut implementation (incl. `B`/`S`, flatten, `Ctrl+.`, `Ctrl+L`) | Navigate entire UI without mouse |
@@ -3497,6 +3518,79 @@ Phase 10 (Notification/Event Center, power-user mode, Watchlist) findings:
 - **Event Center marks read on open.** Opening the sheet clears the unread badge; events arriving
   while it is open re-mark on the next open (a deliberate simplification, not a per-event live
   re-mark). The buffer is the bounded in-memory ring already in `useNotificationStore` (500).
+
+Phase 11 (ADMIN dashboard, monitor WS, Monitor Log Viewer) findings:
+
+- **The admin monitor feed is NOT `monitor.event`/`event_type`.** The biggest correction from reading
+  the gateway source: `/admin/monitor` forwards the **same uniform envelopes** as the other sockets,
+  keyed by `type` (`order.ack`/`order.fill`/`order.cancelled`/`order.amended`/`order.expired`/
+  `session`/`circuit_breaker`/`admin.action`/…). `lib/monitorEvents.ts::classifyMonitorEnvelope`
+  classifies by `type` (and `topic` for the CB halt/resume split), not a payload field. §6.9/§15.9/
+  §17.4 were corrected. The non-ADMIN WS close code is **`1008`** (preceded by an `error` frame), not
+  `4003`.
+- **`monitor.snapshot` shape.** `data = { orders: [...], halts: {halted:[]}|null, gateways:
+  {gateways:[]}|null, last_seq: {gid:int}, incomplete: [] }`. `halts`/`gateways` are **objects** (not
+  bare arrays) and are **null** when their best-effort engine query timed out (listed in
+  `incomplete`); `orders` and `last_seq` are always present. Gateway items use **`id`**, not
+  `gateway_id`. Halt entries carry `symbol` plus optional `level`/`resume_at_ns`(epoch nanos)/
+  `halt_source`.
+- **`useMonitorStore` is fed directly, off the shared bus.** An ADMIN runs both the market-data
+  socket (always-on `session`/`circuit_breaker` + the broad `*` book item) and the admin monitor
+  socket, which "sees every event." Routing the admin feed onto the shared `wsOn` bus would
+  double-process the market-data events an ADMIN already gets there. So `handleAdminMonitorMessage`
+  routes into `useMonitorStore` only. Consequence: `session`/`circuit_breaker` update `sessionStore`/
+  `haltStore` once (from market-data) and appear once in the monitor **log** (from the admin feed);
+  cross-gateway `order.*` events reach ADMIN **only** via the monitor feed (no `/events` socket) and
+  live solely in `useMonitorStore`.
+- **KPIs and per-symbol table sourcing.** Session ← `sessionStore` (market-data). Active Orders ←
+  `selectActiveOrderCount` over the monitor snapshot/live orders (non-terminal only; the snapshot is
+  the same `engine.all_orders()` as `GET /admin/orders`, so a separate REST call is redundant).
+  Connected Gateways ← `GET /admin/gateways` (`id`/`connected`). Active CB Halts ← `haltStore`
+  (bootstrapped at login and re-reconciled from `GET /admin/halts`, kept live by the market-data
+  `circuit_breaker` channel). The per-symbol board reuses `buildMarketRows` (broad book) plus
+  `selectOrderCountsBySymbol`.
+- **Cross-gateway drill-down uses the audit endpoint, not the trader drawer.** Clicking an order row
+  opens `AdminOrderDetailModal`, which reads `GET /admin/orders/{id}` (pm-audit trail) — the correct
+  cross-gateway source. The gateway-scoped `/history/orders/{id}` behind the shared Order Detail
+  drawer (phase 10) cannot see another gateway's order, so it is deliberately not reused here. The
+  modal degrades gracefully on `503 AUDIT_INDEX_UNAVAILABLE` and `404 UNKNOWN_ORDER` (and the query
+  disables retry so the definitive answer shows immediately).
+- **Reconnect gap marker.** On a fresh `monitor.snapshot` after prior events (a reconnect), the store
+  inserts a `GAP` row — there is no monitor event-replay API, so the log shows a visible boundary
+  rather than pretending continuity (§15.9). The cross-gateway orders map is bounded only by
+  reconnect reconciliation (terminal orders are not evicted client-side); acceptable at classroom
+  scale, a candidate for a periodic `GET /admin/orders` reconcile later.
+
+Phase 12 (Session Control, Gateway Management + Kick, Kill Switch) findings:
+
+- **The "disabled placeholder" premise for by-gateway / global kill-switch was obsolete.** §15.8
+  disabled those scopes "pending a future admin endpoint," but the gateway source has
+  `POST /admin/kill-switch/gateway` (`KillSwitchGatewayAck` — `accepted`, `target_gateway_id`,
+  `cancelled_orders`, `cancelled_quotes`, `command_id?`) and `POST /admin/kill-switch/global`
+  (`KillSwitchGlobalAck` — same counters plus `affected_gateways`). Both are `require_admin`, await
+  their own ack, and answer `202` with the ack or `403 ROLE_DENIED` on rejection. So all three
+  scopes are implemented and working; §15.8 and the phase-12 row were adapted. Nothing in phase 12 is
+  genuinely unsupported — the truly-disabled controls (symbol add/edit, CB `level`, index rebalance)
+  belong to phase 13.
+- **Escalating, always-on confirmation.** Session transition, Gateway Kick, and symbol/gateway
+  kill-switch use the single-step `CancelConfirm`; the market-wide Global kill-switch uses a new
+  `ConfirmTypedDialog` that only arms Execute once the operator types `CONFIRM` (§20.3). None consult
+  the power-user `confirmCancellations` setting — these are admin destructive actions that always
+  confirm.
+- **Kick ≠ by-gateway kill-switch.** Two distinct actions on a gateway: **Kick** = `POST
+  /admin/gateways/{id}/disconnect` (`{gateway_id, status:"DISCONNECTED"}`) disconnects the participant
+  (the engine cancels its orders/quotes as a disconnect side effect, FR-MMQ-006); **by-gateway
+  kill-switch** cancels its resting exposure while leaving it connected. Both are on the Gateway
+  Management screen.
+- **Session transition REST response is authoritative.** `POST /admin/session/transition {to_state}`
+  → `202 { status:"APPLIED", requested_state, command_id }`, `409 TRANSITION_REJECTED` (reason
+  surfaced in the toast, e.g. sessions disabled / invalid-from-phase), or `503 ENGINE_TIMEOUT`. The
+  button set is derived from `useSessionStore.phase` via `VALID_TRANSITIONS`; the resulting phase
+  still arrives app-wide over the `session.state` broadcast, which re-derives the offered buttons.
+- **A rejection is a `403`, not `accepted:false`.** All the admin ack endpoints raise `403
+  ROLE_DENIED` with the engine's reason when the engine rejects, so the success handlers never have
+  to inspect `accepted`; the error handler maps `ROLE_DENIED` → an error toast and `503`/
+  `ENGINE_TIMEOUT` → "submitted, awaiting confirmation."
 
 ---
 
@@ -4372,6 +4466,28 @@ export interface WsDataByType {
 
 > **Revision History**
 >
+> - **1.11.8 (2026-08-14)** — Phase 12 implemented in `trader-gui/` (ADMIN Session Control with
+>   valid-transition buttons + 202/409/503 handling; Gateway Management with Kick; a Kill Switch panel
+>   covering symbol / by-gateway / global scopes). **Adapted the design**: reading the gateway source
+>   showed `POST /admin/kill-switch/gateway` and `/global` already exist, so §15.8's "disabled
+>   placeholder" treatment of those scopes was obsolete — all three are now implemented and working,
+>   with a new type-`CONFIRM` dialog gating the market-wide Global scope. Rewrote
+>   [§15.8](#158-kill-switch-admin), marked phase 12 ✅ in [§23](#23-implementation-plan), and recorded
+>   findings in [§23.1](#231-implementation-status-and-findings-phases-17). Added tests (session
+>   transition confirm/APPLIED/409, gateway roster + Kick, and all three kill-switch scopes incl. the
+>   type-CONFIRM global gate).
+> - **1.11.7 (2026-08-14)** — Phase 11 implemented in `trader-gui/` (ADMIN: System Dashboard with KPI
+>   cards + per-symbol summary + recent-events feed; `/admin/monitor` WS wired into a new
+>   `useMonitorStore`; Monitor Log Viewer with kind/symbol/gateway filters, CSV export, and a
+>   cross-gateway audit drill-down; typed the admin REST client). Corrected the admin-monitor contract
+>   after reading the gateway source: live frames are the **uniform** envelopes keyed by `type` (no
+>   `monitor.event`/`data.event_type`), the non-ADMIN WS close code is **`1008`** (not `4003`), and the
+>   `monitor.snapshot` `halts`/`gateways` are nullable objects (`{halted:[]}`/`{gateways:[]}`) with
+>   gateway items keyed `id`. Updated [§6.9](#69-admin-monitor-websocket-apiv1adminmonitor-available-now)
+>   and [§17.4](#174-admin-monitor-websocket-apiv1adminmonitor), marked phase 11 ✅ in
+>   [§23](#23-implementation-plan), and recorded findings in
+>   [§23.1](#231-implementation-status-and-findings-phases-17). Added tests (monitor classifier + CSV,
+>   monitor store fold/gap/counts, dashboard KPIs/feed, monitor log filter + audit drill-down).
 > - **1.11.6 (2026-08-14)** — Phase 10 implemented in `trader-gui/` (Notification / Event Center + bell
 >   with kind filter, clear, mark-read-on-open and deep-link to a now-global Order Detail drawer;
 >   power-user mode via a top-bar Settings popover with an undo-toast cancel path; Watchlist panel +

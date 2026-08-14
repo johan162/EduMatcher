@@ -292,6 +292,9 @@ export function useAdminOrderDetailQuery(orderId: string | null) {
     queryKey: ["admin/order-detail", orderId],
     queryFn: () => api.getAdminOrderDetail(orderId!),
     enabled: orderId !== null,
+    // A 503 (no audit index) or 404 (unknown order) is a definitive answer,
+    // not a transient failure — surface it immediately rather than retrying.
+    retry: false,
     staleTime: 30_000,
   });
 }
@@ -310,6 +313,27 @@ export function useDisconnectGatewayMutation() {
     mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       api.disconnectGateway(id, reason),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin/gateways"] }),
+  });
+}
+
+// ── Admin kill switch scopes (§15.8) ─────────────────────────────────────────
+export function useSymbolKillSwitchMutation() {
+  return useMutation({
+    mutationFn: ({ symbol, reason }: { symbol: string; reason?: string }) =>
+      api.adminSymbolKillSwitch(symbol, reason),
+  });
+}
+
+export function useGatewayKillSwitchMutation() {
+  return useMutation({
+    mutationFn: ({ targetGatewayId, reason }: { targetGatewayId: string; reason?: string }) =>
+      api.adminGatewayKillSwitch(targetGatewayId, reason),
+  });
+}
+
+export function useGlobalKillSwitchMutation() {
+  return useMutation({
+    mutationFn: (reason?: string) => api.adminGlobalKillSwitch(reason),
   });
 }
 

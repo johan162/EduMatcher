@@ -493,15 +493,140 @@ export interface HaltEntry {
   reference_price?: number | null;
 }
 
+/**
+ * Kinds surfaced in the admin Monitor Log / dashboard feed. Derived from the
+ * envelope `type`/`topic` — NOT from a server `event_type` field (the admin
+ * monitor forwards the SAME uniform envelopes as the other sockets; there is no
+ * `monitor.event` wrapper). `GAP` is a client-side marker inserted when a
+ * reconnect snapshot arrives and events between disconnect and it were lost.
+ */
+export type MonitorEventKind =
+  | "ACK"
+  | "FILL"
+  | "CANCEL"
+  | "AMEND"
+  | "EXPIRE"
+  | "REJECT"
+  | "SESSION"
+  | "CB"
+  | "ADMIN"
+  | "GAP";
+
+/** One normalized row in the admin Monitor Log (§15.9) / dashboard feed (§15.1.3). */
 export interface MonitorEvent {
-  event_type: "ACK" | "FILL" | "CANCEL" | "AMEND" | "EXPIRE" | "REJECT" | "SESSION" | "CB";
-  order_id?: string;
-  gateway_id?: string;
+  /** Client-assigned key for React lists. */
+  id: string;
+  /** Per-topic sequence from the envelope, or null (session/CB/gap). */
+  seq: number | null;
+  ts: string;
+  kind: MonitorEventKind;
+  topic: string;
+  gateway_id: string | null;
+  symbol: string | null;
+  order_id: string | null;
+  detail: string;
+}
+
+/**
+ * One cross-gateway order from the admin monitor snapshot / `GET /admin/orders`.
+ * Only `order_id`, `status`, `gateway_id` are gateway-guaranteed; the rest are
+ * engine-payload passthrough (present depending on the last event folded in).
+ */
+export interface AdminOrder {
+  order_id: string;
+  gateway_id: string;
+  status: string;
   symbol?: string;
-  fill_qty?: number;
-  fill_price?: number;
+  side?: Side;
+  order_type?: OrderType;
+  price?: number | null;
+  quantity?: number;
   remaining_qty?: number;
-  liquidity?: "MAKER" | "TAKER";
+  fill_qty?: number;
+  fill_price?: number | null;
+  [key: string]: unknown;
+}
+
+/**
+ * `monitor.snapshot` frame `data` (§6.9). `halts`/`gateways` are OBJECTS
+ * (`{halted:[]}` / `{gateways:[]}`) and are `null` when their engine query timed
+ * out — the failed keys are listed in `incomplete`. `orders` and `last_seq` are
+ * always present.
+ */
+export interface MonitorSnapshotData {
+  orders: AdminOrder[];
+  halts: { halted: HaltEntry[] } | null;
+  gateways: { gateways: AdminGateway[] } | null;
+  last_seq: Record<string, number>;
+  incomplete: string[];
+}
+
+/** `GET /api/v1/admin/orders` — current-state cross-gateway orders, filtered. */
+export interface AdminOrdersResponse {
+  count: number;
+  orders: AdminOrder[];
+  /** Terminal orders age out of the cache after this many seconds (0 = never). */
+  retention_sec: number;
+}
+
+/** One audited event from `GET /api/v1/admin/orders/{id}` (pm-audit index). */
+export interface AdminOrderLifecycleEvent {
+  timestamp: string;
+  topic: string;
+  gateway_id: string;
+  symbol: string | null;
+  order_id: string;
+  /** Raw stored payload (JSON string or object depending on the audit index). */
+  payload: unknown;
+}
+
+export interface AdminOrderLifecycleResponse {
+  order_id: string;
+  count: number;
+  events: AdminOrderLifecycleEvent[];
+}
+
+/**
+ * `POST /api/v1/admin/kill-switch/symbol` response (engine `CancelSymbolAck`).
+ * A rejected command is surfaced by the gateway as `403 ROLE_DENIED`, so a
+ * `200`/`202` body here always has `accepted: true`.
+ */
+export interface AdminSymbolKillSwitchResponse {
+  accepted: boolean;
+  symbol: string;
+  reason: string;
+  cancelled_orders: number;
+  cancelled_quotes: number;
+  command_id?: string;
+}
+
+/**
+ * `POST /api/v1/admin/kill-switch/gateway` response (engine `KillSwitchGatewayAck`).
+ * Cancels every resting order/quote of one named participant (without
+ * disconnecting it). Rejection → `403 ROLE_DENIED`, so a success body always has
+ * `accepted: true`.
+ */
+export interface AdminGatewayKillSwitchResponse {
+  accepted: boolean;
+  target_gateway_id: string;
+  reason: string;
+  cancelled_orders: number;
+  cancelled_quotes: number;
+  command_id?: string;
+}
+
+/**
+ * `POST /api/v1/admin/kill-switch/global` response (engine `KillSwitchGlobalAck`).
+ * Full-market emergency stop: cancels every resting order/quote for every
+ * gateway. Adds `affected_gateways` to the usual counters.
+ */
+export interface AdminGlobalKillSwitchResponse {
+  accepted: boolean;
+  reason: string;
+  cancelled_orders: number;
+  cancelled_quotes: number;
+  affected_gateways: number;
+  command_id?: string;
 }
 
 // ── History: daily rollup (GET /history/daily) ───────────────────────────────

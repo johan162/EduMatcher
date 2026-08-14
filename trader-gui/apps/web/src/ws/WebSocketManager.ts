@@ -36,6 +36,7 @@ import { useSessionStore } from "@/store/useSessionStore.js";
 import { useBookStore } from "@/store/useBookStore.js";
 import { useHaltStore } from "@/store/useHaltStore.js";
 import { useNotificationStore } from "@/store/useNotificationStore.js";
+import { useMonitorStore } from "@/store/useMonitorStore.js";
 import { envInt } from "@/lib/env.js";
 import type {
   WsEnvelope,
@@ -384,7 +385,13 @@ function handlePrivateMessage(raw: unknown): void {
 function handleAdminMonitorMessage(raw: unknown): void {
   const envelope = raw as WsEnvelope<unknown>;
   if (!envelope?.type) return;
-  emit(envelope);
+  if (envelope.type === "authenticated" || envelope.type === "error") return;
+  // Route the admin feed into its own store rather than the shared bus. ADMIN
+  // also runs the market-data socket, which already delivers session/CB/trade/
+  // book/depth/auction; emitting the admin copies onto the same bus would
+  // double-process them. The cross-gateway order.* events (which ADMIN gets
+  // ONLY here, having no /events socket) and the log live in useMonitorStore.
+  useMonitorStore.getState().ingest(envelope);
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -453,6 +460,7 @@ export function disconnectAll(): void {
   pendingResume.clear();
   seqTracker.reset();
   lastMarketDataAt = null;
+  useMonitorStore.getState().clear();
   notifyHealth();
 }
 
