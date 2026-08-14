@@ -127,7 +127,8 @@ export const cancelCombo = (comboId: string) =>
   });
 
 // ── Positions ─────────────────────────────────────────────────────────────────
-export const getPositions = () => apiFetch<Position[]>("/api/v1/positions");
+export const getPositions = () =>
+  apiFetch<{ positions: Position[] }>("/api/v1/positions").then((response) => response.positions);
 
 // ── Quotes (§14) ──────────────────────────────────────────────────────────────
 // Bootstrap is the authoritative per-side source (ActiveQuote); legs is a dual-

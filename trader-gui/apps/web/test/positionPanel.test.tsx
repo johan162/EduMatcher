@@ -10,10 +10,12 @@ vi.mock("sonner", () => ({
 
 const apiFetchMock = vi.fn(async (path: string, _init?: { body?: string }) => {
   if (path.startsWith("/api/v1/positions")) {
-    return [
-      { symbol: "AAPL", net_qty: 500, last_price: 151.2 },
-      { symbol: "MSFT", net_qty: -200, last_price: 410.0 },
-    ];
+    return {
+      positions: [
+        { symbol: "AAPL", net_qty: 500, last_price: 151.2 },
+        { symbol: "MSFT", net_qty: -200, last_price: 410.0 },
+      ],
+    };
   }
   if (path.startsWith("/api/v1/orders")) {
     return { order_id: "flat-1", status: "PENDING", accepted: null, event: null };
@@ -70,6 +72,17 @@ describe("PositionPanel (§13.6)", () => {
     await waitFor(() => expect(screen.getByText("AAPL")).toBeTruthy());
     expect(screen.getByText("+500")).toBeTruthy();
     expect(screen.getByText("-200")).toBeTruthy();
+  });
+
+  it("renders the empty state when there are no positions", async () => {
+    apiFetchMock.mockImplementationOnce(async (path: string) => {
+      if (path.startsWith("/api/v1/positions")) return { positions: [] };
+      return {};
+    });
+
+    wrap(<PositionPanel />);
+    await waitFor(() => expect(screen.getByText("No open positions.")).toBeTruthy());
+    expect(screen.getByText(/0\s+symbols/)).toBeTruthy();
   });
 
   it("flatten a long submits a SELL MARKET for abs(qty) after confirmation", async () => {

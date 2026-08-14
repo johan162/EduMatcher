@@ -15,7 +15,11 @@ import logging
 
 import pytest
 
-from edumatcher.engine.main import _build_parser, _configure_logging
+from edumatcher.engine.main import (
+    _build_parser,
+    _configure_logging,
+    _country_wire_code,
+)
 
 
 def test_build_parser_defaults() -> None:
@@ -65,3 +69,9 @@ def test_configure_logging_quiet_is_warning() -> None:
 def test_configure_logging_prefers_explicit_level() -> None:
     args = Namespace(log_level="INFO", verbose=2, quiet=True)
     assert _configure_logging(args) == logging.INFO
+
+
+def test_country_wire_code_accepts_configured_country_names() -> None:
+    assert _country_wire_code("Sweden") == "SE"
+    assert _country_wire_code("SE") == "SE"
+    assert _country_wire_code(None) is None
