@@ -1771,6 +1771,21 @@ class StatsProcess:
         if symbols:
             log.info("requested opening snapshots for: %s", ", ".join(symbols))
 
+    def _request_startup_symbols(self) -> bool:
+        """Request engine symbols, reporting a missing engine cleanly."""
+        try:
+            with self._push_lock:
+                self.push.send_multipart(make_symbols_request_msg(STATS_GATEWAY_ID))
+        except zmq.Again:
+            log.error(
+                "pm-stats cannot start because pm-engine is not running or "
+                "not accepting connections. Start pm-engine first. pm-index "
+                "is optional and is only needed for index statistics; no ALF, "
+                "market-data, or API gateway is required by pm-stats."
+            )
+            return False
+        return True
+
     def run(self) -> int:
         """Run until stopped. Returns the intended process exit code."""
         signal.signal(signal.SIGINT, lambda *_: self._stop())
@@ -1783,8 +1798,9 @@ class StatsProcess:
         # then request the symbol list so we can pull opening book snapshots.
         # This handles the race where the engine seeded MM orders before we started.
         time.sleep(0.3)
-        with self._push_lock:
-            self.push.send_multipart(make_symbols_request_msg(STATS_GATEWAY_ID))
+        if not self._request_startup_symbols():
+            self._stop()
+            return 1
         log.debug("requested startup symbols for gateway_id=STATS")
 
         log.info("recording market statistics (Ctrl-C to stop)")
