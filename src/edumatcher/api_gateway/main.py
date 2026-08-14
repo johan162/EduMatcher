@@ -291,6 +291,18 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return int(level)
 
 
+def _route_uvicorn_logging(level: str) -> None:
+    """Send Uvicorn records through the API gateway's configured handler."""
+    uvicorn_level = getattr(logging, str(level).upper(), logging.INFO)
+    root = logging.getLogger()
+    root.setLevel(min(root.level, uvicorn_level))
+    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access", "uvicorn.asgi"):
+        uvicorn_logger = logging.getLogger(logger_name)
+        uvicorn_logger.handlers.clear()
+        uvicorn_logger.propagate = True
+        uvicorn_logger.setLevel(uvicorn_level)
+
+
 def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
@@ -304,8 +316,15 @@ def main() -> None:
         log.warning("selected api_gateways entry is disabled")
         sys.exit(1)
     app = create_app(config)
+    _route_uvicorn_logging(config.log_level)
     try:
-        uvicorn.run(app, host=config.host, port=config.port, log_level=config.log_level)
+        uvicorn.run(
+            app,
+            host=config.host,
+            port=config.port,
+            log_level=config.log_level,
+            log_config=None,
+        )
     except Exception as exc:
         log.error("fatal runtime error: %s", exc)
         raise
