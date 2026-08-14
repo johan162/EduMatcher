@@ -1,9 +1,8 @@
 import { useMemo } from "react";
 import { X } from "lucide-react";
-import { toast } from "sonner";
-import { useCancelOrderMutation } from "@/queries/index.js";
 import { useOrderStore, isTerminal } from "@/store/useOrderStore.js";
-import { ApiError } from "@/api/apiFetch.js";
+import { useOrderCancel } from "@/hooks/useOrderCancel.js";
+import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import { formatPrice, formatQty } from "@/lib/formatters.js";
 import type { Order } from "@/types/index.js";
 
@@ -20,24 +19,15 @@ interface CompactBlotterProps {
  */
 export function CompactBlotter({ symbol, tickDecimals }: CompactBlotterProps) {
   const ordersMap = useOrderStore((s) => s.orders);
-  const cancel = useCancelOrderMutation();
+  // Same cancel behaviour as the full blotter: confirm by default, undo-toast
+  // in power-user mode (§20.3).
+  const { requestCancel, confirmTarget, setConfirmTarget, confirmCancel, busy } = useOrderCancel();
 
   const rows = useMemo<Order[]>(
     () =>
       Object.values(ordersMap).filter((o) => o.symbol === symbol && !isTerminal(o.status)),
     [ordersMap, symbol],
   );
-
-  const doCancel = (orderId: string) =>
-    cancel.mutate(orderId, {
-      onError: (err) => {
-        if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
-          toast(`Cancel submitted — awaiting confirmation for ${orderId.slice(0, 8)}`);
-          return;
-        }
-        toast.error(err instanceof ApiError ? `${err.code}: ${err.message}` : "Cancel failed");
-      },
-    });
 
   return (
     <div className="flex flex-col gap-1 h-full">
@@ -83,8 +73,8 @@ export function CompactBlotter({ symbol, tickDecimals }: CompactBlotterProps) {
                   <td className="px-2 py-0.5 text-right">
                     <button
                       type="button"
-                      onClick={() => doCancel(o.order_id)}
-                      disabled={cancel.isPending}
+                      onClick={() => requestCancel(o)}
+                      disabled={busy}
                       aria-label={`Cancel order ${o.order_id}`}
                       className="text-[#9090b0] hover:text-ask disabled:opacity-50"
                     >
@@ -96,6 +86,17 @@ export function CompactBlotter({ symbol, tickDecimals }: CompactBlotterProps) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {confirmTarget && (
+        <CancelConfirm
+          title="Cancel order?"
+          message={`Cancel ${confirmTarget.side} ${confirmTarget.quantity} ${confirmTarget.symbol} (${confirmTarget.order_id.slice(0, 8)})?`}
+          confirmLabel="Cancel order"
+          busy={busy}
+          onConfirm={confirmCancel}
+          onClose={() => setConfirmTarget(null)}
+        />
       )}
     </div>
   );

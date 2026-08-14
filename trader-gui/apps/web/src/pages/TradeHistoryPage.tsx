@@ -3,7 +3,7 @@ import { useHistoryFillsQuery } from "@/queries/index.js";
 import { useWsEvent } from "@/hooks/useWsEvent.js";
 import { useSymbolStore } from "@/store/useSymbolStore.js";
 import { useBookStore } from "@/store/useBookStore.js";
-import { OrderDetailDrawer } from "@/components/orders/OrderDetailDrawer.js";
+import { useUiStore } from "@/store/useUiStore.js";
 import {
   fillRowFromEvent,
   fillRowFromHistory,
@@ -32,7 +32,7 @@ export function TradeHistoryPage() {
   const [symbol, setSymbol] = useState("");
   const [side, setSide] = useState<Side | "ALL">("ALL");
   const [date, setDate] = useState(todayIso());
-  const [detailId, setDetailId] = useState<string | null>(null);
+  const openOrderDetail = useUiStore((s) => s.openOrderDetail);
   const [liveRows, setLiveRows] = useState<FillRow[]>([]);
 
   const params: Record<string, string> = { limit: "200" };
@@ -185,7 +185,7 @@ export function TradeHistoryPage() {
                   <td className="px-2 py-1">
                     <button
                       type="button"
-                      onClick={() => setDetailId(r.orderId)}
+                      onClick={() => openOrderDetail(r.orderId)}
                       className="font-mono text-sky-400 hover:underline"
                       title="Open order lifecycle"
                     >
@@ -197,10 +197,6 @@ export function TradeHistoryPage() {
             </tbody>
           </table>
         </div>
-      )}
-
-      {detailId && (
-        <OrderDetailDrawer key={detailId} orderId={detailId} onClose={() => setDetailId(null)} />
       )}
     </div>
   );

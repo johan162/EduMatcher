@@ -19,6 +19,7 @@ import {
   List,
   History,
   Quote,
+  Star,
 } from "lucide-react";
 
 interface NavItem {
@@ -27,7 +28,10 @@ interface NavItem {
   Icon: React.ComponentType<{ size?: number }>;
 }
 
-const ALL_ROLES: NavItem[] = [{ to: "/market", label: "Market Overview", Icon: BarChart2 }];
+const ALL_ROLES: NavItem[] = [
+  { to: "/market", label: "Market Overview", Icon: BarChart2 },
+  { to: "/watchlist", label: "Watchlist", Icon: Star },
+];
 
 const TRADER_ITEMS: NavItem[] = [
   { to: "/workspace", label: "Trading Workspace", Icon: Layers },

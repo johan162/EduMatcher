@@ -1,8 +1,11 @@
 import { Outlet, Navigate } from "react-router-dom";
 import { useAuthStore } from "@/store/useAuthStore.js";
+import { useUiStore } from "@/store/useUiStore.js";
 import { TopBar } from "./TopBar.js";
 import { Sidebar } from "./Sidebar.js";
 import { SymbolDetailPanel } from "@/components/symbol/SymbolDetailPanel.js";
+import { EventCenter } from "@/components/notifications/EventCenter.js";
+import { OrderDetailDrawer } from "@/components/orders/OrderDetailDrawer.js";
 
 /**
  * AppShell — the persistent chrome wrapping all authenticated screens.
@@ -10,6 +13,9 @@ import { SymbolDetailPanel } from "@/components/symbol/SymbolDetailPanel.js";
  */
 export function AppShell() {
   const apiKey = useAuthStore((s) => s.apiKey);
+  const eventCenterOpen = useUiStore((s) => s.eventCenterOpen);
+  const orderDetailId = useUiStore((s) => s.orderDetailId);
+  const closeOrderDetail = useUiStore((s) => s.closeOrderDetail);
 
   if (!apiKey) {
     return <Navigate to="/login" replace />;
@@ -32,6 +38,14 @@ export function AppShell() {
 
       {/* Right-panel overlay; renders only when opened from a symbol click (§16). */}
       <SymbolDetailPanel />
+
+      {/* App-level overlays (§20): the Event Center sheet and the shared Order
+          Detail drawer, both driven by useUiStore so the blotter, Trade
+          History, and Event Center all open the same single drawer. */}
+      {eventCenterOpen && <EventCenter />}
+      {orderDetailId && (
+        <OrderDetailDrawer key={orderDetailId} orderId={orderDetailId} onClose={closeOrderDetail} />
+      )}
     </div>
   );
 }

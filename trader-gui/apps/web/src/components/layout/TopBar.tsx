@@ -1,9 +1,11 @@
 import { useAuthStore } from "@/store/useAuthStore.js";
 import { useNotificationStore } from "@/store/useNotificationStore.js";
+import { useUiStore } from "@/store/useUiStore.js";
 import { useConnectionHealth } from "@/hooks/useConnectionHealth.js";
 import { useSessionClock } from "@/hooks/useSessionClock.js";
 import { SESSION_PHASE_META } from "@/lib/sessionState.js";
 import { formatCountdown } from "@/lib/formatters.js";
+import { SettingsPopover } from "@/components/shared/SettingsPopover.js";
 import { Bell, LogOut, Wifi, WifiOff, Activity } from "lucide-react";
 
 const HEALTH_META = {
@@ -22,6 +24,7 @@ export function TopBar() {
   const gatewayId = useAuthStore((s) => s.gatewayId);
   const logout = useAuthStore((s) => s.logout);
   const unread = useNotificationStore((s) => s.unread);
+  const toggleEventCenter = useUiStore((s) => s.toggleEventCenter);
   const health = useConnectionHealth();
   const { now, phase, elapsedMs, countdownMs, nextState } = useSessionClock();
 
@@ -88,6 +91,7 @@ export function TopBar() {
 
         <button
           type="button"
+          onClick={toggleEventCenter}
           className="relative text-[#9090b0] hover:text-[#e8e8f0]"
           aria-label={`Notifications (${unread} unread)`}
         >
@@ -98,6 +102,8 @@ export function TopBar() {
             </span>
           )}
         </button>
+
+        <SettingsPopover />
 
         <span className="text-xs text-[#505070] hidden lg:inline">{gatewayId}</span>
         <span className="text-xs text-[#505070] hidden lg:inline">{role}</span>

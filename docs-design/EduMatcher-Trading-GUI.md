@@ -1,8 +1,8 @@
-Version: 1.11.5
+Version: 1.11.6
 
 Date: 2026-08-14
 
-Status: Design and Research Proposal — partially implemented (phases 1–9 of §23 built in `trader-gui/`)
+Status: Design and Research Proposal — partially implemented (phases 1–10 of §23 built in `trader-gui/`)
 
 
 # EduMatcher — Trading Web UI (`pm-trading-ui`)
@@ -3183,7 +3183,7 @@ demonstrated in isolation.
 | 7 | ✅ Implemented | TRADER Active Orders Blotter (TanStack Table, WS updates, Amend, **Cancel-Replace**, cancel); Order Detail drawer | Cancel-replace an order; open drawer; lifecycle timeline renders |
 | 8 | ✅ Implemented | TRADER OCO/Combo entry + **group rows/badges + group cancel**; Trade History; Position Panel + **Flatten / Flatten All** | Submit OCO; watch one leg fill and sibling cancel; flatten a position |
 | 9 | ✅ Implemented | MARKET_MAKER: Quote card grid, New Quote form, fill alerts, bootstrap + **quotes/legs** fill indicators | Submit two-sided quote; simulate fill; per-leg fill bar updates from `/quotes/bootstrap` (see §23.1 — `/legs` is dual-shaped and not card-authoritative) |
-| 10 | ⬜ Planned | **Notification / Event Center** + bell; **power-user mode** (undo-toast + always-confirm exceptions); **Watchlist** | Fills/rejects persist in Event Center; toggle confirmations; curate watchlist |
+| 10 | ✅ Implemented | **Notification / Event Center** + bell; **power-user mode** (undo-toast + always-confirm exceptions); **Watchlist** | Fills/rejects persist in Event Center; toggle confirmations; curate watchlist |
 | 11 | ⬜ Planned | **Admin API client for existing endpoints** (`GET /status` role, `/admin/session`, `/admin/gateways`, `/admin/halts`, `/admin/kill-switch/symbol`); System Dashboard; `/admin/monitor` WS; Monitor Log Viewer | Dashboard KPIs from monitor stream; monitor log tails cross-gateway events; unsupported admin controls render disabled |
 | 12 | ⬜ Planned | ADMIN Session Control, Gateway Management (Kick), symbol-scoped Kill Switch, disabled global/by-gateway kill-switch placeholders | Transition session from UI; kick a gateway; symbol kill switch works; unsupported scopes stay disabled |
 | 13 | ⬜ Planned | ADMIN Risk Control panel (runtime read-only from `/reference`/`/reference/risk`), Circuit Breaker Management (level selector disabled where unsupported), Symbol Management (read-only until backend), Index Admin read-only history plus disabled write controls | Risk panel renders from stable reference API; unsupported write controls show prerequisite tooltips |
@@ -3466,6 +3466,37 @@ Phase 9 (MARKET_MAKER quote management) findings:
   §14.1), merging the `ActiveQuote` by symbol; F2 opens the active symbol's New Quote form (via the
   quote prefill store) and focuses the Quote ID field. Bounded by the classroom symbol list;
   virtualization is a later concern if symbol counts grow large.
+
+Phase 10 (Notification/Event Center, power-user mode, Watchlist) findings:
+
+- **No backend surface — pure client feature.** Phase 10 added no new API calls; it composes existing
+  stores and streams. The Event Center is fed by the already-wired push sites: fills/cancels/rejects
+  and OCO/combo outcomes from `useOrderEventNotifications`, quote acks/fills from `useQuoteEvents`,
+  and `SESSION`/`CB` entries pushed directly from the market-data WS router (`WebSocketManager`). No
+  extra source was needed to satisfy §20.2.
+- **One shared Order Detail drawer via `useUiStore`.** The drawer is now rendered once in the
+  `AppShell` and driven by `useUiStore.orderDetailId`, so the blotter, Trade History, and Event Center
+  all open the *same* instance. `openOrderDetail` also closes the Event Center so the two right-edge
+  sheets never stack. (The Symbol Detail panel remains independent; a user can still have it and the
+  Order Detail drawer open together — a minor visual overlap left for phase-16 polish.)
+- **Power-user cancel is centralized in `useOrderCancel`.** Both the full Active Orders blotter and
+  the Workspace compact blotter route single-order cancels through this hook: confirm dialog when
+  "Confirm cancellations" is on (default), immediate cancel + undo-toast when off. This also fixed a
+  pre-existing §20.3 gap — the compact blotter previously cancelled with no confirmation at all. The
+  undo re-submits an *equivalent* order for the still-live `remaining_qty` (`lib/resubmit.ts`),
+  explicitly not preserving priority (the toast says so) and returning null (a no-op with a message)
+  when nothing remains. Bulk cancel, OCO/combo group cancel, and Flatten All remain **always-confirm**
+  regardless of the setting.
+- **Settings toggle is memory-only.** `useSettingsStore.confirmCancellations` is surfaced in a
+  top-bar `SettingsPopover`; like the rest of app state it does not persist across reload (§20.3).
+- **Watchlist reuses the existing focus plumbing.** The star toggles on Market Overview and the
+  `useWatchlistStore`-driven focus subscription (`useMarketDataSubscription`) already existed; phase 10
+  added the compact `WatchlistPanel` (built from the same pure `buildMarketRows`, filtered to watched
+  symbols) plus an all-roles `/watchlist` route and sidebar entry. Clicking a row opens Symbol Detail
+  and sets the active symbol, so watched symbols keep their `depth`/`auction` focus subscription.
+- **Event Center marks read on open.** Opening the sheet clears the unread badge; events arriving
+  while it is open re-mark on the next open (a deliberate simplification, not a per-event live
+  re-mark). The buffer is the bounded in-memory ring already in `useNotificationStore` (500).
 
 ---
 
@@ -4341,6 +4372,16 @@ export interface WsDataByType {
 
 > **Revision History**
 >
+> - **1.11.6 (2026-08-14)** — Phase 10 implemented in `trader-gui/` (Notification / Event Center + bell
+>   with kind filter, clear, mark-read-on-open and deep-link to a now-global Order Detail drawer;
+>   power-user mode via a top-bar Settings popover with an undo-toast cancel path; Watchlist panel +
+>   all-roles route). Centralized single-order cancel in a shared `useOrderCancel` hook used by both
+>   the full and compact blotters — fixing a pre-existing §20.3 gap where the compact blotter never
+>   confirmed — and centralized the Order Detail drawer in `useUiStore`/`AppShell`. Pure client
+>   feature, no new API calls. Marked phase 10 ✅ in [§23](#23-implementation-plan) and recorded
+>   findings in [§23.1](#231-implementation-status-and-findings-phases-17). Added tests (resubmit
+>   builder, Event Center filter/clear/read/deep-link, `useUiStore`, Settings toggle, power-user vs
+>   confirm cancel on both blotters, Watchlist panel).
 > - **1.11.5 (2026-08-14)** — Phase 9 implemented in `trader-gui/` (MARKET_MAKER: quote card grid,
 >   New Quote form with live spread indicator, fill alerts with Re-quote, Quote Bootstrap + Legs view)
 >   and verified against the backend. Corrected two contracts after reading the gateway source:

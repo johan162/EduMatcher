@@ -3,18 +3,15 @@ import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { OrdersBlotter } from "@/components/orders/OrdersBlotter.js";
 import { OrderGroupsPanel } from "@/components/orders/OrderGroupsPanel.js";
-import { OrderDetailDrawer } from "@/components/orders/OrderDetailDrawer.js";
 import { AmendDialog } from "@/components/orders/AmendDialog.js";
 import { ReplaceDialog } from "@/components/orders/ReplaceDialog.js";
 import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import { useOrderStore } from "@/store/useOrderStore.js";
 import { useBookStore } from "@/store/useBookStore.js";
 import { useSymbolStore } from "@/store/useSymbolStore.js";
-import {
-  useCancelOrderMutation,
-  useCancelOcoMutation,
-  useCancelComboMutation,
-} from "@/queries/index.js";
+import { useUiStore } from "@/store/useUiStore.js";
+import { useOrderCancel } from "@/hooks/useOrderCancel.js";
+import { useCancelOcoMutation, useCancelComboMutation } from "@/queries/index.js";
 import { getOrders } from "@/api/endpoints.js";
 import { ApiError } from "@/api/apiFetch.js";
 import type { OrderGroup } from "@/lib/orderGroups.js";
@@ -30,14 +27,16 @@ export function ActiveOrdersPage() {
   const ordersMap = useOrderStore((s) => s.orders);
   const syncedAt = useOrderStore((s) => s.syncedAt);
   const orders = useMemo(() => Object.values(ordersMap), [ordersMap]);
-  const cancel = useCancelOrderMutation();
   const cancelOco = useCancelOcoMutation();
   const cancelCombo = useCancelComboMutation();
+  const openOrderDetail = useUiStore((s) => s.openOrderDetail);
+  // Single-order cancel (confirm dialog by default, undo-toast in power-user
+  // mode) is shared with the workspace compact blotter via this hook (§20.3).
+  const { requestCancel, cancelById, confirmTarget, setConfirmTarget, confirmCancel, busy } =
+    useOrderCancel();
 
-  const [detailId, setDetailId] = useState<string | null>(null);
   const [amendTarget, setAmendTarget] = useState<Order | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<Order | null>(null);
-  const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
   const [bulkTarget, setBulkTarget] = useState<string[] | null>(null);
   const [groupTarget, setGroupTarget] = useState<OrderGroup | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -60,19 +59,6 @@ export function ActiveOrdersPage() {
     } finally {
       setRefreshing(false);
     }
-  };
-
-  const doCancel = (orderId: string) => {
-    cancel.mutate(orderId, {
-      onSuccess: () => toast.success(`Cancel submitted for ${orderId.slice(0, 8)}`),
-      onError: (err) => {
-        if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
-          toast(`Cancel submitted — awaiting confirmation for ${orderId.slice(0, 8)}`);
-          return;
-        }
-        toast.error(err instanceof ApiError ? `${err.code}: ${err.message}` : "Cancel failed");
-      },
-    });
   };
 
   // Cancel a whole OCO/combo group with one call: DELETE /oco/{id} cancels both
@@ -116,16 +102,12 @@ export function ActiveOrdersPage() {
       <OrdersBlotter
         orders={orders}
         tickDecimalsFor={tickDecimalsFor}
-        onOpenDetail={setDetailId}
+        onOpenDetail={openOrderDetail}
         onAmend={setAmendTarget}
         onReplace={setReplaceTarget}
-        onCancel={setCancelTarget}
+        onCancel={requestCancel}
         onBulkCancel={setBulkTarget}
       />
-
-      {detailId && (
-        <OrderDetailDrawer key={detailId} orderId={detailId} onClose={() => setDetailId(null)} />
-      )}
 
       {amendTarget && <AmendDialog order={amendTarget} onClose={() => setAmendTarget(null)} />}
 
@@ -133,17 +115,14 @@ export function ActiveOrdersPage() {
         <ReplaceDialog order={replaceTarget} onClose={() => setReplaceTarget(null)} />
       )}
 
-      {cancelTarget && (
+      {confirmTarget && (
         <CancelConfirm
           title="Cancel order?"
-          message={`Cancel ${cancelTarget.side} ${cancelTarget.quantity} ${cancelTarget.symbol} (${cancelTarget.order_id.slice(0, 8)})?`}
+          message={`Cancel ${confirmTarget.side} ${confirmTarget.quantity} ${confirmTarget.symbol} (${confirmTarget.order_id.slice(0, 8)})?`}
           confirmLabel="Cancel order"
-          busy={cancel.isPending}
-          onConfirm={() => {
-            doCancel(cancelTarget.order_id);
-            setCancelTarget(null);
-          }}
-          onClose={() => setCancelTarget(null)}
+          busy={busy}
+          onConfirm={confirmCancel}
+          onClose={() => setConfirmTarget(null)}
         />
       )}
 
@@ -153,7 +132,7 @@ export function ActiveOrdersPage() {
           message={`Cancel ${bulkTarget.length} selected ${bulkTarget.length === 1 ? "order" : "orders"}? This cannot be undone.`}
           confirmLabel={`Cancel ${bulkTarget.length}`}
           onConfirm={() => {
-            bulkTarget.forEach(doCancel);
+            bulkTarget.forEach(cancelById);
             toast(`Cancelling ${bulkTarget.length} orders`);
             setBulkTarget(null);
           }}

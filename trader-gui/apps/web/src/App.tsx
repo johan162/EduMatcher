@@ -11,6 +11,7 @@ import { useQuoteEvents } from "@/hooks/useQuoteEvents.js";
 // Pages (lazy-loaded stubs for now)
 import { LoginPage } from "@/pages/LoginPage.js";
 import { MarketOverviewPage } from "@/pages/MarketOverviewPage.js";
+import { WatchlistPage } from "@/pages/WatchlistPage.js";
 import { TradingWorkspacePage } from "@/pages/TradingWorkspacePage.js";
 import { OrderEntryPage } from "@/pages/OrderEntryPage.js";
 import { ActiveOrdersPage } from "@/pages/ActiveOrdersPage.js";
@@ -61,6 +62,7 @@ export default function App() {
 
         {/* All roles */}
         <Route path="/market" element={<MarketOverviewPage />} />
+        <Route path="/watchlist" element={<WatchlistPage />} />
 
         {/* TRADER only */}
         <Route element={<RoleGuard roles={["TRADER"]} />}>
