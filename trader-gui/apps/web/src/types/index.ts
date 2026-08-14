@@ -200,6 +200,34 @@ export interface OrderHistoryResponse {
   count: number;
 }
 
+/**
+ * `GET /api/v1/history/fills` — durable FILL `order_events` from stats.db,
+ * the same row shape as `/history/orders/{id}` filtered to fills (§13.5.1).
+ * The historical `trade_id` is a single string; the live `order.fill` event
+ * carries a `trade_ids` array instead. `fill_price` is already display money
+ * (persisted verbatim from the private `order.fill` payload). The envelope is
+ * the standard keyset-paginated list shape.
+ */
+export interface HistoryFillsResponse {
+  events: OrderHistoryEvent[];
+  count: number;
+  has_more: boolean;
+  next_cursor?: string;
+}
+
+/**
+ * Response of `POST /api/v1/oco`, `POST /api/v1/combos`, and `POST /quotes`
+ * (gateway `PendingIdResponse`). NOTE the key is the generic **`id`** (equal
+ * to the submitted oco_id / combo_id / quote_id), NOT `oco_id`/`combo_id`.
+ * `event` is always null for these — they have no `?wait=ack` support and
+ * answer `202`/`PENDING` immediately.
+ */
+export interface PendingIdResponse {
+  id: string;
+  status: string;
+  event: Record<string, unknown> | null;
+}
+
 // ── REST: Fill (private order.fill event / pm-msgen OrderFill) ────────────────
 export interface Fill {
   gateway_id: string;
@@ -367,6 +395,54 @@ export interface QuoteLeg {
   filled: number;
   status: string;
   quote_status: string;
+}
+
+/**
+ * pm-msgen `ActiveQuote` — one active two-sided quote with both legs' live
+ * state, from `GET /api/v1/quotes/bootstrap` (§14.3). This is the authoritative
+ * per-side source for the quote cards (§14.1): it always carries bid/ask price,
+ * qty, remaining_qty and status, so `filled = qty - remaining_qty`. A leg whose
+ * resting order is gone reports `MISSING` with zero quantities rather than being
+ * omitted. `bid_price`/`ask_price` are display money and ALWAYS present (may be
+ * null). `tif` is NOT carried here — it lives only on the submitted request.
+ */
+export interface ActiveQuote {
+  quote_id: string;
+  gateway_id: string;
+  symbol: string;
+  state: string;
+  bid_order_id: string;
+  ask_order_id: string;
+  bid_price: number | null;
+  ask_price: number | null;
+  bid_qty: number;
+  ask_qty: number;
+  bid_remaining_qty: number;
+  ask_remaining_qty: number;
+  bid_status: string;
+  ask_status: string;
+}
+
+/** `GET /api/v1/quotes/bootstrap` response. */
+export interface QuoteBootstrapResponse {
+  quotes: ActiveQuote[];
+}
+
+/**
+ * `GET /api/v1/quotes/legs` response. IMPORTANT: this endpoint returns TWO
+ * structurally different `legs` shapes (§14.3 finding):
+ *  - engine round-trip (cold cache): `legs` are full {@link QuoteLeg} records,
+ *    plus the `show_requested`/`complete`/`recent` envelope keys.
+ *  - session-cache fast-path (warm, after any quote.ack/status landed): `legs`
+ *    are per-QUOTE ack/status dicts (`quote_id`, `accepted`, `reason`,
+ *    `bid_order_id`, `ask_order_id`, `status`) — NO `order_id`/`leg_side`/qty.
+ * So `legs` is typed `unknown[]` and normalized defensively in `lib/quotes.ts`.
+ */
+export interface QuoteLegsResponse {
+  legs: unknown[];
+  show_requested?: string;
+  complete?: boolean;
+  recent?: unknown[];
 }
 
 // ── Symbol metadata ───────────────────────────────────────────────────────────

@@ -1,8 +1,8 @@
-Version: 1.11.3
+Version: 1.11.5
 
-Date: 2026-08-12
+Date: 2026-08-14
 
-Status: Design and Research Proposal — partially implemented (phases 1–7 of §23 built in `trader-gui/`)
+Status: Design and Research Proposal — partially implemented (phases 1–9 of §23 built in `trader-gui/`)
 
 
 # EduMatcher — Trading Web UI (`pm-trading-ui`)
@@ -1843,10 +1843,15 @@ active two-sided quote for that symbol.
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- **BID / ASK rows**: price, quantity, and a per-leg fill progress bar (`filled / qty`). Both the
-  per-leg fill quantities and the leg **price** now come from `GET /api/v1/quotes/legs` — the
-  `QuoteLeg` record carries `price` directly, so the card no longer needs to join against
-  `GET /api/v1/quotes/bootstrap` for it (see [§14.3](#143-quote-bootstrap-and-legs-view)).
+- **BID / ASK rows**: price, quantity, and a per-leg fill progress bar (`filled / qty`). These come
+  from the `ActiveQuote` record in `GET /api/v1/quotes/bootstrap`, which carries `bid_price`/
+  `ask_price`, `bid_qty`/`ask_qty`, `bid_remaining_qty`/`ask_remaining_qty` and per-leg status
+  directly, so `filled = qty - remaining_qty`. **Implementation note (phase 9):** the 1.11.x design
+  planned to source these from `GET /api/v1/quotes/legs`, but that endpoint is dual-shaped — it only
+  returns per-leg `QuoteLeg` records on the cold engine round-trip; once any `quote.ack`/`quote.status`
+  has landed it serves the gateway's warm cache, which holds *quote-level* ack/status dicts with no
+  per-leg qty/price. `ActiveQuote` from `/bootstrap` is therefore the authoritative card source; the
+  legs endpoint is a supplementary detail view (see [§14.3](#143-quote-bootstrap-and-legs-view)).
 - **Status badge**: ACTIVE (green), INACTIVE (amber), CANCELLED (slate), PENDING (slate).
 - **New Quote button**: opens the New Quote Form inline ([§14.2](#142-new-quote-form)).
 - **Cancel button**: calls `DELETE /api/v1/quotes/{symbol}` with confirmation.
@@ -1896,11 +1901,18 @@ Two complementary read sources:
 
 - **`GET /api/v1/quotes/bootstrap`** returns all active quote state — used on MM startup to verify
   which quotes are already active on the engine side.
-- **`GET /api/v1/quotes/legs`** returns the individual quote **legs with per-leg fill flags** (API
-  Gateway spec §6.11 — a session-cache endpoint fed by `quote.ack`, `quote.status`, and fills). This
-  is the **authoritative source for the quote cards' fill indicators** in
-  [§14.1.1](#1411-quote-card-anatomy); `/bootstrap` provides the higher-level active-quote snapshot,
-  while `/legs` provides the granular bid/ask fill quantities that drive the progress bars.
+- **`GET /api/v1/quotes/legs`** is intended to return the individual quote **legs with per-leg fill
+  flags** (API Gateway spec §6.11). **Verified backend behaviour (phase 9):** this endpoint returns
+  **two structurally different shapes**. On a cold cache it round-trips the engine and returns full
+  pm-msgen `QuoteLeg` records (`quote_id`, `order_id`, `symbol`, `leg_side`, `qty`, `remaining`,
+  `filled`, `status`, `quote_status`, optional `price`) inside a `{ legs, show_requested, complete,
+  recent }` envelope. But once any `quote.ack`/`quote.status` has landed, the gateway serves its warm
+  session cache, whose entries are keyed by `quote_id` and hold merged *quote-level* ack/status dicts
+  (`quote_id`, `accepted`, `reason`, `bid_order_id`, `ask_order_id`, `status`) with **no** per-leg
+  `order_id`/`leg_side`/`qty`/`price`. Because that warm path is the common case, `/legs` is **not** a
+  dependable source for the card fill bars — the cards use `ActiveQuote` from `/bootstrap` instead
+  ([§14.1.1](#1411-quote-card-anatomy)). The UI normalizes both `/legs` shapes defensively and flags
+  the degraded rows in this view.
 
 These two endpoints should also define the MM reconnect/recovery path:
 
@@ -3169,8 +3181,8 @@ demonstrated in isolation.
 | 5 | ✅ Implemented | **Trading Workspace**: 4-quadrant layout bound to the active symbol; embed chart + DOM + ticket + compact blotter; click-to-trade wiring | Click a DOM level → ticket price prefilled; all quadrants follow active symbol |
 | 6 | ✅ Implemented | TRADER Order Ticket (all 8 single-leg types, Zod validation, TIF phase restrictions, dual BUY/SELL buttons + `B`/`S`, auction banner) | Submit LIMIT via BUY; receive ACK toast + Event Center entry |
 | 7 | ✅ Implemented | TRADER Active Orders Blotter (TanStack Table, WS updates, Amend, **Cancel-Replace**, cancel); Order Detail drawer | Cancel-replace an order; open drawer; lifecycle timeline renders |
-| 8 | ⬜ Planned | TRADER OCO/Combo entry + **group rows/badges + group cancel**; Trade History; Position Panel + **Flatten / Flatten All** | Submit OCO; watch one leg fill and sibling cancel; flatten a position |
-| 9 | ⬜ Planned | MARKET_MAKER: Quote card grid, New Quote form, fill alerts, bootstrap + **quotes/legs** fill indicators | Submit two-sided quote; simulate fill; per-leg fill bar updates from `/quotes/legs` |
+| 8 | ✅ Implemented | TRADER OCO/Combo entry + **group rows/badges + group cancel**; Trade History; Position Panel + **Flatten / Flatten All** | Submit OCO; watch one leg fill and sibling cancel; flatten a position |
+| 9 | ✅ Implemented | MARKET_MAKER: Quote card grid, New Quote form, fill alerts, bootstrap + **quotes/legs** fill indicators | Submit two-sided quote; simulate fill; per-leg fill bar updates from `/quotes/bootstrap` (see §23.1 — `/legs` is dual-shaped and not card-authoritative) |
 | 10 | ⬜ Planned | **Notification / Event Center** + bell; **power-user mode** (undo-toast + always-confirm exceptions); **Watchlist** | Fills/rejects persist in Event Center; toggle confirmations; curate watchlist |
 | 11 | ⬜ Planned | **Admin API client for existing endpoints** (`GET /status` role, `/admin/session`, `/admin/gateways`, `/admin/halts`, `/admin/kill-switch/symbol`); System Dashboard; `/admin/monitor` WS; Monitor Log Viewer | Dashboard KPIs from monitor stream; monitor log tails cross-gateway events; unsupported admin controls render disabled |
 | 12 | ⬜ Planned | ADMIN Session Control, Gateway Management (Kick), symbol-scoped Kill Switch, disabled global/by-gateway kill-switch placeholders | Transition session from UI; kick a gateway; symbol kill switch works; unsupported scopes stay disabled |
@@ -3365,6 +3377,95 @@ Phase 7 review — one logical fix and known simplifications:
   rows so their pill shows, but retains at most `MAX_TERMINAL` (200) of them, dropping the oldest by
   `updated_at` — working orders are never dropped. A fresh `orders.snapshot` on reconnect (which
   `seed` applies as a full replace) additionally reconciles to whatever the gateway still holds.
+
+Phase 8 (OCO/Combo entry + group cancel, Trade History, Position Panel + Flatten) findings:
+
+- **`POST /oco` and `POST /combos` respond with `id`, not `oco_id`/`combo_id`.** Both submit
+  endpoints return the gateway's `PendingIdResponse` (`{ id, status, event }`), where `id` echoes the
+  submitted `oco_id`/`combo_id` (§12.7/§12.8 wrote the response as `{ oco_id }`/`{ combo_id }`, which
+  was wrong). The client types both as `PendingIdResponse` and the forms read `res.id`. Their
+  **DELETE** counterparts are asymmetric — `DELETE /oco/{id}` → `{ oco_id, status:"PENDING_CANCEL" }`
+  and `DELETE /combos/{id}` → `{ combo_id, status:"PENDING_CANCEL" }` — but the client ignores those
+  bodies (the blotter reacts to the live `order.cancelled`/`oco.cancelled`/`combo.status` events).
+  Neither submit endpoint supports `?wait=ack` (unlike `POST /orders`), so `event` is always null and
+  the response is a bare `202`/`PENDING`; the group only materialises in the blotter once the per-leg
+  `order.ack`s arrive carrying `oco_group_id`/`combo_parent_id`.
+- **OCO/Combo request bodies are `StrictModel` (`extra="forbid"`).** The forms send only the fields
+  the type uses — an OCO leg sends `side`/`order_type` plus **either** `price` (LIMIT) **or**
+  `stop_price` (STOP), never a stray key — so a valid submit is not `422`-rejected for unknown fields.
+  The gateway uppercases every `symbol` (parent OCO symbol and each combo leg). `ocoSchema`/
+  `comboSchema` were given per-leg price/stop refinements so a missing leg price is an inline error
+  rather than an engine reject. (The backend leg models also accept `trail_offset` (OCO) and
+  `stop_price` (combo) — a superset the UI does not yet expose.)
+- **`GET /history/fills` is the `order_events` row shape, and its prices are display money.** The
+  endpoint returns the standard keyset envelope `{ events, count, has_more, next_cursor? }`; each row
+  is a stats.db `order_events` FILL row — `ts` (ISO), `side`, `fill_qty`, `fill_price`,
+  `remaining_qty`, `trade_id` (**singular**), `order_id`, `seq` — identical to
+  `GET /history/orders/{id}`. `fill_price` is persisted verbatim from the private `order.fill`
+  payload, which is already display money, so the Fills panel formats it directly (no tick
+  conversion). The live `order.fill` event's `trade_ids` **array** is folded to `trade_ids[0]` with a
+  "+N" badge, matching the historical singular `trade_id`. The endpoint takes `symbol`/`date`/`from`/
+  `to`/`limit`/`after` but **no `side` param**, so Side is filtered client-side; a missing stats DB
+  is `503 STATS_DB`.
+- **Trade History merges a live tail ahead of durable history, deduped by trade id.** Live
+  `order.fill` rows are prepended (bounded to 500) and shown only when the date filter is today; a
+  live row whose `trade_id` already appears in the fetched history is dropped so a catch-up refetch
+  does not double-count. Clicking an Order ID opens the phase-7 Order Detail drawer.
+- **Group cancel is one call; the blotter reacts to events.** `DELETE /oco/{id}` cancels both legs;
+  `DELETE /combos/{id}` cancels the combo and all legs (already-filled legs are not reversed). The
+  `OrderGroupsPanel` renders one parent row per OCO/combo group (kind badge, id, symbols, aggregate
+  "N live / M cancelled") computed by the pure `computeOrderGroups`, alongside the existing per-row
+  Group badge. A `503`/`ENGINE_TIMEOUT` on the cancel is surfaced as "awaiting confirmation".
+- **Flatten builds a MARKET close from the net position.** `buildFlattenOrder` maps a long → SELL and
+  a short → BUY for `abs(net_qty)`, `POST /orders { order_type:"MARKET", tif:"DAY" }` (no `wait`).
+  Flatten is disabled outside CONTINUOUS (MARKET is rejected then, FR-ENG-030). Per-row Flatten
+  confirms by default and uses an undo-toast (cancel the just-sent order) in power-user mode; **Flatten
+  All always confirms**, even in power-user mode. Positions refresh by invalidating `["positions"]` on
+  `order.fill`. `avg_cost`/P&L stay out of scope until the backend exposes them.
+
+Phase 9 (MARKET_MAKER quote management) findings:
+
+- **`POST /quotes` responds with `id`, not `quote_id`.** Like `/oco` and `/combos`, it returns the
+  gateway's `PendingIdResponse` (`{ id, status:"PENDING", event:null }`); `id` echoes the submitted
+  `quote_id`, or the **uppercased symbol** when `quote_id` was omitted. The client types it as
+  `PendingIdResponse` and reads `res.id` (§14.2 first showed `{ quote_id }`, which was wrong). There
+  is no `?wait=ack` — acceptance is observed only via the `quote.ack` WebSocket event. `QuoteRequest`
+  is a `StrictModel` (`extra="forbid"`), uppercases `symbol`, and rejects `bid_price >= ask_price`
+  with `422`; the New Quote form mirrors that spread rule client-side (`quoteSchema`). `DELETE
+  /quotes/{symbol}` answers `{ symbol, status:"PENDING_CANCEL" }` (quotes are cancelled by symbol, one
+  active quote per gateway+symbol).
+- **`GET /quotes/legs` is dual-shaped; the cards read `/quotes/bootstrap` instead.** As detailed in
+  [§14.3](#143-quote-bootstrap-and-legs-view), the warm-cache fast path returns quote-level ack/status
+  dicts, not per-leg `QuoteLeg` records, so it cannot reliably drive the fill bars. The cards source
+  `ActiveQuote` from `/quotes/bootstrap` (always carries per-side `bid/ask_price`, `qty`,
+  `remaining_qty`, status → `filled = qty - remaining`). `lib/quotes.ts::normalizeQuoteLegRows`
+  handles both `/legs` shapes and the Bootstrap+Legs view flags degraded rows. `ActiveQuote` carries
+  no `tif`, so the card omits it (TIF lives only on the submitted request).
+- **Quote WS events carry no `symbol` (and no `gateway_id` in `data`).** `quote.ack`
+  (`{quote_id, accepted, reason, bid_order_id, ask_order_id}`) and `quote.status`
+  (`{quote_id, status, reason}`, status ∈ ACTIVE / INACTIVE_BID_FILLED / INACTIVE_ASK_FILLED /
+  CANCELLED) identify the quote by id only; `gateway_id` is topic-only, on the envelope not the data.
+  `useQuoteEvents` resolves the symbol from the bootstrap query cache by `quote_id`, so a fill alert
+  for a brand-new quote not yet in the refreshed bootstrap falls back to labelling by `quote_id` and
+  omits the Re-quote action until the next reconcile.
+- **Cache reconciliation.** The quote caches (`/bootstrap`, `/legs`) are invalidated on
+  `orders.snapshot` (the first `/events` frame on connect **and** every reconnect) and on every
+  `quote.ack`/`quote.status`, so the dashboard resyncs to engine truth before replayed live events
+  continue. The Bootstrap+Legs view shows a "reconciled at HH:MM:SS" stamp (last successful fetch)
+  and a Resync button. A very active MM therefore triggers frequent bootstrap round-trips; acceptable
+  at classroom scale, a candidate for optimistic cache updates later.
+- **Fill-alert interaction with the generic fill toast.** A quote leg is a resting order, so a leg
+  fill also arrives as `order.fill` and is toasted by `useOrderEventNotifications` (qty @ price). The
+  quote-specific alert (`useQuoteEvents`) adds the "which side filled + Re-quote" toast. Two toasts
+  for one economic event is intentional for now (distinct information); deduplication belongs to the
+  phase-10 notification preferences.
+- **No MARKET_MAKER gate at the gateway.** All quote endpoints require only a trading key
+  (`require_trading`), not the MM role; a non-MM quote is rejected asynchronously via
+  `quote.ack accepted=false`. The UI still restricts the quote screens to MARKET_MAKER via `RoleGuard`.
+- **Card-per-configured-symbol.** The grid renders one card per symbol in the symbol store (matching
+  §14.1), merging the `ActiveQuote` by symbol; F2 opens the active symbol's New Quote form (via the
+  quote prefill store) and focuses the Quote ID field. Bounded by the classroom symbol list;
+  virtualization is a later concern if symbol counts grow large.
 
 ---
 
@@ -4240,6 +4341,29 @@ export interface WsDataByType {
 
 > **Revision History**
 >
+> - **1.11.5 (2026-08-14)** — Phase 9 implemented in `trader-gui/` (MARKET_MAKER: quote card grid,
+>   New Quote form with live spread indicator, fill alerts with Re-quote, Quote Bootstrap + Legs view)
+>   and verified against the backend. Corrected two contracts after reading the gateway source:
+>   `POST /quotes` returns `PendingIdResponse` keyed **`id`** (not `quote_id`) with no `?wait=ack`; and
+>   `GET /quotes/legs` is **dual-shaped** (per-leg `QuoteLeg` records on the cold engine round-trip vs
+>   quote-level ack/status dicts on the warm cache), so the cards now source per-side data from
+>   `ActiveQuote`/`GET /quotes/bootstrap` instead. Updated [§14.1.1](#1411-quote-card-anatomy) and
+>   [§14.3](#143-quote-bootstrap-and-legs-view), marked phase 9 ✅ in [§23](#23-implementation-plan),
+>   and recorded findings in [§23.1](#231-implementation-status-and-findings-phases-17). Added
+>   component/integration tests (quote helpers, New Quote submit + spread validation, quote card fill
+>   bars + cancel + Re-quote prefill, `useQuoteEvents` fill alerts/reject/reconcile, Bootstrap+Legs
+>   dual-shape rendering).
+> - **1.11.4 (2026-08-13)** — Phase 8 implemented in `trader-gui/` (TRADER OCO/Combo entry with
+>   group rows/badges + group cancel, Trade History / Fills, Position Panel with Flatten / Flatten
+>   All) and verified against the backend. Corrected two response-shape contracts after reading the
+>   gateway source: `POST /oco` and `POST /combos` return `PendingIdResponse` keyed **`id`** (not
+>   `oco_id`/`combo_id`) and have no `?wait=ack`; `GET /history/fills` returns the `order_events` row
+>   shape (`trade_id` singular, `fill_price` already display money) in the keyset envelope with no
+>   `side` param (Side filtered client-side). Marked phase 8 ✅ in [§23](#23-implementation-plan) and
+>   recorded the findings in [§23.1](#231-implementation-status-and-findings-phases-17). Added
+>   integration/component tests (OCO/combo submit + validation, group summary + cancel, fills
+>   merge/dedup, Trade History live tail + side filter, Flatten builder + Position Panel session
+>   guard / always-confirm).
 > - **1.11.3 (2026-08-12)** — Two more §26 gaps closed. (1) **Market-data snapshot/resume:**
 >   `/api/v1/market-data` now supports the full `snapshot`/`resume`/`reset` handshake from
 >   [§26.3.2](#2632-snapshot-resume-and-reset-handshake) — a detected `seq` gap is repaired with a

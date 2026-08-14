@@ -68,24 +68,35 @@ export const orderSchema = z
 
 export type OrderFormValues = z.infer<typeof orderSchema>;
 
-export const ocoSchema = z.object({
-  oco_id: z.string().min(1),
-  symbol: z.string().min(1),
-  quantity: z.coerce.number().int().positive(),
-  tif: z.enum(["DAY", "GTC"]),
-  leg1: z.object({
-    side: z.enum(["BUY", "SELL"]),
-    order_type: z.enum(["LIMIT", "STOP"]),
-    price: z.coerce.number().positive().optional(),
-    stop_price: z.coerce.number().positive().optional(),
-  }),
-  leg2: z.object({
-    side: z.enum(["BUY", "SELL"]),
-    order_type: z.enum(["LIMIT", "STOP"]),
-    price: z.coerce.number().positive().optional(),
-    stop_price: z.coerce.number().positive().optional(),
-  }),
+const ocoLeg = z.object({
+  side: z.enum(["BUY", "SELL"]),
+  order_type: z.enum(["LIMIT", "STOP"]),
+  price: z.coerce.number().positive().optional(),
+  stop_price: z.coerce.number().positive().optional(),
 });
+
+export const ocoSchema = z
+  .object({
+    oco_id: z.string().min(1),
+    symbol: z.string().min(1),
+    quantity: z.coerce.number().int().positive(),
+    tif: z.enum(["DAY", "GTC"]),
+    leg1: ocoLeg,
+    leg2: ocoLeg,
+  })
+  .superRefine((d, ctx) => {
+    // A LIMIT leg needs a price; a STOP leg needs a stop price (engine rejects
+    // otherwise). Validate here so the user sees an inline error, not a REJECT.
+    for (const key of ["leg1", "leg2"] as const) {
+      const leg = d[key];
+      if (leg.order_type === "LIMIT" && !leg.price) {
+        ctx.addIssue({ code: "custom", path: [key, "price"], message: "Price required for a LIMIT leg" });
+      }
+      if (leg.order_type === "STOP" && !leg.stop_price) {
+        ctx.addIssue({ code: "custom", path: [key, "stop_price"], message: "Stop price required for a STOP leg" });
+      }
+    }
+  });
 
 export type OcoFormValues = z.infer<typeof ocoSchema>;
 
@@ -96,13 +107,20 @@ export const comboSchema = z.object({
   smp_action: z.enum(["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"]).default("NONE"),
   legs: z
     .array(
-      z.object({
-        symbol: z.string().min(1),
-        side: z.enum(["BUY", "SELL"]),
-        order_type: z.enum(["LIMIT", "MARKET"]).default("LIMIT"),
-        quantity: z.coerce.number().int().positive(),
-        price: z.coerce.number().positive().optional(),
-      }),
+      z
+        .object({
+          symbol: z.string().min(1),
+          side: z.enum(["BUY", "SELL"]),
+          order_type: z.enum(["LIMIT", "MARKET"]).default("LIMIT"),
+          quantity: z.coerce.number().int().positive(),
+          price: z.coerce.number().positive().optional(),
+        })
+        .superRefine((leg, ctx) => {
+          // A LIMIT leg needs a price; a MARKET leg must not carry one.
+          if (leg.order_type === "LIMIT" && !leg.price) {
+            ctx.addIssue({ code: "custom", path: ["price"], message: "Price required for a LIMIT leg" });
+          }
+        }),
     )
     .min(2)
     .max(10),

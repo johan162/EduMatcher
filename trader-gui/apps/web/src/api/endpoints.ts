@@ -7,7 +7,8 @@ import type {
   StatusResponse,
   Order,
   Position,
-  QuoteLeg,
+  QuoteBootstrapResponse,
+  QuoteLegsResponse,
   SymbolInfoDTO,
   AdminGateway,
   HaltEntry,
@@ -21,6 +22,8 @@ import type {
   RawOrder,
   OrderAccepted,
   OrderHistoryResponse,
+  HistoryFillsResponse,
+  PendingIdResponse,
 } from "@/types/index.js";
 
 // ── Auth / status ─────────────────────────────────────────────────────────────
@@ -88,41 +91,57 @@ export const massCancelOrders = (body?: Record<string, unknown>) =>
   });
 
 // ── OCO / Combo ───────────────────────────────────────────────────────────────
+// Both submit endpoints answer 202 with PendingIdResponse — the returned key is
+// `id` (equal to the submitted oco_id / combo_id), NOT `oco_id`/`combo_id`.
 export const submitOco = (body: Record<string, unknown>) =>
-  apiFetch<{ oco_id: string }>("/api/v1/oco", {
+  apiFetch<PendingIdResponse>("/api/v1/oco", {
     method: "POST",
     body: JSON.stringify(body),
   });
 
+// DELETE answers 202 `{ oco_id, status: "PENDING_CANCEL" }`; body is ignored.
 export const cancelOco = (ocoId: string) =>
-  apiFetch<void>(`/api/v1/oco/${ocoId}`, { method: "DELETE" });
+  apiFetch<{ oco_id: string; status: string }>(`/api/v1/oco/${ocoId}`, { method: "DELETE" });
 
 export const submitCombo = (body: Record<string, unknown>) =>
-  apiFetch<{ combo_id: string }>("/api/v1/combos", {
+  apiFetch<PendingIdResponse>("/api/v1/combos", {
     method: "POST",
     body: JSON.stringify(body),
   });
 
+// DELETE answers 202 `{ combo_id, status: "PENDING_CANCEL" }`; body is ignored.
 export const cancelCombo = (comboId: string) =>
-  apiFetch<void>(`/api/v1/combos/${comboId}`, { method: "DELETE" });
+  apiFetch<{ combo_id: string; status: string }>(`/api/v1/combos/${comboId}`, {
+    method: "DELETE",
+  });
 
 // ── Positions ─────────────────────────────────────────────────────────────────
 export const getPositions = () => apiFetch<Position[]>("/api/v1/positions");
 
-// ── Quotes ────────────────────────────────────────────────────────────────────
+// ── Quotes (§14) ──────────────────────────────────────────────────────────────
+// Bootstrap is the authoritative per-side source (ActiveQuote); legs is a dual-
+// shape supplement (see QuoteLegsResponse). Both require a trading key (no MM
+// role gate at the gateway — the engine may still reject via quote.ack).
 export const getQuoteBootstrap = () =>
-  apiFetch<Record<string, unknown>>("/api/v1/quotes/bootstrap");
+  apiFetch<QuoteBootstrapResponse>("/api/v1/quotes/bootstrap");
 
-export const getQuoteLegs = () => apiFetch<{ legs: QuoteLeg[] }>("/api/v1/quotes/legs");
+export const getQuoteLegs = () => apiFetch<QuoteLegsResponse>("/api/v1/quotes/legs");
 
+// 202 PendingIdResponse — the returned key is `id` (equal to the submitted
+// quote_id, or the uppercased symbol when quote_id was omitted), NOT `quote_id`.
 export const submitQuote = (body: Record<string, unknown>) =>
-  apiFetch<{ quote_id: string }>("/api/v1/quotes", {
+  apiFetch<PendingIdResponse>("/api/v1/quotes", {
     method: "POST",
     body: JSON.stringify(body),
   });
 
+// Quotes are addressed by symbol for cancel (one active quote per gateway+symbol).
+// DELETE answers 202 `{ symbol, status: "PENDING_CANCEL" }`; body is ignored.
 export const cancelQuote = (symbol: string) =>
-  apiFetch<void>(`/api/v1/quotes/${symbol}`, { method: "DELETE" });
+  apiFetch<{ symbol: string; status: string }>(
+    `/api/v1/quotes/${encodeURIComponent(symbol)}`,
+    { method: "DELETE" },
+  );
 
 // ── History ───────────────────────────────────────────────────────────────────
 export const getHistoryOrders = (orderId: string) =>
@@ -130,7 +149,7 @@ export const getHistoryOrders = (orderId: string) =>
 
 export const getHistoryFills = (params?: Record<string, string>) => {
   const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
-  return apiFetch<Record<string, unknown>>(`/api/v1/history/fills${qs}`);
+  return apiFetch<HistoryFillsResponse>(`/api/v1/history/fills${qs}`);
 };
 
 export const getHistoryTrades = (symbol: string, limit = 50) =>

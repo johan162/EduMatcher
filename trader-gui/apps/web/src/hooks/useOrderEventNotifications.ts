@@ -49,4 +49,52 @@ export function useOrderEventNotifications(): void {
       orderId: env.data.order_id,
     });
   });
+
+  // OCO / combo group lifecycle (§13.3, §17.2.2). The member orders update in
+  // the blotter from their own order.* events; these entries record the group
+  // outcome — most usefully the sibling auto-cancel when one OCO leg fills.
+  useWsEvent("oco.ack", (env) => {
+    const d = env.data;
+    if (d.accepted) return; // an accepted OCO is unremarkable; only flag rejections
+    toast.error(`OCO ${d.oco_id} rejected: ${d.reason || "rejected"}`);
+    push({
+      ts: Date.now(),
+      kind: "REJECT",
+      title: `OCO ${d.oco_id} rejected`,
+      detail: d.reason || "rejected",
+    });
+  });
+
+  useWsEvent("oco.cancelled", (env) => {
+    const d = env.data;
+    push({
+      ts: Date.now(),
+      kind: "CANCEL",
+      title: `OCO ${d.oco_id} — leg cancelled`,
+      detail: `order ${d.cancelled_order_id.slice(0, 8)}${d.reason ? ` · ${d.reason}` : ""}`,
+      orderId: d.cancelled_order_id,
+    });
+  });
+
+  useWsEvent("combo.ack", (env) => {
+    const d = env.data;
+    if (d.accepted) return;
+    toast.error(`Combo ${d.combo_id} rejected: ${d.reason || "rejected"}`);
+    push({
+      ts: Date.now(),
+      kind: "REJECT",
+      title: `Combo ${d.combo_id} rejected`,
+      detail: d.reason || "rejected",
+    });
+  });
+
+  useWsEvent("combo.status", (env) => {
+    const d = env.data;
+    push({
+      ts: Date.now(),
+      kind: "SYSTEM",
+      title: `Combo ${d.combo_id} · ${d.status}`,
+      detail: d.reason || d.status,
+    });
+  });
 }

@@ -6,7 +6,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as api from "@/api/endpoints.js";
 import { ApiError } from "@/api/apiFetch.js";
 import { normalizeOrder } from "@/types/index.js";
-import type { DailyStat, Order, Position, QuoteLeg } from "@/types/index.js";
+import { normalizeQuoteLegRows } from "@/lib/quotes.js";
+import type { ActiveQuote, DailyStat, Order, Position, QuoteLeg } from "@/types/index.js";
 
 // ── Symbols ───────────────────────────────────────────────────────────────────
 export function useSymbolsQuery() {
@@ -122,6 +123,23 @@ export function useMassCancelMutation() {
   });
 }
 
+// ── OCO / Combo (§12.7–8, §13.3) ─────────────────────────────────────────────
+export function useSubmitOcoMutation() {
+  return useMutation({ mutationFn: api.submitOco });
+}
+
+export function useCancelOcoMutation() {
+  return useMutation({ mutationFn: api.cancelOco });
+}
+
+export function useSubmitComboMutation() {
+  return useMutation({ mutationFn: api.submitCombo });
+}
+
+export function useCancelComboMutation() {
+  return useMutation({ mutationFn: api.cancelCombo });
+}
+
 // ── Positions ─────────────────────────────────────────────────────────────────
 export function usePositionsQuery() {
   return useQuery({
@@ -215,21 +233,33 @@ export function useDailyStatsQuery() {
   });
 }
 
-// ── Quotes ────────────────────────────────────────────────────────────────────
-export function useQuoteBootstrapQuery() {
+// ── Quotes (§14) ──────────────────────────────────────────────────────────────
+/** Active two-sided quotes — the authoritative per-side card source (§14.1). */
+export function useQuoteBootstrapQuery(enabled = true) {
   return useQuery({
     queryKey: ["quotes/bootstrap"],
-    queryFn: api.getQuoteBootstrap,
+    queryFn: () => api.getQuoteBootstrap().then((r) => r.quotes),
+    enabled,
     staleTime: 10_000,
   });
 }
 
-export function useQuoteLegsQuery() {
+/** Dual-shaped legs endpoint, normalized to display rows (§14.3). */
+export function useQuoteLegsQuery(enabled = true) {
   return useQuery({
     queryKey: ["quotes/legs"],
-    queryFn: () => api.getQuoteLegs().then((r) => r.legs as QuoteLeg[]),
+    queryFn: () => api.getQuoteLegs().then((r) => normalizeQuoteLegRows(r.legs)),
+    enabled,
     staleTime: 10_000,
   });
+}
+
+export function useSubmitQuoteMutation() {
+  return useMutation({ mutationFn: api.submitQuote });
+}
+
+export function useCancelQuoteMutation() {
+  return useMutation({ mutationFn: api.cancelQuote });
 }
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
@@ -284,4 +314,4 @@ export function useDisconnectGatewayMutation() {
 }
 
 // Re-export some base types for convenience
-export type { DailyStat, Order, Position, QuoteLeg };
+export type { ActiveQuote, DailyStat, Order, Position, QuoteLeg };

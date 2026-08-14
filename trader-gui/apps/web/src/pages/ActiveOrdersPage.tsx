@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { OrdersBlotter } from "@/components/orders/OrdersBlotter.js";
+import { OrderGroupsPanel } from "@/components/orders/OrderGroupsPanel.js";
 import { OrderDetailDrawer } from "@/components/orders/OrderDetailDrawer.js";
 import { AmendDialog } from "@/components/orders/AmendDialog.js";
 import { ReplaceDialog } from "@/components/orders/ReplaceDialog.js";
@@ -9,9 +10,14 @@ import { CancelConfirm } from "@/components/orders/CancelConfirm.js";
 import { useOrderStore } from "@/store/useOrderStore.js";
 import { useBookStore } from "@/store/useBookStore.js";
 import { useSymbolStore } from "@/store/useSymbolStore.js";
-import { useCancelOrderMutation } from "@/queries/index.js";
+import {
+  useCancelOrderMutation,
+  useCancelOcoMutation,
+  useCancelComboMutation,
+} from "@/queries/index.js";
 import { getOrders } from "@/api/endpoints.js";
 import { ApiError } from "@/api/apiFetch.js";
+import type { OrderGroup } from "@/lib/orderGroups.js";
 import type { Order } from "@/types/index.js";
 
 /**
@@ -25,12 +31,15 @@ export function ActiveOrdersPage() {
   const syncedAt = useOrderStore((s) => s.syncedAt);
   const orders = useMemo(() => Object.values(ordersMap), [ordersMap]);
   const cancel = useCancelOrderMutation();
+  const cancelOco = useCancelOcoMutation();
+  const cancelCombo = useCancelComboMutation();
 
   const [detailId, setDetailId] = useState<string | null>(null);
   const [amendTarget, setAmendTarget] = useState<Order | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<Order | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
   const [bulkTarget, setBulkTarget] = useState<string[] | null>(null);
+  const [groupTarget, setGroupTarget] = useState<OrderGroup | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const tickDecimalsFor = useCallback((symbol: string) => {
@@ -66,6 +75,23 @@ export function ActiveOrdersPage() {
     });
   };
 
+  // Cancel a whole OCO/combo group with one call: DELETE /oco/{id} cancels both
+  // legs; DELETE /combos/{id} cancels the combo and all its legs (§13.3). The
+  // blotter rows then update from the live order.cancelled / oco.cancelled /
+  // combo.status events.
+  const doCancelGroup = (group: OrderGroup) => {
+    const onError = (err: unknown) => {
+      if (err instanceof ApiError && (err.status === 503 || err.code === "ENGINE_TIMEOUT")) {
+        toast(`Cancel ${group.kind} ${group.id} submitted — awaiting confirmation`);
+        return;
+      }
+      toast.error(err instanceof ApiError ? `${err.code}: ${err.message}` : "Group cancel failed");
+    };
+    const onSuccess = () => toast.success(`${group.kind} group ${group.id} cancel submitted`);
+    if (group.kind === "OCO") cancelOco.mutate(group.id, { onSuccess, onError });
+    else cancelCombo.mutate(group.id, { onSuccess, onError });
+  };
+
   return (
     <div className="flex flex-col gap-3 p-4 h-full">
       <div className="flex items-center gap-3">
@@ -84,6 +110,8 @@ export function ActiveOrdersPage() {
           Refresh
         </button>
       </div>
+
+      <OrderGroupsPanel orders={orders} onCancelGroup={setGroupTarget} />
 
       <OrdersBlotter
         orders={orders}
@@ -130,6 +158,24 @@ export function ActiveOrdersPage() {
             setBulkTarget(null);
           }}
           onClose={() => setBulkTarget(null)}
+        />
+      )}
+
+      {groupTarget && (
+        <CancelConfirm
+          title={`Cancel ${groupTarget.kind} group?`}
+          message={
+            groupTarget.kind === "OCO"
+              ? `Cancel OCO group ${groupTarget.id}? This cancels both legs.`
+              : `Cancel combo group ${groupTarget.id}? This cancels the combo and all its legs. Already-filled legs are not reversed.`
+          }
+          confirmLabel="Cancel group"
+          busy={cancelOco.isPending || cancelCombo.isPending}
+          onConfirm={() => {
+            doCancelGroup(groupTarget);
+            setGroupTarget(null);
+          }}
+          onClose={() => setGroupTarget(null)}
         />
       )}
     </div>
