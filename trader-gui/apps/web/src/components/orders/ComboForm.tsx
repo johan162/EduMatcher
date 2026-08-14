@@ -104,7 +104,16 @@ export function ComboForm() {
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div
+      className="flex flex-col gap-2"
+      onKeyDown={(e) => {
+        // Ctrl/Cmd+Enter submits the focused form (§21).
+        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          doSubmit();
+        }
+      }}
+    >
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-0.5">
           <span className="text-[10px] text-[#505070]">Combo ID</span>

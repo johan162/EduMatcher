@@ -7,6 +7,8 @@ import { useMarketDataSubscription } from "@/hooks/useMarketDataSubscription.js"
 import { useOrderEventNotifications } from "@/hooks/useOrderEventNotifications.js";
 import { useOrderStream } from "@/hooks/useOrderStream.js";
 import { useQuoteEvents } from "@/hooks/useQuoteEvents.js";
+import { useHelpKeyboard } from "@/hooks/useHelpKeyboard.js";
+import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts.js";
 
 // Pages (lazy-loaded stubs for now)
 import { LoginPage } from "@/pages/LoginPage.js";
@@ -50,6 +52,10 @@ export default function App() {
   // MARKET_MAKER quote lifecycle: fill alerts + reconcile the quote caches on
   // connect/reconnect and every quote.ack/status (inert for TRADER/ADMIN).
   useQuoteEvents();
+  // Global help shortcuts: Ctrl+/ (help drawer) and ? (shortcut reference).
+  useHelpKeyboard();
+  // Command palette (Ctrl+K) + global navigation shortcuts (§21).
+  useGlobalShortcuts();
 
   return (
     <Routes>

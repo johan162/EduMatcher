@@ -105,6 +105,21 @@ describe("useOrderFields (§12.3)", () => {
   });
 });
 
+describe("OrderTicket field tooltips (§19.3)", () => {
+  it("shows a field-help tooltip on the Price field", async () => {
+    renderTicket(); // LIMIT default → Price field present
+    const help = screen.getByRole("button", { name: "Price help" });
+    fireEvent.focus(help);
+    await waitFor(() => expect(screen.getByRole("tooltip")).toBeTruthy());
+    expect(screen.getByText(/max buy \/ min sell price/)).toBeTruthy();
+  });
+
+  it("puts a help icon on the Quantity field too", () => {
+    renderTicket();
+    expect(screen.getByRole("button", { name: "Quantity help" })).toBeTruthy();
+  });
+});
+
 describe("OrderTicket field visibility per tab", () => {
   it("LIMIT shows Price and hides stop/visible/trail", () => {
     renderTicket();

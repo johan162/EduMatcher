@@ -1,8 +1,8 @@
-Version: 1.11.9
+Version: 1.11.11
 
 Date: 2026-08-14
 
-Status: Design and Research Proposal — partially implemented (phases 1–13 of §23 built in `trader-gui/`)
+Status: Design and Research Proposal — partially implemented (phases 1–15 of §23 built in `trader-gui/`)
 
 
 # EduMatcher — Trading Web UI (`pm-trading-ui`)
@@ -3104,6 +3104,15 @@ A modal search dialog (shadcn `<CommandDialog>`):
 Selecting a symbol sets the active symbol (and opens its Symbol Detail panel); the star toggles
 watchlist membership. Selecting an action triggers the corresponding shortcut or navigation.
 
+> **Implemented in phase 15.** The palette is a dependency-free, keyboard-navigable overlay (↑/↓,
+> Enter, Escape) — symbols come from the symbol store (shown with their live last price; the app has
+> no company-name field), and the action list is role-filtered from `lib/commandItems.ts`. The
+> "toggle panel" shortcuts in [§21](#21-keyboard-shortcuts-reference) (`F3` positions, `F4` blotter,
+> `Ctrl+L` watchlist) are implemented as **navigation to the relevant route**, since those surfaces
+> are routes rather than docked panels; `Ctrl+Shift+F` (Flatten All) navigates to Positions, where the
+> always-confirm flatten-all dialog lives. `Shift+F` (flatten the *selected* position) is deferred —
+> the Positions screen has no row-selection model yet.
+
 ---
 
 ## 22. Configuration
@@ -3221,8 +3230,8 @@ demonstrated in isolation.
 | 11 | ✅ Implemented | **Admin API client for existing endpoints** (`GET /status` role, `/admin/session`, `/admin/gateways`, `/admin/halts`, `/admin/kill-switch/symbol`); System Dashboard; `/admin/monitor` WS; Monitor Log Viewer | Dashboard KPIs from monitor stream; monitor log tails cross-gateway events; unsupported admin controls render disabled |
 | 12 | ✅ Implemented | ADMIN Session Control, Gateway Management (Kick), Kill Switch — symbol / by-gateway / **global** (all backend-supported; see §23.1 — the design's "disabled placeholder" premise was obsolete) | Transition session from UI; kick a gateway; all three kill-switch scopes work with escalating confirmation |
 | 13 | ✅ Implemented | ADMIN Risk Control panel (read-only from `/reference`/`/reference/risk`), Circuit Breaker Management (**functional** per-symbol level selector — see §23.1), Symbol Management (read-only; Add/Edit genuinely unsupported → disabled + tooltip), Index Admin read-only config + history (rebalance API exists; write UI out of scope) | Risk panel renders from stable reference API; Symbol Add/Edit shows prerequisite tooltip; CB level halt works |
-| 14 | ⬜ Planned | Help system: help drawer, field tooltips, shortcut reference, `F1`/`Ctrl+/` | All help content accessible; tooltips visible on ticket fields |
-| 15 | ⬜ Planned | Command palette (`Ctrl+K`), full keyboard shortcut implementation (incl. `B`/`S`, flatten, `Ctrl+.`, `Ctrl+L`) | Navigate entire UI without mouse |
+| 14 | ✅ Implemented | Help system: help drawer (`Ctrl+/` + top-bar button), field tooltips on the ticket, shortcut reference dialog (`?`), `F1` (already wired) | All help content accessible; tooltips visible on ticket fields |
+| 15 | ✅ Implemented | Command palette (`Ctrl+K`), global shortcuts (`Ctrl+.`, `Ctrl+L`, `F3`, `F4`, `Ctrl+Shift+F`, `Ctrl+Enter`); `B`/`S`/`F1`/blotter keys already wired. "Toggle panel" shortcuts navigate to the panel's route (see §23.1) | Navigate entire UI without mouse |
 | 16 | ⬜ Planned | Polish: confirmation dialogs / undo-toasts; empty states; loading skeletons; error boundaries | No uncaught errors; graceful degradation when engine is stopped |
 | 17 | ⬜ Planned | Build pipeline: `vite build`, output to `dist/`, serve via `pm-trading-ui-serve` script | `npm run build` produces deployable `dist/` |
 
@@ -3640,6 +3649,55 @@ Phase 13 (Risk / Circuit Breaker / Symbol / Index admin — mostly read-only) fi
   bootstraps it at login), and the CB active-halts table reuses the live `haltStore` (bootstrapped by
   `GET /admin/halts`, kept current by the always-on `circuit_breaker` channel that ADMIN also
   receives on its market-data socket).
+
+Phase 14 (Help system) findings:
+
+- **Pure client feature; no backend.** Help drawer, field tooltips, and the shortcut reference are
+  all local UI. The drawer + shortcuts state live in `useUiStore` alongside the other overlays, and
+  the help drawer is mutually exclusive with the Event Center (both are right-edge sheets — opening
+  one closes the other; opening the Order Detail drawer closes both).
+- **`F1` was already wired (phase 6);** it focuses the Order Ticket's first field via
+  `react-hotkeys-hook` inside the ticket. Phase 14 added `Ctrl+/` (toggle help drawer, works even
+  while a field has focus) and `?` (open the shortcut reference — bound with `enableOnFormTags:false`
+  so typing `?` in an input is unaffected, per §19.4). The `?`-key section-switch on an open drawer
+  (§19.2 item 2) is deferred as a minor nicety.
+- **Help content is authored inline, not loaded from `/help/*.md`.** §19.1.1 envisioned Markdown
+  files; the implementation uses a typed `HELP_TOPICS` tree instead, avoiding a Markdown-renderer
+  dependency and keeping the content type-checked and testable. The "Keyboard Shortcuts" topic and
+  the `?` dialog both render one shared `SHORTCUTS` table (`lib/shortcuts.ts`) so they never drift.
+- **Field tooltips are accessible and dependency-free.** `FieldInfo` is an info-icon button
+  (`aria-label="{field} help"`) revealing a `role="tooltip"` popover on hover OR keyboard focus,
+  linked by `aria-describedby`. It is wired onto every Order Ticket field. NOTE: the ticket's
+  `labelledField` wrapper had to change from `<label>` to `<div>` — a `<label>` wrapping both the
+  input and the FieldInfo `<button>` would associate the label with the button (the first labelable
+  descendant) rather than the input; every ticket input already carries its own `aria-label`, so the
+  `<div>` loses nothing.
+
+Phase 15 (Command palette + global shortcuts) findings:
+
+- **Pure client feature; no backend.** The command palette (`Ctrl+K`) is a dependency-free
+  keyboard-navigable overlay (↑/↓ move, Enter runs, Escape closes) rendered in the AppShell and gated
+  on `useUiStore.commandPaletteOpen`. It fuzzy-searches the symbol store (rows show the live last
+  price — the app has no company-name field, so the `§21.1` "Apple Inc." mock label is not shown) and
+  a role-filtered action list from the pure `lib/commandItems.ts`. Selecting a symbol opens Symbol
+  Detail + sets the active symbol; the star toggles the watchlist; actions navigate or fire a UI
+  toggle.
+- **"Toggle panel" shortcuts are route navigation.** `F3` (Positions), `F4` (Active Orders), and
+  `Ctrl+L` (Watchlist) navigate to the corresponding route, because those surfaces are routes, not
+  docked panels. They are role-gated in `useGlobalShortcuts` (role read fresh from the store) so an
+  ADMIN pressing `F4` is not bounced by a RoleGuard. `Ctrl+.` toggles the Event Center;
+  `Ctrl+Shift+F` (Flatten All) navigates to Positions, where the always-confirm flatten-all dialog
+  lives — a truly global flatten would need the positions list + that dialog, which are page-scoped.
+  `Shift+F` (flatten the *selected* position) is deferred: Positions has no row-selection model.
+- **`Ctrl+Enter`** submits the focused OCO / Combo form (a keydown on the form root).
+- **What was already wired stays where its behaviour is:** `B`/`S`/`F1` in the Order Ticket, the
+  blotter row keys (Enter / Delete / arrows) in the blotter, `F2` on the quote screen, and
+  `Ctrl+/`/`?` in the help hook. The palette action list surfaces the same navigation for
+  discoverability and mouse-free reach.
+- **Known browser conflicts (noted, `preventDefault` applied):** `Ctrl+L` is the browser's
+  address-bar shortcut and `F3`/`Ctrl+K` are used by some browsers; `preventDefault` wins while the
+  app has focus, but a hardened browser extension could still intercept them — the top-bar search
+  affordance and the palette action list provide mouse-reachable equivalents.
 
 ---
 
@@ -4515,6 +4573,25 @@ export interface WsDataByType {
 
 > **Revision History**
 >
+> - **1.11.11 (2026-08-14)** — Phase 15 implemented in `trader-gui/` (command palette on `Ctrl+K` —
+>   dependency-free, keyboard-navigable symbol + role-aware action search — plus the global shortcuts
+>   `Ctrl+.`, `Ctrl+L`, `F3`, `F4`, `Ctrl+Shift+F`, and `Ctrl+Enter`; a top-bar search affordance). The
+>   "toggle panel" shortcuts navigate to the relevant route (those surfaces are routes, not docked
+>   panels); `Ctrl+Shift+F` routes to Positions where the flatten-all dialog lives; `Shift+F` (flatten
+>   selected) is deferred pending a position row-selection model. Annotated
+>   [§21.1](#211-command-palette-ctrlk), marked phase 15 ✅ in [§23](#23-implementation-plan), and
+>   recorded findings in [§23.1](#231-implementation-status-and-findings-phases-17). Added tests
+>   (role-aware command items + filter, and the palette: filter, symbol-open, action-navigate, star
+>   toggle, Escape).
+> - **1.11.10 (2026-08-14)** — Phase 14 implemented in `trader-gui/` (Help system: right-edge help
+>   drawer toggled by `Ctrl+/` and a top-bar button, accessible field tooltips on every Order Ticket
+>   field, and a keyboard shortcut reference dialog opened by `?`). Pure client UX, no backend. Help
+>   content is authored as a typed topic tree rather than `/help/*.md` (no Markdown-renderer
+>   dependency); the drawer and `?` dialog share one `SHORTCUTS` table; help/Event-Center are mutually
+>   exclusive right-edge sheets. `F1` (focus the ticket) was already wired in phase 6. Marked phase 14
+>   ✅ in [§23](#23-implementation-plan) and recorded findings in
+>   [§23.1](#231-implementation-status-and-findings-phases-17). Added tests (help drawer topics +
+>   shortcuts topic + Escape, shortcuts dialog, FieldInfo hover/focus, and a ticket field-tooltip).
 > - **1.11.9 (2026-08-14)** — Phase 13 implemented in `trader-gui/` (ADMIN read-only Risk Control
 >   panel, Circuit Breaker Management with a functional per-symbol level selector + manual trigger/
 >   clear, read-only Symbol Management with disabled Add/Edit, read-only Index Admin config + history).

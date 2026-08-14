@@ -6,6 +6,9 @@ import { Sidebar } from "./Sidebar.js";
 import { SymbolDetailPanel } from "@/components/symbol/SymbolDetailPanel.js";
 import { EventCenter } from "@/components/notifications/EventCenter.js";
 import { OrderDetailDrawer } from "@/components/orders/OrderDetailDrawer.js";
+import { HelpDrawer } from "@/components/help/HelpDrawer.js";
+import { ShortcutsDialog } from "@/components/help/ShortcutsDialog.js";
+import { CommandPalette } from "@/components/command/CommandPalette.js";
 
 /**
  * AppShell — the persistent chrome wrapping all authenticated screens.
@@ -16,6 +19,9 @@ export function AppShell() {
   const eventCenterOpen = useUiStore((s) => s.eventCenterOpen);
   const orderDetailId = useUiStore((s) => s.orderDetailId);
   const closeOrderDetail = useUiStore((s) => s.closeOrderDetail);
+  const helpOpen = useUiStore((s) => s.helpOpen);
+  const shortcutsOpen = useUiStore((s) => s.shortcutsOpen);
+  const commandPaletteOpen = useUiStore((s) => s.commandPaletteOpen);
 
   if (!apiKey) {
     return <Navigate to="/login" replace />;
@@ -46,6 +52,9 @@ export function AppShell() {
       {orderDetailId && (
         <OrderDetailDrawer key={orderDetailId} orderId={orderDetailId} onClose={closeOrderDetail} />
       )}
+      {helpOpen && <HelpDrawer />}
+      {shortcutsOpen && <ShortcutsDialog />}
+      {commandPaletteOpen && <CommandPalette />}
     </div>
   );
 }

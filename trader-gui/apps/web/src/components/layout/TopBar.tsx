@@ -6,7 +6,7 @@ import { useSessionClock } from "@/hooks/useSessionClock.js";
 import { SESSION_PHASE_META } from "@/lib/sessionState.js";
 import { formatCountdown } from "@/lib/formatters.js";
 import { SettingsPopover } from "@/components/shared/SettingsPopover.js";
-import { Bell, LogOut, Wifi, WifiOff, Activity } from "lucide-react";
+import { Bell, LogOut, Wifi, WifiOff, Activity, HelpCircle, Search } from "lucide-react";
 
 const HEALTH_META = {
   connected: { dot: "text-emerald-400", Icon: Wifi, label: "Connected" },
@@ -25,6 +25,8 @@ export function TopBar() {
   const logout = useAuthStore((s) => s.logout);
   const unread = useNotificationStore((s) => s.unread);
   const toggleEventCenter = useUiStore((s) => s.toggleEventCenter);
+  const toggleHelp = useUiStore((s) => s.toggleHelp);
+  const toggleCommandPalette = useUiStore((s) => s.toggleCommandPalette);
   const health = useConnectionHealth();
   const { now, phase, elapsedMs, countdownMs, nextState } = useSessionClock();
 
@@ -91,6 +93,16 @@ export function TopBar() {
 
         <button
           type="button"
+          onClick={toggleCommandPalette}
+          aria-label="Command palette"
+          title="Search (Ctrl+K)"
+          className="text-[#9090b0] hover:text-[#e8e8f0]"
+        >
+          <Search size={16} />
+        </button>
+
+        <button
+          type="button"
           onClick={toggleEventCenter}
           className="relative text-[#9090b0] hover:text-[#e8e8f0]"
           aria-label={`Notifications (${unread} unread)`}
@@ -104,6 +116,16 @@ export function TopBar() {
         </button>
 
         <SettingsPopover />
+
+        <button
+          type="button"
+          onClick={toggleHelp}
+          aria-label="Help"
+          title="Help (Ctrl+/)"
+          className="text-[#9090b0] hover:text-[#e8e8f0]"
+        >
+          <HelpCircle size={16} />
+        </button>
 
         <span className="text-xs text-[#505070] hidden lg:inline">{gatewayId}</span>
         <span className="text-xs text-[#505070] hidden lg:inline">{role}</span>

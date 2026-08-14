@@ -13,6 +13,7 @@ import { useNotificationStore } from "@/store/useNotificationStore.js";
 import { orderSchema } from "@/lib/validators.js";
 import { ALLOWED_TIF } from "@/lib/sessionState.js";
 import { ApiError } from "@/api/apiFetch.js";
+import { FieldInfo } from "@/components/shared/FieldInfo.js";
 import type { OrderType, Side, Tif, SmpAction } from "@/types/index.js";
 
 interface OrderTicketProps {
@@ -305,14 +306,21 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
     label: string,
     input: React.ReactNode,
     errorKey?: string,
+    info?: React.ReactNode,
   ) => (
-    <label className="flex flex-col gap-0.5">
-      <span className="text-[10px] text-[#505070]">{label}</span>
+    // A <div> (not <label>): each input already carries its own aria-label, and
+    // wrapping a <label> around both the input and the FieldInfo button would
+    // make the label associate with the button instead of the input.
+    <div className="flex flex-col gap-0.5">
+      <span className="flex items-center gap-1 text-[10px] text-[#505070]">
+        {label}
+        {info}
+      </span>
       {input}
       {errorKey && errors[errorKey] && (
         <span className="text-[10px] text-ask">{errors[errorKey]}</span>
       )}
-    </label>
+    </div>
   );
 
   return (
@@ -373,6 +381,8 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
                 aria-label="Symbol"
                 className={`${fieldCls} opacity-70`}
               />,
+              undefined,
+              <FieldInfo label="Symbol" lines={["Locked to the workspace's active symbol."]} />,
             )
           : labelledField(
               "Symbol",
@@ -397,6 +407,10 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
                 </datalist>
               </>,
               "symbol",
+              <FieldInfo
+                label="Symbol"
+                lines={["Required. The instrument to trade.", "Pick from the list, e.g. AAPL."]}
+              />,
             )}
 
         {labelledField(
@@ -411,6 +425,10 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
             className={fieldCls}
           />,
           "quantity",
+          <FieldInfo
+            label="Quantity"
+            lines={["Required. Whole number of shares.", "Must be a positive integer, e.g. 100."]}
+          />,
         )}
 
         {fields.price &&
@@ -426,6 +444,15 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
               className={fieldCls}
             />,
             "price",
+            <FieldInfo
+              label="Price"
+              lines={[
+                `Required for ${orderType} orders.`,
+                "The limit: max buy / min sell price.",
+                "Enter as a decimal, e.g. 150.25.",
+                refPrice !== null ? `Reference: ${refPrice.toFixed(tickDecimals)}` : "Reference: —",
+              ]}
+            />,
           )}
 
         {fields.stop_price &&
@@ -440,6 +467,10 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
               className={fieldCls}
             />,
             "stop_price",
+            <FieldInfo
+              label="Stop price"
+              lines={["Required for STOP / STOP_LIMIT.", "The trigger price; the order activates once reached."]}
+            />,
           )}
 
         {fields.visible_qty &&
@@ -454,6 +485,10 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
               className={fieldCls}
             />,
             "visible_qty",
+            <FieldInfo
+              label="Visible qty"
+              lines={["Required for ICEBERG.", "The slice shown on the book; must be less than the total quantity."]}
+            />,
           )}
 
         {fields.trail_offset &&
@@ -468,6 +503,10 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
               className={fieldCls}
             />,
             "trail_offset",
+            <FieldInfo
+              label="Trail offset"
+              lines={["Required for TRAILING_STOP.", "Distance the stop trails behind the price."]}
+            />,
           )}
 
         {fields.tif &&
@@ -486,6 +525,15 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
                 </option>
               ))}
             </select>,
+            undefined,
+            <FieldInfo
+              label="Time in force"
+              lines={[
+                "How long the order stays live.",
+                "DAY / GTC always; ATO opening auction; ATC closing auction.",
+                "Only values valid this phase are selectable.",
+              ]}
+            />,
           )}
 
         {labelledField(
@@ -503,6 +551,14 @@ export function OrderTicket({ compact = false, lockedSymbol, tickDecimals = 2 }:
               </option>
             ))}
           </select>,
+          undefined,
+          <FieldInfo
+            label="SMP action"
+            lines={[
+              "Optional self-match prevention.",
+              "Leave as Gateway default unless you need a specific policy.",
+            ]}
+          />,
         )}
       </div>
 
