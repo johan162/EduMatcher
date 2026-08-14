@@ -650,7 +650,7 @@ def _parse_api_gateway_instance(
         for gateway_raw in parts[1].split(",")
         if gateway_raw.strip()
     )
-    if not gateway_ids:
+    if not gateway_ids and len(parts) == 2:
         raise ValueError(
             f"Invalid --api-gateway-instance '{raw}': at least one gateway ID is required"
         )
@@ -1226,8 +1226,9 @@ def _build_api_gateway_specs(
         *,
         name: str,
         port: int,
-        gateway_ids: tuple[str, ...] = (),
+        gateway_ids: tuple[str, ...] | None = None,
         credentials: tuple[ApiCredentialSpec, ...] = (),
+        readonly_key: bool | None = None,
     ) -> ApiGatewaySpec:
         return ApiGatewaySpec(
             name=name,
@@ -1240,7 +1241,9 @@ def _build_api_gateway_specs(
             credentials=credentials,
             gateway_ids=gateway_ids,
             generate_keys=generate_keys,
-            generate_readonly_key=generate_readonly_key,
+            generate_readonly_key=(
+                generate_readonly_key if readonly_key is None else readonly_key
+            ),
             rate_limit_writes_per_second=rate_limit_writes_per_second,
             rate_limit_burst=rate_limit_burst,
             engine_auth_sec=engine_auth_sec,
@@ -1256,6 +1259,7 @@ def _build_api_gateway_specs(
                 name=name,
                 port=port if port is not None else base_port + index,
                 gateway_ids=gateway_ids,
+                readonly_key=generate_readonly_key and not gateway_ids,
             )
             for index, (name, gateway_ids, port) in enumerate(parsed_instances)
         )

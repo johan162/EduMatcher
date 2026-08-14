@@ -480,6 +480,38 @@ def test_api_gateway_multiple_instances_output(
     assert "gateway_id: ALGO01" in content
 
 
+def test_api_gateway_identity_free_instance_generates_readonly_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--api-gateway-instance",
+            "desk:TRADER01:8080",
+            "--api-gateway-instance",
+            "dashboards::8081",
+            "--api-gateway-readonly-key",
+            "--seed",
+            "99",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    content = out_file.read_text(encoding="utf-8")
+    assert "desk:" in content
+    assert "dashboards:" in content
+    assert "port: 8080" in content
+    assert "port: 8081" in content
+    assert content.count("gateway_id: null") == 1
+
+
 def test_api_gateway_multiple_instances_reject_duplicate_gateway(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -394,7 +394,7 @@ API gateway options:
 |---|---|---|---|
 | `--api-gateway` | Flag | off | Emit top-level `api_gateways` block for `pm-api-gwy` |
 | `--api-gateway-name NAME` | string | `default` | Name of the generated `api_gateways.<NAME>` entry for single-process generation |
-| `--api-gateway-instance NAME:GATEWAY[,GATEWAY...][:PORT]` | Repeatable | none | Emit one named API gateway process per option, optionally limiting generated keys to listed ALF gateways |
+| `--api-gateway-instance NAME:GATEWAY[,GATEWAY...][:PORT]` | Repeatable | none | Emit one named API gateway process per option; use `NAME::PORT` for an identity-free read-only process |
 | `--api-gateway-enabled` / `--api-gateway-disabled` | Flag pair | unset (`true` when emitted) | Set each generated API gateway `enabled` field |
 | `--api-gateway-host ADDR` | string | `127.0.0.1` | HTTP bind address |
 | `--api-gateway-port N` | int (`> 0`) | `8080` | HTTP listen port |
@@ -438,8 +438,26 @@ Pass `--seed N` to make those generated keys reproducible. Use
 
 Use repeated `--api-gateway-instance` options when you want separate API
 gateway processes for logical separation. A non-null `gateway_id` can belong to
-only one generated API gateway entry; read-only `gateway_id: null` credentials
-may be repeated.
+only one generated API gateway entry. An instance with no gateway list uses the
+`NAME::PORT` form and is suitable for a dashboard or other read-only service.
+For example, this gives the desk process credentials for every participant and
+the dashboard process one read-only credential:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --gateways TRADER01 TRADER02 MM01:MARKET_MAKER OPS01:ADMIN \
+  --api-gateway-instance desk:TRADER01,TRADER02,MM01,OPS01:8080 \
+  --api-gateway-instance dashboards::8081 \
+  --api-gateway-readonly-key \
+  --seed 20260814 \
+  --output engine_config.yaml
+```
+
+With named instances, `--api-gateway-readonly-key` is generated only for
+identity-free instances such as `dashboards::8081`; it is not added to the
+identity-bound `desk` instance. Read-only `gateway_id: null` credentials may
+be repeated across named instances.
 
 Typical CLI example for a local lab with RALF enabled:
 
