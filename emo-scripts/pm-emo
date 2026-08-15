@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+"""Start and stop named EduMatcher process profiles."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import shlex
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+CONFIG_NAME = "emo-config.yaml"
+RUNTIME_DIR_NAME = "emo"
+
+DEFAULT_PROCESSES: list[dict[str, Any]] = [
+    {"name": "log", "command": ["pm-log-srv"]},
+    {"name": "audit", "command": ["pm-audit", "--verbose"]},
+    {"name": "stats", "command": ["pm-stats", "--verbose"]},
+    {"name": "clearing", "command": ["pm-clearing", "--verbose"]},
+    {"name": "engine", "command": ["pm-engine", "--verbose"]},
+    {"name": "scheduler", "command": ["pm-scheduler", "--verbose"]},
+    {"name": "market-data", "command": ["pm-md-gwy", "--verbose"]},
+    {"name": "post-trade", "command": ["pm-ralf-gwy", "--verbose"]},
+    {"name": "drop-copy", "command": ["pm-dc-gwy", "--verbose"]},
+    {"name": "api", "command": ["pm-api-gwy", "--verbose", "--instance", "desk"]},
+    {"name": "api", "command": ["pm-api-gwy", "--verbose", "--instance", "dashboards"]},
+    {"name": "alf", "command": ["pm-alf-gwy", "--verbose"]},
+    {"name": "alf", "command": ["pm-balf-gwy", "--verbose"]},
+]
+
+MICRO_PROCESSES: list[dict[str, Any]] = [
+    {"name": "log", "command": ["pm-log-srv"]},
+    {"name": "engine", "command": ["pm-engine", "--verbose"]},
+]
+
+MINI_PROCESSES: list[dict[str, Any]] = [
+    {"name": "log", "command": ["pm-log-srv"]},
+    {"name": "stats", "command": ["pm-stats", "--verbose"]},
+    {"name": "engine", "command": ["pm-engine", "--verbose"]},
+    {"name": "scheduler", "command": ["pm-scheduler", "--verbose"]},
+    {"name": "market-data", "command": ["pm-md-gwy", "--verbose"]},
+    {"name": "api", "command": ["pm-api-gwy", "--verbose", "--instance", "desk"]},
+    {"name": "alf", "command": ["pm-alf-gwy", "--verbose"]},
+    {"name": "post-trade", "command": ["pm-ralf-gwy", "--verbose"]},
+    {"name": "drop-copy", "command": ["pm-dc-gwy", "--verbose"]},
+]
+
+
+# {"name": "trader", "command": ["pm-alf-console", "--id", "TRADER01", "--verbose"]},
+
+BUILTIN_PROFILES = {
+    "default": DEFAULT_PROCESSES,
+    "micro": MICRO_PROCESSES,
+    "mini": MINI_PROCESSES,
+}
+
+
+
+def resolve_data_dir() -> Path:
+    configured = os.environ.get("EDUMATCHER_DATA_DIR")
+    if configured:
+        return Path(configured).expanduser().resolve()
+    if (REPO_ROOT / "src" / "edumatcher").is_dir():
+        return REPO_ROOT / "src" / "data"
+    return Path("~/.local/share/edumatcher").expanduser()
+
+
+def runtime_dir() -> Path:
+    return resolve_data_dir() / RUNTIME_DIR_NAME
+
+
+def config_path() -> Path:
+    return resolve_data_dir() / CONFIG_NAME
+
+
+def pid_path(name: str) -> Path:
+    return runtime_dir() / f"{name}.pid"
+
+
+def log_path(name: str) -> Path:
+    return runtime_dir() / f"{name}.log"
+
+
+def load_profiles() -> dict[str, list[dict[str, Any]]]:
+    path = config_path()
+    if not path.exists():
+        return {name: list(processes) for name, processes in BUILTIN_PROFILES.items()}
+
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if raw is None:
+        return {"default": list(DEFAULT_PROCESSES)}
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path} must contain a mapping of profile names")
+
+    profiles: dict[str, list[dict[str, Any]]] = {}
+    for profile_name, profile_raw in raw.items():
+        if not isinstance(profile_name, str) or not profile_name.strip():
+            raise ValueError("profile names must be non-empty strings")
+        process_raw = (
+            profile_raw.get("processes")
+            if isinstance(profile_raw, dict)
+            else profile_raw
+        )
+        if not isinstance(process_raw, list):
+            raise ValueError(f"profile {profile_name!r}.processes must be a list")
+        profiles[profile_name] = validate_processes(profile_name, process_raw)
+
+    if "default" not in profiles:
+        profiles["default"] = list(DEFAULT_PROCESSES)
+    return profiles
+
+
+def validate_processes(
+    profile_name: str, process_raw: list[Any]
+) -> list[dict[str, Any]]:
+    processes: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, item in enumerate(process_raw):
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"profile {profile_name!r} process {index} must be a mapping"
+            )
+        name = item.get("name")
+        command = item.get("command")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"profile {profile_name!r} process {index} needs a name")
+        if name in seen:
+            raise ValueError(f"profile {profile_name!r} repeats process name {name!r}")
+        if isinstance(command, str):
+            command = shlex.split(command)
+        if (
+            not isinstance(command, list)
+            or not command
+            or not all(isinstance(part, str) and part for part in command)
+        ):
+            raise ValueError(
+                f"profile {profile_name!r} process {name!r} needs a command list or string"
+            )
+        seen.add(name)
+        processes.append({"name": name, "command": command})
+    return processes
+
+
+def read_pid(name: str) -> int | None:
+    try:
+        pid = int(pid_path(name).read_text(encoding="ascii").strip())
+    except (FileNotFoundError, ValueError):
+        return None
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        pid_path(name).unlink(missing_ok=True)
+        return None
+    except PermissionError:
+        return pid
+    return pid
+
+
+def start_profile(profile_name: str) -> int:
+    profiles = load_profiles()
+    if profile_name not in profiles:
+        available = ", ".join(sorted(profiles))
+        print(
+            f"Unknown configuration {profile_name!r}; available: {available}",
+            file=sys.stderr,
+        )
+        return 2
+
+    runtime_dir().mkdir(parents=True, exist_ok=True)
+    processes = profiles[profile_name]
+    print(f"Starting pm-emo configuration {profile_name!r} from {config_path()}")
+    print(f"Data directory: {resolve_data_dir()}")
+    for process in processes:
+        name = process["name"]
+        existing = read_pid(name)
+        if existing is not None:
+            print(f"  already running {name} (pid {existing})")
+            continue
+        output = log_path(name).open("ab")
+        command = process["command"]
+        try:
+            child = subprocess.Popen(
+                command,
+                cwd=REPO_ROOT,
+                env=os.environ.copy(),
+                stdin=subprocess.DEVNULL,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+        except OSError as exc:
+            output.close()
+            print(f"  failed to start {name}: {exc}", file=sys.stderr)
+            return 1
+        pid_path(name).write_text(f"{child.pid}\n", encoding="ascii")
+        output.close()
+        print(f"  started {name} (pid {child.pid}): {' '.join(command)}")
+    return 0
+
+
+def stop_profile() -> int:
+    runtime = runtime_dir()
+    pid_files = sorted(runtime.glob("*.pid"))
+    if not pid_files:
+        print("No pm-emo-managed processes are running.")
+        return 0
+
+    for path in pid_files:
+        name = path.stem
+        pid = read_pid(name)
+        if pid is None:
+            path.unlink(missing_ok=True)
+            continue
+        try:
+            os.kill(pid, signal.SIGTERM)
+            print(f"  stopped {name} (pid {pid})")
+        except ProcessLookupError:
+            pass
+        path.unlink(missing_ok=True)
+    time.sleep(0.2)
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="pm-emo", description="Manage EduMatcher process profiles"
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    start = subparsers.add_parser("start", help="start a named process profile")
+    start.add_argument("config_name", nargs="?", default="default")
+    subparsers.add_parser("stop", help="stop processes started by pm-emo")
+    return parser
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    try:
+        if args.command == "start":
+            return start_profile(args.config_name or "default")
+        if args.command == "stop":
+            return stop_profile()
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        print(f"pm-emo: {exc}", file=sys.stderr)
+        return 2
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
