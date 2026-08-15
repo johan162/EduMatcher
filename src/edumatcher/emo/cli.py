@@ -16,8 +16,8 @@ from typing import Any
 
 import yaml
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parent
+from edumatcher.config import DATA_DIR, resolve_data_path
+
 CONFIG_NAME = "emo-config.yaml"
 RUNTIME_DIR_NAME = "emo"
 ACTIVE_PROFILE_FILE = "active-profile"
@@ -72,15 +72,8 @@ MICRO_PROCESSES: list[dict[str, Any]] = [
 MINI_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
     {"name": "stats", "command": ["pm-stats", "--verbose"]},
-    {
-        "name": "engine", 
-        "command": ["pm-engine", "--verbose"], 
-        "tcp": "127.0.0.1:5555"
-    },
-    {
-        "name": "scheduler", 
-        "command": ["pm-scheduler", "--daily", "--verbose"]
-    },
+    {"name": "engine", "command": ["pm-engine", "--verbose"], "tcp": "127.0.0.1:5555"},
+    {"name": "scheduler", "command": ["pm-scheduler", "--daily", "--verbose"]},
     {
         "name": "market-data",
         "command": ["pm-md-gwy", "--verbose"],
@@ -114,33 +107,24 @@ BUILTIN_PROFILES = {
 }
 
 
-def resolve_data_dir() -> Path:
-    configured = os.environ.get("EDUMATCHER_DATA_DIR")
-    if configured:
-        return Path(configured).expanduser().resolve()
-    if (REPO_ROOT / "src" / "edumatcher").is_dir():
-        return REPO_ROOT / "src" / "data"
-    return Path("~/.local/share/edumatcher").expanduser()
-
-
 def runtime_dir() -> Path:
-    return resolve_data_dir() / RUNTIME_DIR_NAME
+    return resolve_data_path(RUNTIME_DIR_NAME)
 
 
 def config_path() -> Path:
-    return resolve_data_dir() / CONFIG_NAME
+    return resolve_data_path(CONFIG_NAME)
 
 
 def pid_path(name: str) -> Path:
-    return runtime_dir() / f"{name}.pid"
+    return resolve_data_path(f"{RUNTIME_DIR_NAME}/{name}.pid")
 
 
 def log_path(name: str) -> Path:
-    return runtime_dir() / f"{name}.log"
+    return resolve_data_path(f"{RUNTIME_DIR_NAME}/{name}.log")
 
 
 def active_profile_path() -> Path:
-    return runtime_dir() / ACTIVE_PROFILE_FILE
+    return resolve_data_path(f"{RUNTIME_DIR_NAME}/{ACTIVE_PROFILE_FILE}")
 
 
 def load_profiles() -> dict[str, list[dict[str, Any]]]:
@@ -303,7 +287,6 @@ def check_health(process: dict[str, Any], pid: int | None) -> tuple[str, str]:
         try:
             result = subprocess.run(
                 healthcheck,
-                cwd=REPO_ROOT,
                 env=os.environ.copy(),
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
@@ -342,7 +325,7 @@ def list_profile() -> int:
         return 1
 
     print(f"pm-emo profile: {profile_name}")
-    print(f"data directory: {resolve_data_dir()}")
+    print(f"data directory: {DATA_DIR}")
     print(f"{'':1} {'Process':<20} {'PID':>7}  {'Status':<15} Details")
     print("-" * 76)
     for process in processes:
@@ -400,7 +383,7 @@ def start_profile(profile_name: str) -> int:
     processes = profiles[profile_name]
     write_active_profile(profile_name)
     print(f"Starting pm-emo configuration {profile_name!r} from {config_path()}")
-    print(f"Data directory: {resolve_data_dir()}")
+    print(f"Data directory: {DATA_DIR}")
     for process in processes:
         name = process["name"]
         existing = read_pid(name)
@@ -412,7 +395,6 @@ def start_profile(profile_name: str) -> int:
         try:
             child = subprocess.Popen(
                 command,
-                cwd=REPO_ROOT,
                 env=os.environ.copy(),
                 stdin=subprocess.DEVNULL,
                 stdout=output,
@@ -455,11 +437,10 @@ def stop_profile() -> int:
 
 
 def kill_all_processes() -> int:
-    """Send SIGTERM to every process whose full command line contains pm-."""
+    """Send SIGTERM to every process whose full command line contains pm-opctl."""
     print("Sending signal 15 to all matching EduMatcher processes...")
     result = subprocess.run(
-        ["pkill", "-15", "-f", "-i", "-l", "pm-"],
-        cwd=REPO_ROOT,
+        ["pkill", "-15", "-f", "-i", "-l", "pm-opctl"],
         check=False,
     )
     runtime = runtime_dir()
@@ -475,9 +456,14 @@ def kill_all_processes() -> int:
     return result.returncode
 
 
+def show_data_dir() -> int:
+    print(DATA_DIR)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="pm-emo", description="Manage EduMatcher process profiles"
+        prog="pm-opctl", description="Manage EduMatcher operational process control"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     start = subparsers.add_parser("start", help="start a named process profile")
@@ -485,10 +471,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "init", help="create the built-in process profile configuration"
     )
-    subparsers.add_parser("stop", help="stop processes started by pm-emo")
+    subparsers.add_parser("stop", help="stop processes started by pm-opctl")
     subparsers.add_parser(
         "kill",
-        help="send SIGTERM to every process whose command line contains pm-",
+        help="send SIGTERM to every process whose command line contains pm-opctl",
     )
     subparsers.add_parser("list", help="list status for the active process profile")
     health = subparsers.add_parser(
@@ -500,6 +486,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="print nothing; exit 0 when all processes are running, 1 otherwise",
     )
+    subparsers.add_parser("show", help="print the current data directory path")
     return parser
 
 
@@ -518,8 +505,10 @@ def main() -> int:
             return list_profile()
         if args.command == "health":
             return health_profile(args.quiet)
+        if args.command == "show":
+            return show_data_dir()
     except (OSError, ValueError, yaml.YAMLError) as exc:
-        print(f"pm-emo: {exc}", file=sys.stderr)
+        print(f"pm-opctl: {exc}", file=sys.stderr)
         return 2
     return 2
 
