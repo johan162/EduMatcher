@@ -72,8 +72,9 @@ Commands
     Start a profile (``default`` when omitted), skipping entries already
     running.
 ``list``
-    Print a status table for the active profile and offer to restart any dead
-    entries. Use ``-y`` to restart without asking or ``--no-restart`` to
+    Print a status table for the active profile, including each process's
+    uptime as ``HH:MM`` and resident memory in MiB, and offer to restart any
+    dead entries. Use ``-y`` to restart without asking or ``--no-restart`` to
     suppress the offer; the prompt is skipped automatically when stdin is not
     a terminal.
 ``health [-q]``
@@ -500,6 +501,50 @@ def status_mark(status: str) -> str:
     return f"{YELLOW}⚠️{RESET}"
 
 
+def parse_etime(text: str) -> float | None:
+    """Parse the portable ps elapsed-time format ``[[dd-]hh:]mm:ss`` to minutes."""
+    days, _, clock = text.strip().rpartition("-")
+    parts = clock.split(":")
+    if not all(part.isdigit() for part in parts) or not 2 <= len(parts) <= 3:
+        return None
+    values = [int(part) for part in parts]
+    seconds = values.pop()
+    minutes = values.pop()
+    hours = values.pop() if values else 0
+    total = seconds + minutes * 60 + hours * 3600
+    if days:
+        if not days.isdigit():
+            return None
+        total += int(days) * 86400
+    return total / 60
+
+
+def process_stats(pid: int) -> tuple[float | None, float | None]:
+    """Return (uptime minutes, resident memory MiB) for a running process."""
+    try:
+        result = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "etime=,rss="],
+            capture_output=True,
+            text=True,
+            timeout=HEALTHCHECK_TIMEOUT_SEC,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None, None
+    fields = result.stdout.split()
+    if len(fields) != 2:
+        return None, None
+    etime, rss = fields
+    return parse_etime(etime), int(rss) / 1024 if rss.isdigit() else None
+
+
+def format_uptime(minutes: float | None) -> str:
+    if minutes is None:
+        return "-"
+    total = int(minutes)
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
 def list_profile(restart: str = "ask") -> int:
     profile_name = read_active_profile()
     if profile_name is None:
@@ -513,8 +558,12 @@ def list_profile(restart: str = "ask") -> int:
 
     print(f"pm-opctl profile: {profile_name}")
     print(f"data directory: {DATA_DIR}")
-    print(f"{'':1} {'Process':<20} {'PID':>7}  {'Status':<15} Details")
-    print("-" * 76)
+    header = (
+        f"{'':1} {'Process':<20} {'PID':>7} {'Uptime':>8} "
+        f"{'RSS(MB)':>8}  {'Status':<15} Details"
+    )
+    print(header)
+    print("-" * 94)
     claimed: set[int] = set()
     dead: list[dict[str, Any]] = []
     for process in processes:
@@ -525,8 +574,12 @@ def list_profile(restart: str = "ask") -> int:
             detail = f"{detail} (re-adopted restarted process)"
         if state == "dead":
             dead.append(process)
+        uptime, rss = process_stats(pid) if pid is not None else (None, None)
+        uptime_text = format_uptime(uptime)
+        rss_text = f"{rss:.1f}" if rss is not None else "-"
         print(
-            f"{status_mark(state)} {name:<20} {str(pid or '-'):>7}  {state:<15} {detail}"
+            f"{status_mark(state)} {name:<20} {str(pid or '-'):>7} "
+            f"{uptime_text:>8} {rss_text:>8}  {state:<15} {detail}"
         )
 
     if dead and restart != "never":
