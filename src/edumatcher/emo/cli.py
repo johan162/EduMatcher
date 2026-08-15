@@ -1,5 +1,99 @@
-#!/usr/bin/env python3
-"""Start and stop named EduMatcher process profiles."""
+"""pm-opctl - start, stop, and monitor named EduMatcher process profiles.
+
+EduMatcher runs as a set of cooperating ``pm-*`` processes connected by a
+ZeroMQ message bus. This module is the operator front end for that stack: it
+launches a named group of those processes, tracks them, reports their health,
+and shuts them down again.
+
+Profiles
+--------
+A *profile* is a named list of processes to run together. Three profiles are
+built in:
+
+``micro``
+    Centralized logging plus the matching engine only.
+``mini``
+    A trading-capable subset: logging, stats, engine, scheduler, market data,
+    the desk API gateway, and the ALF/post-trade/drop-copy gateways.
+``default``
+    The full nominal exchange stack, including audit, clearing, both API
+    gateway instances, and the BALF gateway.
+
+The built-ins are used as-is when no configuration file exists. Running
+``init`` writes them to ``<DATA_DIR>/emo-config.yaml`` so they can be edited.
+Once that file exists its profiles replace the built-ins entirely; a missing
+``default`` profile is backfilled from the built-in nominal stack.
+
+Each process entry supports:
+
+``name`` (required)
+    Unique identifier used for the PID and log file names.
+``command`` (required)
+    A YAML list of argv tokens, or a shell-like string that is split with
+    ``shlex``. The command is executed directly, never through a shell.
+``healthcheck`` (optional)
+    A command that exits ``0`` when the process is responsive.
+``tcp`` (optional)
+    A ``"host:port"`` address to probe with a plain TCP connect.
+
+Health checking
+---------------
+There is no general way to prove an arbitrary process is not internally hung,
+so health is reported at three levels of confidence:
+
+* ``dead`` - no live PID could be found for the entry.
+* ``not responding`` - the PID is alive but its ``healthcheck`` failed or its
+  ``tcp`` address refused or timed out.
+* ``running`` - the PID is alive and any configured check passed.
+
+``healthcheck`` takes precedence over ``tcp`` because it exercises the
+application itself. The ``tcp`` probe is far cheaper but weaker: libzmq's I/O
+thread accepts connections independently of the application's own message
+loop, so a successful connect proves the process is alive and bound to its
+port, not that it is still processing messages.
+
+Process tracking
+----------------
+Started processes are detached into their own session and recorded as
+``<DATA_DIR>/emo/<name>.pid``, with combined stdout/stderr appended to
+``<DATA_DIR>/emo/<name>.log``. The active profile name is remembered in
+``<DATA_DIR>/emo/active-profile``.
+
+Because a process restarted outside this tool gets a new PID, a stale PID file
+is not treated as final. ``pgrep`` is used to look for a live process whose
+command line matches the profile entry, and any match is re-adopted and
+written back to the PID file. Matching ignores ``argv[0]`` and compares the
+remaining arguments, since a console script appears in ``ps`` as
+``python /path/to/pm-engine --verbose`` rather than ``pm-engine --verbose``.
+
+Commands
+--------
+``start [profile]``
+    Start a profile (``default`` when omitted), skipping entries already
+    running.
+``list``
+    Print a status table for the active profile and offer to restart any dead
+    entries. Use ``-y`` to restart without asking or ``--no-restart`` to
+    suppress the offer; the prompt is skipped automatically when stdin is not
+    a terminal.
+``health [-q]``
+    Same checks as ``list``, but exits ``0`` only when every process is
+    running. ``-q`` suppresses output for use in monitoring scripts.
+``stop``
+    Send ``SIGTERM`` only to processes recorded in the PID directory.
+``kill``
+    Emergency stop: ``pkill -15 -f -i -l pm-``, which signals every process
+    whose command line contains ``pm-``, including ones this tool did not
+    start.
+``init``
+    Write the built-in profiles to ``<DATA_DIR>/emo-config.yaml``, refusing to
+    overwrite an existing file.
+``show``
+    Print the resolved data directory.
+
+All paths resolve through :func:`edumatcher.config.resolve_data_path`, so the
+tool and the processes it launches agree on ``EDUMATCHER_DATA_DIR``.
+"""
 
 from __future__ import annotations
 
@@ -170,7 +264,7 @@ def create_config() -> int:
     except FileExistsError:
         print(f"Refusing to overwrite existing configuration: {path}", file=sys.stderr)
         return 1
-    print(f"Created pm-emo configuration: {path}")
+    print(f"Created pm-opctl configuration: {path}")
     print("Profiles: " + ", ".join(document))
     return 0
 
@@ -248,6 +342,99 @@ def read_pid(name: str) -> int | None:
     return pid
 
 
+def pgrep_pids(program: str) -> list[int]:
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", program],
+            capture_output=True,
+            text=True,
+            timeout=HEALTHCHECK_TIMEOUT_SEC,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    return [int(line) for line in result.stdout.split() if line.isdigit()]
+
+
+def command_line(pid: int) -> str:
+    try:
+        result = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "args="],
+            capture_output=True,
+            text=True,
+            timeout=HEALTHCHECK_TIMEOUT_SEC,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return result.stdout.strip()
+
+
+def matches_command(cmdline: str, command: list[str]) -> bool:
+    """Match ignoring argv[0]; console scripts run as `python /path/pm-foo ...`."""
+    try:
+        tokens = shlex.split(cmdline)
+    except ValueError:
+        tokens = cmdline.split()
+    program = os.path.basename(command[0])
+    for index, token in enumerate(tokens):
+        if os.path.basename(token) == program:
+            return tokens[index + 1 :] == list(command[1:])
+    return False
+
+
+def discover_pid(process: dict[str, Any], claimed: set[int]) -> int | None:
+    """Find a running process matching this entry's command line."""
+    command = process["command"]
+    own_pid = os.getpid()
+    for pid in pgrep_pids(os.path.basename(command[0])):
+        if pid == own_pid or pid in claimed:
+            continue
+        if matches_command(command_line(pid), command):
+            return pid
+    return None
+
+
+def resolve_pid(process: dict[str, Any], claimed: set[int]) -> tuple[int | None, bool]:
+    """Return the live PID for a process, re-adopting it if it was restarted."""
+    name = process["name"]
+    pid = read_pid(name)
+    if pid is not None:
+        claimed.add(pid)
+        return pid, False
+    pid = discover_pid(process, claimed)
+    if pid is None:
+        return None, False
+    claimed.add(pid)
+    runtime_dir().mkdir(parents=True, exist_ok=True)
+    pid_path(name).write_text(f"{pid}\n", encoding="ascii")
+    return pid, True
+
+
+def spawn_process(process: dict[str, Any]) -> int | None:
+    """Launch one profile process and record its PID."""
+    name = process["name"]
+    command = process["command"]
+    runtime_dir().mkdir(parents=True, exist_ok=True)
+    output = log_path(name).open("ab")
+    try:
+        child = subprocess.Popen(
+            command,
+            env=os.environ.copy(),
+            stdin=subprocess.DEVNULL,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    except OSError as exc:
+        print(f"  failed to start {name}: {exc}", file=sys.stderr)
+        return None
+    finally:
+        output.close()
+    pid_path(name).write_text(f"{child.pid}\n", encoding="ascii")
+    return child.pid
+
+
 def write_active_profile(profile_name: str) -> None:
     active_profile_path().write_text(f"{profile_name}\n", encoding="utf-8")
 
@@ -307,16 +494,16 @@ def check_health(process: dict[str, Any], pid: int | None) -> tuple[str, str]:
 
 def status_mark(status: str) -> str:
     if status == "running":
-        return f"{GREEN}✓{RESET}"
+        return f"{GREEN}✅{RESET}"
     if status == "dead":
-        return f"{RED}✗{RESET}"
-    return f"{YELLOW}⚠{RESET}"
+        return f"{RED}❌{RESET}"
+    return f"{YELLOW}⚠️{RESET}"
 
 
-def list_profile() -> int:
+def list_profile(restart: str = "ask") -> int:
     profile_name = read_active_profile()
     if profile_name is None:
-        print("No pm-emo profile is recorded as started.")
+        print("No pm-opctl profile is recorded as started.")
         return 1
     profiles = load_profiles()
     processes = profiles.get(profile_name)
@@ -324,18 +511,43 @@ def list_profile() -> int:
         print(f"Active profile {profile_name!r} is no longer defined.", file=sys.stderr)
         return 1
 
-    print(f"pm-emo profile: {profile_name}")
+    print(f"pm-opctl profile: {profile_name}")
     print(f"data directory: {DATA_DIR}")
     print(f"{'':1} {'Process':<20} {'PID':>7}  {'Status':<15} Details")
     print("-" * 76)
+    claimed: set[int] = set()
+    dead: list[dict[str, Any]] = []
     for process in processes:
         name = process["name"]
-        pid = read_pid(name)
+        pid, adopted = resolve_pid(process, claimed)
         state, detail = check_health(process, pid)
+        if adopted:
+            detail = f"{detail} (re-adopted restarted process)"
+        if state == "dead":
+            dead.append(process)
         print(
             f"{status_mark(state)} {name:<20} {str(pid or '-'):>7}  {state:<15} {detail}"
         )
+
+    if dead and restart != "never":
+        restart_dead(dead, assume_yes=restart == "always")
     return 0
+
+
+def restart_dead(dead: list[dict[str, Any]], assume_yes: bool) -> None:
+    names = ", ".join(process["name"] for process in dead)
+    if not assume_yes:
+        if not sys.stdin.isatty():
+            return
+        answer = input(f"\nRestart {len(dead)} dead process(es) ({names})? [y/N] ")
+        if answer.strip().lower() not in {"y", "yes"}:
+            return
+    print(f"Restarting: {names}")
+    for process in dead:
+        pid = spawn_process(process)
+        if pid is not None:
+            command = " ".join(process["command"])
+            print(f"  started {process['name']} (pid {pid}): {command}")
 
 
 def health_profile(quiet: bool) -> int:
@@ -343,7 +555,7 @@ def health_profile(quiet: bool) -> int:
     profile_name = read_active_profile()
     if profile_name is None:
         if not quiet:
-            print("No pm-emo profile is recorded as started.", file=sys.stderr)
+            print("No pm-opctl profile is recorded as started.", file=sys.stderr)
         return 1
     profiles = load_profiles()
     processes = profiles.get(profile_name)
@@ -356,9 +568,10 @@ def health_profile(quiet: bool) -> int:
         return 1
 
     healthy = True
+    claimed: set[int] = set()
     for process in processes:
         name = process["name"]
-        pid = read_pid(name)
+        pid, _ = resolve_pid(process, claimed)
         state, detail = check_health(process, pid)
         if state != "running":
             healthy = False
@@ -382,32 +595,19 @@ def start_profile(profile_name: str) -> int:
     runtime_dir().mkdir(parents=True, exist_ok=True)
     processes = profiles[profile_name]
     write_active_profile(profile_name)
-    print(f"Starting pm-emo configuration {profile_name!r} from {config_path()}")
+    print(f"Starting pm-opctl configuration {profile_name!r} from {config_path()}")
     print(f"Data directory: {DATA_DIR}")
+    claimed: set[int] = set()
     for process in processes:
         name = process["name"]
-        existing = read_pid(name)
+        existing, _ = resolve_pid(process, claimed)
         if existing is not None:
             print(f"  already running {name} (pid {existing})")
             continue
-        output = log_path(name).open("ab")
-        command = process["command"]
-        try:
-            child = subprocess.Popen(
-                command,
-                env=os.environ.copy(),
-                stdin=subprocess.DEVNULL,
-                stdout=output,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
-        except OSError as exc:
-            output.close()
-            print(f"  failed to start {name}: {exc}", file=sys.stderr)
+        pid = spawn_process(process)
+        if pid is None:
             return 1
-        pid_path(name).write_text(f"{child.pid}\n", encoding="ascii")
-        output.close()
-        print(f"  started {name} (pid {child.pid}): {' '.join(command)}")
+        print(f"  started {name} (pid {pid}): {' '.join(process['command'])}")
     return 0
 
 
@@ -415,7 +615,7 @@ def stop_profile() -> int:
     runtime = runtime_dir()
     pid_files = sorted(runtime.glob("*.pid"))
     if not pid_files:
-        print("No pm-emo-managed processes are running.")
+        print("No pm-opctl-managed processes are running.")
         active_profile_path().unlink(missing_ok=True)
         return 0
 
@@ -437,10 +637,10 @@ def stop_profile() -> int:
 
 
 def kill_all_processes() -> int:
-    """Send SIGTERM to every process whose full command line contains pm-opctl."""
+    """Send SIGTERM to every process whose full command line contains pm-."""
     print("Sending signal 15 to all matching EduMatcher processes...")
     result = subprocess.run(
-        ["pkill", "-15", "-f", "-i", "-l", "pm-opctl"],
+        ["pkill", "-15", "-f", "-i", "-l", "pm-"],
         check=False,
     )
     runtime = runtime_dir()
@@ -474,9 +674,28 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("stop", help="stop processes started by pm-opctl")
     subparsers.add_parser(
         "kill",
-        help="send SIGTERM to every process whose command line contains pm-opctl",
+        help="send SIGTERM to every process whose command line contains pm-",
     )
-    subparsers.add_parser("list", help="list status for the active process profile")
+    listing = subparsers.add_parser(
+        "list", help="list status for the active process profile"
+    )
+    restart_group = listing.add_mutually_exclusive_group()
+    restart_group.add_argument(
+        "-y",
+        "--restart",
+        dest="restart",
+        action="store_const",
+        const="always",
+        help="restart dead processes without asking",
+    )
+    restart_group.add_argument(
+        "--no-restart",
+        dest="restart",
+        action="store_const",
+        const="never",
+        help="never offer to restart dead processes",
+    )
+    listing.set_defaults(restart="ask")
     health = subparsers.add_parser(
         "health", help="check health of every process in the active profile"
     )
@@ -502,7 +721,7 @@ def main() -> int:
         if args.command == "kill":
             return kill_all_processes()
         if args.command == "list":
-            return list_profile()
+            return list_profile(args.restart)
         if args.command == "health":
             return health_profile(args.quiet)
         if args.command == "show":
