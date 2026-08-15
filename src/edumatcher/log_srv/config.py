@@ -27,6 +27,7 @@ from edumatcher.config import (
     LOG_SRV_PORT,
     LOG_SRV_PUB_PORT,
     LOG_SRV_PULL_PORT,
+    resolve_data_path,
 )
 from edumatcher.logclient.protocol import DEFAULT_MAX_MESSAGE_BYTES
 
@@ -138,7 +139,9 @@ def _load_log_client_config_from_raw(raw: dict[str, Any]) -> LogClientConfig:
         client_raw.get("failover_timeout_sec", DEFAULT_FAILOVER_TIMEOUT_SEC),
         "failover_timeout_sec",
     )
-    failover_dir = Path(str(client_raw.get("failover_dir", str(LOG_FALLBACK_DIR))))
+    failover_dir = resolve_data_path(
+        str(client_raw.get("failover_dir", str(LOG_FALLBACK_DIR)))
+    )
 
     if connect_timeout_sec <= 0:
         raise ValueError("log_server.client.connect_timeout_sec must be > 0")
@@ -311,7 +314,7 @@ def _load_log_server_config_from_raw(raw: dict[str, Any]) -> LogServerConfig:
         name=name,
         bind_address=bind_address,
         port=port,
-        db_path=Path(str(db_path_raw)),
+        db_path=resolve_data_path(str(db_path_raw)),
         retention_days=retention_days,
         max_message_bytes=max_message_bytes,
         max_client_queue=max_client_queue,

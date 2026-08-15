@@ -336,7 +336,12 @@ class TestViewerMain:
                 self.refreshed += 1
 
         class _FakeThread:
-            def __init__(self, target: Callable[[], None], daemon: bool) -> None:
+            def __init__(
+                self,
+                target: Callable[[], None],
+                daemon: bool,
+                **_kwargs: object,
+            ) -> None:
                 self._target = target
                 self._daemon = daemon
 
@@ -421,7 +426,9 @@ class TestViewerMain:
         monkeypatch.setattr(viewer_main, "make_subscriber", lambda *_args: sub)
         monkeypatch.setattr(
             "edumatcher.viewer.main.threading.Thread",
-            lambda target, daemon: type("_T", (), {"start": lambda self: target()})(),
+            lambda target, daemon, **_kwargs: type(
+                "_T", (), {"start": lambda self: target()}
+            )(),
         )
         monkeypatch.setattr("edumatcher.viewer.main.time.sleep", lambda _s: None)
         monkeypatch.setattr(

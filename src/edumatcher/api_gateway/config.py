@@ -23,6 +23,7 @@ from edumatcher.config import (
     ENGINE_PUB_ADDR,
     INDEX_PULL_ADDR,
     INDEX_PUB_ADDR,
+    resolve_data_path,
     STATS_DB_FILE,
 )
 from edumatcher.stats.trading_day import resolve_timezone
@@ -206,10 +207,10 @@ def _load_api_gateway_section(
         raise ValueError(f"{section_name}.port must be > 0")
 
     stats_db_raw = section.get("stats_db", STATS_DB_FILE)
-    stats_db = Path(str(stats_db_raw)).expanduser()
+    stats_db = resolve_data_path(str(stats_db_raw))
 
     audit_db_raw = section.get("audit_db", AUDIT_INDEX_DB_FILE)
-    audit_db = Path(str(audit_db_raw)).expanduser()
+    audit_db = resolve_data_path(str(audit_db_raw))
 
     order_retention_sec = _as_int(
         section.get("order_retention_sec", 3600), section_name, "order_retention_sec"

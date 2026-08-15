@@ -44,7 +44,12 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from edumatcher.config import ENGINE_PULL_ADDR, ENGINE_PUB_ADDR, STATS_DB_FILE
+from edumatcher.config import (
+    ENGINE_PULL_ADDR,
+    ENGINE_PUB_ADDR,
+    STATS_DB_FILE,
+    resolve_data_path,
+)
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -591,7 +596,7 @@ def main() -> None:
     ).start()
 
     latest_snapshot: dict[str, Any] = {"bids": [], "asks": [], "recent_trades": []}
-    stats = _load_stats_from_db(Path(str(args.db)), symbol)
+    stats = _load_stats_from_db(resolve_data_path(str(args.db)), symbol)
     poller = zmq.Poller()
     poller.register(sub, zmq.POLLIN)
 

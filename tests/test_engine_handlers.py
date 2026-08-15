@@ -748,6 +748,13 @@ class TestGatewayStatus:
             "edumatcher.engine.main.load_engine_config",
             lambda _: (_ for _ in ()).throw(FileNotFoundError()),
         )
+        monkeypatch.setattr(
+            "edumatcher.engine.main._compiled_engine_config", lambda: None
+        )
+        monkeypatch.setattr(
+            "edumatcher.engine.main.ENGINE_CONFIG_FILE",
+            tmp_path / "missing" / "engine_config.yaml",
+        )
         monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
         # Engine without config file → no allowlist
         engine = Engine(config_path=None)

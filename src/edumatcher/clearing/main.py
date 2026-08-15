@@ -1066,7 +1066,7 @@ def _configure_logging(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
-    from edumatcher.config import DATA_DIR, ENGINE_PUB_ADDR
+    from edumatcher.config import DATA_DIR, ENGINE_PUB_ADDR, resolve_data_path
 
     parser = _build_parser()
     args = parser.parse_args()
@@ -1088,7 +1088,7 @@ def main() -> None:
         parser.error(f"--timezone: unknown timezone {args.timezone!r}")
 
     if args.datapath is not None:
-        dp = Path(args.datapath).expanduser()
+        dp = resolve_data_path(args.datapath)
         db_path = dp if dp.suffix == ".db" else dp / args.db_name
     else:
         db_path = DATA_DIR / args.db_name

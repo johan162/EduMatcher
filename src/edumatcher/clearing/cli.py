@@ -663,7 +663,7 @@ def _run_prune(db_path: Path, args: argparse.Namespace) -> None:
 def main() -> None:
     import sqlite3
 
-    from edumatcher.config import DATA_DIR
+    from edumatcher.config import DATA_DIR, resolve_data_path
 
     parser = _build_parser()
     args = parser.parse_args()
@@ -675,7 +675,7 @@ def main() -> None:
         raise SystemExit(2) from exc
 
     if args.datapath is not None:
-        dp = Path(args.datapath).expanduser()
+        dp = resolve_data_path(args.datapath)
         db_path = dp if dp.suffix == ".db" else dp / args.db_name
     else:
         db_path = DATA_DIR / args.db_name

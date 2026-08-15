@@ -261,6 +261,38 @@ Every process reads the deployed config from
 your shell profile or launcher so every process in a session sees the same
 configuration and writes to the same data area.
 
+### How the default is selected
+
+The data directory is selected when the EduMatcher Python package is imported;
+it is not selected from the process's current working directory:
+
+1. If `EDUMATCHER_DATA_DIR` is set, its expanded and absolute path wins in both
+  development and installed deployments.
+2. Otherwise, EduMatcher checks where `edumatcher/config.py` is installed. If
+  its package parent is named `src`, EduMatcher treats the process as running
+  from a source checkout and uses `<repo>/src/data/`.
+3. Otherwise, EduMatcher treats the package as installed and uses
+  `~/.local/share/edumatcher` (for example, `/Users/<user>/.local/share/edumatcher`
+  on macOS).
+
+This means running an installed command from inside a repository does not make
+it a source checkout, and running a Poetry command from another directory does
+not change the source-checkout data location. All processes in one exchange
+must use the same `EDUMATCHER_DATA_DIR` value when an explicit shared location
+is needed.
+
+The authored YAML may live elsewhere, but deployment always installs the
+compiled artifact and its copied source under the selected data directory:
+
+```text
+<DATA_DIR>/ref_data/engine_config.json
+<DATA_DIR>/ref_data/engine_config.yaml
+```
+
+Configured relative runtime paths such as `data/stats.db` are also resolved
+under `<DATA_DIR>`, so they refer to the same files regardless of the command's
+working directory. Absolute paths remain explicit overrides.
+
 
 ## Configuration: edit YAML, deploy artifact
 

@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from edumatcher.config_gen.cli import main as config_gen_main
+from edumatcher.config import resolve_data_path
 from edumatcher.engine.config_loader import load_engine_config
 
 
@@ -821,8 +822,8 @@ def test_index_custom_file_paths(
         ],
     )
     cfg = load_engine_config(out_file)
-    assert cfg.indices[0].history_file == "custom/hist.jsonl"
-    assert cfg.indices[0].state_file == "custom/state.json"
+    assert cfg.indices[0].history_file == str(resolve_data_path("custom/hist.jsonl"))
+    assert cfg.indices[0].state_file == str(resolve_data_path("custom/state.json"))
 
 
 def test_index_default_file_paths_derived_from_id(
@@ -848,8 +849,12 @@ def test_index_default_file_paths_derived_from_id(
         ],
     )
     cfg = load_engine_config(out_file)
-    assert cfg.indices[0].history_file == "data/indexes/EDU100_history.jsonl"
-    assert cfg.indices[0].state_file == "data/indexes/EDU100_state.json"
+    assert cfg.indices[0].history_file == str(
+        resolve_data_path("data/indexes/EDU100_history.jsonl")
+    )
+    assert cfg.indices[0].state_file == str(
+        resolve_data_path("data/indexes/EDU100_state.json")
+    )
 
 
 def test_index_missing_constituents_fails(

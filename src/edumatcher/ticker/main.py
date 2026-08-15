@@ -47,7 +47,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from edumatcher.config import ENGINE_PUB_ADDR, STATS_DB_FILE
+from edumatcher.config import ENGINE_PUB_ADDR, STATS_DB_FILE, resolve_data_path
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -534,7 +534,7 @@ def main() -> None:
         if session_tz is None:
             parser.error(f"--timezone: unknown timezone {args.timezone!r}")
     TickerProcess(
-        db_path=Path(args.db),
+        db_path=resolve_data_path(args.db),
         db_interval=args.db_interval,
         session_tz=session_tz,
     ).run()

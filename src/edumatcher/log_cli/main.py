@@ -23,10 +23,9 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from pathlib import Path
 from typing import Any
 
-from edumatcher.config import LOG_DB_FILE
+from edumatcher.config import LOG_DB_FILE, resolve_data_path
 from edumatcher.log_cli.diagnose import Finding, run_diagnostics
 from edumatcher.log_cli import queries
 from edumatcher.log_srv.config import DEFAULT_RETENTION_DAYS
@@ -327,7 +326,7 @@ def main() -> None:
     args = parser.parse_args()
     fmt = _resolve_format(args)
 
-    db_path = Path(args.db).expanduser()
+    db_path = resolve_data_path(args.db)
 
     if args.command != "stats" and not db_path.exists():
         print(

@@ -89,6 +89,20 @@ What the exchange runs is a *compiled artifact* at
 running process reads. No process accepts a config path, so it is not possible
 to start two of them against different files.
 
+`<EDUMATCHER_DATA_DIR>` is resolved centrally by the runtime configuration
+module. `EDUMATCHER_DATA_DIR` takes precedence; without it, a source checkout
+uses `<repo>/src/data/`, while an installed production package uses
+`~/.local/share/edumatcher`. Source mode is determined from the installed
+location of `edumatcher/config.py` (its package parent is named `src`), not from
+the current working directory. See [Getting Started — how the default is
+selected](000-getting-started.md#how-the-default-is-selected) for the exact
+precedence rules.
+
+The same resolver places configured relative runtime paths, such as
+`data/stats.db` and `data/log.db`, under this shared data directory. This keeps
+`pm-engine`, `pm-stats`, `pm-log-srv`, and `pm-api-gwy` on the same files even
+when they are launched from different directories.
+
 See [Compile Configs with `pm-config-deploy`](#compile-configs-with-pm-config-deploy)
 for how the authored file becomes that artifact.
 

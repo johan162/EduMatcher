@@ -7,7 +7,6 @@ import asyncio
 import logging
 import sys
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import AsyncGenerator
 
 import uvicorn
@@ -31,6 +30,7 @@ from edumatcher.api_gateway.routers import (
     ws,
 )
 from edumatcher.api_gateway.sessions import SessionRegistry
+from edumatcher.config import resolve_data_path
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -169,7 +169,7 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
         engine_pub_addr=engine_pub_addr,
         index_pull_addr=index_pull_addr,
         index_pub_addr=index_pub_addr,
-        stats_db=Path(args.stats_db).expanduser() if args.stats_db else config.stats_db,
+        stats_db=resolve_data_path(args.stats_db) if args.stats_db else config.stats_db,
         market_data_cache_sec=config.market_data_cache_sec,
         log_level=args.log_level.lower() if args.log_level else config.log_level,
         swagger_enabled=config.swagger_enabled,

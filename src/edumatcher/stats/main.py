@@ -92,6 +92,7 @@ from edumatcher.config import (
     ENGINE_PUB_ADDR,
     INDEX_PUB_CONNECT_ADDR,
     STATS_DB_FILE,
+    resolve_data_path,
 )
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -2121,7 +2122,7 @@ def main() -> None:
         parser.error(f"--timezone: unknown timezone {args.timezone!r}")
     try:
         process = StatsProcess(
-            Path(args.db),
+            resolve_data_path(args.db),
             snapshot_interval_sec=args.snapshot_interval,
             sql_trace=args.sql_trace,
             session_tz=session_tz,

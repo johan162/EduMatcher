@@ -8,10 +8,9 @@ import json
 import sqlite3
 import sys
 from datetime import tzinfo
-from pathlib import Path
 from typing import Any
 
-from edumatcher.config import STATS_DB_FILE
+from edumatcher.config import STATS_DB_FILE, resolve_data_path
 from edumatcher.stats.event_types import EVENT_TYPES
 from edumatcher.stats.query import (
     InvalidCursorError,
@@ -527,7 +526,7 @@ def main() -> None:
         print(f"[ERROR] {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
 
-    db_path = Path(args.db).expanduser()
+    db_path = resolve_data_path(args.db)
 
     try:
         conn = open_readonly_connection(db_path)
