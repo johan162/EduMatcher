@@ -12,6 +12,7 @@ import argparse
 import errno
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Callable, cast
 
 import pytest
@@ -374,7 +375,11 @@ class TestViewerMain:
             ),
         )
         monkeypatch.setattr("edumatcher.viewer.main.time.sleep", lambda _s: None)
-        monkeypatch.setattr("edumatcher.viewer.main.threading.Thread", _FakeThread)
+        monkeypatch.setattr(
+            viewer_main,
+            "threading",
+            SimpleNamespace(Thread=_FakeThread),
+        )
         monkeypatch.setattr(viewer_main, "Live", _FakeLive)
         monkeypatch.setattr(
             "edumatcher.viewer.main.zmq.Poller",
@@ -425,10 +430,13 @@ class TestViewerMain:
         )
         monkeypatch.setattr(viewer_main, "make_subscriber", lambda *_args: sub)
         monkeypatch.setattr(
-            "edumatcher.viewer.main.threading.Thread",
-            lambda target, daemon, **_kwargs: type(
-                "_T", (), {"start": lambda self: target()}
-            )(),
+            viewer_main,
+            "threading",
+            SimpleNamespace(
+                Thread=lambda target, daemon, **_kwargs: type(
+                    "_T", (), {"start": lambda self: target()}
+                )()
+            ),
         )
         monkeypatch.setattr("edumatcher.viewer.main.time.sleep", lambda _s: None)
         monkeypatch.setattr(
