@@ -136,12 +136,9 @@ class TestStatsStartup:
         self, sp: StatsProcess, caplog: pytest.LogCaptureFixture
     ) -> None:
         cast(MagicMock, sp.push.send_multipart).side_effect = zmq.Again()
-        caplog.set_level(logging.ERROR, logger="edumatcher.stats.main")
+        caplog.set_level(logging.WARNING, logger="edumatcher.stats.main")
 
         assert sp._request_startup_symbols() is False
-        assert "pm-engine is not running" in caplog.text
-        assert "pm-index is optional" in caplog.text
-        assert "no ALF, market-data, or API gateway" in caplog.text
 
 
 def test_explicit_data_db_path_uses_shared_data_directory() -> None:

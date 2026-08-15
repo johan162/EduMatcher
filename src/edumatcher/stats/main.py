@@ -168,6 +168,7 @@ _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 # a burst deeper than the mark is dropped silently at the socket. Matches the
 # order of magnitude pm-log-srv already uses for its publisher.
 _SUB_RCVHWM = 100_000
+_ENGINE_RETRY_SEC = 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -1773,17 +1774,11 @@ class StatsProcess:
             log.info("requested opening snapshots for: %s", ", ".join(symbols))
 
     def _request_startup_symbols(self) -> bool:
-        """Request engine symbols, reporting a missing engine cleanly."""
+        """Request engine symbols, reporting whether the engine is reachable."""
         try:
             with self._push_lock:
                 self.push.send_multipart(make_symbols_request_msg(STATS_GATEWAY_ID))
         except zmq.Again:
-            log.error(
-                "pm-stats cannot start because pm-engine is not running or "
-                "not accepting connections. Start pm-engine first. pm-index "
-                "is optional and is only needed for index statistics; no ALF, "
-                "market-data, or API gateway is required by pm-stats."
-            )
             return False
         return True
 
@@ -1800,8 +1795,12 @@ class StatsProcess:
         # This handles the race where the engine seeded MM orders before we started.
         time.sleep(0.3)
         if not self._request_startup_symbols():
-            self._stop()
-            return 1
+            log.warning("pm-stats waiting for pm-engine to start")
+            while self._running and not self._request_startup_symbols():
+                time.sleep(_ENGINE_RETRY_SEC)
+        if not self._running:
+            self.close()
+            return 0
         log.debug("requested startup symbols for gateway_id=STATS")
 
         log.info("recording market statistics (Ctrl-C to stop)")

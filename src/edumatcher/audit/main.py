@@ -349,6 +349,7 @@ class AuditProcess:
             self.flush_interval,
             ENGINE_PUB_ADDR,
         )
+        log.info("pm-audit waiting for pm-engine events")
         try:
             while self._running:
                 t.join(timeout=_JOIN_POLL_SEC)  # re-check _running every 500 ms

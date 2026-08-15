@@ -337,6 +337,7 @@ class ClearingProcess:
             self._flush_size,
             self._flush_interval_sec,
         )
+        log.info("pm-clearing waiting for pm-engine events")
 
         # Signal handlers may only be installed from the main thread.
         # When run() is called from a test thread, skip graceful-signal setup.
