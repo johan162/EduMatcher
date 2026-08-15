@@ -5,13 +5,17 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import sqlite3
+import subprocess
 import sys
 from datetime import tzinfo
-from typing import Any
+from pathlib import Path
+from typing import Any, TypedDict
 
 from edumatcher.config import STATS_DB_FILE, resolve_data_path
 from edumatcher.stats.event_types import EVENT_TYPES
+from edumatcher.stats.main import SCHEMA_VERSION
 from edumatcher.stats.query import (
     InvalidCursorError,
     open_readonly_connection,
@@ -155,6 +159,24 @@ _FEED_GAPS_COLUMNS = [
 _AFTER_HELP = (
     "Opaque cursor from a previous run's truncation notice; fetches the next page"
 )
+
+
+class _HealthProcessReport(TypedDict):
+    healthy: bool
+    pids: list[int]
+    detail: str
+
+
+class _HealthDatabaseReport(TypedDict):
+    healthy: bool
+    path: str
+    detail: str
+
+
+class _HealthReport(TypedDict):
+    healthy: bool
+    process: _HealthProcessReport
+    database: _HealthDatabaseReport
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -318,7 +340,79 @@ def _build_parser() -> argparse.ArgumentParser:
     gaps.add_argument("--to", dest="to_ts", metavar="ISO_TS")
     gaps.add_argument("--limit", type=int, default=500, metavar="N")
 
+    sub.add_parser(
+        "health",
+        help="Check the pm-stats process and stats database read/write health",
+    ).add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Print nothing; exit 0 when healthy or -1 otherwise",
+    )
+
     return parser
+
+
+def _find_stats_pids() -> list[int]:
+    """Find pm-stats processes without matching this pm-stats-cli process."""
+    pattern = r"(^|/)pm-stats([[:space:]]|$)"
+    result = subprocess.run(
+        ["pgrep", "-f", pattern],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode not in (0, 1):
+        raise OSError(f"pgrep failed with exit code {result.returncode}")
+    pids: list[int] = []
+    for line in result.stdout.splitlines():
+        try:
+            pid = int(line.strip())
+        except ValueError:
+            continue
+        if pid != os.getpid():
+            pids.append(pid)
+    return sorted(set(pids))
+
+
+def _check_database_health(db_path: Path) -> tuple[bool, str]:
+    """Check integrity, schema version, and a rolled-back write transaction."""
+    if not db_path.exists():
+        return False, f"database not found: {db_path}"
+    conn: sqlite3.Connection | None = None
+    try:
+        conn = sqlite3.connect(str(db_path), timeout=2.0)
+        quick_check = str(conn.execute("PRAGMA quick_check").fetchone()[0])
+        if quick_check != "ok":
+            return False, f"integrity check failed: {quick_check}"
+        version = int(conn.execute("PRAGMA user_version").fetchone()[0])
+        if version != SCHEMA_VERSION:
+            return False, f"schema version {version}, expected {SCHEMA_VERSION}"
+        conn.execute("BEGIN")
+        conn.execute("CREATE TEMP TABLE pm_stats_health_check (value INTEGER)")
+        conn.execute("INSERT INTO pm_stats_health_check VALUES (1)")
+        conn.rollback()
+    except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
+        return False, f"database read/write check failed: {exc}"
+    finally:
+        if conn is not None:
+            conn.close()
+    return True, "read/write and integrity checks passed"
+
+
+def _health_report(db_path: Path) -> tuple[bool, _HealthReport]:
+    pids = _find_stats_pids()
+    db_ok, db_detail = _check_database_health(db_path)
+    report: _HealthReport = {
+        "healthy": bool(pids) and db_ok,
+        "process": {
+            "healthy": bool(pids),
+            "pids": pids,
+            "detail": "pm-stats is running" if pids else "pm-stats process not found",
+        },
+        "database": {"healthy": db_ok, "path": str(db_path), "detail": db_detail},
+    }
+    return bool(report["healthy"]), report
 
 
 def _validate_args(args: argparse.Namespace) -> None:
@@ -527,6 +621,40 @@ def main() -> None:
         raise SystemExit(2) from exc
 
     db_path = resolve_data_path(args.db)
+
+    if args.command == "health":
+        try:
+            healthy, report = _health_report(db_path)
+        except (OSError, ValueError) as exc:
+            healthy = False
+            report = _HealthReport(
+                healthy=False,
+                process={
+                    "healthy": False,
+                    "pids": [],
+                    "detail": str(exc),
+                },
+                database={
+                    "healthy": False,
+                    "path": str(db_path),
+                    "detail": "health check could not run",
+                },
+            )
+        if args.quiet:
+            raise SystemExit(0 if healthy else -1)
+        if args.format == "json":
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            process = report["process"]
+            database = report["database"]
+            print(
+                f"pm-stats process: {'OK' if process['healthy'] else 'FAIL'} - {process['detail']}"
+            )
+            print(
+                f"stats database:  {'OK' if database['healthy'] else 'FAIL'} - {database['detail']}"
+            )
+            print(f"health: {'OK' if healthy else 'FAIL'}")
+        raise SystemExit(0 if healthy else 1)
 
     try:
         conn = open_readonly_connection(db_path)
