@@ -396,7 +396,9 @@ def _resolve_time_range(
 
 def _resolve_index_path(args: argparse.Namespace, log_file: Path) -> Path:
     if args.use_index is not None:
-        return Path(args.use_index).expanduser()
+        from edumatcher.config import resolve_data_path
+
+        return resolve_data_path(args.use_index)
     return log_file.parent / _DEFAULT_INDEX_NAME
 
 

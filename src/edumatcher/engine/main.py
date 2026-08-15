@@ -29,6 +29,7 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
+import holidays
 import zmq
 
 from edumatcher.config import (
@@ -205,6 +206,17 @@ _time_ns = time.time_ns
 # process entry point (main()) configures the handler/level; the library itself
 # installs no handlers.
 log = logging.getLogger(__name__)
+
+
+def _country_wire_code(country: str | None) -> str | None:
+    """Return the ISO alpha-2 country code used by reference messages."""
+    if country is None:
+        return None
+    try:
+        return str(holidays.country_holidays(country).country)
+    except Exception:
+        return country[:2].upper()
+
 
 _CLIENT_NAME = "pm-engine"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -1523,6 +1535,9 @@ class Engine:
             risk_levels.append(level_entry)
 
         schedule = engine_cfg.schedule
+        # Config accepts country names such as ``Sweden``, while the bounded
+        # reference wire field carries an ISO alpha-2 code.
+        country = _country_wire_code(engine_cfg.country)
         reference: dict[str, Any] = {
             "symbols": symbols,
             "risk": {
@@ -1540,7 +1555,7 @@ class Engine:
             ],
             "schedule": {
                 "sessions_enabled": engine_cfg.sessions_enabled,
-                "country": engine_cfg.country,
+                "country": country,
                 "schedule": (
                     {
                         "pre_open": schedule.pre_open,

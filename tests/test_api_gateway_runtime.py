@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import sqlite3
 import sys
 from contextlib import suppress
@@ -348,12 +349,32 @@ def test_main_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         uvicorn,
         "run",
-        lambda app, host, port, log_level: calls.append(
-            ("run", (app, host, port, log_level))
+        lambda app, host, port, log_level, log_config: calls.append(
+            ("run", (app, host, port, log_level, log_config))
         ),
     )
     main.main()
-    assert calls == [("run", ({"config": config}, "127.0.0.9", 9191, "debug"))]
+    assert calls == [("run", ({"config": config}, "127.0.0.9", 9191, "debug", None))]
+
+
+def test_uvicorn_logs_route_to_root_handler() -> None:
+    root = logging.getLogger()
+    uvicorn_logger = logging.getLogger("uvicorn.error")
+    original_handlers = list(uvicorn_logger.handlers)
+    original_propagate = uvicorn_logger.propagate
+    original_level = root.level
+    try:
+        uvicorn_logger.handlers = [logging.StreamHandler()]
+        uvicorn_logger.propagate = False
+        main._route_uvicorn_logging("INFO")
+        assert uvicorn_logger.handlers == []
+        assert uvicorn_logger.propagate is True
+        assert uvicorn_logger.level == logging.INFO
+        assert root.level <= logging.INFO
+    finally:
+        uvicorn_logger.handlers = original_handlers
+        uvicorn_logger.propagate = original_propagate
+        root.setLevel(original_level)
 
 
 def test_main_cli_config_error(monkeypatch: pytest.MonkeyPatch) -> None:

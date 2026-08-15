@@ -352,6 +352,31 @@ exactly as if it were not.
 key `api_gateway` instead of `api_gateways` — see the [App Config Spec](990-app-config-spec.md)
 (CV15), which documents that rejection as a normative rule.
 
+The verifier accepts multiple named API gateway entries, including a separate
+read-only dashboard entry generated from `pm-config-gen` with
+`--api-gateway-instance dashboards::8081`. In the resulting YAML,
+`dashboards.credentials[].gateway_id: null` is valid and is intentionally
+ignored by the `M022` gateway-reference check. Non-null credentials must match
+an ID under `gateways.alf`, and each non-null ID may belong to only one named
+`api_gateways` entry. `M018` also checks every named API gateway port for
+collisions with the other configured listeners.
+
+For example, this generated shape is valid:
+
+```yaml
+api_gateways:
+  desk:
+    port: 8080
+    credentials:
+      - api_key: key-trader01-example
+        gateway_id: TRADER01
+  dashboards:
+    port: 8081
+    credentials:
+      - api_key: key-dashboard-example
+        gateway_id: null
+```
+
 **ALF, RALF, and market-data gateway sections**
 
 | Code   | Condition                                              |

@@ -11,6 +11,7 @@ from edumatcher.log_srv.config import (
     LogServerConfig,
     load_default_log_server_config,
 )
+from edumatcher.config import resolve_data_path
 from edumatcher.log_srv.server import LogServer
 
 log = logging.getLogger(__name__)
@@ -155,7 +156,7 @@ def _resolve_config(args: argparse.Namespace) -> LogServerConfig:
 
     bind_address = str(args.host) if args.host else cfg.bind_address
     port = int(args.port) if args.port else cfg.port
-    db_path = Path(args.db) if args.db else cfg.db_path
+    db_path = resolve_data_path(args.db) if args.db else cfg.db_path
 
     retention_days = cfg.retention_days
     if args.retention_days is not None:

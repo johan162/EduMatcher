@@ -1,0 +1,14 @@
+{
+  "name": "@edumatcher/trader-serve",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "pm-trading-ui-serve — production static file server for the EduMatcher Trading GUI SPA.",
+  "scripts": {
+    "start": "tsx serve.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "tsx": "^4.23.0"
+  }
+}

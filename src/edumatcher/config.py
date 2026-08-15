@@ -78,6 +78,23 @@ def _resolve_data_dir() -> Path:
 
 DATA_DIR = _resolve_data_dir()
 
+
+def resolve_data_path(path: str | os.PathLike[str] | Path) -> Path:
+    """Resolve a configured relative path inside the shared data directory.
+
+    Generated configs historically spell paths as ``data/stats.db``. In a
+    source checkout that means ``src/data/stats.db``, not a working-directory
+    relative ``data/stats.db``. Absolute paths remain explicit overrides.
+    """
+    candidate = Path(path).expanduser()
+    if candidate.is_absolute():
+        return candidate
+    parts = candidate.parts
+    if parts and parts[0] == "data":
+        parts = parts[1:]
+    return DATA_DIR.joinpath(*parts)
+
+
 GTC_ORDERS_FILE = DATA_DIR / "gtc_orders.json"
 GTC_COMBOS_FILE = DATA_DIR / "gtc_combos.json"
 BOOK_STATS_FILE = DATA_DIR / "book_stats.json"

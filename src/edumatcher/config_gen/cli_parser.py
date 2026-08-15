@@ -469,7 +469,8 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME:GATEWAY[,GATEWAY...][:PORT]",
         help=(
             "Repeatable named API gateway process. Generates credentials only for "
-            "the listed gateway IDs and optionally overrides port."
+            "the listed gateway IDs and optionally overrides port. Use NAME::PORT "
+            "for an identity-free read-only gateway."
         ),
     )
     parser.add_argument(

@@ -15,6 +15,7 @@ from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
+import zmq
 
 import edumatcher.stats.main as stats_main_mod
 from edumatcher.stats.event_types import EVENT_TYPES, UNKNOWN_EVENT_TYPE
@@ -30,6 +31,7 @@ from edumatcher.stats.main import (
     main as stats_main,
 )
 from edumatcher.ticker.main import _query_daily_stats
+from edumatcher.config import DATA_DIR
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -127,6 +129,25 @@ class TestOpenDb:
         finally:
             conn.close()
         assert any("SELECT 1" in rec.message for rec in caplog.records)
+
+
+class TestStatsStartup:
+    def test_missing_engine_is_reported_without_traceback(
+        self, sp: StatsProcess, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        cast(MagicMock, sp.push.send_multipart).side_effect = zmq.Again()
+        caplog.set_level(logging.ERROR, logger="edumatcher.stats.main")
+
+        assert sp._request_startup_symbols() is False
+        assert "pm-engine is not running" in caplog.text
+        assert "pm-index is optional" in caplog.text
+        assert "no ALF, market-data, or API gateway" in caplog.text
+
+
+def test_explicit_data_db_path_uses_shared_data_directory() -> None:
+    from edumatcher.config import resolve_data_path
+
+    assert resolve_data_path("data/stats.db") == DATA_DIR / "stats.db"
 
 
 # ---------------------------------------------------------------------------

@@ -292,7 +292,7 @@ class ApiGatewaySpec:
     log_level: str = DEFAULT_API_GATEWAY_LOG_LEVEL
     stats_db: str = DEFAULT_API_GATEWAY_STATS_DB
     credentials: tuple[ApiCredentialSpec, ...] = ()
-    gateway_ids: tuple[str, ...] = ()
+    gateway_ids: tuple[str, ...] | None = None
     generate_keys: bool = True
     generate_readonly_key: bool = False
     rate_limit_writes_per_second: int = DEFAULT_API_GATEWAY_RATE_LIMIT_WRITES_PER_SECOND
@@ -519,12 +519,14 @@ class ConfigBuilder:
     ) -> list[ApiCredentialSpec]:
         credentials = list(spec.credentials)
         explicit_gateway_ids = {item.gateway_id for item in credentials}
-        included_gateway_ids = set(spec.gateway_ids)
+        included_gateway_ids = (
+            None if spec.gateway_ids is None else set(spec.gateway_ids)
+        )
 
         if spec.generate_keys:
             for gateway in self.spec.gateways:
                 if (
-                    included_gateway_ids
+                    included_gateway_ids is not None
                     and gateway.gateway_id not in included_gateway_ids
                 ):
                     continue

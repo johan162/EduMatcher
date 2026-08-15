@@ -7,7 +7,6 @@ import asyncio
 import logging
 import sys
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import AsyncGenerator
 
 import uvicorn
@@ -31,6 +30,7 @@ from edumatcher.api_gateway.routers import (
     ws,
 )
 from edumatcher.api_gateway.sessions import SessionRegistry
+from edumatcher.config import resolve_data_path
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
@@ -169,7 +169,7 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
         engine_pub_addr=engine_pub_addr,
         index_pull_addr=index_pull_addr,
         index_pub_addr=index_pub_addr,
-        stats_db=Path(args.stats_db).expanduser() if args.stats_db else config.stats_db,
+        stats_db=resolve_data_path(args.stats_db) if args.stats_db else config.stats_db,
         market_data_cache_sec=config.market_data_cache_sec,
         log_level=args.log_level.lower() if args.log_level else config.log_level,
         swagger_enabled=config.swagger_enabled,
@@ -291,6 +291,18 @@ def _configure_logging(args: argparse.Namespace) -> int:
     return int(level)
 
 
+def _route_uvicorn_logging(level: str) -> None:
+    """Send Uvicorn records through the API gateway's configured handler."""
+    uvicorn_level = getattr(logging, str(level).upper(), logging.INFO)
+    root = logging.getLogger()
+    root.setLevel(min(root.level, uvicorn_level))
+    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access", "uvicorn.asgi"):
+        uvicorn_logger = logging.getLogger(logger_name)
+        uvicorn_logger.handlers.clear()
+        uvicorn_logger.propagate = True
+        uvicorn_logger.setLevel(uvicorn_level)
+
+
 def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
@@ -304,8 +316,15 @@ def main() -> None:
         log.warning("selected api_gateways entry is disabled")
         sys.exit(1)
     app = create_app(config)
+    _route_uvicorn_logging(config.log_level)
     try:
-        uvicorn.run(app, host=config.host, port=config.port, log_level=config.log_level)
+        uvicorn.run(
+            app,
+            host=config.host,
+            port=config.port,
+            log_level=config.log_level,
+            log_config=None,
+        )
     except Exception as exc:
         log.error("fatal runtime error: %s", exc)
         raise
