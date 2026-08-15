@@ -19,6 +19,12 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 CONFIG_NAME = "emo-config.yaml"
 RUNTIME_DIR_NAME = "emo"
+ACTIVE_PROFILE_FILE = "active-profile"
+HEALTHCHECK_TIMEOUT_SEC = 2.0
+GREEN = "\033[32m"
+RED = "\033[31m"
+YELLOW = "\033[33m"
+RESET = "\033[0m"
 
 DEFAULT_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"]},
@@ -26,14 +32,17 @@ DEFAULT_PROCESSES: list[dict[str, Any]] = [
     {"name": "stats", "command": ["pm-stats", "--verbose"]},
     {"name": "clearing", "command": ["pm-clearing", "--verbose"]},
     {"name": "engine", "command": ["pm-engine", "--verbose"]},
-    {"name": "scheduler", "command": ["pm-scheduler", "--verbose"]},
+    {"name": "scheduler", "command": ["pm-scheduler", "--daily", "--verbose"]},
     {"name": "market-data", "command": ["pm-md-gwy", "--verbose"]},
     {"name": "post-trade", "command": ["pm-ralf-gwy", "--verbose"]},
     {"name": "drop-copy", "command": ["pm-dc-gwy", "--verbose"]},
-    {"name": "api", "command": ["pm-api-gwy", "--verbose", "--instance", "desk"]},
-    {"name": "api", "command": ["pm-api-gwy", "--verbose", "--instance", "dashboards"]},
+    {"name": "api-desk", "command": ["pm-api-gwy", "--verbose", "--instance", "desk"]},
+    {
+        "name": "api-dashboards",
+        "command": ["pm-api-gwy", "--verbose", "--instance", "dashboards"],
+    },
     {"name": "alf", "command": ["pm-alf-gwy", "--verbose"]},
-    {"name": "alf", "command": ["pm-balf-gwy", "--verbose"]},
+    {"name": "balf", "command": ["pm-balf-gwy", "--verbose"]},
 ]
 
 MICRO_PROCESSES: list[dict[str, Any]] = [
@@ -45,7 +54,7 @@ MINI_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"]},
     {"name": "stats", "command": ["pm-stats", "--verbose"]},
     {"name": "engine", "command": ["pm-engine", "--verbose"]},
-    {"name": "scheduler", "command": ["pm-scheduler", "--verbose"]},
+    {"name": "scheduler", "command": ["pm-scheduler", "--daily", "--verbose"]},
     {"name": "market-data", "command": ["pm-md-gwy", "--verbose"]},
     {"name": "api", "command": ["pm-api-gwy", "--verbose", "--instance", "desk"]},
     {"name": "alf", "command": ["pm-alf-gwy", "--verbose"]},
@@ -61,7 +70,6 @@ BUILTIN_PROFILES = {
     "micro": MICRO_PROCESSES,
     "mini": MINI_PROCESSES,
 }
-
 
 
 def resolve_data_dir() -> Path:
@@ -87,6 +95,10 @@ def pid_path(name: str) -> Path:
 
 def log_path(name: str) -> Path:
     return runtime_dir() / f"{name}.log"
+
+
+def active_profile_path() -> Path:
+    return runtime_dir() / ACTIVE_PROFILE_FILE
 
 
 def load_profiles() -> dict[str, list[dict[str, Any]]]:
@@ -118,6 +130,25 @@ def load_profiles() -> dict[str, list[dict[str, Any]]]:
     return profiles
 
 
+def create_config() -> int:
+    path = config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    document = {
+        profile_name: {"processes": processes}
+        for profile_name, processes in BUILTIN_PROFILES.items()
+    }
+    text = yaml.safe_dump(document, sort_keys=False, allow_unicode=False)
+    try:
+        with path.open("x", encoding="utf-8") as output:
+            output.write(text)
+    except FileExistsError:
+        print(f"Refusing to overwrite existing configuration: {path}", file=sys.stderr)
+        return 1
+    print(f"Created pm-emo configuration: {path}")
+    print("Profiles: " + ", ".join(document))
+    return 0
+
+
 def validate_processes(
     profile_name: str, process_raw: list[Any]
 ) -> list[dict[str, Any]]:
@@ -130,6 +161,7 @@ def validate_processes(
             )
         name = item.get("name")
         command = item.get("command")
+        healthcheck = item.get("healthcheck")
         if not isinstance(name, str) or not name.strip():
             raise ValueError(f"profile {profile_name!r} process {index} needs a name")
         if name in seen:
@@ -144,8 +176,21 @@ def validate_processes(
             raise ValueError(
                 f"profile {profile_name!r} process {name!r} needs a command list or string"
             )
+        if isinstance(healthcheck, str):
+            healthcheck = shlex.split(healthcheck)
+        if healthcheck is not None and (
+            not isinstance(healthcheck, list)
+            or not healthcheck
+            or not all(isinstance(part, str) and part for part in healthcheck)
+        ):
+            raise ValueError(
+                f"profile {profile_name!r} process {name!r} healthcheck must be a command list or string"
+            )
         seen.add(name)
-        processes.append({"name": name, "command": command})
+        process = {"name": name, "command": command}
+        if healthcheck is not None:
+            process["healthcheck"] = healthcheck
+        processes.append(process)
     return processes
 
 
@@ -164,6 +209,75 @@ def read_pid(name: str) -> int | None:
     return pid
 
 
+def write_active_profile(profile_name: str) -> None:
+    active_profile_path().write_text(f"{profile_name}\n", encoding="utf-8")
+
+
+def read_active_profile() -> str | None:
+    try:
+        profile_name = active_profile_path().read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        return None
+    return profile_name or None
+
+
+def check_health(process: dict[str, Any], pid: int | None) -> tuple[str, str]:
+    if pid is None:
+        return "dead", "process is not running"
+    healthcheck = process.get("healthcheck")
+    if healthcheck is None:
+        return "running", "no healthcheck configured"
+    try:
+        result = subprocess.run(
+            healthcheck,
+            cwd=REPO_ROOT,
+            env=os.environ.copy(),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=HEALTHCHECK_TIMEOUT_SEC,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return "not responding", str(exc)
+    if result.returncode == 0:
+        return "running", "healthcheck passed"
+    return "not responding", f"healthcheck exit {result.returncode}"
+
+
+def status_mark(status: str) -> str:
+    if status == "running":
+        return f"{GREEN}✓{RESET}"
+    if status == "dead":
+        return f"{RED}✗{RESET}"
+    return f"{YELLOW}⚠{RESET}"
+
+
+def list_profile() -> int:
+    profile_name = read_active_profile()
+    if profile_name is None:
+        print("No pm-emo profile is recorded as started.")
+        return 1
+    profiles = load_profiles()
+    processes = profiles.get(profile_name)
+    if processes is None:
+        print(f"Active profile {profile_name!r} is no longer defined.", file=sys.stderr)
+        return 1
+
+    print(f"pm-emo profile: {profile_name}")
+    print(f"data directory: {resolve_data_dir()}")
+    print(f"{'':1} {'Process':<20} {'PID':>7}  {'Status':<15} Details")
+    print("-" * 76)
+    for process in processes:
+        name = process["name"]
+        pid = read_pid(name)
+        state, detail = check_health(process, pid)
+        print(
+            f"{status_mark(state)} {name:<20} {str(pid or '-'):>7}  {state:<15} {detail}"
+        )
+    return 0
+
+
 def start_profile(profile_name: str) -> int:
     profiles = load_profiles()
     if profile_name not in profiles:
@@ -176,6 +290,7 @@ def start_profile(profile_name: str) -> int:
 
     runtime_dir().mkdir(parents=True, exist_ok=True)
     processes = profiles[profile_name]
+    write_active_profile(profile_name)
     print(f"Starting pm-emo configuration {profile_name!r} from {config_path()}")
     print(f"Data directory: {resolve_data_dir()}")
     for process in processes:
@@ -211,6 +326,7 @@ def stop_profile() -> int:
     pid_files = sorted(runtime.glob("*.pid"))
     if not pid_files:
         print("No pm-emo-managed processes are running.")
+        active_profile_path().unlink(missing_ok=True)
         return 0
 
     for path in pid_files:
@@ -226,7 +342,29 @@ def stop_profile() -> int:
             pass
         path.unlink(missing_ok=True)
     time.sleep(0.2)
+    active_profile_path().unlink(missing_ok=True)
     return 0
+
+
+def kill_all_processes() -> int:
+    """Send SIGTERM to every process whose full command line contains pm-."""
+    print("Sending signal 15 to all matching EduMatcher processes...")
+    result = subprocess.run(
+        ["pkill", "-15", "-f", "-i", "-l", "pm-"],
+        cwd=REPO_ROOT,
+        check=False,
+    )
+    runtime = runtime_dir()
+    for path in runtime.glob("*.pid"):
+        path.unlink(missing_ok=True)
+    active_profile_path().unlink(missing_ok=True)
+    if result.returncode == 0:
+        return 0
+    if result.returncode == 1:
+        print("No matching EduMatcher processes were found.")
+        return 0
+    print(f"pkill failed with exit code {result.returncode}", file=sys.stderr)
+    return result.returncode
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -236,17 +374,31 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     start = subparsers.add_parser("start", help="start a named process profile")
     start.add_argument("config_name", nargs="?", default="default")
+    subparsers.add_parser(
+        "init", help="create the built-in process profile configuration"
+    )
     subparsers.add_parser("stop", help="stop processes started by pm-emo")
+    subparsers.add_parser(
+        "kill",
+        help="send SIGTERM to every process whose command line contains pm-",
+    )
+    subparsers.add_parser("list", help="list status for the active process profile")
     return parser
 
 
 def main() -> int:
     args = build_parser().parse_args()
     try:
+        if args.command == "init":
+            return create_config()
         if args.command == "start":
             return start_profile(args.config_name or "default")
         if args.command == "stop":
             return stop_profile()
+        if args.command == "kill":
+            return kill_all_processes()
+        if args.command == "list":
+            return list_profile()
     except (OSError, ValueError, yaml.YAMLError) as exc:
         print(f"pm-emo: {exc}", file=sys.stderr)
         return 2
