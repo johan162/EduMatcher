@@ -361,7 +361,9 @@ def test_main_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:
             ),
         )
         main.main()
-        assert calls == [("run", ({"config": config}, "127.0.0.9", 9191, "debug", None))]
+        assert calls == [
+            ("run", ({"config": config}, "127.0.0.9", 9191, "debug", None))
+        ]
     finally:
         root.setLevel(original_level)
 

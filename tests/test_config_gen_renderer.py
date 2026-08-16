@@ -173,3 +173,97 @@ def test_renderer_emits_country_section_and_hint() -> None:
 
     parsed = yaml.safe_load(rendered)
     assert parsed["country"] == "Germany"
+
+
+_MINIMAL_PAYLOAD = {
+    "sessions_enabled": False,
+    "enforce_collars": True,
+    "enforce_circuit_breakers": True,
+    "engine_tuning": {"snapshot_interval_sec": 0.5},
+    "gateways": {
+        "alf": [
+            {
+                "id": "TRADER01",
+                "role": "TRADER",
+                "disconnect_behaviour": "CANCEL_ALL",
+            }
+        ]
+    },
+    "symbols": {"AAPL": {"tick_decimals": 2}},
+}
+
+
+def test_short_command_is_not_wrapped() -> None:
+    rendered = render_yaml(
+        config=_MINIMAL_PAYLOAD,
+        command="pm-config-gen --symbols AAPL --gateways TRADER01",
+        generated_version="1.1.0",
+        generated_date="2026-08-16",
+    )
+
+    assert "# Command: pm-config-gen --symbols AAPL --gateways TRADER01" in rendered
+
+
+def test_long_command_wraps_between_options_near_target_width() -> None:
+    long_command = (
+        "pm-config-gen --symbols AAPL,MSFT,GOOG,AMZN "
+        "--gateways TRADER01:TRADER,TRADER02:TRADER,MM01:MARKET_MAKER "
+        "--country Germany --enforce-collars --enforce-circuit-breakers "
+        "--post-trade-gateway --seed-mm-mid-range 0.5 "
+        "--comment-default-config-fields"
+    )
+
+    rendered = render_yaml(
+        config=_MINIMAL_PAYLOAD,
+        command=long_command,
+        generated_version="1.1.0",
+        generated_date="2026-08-16",
+    )
+
+    command_lines = [
+        line
+        for line in rendered.splitlines()
+        if line.startswith("# Command:") or line.startswith("#          ")
+    ]
+    assert (
+        len(command_lines) > 1
+    ), "a long command line should wrap onto more than one line"
+
+    for line in command_lines[:-1]:
+        assert line.endswith(" \\"), f"non-final line must end in ' \\': {line!r}"
+    assert not command_lines[-1].endswith(
+        "\\"
+    ), "the last line must not carry a continuation character"
+
+    for line in command_lines:
+        assert line.startswith("#"), "every wrapped line must stay a YAML comment"
+        assert len(line) <= 80, f"line exceeds the ~70-80 char target: {line!r}"
+        content = line.removesuffix("\\").rstrip()
+        # Never break an option across lines -- each line ends at a space
+        # boundary that was already in the source command.
+        assert not content.endswith("--") or content == "#"
+
+    # Rejoining the wrapped comment lines must reproduce the original
+    # command with the same tokens, in the same order.
+    rejoined = " ".join(
+        line.removeprefix("# Command:").removeprefix("#").removesuffix("\\").strip()
+        for line in command_lines
+    )
+    assert rejoined.split() == long_command.split()
+
+    # Wrapping must not corrupt the YAML that follows.
+    parsed = yaml.safe_load(rendered)
+    assert parsed["symbols"]["AAPL"]["tick_decimals"] == 2
+
+
+def test_empty_command_renders_a_bare_label() -> None:
+    rendered = render_yaml(
+        config=_MINIMAL_PAYLOAD,
+        command="",
+        generated_version="1.1.0",
+        generated_date="2026-08-16",
+    )
+
+    assert "# Command:" in rendered
+    parsed = yaml.safe_load(rendered)
+    assert parsed["symbols"]["AAPL"]["tick_decimals"] == 2
