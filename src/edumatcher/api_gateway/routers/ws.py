@@ -9,8 +9,31 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from pydantic import ValidationError
 
 from edumatcher.api_gateway.events import market_data_symbol, now_iso
-from edumatcher.api_gateway.schemas import ALWAYS_ON_CHANNELS, MarketDataControl
+from edumatcher.api_gateway.market_cache import (
+    MarketDataCache,
+    ReplayMiss,
+    channel_for_topic,
+)
+from edumatcher.api_gateway.schemas import (
+    ALWAYS_ON_CHANNELS,
+    MarketDataControl,
+    MarketDataSubscriptionItem,
+)
 from edumatcher.api_gateway.sessions import SessionRegistry
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.auction import (
+    topic_auction_indicative,
+    topic_auction_result,
+)
+from edumatcher.models.generated.book import (
+    topic_book_snapshot,
+    topic_depth,
+)
+from edumatcher.models.generated.system import (
+    topic_gateways,
+    topic_halt_status,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["websockets"])
 
@@ -260,10 +283,10 @@ async def _monitor_snapshot(websocket: WebSocket, gateway_id: str) -> dict[str, 
             return None
 
     halts = await _ask(
-        engine.request_halt_status, f"system.halt_status.{gateway_id}", "halts"
+        engine.request_halt_status, topic_halt_status(gateway_id), "halts"
     )
     gateways = await _ask(
-        engine.request_gateways, f"system.gateways.{gateway_id}", "gateways"
+        engine.request_gateways, topic_gateways(gateway_id), "gateways"
     )
     return {
         "type": "monitor.snapshot",
@@ -313,6 +336,7 @@ async def _receive_market_controls(
     websocket: WebSocket,
     subscription: Subscription,
 ) -> None:
+    cache: MarketDataCache = websocket.app.state.engine.market_cache
     while True:
         try:
             raw = await websocket.receive_json()
@@ -324,10 +348,121 @@ async def _receive_market_controls(
         except ValidationError as exc:
             await websocket.send_json({"type": "error", "data": {"message": str(exc)}})
             continue
-        rejected = subscription.apply(control)
+
+        if control.action in ("subscribe", "unsubscribe"):
+            rejected = subscription.apply(control)
+            await websocket.send_json(
+                {"type": "subscription", "data": subscription.describe(rejected)}
+            )
+            # A subscribe is answered with the current cached state so a
+            # (re)subscribing client rebuilds without waiting for the next tick.
+            if control.action == "subscribe":
+                await _emit_snapshots(websocket, cache, control.as_items())
+        elif control.action == "snapshot":
+            await _emit_snapshots(websocket, cache, control.as_items())
+        elif control.action == "resume":
+            await _emit_resume(websocket, cache, control)
+
+
+async def _emit_snapshots(
+    websocket: WebSocket,
+    cache: MarketDataCache,
+    items: list[MarketDataSubscriptionItem],
+) -> None:
+    """Send cached snapshots for each (symbol, channel) in *items*.
+
+    A wildcard/empty symbol set expands over the symbols the cache has seen on
+    that channel. A per-item ``resume_from`` hint on the ``trades`` channel
+    replays buffered prints instead of the whole tail.
+    """
+    for item in items:
+        symbols = [s.upper() for s in item.symbols if s]
+        wildcard = not symbols or "*" in symbols
+        for channel in item.channels:
+            resume_seq = (item.resume_from or {}).get(channel)
+            if wildcard:
+                for event in cache.snapshot_channel(channel):
+                    await websocket.send_json(event)
+                continue
+            for symbol in symbols:
+                if channel == "trades" and resume_seq is not None:
+                    await _emit_trade_resume(websocket, cache, symbol, resume_seq)
+                else:
+                    for event in cache.snapshot(symbol, channel):
+                        await websocket.send_json(event)
+
+
+async def _emit_resume(
+    websocket: WebSocket,
+    cache: MarketDataCache,
+    control: MarketDataControl,
+) -> None:
+    """Handle an explicit ``resume`` for one named topic."""
+    topic = control.topic or ""
+    channel = channel_for_topic(topic)
+    if channel is None:
+        await _reject_resume(websocket, topic, control.from_seq, "unknown_topic")
+        return
+    # A symbol-qualified topic (book.AAPL, depth.AAPL, auction.*) carries its
+    # own symbol; trade.executed does not, so it is taken from `symbols`.
+    derived = market_data_symbol(topic, {})
+    symbol = (control.symbols[0] if control.symbols else derived or "").upper()
+    from_seq = control.from_seq or 0
+    if channel == "trades":
+        if not symbol:
+            await _reject_resume(websocket, topic, control.from_seq, "unknown_topic")
+            return
+        await _emit_trade_resume(websocket, cache, symbol, from_seq)
+        return
+    # Snapshot channels are self-healing: the current snapshot is the resume.
+    snaps = cache.snapshot(symbol, channel)
+    if snaps:
+        for event in snaps:
+            await websocket.send_json(event)
+    else:
+        await _reject_resume(websocket, topic, control.from_seq, "unknown_topic")
+
+
+async def _emit_trade_resume(
+    websocket: WebSocket,
+    cache: MarketDataCache,
+    symbol: str,
+    from_seq: int,
+) -> None:
+    """Replay buffered trades after *from_seq*, or reset when out of window."""
+    try:
+        events = cache.resume_trades(symbol, from_seq)
+    except ReplayMiss:
         await websocket.send_json(
-            {"type": "subscription", "data": subscription.describe(rejected)}
+            {
+                "type": "trades.reset",
+                "topic": TOPIC_TRADE_EXECUTED,
+                "ts": now_iso(),
+                "data": {"symbol": symbol},
+            }
         )
+        await _reject_resume(websocket, TOPIC_TRADE_EXECUTED, from_seq, "too_old")
+        # Follow the reset with a fresh tail so the client is not left empty.
+        for event in cache.snapshot(symbol, "trades"):
+            await websocket.send_json(event)
+        return
+    for event in events:
+        await websocket.send_json(event)
+
+
+async def _reject_resume(
+    websocket: WebSocket,
+    topic: str,
+    from_seq: int | None,
+    reason: str,
+) -> None:
+    await websocket.send_json(
+        {
+            "type": "resume.rejected",
+            "ts": now_iso(),
+            "data": {"topic": topic, "from_seq": from_seq, "reason": reason},
+        }
+    )
 
 
 async def _send_market_data(
@@ -355,7 +490,9 @@ async def _send_market_data(
 def _event_channel(event_type: str) -> str | None:
     if event_type == "trade":
         return "trades"
-    if event_type == "auction":
+    # Final uncross and its running indicative both belong to the `auction`
+    # channel a client subscribes to; the distinct `type` is what separates them.
+    if event_type in {"auction", "auction.indicative"}:
         return "auction"
     if event_type in {"book", "depth", "session", "circuit_breaker"}:
         return event_type
@@ -367,15 +504,17 @@ def _topic_from_event(event: dict[str, Any]) -> str:
     data = event.get("data", {})
     symbol = str(data.get("symbol", "")) if isinstance(data, dict) else ""
     if event_type == "book" and symbol:
-        return f"book.{symbol}"
+        return topic_book_snapshot(symbol)
     if event_type == "depth" and symbol:
-        return f"depth.{symbol}"
+        return topic_depth(symbol)
     if event_type == "trade":
-        return "trade.executed"
+        return TOPIC_TRADE_EXECUTED
     if event_type == "session":
-        return "session.state"
+        return TOPIC_SESSION_STATE
     if event_type == "circuit_breaker":
         return "circuit_breaker.event"
     if event_type == "auction" and symbol:
-        return f"auction.result.{symbol}"
+        return topic_auction_result(symbol)
+    if event_type == "auction.indicative" and symbol:
+        return topic_auction_indicative(symbol)
     return event_type

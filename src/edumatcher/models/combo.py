@@ -147,6 +147,12 @@ class ComboOrder:
     # Serialization helpers
     # ------------------------------------------------------------------
     def to_dict(self) -> dict[str, Any]:
+        """The full aggregate state, for persistence.
+
+        Not a wire shape: ``order.combo`` uses ``to_submission_dict`` and
+        ``combo.ack`` carries three scalars. ``save_gtc_combos`` is the only
+        caller, and ``from_dict`` its only counterpart.
+        """
         return {
             "id": self.id,
             "combo_id": self.combo_id,
@@ -160,6 +166,44 @@ class ComboOrder:
             "leg_fill_qty": {str(k): v for k, v in self.leg_fill_qty.items()},
             "leg_statuses": {str(k): v for k, v in self.leg_statuses.items()},
         }
+
+    def to_submission_dict(self) -> dict[str, Any]:
+        """The ``order.combo`` wire shape: what a client can actually say.
+
+        ``to_dict`` serialises the engine's aggregate *state* — ``id``,
+        ``status``, ``child_order_ids``, ``leg_fill_qty``, ``leg_statuses`` —
+        and was being reused as the submission format. A submitter fills none
+        of those in: the lists and maps are always empty and the status is
+        always PENDING, so they were noise on the wire that only the engine
+        could ever populate.
+
+        Separating them also removes the last map from any wire, which is what
+        makes ``order.combo`` describable in the message generator's IDL once
+        ``nested`` and ``list[T]`` land (design section 15.4).
+        """
+        return {
+            "combo_id": self.combo_id,
+            "gateway_id": self.gateway_id,
+            "combo_type": self.combo_type.value,
+            "tif": self.tif.value,
+            "legs": [leg.to_dict() for leg in self.legs],
+        }
+
+    @classmethod
+    def from_submission_dict(cls, d: dict[str, Any]) -> "ComboOrder":
+        """Build a combo from a client submission.
+
+        ``id``, ``timestamp`` and ``status`` are assigned here rather than read
+        from the payload: they are the engine's to own, and a client that could
+        choose its own internal id could collide with an existing one.
+        """
+        return cls.create(
+            combo_id=d["combo_id"],
+            gateway_id=d["gateway_id"],
+            combo_type=ComboType(d["combo_type"]),
+            tif=TIF(d["tif"]),
+            legs=[ComboLeg.from_dict(leg) for leg in d["legs"]],
+        )
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "ComboOrder":

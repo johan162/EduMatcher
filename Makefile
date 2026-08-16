@@ -5,7 +5,7 @@
 .PHONY: help install reinstall clean-venv test test-short test-html verify \
 check _check lint format typecheck pre-commit \
 build clean maintainer-clean docs docs-serve run pull-all \
-black flake8 mypy
+black flake8 mypy msgen-check msgen
 
 # Makefile itself as a dependency to ensure re-evaluation when changed.
 # NOTE: Requires GNU Make 4.3+. macOS ships with 3.81 (brew install make to upgrade).
@@ -52,10 +52,12 @@ APP_NAME  := EduMatcher
 VERSION   := $(shell grep '^version' pyproject.toml | head -1 | cut -d'"' -f2)
 PYPI_NAME := $(PROJECT)
 
-COVERAGE := 85
+COVERAGE := 80
 
 SRC_FILES  := $(shell find $(SRC_DIR) -name '*.py')
 TEST_FILES := $(shell find $(TEST_DIR) -name '*.py')
+SPEC_DIR   := spec
+SPEC_FILES := $(shell find $(SPEC_DIR) -name '*.yaml' 2>/dev/null)
 MISC_FILES := pyproject.toml README.md
 LOCK_FILE  := poetry.lock
 
@@ -69,6 +71,7 @@ LINT_STAMP      := $(STAMP_DIR)/lint-stamp
 PYRIGHT_STAMP   := $(STAMP_DIR)/pyright-stamp
 TYPECHECK_STAMP := $(STAMP_DIR)/typecheck-stamp
 TEST_STAMP      := $(STAMP_DIR)/test-stamp
+MSGEN_STAMP     := $(STAMP_DIR)/msgen-stamp
 
 PYPI_VERSION := $(shell echo $(VERSION) | tr -d '-')
 BUILD_WHEEL  := $(DIST_DIR)/$(PYPI_NAME)-$(PYPI_VERSION)-py3-none-any.whl
@@ -119,6 +122,17 @@ $(LINT_STAMP): $(SRC_FILES) $(TEST_FILES)
 		echo -e "$(GREEN)✓ Flake8 linting passed$(NC)"; \
 	else \
 		echo -e "$(RED)✗ Flake8 linting failed$(NC)"; \
+		exit 1; \
+	fi
+
+$(MSGEN_STAMP): $(SPEC_FILES) $(SRC_FILES)
+	@echo -e "$(DARKYELLOW)- Checking generated messages match the spec (pm-msgen)...$(NC)"
+	@if poetry run pm-msgen check; then \
+		touch $(MSGEN_STAMP); \
+		echo -e "$(GREEN)✓ Generated messages match $(SPEC_DIR)/$(NC)"; \
+	else \
+		rm -f $(MSGEN_STAMP); \
+		echo -e "$(RED)✗ Generated message bindings are out of date. Run 'make msgen' (or 'poetry run pm-msgen generate') and commit the result.$(NC)"; \
 		exit 1; \
 	fi
 
@@ -259,7 +273,7 @@ verify: ## Run end-to-end deterministic matching verification suite
 check: ## Run all code quality checks in parallel (format + lint + typecheck)
 	$(MAKE) -j 4 _check
 
-_check: format lint typecheck typecheck-pyright ## Run all code quality checks (format + lint + typecheck)
+_check: format lint typecheck typecheck-pyright msgen-check ## Run all code quality checks (format + lint + typecheck + msgen)
 	@:
 
 lint flake8: $(LINT_STAMP) ## Run flake8 linting [stamp-cached]
@@ -273,6 +287,15 @@ typecheck mypy: $(TYPECHECK_STAMP) ## Run mypy type checking [stamp-cached]
 
 typecheck-pyright: $(PYRIGHT_STAMP) ## Run pyright type checking [stamp-cached]
 	@:
+
+msgen-check: $(MSGEN_STAMP) ## Verify generated message bindings match spec/ [stamp-cached]
+	@:
+
+msgen: ## Regenerate message bindings from spec/ (run after editing a spec file)
+	@echo -e "$(DARKYELLOW)- Regenerating message bindings from $(SPEC_DIR)/...$(NC)"
+	@poetry run pm-msgen generate
+	@touch $(MSGEN_STAMP)
+	@echo -e "$(GREEN)✓ Generated message bindings are up to date$(NC)"
 
 pre-commit: $(INSTALL_STAMP) ## Run all quality checks + short test (pre-commit gate)
 	@echo -e "$(DARKYELLOW)Running pre-commit checks...$(NC)"

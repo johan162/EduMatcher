@@ -1,7 +1,9 @@
 /* Reference BALF parser (C, C11)
  *
  * Compile:
- *   cc -std=c11 -Wall -Wextra -pedantic -O2 balf_parser.c -o balf_parser
+ *   cc -std=c11 -Wall -Wextra -pedantic -O2 -I../generated \
+ *      balf_parser.c ../generated/edumatcher_order.c \
+ *      ../generated/edumatcher_msg.c -o balf_parser
  * Run:
  *   ./balf_parser
  */
@@ -10,6 +12,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "edumatcher_order.h"
 
 #define BALF_MAGIC   0xBAu
 #define BALF_VERSION 0x01u
@@ -42,17 +46,32 @@ static uint32_t read_u32_le(const uint8_t *p) {
            ((uint32_t)p[3] << 24);
 }
 
+/* Little-endian writers, used only to build the demo frames in main(). */
+static void write_u32_le(uint8_t *p, uint32_t v) {
+    p[0] = (uint8_t)(v);
+    p[1] = (uint8_t)(v >> 8);
+    p[2] = (uint8_t)(v >> 16);
+    p[3] = (uint8_t)(v >> 24);
+}
+
+static void write_u64_le(uint8_t *p, uint64_t v) {
+    int i;
+    for (i = 0; i < 8; i++) {
+        p[i] = (uint8_t)(v >> (8 * i));
+    }
+}
+
 static int frame_size(uint8_t msg_type) {
     switch (msg_type) {
         case MSG_LOGON: return 32;
         case MSG_LOGON_ACK: return 92;
         case MSG_NEW_ORDER: return 60;
-        case MSG_ORDER_ACK: return 68;
-        case MSG_CANCEL_ORDER: return 32;
-        case MSG_CANCEL_ACK: return 40;
-        case MSG_AMEND_ORDER: return 52;
-        case MSG_AMEND_ACK: return 56;
-        case MSG_EXECUTION_REPORT: return 72;
+        case MSG_ORDER_ACK: return 60;
+        case MSG_CANCEL_ORDER: return 24;
+        case MSG_CANCEL_ACK: return 32;
+        case MSG_AMEND_ORDER: return 44;
+        case MSG_AMEND_ACK: return 48;
+        case MSG_EXECUTION_REPORT: return 64;
         case MSG_HEARTBEAT: return 16;
         case MSG_HEARTBEAT_ACK: return 16;
         case MSG_LOGOUT: return 8;
@@ -110,8 +129,42 @@ static void parse_logon_ack(const uint8_t *body, size_t len) {
            gateway_id, (unsigned)accepted, (unsigned)reject_code, message);
 }
 
+/* EXECUTION_REPORT is parsed by the GENERATED binding rather than by hand.
+ *
+ * Every other message in this file re-derives its layout from the protocol
+ * appendix, which is exactly how this example came to disagree with the
+ * gateway: it modelled order_id as a 16-byte string where the protocol defines
+ * a u64, making it eight bytes too large on all six messages that carry one.
+ * The generated parser cannot drift that way -- its offsets come from
+ * spec/messages/order.yaml, and `pm-msgen check` fails the build if the two
+ * disagree. See docs/developer/06-msgen.md.
+ */
+static void parse_execution_report_generated(const uint8_t *frame, size_t len) {
+    edu_execution_report_balf_t er;
+    char err[128];
+    int rc = edu_execution_report_balf_parse(frame, len, &er);
+
+    if (rc != EDU_MSG_OK) {
+        fprintf(stderr, "EXECUTION_REPORT parse failed: %s\n", edu_msg_strerror(rc));
+        return;
+    }
+    if (edu_execution_report_balf_validate(&er, err, sizeof(err)) != EDU_MSG_OK) {
+        fprintf(stderr, "EXECUTION_REPORT rejected: %s\n", err);
+        return;
+    }
+
+    printf("EXECUTION_REPORT order_id=%llu %s %u @ %.8f (%s, remaining %u)\n",
+           (unsigned long long)er.order_id,
+           er.symbol,
+           er.fill_qty,
+           er.fill_price,
+           edu_execution_report_status_to_str(er.status),
+           er.remaining_qty);
+}
+
 int main(void) {
     uint8_t frame[92];
+    uint8_t exec[EDU_EXECUTION_REPORT_BALF_FRAME_SIZE];
     BalfHeader hdr;
     const uint8_t *body = NULL;
     size_t body_len = 0;
@@ -139,6 +192,26 @@ int main(void) {
     if (hdr.msg_type == MSG_LOGON_ACK) {
         parse_logon_ack(body, body_len);
     }
+
+    /* A minimal EXECUTION_REPORT: order_id 4242, 25 AAPL fully filled at
+     * 150.00. Offsets are the protocol's; the generated parser reads them
+     * back. Values are written with a helper rather than as hand-computed hex
+     * -- the first draft of this block spelled 150.00 wrong and printed
+     * 149.81, which is the whole reason the layout lives in a spec now. */
+    memset(exec, 0, sizeof(exec));
+    exec[0] = BALF_MAGIC;
+    exec[1] = BALF_VERSION;
+    exec[2] = MSG_EXECUTION_REPORT;
+    write_u64_le(exec + 8 + 0, 1);                  /* client_order_id      */
+    write_u64_le(exec + 8 + 8, 4242);               /* order_id             */
+    write_u64_le(exec + 8 + 16, 150ULL * 100000000ULL); /* fill_price x1e8  */
+    write_u32_le(exec + 8 + 24, 25);                /* fill_qty             */
+    write_u32_le(exec + 8 + 28, 0);                 /* remaining_qty        */
+    write_u64_le(exec + 8 + 32, 1700000000000000000ULL); /* timestamp_ns    */
+    memcpy(exec + 8 + 40, "AAPL", 4);               /* symbol               */
+    exec[8 + 48] = 1;                               /* side   = BUY         */
+    exec[8 + 49] = 2;                               /* status = FILLED      */
+    parse_execution_report_generated(exec, sizeof(exec));
 
     puts("balf_parser.c self-test: OK");
     return 0;

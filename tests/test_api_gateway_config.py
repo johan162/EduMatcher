@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from edumatcher.api_gateway.config import load_api_gateway_config
+from edumatcher.config import DATA_DIR, STATS_DB_FILE
 
 
 def test_defaults_when_api_gateway_block_missing(tmp_path: Path) -> None:
@@ -15,6 +16,37 @@ def test_defaults_when_api_gateway_block_missing(tmp_path: Path) -> None:
     assert cfg.port == 8080
     assert cfg.swagger_enabled is True
     assert cfg.credentials == ()
+
+
+def test_generated_stats_db_path_uses_shared_runtime_database(tmp_path: Path) -> None:
+    path = tmp_path / "engine_config.yaml"
+    path.write_text("""
+api_gateways:
+  desk:
+    stats_db: data/stats.db
+""")
+
+    cfg = load_api_gateway_config(path)
+
+    assert cfg.stats_db == STATS_DB_FILE
+
+
+def test_relative_api_paths_resolve_inside_shared_data_directory(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "engine_config.yaml"
+    path.write_text("""
+api_gateways:
+  desk:
+    stats_db: stats/custom.db
+    audit_db: data/audit/custom.db
+""")
+
+    cfg = load_api_gateway_config(path)
+
+    assert cfg.stats_db.name == "custom.db"
+    assert cfg.stats_db.parent.name == "stats"
+    assert cfg.audit_db == DATA_DIR / "audit" / "custom.db"
 
 
 def test_load_single_named_api_gateway_block(tmp_path: Path) -> None:

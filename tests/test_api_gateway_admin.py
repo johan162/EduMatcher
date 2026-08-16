@@ -335,3 +335,17 @@ def test_ws_auction_channel_helpers() -> None:
     assert ws._event_channel("auction") == "auction"
     event = {"type": "auction", "data": {"symbol": "AAPL"}}
     assert ws._topic_from_event(event) == "auction.result.AAPL"
+
+
+def test_events_auction_indicative_mapping() -> None:
+    assert websocket_type("auction.indicative.AAPL") == "auction.indicative"
+    assert market_data_symbol("auction.indicative.aapl", {}) == "AAPL"
+    assert gateway_from_topic("auction.indicative.AAPL") is None
+
+
+def test_ws_auction_indicative_rides_auction_channel() -> None:
+    # Indicative and result share the client's `auction` channel; a subscriber
+    # to `auction` on a symbol must receive both.
+    assert ws._event_channel("auction.indicative") == "auction"
+    event = {"type": "auction.indicative", "data": {"symbol": "AAPL"}}
+    assert ws._topic_from_event(event) == "auction.indicative.AAPL"

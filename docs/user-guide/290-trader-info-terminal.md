@@ -17,7 +17,7 @@
 
 **TapeDeck** is the friendly nickname this guide uses for the Trader
 Information Terminal, whose system name is `pm-terminal` and whose source code
-lives in `terminal-gui/`. It is a read-only market display for the EduMatcher
+lives in `web-apps/terminal-gui/`. It is a read-only market display for the EduMatcher
 exchange: a browser window for watching live prices, trades, auctions, halts,
 indexes, and depth-of-book information.
 
@@ -82,7 +82,7 @@ from inside the container:
 3. Optionally start `pm-log-srv` for centralized operational logs.
 4. Start TapeDeck and open the browser.
 
-From `terminal-gui/`:
+From `web-apps/terminal-gui/`:
 
 ```bash
 export PM_TERMINAL_API_KEY='...'   # read-only API-gateway key, history only
@@ -192,7 +192,7 @@ close values are missing, check `API_GATEWAY_URL` and `PM_TERMINAL_API_KEY`.
 
 ### Local development
 
-From the `terminal-gui/` directory:
+From the `web-apps/terminal-gui/` directory:
 
 ```bash
 make install    # npm workspace install
@@ -524,5 +524,5 @@ default host names, `CALF_HOST`, `API_GATEWAY_URL`, and `LOG_SRV_HOST`.
   application TapeDeck shares its monorepo shape and deployment conventions
   with
 - `docs-design/EduMatcher-Terminal-GUI.md` — the full design document (repository checkout only)
-- `terminal-gui/README.md` — the implementation's own record of every
+- `web-apps/terminal-gui/README.md` — the implementation's own record of every
   deviation from that design document (repository checkout only)

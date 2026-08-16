@@ -17,6 +17,14 @@ All paths are rooted at `/api/v1`.
 
 ## Endpoint index
 
+### Bootstrap
+
+| Endpoint | Access | Purpose |
+|---|---|---|
+| [GET /api/v1/bootstrap/trader](#get-apiv1bootstraptrader) | Any valid key | One-request startup payload for TRADER / MARKET\_MAKER / ADMIN |
+| [GET /api/v1/bootstrap/mm](#get-apiv1bootstrapmm) | MARKET\_MAKER key | One-request startup payload for MARKET\_MAKER (adds quote state) |
+| [GET /api/v1/bootstrap/admin](#get-apiv1bootstrapadmin) | Admin role | One-request startup payload for ADMIN |
+
 ### Trading REST
 
 | Endpoint | Access | Purpose |
@@ -253,7 +261,7 @@ Full request:
   "quantity": 100,
   "price": 187.25,
   "tif": "DAY",
-  "smp_action": "CANCEL_NEW",
+  "smp_action": "CANCEL_AGGRESSOR",
   "client_order_id": "desk1-aapl-00042"
 }
 ```
@@ -289,7 +297,7 @@ Minimal response:
 
 ```json
 {
-  "symbols": {},
+  "symbols": [],
   "risk": {},
   "indexes": [],
   "schedule": {},
@@ -301,12 +309,13 @@ Full response:
 
 ```json
 {
-  "symbols": {
-    "AAPL": {
+  "symbols": [
+    {
+      "symbol": "AAPL",
       "tick_decimals": 2,
-      "lot_size": 1
+      "level": "L1"
     }
-  },
+  ],
   "risk": {
     "default_level": "L1",
     "levels": {
@@ -366,7 +375,7 @@ Minimal request:
 
 ```json
 {
-  "to_state": "OPEN"
+  "to_state": "CONTINUOUS"
 }
 ```
 
@@ -374,7 +383,7 @@ Full request:
 
 ```json
 {
-  "to_state": "OPEN"
+  "to_state": "CONTINUOUS"
 }
 ```
 
@@ -382,7 +391,7 @@ Minimal response:
 
 ```json
 {
-  "requested_state": "OPEN",
+  "requested_state": "CONTINUOUS",
   "status": "APPLIED",
   "command_id": "c_01K17P..."
 }
@@ -392,7 +401,7 @@ Full response:
 
 ```json
 {
-  "requested_state": "OPEN",
+  "requested_state": "CONTINUOUS",
   "status": "APPLIED",
   "command_id": "c_01K17P9B7C6W9X0Y8Z7"
 }
@@ -407,6 +416,202 @@ Full response:
   redefinition) MUST ship under a new versioned base path.
 - Deprecation: deprecated fields/endpoints SHOULD be documented with migration
   guidance before removal in a later major API version.
+
+## Bootstrap
+
+Bootstrap endpoints return a single composed response that a browser client
+can fetch immediately after authenticating, replacing the 6–13 sequential
+round-trips the current login flow requires.  Sub-queries inside each handler
+run in parallel using `asyncio.gather`.
+
+Each response includes an `incomplete` array.  When a field is listed there
+its value is `null`; the rest of the response is still usable.  Required
+fields (marked below) return `503 ENGINE_TIMEOUT` on failure — the response
+would be too incomplete to be useful without them.
+
+---
+
+### `GET /api/v1/bootstrap/trader`
+
+Purpose: one-request startup payload for TRADER, MARKET\_MAKER, and ADMIN
+sessions.  Returns identity, full reference data, live session state,
+positions, active orders, today's recent fills, and capability flags.
+
+**Access:** any valid key (read-only keys receive `gateway_role: "READ_ONLY"`,
+empty `positions`, and empty `orders`).
+
+**Query parameters**
+
+| Name | Type | Default | Constraints | Description |
+|---|---|---|---|---|
+| `fills_limit` | `int` | `50` | `1..500` | Maximum number of today's fill events to include in `recent_fills` |
+
+**Reply `200 OK`**
+
+```jsonc
+{
+  "ts": "2026-07-27T09:30:01.123Z",
+  "incomplete": [],               // field names that timed out (values are null)
+
+  "gateway_id": "TRADER01",       // null for read-only keys
+  "gateway_role": "TRADER",       // TRADER | MARKET_MAKER | ADMIN | READ_ONLY
+
+  // identical to GET /reference
+  "reference": {
+    "symbols": [ { "symbol": "AAPL", "tick_decimals": 2, ... } ],
+    "risk":     { "default_level": "L2", "levels": { ... } },
+    "schedule": { "sessions_enabled": true, "country": "Sweden", "schedule": { ... } },
+    "config_version": "7f3a2c1"
+  },
+
+  // identical to GET /session; null if engine timed out (optional)
+  "session": { "state": "CONTINUOUS", "since": "2026-07-27T09:30:00.000Z" },
+
+  // identical to GET /positions (pure cache, never null)
+  "positions": [ { "symbol": "AAPL", "net_qty": 200, "last_price": 210.25 } ],
+
+  // identical to GET /orders response body (required — 503 on failure)
+  "orders": { "orders": [ /* Order[] */ ] },
+
+  // today's fills, limited to fills_limit; null if stats DB absent (optional)
+  "recent_fills": { "events": [ /* Fill[] */ ], "count": 12 },
+
+  // capability flags — assembled from config, never null
+  "capabilities": {
+    "sessions_enabled": true,    // from reference.schedule.sessions_enabled
+    "stats_db_available": true,  // false → history unavailable
+    "audit_db_available": false, // false → order lifecycle drill-down unavailable
+    "index_available": false     // false → index tab unavailable
+  }
+}
+```
+
+**Required fields** (return `503 ENGINE_TIMEOUT` if they fail):
+`reference`, `orders` (omitted for read-only keys).
+
+**Optional fields** (appear as `null` + listed in `incomplete` on failure):
+`session`, `recent_fills`.
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `AUTH` | `401` | Missing or malformed key |
+| `ENGINE_TIMEOUT` | `503` | `reference` or `orders` could not be fetched |
+| `VALIDATION` | `422` | `fills_limit` is not a valid integer |
+
+---
+
+### `GET /api/v1/bootstrap/mm`
+
+Purpose: one-request startup payload for MARKET\_MAKER sessions.  Superset of
+`/bootstrap/trader` — adds active quote bootstrap state and quote legs.
+
+**Access:** MARKET\_MAKER key only.  TRADER and ADMIN keys receive `403`.
+
+**Query parameters:** same as `/bootstrap/trader` (`fills_limit`).
+
+**Reply `200 OK`**
+
+All fields from `/bootstrap/trader`, plus:
+
+```jsonc
+{
+  // ...trader fields...
+  "gateway_role": "MARKET_MAKER",
+
+  // identical to GET /quotes/bootstrap; null if engine timed out (optional)
+  "quote_bootstrap": { "quotes": [ /* ActiveQuote[] */ ] },
+
+  // identical to GET /quotes/legs; null if engine timed out (optional)
+  "quote_legs": { "legs": [ /* QuoteLeg[] */ ] }
+}
+```
+
+**Required fields:** `reference`, `orders`.
+
+**Optional fields:** `session`, `recent_fills`, `quote_bootstrap`, `quote_legs`.
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `AUTH` | `401` | Missing or malformed key |
+| `READ_ONLY` | `403` | Read-only key (no gateway\_id) |
+| `ROLE_DENIED` | `403` | Key resolves to TRADER or ADMIN role |
+| `ENGINE_TIMEOUT` | `503` | `reference` or `orders` could not be fetched |
+| `VALIDATION` | `422` | `fills_limit` is not a valid integer |
+
+---
+
+### `GET /api/v1/bootstrap/admin`
+
+Purpose: one-request startup payload for ADMIN sessions.  Returns reference
+data, session state, the full gateway roster, active halts, per-gateway
+active-order counts, per-gateway drop-copy sequence numbers, and capability
+flags.
+
+**Access:** ADMIN role required.  TRADER and MARKET\_MAKER keys receive `403`.
+
+**No query parameters.**
+
+**Reply `200 OK`**
+
+```jsonc
+{
+  "ts": "2026-07-27T09:30:01.250Z",
+  "incomplete": [],
+
+  "gateway_id": "INSTRUCTOR",
+  "gateway_role": "ADMIN",
+
+  // identical to GET /reference (required — 503 on failure)
+  "reference": { /* symbols, risk, schedule, config_version */ },
+
+  // identical to GET /session; null if engine timed out (optional)
+  "session": { "state": "CONTINUOUS", "since": "..." },
+
+  // identical to GET /admin/gateways response body; null if engine timed out (optional)
+  "gateways": {
+    "gateways": [
+      { "gateway_id": "TRADER01", "role": "TRADER", "description": "...", "connected": true }
+    ]
+  },
+
+  // identical to GET /admin/halts response body; null if engine timed out (optional)
+  "halts": { "halted": [ { "symbol": "AAPL", "level": "L2", ... } ] },
+
+  // per-gateway active (non-terminal) order count — pure cache, never null
+  "active_order_counts": { "TRADER01": 3, "MM01": 12 },
+
+  // per-gateway highest drop-copy stream_seq seen — pure cache, never null
+  "monitor_last_seq": { "TRADER01": 100482, "MM01": 88213 },
+
+  "capabilities": {
+    "sessions_enabled": true,
+    "stats_db_available": true,
+    "audit_db_available": false,
+    "index_available": false
+  }
+}
+```
+
+**Required fields:** `reference`.
+
+**Optional fields:** `session`, `gateways`, `halts`.
+The `gateways` and `halts` fields are also supplied by the `monitor.snapshot`
+frame that the `WS /api/v1/admin/monitor` socket sends immediately after auth
+— a partial bootstrap response is therefore recoverable without a manual retry.
+
+**Errors**
+
+| Code | Status | When |
+|---|---|---|
+| `AUTH` | `401` | Missing or malformed key |
+| `ROLE_DENIED` | `403` | Key is not ADMIN |
+| `ENGINE_TIMEOUT` | `503` | `reference` could not be fetched |
+
+---
 
 ## Trading REST
 
@@ -1015,7 +1220,7 @@ Purpose: return per-symbol tick and risk metadata.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "symbols": {...}, "config_version": "..." }` | Symbol metadata keyed by symbol |
+| `200 OK` | `{ "symbols": [...], "config_version": "..." }` | One object per symbol (each carries its own `symbol`) |
 
 **Errors**
 
@@ -1569,7 +1774,7 @@ Purpose: return the current active halts table.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "halts": [...] }` | Active halts for the venue |
+| `200 OK` | `{ "halted": [...] }` | Currently-halted symbols; each `{ symbol, resume_at_ns?, level?, halt_source? }` |
 
 **Errors**
 
@@ -1593,7 +1798,7 @@ Purpose: return live per-symbol risk state.
 
 | Status | Shape | Meaning |
 |---|---|---|
-| `200 OK` | `{ "symbols": {...} }` | Current collar and circuit-breaker state |
+| `200 OK` | `{ "symbols": [...] }` | Current collar and circuit-breaker state (one object per symbol) |
 
 **Errors**
 
@@ -1812,6 +2017,10 @@ Purpose: reload the compiled reference bundle in place.
   but not trading or admin write endpoints.
 - `order_retention_sec` bounds the live order cache, the private
   `orders.snapshot` frame, and `GET /api/v1/admin/orders`.
+- `market_data_cache_sec` bounds the market-data stream cache that backs the
+  snapshot-on-subscribe, `snapshot`, and `resume` controls on
+  `WS /api/v1/market-data` (latest `book`/`depth`/`auction` snapshots are kept
+  regardless of age; only the `trades` tail is bounded).
 - WebSocket streams use the chapter-level contracts in
   [API Gateway (REST/WebSocket)](260-api-gateway.md); this appendix is REST
   only.

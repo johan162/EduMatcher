@@ -1,3 +1,46 @@
+## [v0.20.0] - 2026-08-16
+
+Release Type: major
+
+### 📋 Summary
+This release introduces schema-driven message generation, richer API-gateway recovery and bootstrap capabilities, and a new Trader GUI. It also adds operational health tooling, improves startup resilience, and substantially expands the protocol and developer documentation.
+
+### ⚠️ Breaking Changes
+- Replaced hand-maintained message models and serializers with generated artifacts produced from the `spec/messages` YAML definitions; downstream integrations that import or depend on the previous message implementations must regenerate or update their usage
+- Changed API-gateway WebSocket and market-data recovery contracts to use sequenced private events, snapshots, stream groups, and resume boundaries
+- Moved the web applications into `web-apps/`, requiring deployment and development workflows that referenced their previous locations to be updated
+
+### ✨ Additions
+- Added `pm-msgen`, a schema-driven message generator that produces message models, serializers, C headers, C sources, and documentation from the protocol specifications
+- Added API-gateway bootstrap endpoints and market-data snapshot/resume support for recovering clients and newly connected consumers
+- Added a new Trader GUI with the APIs and recovery behavior needed for efficient trading workflows
+- Added the EduMatcher Operational Scripts (`pm-emo`) with mode subcommands and cheap TCP health checks
+- Added uptime, memory, restart, and process rediscovery information to `pm-opctl`
+- Added health checks to `pm-stats-cli` and startup support for stats, audit, and clearing processes before the engine is ready
+
+### 🚀 Improvements
+- Improved API-gateway administration with compiled reference-data access, replay boundaries, correlated mass-cancel and session-transition commands, risk state, circuit-breaker controls, and index rebalance operations
+- Improved gateway and client recovery with event sequencing, per-symbol subscriptions, group identifiers, snapshots, and stream sequence markers
+- Improved configuration generation with readable command-string comments and regenerated examples that match the current compiler and schema
+- Improved engine resilience when receiving malformed or faulty messages
+- Improved VM, virtual-environment, npm, and installation workflows for more reliable development setup
+
+### 🐛 Bug Fixes
+- Fixed configuration examples and generator/compiler mismatches that could produce stale or invalid reference-data files
+- Fixed CI test failures caused by timing and leaked log-level state
+- Fixed formatting, lint, and build issues across generated administration messages and gateway code
+
+### 📚 Documentation
+- Added the message-generator developer guide, protocol specifications, generated examples, and a developer presentation
+- Added and updated Trader GUI, API-gateway recovery, bootstrap API, authentication, and market-data snapshot/resume design documentation
+- Updated the User Guide message reference, REST API reference, configuration, operations, trading GUI, and protocol chapters to match the current implementation
+- Added training presentation PDFs and expanded finance material covering combo and implied orders
+
+### 🛠 Internal
+- Reworked message producers, consumers, and documentation generation around a single YAML specification source
+- Added generated C and Python protocol artifacts and expanded integration coverage for API-gateway recovery and new operational tooling
+- Added web-application repository guidance and build workflow updates
+
 ## [v0.19.1] - 2026-08-07
 
 Release Type: minor

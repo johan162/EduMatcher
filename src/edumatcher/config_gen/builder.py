@@ -118,6 +118,7 @@ class ConfigSpec:
     drop_copy_buffer_size: int = DEFAULT_DROP_COPY_BUFFER_SIZE
     recent_trades_maxlen: int = DEFAULT_RECENT_TRADES_MAXLEN
     depth_snapshot_tolerance_ticks: int = DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS
+    emit_engine_tuning: bool = False
     enforce_collars: bool = True
     enforce_circuit_breakers: bool = True
     static_band_pct: float | None = None
@@ -291,7 +292,7 @@ class ApiGatewaySpec:
     log_level: str = DEFAULT_API_GATEWAY_LOG_LEVEL
     stats_db: str = DEFAULT_API_GATEWAY_STATS_DB
     credentials: tuple[ApiCredentialSpec, ...] = ()
-    gateway_ids: tuple[str, ...] = ()
+    gateway_ids: tuple[str, ...] | None = None
     generate_keys: bool = True
     generate_readonly_key: bool = False
     rate_limit_writes_per_second: int = DEFAULT_API_GATEWAY_RATE_LIMIT_WRITES_PER_SECOND
@@ -312,14 +313,16 @@ class ConfigBuilder:
             "sessions_enabled": self.spec.sessions_enabled,
             "enforce_collars": self.spec.enforce_collars,
             "enforce_circuit_breakers": self.spec.enforce_circuit_breakers,
-            "engine_tuning": {
+        }
+
+        if self.spec.emit_engine_tuning:
+            cfg["engine_tuning"] = {
                 "snapshot_interval_sec": self.spec.snapshot_interval_sec,
                 "quote_history_maxlen": self.spec.quote_history_maxlen,
                 "drop_copy_buffer_size": self.spec.drop_copy_buffer_size,
                 "recent_trades_maxlen": self.spec.recent_trades_maxlen,
                 "depth_snapshot_tolerance_ticks": self.spec.depth_snapshot_tolerance_ticks,
-            },
-        }
+            }
 
         if self.spec.country is not None:
             cfg["country"] = self.spec.country
@@ -516,12 +519,14 @@ class ConfigBuilder:
     ) -> list[ApiCredentialSpec]:
         credentials = list(spec.credentials)
         explicit_gateway_ids = {item.gateway_id for item in credentials}
-        included_gateway_ids = set(spec.gateway_ids)
+        included_gateway_ids = (
+            None if spec.gateway_ids is None else set(spec.gateway_ids)
+        )
 
         if spec.generate_keys:
             for gateway in self.spec.gateways:
                 if (
-                    included_gateway_ids
+                    included_gateway_ids is not None
                     and gateway.gateway_id not in included_gateway_ids
                 ):
                     continue

@@ -48,8 +48,35 @@ class FakeDropCopy:
 
     events: list[tuple[str, str, dict[str, Any]]] = field(default_factory=list)
 
-    def publish(self, gateway_id: str, event_type: str, payload: dict) -> None:
-        self.events.append((gateway_id, event_type, payload))
+    def publish_fill(
+        self,
+        gateway_id: str,
+        *,
+        order_id: str,
+        symbol: str,
+        fill_qty: int,
+        fill_price: float,
+        liquidity_flag: str,
+    ) -> None:
+        """Mirrors DropCopyPublisher.publish_fill's signature exactly.
+
+        Kept recording ``(gateway_id, event_type, payload)`` so the assertions
+        that read ``events[i][2]["liquidity_flag"]`` still hold — the double
+        is a spy on the wire shape, and that shape did not change.
+        """
+        self.events.append(
+            (
+                gateway_id,
+                "order.fill",
+                {
+                    "order_id": order_id,
+                    "symbol": symbol,
+                    "fill_qty": fill_qty,
+                    "fill_price": fill_price,
+                    "liquidity_flag": liquidity_flag,
+                },
+            )
+        )
 
     def close(self) -> None:  # pragma: no cover - interface parity
         pass
@@ -196,8 +223,11 @@ def submit_quote(
             "gateway_id": gateway_id,
             "symbol": symbol,
             "quote_id": quote_id,
-            "bid_price": bid_price,
-            "ask_price": ask_price,
+            # Callers pass display money, as a market maker's own pricer
+            # produces; the wire carries ticks, and converting is the
+            # submitting side's job (design section 15.2, quotes in 6.1b).
+            "bid_price": to_ticks(bid_price, symbol),
+            "ask_price": to_ticks(ask_price, symbol),
             "bid_qty": bid_qty,
             "ask_qty": ask_qty,
             "tif": "DAY",

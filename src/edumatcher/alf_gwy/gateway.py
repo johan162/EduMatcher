@@ -54,13 +54,65 @@ from edumatcher.models.message import (
 )
 from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.price import register_tick_decimals, to_ticks
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.order import (
+    PREFIX_ORDER_ACK,
+    PREFIX_ORDER_AMENDED,
+    PREFIX_ORDER_CANCELLED,
+    PREFIX_ORDER_EXPIRED,
+    PREFIX_ORDER_FILL,
+    PREFIX_ORDERS,
+    topic_order_ack,
+    topic_orders,
+    topic_order_amended,
+    topic_order_cancelled,
+    topic_order_expired,
+    topic_order_fill,
+)
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.drop_copy import PREFIX_DROP_COPY_EVENT
+from edumatcher.models.generated.circuit_breaker import (
+    PREFIX_CIRCUIT_BREAKER_HALT,
+    PREFIX_CIRCUIT_BREAKER_RESUME,
+)
+from edumatcher.models.generated.risk import (
+    PREFIX_KILL_SWITCH_ACK,
+    topic_kill_switch_ack,
+)
+from edumatcher.models.generated.structure import (
+    PREFIX_COMBO_ACK,
+    PREFIX_COMBO_STATUS,
+    PREFIX_OCO_ACK,
+    PREFIX_OCO_CANCELLED,
+    topic_combo_ack,
+    topic_combo_status,
+    topic_oco_ack,
+    topic_oco_cancelled,
+)
+from edumatcher.models.generated.quote import (
+    PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_STATUS,
+    topic_quote_ack,
+    topic_quote_status,
+)
+from edumatcher.models.generated.system import (
+    PREFIX_GATEWAY_AUTH,
+    PREFIX_QUOTE_BOOTSTRAP,
+    PREFIX_QUOTE_LEGS,
+    PREFIX_SESSION_STATUS,
+    PREFIX_SYMBOLS,
+    topic_gateway_auth,
+    topic_quote_bootstrap,
+    topic_session_status,
+    topic_symbols,
+)
 
 _MAX_LINE_BYTES = 4096
 _MAX_ENGINE_EVENTS_PER_LOOP = 1000
 _MAX_DC_EVENTS_PER_LOOP = 1000
 # Topic prefix used by edumatcher.engine.drop_copy.DropCopyPublisher for live
 # (non-replay) fill events -- see docs/user-guide/200-drop-copy.md.
-_DC_EVENT_TOPIC_PREFIX = "drop_copy.event."
+_DC_EVENT_TOPIC_PREFIX = PREFIX_DROP_COPY_EVENT
 
 log = logging.getLogger(__name__)
 
@@ -124,10 +176,10 @@ class AlfGateway:
         self._push: zmq.Socket[bytes] = make_pusher(config.engine_pull_addr)
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
-            "session.state",
-            "trade.executed",
-            "circuit_breaker.halt.",
-            "circuit_breaker.resume.",
+            TOPIC_SESSION_STATE,
+            TOPIC_TRADE_EXECUTED,
+            PREFIX_CIRCUIT_BREAKER_HALT,
+            PREFIX_CIRCUIT_BREAKER_RESUME,
         )
         # Separate SUB socket for the engine's drop-copy feed (:5557). Kept
         # distinct from self._sub (:5556) because it is a different ZMQ PUB
@@ -511,7 +563,7 @@ class AlfGateway:
         session.auth_pending = True
         session.connect_emitted = False
 
-        auth_topic = f"system.gateway_auth.{gateway_id}"
+        auth_topic = topic_gateway_auth(gateway_id)
         self._subscribe_topic(auth_topic)
         session.subscriptions.add(auth_topic)
         try:
@@ -640,12 +692,16 @@ class AlfGateway:
             }
 
             if f"{prefix}PRICE" in fields:
-                leg["price"] = safe_float(fields[f"{prefix}PRICE"], f"{prefix}PRICE")
+                leg["price"] = to_ticks(
+                    safe_float(fields[f"{prefix}PRICE"], f"{prefix}PRICE"), symbol
+                )
             if f"{prefix}STOP" in fields:
-                leg["stop_price"] = safe_float(fields[f"{prefix}STOP"], f"{prefix}STOP")
+                leg["stop_price"] = to_ticks(
+                    safe_float(fields[f"{prefix}STOP"], f"{prefix}STOP"), symbol
+                )
             if f"{prefix}TRAIL" in fields:
-                leg["trail_offset"] = safe_float(
-                    fields[f"{prefix}TRAIL"], f"{prefix}TRAIL"
+                leg["trail_offset"] = to_ticks(
+                    safe_float(fields[f"{prefix}TRAIL"], f"{prefix}TRAIL"), symbol
                 )
             return leg
 
@@ -737,7 +793,7 @@ class AlfGateway:
             tif=tif,
             legs=legs,
         )
-        self._send_to_engine(make_combo_order_msg(combo.to_dict()))
+        self._send_to_engine(make_combo_order_msg(combo.to_submission_dict()))
 
     def _handle_amend(self, session: ClientSession, fields: dict[str, str]) -> None:
         order_id = self._required_str(fields, "ID")
@@ -794,9 +850,10 @@ class AlfGateway:
         payload: dict[str, Any] = {
             "gateway_id": self._require_gw(session),
             "symbol": symbol,
-            "bid_price": bid,
+            # Ticks on the wire (design section 15.2, quotes joined in 6.1b).
+            "bid_price": to_ticks(bid, symbol),
             "bid_qty": bid_qty,
-            "ask_price": ask,
+            "ask_price": to_ticks(ask, symbol),
             "ask_qty": ask_qty,
             "tif": tif.value,
         }
@@ -865,37 +922,37 @@ class AlfGateway:
 
             budget -= 1
 
-            if topic.startswith("system.gateway_auth."):
+            if topic.startswith(PREFIX_GATEWAY_AUTH):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_gateway_auth(gateway_id, payload)
                 continue
 
-            if topic.startswith("system.symbols."):
+            if topic.startswith(PREFIX_SYMBOLS):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_symbols_response(gateway_id, payload)
                 continue
 
-            if topic.startswith("order.orders."):
+            if topic.startswith(PREFIX_ORDERS):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_orders_response(gateway_id, payload)
                 continue
 
-            if topic.startswith("system.quote_bootstrap."):
+            if topic.startswith(PREFIX_QUOTE_BOOTSTRAP):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_qboot_response(gateway_id, payload)
                 continue
 
-            if topic.startswith("system.quote_legs."):
+            if topic.startswith(PREFIX_QUOTE_LEGS):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_qlegs_response(gateway_id, payload)
                 continue
 
-            if topic.startswith("system.session_status."):
+            if topic.startswith(PREFIX_SESSION_STATUS):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
                 self._handle_session_status_response(gateway_id, payload)
                 continue
 
-            if topic == "session.state":
+            if topic == TOPIC_SESSION_STATE:
                 self._broadcast(
                     "SESSION",
                     {
@@ -905,7 +962,7 @@ class AlfGateway:
                 )
                 continue
 
-            if topic.startswith("circuit_breaker.halt."):
+            if topic.startswith(PREFIX_CIRCUIT_BREAKER_HALT):
                 self._broadcast(
                     "HALT",
                     {
@@ -915,7 +972,7 @@ class AlfGateway:
                 )
                 continue
 
-            if topic.startswith("circuit_breaker.resume."):
+            if topic.startswith(PREFIX_CIRCUIT_BREAKER_RESUME):
                 self._broadcast(
                     "RESUME",
                     {
@@ -925,7 +982,7 @@ class AlfGateway:
                 )
                 continue
 
-            if topic == "trade.executed":
+            if topic == TOPIC_TRADE_EXECUTED:
                 self._broadcast(
                     "TRADE",
                     {
@@ -1039,30 +1096,29 @@ class AlfGateway:
         if session is None:
             return
 
-        symbols_raw = payload.get("symbols", [])
-        symbol_meta = payload.get("symbol_meta", {})
-        symbols = [str(s).upper() for s in symbols_raw if isinstance(s, str)]
+        entries = [e for e in payload.get("symbols", []) if isinstance(e, dict)]
+        ticks: dict[str, int] = {}
+        symbols: list[str] = []
+        for entry in entries:
+            sym = str(entry.get("symbol", "")).upper()
+            if not sym:
+                continue
+            symbols.append(sym)
+            tick_decimals = entry.get("tick_decimals")
+            if isinstance(tick_decimals, int):
+                ticks[sym] = tick_decimals
+                register_tick_decimals(sym, tick_decimals)
+
         self._symbols_snapshot_loaded = True
         self._known_symbols.update(symbols)
 
-        if isinstance(symbol_meta, dict):
-            for sym in symbols:
-                meta = symbol_meta.get(sym)
-                if not isinstance(meta, dict):
-                    continue
-                tick_size = meta.get("tick_size")
-                if isinstance(tick_size, (int, float)) and tick_size > 0:
-                    decimals = self._infer_decimals(float(tick_size))
-                    if decimals is not None:
-                        register_tick_decimals(sym, decimals)
-
         self._queue_line(session, "SYMBOLS", {"COUNT": str(len(symbols))})
         for sym in symbols:
-            tick = ""
-            if isinstance(symbol_meta, dict):
-                meta = symbol_meta.get(sym)
-                if isinstance(meta, dict) and "tick_size" in meta:
-                    tick = str(meta["tick_size"])
+            # TICK stays the tick size on the CALF wire — the value a client
+            # multiplies a price by. The engine now sends the exponent, so the
+            # conversion happens here instead of `_infer_decimals` undoing it.
+            decimals = ticks.get(sym)
+            tick = "" if decimals is None else f"{10 ** -decimals:.{decimals}f}"
             self._queue_line(session, "SYMBOL", {"SYM": sym, "TICK": tick})
         self._queue_line(session, "END", {"TYPE": "SYMBOLS"})
 
@@ -1252,7 +1308,7 @@ class AlfGateway:
         fields: dict[str, str] | None = None
         msg_type: str | None = None
 
-        if topic.startswith("order.ack."):
+        if topic.startswith(PREFIX_ORDER_ACK):
             msg_type = "ACK"
             fields = {
                 "ORDER_ID": str(payload.get("order_id", "")),
@@ -1262,7 +1318,7 @@ class AlfGateway:
                 "SIDE": str(payload.get("side", "")),
                 "TYPE": str(payload.get("order_type", "")),
             }
-        elif topic.startswith("order.fill."):
+        elif topic.startswith(PREFIX_ORDER_FILL):
             msg_type = "FILL"
             fields = {
                 "ORDER_ID": str(payload.get("order_id", "")),
@@ -1271,7 +1327,7 @@ class AlfGateway:
                 "REMAINING": str(payload.get("remaining_qty", "")),
                 "STATUS": str(payload.get("status", "")),
             }
-        elif topic.startswith("order.amended."):
+        elif topic.startswith(PREFIX_ORDER_AMENDED):
             msg_type = "AMENDED"
             fields = {
                 "ORDER_ID": str(payload.get("order_id", "")),
@@ -1286,13 +1342,13 @@ class AlfGateway:
                     "TRUE" if bool(payload.get("priority_reset", False)) else "FALSE"
                 ),
             }
-        elif topic.startswith("order.cancelled."):
+        elif topic.startswith(PREFIX_ORDER_CANCELLED):
             msg_type = "CANCELLED"
             fields = {"ORDER_ID": str(payload.get("order_id", ""))}
-        elif topic.startswith("order.expired."):
+        elif topic.startswith(PREFIX_ORDER_EXPIRED):
             msg_type = "EXPIRED"
             fields = {"ORDER_ID": str(payload.get("order_id", ""))}
-        elif topic.startswith("quote.ack."):
+        elif topic.startswith(PREFIX_QUOTE_ACK):
             msg_type = "QUOTE_ACK"
             fields = {
                 "QUOTE_ID": str(payload.get("quote_id", "")),
@@ -1301,32 +1357,29 @@ class AlfGateway:
                 "BID_ID": str(payload.get("bid_order_id", "")),
                 "ASK_ID": str(payload.get("ask_order_id", "")),
             }
-        elif topic.startswith("quote.status."):
+        elif topic.startswith(PREFIX_QUOTE_STATUS):
             msg_type = "QUOTE_STATUS"
             fields = {
                 "QUOTE_ID": str(payload.get("quote_id", "")),
                 "STATUS": str(payload.get("status", "")),
                 "REASON": str(payload.get("reason", "")),
             }
-        elif topic.startswith("combo.ack."):
+        elif topic.startswith(PREFIX_COMBO_ACK):
             msg_type = "COMBO_ACK"
             fields = {
                 "COMBO_ID": str(payload.get("combo_id", "")),
                 "ACCEPTED": "TRUE" if bool(payload.get("accepted", False)) else "FALSE",
                 "REASON": str(payload.get("reason", "")),
             }
-        elif topic.startswith("combo.status."):
+        elif topic.startswith(PREFIX_COMBO_STATUS):
             msg_type = "COMBO_STATUS"
-            details = payload.get("details")
-            reason = ""
-            if isinstance(details, dict):
-                reason = str(details.get("reason", ""))
+            reason = str(payload.get("reason", ""))
             fields = {
                 "COMBO_ID": str(payload.get("combo_id", "")),
                 "STATUS": str(payload.get("status", "")),
                 "REASON": reason,
             }
-        elif topic.startswith("oco.ack."):
+        elif topic.startswith(PREFIX_OCO_ACK):
             msg_type = "OCO_ACK"
             fields = {
                 "OCO_ID": str(payload.get("oco_id", "")),
@@ -1335,14 +1388,14 @@ class AlfGateway:
                 "LEG2_ID": str(payload.get("order_id_2", "")),
                 "REASON": str(payload.get("reason", "")),
             }
-        elif topic.startswith("oco.cancelled."):
+        elif topic.startswith(PREFIX_OCO_CANCELLED):
             msg_type = "OCO_CANCELLED"
             fields = {
                 "OCO_ID": str(payload.get("oco_id", "")),
                 "CANCELLED_ID": str(payload.get("cancelled_order_id", "")),
                 "REASON": str(payload.get("reason", "")),
             }
-        elif topic.startswith("risk.kill_switch_ack."):
+        elif topic.startswith(PREFIX_KILL_SWITCH_ACK):
             msg_type = "KILL_ACK"
             fields = {
                 "ACCEPTED": "TRUE" if bool(payload.get("accepted", False)) else "FALSE",
@@ -1636,23 +1689,23 @@ class AlfGateway:
 
     def _gateway_topics(self, gateway_id: str) -> tuple[str, ...]:
         return (
-            f"system.gateway_auth.{gateway_id}",
-            f"order.ack.{gateway_id}",
-            f"order.fill.{gateway_id}",
-            f"order.amended.{gateway_id}",
-            f"order.cancelled.{gateway_id}",
-            f"order.expired.{gateway_id}",
-            f"order.orders.{gateway_id}",
-            f"quote.ack.{gateway_id}",
-            f"quote.status.{gateway_id}",
-            f"combo.ack.{gateway_id}",
-            f"combo.status.{gateway_id}",
-            f"oco.ack.{gateway_id}",
-            f"oco.cancelled.{gateway_id}",
-            f"risk.kill_switch_ack.{gateway_id}",
-            f"system.symbols.{gateway_id}",
-            f"system.quote_bootstrap.{gateway_id}",
-            f"system.session_status.{gateway_id}",
+            topic_gateway_auth(gateway_id),
+            topic_order_ack(gateway_id),
+            topic_order_fill(gateway_id),
+            topic_order_amended(gateway_id),
+            topic_order_cancelled(gateway_id),
+            topic_order_expired(gateway_id),
+            topic_orders(gateway_id),
+            topic_quote_ack(gateway_id),
+            topic_quote_status(gateway_id),
+            topic_combo_ack(gateway_id),
+            topic_combo_status(gateway_id),
+            topic_oco_ack(gateway_id),
+            topic_oco_cancelled(gateway_id),
+            topic_kill_switch_ack(gateway_id),
+            topic_symbols(gateway_id),
+            topic_quote_bootstrap(gateway_id),
+            topic_session_status(gateway_id),
         )
 
     def _gateway_in_use(self, gateway_id: str) -> bool:
@@ -1681,12 +1734,3 @@ class AlfGateway:
         for session in self._clients.values():
             if session.authenticated:
                 self._queue_line(session, msg_type, fields)
-
-    @staticmethod
-    def _infer_decimals(tick_size: float) -> int | None:
-        if tick_size <= 0:
-            return None
-        text = f"{tick_size:.12f}".rstrip("0").rstrip(".")
-        if "." not in text:
-            return 0
-        return len(text.split(".", 1)[1])

@@ -59,7 +59,6 @@ from edumatcher.balf_gwy.codec import (
     MSG_NEW_ORDER,
     build_amend_ack,
     build_cancel_ack,
-    build_execution_report,
     build_heartbeat,
     build_heartbeat_ack,
     build_logon_ack,
@@ -82,7 +81,7 @@ from edumatcher.balf_gwy.protocol import (
 from edumatcher.balf_gwy.translate import (
     build_engine_new_order,
     engine_amended_to_balf_params,
-    engine_fill_to_balf_params,
+    engine_fill_to_execution_report_dict,
     new_engine_order_id,
 )
 from edumatcher.messaging.bus import make_pusher, make_subscriber
@@ -96,6 +95,27 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
 )
 from edumatcher.models.price import register_tick_decimals
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.order import (
+    PREFIX_ORDER_ACK,
+    PREFIX_ORDER_AMENDED,
+    PREFIX_ORDER_CANCELLED,
+    PREFIX_ORDER_EXPIRED,
+    PREFIX_ORDER_FILL,
+    serialise_execution_report_balf,
+    topic_order_ack,
+    topic_order_amended,
+    topic_order_cancelled,
+    topic_order_expired,
+    topic_order_fill,
+)
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.system import (
+    PREFIX_GATEWAY_AUTH,
+    PREFIX_SYMBOLS,
+    topic_gateway_auth,
+    topic_symbols,
+)
 
 log = logging.getLogger(__name__)
 
@@ -224,8 +244,8 @@ class BalfGateway:
         self._push: zmq.Socket[bytes] = make_pusher(config.engine_pull_addr)
         self._sub: zmq.Socket[bytes] = make_subscriber(
             config.engine_pub_addr,
-            "session.state",
-            "trade.executed",
+            TOPIC_SESSION_STATE,
+            TOPIC_TRADE_EXECUTED,
         )
 
         self._global_stats: dict[str, int] = {
@@ -589,7 +609,7 @@ class BalfGateway:
         session.connect_emitted = False
 
         # Subscribe to the auth reply topic and send gateway_connect to engine
-        auth_topic = f"system.gateway_auth.{gw_id}"
+        auth_topic = topic_gateway_auth(gw_id)
         self._subscribe_topic(auth_topic)
         session.subscriptions.add(auth_topic)
         try:
@@ -877,12 +897,12 @@ class BalfGateway:
                 log.exception("BALF error dispatching engine event %s: %s", topic, exc)
 
     def _dispatch_engine_event(self, topic: str, payload: dict[str, Any]) -> None:
-        if topic.startswith("system.gateway_auth."):
+        if topic.startswith(PREFIX_GATEWAY_AUTH):
             gw_id = topic.rsplit(".", 1)[-1].upper()
             self._handle_gateway_auth(gw_id, payload)
             return
 
-        if topic.startswith("system.symbols."):
+        if topic.startswith(PREFIX_SYMBOLS):
             gw_id = topic.rsplit(".", 1)[-1].upper()
             self._handle_symbols_response(gw_id, payload)
             return
@@ -895,15 +915,15 @@ class BalfGateway:
         if session is None:
             return
 
-        if topic.startswith("order.ack."):
+        if topic.startswith(PREFIX_ORDER_ACK):
             self._handle_order_ack_event(session, payload)
-        elif topic.startswith("order.fill."):
+        elif topic.startswith(PREFIX_ORDER_FILL):
             self._handle_fill_event(session, payload)
-        elif topic.startswith("order.cancelled."):
+        elif topic.startswith(PREFIX_ORDER_CANCELLED):
             self._handle_cancelled_event(session, payload)
-        elif topic.startswith("order.amended."):
+        elif topic.startswith(PREFIX_ORDER_AMENDED):
             self._handle_amended_event(session, payload)
-        elif topic.startswith("order.expired."):
+        elif topic.startswith(PREFIX_ORDER_EXPIRED):
             self._handle_expired_event(session, payload)
 
     def _handle_gateway_auth(self, gw_id: str, payload: dict[str, Any]) -> None:
@@ -958,21 +978,19 @@ class BalfGateway:
         log.info("BALF gateway authenticated: %s from %s", gw_id, session.addr)
 
     def _handle_symbols_response(self, gw_id: str, payload: dict[str, Any]) -> None:
-        symbols_raw = payload.get("symbols", [])
-        symbol_meta = payload.get("symbol_meta", {})
-        if not isinstance(symbols_raw, list):
+        entries = payload.get("symbols", [])
+        if not isinstance(entries, list):
             return
-        for s in symbols_raw:
-            sym = str(s).upper()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            sym = str(entry.get("symbol", "")).upper()
+            if not sym:
+                continue
             self._known_symbols.add(sym)
-            if isinstance(symbol_meta, dict):
-                meta = symbol_meta.get(sym)
-                if isinstance(meta, dict):
-                    tick_size = meta.get("tick_size")
-                    if isinstance(tick_size, (int, float)) and tick_size > 0:
-                        decimals = self._infer_decimals(float(tick_size))
-                        if decimals is not None:
-                            register_tick_decimals(sym, decimals)
+            tick_decimals = entry.get("tick_decimals")
+            if isinstance(tick_decimals, int):
+                register_tick_decimals(sym, tick_decimals)
 
     def _handle_order_ack_event(
         self, session: ClientSession, payload: dict[str, Any]
@@ -1058,11 +1076,13 @@ class BalfGateway:
             return
 
         balf_order_id, client_order_id = mapping
-        params = engine_fill_to_balf_params(payload, balf_order_id, client_order_id)
+        params = engine_fill_to_execution_report_dict(
+            payload, balf_order_id, client_order_id
+        )
 
         self._queue_frame(
             session,
-            build_execution_report(seq_no=session.next_seq(), **params),
+            serialise_execution_report_balf(params, seq_no=session.next_seq()),
         )
 
         # Clean up mapping on full fill
@@ -1316,13 +1336,13 @@ class BalfGateway:
 
     def _gateway_topics(self, gw_id: str) -> tuple[str, ...]:
         return (
-            f"system.gateway_auth.{gw_id}",
-            f"system.symbols.{gw_id}",
-            f"order.ack.{gw_id}",
-            f"order.fill.{gw_id}",
-            f"order.cancelled.{gw_id}",
-            f"order.amended.{gw_id}",
-            f"order.expired.{gw_id}",
+            topic_gateway_auth(gw_id),
+            topic_symbols(gw_id),
+            topic_order_ack(gw_id),
+            topic_order_fill(gw_id),
+            topic_order_cancelled(gw_id),
+            topic_order_amended(gw_id),
+            topic_order_expired(gw_id),
         )
 
     def _gateway_in_use(self, gw_id: str) -> bool:
@@ -1346,15 +1366,6 @@ class BalfGateway:
             if session.gateway_id == gw_id and session.auth_pending:
                 return session
         return None
-
-    @staticmethod
-    def _infer_decimals(tick_size: float) -> int | None:
-        if tick_size <= 0:
-            return None
-        s = f"{tick_size:.10f}".rstrip("0")
-        if "." not in s:
-            return 0
-        return len(s.split(".")[1])
 
 
 # Keep a local reference to struct.error for bare-except avoidance

@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from edumatcher.config_gen.cli import main as config_gen_main
+from edumatcher.config import resolve_data_path
 from edumatcher.engine.config_loader import load_engine_config
 
 
@@ -39,6 +40,49 @@ def test_minimal_output_parses(
 
     stderr = capsys.readouterr().err
     assert "Wrote generated config" in stderr
+
+
+def test_engine_tuning_is_omitted_without_tuning_options(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    raw = yaml.safe_load(out_file.read_text(encoding="utf-8"))
+    assert "engine_tuning" not in raw
+
+
+def test_engine_tuning_is_emitted_for_explicit_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--snapshot-interval=0.5",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    raw = yaml.safe_load(out_file.read_text(encoding="utf-8"))
+    assert raw["engine_tuning"]["snapshot_interval_sec"] == 0.5
 
 
 def test_gateway_smp_emitted_and_parses(
@@ -437,6 +481,38 @@ def test_api_gateway_multiple_instances_output(
     assert "gateway_id: ALGO01" in content
 
 
+def test_api_gateway_identity_free_instance_generates_readonly_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--api-gateway-instance",
+            "desk:TRADER01:8080",
+            "--api-gateway-instance",
+            "dashboards::8081",
+            "--api-gateway-readonly-key",
+            "--seed",
+            "99",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    content = out_file.read_text(encoding="utf-8")
+    assert "desk:" in content
+    assert "dashboards:" in content
+    assert "port: 8080" in content
+    assert "port: 8081" in content
+    assert content.count("gateway_id: null") == 1
+
+
 def test_api_gateway_multiple_instances_reject_duplicate_gateway(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -620,10 +696,8 @@ def test_comment_default_config_fields_emits_engine_field_defaults(
         "# true lets pm-scheduler drive session transitions;\n# false keeps the engine in continuous mode\nsessions_enabled: false"
         in captured.out
     )
-    assert (
-        "# runtime retention and throttling knobs with memory/latency trade-offs\nengine_tuning:\n  # seconds between book snapshot publications for dirty books\n  snapshot_interval_sec: 0.5"
-        in captured.out
-    )
+    assert "#   engine_tuning:\n#     snapshot_interval_sec: 0.5" in captured.out
+    assert "# -- Engine tuning --" not in captured.out
     # Check for circuit_breaker_defaults documentation in "Field Notes and Accepted Values" section
     assert (
         "#   reference_window_ns: 300000000000\n#     Lookback window used to compute the rolling reference price for halt triggers."
@@ -748,8 +822,8 @@ def test_index_custom_file_paths(
         ],
     )
     cfg = load_engine_config(out_file)
-    assert cfg.indices[0].history_file == "custom/hist.jsonl"
-    assert cfg.indices[0].state_file == "custom/state.json"
+    assert cfg.indices[0].history_file == str(resolve_data_path("custom/hist.jsonl"))
+    assert cfg.indices[0].state_file == str(resolve_data_path("custom/state.json"))
 
 
 def test_index_default_file_paths_derived_from_id(
@@ -775,8 +849,12 @@ def test_index_default_file_paths_derived_from_id(
         ],
     )
     cfg = load_engine_config(out_file)
-    assert cfg.indices[0].history_file == "data/indexes/EDU100_history.jsonl"
-    assert cfg.indices[0].state_file == "data/indexes/EDU100_state.json"
+    assert cfg.indices[0].history_file == str(
+        resolve_data_path("data/indexes/EDU100_history.jsonl")
+    )
+    assert cfg.indices[0].state_file == str(
+        resolve_data_path("data/indexes/EDU100_state.json")
+    )
 
 
 def test_index_missing_constituents_fails(

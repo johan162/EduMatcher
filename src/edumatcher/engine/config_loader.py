@@ -22,6 +22,7 @@ from typing import Any, Optional
 
 import yaml
 
+from edumatcher.config import resolve_data_path
 from edumatcher.models.combo import ComboLeg, ComboType
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 from edumatcher.models.quote import QuoteRefreshPolicy
@@ -60,6 +61,11 @@ _DEFAULT_CB_LEVELS: dict[str, dict[str, Any]] = {
 
 
 DEFAULT_COUNTRY = "Sweden"
+
+#: Longest circuit-breaker level name a config may declare. Matches the
+#: `max_len` `spec/messages/circuit_breaker.yaml` puts on `halt.level`, which
+#: carries this name to every subscriber.
+_MAX_CB_LEVEL_NAME = 32
 
 
 def _parse_reopening(raw: Any, where: str) -> ReopeningConfig:
@@ -754,6 +760,16 @@ def load_engine_config(path: Path) -> EngineConfig:
             levels: list[CircuitBreakerLevel] = []
             for level_name_raw, level_cfg_raw in levels_raw.items():
                 level_name = str(level_name_raw).upper()
+                if len(level_name) > _MAX_CB_LEVEL_NAME:
+                    # Bounded here rather than at the publish call: the name is
+                    # echoed as `level` on every circuit_breaker.halt, which
+                    # the spec bounds at 32. An over-long one would raise
+                    # inside the generated builder at halt time — far from the
+                    # config line that caused it — and take the halt with it.
+                    raise ValueError(
+                        f"Symbol '{sym}': circuit_breaker.levels.{level_name} "
+                        f"name exceeds {_MAX_CB_LEVEL_NAME} characters"
+                    )
                 if not isinstance(level_cfg_raw, dict):
                     raise ValueError(
                         f"Symbol '{sym}': circuit_breaker.levels.{level_name} must be a mapping"
@@ -959,6 +975,8 @@ def load_engine_config(path: Path) -> EngineConfig:
             raise ValueError(f"indices[{i}].history_file must be a non-empty string")
         if not isinstance(state_file_raw, str) or not state_file_raw.strip():
             raise ValueError(f"indices[{i}].state_file must be a non-empty string")
+        history_file = str(resolve_data_path(history_file_raw.strip()))
+        state_file = str(resolve_data_path(state_file_raw.strip()))
 
         constituents_raw = idx_raw.get("constituents")
         if not isinstance(constituents_raw, list) or not constituents_raw:
@@ -989,8 +1007,8 @@ def load_engine_config(path: Path) -> EngineConfig:
                 description=description,
                 base_value=base_value,
                 publish_interval_sec=publish_interval_sec,
-                history_file=history_file_raw.strip(),
-                state_file=state_file_raw.strip(),
+                history_file=history_file,
+                state_file=state_file,
                 constituents=constituents,
             )
         )

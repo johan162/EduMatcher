@@ -13,6 +13,7 @@ from typing import Any
 import zmq
 
 from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.models.price import to_ticks
 from edumatcher.models.message import (
     decode,
     make_gateway_connect_msg,
@@ -23,6 +24,30 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
 )
 from edumatcher.mm_bot.pricer import QuotePricer
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.circuit_breaker import (
+    topic_circuit_breaker_halt,
+    topic_circuit_breaker_resume,
+)
+from edumatcher.models.generated.book import (
+    PREFIX_BOOK_SNAPSHOT,
+    topic_book_snapshot,
+)
+from edumatcher.models.generated.order import (
+    topic_order_cancelled,
+    topic_order_fill,
+)
+from edumatcher.models.generated.quote import (
+    topic_quote_ack,
+    topic_quote_status,
+)
+from edumatcher.models.generated.system import (
+    topic_gateway_auth,
+    topic_quote_bootstrap,
+    topic_quote_legs,
+    topic_symbols,
+)
 
 log = logging.getLogger(__name__)
 
@@ -157,7 +182,7 @@ class MMBot:
 
     @staticmethod
     def _topic_family(topic: str) -> str:
-        if topic.startswith("book."):
+        if topic.startswith(PREFIX_BOOK_SNAPSHOT):
             return "book"
         if topic.startswith("trade."):
             return "trade"
@@ -177,19 +202,19 @@ class MMBot:
         self._push_sock = make_pusher(self._engine_pull)
         self._sub_sock = make_subscriber(
             self._engine_pub,
-            f"system.gateway_auth.{self.gateway_id}",
-            f"system.symbols.{self.gateway_id}",
-            f"system.quote_bootstrap.{self.gateway_id}",
-            f"system.quote_legs.{self.gateway_id}",
-            f"book.{self.symbol}",
-            "trade.executed",
-            f"order.fill.{self.gateway_id}",
-            f"order.cancelled.{self.gateway_id}",
-            f"quote.ack.{self.gateway_id}",
-            f"quote.status.{self.gateway_id}",
-            "session.state",
-            f"circuit_breaker.halt.{self.symbol}",
-            f"circuit_breaker.resume.{self.symbol}",
+            topic_gateway_auth(self.gateway_id),
+            topic_symbols(self.gateway_id),
+            topic_quote_bootstrap(self.gateway_id),
+            topic_quote_legs(self.gateway_id),
+            topic_book_snapshot(self.symbol),
+            TOPIC_TRADE_EXECUTED,
+            topic_order_fill(self.gateway_id),
+            topic_order_cancelled(self.gateway_id),
+            topic_quote_ack(self.gateway_id),
+            topic_quote_status(self.gateway_id),
+            TOPIC_SESSION_STATE,
+            topic_circuit_breaker_halt(self.symbol),
+            topic_circuit_breaker_resume(self.symbol),
         )
 
     def _close_sockets(self) -> None:
@@ -225,7 +250,7 @@ class MMBot:
             if self._sub_sock not in socks:
                 continue
             topic, payload = decode(self._sub_sock.recv_multipart())
-            if topic == f"system.gateway_auth.{self.gateway_id}":
+            if topic == topic_gateway_auth(self.gateway_id):
                 accepted = bool(payload.get("accepted", False))
                 if accepted:
                     self._log("authenticated")
@@ -234,7 +259,7 @@ class MMBot:
                     self._log(f"auth rejected: {reason}")
                 return accepted
             # Also capture session.state that arrives during auth
-            if topic == "session.state":
+            if topic == TOPIC_SESSION_STATE:
                 self._session_state = str(payload.get("state", "")).upper()
                 self._debug(f"session state (during auth): {self._session_state}")
 
@@ -256,22 +281,22 @@ class MMBot:
             if self._sub_sock not in socks:
                 continue
             topic, payload = decode(self._sub_sock.recv_multipart())
-            if topic == f"system.symbols.{self.gateway_id}":
-                symbols = [str(s).upper() for s in payload.get("symbols", [])]
+            if topic == topic_symbols(self.gateway_id):
+                entries = payload.get("symbols", [])
+                symbols = [str(e.get("symbol", "")).upper() for e in entries]
                 self._debug(f"symbols received: {symbols}")
-                # Extract tick_size if available
-                sym_meta = payload.get("symbol_meta", {})
-                if self.symbol in sym_meta:
-                    meta = sym_meta[self.symbol]
-                    if "tick_size" in meta:
-                        self._tick_size = float(meta["tick_size"])
+                for meta in entries:
+                    if str(meta.get("symbol", "")).upper() != self.symbol:
+                        continue
+                    if "tick_decimals" in meta:
+                        self._tick_size = 10 ** -int(meta["tick_decimals"])
                     if "mm_max_spread_ticks" in meta:
                         try:
                             self._mm_max_spread_ticks = int(meta["mm_max_spread_ticks"])
                         except (TypeError, ValueError):
                             self._mm_max_spread_ticks = None
                 return symbols
-            if topic == "session.state":
+            if topic == TOPIC_SESSION_STATE:
                 self._session_state = str(payload.get("state", "")).upper()
 
         self._log("symbols request timed out")
@@ -292,7 +317,7 @@ class MMBot:
             if self._sub_sock not in socks:
                 continue
             topic, payload = decode(self._sub_sock.recv_multipart())
-            if topic == f"system.quote_bootstrap.{self.gateway_id}":
+            if topic == topic_quote_bootstrap(self.gateway_id):
                 return payload
             # Capture other events during wait
             self._buffer_event(topic, payload)
@@ -315,7 +340,7 @@ class MMBot:
             if self._sub_sock not in socks:
                 continue
             topic, payload = decode(self._sub_sock.recv_multipart())
-            if topic == f"system.quote_legs.{self.gateway_id}":
+            if topic == topic_quote_legs(self.gateway_id):
                 return payload
             self._buffer_event(topic, payload)
 
@@ -324,11 +349,11 @@ class MMBot:
 
     def _buffer_event(self, topic: str, payload: dict[str, Any]) -> None:
         """Buffer events received during startup waits."""
-        if topic == "session.state":
+        if topic == TOPIC_SESSION_STATE:
             self._session_state = str(payload.get("state", "")).upper()
-        elif topic == f"book.{self.symbol}":
+        elif topic == topic_book_snapshot(self.symbol):
             self._handle_book(payload)
-        elif topic == "trade.executed":
+        elif topic == TOPIC_TRADE_EXECUTED:
             self._handle_trade(payload)
 
     def _try_adopt_from_bootstrap(self, boot_payload: dict[str, Any] | None) -> bool:
@@ -413,7 +438,7 @@ class MMBot:
             if self._sub_sock not in socks:
                 continue
             topic, payload = decode(self._sub_sock.recv_multipart())
-            if topic == "session.state":
+            if topic == TOPIC_SESSION_STATE:
                 self._session_state = str(payload.get("state", "")).upper()
                 return True
             self._buffer_event(topic, payload)
@@ -431,8 +456,10 @@ class MMBot:
         quote_payload: dict[str, Any] = {
             "gateway_id": self.gateway_id,
             "symbol": self.symbol,
-            "bid_price": bid,
-            "ask_price": ask,
+            # The pricer works in display money; the wire carries ticks
+            # (design section 15.2, quotes joined in 6.1b).
+            "bid_price": to_ticks(bid, self.symbol),
+            "ask_price": to_ticks(ask, self.symbol),
             "bid_qty": self.qty,
             "ask_qty": self.qty,
             "tif": self.tif,
@@ -620,7 +647,7 @@ class MMBot:
         """Route an incoming message to the appropriate handler."""
         self._dbg_count("incoming_total")
         self._dbg_count(f"incoming_topic_{self._topic_family(topic)}")
-        if topic == f"book.{self.symbol}":
+        if topic == topic_book_snapshot(self.symbol):
             self._handle_book(payload)
             # Check drift while quoting
             if (
@@ -632,23 +659,23 @@ class MMBot:
                 self._debug("drift detected — repricing")
                 self._set_state(BotState.REPRICING)
                 self._cancel_and_reissue()
-        elif topic == "trade.executed":
+        elif topic == TOPIC_TRADE_EXECUTED:
             self._handle_trade(payload)
-        elif topic == f"quote.ack.{self.gateway_id}":
+        elif topic == topic_quote_ack(self.gateway_id):
             self._handle_quote_ack(payload)
-        elif topic == f"quote.status.{self.gateway_id}":
+        elif topic == topic_quote_status(self.gateway_id):
             self._handle_quote_status(payload)
-        elif topic == f"order.fill.{self.gateway_id}":
+        elif topic == topic_order_fill(self.gateway_id):
             self._handle_order_fill(payload)
-        elif topic == f"order.cancelled.{self.gateway_id}":
+        elif topic == topic_order_cancelled(self.gateway_id):
             self._handle_order_cancelled(payload)
-        elif topic == "session.state":
+        elif topic == TOPIC_SESSION_STATE:
             self._handle_session_state(payload)
-        elif topic == f"circuit_breaker.halt.{self.symbol}":
+        elif topic == topic_circuit_breaker_halt(self.symbol):
             self._handle_circuit_breaker_halt()
-        elif topic == f"circuit_breaker.resume.{self.symbol}":
+        elif topic == topic_circuit_breaker_resume(self.symbol):
             self._handle_circuit_breaker_resume()
-        elif topic == f"system.quote_legs.{self.gateway_id}":
+        elif topic == topic_quote_legs(self.gateway_id):
             self._reconcile_qlegs(payload)
         else:
             self._dbg_count("incoming_unhandled")
@@ -910,7 +937,7 @@ class MMBot:
                     socks = dict(poller.poll(timeout=min(remaining_ms, 100)))
                     if self._sub_sock in socks:
                         topic, _payload = decode(self._sub_sock.recv_multipart())
-                        if topic == f"quote.status.{self.gateway_id}":
+                        if topic == topic_quote_status(self.gateway_id):
                             self._debug("shutdown: cancel confirmed")
                             break
                     self._flush_debug_summary(force=True)

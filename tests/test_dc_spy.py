@@ -192,7 +192,14 @@ def test_integration_receives_published_fill(
 
     def publish_after_subscribe() -> None:
         time.sleep(0.2)  # let the SUB socket's subscription propagate
-        pub.publish("TRADER01", "order.fill", {"symbol": "AAPL", "fill_qty": 100})
+        pub.publish_fill(
+            "TRADER01",
+            order_id="ord-1",
+            symbol="AAPL",
+            fill_qty=100,
+            fill_price=150.25,
+            liquidity_flag="MAKER",
+        )
 
     t = threading.Thread(target=publish_after_subscribe)
     t.start()
@@ -224,8 +231,22 @@ def test_integration_gateway_filter_excludes_other_gateways(
 
     def publish_both() -> None:
         time.sleep(0.2)
-        pub.publish("TRADER02", "order.fill", {"symbol": "MSFT", "fill_qty": 10})
-        pub.publish("TRADER01", "order.fill", {"symbol": "AAPL", "fill_qty": 100})
+        pub.publish_fill(
+            "TRADER02",
+            order_id="ord-2",
+            symbol="MSFT",
+            fill_qty=10,
+            fill_price=1.0,
+            liquidity_flag="TAKER",
+        )
+        pub.publish_fill(
+            "TRADER01",
+            order_id="ord-1",
+            symbol="AAPL",
+            fill_qty=100,
+            fill_price=150.25,
+            liquidity_flag="MAKER",
+        )
 
     t = threading.Thread(target=publish_both)
     t.start()
@@ -255,7 +276,14 @@ def test_integration_replay_topic_received_when_requested(
 
     def publish_and_replay() -> None:
         time.sleep(0.2)
-        pub.publish("TRADER01", "order.fill", {"symbol": "AAPL", "fill_qty": 100})
+        pub.publish_fill(
+            "TRADER01",
+            order_id="ord-1",
+            symbol="AAPL",
+            fill_qty=100,
+            fill_price=150.25,
+            liquidity_flag="MAKER",
+        )
         pub.replay("MY_RISK_SYS", from_seq=1)
 
     t = threading.Thread(target=publish_and_replay)

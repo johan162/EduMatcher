@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from edumatcher.stats.cli import main as stats_cli_main
-from edumatcher.stats.main import SCHEMA
+from edumatcher.stats.main import SCHEMA, _open_db
 
 
 def _seed_db(path: Path) -> None:
@@ -214,6 +214,79 @@ def test_missing_db_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
     with pytest.raises(SystemExit) as exc_info:
         _run_cli(monkeypatch, ["--db", str(missing), "daily"])
     assert exc_info.value.code == 1
+
+
+def test_health_reports_running_process_and_writable_database(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    db_path = tmp_path / "stats.db"
+    conn = _open_db(db_path)
+    conn.close()
+    monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [1234])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(monkeypatch, ["--db", str(db_path), "health"])
+
+    assert exc_info.value.code == 0
+    output = capsys.readouterr().out
+    assert "pm-stats process: OK" in output
+    assert "stats database:  OK" in output
+    assert "health: OK" in output
+
+
+def test_health_fails_when_pm_stats_is_not_running(
+    monkeypatch: pytest.MonkeyPatch, seeded_db: Path
+) -> None:
+    monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(monkeypatch, ["--db", str(seeded_db), "health"])
+
+    assert exc_info.value.code == 1
+
+
+def test_health_fails_when_database_is_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [1234])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(monkeypatch, ["--db", str(tmp_path / "missing.db"), "health"])
+
+    assert exc_info.value.code == 1
+
+
+def test_health_quiet_exits_zero_without_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    db_path = tmp_path / "stats.db"
+    conn = _open_db(db_path)
+    conn.close()
+    monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [1234])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(monkeypatch, ["--db", str(db_path), "health", "-q"])
+
+    assert exc_info.value.code == 0
+    assert capsys.readouterr() == ("", "")
+
+
+def test_health_quiet_exits_minus_one_without_output(
+    monkeypatch: pytest.MonkeyPatch,
+    seeded_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("edumatcher.stats.cli._find_stats_pids", lambda: [])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(monkeypatch, ["--db", str(seeded_db), "health", "-q"])
+
+    assert exc_info.value.code == -1
+    assert capsys.readouterr() == ("", "")
 
 
 def test_daily_defaults_to_latest_date_table_output(

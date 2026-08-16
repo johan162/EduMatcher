@@ -24,6 +24,7 @@ This directory is a lightweight workspace for design ideas across **EduMatcher**
 - `EduMatcher-Terminal-GUI.md`
 - `EduMatcher-log-GUI.md`
 - `EduMatcher-CALF-Extensions.md`
+- `EduMatcher-auth.md`
 
 ### Build PDF Documents
 

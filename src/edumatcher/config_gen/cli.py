@@ -650,7 +650,7 @@ def _parse_api_gateway_instance(
         for gateway_raw in parts[1].split(",")
         if gateway_raw.strip()
     )
-    if not gateway_ids:
+    if not gateway_ids and len(parts) == 2:
         raise ValueError(
             f"Invalid --api-gateway-instance '{raw}': at least one gateway ID is required"
         )
@@ -777,6 +777,21 @@ def _resolve_emit_schedule(args: argparse.Namespace) -> bool:
     if args.schedule is None:
         return bool(args.sessions_enabled)
     return bool(args.schedule)
+
+
+def _engine_tuning_was_requested(argv: list[str]) -> bool:
+    tuning_options = (
+        "--snapshot-interval",
+        "--quote-history-maxlen",
+        "--drop-copy-buffer-size",
+        "--recent-trades-maxlen",
+        "--depth-snapshot-tolerance-ticks",
+    )
+    return any(
+        argument == option or argument.startswith(f"{option}=")
+        for argument in argv
+        for option in tuning_options
+    )
 
 
 def _print_diagnostics(lines: list[str]) -> None:
@@ -1211,8 +1226,9 @@ def _build_api_gateway_specs(
         *,
         name: str,
         port: int,
-        gateway_ids: tuple[str, ...] = (),
+        gateway_ids: tuple[str, ...] | None = None,
         credentials: tuple[ApiCredentialSpec, ...] = (),
+        readonly_key: bool | None = None,
     ) -> ApiGatewaySpec:
         return ApiGatewaySpec(
             name=name,
@@ -1225,7 +1241,9 @@ def _build_api_gateway_specs(
             credentials=credentials,
             gateway_ids=gateway_ids,
             generate_keys=generate_keys,
-            generate_readonly_key=generate_readonly_key,
+            generate_readonly_key=(
+                generate_readonly_key if readonly_key is None else readonly_key
+            ),
             rate_limit_writes_per_second=rate_limit_writes_per_second,
             rate_limit_burst=rate_limit_burst,
             engine_auth_sec=engine_auth_sec,
@@ -1241,6 +1259,7 @@ def _build_api_gateway_specs(
                 name=name,
                 port=port if port is not None else base_port + index,
                 gateway_ids=gateway_ids,
+                readonly_key=generate_readonly_key and not gateway_ids,
             )
             for index, (name, gateway_ids, port) in enumerate(parsed_instances)
         )
@@ -1673,6 +1692,7 @@ def main() -> None:
             drop_copy_buffer_size=int(args.drop_copy_buffer_size),
             recent_trades_maxlen=int(args.recent_trades_maxlen),
             depth_snapshot_tolerance_ticks=int(args.depth_snapshot_tolerance_ticks),
+            emit_engine_tuning=_engine_tuning_was_requested(sys.argv[1:]),
             enforce_collars=not args.no_collars,
             enforce_circuit_breakers=not args.no_circuit_breakers,
             static_band_pct=args.static_band,

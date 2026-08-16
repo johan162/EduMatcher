@@ -69,7 +69,24 @@ from edumatcher.log_srv.schema import open_db
 from edumatcher.log_srv.writer import LogEventRow
 from edumatcher.logclient.protocol import iso_utc
 from edumatcher.messaging.bus import get_context
-from edumatcher.models.message import decode, encode
+from edumatcher.models.message import decode
+from edumatcher.models.generated.log import (
+    TOPIC_LOG_BACKFILL_REQUEST,
+    TOPIC_LOG_RENEW,
+    TOPIC_LOG_STATUS_REQUEST,
+    TOPIC_LOG_SUBSCRIBE,
+    TOPIC_LOG_UNSUBSCRIBE,
+    make_log_backfill,
+    make_log_error,
+    make_log_event,
+    make_log_lease_expired,
+    make_log_notify,
+    make_log_renew_ack,
+    make_log_server_state,
+    make_log_status,
+    make_log_subscribe_ack,
+    make_log_unsubscribe_ack,
+)
 
 log = logging.getLogger(__name__)
 
@@ -465,15 +482,19 @@ class LogPubSubHub:
         if not self._started:
             return
         self._publish(
-            "log.server_state",
-            {
-                "server": self._server_name,
-                "state": "DOWN",
-                "proto": PROTO_VERSION,
-                "subscribers": len(self._subs),
-                "last_seq": self._last_seq,
-                "timestamp": time.time(),
-            },
+            make_log_server_state(
+                server=self._server_name,
+                state="DOWN",
+                proto=PROTO_VERSION,
+                pub_addr=self._pub_addr,
+                pull_addr=self._pull_addr,
+                subscribers=len(self._subs),
+                active_backfills=len(self._backfills),
+                last_seq=self._last_seq,
+                inbox_dropped=self._inbox_dropped,
+                default_lease_sec=self._lease_sec,
+                timestamp=time.time(),
+            )
         )
         self._subs.clear()
         self._backfills.clear()
@@ -571,15 +592,15 @@ class LogPubSubHub:
     def _dispatch_control(
         self, topic: str, sub_id: str, payload: dict[str, Any], now: float
     ) -> None:
-        if topic == "log.subscribe":
+        if topic == TOPIC_LOG_SUBSCRIBE:
             self._handle_subscribe(sub_id, payload, now)
-        elif topic == "log.renew":
+        elif topic == TOPIC_LOG_RENEW:
             self._handle_renew(sub_id, now)
-        elif topic == "log.unsubscribe":
+        elif topic == TOPIC_LOG_UNSUBSCRIBE:
             self._handle_unsubscribe(sub_id)
-        elif topic == "log.backfill_request":
+        elif topic == TOPIC_LOG_BACKFILL_REQUEST:
             self._handle_backfill_request(sub_id, payload, now)
-        elif topic == "log.status_request":
+        elif topic == TOPIC_LOG_STATUS_REQUEST:
             self._handle_status_request(sub_id, now)
         else:
             self._error(sub_id, ERR_BAD_REQUEST, f"unsupported topic: {topic}")
@@ -640,21 +661,20 @@ class LogPubSubHub:
         self._subs[sub_id] = sub
 
         self._publish(
-            f"log.subscribe_ack.{sub_id}",
-            {
-                "accepted": True,
-                "sub_id": sub_id,
-                "proto": PROTO_VERSION,
-                "server": self._server_name,
-                "mode": mode,
-                "filter": filt.to_dict(),
-                "lease_sec": lease_sec,
-                "renew_before_sec": round(lease_sec / 2.0, 3),
-                "notify_interval_ms": int(notify_interval * 1000),
-                "last_seq": self._last_seq,
-                "backfill_request_id": "",
-                "timestamp": time.time(),
-            },
+            make_log_subscribe_ack(
+                accepted=True,
+                sub_id=sub_id,
+                proto=PROTO_VERSION,
+                server=self._server_name,
+                mode=mode,
+                filter=filt.to_dict(),
+                lease_sec=lease_sec,
+                renew_before_sec=round(lease_sec / 2.0, 3),
+                notify_interval_ms=int(notify_interval * 1000),
+                last_seq=self._last_seq,
+                backfill_request_id="",
+                timestamp=time.time(),
+            )
         )
         log.info(
             "LALF-PS subscribe sub_id=%s mode=%s lease=%.0fs filter=%s",
@@ -677,28 +697,26 @@ class LogPubSubHub:
             return
         sub.renew(now)
         self._publish(
-            f"log.renew_ack.{sub_id}",
-            {
-                "accepted": True,
-                "sub_id": sub_id,
-                "lease_sec": sub.lease_sec,
-                "expires_in_sec": round(sub.expires_at - now, 3),
-                "last_seq": self._last_seq,
-                "timestamp": time.time(),
-            },
+            make_log_renew_ack(
+                accepted=True,
+                sub_id=sub_id,
+                lease_sec=sub.lease_sec,
+                expires_in_sec=round(sub.expires_at - now, 3),
+                last_seq=self._last_seq,
+                timestamp=time.time(),
+            )
         )
 
     def _handle_unsubscribe(self, sub_id: str) -> None:
         existed = self._subs.pop(sub_id, None) is not None
         self._backfills.pop(sub_id, None)
         self._publish(
-            f"log.unsubscribe_ack.{sub_id}",
-            {
-                "accepted": existed,
-                "sub_id": sub_id,
-                "reason": "" if existed else "no such subscription",
-                "timestamp": time.time(),
-            },
+            make_log_unsubscribe_ack(
+                accepted=existed,
+                sub_id=sub_id,
+                reason="" if existed else "no such subscription",
+                timestamp=time.time(),
+            )
         )
         if existed:
             log.info("LALF-PS unsubscribe sub_id=%s", sub_id)
@@ -716,7 +734,7 @@ class LogPubSubHub:
             "subscription": sub.status(now) if sub is not None else None,
             "timestamp": time.time(),
         }
-        self._publish(f"log.status.{sub_id}", payload)
+        self._publish(make_log_status(**payload))
 
     # ------------------------------------------------------------------
     # Backfill
@@ -838,19 +856,18 @@ class LogPubSubHub:
             done = len(rows) < limit or truncated
 
             self._publish(
-                f"log.backfill.{sub_id}",
-                {
-                    "sub_id": sub_id,
-                    "request_id": job.request_id,
-                    "chunk": job.chunk_index,
-                    "rows": rows,
-                    "row_count": len(rows),
-                    "done": done,
-                    "total_sent": job.sent_rows,
-                    "truncated": truncated,
-                    "last_seq": job.cursor_seq,
-                    "timestamp": time.time(),
-                },
+                make_log_backfill(
+                    sub_id=sub_id,
+                    request_id=job.request_id,
+                    chunk=job.chunk_index,
+                    rows=rows,
+                    row_count=len(rows),
+                    done=done,
+                    total_sent=job.sent_rows,
+                    truncated=truncated,
+                    last_seq=job.cursor_seq,
+                    timestamp=time.time(),
+                )
             )
             job.chunk_index += 1
             sub = self._subs.get(sub_id)
@@ -936,15 +953,18 @@ class LogPubSubHub:
             if now - sub.last_notify_at < sub.notify_interval_sec:
                 continue
             self._publish(
-                f"log.notify.{sub.sub_id}",
-                {
-                    "sub_id": sub.sub_id,
-                    "count": sub.pending_count,
-                    "levels": dict(sub.pending_levels),
-                    "last_seq": sub.pending_last_seq,
-                    "server_last_seq": self._last_seq,
-                    "timestamp": time.time(),
-                },
+                make_log_notify(
+                    sub_id=sub.sub_id,
+                    count=sub.pending_count,
+                    # A list of records, not a map: the key was a value.
+                    levels=[
+                        {"level": level, "count": count}
+                        for level, count in sub.pending_levels.items()
+                    ],
+                    last_seq=sub.pending_last_seq,
+                    server_last_seq=self._last_seq,
+                    timestamp=time.time(),
+                )
             )
             sub.sent_messages += 1
             sub.pending_count = 0
@@ -959,17 +979,16 @@ class LogPubSubHub:
             del sub.pending_rows[: len(chunk)]
             dropped = sub.dropped_rows
             self._publish(
-                f"log.event.{sub.sub_id}",
-                {
-                    "sub_id": sub.sub_id,
-                    "rows": chunk,
-                    "row_count": len(chunk),
-                    "seq_from": int(chunk[0]["seq"]),
-                    "seq_to": int(chunk[-1]["seq"]),
-                    "server_last_seq": self._last_seq,
-                    "dropped": dropped,
-                    "timestamp": time.time(),
-                },
+                make_log_event(
+                    sub_id=sub.sub_id,
+                    rows=chunk,
+                    row_count=len(chunk),
+                    seq_from=int(chunk[0]["seq"]),
+                    seq_to=int(chunk[-1]["seq"]),
+                    server_last_seq=self._last_seq,
+                    dropped=dropped,
+                    timestamp=time.time(),
+                )
             )
             sub.sent_rows += len(chunk)
             sub.sent_messages += 1
@@ -995,14 +1014,13 @@ class LogPubSubHub:
             self._subs.pop(sub_id, None)
             self._backfills.pop(sub_id, None)
             self._publish(
-                f"log.lease_expired.{sub_id}",
-                {
-                    "sub_id": sub_id,
-                    "reason": "lease expired; no log.renew received in time",
-                    "lease_sec": sub.lease_sec,
-                    "dropped_rows": sub.dropped_rows + len(sub.pending_rows),
-                    "timestamp": time.time(),
-                },
+                make_log_lease_expired(
+                    sub_id=sub_id,
+                    reason="lease expired; no log.renew received in time",
+                    lease_sec=sub.lease_sec,
+                    dropped_rows=sub.dropped_rows + len(sub.pending_rows),
+                    timestamp=time.time(),
+                )
             )
             log.info(
                 "LALF-PS lease expired sub_id=%s after %.1fs idle (buffered=%d)",
@@ -1016,20 +1034,19 @@ class LogPubSubHub:
             return
         self._last_state_at = now
         self._publish(
-            "log.server_state",
-            {
-                "server": self._server_name,
-                "state": "UP",
-                "proto": PROTO_VERSION,
-                "pub_addr": self._pub_addr,
-                "pull_addr": self._pull_addr,
-                "subscribers": len(self._subs),
-                "active_backfills": len(self._backfills),
-                "last_seq": self._last_seq,
-                "inbox_dropped": self._inbox_dropped,
-                "default_lease_sec": self._lease_sec,
-                "timestamp": time.time(),
-            },
+            make_log_server_state(
+                server=self._server_name,
+                state="UP",
+                proto=PROTO_VERSION,
+                pub_addr=self._pub_addr,
+                pull_addr=self._pull_addr,
+                subscribers=len(self._subs),
+                active_backfills=len(self._backfills),
+                last_seq=self._last_seq,
+                inbox_dropped=self._inbox_dropped,
+                default_lease_sec=self._lease_sec,
+                timestamp=time.time(),
+            )
         )
 
     # ------------------------------------------------------------------
@@ -1074,26 +1091,27 @@ class LogPubSubHub:
     def _error(self, sub_id: str, code: str, msg: str) -> None:
         log.debug("LALF-PS error to sub_id=%s code=%s msg=%s", sub_id, code, msg)
         self._publish(
-            f"log.error.{sub_id}",
-            {
-                "accepted": False,
-                "sub_id": sub_id,
-                "code": code,
-                "reason": msg,
-                "timestamp": time.time(),
-            },
+            make_log_error(
+                accepted=False,
+                sub_id=sub_id,
+                code=code,
+                reason=msg,
+                timestamp=time.time(),
+            )
         )
 
-    def _publish(self, topic: str, payload: dict[str, Any]) -> None:
+    def _publish(self, frames: list[bytes]) -> None:
         if self._pub is None:
             return
         try:
-            self._pub.send_multipart(encode(topic, payload), zmq.NOBLOCK)
+            self._pub.send_multipart(frames, zmq.NOBLOCK)
         except zmq.Again:
             # SNDHWM reached — by design we drop rather than block the loop.
-            log.debug("LALF-PS: PUB high-water mark hit, dropped %s", topic)
+            log.debug(
+                "LALF-PS: PUB high-water mark hit, dropped %s", frames[0].decode()
+            )
         except zmq.ZMQError as exc:  # pragma: no cover - defensive
-            log.warning("LALF-PS: publish of %s failed: %s", topic, exc)
+            log.warning("LALF-PS: publish failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Introspection (used by tests and the server's debug summary)

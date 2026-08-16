@@ -231,9 +231,7 @@ def print_quote_bootstrap(gateway_id: str, quotes: list[dict[str, Any]]) -> None
     console.print(t)
 
 
-def print_symbols_table(
-    symbols: list[str], symbol_meta: dict[str, dict[str, Any]]
-) -> None:
+def print_symbols_table(symbols: list[dict[str, Any]]) -> None:
     t = Table(
         title="Active Instruments",
         show_header=True,
@@ -246,14 +244,20 @@ def print_symbols_table(
     t.add_column("Max Spread", justify="right")
     t.add_column("Min Qty", justify="right")
 
-    for i, sym in enumerate(symbols, 1):
-        meta = symbol_meta.get(sym, {})
-        tick_size = meta.get("tick_size")
+    for i, meta in enumerate(symbols, 1):
+        sym = str(meta.get("symbol", ""))
+        tick_decimals = meta.get("tick_decimals")
         enforce_mm = meta.get("enforce_mm_obligation")
         mm_max_spread_ticks = meta.get("mm_max_spread_ticks")
         mm_min_qty = meta.get("mm_min_qty")
 
-        tick_text = str(tick_size) if tick_size is not None else "—"
+        # The engine sends the exponent; the column shows the tick itself,
+        # which is what a trader reads a price against.
+        tick_text = (
+            f"{10 ** -int(tick_decimals):.{int(tick_decimals)}f}"
+            if tick_decimals is not None
+            else "—"
+        )
         if isinstance(enforce_mm, bool):
             enforced_text = "YES" if enforce_mm else "NO"
         else:
@@ -432,8 +436,15 @@ def print_current_index(last_index_update: dict[str, Any] | None) -> None:
     level = float(payload.get("level", 0.0))
     session_state = str(payload.get("session_state", "?"))
 
+    # `day` is one nullable record where day_open/day_high/day_low were three
+    # flat keys (design section 16.2). The three-way isinstance check below
+    # collapses to one: the record either travelled whole or did not travel.
+    day = payload.get("day") or {}
+    day_open = day.get("open")
+    day_high = day.get("high")
+    day_low = day.get("low")
+
     change_txt = ""
-    day_open = payload.get("day_open")
     if isinstance(day_open, (int, float)) and day_open > 0.0:
         delta = level - float(day_open)
         pct = (delta / float(day_open)) * 100
@@ -441,8 +452,6 @@ def print_current_index(last_index_update: dict[str, Any] | None) -> None:
         change_txt = f" [{colour}]{delta:+.2f} {pct:+.2f}%[/{colour}]"
 
     ohlc_txt = ""
-    day_high = payload.get("day_high")
-    day_low = payload.get("day_low")
     if (
         isinstance(day_open, (int, float))
         and isinstance(day_high, (int, float))

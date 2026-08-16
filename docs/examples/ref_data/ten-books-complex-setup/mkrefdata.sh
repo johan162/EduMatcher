@@ -95,6 +95,9 @@ COMMON_ARGS=(
   --comment-default-config-fields
   "${SEED_ARGS[@]}"
   "${OUTSTANDING_ARGS[@]}"
+  --api-gateway-instance desk:TRADER01,TRADER02,TRADER03,TRADER04,TRADER05,MM01,MM02,OPS01:8080
+  --api-gateway-instance dashboards::8081
+  --api-gateway-readonly-key
 )
 SPECIFIC_ARGS=(
   --sessions-enabled

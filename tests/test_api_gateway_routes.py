@@ -199,7 +199,7 @@ def test_session_caches_apply_events() -> None:
     cache = SessionCaches()
     cache.apply(
         "system.symbols.GW01",
-        {"symbols": ["AAPL"], "symbol_meta": {"AAPL": {"tick_decimals": 2}}},
+        {"symbols": [{"symbol": "AAPL", "tick_decimals": 2}]},
     )
     cache.apply(
         "order.ack.GW01",

@@ -124,6 +124,39 @@ from .display import (
     print_status,
     print_symbols_table,
 )
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.index import (
+    TOPIC_INDEX_UPDATE,
+    topic_index_error,
+    topic_index_history,
+)
+from edumatcher.models.generated.drop_copy import topic_drop_copy_event
+from edumatcher.models.generated.risk import topic_kill_switch_ack
+from edumatcher.models.generated.order import (
+    PREFIX_ORDERS,
+    topic_order_ack,
+    topic_order_amended,
+    topic_order_cancelled,
+    topic_order_expired,
+    topic_order_fill,
+    topic_orders,
+)
+from edumatcher.models.generated.structure import (
+    topic_combo_ack,
+    topic_combo_status,
+    topic_oco_ack,
+    topic_oco_cancelled,
+)
+from edumatcher.models.generated.quote import (
+    topic_quote_ack,
+    topic_quote_status,
+)
+from edumatcher.models.generated.system import (
+    topic_gateway_auth,
+    topic_quote_bootstrap,
+    topic_session_status,
+    topic_symbols,
+)
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-alf-console"
@@ -245,7 +278,6 @@ class Gateway:
         )  # order_id → quote leg state
         self._quote_id_by_order_id: dict[str, str] = {}  # order_id → quote_id
         self._known_symbols: list[str] = []
-        self._known_symbol_meta: dict[str, dict[str, Any]] = {}
         self._positions: dict[str, dict[str, Any]] = (
             {}
         )  # symbol → {net_qty, avg_cost, realized_pnl}
@@ -260,37 +292,37 @@ class Gateway:
         # Subscribe to all order events for this gateway + trade feed for last prices
         self.sub_sock = make_subscriber(
             ENGINE_PUB_ADDR,
-            f"order.ack.{self.gateway_id}",
-            f"order.fill.{self.gateway_id}",
-            f"order.amended.{self.gateway_id}",
-            f"order.cancelled.{self.gateway_id}",
-            f"order.expired.{self.gateway_id}",
-            f"order.orders.{self.gateway_id}",
-            f"combo.ack.{self.gateway_id}",
-            f"combo.status.{self.gateway_id}",
-            f"oco.ack.{self.gateway_id}",
-            f"oco.cancelled.{self.gateway_id}",
-            f"quote.ack.{self.gateway_id}",
-            f"quote.status.{self.gateway_id}",
-            f"risk.kill_switch_ack.{self.gateway_id}",
-            f"system.symbols.{self.gateway_id}",
-            f"system.quote_bootstrap.{self.gateway_id}",
-            f"system.session_status.{self.gateway_id}",
-            f"system.gateway_auth.{self.gateway_id}",
-            "trade.executed",
+            topic_order_ack(self.gateway_id),
+            topic_order_fill(self.gateway_id),
+            topic_order_amended(self.gateway_id),
+            topic_order_cancelled(self.gateway_id),
+            topic_order_expired(self.gateway_id),
+            topic_orders(self.gateway_id),
+            topic_combo_ack(self.gateway_id),
+            topic_combo_status(self.gateway_id),
+            topic_oco_ack(self.gateway_id),
+            topic_oco_cancelled(self.gateway_id),
+            topic_quote_ack(self.gateway_id),
+            topic_quote_status(self.gateway_id),
+            topic_kill_switch_ack(self.gateway_id),
+            topic_symbols(self.gateway_id),
+            topic_quote_bootstrap(self.gateway_id),
+            topic_session_status(self.gateway_id),
+            topic_gateway_auth(self.gateway_id),
+            TOPIC_TRADE_EXECUTED,
         )
         self._index_sub_sock = make_subscriber(
             INDEX_PUB_CONNECT_ADDR,
-            "index.update",
-            f"index.history.{self.gateway_id}",
-            f"index.error.{self.gateway_id}",
+            TOPIC_INDEX_UPDATE,
+            topic_index_history(self.gateway_id),
+            topic_index_error(self.gateway_id),
         )
         # Separate SUB socket for the engine's drop-copy feed (:5557),
         # distinct from sub_sock (:5556) -- a different ZMQ PUB address, not
         # just a different topic namespace. No topic is subscribed until
         # DC|ON (or --drop-copy at startup) -- see _set_drop_copy().
         self._dc_sub_sock = make_subscriber(DROP_COPY_PUB_ADDR)
-        self._dc_topic = f"drop_copy.event.{self.gateway_id}".encode()
+        self._dc_topic = topic_drop_copy_event(self.gateway_id).encode()
         self._auth_reason: str = ""
         self._auth_description: str = ""
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
@@ -453,7 +485,7 @@ class Gateway:
                 continue
             frames = self.sub_sock.recv_multipart()
             topic, payload = decode(frames)
-            if topic == f"system.gateway_auth.{self.gateway_id}":
+            if topic == topic_gateway_auth(self.gateway_id):
                 accepted = bool(payload.get("accepted", False))
                 self._auth_reason = str(payload.get("reason", ""))
                 self._auth_description = str(payload.get("description", ""))
@@ -654,16 +686,13 @@ class Gateway:
                 self.order_cache[full_id]["status"] = "EXPIRED"
 
         elif "system.symbols" in topic:
-            symbols = payload.get("symbols", [])
-            symbol_meta = payload.get("symbol_meta", {})
+            entries = payload.get("symbols", [])
+            symbols = [str(e.get("symbol", "")) for e in entries]
             # Update completer's known symbols list
             self._known_symbols.clear()
             self._known_symbols.extend(symbols)
-            self._known_symbol_meta = (
-                symbol_meta if isinstance(symbol_meta, dict) else {}
-            )
             if symbols:
-                print_symbols_table(symbols, self._known_symbol_meta)
+                print_symbols_table(entries)
             else:
                 console.print(
                     "[dim]No active instruments yet — submit an order to create a book.[/dim]"
@@ -681,7 +710,7 @@ class Gateway:
             else:
                 console.print("[red]Malformed quote bootstrap response.[/red]")
 
-        elif "order.orders" in topic:
+        elif topic.startswith(PREFIX_ORDERS):
             orders = payload.get("orders", [])
             for od in orders:
                 oid = str(od.get("id") or "")
@@ -754,8 +783,7 @@ class Gateway:
         elif "combo.status" in topic:
             cid = payload.get("combo_id", "?")
             status = payload.get("status", "?")
-            details = payload.get("details", {})
-            reason = details.get("reason", "") if details else ""
+            reason = payload.get("reason", "")
             colour_map = {
                 "MATCHED": "bright_green",
                 "PARTIALLY_MATCHED": "yellow",
@@ -858,27 +886,27 @@ class Gateway:
                     f"[{ts}] [red]KILL REJ[/red]  {payload.get('reason', '')}"
                 )
 
-        elif "trade.executed" in topic:
+        elif TOPIC_TRADE_EXECUTED in topic:
             # Track last price per symbol for unrealized P&L
             symbol = payload.get("symbol")
             price = payload.get("price")
             if symbol and price:
                 self._last_prices[symbol] = price
 
-        elif topic == "index.update":
+        elif topic == TOPIC_INDEX_UPDATE:
             self._last_index_update = payload
             index_id = payload.get("index_id")
             if isinstance(index_id, str) and index_id:
                 self._default_index_id = index_id.upper()
 
-        elif topic == f"index.history.{self.gateway_id}":
+        elif topic == topic_index_history(self.gateway_id):
             records = payload.get("records", [])
             if isinstance(records, list):
                 print_index_history(records)
             else:
                 console.print("[red]Malformed index history response.[/red]")
 
-        elif topic == f"index.error.{self.gateway_id}":
+        elif topic == topic_index_error(self.gateway_id):
             reason = payload.get("reason", "")
             console.print(f"[{ts}] [red]INDEX ERROR[/red] {reason}")
 
@@ -1228,9 +1256,11 @@ class Gateway:
         payload: dict[str, Any] = {
             "gateway_id": self.gateway_id,
             "symbol": symbol,
-            "bid_price": bid_price,
+            # Ticks on the wire: converting is the submitting gateway's job
+            # (design section 15.2, extended to quotes in 6.1b).
+            "bid_price": to_ticks(bid_price, symbol),
             "bid_qty": bid_qty,
-            "ask_price": ask_price,
+            "ask_price": to_ticks(ask_price, symbol),
             "ask_qty": ask_qty,
             "tif": tif.value,
         }
@@ -1281,11 +1311,11 @@ class Gateway:
                 "order_type": kv[type_key],
             }
             if price_key in kv:
-                leg["price"] = float(kv[price_key])
+                leg["price"] = to_ticks(float(kv[price_key]), symbol)
             if stop_key in kv:
-                leg["stop_price"] = float(kv[stop_key])
+                leg["stop_price"] = to_ticks(float(kv[stop_key]), symbol)
             if trail_key in kv:
-                leg["trail_offset"] = float(kv[trail_key])
+                leg["trail_offset"] = to_ticks(float(kv[trail_key]), symbol)
             return leg
 
         leg1 = _parse_leg("LEG1_")
@@ -1409,7 +1439,7 @@ class Gateway:
             legs=legs,
         )
 
-        self.push_sock.send_multipart(make_combo_order_msg(combo.to_dict()))
+        self.push_sock.send_multipart(make_combo_order_msg(combo.to_submission_dict()))
         self._dbg_count("combo_submitted")
 
     @staticmethod

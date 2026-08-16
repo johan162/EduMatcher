@@ -23,6 +23,7 @@ from edumatcher.config import (
     ENGINE_PUB_ADDR,
     INDEX_PULL_ADDR,
     INDEX_PUB_ADDR,
+    resolve_data_path,
     STATS_DB_FILE,
 )
 from edumatcher.stats.trading_day import resolve_timezone
@@ -85,6 +86,13 @@ class ApiGatewayConfig:
     #: memory; older orders live in the audit trail, which is durable.
     #: Set to 0 to disable eviction (the previous, unbounded behaviour).
     order_retention_sec: int = 3600
+    #: How long the market-data stream cache retains the per-symbol ``trades``
+    #: tail that backs the snapshot/resume verbs on WS /api/v1/market-data.
+    #: The latest ``book``/``depth``/``auction`` snapshot per topic is kept
+    #: regardless of age (a gap there is self-healing); only the trade tail is
+    #: bounded. 30–60s is enough for a browser to repair a brief drop; 0
+    #: disables the trade buffer while still serving latest snapshots.
+    market_data_cache_sec: int = 60
     #: Optional override for the session timezone that ``date`` filters on the
     #: history endpoints resolve their trading day in. ``None`` — the default —
     #: means "use the timezone ``stats_db`` was recorded with", which is what
@@ -199,16 +207,22 @@ def _load_api_gateway_section(
         raise ValueError(f"{section_name}.port must be > 0")
 
     stats_db_raw = section.get("stats_db", STATS_DB_FILE)
-    stats_db = Path(str(stats_db_raw)).expanduser()
+    stats_db = resolve_data_path(str(stats_db_raw))
 
     audit_db_raw = section.get("audit_db", AUDIT_INDEX_DB_FILE)
-    audit_db = Path(str(audit_db_raw)).expanduser()
+    audit_db = resolve_data_path(str(audit_db_raw))
 
     order_retention_sec = _as_int(
         section.get("order_retention_sec", 3600), section_name, "order_retention_sec"
     )
     if order_retention_sec < 0:
         raise ValueError(f"{section_name}.order_retention_sec must be >= 0")
+
+    market_data_cache_sec = _as_int(
+        section.get("market_data_cache_sec", 60), section_name, "market_data_cache_sec"
+    )
+    if market_data_cache_sec < 0:
+        raise ValueError(f"{section_name}.market_data_cache_sec must be >= 0")
 
     session_timezone_raw = section.get("session_timezone")
     session_timezone = (
@@ -231,6 +245,7 @@ def _load_api_gateway_section(
         stats_db=stats_db,
         audit_db=audit_db,
         order_retention_sec=order_retention_sec,
+        market_data_cache_sec=market_data_cache_sec,
         session_timezone=session_timezone,
         log_level=str(section.get("log_level", "info")),
         swagger_enabled=bool(section.get("swagger_enabled", True)),

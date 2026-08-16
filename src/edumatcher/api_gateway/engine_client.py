@@ -14,6 +14,7 @@ import zmq
 from fastapi import HTTPException, status
 
 from edumatcher.api_gateway.caches import SessionCaches
+from edumatcher.api_gateway.market_cache import MarketDataCache
 from edumatcher.api_gateway.events import (
     ADMIN_ACTION_PREFIX,
     envelope,
@@ -55,6 +56,15 @@ from edumatcher.models.message import (
 )
 from edumatcher.models.order import Order
 from edumatcher.models.price import register_tick_decimals
+from edumatcher.models.generated.risk import topic_kill_switch_ack
+from edumatcher.models.generated.session import (
+    topic_session_transition_ack,
+)
+from edumatcher.models.generated.system import (
+    topic_gateway_auth,
+    topic_gateways,
+    topic_reference_reload_ack,
+)
 
 log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
@@ -72,7 +82,11 @@ class EngineClient:
     """Owns engine sockets, event fan-out, futures, and session caches."""
 
     def __init__(
-        self, pull_addr: str, pub_addr: str, loop: asyncio.AbstractEventLoop
+        self,
+        pull_addr: str,
+        pub_addr: str,
+        loop: asyncio.AbstractEventLoop,
+        market_cache_sec: int = 60,
     ) -> None:
         self._loop = loop
         self._pull_addr = pull_addr
@@ -96,6 +110,9 @@ class EngineClient:
         self._caches: dict[str, SessionCaches] = defaultdict(SessionCaches)
         self._sinks: dict[str, set[asyncio.Queue[dict[str, Any]]]] = defaultdict(set)
         self._market_data_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
+        # Latest-snapshot-per-topic plus a bounded trades tail, feeding the
+        # snapshot/resume verbs on WS /api/v1/market-data.
+        self._market_cache = MarketDataCache(market_cache_sec)
         # ADMIN monitor sinks receive every event across all gateways.
         self._admin_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
         # Cache of resolved gateway roles (keyed by upper-cased gateway id).
@@ -236,7 +253,7 @@ class EngineClient:
                 gateway_id,
                 timeout,
             )
-            auth_key = f"system.gateway_auth.{gateway_id}"
+            auth_key = topic_gateway_auth(gateway_id)
             future = self._register_future(auth_key)
             try:
                 self._send(make_gateway_connect_msg(gateway_id))
@@ -481,6 +498,10 @@ class EngineClient:
             for cache in self._caches.values():
                 cache.apply(topic, payload)
             event = envelope(topic, payload, seq=seq)
+            # Retain latest snapshot / recent trade tail so a (re)subscribing
+            # or gap-detecting client can be served without waiting for the
+            # next live tick.
+            self._market_cache.record(event)
             for queue in list(self._market_data_sinks):
                 if self._try_put(queue, event):
                     self._dbg_count("market_data_sink_events")
@@ -505,12 +526,18 @@ class EngineClient:
 
     @staticmethod
     def _register_tick_metadata(payload: dict[str, Any]) -> None:
-        meta = payload.get("symbol_meta")
-        if not isinstance(meta, dict):
+        # This read `symbol_meta[sym]["tick_decimals"]`, and no producer has
+        # ever sent that key — the engine sent `tick_size` under a separate
+        # `symbol_meta` map, so the registration below has never fired. The
+        # field exists now and this is the first time it does anything.
+        entries = payload.get("symbols")
+        if not isinstance(entries, list):
             return
-        for symbol, details in meta.items():
-            if isinstance(details, dict) and "tick_decimals" in details:
-                register_tick_decimals(str(symbol), int(details["tick_decimals"]))
+        for entry in entries:
+            if isinstance(entry, dict) and "tick_decimals" in entry:
+                register_tick_decimals(
+                    str(entry.get("symbol", "")), int(entry["tick_decimals"])
+                )
 
     def add_sink(self, gateway_id: str, queue: asyncio.Queue[dict[str, Any]]) -> None:
         self._sinks[gateway_id].add(queue)
@@ -525,6 +552,11 @@ class EngineClient:
 
     def remove_market_data_sink(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
         self._market_data_sinks.discard(queue)
+
+    @property
+    def market_cache(self) -> MarketDataCache:
+        """The market-data snapshot/resume cache (see ``market_cache.py``)."""
+        return self._market_cache
 
     def add_admin_sink(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
         self._admin_sinks.add(queue)
@@ -611,7 +643,7 @@ class EngineClient:
         command_id = new_command_id()
         self.send_mass_cancel(gateway_id, symbol, command_id=command_id)
         return await self.await_event(
-            f"risk.kill_switch_ack.{gateway_id}",
+            topic_kill_switch_ack(gateway_id),
             match={"command_id": command_id},
             timeout=timeout,
         )
@@ -626,7 +658,7 @@ class EngineClient:
         and the caller saw nothing at all.
         """
         command_id = new_command_id()
-        topic = f"session.transition_ack.{gateway_id}"
+        topic = topic_session_transition_ack(gateway_id)
         future = self._register_future(topic, match={"command_id": command_id})
         try:
             self._send(
@@ -653,7 +685,7 @@ class EngineClient:
         from a slow one.
         """
         command_id = new_command_id()
-        topic = f"system.reference_reload_ack.{gateway_id}"
+        topic = topic_reference_reload_ack(gateway_id)
         future = self._register_future(topic, match={"command_id": command_id})
         try:
             self._send(make_reference_reload_msg(gateway_id, command_id))
@@ -769,7 +801,7 @@ class EngineClient:
             return cached
         self.request_gateways(gid)
         try:
-            reply = await self.await_topic(f"system.gateways.{gid}", timeout)
+            reply = await self.await_topic(topic_gateways(gid), timeout)
         except TimeoutError:
             return "TRADER"
         role = "TRADER"

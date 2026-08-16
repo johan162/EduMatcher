@@ -41,7 +41,7 @@ Exchanges can identify these traders using one or several of the following mecha
 
 - **Binary Format:** Unlike standard FIX protocol which sends data as text (e.g., 35=D;49=FIRM), SBE transmits data as raw binary bytes (zeros and ones).
 - **Fixed Position:** SBE uses fixed-length fields or highly predictable schemas. The matching engine knows exactly which byte contains the STPF ID without needing to scan or parse the entire message.
-- **Ultra-Low Latency:** Because computers read binary natively, SBE requires almost zero CPU overhead to decode. This allows algorithmic traders to submit orders—complete with their STPF IDs—in microseconds.
+- **Ultra-Low Latency:** Because computers read binary natively, SBE requires almost zero CPU overhead to decode. This allows algorithmic traders to submit orders—complete with their STPF IDs, in microseconds.
 - 
 
 ## Why This Matters for Developers

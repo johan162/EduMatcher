@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import sqlite3
 import sys
 from contextlib import suppress
@@ -17,6 +18,7 @@ from fastapi import HTTPException, WebSocketDisconnect, status
 from edumatcher.api_gateway import engine_client, main
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
 from edumatcher.api_gateway.engine_client import EngineClient
+from edumatcher.api_gateway.market_cache import MarketDataCache
 from edumatcher.api_gateway.routers import history, ws
 from edumatcher.api_gateway.schemas import MarketDataControl
 from edumatcher.api_gateway.sessions import Session, SessionRegistry, auth
@@ -34,6 +36,74 @@ class FakeSocket:
     def close(self, linger: int = 0) -> None:
         _ = linger
         self.closed = True
+
+
+def _combo_payload() -> dict[str, Any]:
+    """A valid ``order.combo`` submission; the builder validates before send."""
+    return {
+        "combo_id": "C1",
+        "gateway_id": "GW01",
+        "combo_type": "AON",
+        "tif": "DAY",
+        "legs": [
+            {
+                "symbol": "AAPL",
+                "side": "BUY",
+                "order_type": "LIMIT",
+                "quantity": 10,
+                "price": 100,
+                "stop_price": None,
+                "smp_action": None,
+            },
+            {
+                "symbol": "MSFT",
+                "side": "SELL",
+                "order_type": "LIMIT",
+                "quantity": 10,
+                "price": 200,
+                "stop_price": None,
+                "smp_action": None,
+            },
+        ],
+    }
+
+
+def _oco_payload() -> dict[str, Any]:
+    """A valid ``order.oco`` submission with both legs present."""
+    return {
+        "oco_id": "O1",
+        "gateway_id": "GW01",
+        "symbol": "AAPL",
+        "quantity": 10,
+        "tif": "DAY",
+        "leg1": {
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "price": 100,
+            "stop_price": None,
+            "trail_offset": None,
+        },
+        "leg2": {
+            "side": "BUY",
+            "order_type": "STOP",
+            "price": None,
+            "stop_price": 90,
+            "trail_offset": None,
+        },
+    }
+
+
+def _quote_payload() -> dict[str, Any]:
+    """A valid ``quote.new`` submission in ticks."""
+    return {
+        "gateway_id": "GW01",
+        "symbol": "AAPL",
+        "bid_price": 100,
+        "bid_qty": 10,
+        "ask_price": 101,
+        "ask_qty": 10,
+        "tif": "DAY",
+    }
 
 
 @pytest.fixture
@@ -75,11 +145,11 @@ async def test_engine_client_auth_send_and_event_flow(
 
     client.send_cancel("ORD1", "GW01")
     client.send_amend("ORD1", "GW01", 151.0, 10)
-    client.send_combo({"combo_id": "C1"})
+    client.send_combo(_combo_payload())
     client.send_combo_cancel("C1", "GW01")
-    client.send_oco({"oco_id": "O1"})
+    client.send_oco(_oco_payload())
     client.send_oco_cancel("O1", "GW01")
-    client.send_quote({"quote_id": "Q1"})
+    client.send_quote(_quote_payload())
     client.send_quote_cancel("GW01", "AAPL")
     client.send_mass_cancel("GW01", "AAPL")
     client.request_orders("GW01")
@@ -271,20 +341,51 @@ def test_config_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_main_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[tuple[str, Any]] = []
-    config = ApiGatewayConfig(host="127.0.0.9", port=9191, log_level="debug")
-    monkeypatch.setattr(sys, "argv", ["pm-api-gwy"])
-    monkeypatch.setattr(main, "_config_with_overrides", lambda _args: config)
-    monkeypatch.setattr(main, "create_app", lambda cfg: {"config": cfg})
-    monkeypatch.setattr(
-        uvicorn,
-        "run",
-        lambda app, host, port, log_level: calls.append(
-            ("run", (app, host, port, log_level))
-        ),
-    )
-    main.main()
-    assert calls == [("run", ({"config": config}, "127.0.0.9", 9191, "debug"))]
+    # log_level="debug" makes main() -> _route_uvicorn_logging() lower the
+    # root logger's level for real; restore it so that side effect doesn't
+    # leak into whichever test runs next in this process (see
+    # test_uvicorn_logs_route_to_root_handler below for the same guard).
+    root = logging.getLogger()
+    original_level = root.level
+    try:
+        calls: list[tuple[str, Any]] = []
+        config = ApiGatewayConfig(host="127.0.0.9", port=9191, log_level="debug")
+        monkeypatch.setattr(sys, "argv", ["pm-api-gwy"])
+        monkeypatch.setattr(main, "_config_with_overrides", lambda _args: config)
+        monkeypatch.setattr(main, "create_app", lambda cfg: {"config": cfg})
+        monkeypatch.setattr(
+            uvicorn,
+            "run",
+            lambda app, host, port, log_level, log_config: calls.append(
+                ("run", (app, host, port, log_level, log_config))
+            ),
+        )
+        main.main()
+        assert calls == [
+            ("run", ({"config": config}, "127.0.0.9", 9191, "debug", None))
+        ]
+    finally:
+        root.setLevel(original_level)
+
+
+def test_uvicorn_logs_route_to_root_handler() -> None:
+    root = logging.getLogger()
+    uvicorn_logger = logging.getLogger("uvicorn.error")
+    original_handlers = list(uvicorn_logger.handlers)
+    original_propagate = uvicorn_logger.propagate
+    original_level = root.level
+    try:
+        uvicorn_logger.handlers = [logging.StreamHandler()]
+        uvicorn_logger.propagate = False
+        main._route_uvicorn_logging("INFO")
+        assert uvicorn_logger.handlers == []
+        assert uvicorn_logger.propagate is True
+        assert uvicorn_logger.level == logging.INFO
+        assert root.level <= logging.INFO
+    finally:
+        uvicorn_logger.handlers = original_handlers
+        uvicorn_logger.propagate = original_propagate
+        root.setLevel(original_level)
 
 
 def test_main_cli_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -312,8 +413,15 @@ def test_main_cli_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.anyio
 async def test_create_app_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
     class FakeEngineClient:
-        def __init__(self, pull_addr: str, pub_addr: str, loop: Any) -> None:
+        def __init__(
+            self,
+            pull_addr: str,
+            pub_addr: str,
+            loop: Any,
+            market_cache_sec: int = 60,
+        ) -> None:
             self.args = (pull_addr, pub_addr, loop)
+            self.market_cache_sec = market_cache_sec
             self.started = False
             self.stopped = False
             self.disconnects: list[tuple[str, str]] = []
@@ -519,7 +627,10 @@ async def test_websocket_auth_controls_and_filtering() -> None:
                         ApiGatewayConfig(
                             credentials=(ApiCredential("key", "GW01", "test"),)
                         )
-                    )
+                    ),
+                    # _receive_market_controls now consults the market-data
+                    # snapshot cache to answer a subscribe with current state.
+                    engine=SimpleNamespace(market_cache=MarketDataCache()),
                 )
             )
 

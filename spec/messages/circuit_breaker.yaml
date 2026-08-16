@@ -1,0 +1,294 @@
+# Canonical specification for the `circuit_breaker` message family.
+#
+# Phase 6.1c. Three engine -> subscribers events describing one symbol's halt:
+# it started, its reopening corridor widened, it ended.
+#
+# PRICES HERE ARE DISPLAY MONEY, AND THAT IS THE OPPOSITE OF THE RULE IN
+# DESIGN SECTION 25. That section moved every engine-*inbound* price to integer
+# ticks. These are engine-*outbound*: every producer converts with
+# `from_ticks(..., symbol)` before publishing, and `md_gateway/normaliser.py`
+# renders the value straight into a CALF decimal field without converting.
+# Declaring `unit: display_price` is what makes the two directions reviewable
+# against each other rather than merely different.
+#
+# THE THREE-PRODUCER FORK ON `halt`, AND WHY IT IS NOT A FORK.
+# `circuit_breaker.halt` has three producers. The price-triggered path splats
+# `**self._corridor_payload(cb, symbol)` and so carries `corridor_low`,
+# `corridor_high` and `expansion`; the two ADMIN paths omit all three entirely.
+# `_corridor_payload` itself returns all three as `None` when the halt has no
+# corridor, so the price-triggered path emitted nulls where the ADMIN paths
+# emitted nothing -- two spellings of one state.
+#
+# `normalise_cb_halt` is the only structural reader of those keys and reaches
+# every one through `payload.get(...)`, so absence and null are the same value
+# to it. Regime 3 therefore collapses the fork into one rule with no byte
+# change on either dominant path: the price-triggered halt with a corridor
+# still carries all three, the ADMIN halts still carry none. The one shape
+# that moves is a price-triggered halt with ACE disabled, which stops saying
+# `null` three times and says nothing instead. See design section 26.2 for why
+# this is flat rather than the nullable record section 20.1 would suggest.
+
+family: circuit_breaker
+version: 1
+
+messages:
+  - name: circuit_breaker_halt
+    topic: "circuit_breaker.halt.{symbol}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to all: one symbol has stopped trading. New orders rest rather
+        than match until the halt ends, and every resting quote on the symbol
+        has already been cancelled by the time this is published.
+      published_by: [engine]
+      since: "1.0"
+      see_also:
+        ["circuit_breaker.extend.{SYMBOL}", "circuit_breaker.resume.{SYMBOL}"]
+      example_note: >
+        `halt_source` says what caused the halt, not how it will end: every
+        halt ends in a reopening auction call, because LIMIT orders accumulate
+        freely while a symbol is halted and resuming without an uncross would
+        start continuous trading on a crossed book.
+
+        `trigger_price` and `reference_price` are the price that fired the
+        breaker and the price it was measured against. Both are null on an
+        ADMIN halt, which fires on an operator's decision rather than on a
+        price, and both may be null on a price-triggered halt that had no
+        reference to latch.
+
+        `resume_at_ns` is null for an indefinite halt -- `halt_all` and a
+        per-symbol halt named without a level both produce one, and it lasts
+        until an explicit resume.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - name: trigger_price
+        type: float
+        required: false
+        nullable: true
+        unit: display_price
+        validate: { gt: 0 }
+        doc: "The trade price that breached the level. Null on an ADMIN halt."
+      - name: reference_price
+        type: float
+        required: false
+        nullable: true
+        unit: display_price
+        validate: { gt: 0 }
+        doc: >
+          The price the breach was measured against. Null on an ADMIN halt.
+      - name: resume_at_ns
+        type: int
+        required: false
+        nullable: true
+        unit: epoch_nanos
+        doc: >
+          When the current call phase ends. Null means indefinite: the halt
+          lasts until an operator resumes it. ACE moves this on every
+          extension, so a consumer that ignores `circuit_breaker.extend` will
+          hold a value that has already passed.
+      - name: halt_source
+        type: enum
+        values: [CB, ADMIN]
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          What put the symbol into the halt. Mirrors
+          `CircuitBreakerState.halt_source`, which is `None` only while no
+          halt is in effect -- so the key is present on every halt event.
+      - name: level
+        type: string
+        required: false
+        nullable: true
+        omit_when_none: true
+        validate: { max_len: 32 }
+        doc: >
+          Which rung of the ladder fired -- a name from the symbol's
+          `circuit_breaker.levels` config -- or `ADMIN_ALL` / `ADMIN_SYMBOL`
+          for an operator halt. Not an enum: the ladder is configuration, so
+          the value set differs per deployment.
+      - name: corridor_low
+        type: float
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: display_price
+        validate: { gt: 0 }
+        doc: >
+          Lower bound of the ACE reopening corridor. Absent when the halt has
+          no corridor: either ACE is disabled or the halt began with no
+          reference price to centre one on.
+      - name: corridor_high
+        type: float
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: display_price
+        validate: { gt: 0 }
+        doc: "Upper bound of the ACE reopening corridor. Absent with the low."
+      - name: expansion
+        type: int
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: dimensionless
+        validate: { ge: 0 }
+        doc: >
+          Rungs of the expansion ladder consumed so far; 0 in the initial call
+          phase. Absent whenever the corridor is, because a halt that cannot
+          have a corridor can never widen one.
+    encoding:
+      # `symbol` is named in the topic AND carried in the body, so it is listed
+      # explicitly rather than left to `include: all` — which means "every
+      # field except the topic parameters" and would drop it. Every consumer of
+      # this topic reads the symbol from the body: `alf_gwy` broadcasts
+      # `payload["symbol"]` and `api_gateway/events.py::market_data_symbol`
+      # falls back to it. Same reasoning as `book.{symbol}`.
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [symbol, trigger_price, reference_price, resume_at_ns,
+                  halt_source, level, corridor_low, corridor_high, expansion]
+
+  - name: circuit_breaker_extend
+    topic: "circuit_breaker.extend.{symbol}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to all: the call phase ended with the indicative price outside
+        the corridor, so the symbol stays halted, the corridor widens by one
+        rung and a fresh call phase begins.
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["circuit_breaker.halt.{SYMBOL}"]
+      example_note: >
+        The symbol's state does not change here -- an extension is a
+        continuation of the same halt -- so `md_gateway` deliberately does not
+        re-emit a STATE event for it, only the moved corridor and resume time.
+
+        The corridor fields are the corridor *after* widening, and unlike on
+        `circuit_breaker.halt` they are always present: this event can only be
+        produced on a path that has just asserted a corridor exists.
+
+        `indicative_price` and `indicative_qty` are the imbalance indicator a
+        real venue disseminates during a reopening. They are what lets a
+        participant supply the offsetting interest that resolves the halt,
+        which only works while there is still time to act.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - name: indicative_price
+        type: float
+        unit: display_price
+        validate: { gt: 0 }
+        doc: "Where the symbol would have reopened, outside the corridor."
+      - name: indicative_qty
+        type: int
+        unit: shares
+        validate: { gt: 0 }
+        doc: >
+          Quantity that would have executed. Always above zero: the producer
+          only extends when the indicative uncross would have traded.
+      - name: imbalance_side
+        type: enum
+        values: [BUY, SELL]
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          Which side is unfilled at the indicative price. Absent when the book
+          is balanced there.
+      - name: resume_at_ns
+        type: int
+        unit: epoch_nanos
+        doc: "End of the new call phase. Always set; `extend()` computes it."
+      - name: corridor_low
+        type: float
+        unit: display_price
+        validate: { gt: 0 }
+        doc: "Lower bound of the widened corridor."
+      - name: corridor_high
+        type: float
+        unit: display_price
+        validate: { gt: 0 }
+        doc: "Upper bound of the widened corridor."
+      - name: expansion
+        type: int
+        unit: dimensionless
+        validate: { gt: 0 }
+        doc: >
+          Rungs consumed after this widening -- at least 1, since the event is
+          published by the widening itself.
+    encoding:
+      # `symbol` in the body as well as the topic — see `circuit_breaker_halt`.
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [symbol, indicative_price, indicative_qty, imbalance_side,
+                  resume_at_ns, corridor_low, corridor_high, expansion]
+
+  - name: circuit_breaker_resume
+    topic: "circuit_breaker.resume.{symbol}"
+    transport: [engine_pub]
+    doc:
+      motivation: >
+        Engine to all: the symbol is trading again. It rejoins whatever the
+        exchange is currently doing rather than returning to continuous
+        trading -- a halt that expires near the close resumes into
+        CLOSING_AUCTION or CLOSED.
+      published_by: [engine]
+      since: "1.0"
+      see_also: ["circuit_breaker.halt.{SYMBOL}"]
+      example_note: >
+        Four producers, two shapes. Three of them -- ACE expiry, ADMIN
+        resume-all and ADMIN per-symbol resume -- send `symbol` and
+        `halt_source` alone. The closing backstop sends three fields more,
+        because it is the one resume where the reopening price was imposed
+        rather than discovered: it prints *at* the corridor boundary for a
+        symbol that could not reopen inside it, which can leave the book
+        crossed by design.
+
+        The three extra fields are regime 3 and 4 rather than always-present
+        nulls, so the three ordinary producers keep the two-key payload they
+        have always sent. `normalise_cb_resume` reads each through a falsy
+        guard, so an absent key and an empty one are the same event to it.
+    fields:
+      - { name: symbol, type: string, validate: { max_len: 16 } }
+      - name: halt_source
+        type: enum
+        values: [CB, ADMIN]
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: "What had put the symbol into the halt that just ended."
+      - name: reason
+        type: string
+        required: false
+        omit_when_empty: true
+        validate: { max_len: 64 }
+        doc: >
+          Why the halt ended, when that is not simply "its call phase
+          expired". Only the closing backstop sets it, to CLOSING_BACKSTOP.
+      - name: clamped
+        type: bool
+        required: false
+        nullable: true
+        omit_when_none: true
+        doc: >
+          True when the print price was forced to the corridor boundary
+          instead of the equilibrium. A client showing a clamped price as a
+          discovered one would mislead. Absent on the three ordinary resumes,
+          where no price is imposed at all -- which is a different statement
+          from `false`, and worth keeping distinct.
+      - name: print_price
+        type: float
+        required: false
+        nullable: true
+        omit_when_none: true
+        unit: display_price
+        validate: { gt: 0 }
+        doc: >
+          The price the backstop uncross printed at. Absent when there was no
+          crossing interest to print, and on the three ordinary resumes.
+    encoding:
+      # `symbol` in the body as well as the topic — see `circuit_breaker_halt`.
+      engine_pub:
+        frames: [topic, json_payload]
+        include: [symbol, halt_source, reason, clamped, print_price]

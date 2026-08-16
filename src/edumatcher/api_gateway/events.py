@@ -5,13 +5,47 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.order import (
+    PREFIX_ORDER_ACK,
+    PREFIX_ORDER_AMENDED,
+    PREFIX_ORDER_CANCELLED,
+    PREFIX_ORDER_EXPIRED,
+    PREFIX_ORDER_FILL,
+    PREFIX_ORDERS,
+)
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT, PREFIX_DEPTH
+from edumatcher.models.generated.auction import (
+    PREFIX_AUCTION_INDICATIVE,
+    PREFIX_AUCTION_RESULT,
+)
+from edumatcher.models.generated.admin import PREFIX_ADMIN_ACTION
+from edumatcher.models.generated.risk import PREFIX_KILL_SWITCH_ACK
+from edumatcher.models.generated.structure import (
+    PREFIX_COMBO_ACK,
+    PREFIX_COMBO_STATUS,
+    PREFIX_OCO_ACK,
+    PREFIX_OCO_CANCELLED,
+)
+from edumatcher.models.generated.quote import (
+    PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_STATUS,
+)
+from edumatcher.models.generated.system import (
+    PREFIX_GATEWAY_AUTH,
+    PREFIX_QUOTE_BOOTSTRAP,
+    PREFIX_QUOTE_LEGS,
+    PREFIX_SESSION_STATUS,
+    PREFIX_SYMBOLS,
+)
 
-ORDER_ACK_PREFIX = "order.ack."
-ORDER_FILL_PREFIX = "order.fill."
-ORDER_AMENDED_PREFIX = "order.amended."
-ORDER_CANCELLED_PREFIX = "order.cancelled."
-ORDER_EXPIRED_PREFIX = "order.expired."
-SYSTEM_SYMBOLS_PREFIX = "system.symbols."
+ORDER_ACK_PREFIX = PREFIX_ORDER_ACK
+ORDER_FILL_PREFIX = PREFIX_ORDER_FILL
+ORDER_AMENDED_PREFIX = PREFIX_ORDER_AMENDED
+ORDER_CANCELLED_PREFIX = PREFIX_ORDER_CANCELLED
+ORDER_EXPIRED_PREFIX = PREFIX_ORDER_EXPIRED
+SYSTEM_SYMBOLS_PREFIX = PREFIX_SYMBOLS
 
 #: Synthetic admin-monitor-only event (see models.message.make_admin_action_msg).
 #: Deliberately NOT in PRIVATE_PREFIXES: it isn't addressed to the trading
@@ -19,7 +53,7 @@ SYSTEM_SYMBOLS_PREFIX = "system.symbols."
 #: never reach that gateway's own private stream. EngineClient._handle_event
 #: checks this prefix before the private/market-data split so it only ever
 #: reaches admin monitor sinks.
-ADMIN_ACTION_PREFIX = "admin.action."
+ADMIN_ACTION_PREFIX = PREFIX_ADMIN_ACTION
 
 PRIVATE_PREFIXES = (
     ORDER_ACK_PREFIX,
@@ -27,19 +61,19 @@ PRIVATE_PREFIXES = (
     ORDER_AMENDED_PREFIX,
     ORDER_CANCELLED_PREFIX,
     ORDER_EXPIRED_PREFIX,
-    "order.orders.",
-    "combo.ack.",
-    "combo.status.",
-    "oco.ack.",
-    "oco.cancelled.",
-    "quote.ack.",
-    "quote.status.",
-    "risk.kill_switch_ack.",
-    "system.gateway_auth.",
+    PREFIX_ORDERS,
+    PREFIX_COMBO_ACK,
+    PREFIX_COMBO_STATUS,
+    PREFIX_OCO_ACK,
+    PREFIX_OCO_CANCELLED,
+    PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_STATUS,
+    PREFIX_KILL_SWITCH_ACK,
+    PREFIX_GATEWAY_AUTH,
     SYSTEM_SYMBOLS_PREFIX,
-    "system.quote_bootstrap.",
-    "system.quote_legs.",
-    "system.session_status.",
+    PREFIX_QUOTE_BOOTSTRAP,
+    PREFIX_QUOTE_LEGS,
+    PREFIX_SESSION_STATUS,
 )
 
 
@@ -75,19 +109,25 @@ def websocket_type(topic: str) -> str:
     """Translate an engine topic to the stable public WebSocket type."""
     if topic.startswith(ADMIN_ACTION_PREFIX):
         return "admin.action"
-    if topic.startswith("risk.kill_switch_ack."):
+    if topic.startswith(PREFIX_KILL_SWITCH_ACK):
         return "mass_cancel.ack"
-    if topic == "trade.executed":
+    if topic == TOPIC_TRADE_EXECUTED:
         return "trade"
-    if topic.startswith("book."):
+    if topic.startswith(PREFIX_BOOK_SNAPSHOT):
         return "book"
-    if topic.startswith("depth."):
+    if topic.startswith(PREFIX_DEPTH):
         return "depth"
-    if topic == "session.state":
+    if topic == TOPIC_SESSION_STATE:
         return "session"
     if topic.startswith("circuit_breaker."):
         return "circuit_breaker"
-    if topic.startswith("auction.result."):
+    # Two tenses of the same mechanism: `auction.result` is what printed,
+    # `auction.indicative` is what would print if the call phase ended now.
+    # Both ride the client's `auction` channel; distinct types let the UI tell
+    # them apart without inspecting the payload.
+    if topic.startswith(PREFIX_AUCTION_INDICATIVE):
+        return "auction.indicative"
+    if topic.startswith(PREFIX_AUCTION_RESULT):
         return "auction"
     parts = topic.split(".")
     if len(parts) >= 2:
@@ -136,9 +176,11 @@ def envelope(
 
 def market_data_symbol(topic: str, payload: dict[str, Any]) -> str | None:
     """Find the symbol associated with a public market-data event."""
-    if topic.startswith("book.") or topic.startswith("depth."):
+    if topic.startswith(PREFIX_BOOK_SNAPSHOT) or topic.startswith(PREFIX_DEPTH):
         return topic.split(".", 1)[1]
-    if topic.startswith("auction.result."):
-        return topic[len("auction.result.") :].upper()
+    if topic.startswith(PREFIX_AUCTION_INDICATIVE):
+        return topic[len(PREFIX_AUCTION_INDICATIVE) :].upper()
+    if topic.startswith(PREFIX_AUCTION_RESULT):
+        return topic[len(PREFIX_AUCTION_RESULT) :].upper()
     raw_symbol = payload.get("symbol")
     return str(raw_symbol).upper() if raw_symbol else None

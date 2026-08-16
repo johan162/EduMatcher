@@ -1,0 +1,44 @@
+/design A new trading operation client used by the operators of the exchange to start/stop the exchange and view change status of all exchange processes (excluding GUI Web clients). Write the design document to docs-design/EduMatcher-pm-emo.md​
+
+It shall offer a terminal basic cursor based (with basic colors) interface supporting:
+
+
+
+Viewing a list of status of all core processes ; Running/Not running/Hung (does not respond to ping)
+
+
+
+Cleanly stop individual processes that can be stopped individually. Refusing to stop individual processes that would be equivakent of stopping the entire exchange
+
+
+
+Start and stop a nominal standard exchange. 
+
+
+
+Be able to define named exchange configuration ,for example, technically we could get buy with only the engine and a ALF console and show orders, but for a realistic exchange we need to run around 10 processes and there are steps in between. These configs are persisted in a yaml file
+
+
+
+View size of key files and processes
+
+
+
+See location and size of log DB, stats DB, engine-config, and so on (all key persistent structure on disk)
+
+
+
+See how much free disk and give notice if we are above 65% disk usage and a warning if ew are above 75% and demand immediate actions if we are above 85% disc usage
+
+
+
+View engine configuration
+
+
+
+List all defined gateways per type
+
+
+
+Any other actions we shou
+

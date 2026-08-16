@@ -8,13 +8,20 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "edumatcher"
-version = "0.19.1"
+version = "0.20.0"
 description = "Educational multi-process trading system with order matching"
 authors = ["Johan Persson <johan162@gmail.com>"]
 readme = "README.md"
 packages = [{include = "edumatcher", from = "src"}]
 include = [
-    { path = "src/edumatcher/engine_config.sample.yaml", format = ["sdist", "wheel"] }
+    { path = "src/edumatcher/engine_config.sample.yaml", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/*.md", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/*.yaml", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/*.sh", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/*.py", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/*.c", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/*.h", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/Makefile", format = ["sdist", "wheel"] },
 ]
 keywords = ["finance", "exchange", "matching-engine", "trading", "education", "learning", "order-matching", "market-microstructure"]
 license = "MIT"
@@ -86,8 +93,10 @@ pm-setup    = "edumatcher.setup_cmd:main"
 pm-config-gen = "edumatcher.config_gen.cli:main"
 pm-config-deploy = "edumatcher.config_deploy:main"
 pm-cverifier  = "edumatcher.cverifier.cli:main"
+pm-msgen      = "edumatcher.msgen.cli:main"
 pm-log-srv  = "edumatcher.log_srv.main:main"
 pm-log-cli  = "edumatcher.log_cli.main:main"
+pm-opctl    = "edumatcher.emo.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

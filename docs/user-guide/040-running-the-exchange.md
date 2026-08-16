@@ -235,8 +235,8 @@ flowchart TD
 | 9 | `pm-api-gwy` | `pm-api-gwy` | Optional `--instance NAME`, `--host`, `--port`, `--engine-host`; API keys come from config | The API gateway has no `--id`. Use `--instance` only when multiple `api_gateways` entries are configured. Start after engine and stats history are available. |
 | 10 | `pm-alf-gwy` | `pm-alf-gwy` | Optional `--bind`, `--port`, `--engine-host`; gateway IDs come from client `HELLO` and config | The ALF TCP gateway has no process-level `--id`. Start after the engine is healthy, then external text clients can connect. |
 | 11 | `pm-balf-gwy` | `pm-balf-gwy` | Optional `--bind`, `--port`, `--engine-host`; identity is configured/client-provided | Optional binary order-entry gateway. Start only for BALF client exercises or integrations. |
-| 12 | TapeDeck | `cd terminal-gui && PM_TERMINAL_API_KEY=... make up` | `PM_TERMINAL_API_KEY` for history; `CALF_HOST`, `API_GATEWAY_URL` when remote | The browser terminal needs `pm-md-gwy` for live data and `pm-api-gwy` for history, so it starts after both. |
-| 13 | Log Operator Console (`pm-log-ui`) | `cd log-gui && make up` | Configure it to reach `pm-log-srv` / `log.db` as described in its chapter | The log UI is useful only after `pm-log-srv` is running and has data to display. |
+| 12 | TapeDeck | `cd web-apps/terminal-gui && PM_TERMINAL_API_KEY=... make up` | `PM_TERMINAL_API_KEY` for history; `CALF_HOST`, `API_GATEWAY_URL` when remote | The browser terminal needs `pm-md-gwy` for live data and `pm-api-gwy` for history, so it starts after both. |
+| 13 | Log Operator Console (`pm-log-ui`) | `cd web-apps/log-gui && make up` | Configure it to reach `pm-log-srv` / `log.db` as described in its chapter | The log UI is useful only after `pm-log-srv` is running and has data to display. |
 
 This order is approximate for independent consumers, but not arbitrary. The
 recorders can safely wait for the engine to appear, so starting them first is a
@@ -366,13 +366,13 @@ current support and CLI workflows.
 ### TapeDeck trader information terminal
 
 TapeDeck (`pm-terminal`) is the browser-based read-only market display in
-`terminal-gui/`. It is not a Python `pm-*` console script. It depends on:
+`web-apps/terminal-gui/`. It is not a Python `pm-*` console script. It depends on:
 
 - `pm-md-gwy` for live CALF market data
 - `pm-api-gwy` with a read-only API key for history and charts
 - optionally `pm-log-srv` for bridge logs
 
-From `terminal-gui/`:
+From `web-apps/terminal-gui/`:
 
 ```bash
 export PM_TERMINAL_API_KEY='...'
@@ -901,7 +901,7 @@ Goal: run the browser terminal for a classroom screen or observer desk.
 4. Start TapeDeck:
 
     ```bash
-    cd terminal-gui
+    cd web-apps/terminal-gui
     export PM_TERMINAL_API_KEY='...'
     make up
     ```

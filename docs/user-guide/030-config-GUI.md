@@ -45,7 +45,7 @@ experts see everything, and a full **round-trip import** of existing configs.
 
 !!! info "Where it lives"
     The application is a self-contained Node.js/TypeScript project in the
-    `config-gui/` directory at the repository root. It is independent of the
+    `web-apps/config-gui/` directory. It is independent of the
     Python engine and needs no Python to run — with one optional exception, the
     [server-side verification](#optional-server-side-verification) feature.
 
@@ -114,7 +114,7 @@ effort. Pick the one that matches your situation.
 ### Option 1 — One command with the container stack
 
 If you have a repository checkout and a container runtime, this is the fastest
-path. From the `config-gui/` directory:
+path. From the `web-apps/config-gui/` directory:
 
 ```bash
 make up
@@ -176,7 +176,7 @@ To hack on the GUI, run the two processes (the Fastify **API** and the Vite
 **web** dev server) from a checkout:
 
 ```bash
-cd config-gui
+cd web-apps/config-gui
 npm install
 npm run dev          # starts the API (port 5175) and the web UI (port 5174)
 ```
@@ -188,7 +188,7 @@ For separate logs, run the processes in two terminals with `npm run dev:server`
 and `npm run dev:web` (or `make dev-server` / `make dev-web`). Developer-facing
 details — project layout, tests, and how to keep the GUI in sync with the
 engine — live in the project's
-[`config-gui/README.md`](https://github.com/johan162/EduMatcher/blob/main/config-gui/README.md).
+[`config-gui/README.md`](https://github.com/johan162/EduMatcher/blob/main/web-apps/config-gui/README.md).
 
 ## A tour of the interface
 
@@ -799,7 +799,7 @@ routes.
 To run the pieces yourself:
 
 ```bash
-cd config-gui
+cd web-apps/config-gui
 npm install
 npm run build            # emits the static UI to apps/web/dist
 STATIC_DIR="$PWD/apps/web/dist" HOST=0.0.0.0 PORT=8092 \
@@ -897,7 +897,7 @@ test (`npm run verify:python`) generates representative configs and runs each
 through the engine's real `load_engine_config()`. Keeping that check green is
 what guarantees GUI output loads in the engine. The developer checklist for
 keeping the two in sync lives in the
-[`config-gui/README.md`](https://github.com/johan162/EduMatcher/blob/main/config-gui/README.md).
+[`config-gui/README.md`](https://github.com/johan162/EduMatcher/blob/main/web-apps/config-gui/README.md).
 
 ## Architecture at a glance
 
@@ -931,7 +931,7 @@ server can also serve the built UI, collapsing the two into one container.
 | **"pm-cverifier is not available"** in the Review tab | Verifier not on `PATH` (expected in the default container) | Optional; set `CVERIFIER_COMMAND="poetry run pm-cverifier"` or run where the tool is installed. |
 | **`npm run verify:python` cannot import `edumatcher`** | Python env not installed | Run `poetry install` at the repository root. |
 | **Import rejected as too large** | File exceeds `MAX_IMPORT_BYTES` (1 MB) | Raise the limit via the env var, or trim the file. |
-| **Port already in use** | Another process holds `5174`/`5175`/`8092` | Change `PORT` (API) or `server.port` / proxy target in `config-gui/apps/web/vite.config.ts` (web). |
+| **Port already in use** | Another process holds `5174`/`5175`/`8092` | Change `PORT` (API) or `server.port` / proxy target in `web-apps/config-gui/apps/web/vite.config.ts` (web). |
 | **Imported config shows an "unmapped" banner** | The file has sections the GUI does not model | Expected — those sections are preserved read-only and re-emitted unchanged. |
 | **Quote Stub Review shows "! fill in" after import** | No mid-range seeding and no explicit quotes for some symbols | Set a mid-range on the Market Maker tab, or enter explicit bid/ask on each flagged symbol's MM Quotes sub-tab. |
 | **A tab you expected is missing** | It is above the current persona, or (Market Maker) no MM gateway exists | Raise the [persona](#personas), or add a `MARKET_MAKER` gateway. |

@@ -24,15 +24,28 @@ Topic conventions
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 from typing import Any
 
-from edumatcher.models.feed_schema import (
-    GatewayAuthPayload,
-    GatewayByePayload,
-    SessionStatePayload,
-    SystemEodPayload,
-    TradeExecutedPayload,
-)
+# Imported as a MODULE, not by name, and so is this module's counterpart import
+# inside the generated file. The two import each other: generated code needs
+# encode/decode/dumps from here, and make_trade_msg below delegates to there.
+# Binding module objects keeps that cycle harmless, because neither side needs
+# the other's contents until call time. Importing `make_trade_executed` by name
+# instead would raise ImportError whenever the generated module happened to be
+# imported first.
+from edumatcher.models.generated import admin as _gen_admin
+from edumatcher.models.generated import auction as _gen_auction
+from edumatcher.models.generated import book as _gen_book
+from edumatcher.models.generated import index as _gen_index
+from edumatcher.models.generated import log as _gen_log
+from edumatcher.models.generated import order as _gen_order
+from edumatcher.models.generated import quote as _gen_quote
+from edumatcher.models.generated import risk as _gen_risk
+from edumatcher.models.generated import session as _gen_session
+from edumatcher.models.generated import structure as _gen_structure
+from edumatcher.models.generated import system as _gen_system
+from edumatcher.models.generated import trade as _gen_trade
 
 # PERF improvement #6: Use orjson instead of stdlib json.
 #
@@ -104,11 +117,11 @@ def dumps(payload: dict[str, Any]) -> bytes:
 
 
 def make_order_new_msg(order_dict: dict[str, Any]) -> list[bytes]:
-    return encode("order.new", order_dict)
+    return _gen_order.make_order_new(**order_dict)
 
 
 def make_gateway_connect_msg(gateway_id: str) -> list[bytes]:
-    return encode("system.gateway_connect", {"gateway_id": gateway_id})
+    return _gen_system.make_gateway_connect(gateway_id=gateway_id)
 
 
 def make_gateway_auth_msg(
@@ -117,19 +130,22 @@ def make_gateway_auth_msg(
     reason: str = "",
     description: str = "",
 ) -> list[bytes]:
-    typed = GatewayAuthPayload(
+    """Engine → all subscribers: a participant's connection verdict.
+
+    ``gateway_id`` is in the topic *and* the body; the spec enumerates the
+    body fields rather than taking the default projection, which would have
+    dropped it (design section 26.4).
+    """
+    return _gen_system.make_gateway_auth(
         gateway_id=gateway_id,
         accepted=accepted,
         reason=reason,
         description=description,
     )
-    topic = f"system.gateway_auth.{typed.gateway_id}"
-    payload = typed.to_dict()
-    return encode(topic, payload)
 
 
 def make_order_cancel_msg(order_id: str, gateway_id: str) -> list[bytes]:
-    return encode("order.cancel", {"order_id": order_id, "gateway_id": gateway_id})
+    return _gen_order.make_order_cancel(order_id=order_id, gateway_id=gateway_id)
 
 
 def make_order_amend_msg(
@@ -138,12 +154,11 @@ def make_order_amend_msg(
     price: float | None = None,
     qty: int | None = None,
 ) -> list[bytes]:
-    payload: dict[str, Any] = {"order_id": order_id, "gateway_id": gateway_id}
-    if price is not None:
-        payload["price"] = price
-    if qty is not None:
-        payload["qty"] = qty
-    return encode("order.amend", payload)
+    # The generated builder omits price/qty when None, matching the former
+    # hand-rolled regime-3 conditional exactly (verified byte-identical).
+    return _gen_order.make_order_amend(
+        order_id=order_id, gateway_id=gateway_id, price=price, qty=qty
+    )
 
 
 def make_amended_msg(
@@ -154,16 +169,14 @@ def make_amended_msg(
     remaining_qty: int,
     priority_reset: bool,
 ) -> list[bytes]:
-    topic = f"order.amended.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "order_id": order_id,
-            "price": price,
-            "qty": qty,
-            "remaining_qty": remaining_qty,
-            "priority_reset": priority_reset,
-        },
+    """Generated from ``spec/messages/order.yaml``. Byte-identical to before."""
+    return _gen_order.make_order_amended_unchecked(
+        gateway_id=gateway_id,
+        order_id=order_id,
+        price=price,
+        qty=qty,
+        remaining_qty=remaining_qty,
+        priority_reset=priority_reset,
     )
 
 
@@ -196,27 +209,28 @@ def make_ack_msg(
     reason: str = "",
     order: dict[str, Any] | None = None,
 ) -> list[bytes]:
-    topic = f"order.ack.{gateway_id}"
-    payload: dict[str, Any] = {
-        "order_id": order_id,
-        "accepted": accepted,
-        "reason": reason,
-    }
-    if order:
-        payload.update(
-            {
-                "symbol": order.get("symbol"),
-                "side": order.get("side"),
-                "order_type": order.get("order_type"),
-                "tif": order.get("tif"),
-                "qty": order.get("quantity"),
-                "price": order.get("price"),
-            }
-        )
-        if order.get("client_tag") is not None:
-            payload["client_tag"] = order["client_tag"]
-        payload.update(group_ids(order))
-    return encode(topic, payload)
+    """Generated from ``spec/messages/order.yaml``.
+
+    One wire change against the hand-written builder it replaces: a MARKET
+    order's ack no longer carries ``"price": null``, because the spec declares
+    ``price`` omitted-when-none like every other optional field. Invisible to
+    readers, which all use ``.get`` - see design section B.7.2.
+    """
+    detail = order or {}
+    return _gen_order.make_order_ack_unchecked(
+        gateway_id=gateway_id,
+        order_id=order_id,
+        accepted=accepted,
+        reason=reason,
+        symbol=detail.get("symbol"),
+        side=detail.get("side"),
+        order_type=detail.get("order_type"),
+        tif=detail.get("tif"),
+        qty=detail.get("quantity"),
+        price=detail.get("price"),
+        client_tag=detail.get("client_tag"),
+        **group_ids(order),
+    )
 
 
 def make_fill_msg(
@@ -227,30 +241,32 @@ def make_fill_msg(
     remaining_qty: int,
     status: str,
     order: dict[str, Any] | None = None,
+    trade_ids: list[str] | None = None,
 ) -> list[bytes]:
-    topic = f"order.fill.{gateway_id}"
-    payload: dict[str, Any] = {
-        "order_id": order_id,
-        "fill_qty": fill_qty,
-        "fill_price": fill_price,
-        "remaining_qty": remaining_qty,
-        "status": status,
-    }
-    if order:
-        payload.update(
-            {
-                "symbol": order.get("symbol"),
-                "side": order.get("side"),
-                "order_type": order.get("order_type"),
-                "tif": order.get("tif"),
-                "qty": order.get("quantity"),
-                "price": order.get("price"),
-            }
-        )
-        if order.get("client_tag") is not None:
-            payload["client_tag"] = order["client_tag"]
-        payload.update(group_ids(order))
-    return encode(topic, payload)
+    """Generated from ``spec/messages/order.yaml``.
+
+    Same one wire change as ``make_ack_msg``: a MARKET order's fill no longer
+    carries ``"price": null``. ``trade_ids`` are the public trade.executed ids
+    that composed this fill (one, or several for a swept VWAP fill).
+    """
+    detail = order or {}
+    return _gen_order.make_order_fill_unchecked(
+        gateway_id=gateway_id,
+        order_id=order_id,
+        fill_qty=fill_qty,
+        fill_price=fill_price,
+        remaining_qty=remaining_qty,
+        status=status,
+        symbol=detail.get("symbol"),
+        side=detail.get("side"),
+        order_type=detail.get("order_type"),
+        tif=detail.get("tif"),
+        qty=detail.get("quantity"),
+        price=detail.get("price"),
+        client_tag=detail.get("client_tag"),
+        trade_ids=list(trade_ids) if trade_ids else [],
+        **group_ids(order),
+    )
 
 
 def make_cancelled_msg(
@@ -259,12 +275,13 @@ def make_cancelled_msg(
     client_tag: str | None = None,
     order: dict[str, Any] | None = None,
 ) -> list[bytes]:
-    topic = f"order.cancelled.{gateway_id}"
-    payload: dict[str, Any] = {"order_id": order_id}
-    if client_tag is not None:
-        payload["client_tag"] = client_tag
-    payload.update(group_ids(order))
-    return encode(topic, payload)
+    """Generated from ``spec/messages/order.yaml``. Byte-identical to before."""
+    return _gen_order.make_order_cancelled_unchecked(
+        gateway_id=gateway_id,
+        order_id=order_id,
+        client_tag=client_tag,
+        **group_ids(order),
+    )
 
 
 def make_expired_msg(
@@ -273,34 +290,46 @@ def make_expired_msg(
     client_tag: str | None = None,
     order: dict[str, Any] | None = None,
 ) -> list[bytes]:
-    topic = f"order.expired.{gateway_id}"
-    payload: dict[str, Any] = {"order_id": order_id}
-    if client_tag is not None:
-        payload["client_tag"] = client_tag
-    payload.update(group_ids(order))
-    return encode(topic, payload)
+    """Generated from ``spec/messages/order.yaml``. Byte-identical to before."""
+    return _gen_order.make_order_expired_unchecked(
+        gateway_id=gateway_id,
+        order_id=order_id,
+        client_tag=client_tag,
+        **group_ids(order),
+    )
 
 
 def make_trade_msg(trade_dict: dict[str, Any]) -> list[bytes]:
-    typed = TradeExecutedPayload.from_dict(trade_dict)
-    return encode("trade.executed", typed.to_dict())
+    """Build the ``trade.executed`` frames from a payload dict.
+
+    Generated from ``spec/messages/trade.yaml``. The frames are byte-identical
+    to what this function produced when it built them by hand, but it now also
+    **validates**: a payload with a price of 0, or an ``aggressor_side``
+    outside ``BUY``/``SELL``/``AUCTION``, raises ``MessageValidationError``
+    (a ``ValueError``) instead of being published. Producers are held to the
+    contract; readers of historical data should use
+    ``generated.trade.TradeExecuted.from_dict``, which coerces without
+    validating. See ``docs/developer/06-msgen.md``.
+    """
+    return _gen_trade.make_trade_executed(**trade_dict)
 
 
 def make_book_msg(symbol: str, book_snapshot: dict[str, Any]) -> list[bytes]:
-    return encode(f"book.{symbol}", book_snapshot)
+    # The builder takes the topic's symbol from the payload, which the engine
+    # always fills from the same book as ``symbol``.
+    return _gen_book.make_book_snapshot(**book_snapshot)
 
 
 def make_orders_request_msg(gateway_id: str) -> list[bytes]:
-    return encode("order.orders_request", {"gateway_id": gateway_id})
+    return _gen_order.make_orders_request(gateway_id=gateway_id)
 
 
 def make_orders_msg(gateway_id: str, orders: list[dict[str, Any]]) -> list[bytes]:
-    topic = f"order.orders.{gateway_id}"
-    return encode(topic, {"orders": orders})
+    return _gen_order.make_orders(gateway_id=gateway_id, orders=orders)
 
 
 def make_book_snapshot_request_msg(symbol: str) -> list[bytes]:
-    return encode("book.snapshot_request", {"symbol": symbol})
+    return _gen_book.make_book_snapshot_request(symbol=symbol)
 
 
 def make_eod_msg(books: list[dict[str, Any]]) -> list[bytes]:
@@ -308,32 +337,35 @@ def make_eod_msg(books: list[dict[str, Any]]) -> list[bytes]:
     End-of-day broadcast — engine sends this before shutting down.
     ``books`` is a list of book snapshots (one per symbol), each containing
     the current best bid/ask so subscribers can record closing prices.
+
+    A full ``OrderBook.snapshot()`` may be passed: ``EodBook`` declares the
+    five keys end of day carries and ``from_dict`` drops the rest, which is
+    the trim ``SystemEodPayload`` used to perform without saying so.
     """
-    typed = SystemEodPayload.from_dict({"books": books})
-    return encode("system.eod", typed.to_dict())
+    return _gen_system.make_eod(books=books)
 
 
 def make_symbols_request_msg(gateway_id: str) -> list[bytes]:
-    return encode("system.symbols_request", {"gateway_id": gateway_id})
+    return _gen_system.make_symbols_request(gateway_id=gateway_id)
 
 
 def make_symbols_msg(
     gateway_id: str,
-    symbols: list[str],
-    symbol_meta: dict[str, Any] | None = None,
+    symbols: list[dict[str, Any]],
 ) -> list[bytes]:
-    topic = f"system.symbols.{gateway_id}"
-    payload: dict[str, Any] = {"symbols": symbols}
-    if symbol_meta is not None:
-        payload["symbol_meta"] = symbol_meta
-    return encode(topic, payload)
+    """Engine → caller: the tradable instruments and this caller's terms.
+
+    One collection. ``symbols`` used to be a list of strings beside a parallel
+    ``symbol_meta`` map keyed by those same strings, built in the same loop;
+    each entry is now one ``SymbolInfo`` record carrying its own symbol.
+    """
+    return _gen_system.make_symbols(gateway_id=gateway_id, symbols=symbols)
 
 
 def make_quote_bootstrap_request_msg(gateway_id: str, symbol: str = "") -> list[bytes]:
     """Gateway -> engine: request active quote bootstrap state."""
-    return encode(
-        "system.quote_bootstrap_request",
-        {"gateway_id": gateway_id, "symbol": symbol.upper()},
+    return _gen_system.make_quote_bootstrap_request(
+        gateway_id=gateway_id, symbol=symbol.upper()
     )
 
 
@@ -341,17 +373,15 @@ def make_quote_bootstrap_msg(
     gateway_id: str, quotes: list[dict[str, Any]]
 ) -> list[bytes]:
     """Engine -> gateway: reply with active quote bootstrap state."""
-    topic = f"system.quote_bootstrap.{gateway_id}"
-    return encode(topic, {"quotes": quotes})
+    return _gen_system.make_quote_bootstrap(gateway_id=gateway_id, quotes=quotes)
 
 
 def make_quote_legs_request_msg(
     gateway_id: str, symbol: str = "", show: str = "ALL"
 ) -> list[bytes]:
     """Gateway -> engine: request quote leg snapshot (QLEGS)."""
-    return encode(
-        "system.quote_legs_request",
-        {"gateway_id": gateway_id, "symbol": symbol.upper(), "show": show.upper()},
+    return _gen_system.make_quote_legs_request(
+        gateway_id=gateway_id, symbol=symbol.upper(), show=show.upper()
     )
 
 
@@ -380,15 +410,12 @@ def make_quote_legs_msg(
     (always true for ``ACTIVE``; also true for ``RECENT``/``ALL`` now that
     real history is tracked, modulo the history buffer's bound).
     """
-    topic = f"system.quote_legs.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "legs": legs,
-            "show_requested": show_requested,
-            "complete": complete,
-            "recent": recent or [],
-        },
+    return _gen_system.make_quote_legs(
+        gateway_id=gateway_id,
+        legs=legs,
+        show_requested=show_requested,
+        complete=complete,
+        recent=recent or [],
     )
 
 
@@ -399,7 +426,7 @@ def make_quote_legs_msg(
 
 def make_session_state_request_msg(gateway_id: str) -> list[bytes]:
     """Operator → engine: request the current session state."""
-    return encode("system.session_state_request", {"gateway_id": gateway_id})
+    return _gen_system.make_session_state_request(gateway_id=gateway_id)
 
 
 def make_session_status_msg(
@@ -408,8 +435,9 @@ def make_session_status_msg(
     sessions_enabled: bool,
 ) -> list[bytes]:
     """Engine → operator: reply with the current session state."""
-    topic = f"system.session_status.{gateway_id}"
-    return encode(topic, {"state": state, "sessions_enabled": sessions_enabled})
+    return _gen_system.make_session_status(
+        gateway_id=gateway_id, state=state, sessions_enabled=sessions_enabled
+    )
 
 
 # ------------------------------------------------------------------
@@ -419,22 +447,24 @@ def make_session_status_msg(
 
 def make_session_schedule_request_msg(gateway_id: str) -> list[bytes]:
     """Operator → engine: request the session schedule configuration."""
-    return encode("system.session_schedule_request", {"gateway_id": gateway_id})
+    return _gen_system.make_session_schedule_request(gateway_id=gateway_id)
 
 
 def make_session_schedule_msg(
     gateway_id: str,
     sessions_enabled: bool,
-    schedule: dict[str, str] | None,
+    schedule: dict[str, Any] | None,
 ) -> list[bytes]:
-    """Engine → operator: reply with the session schedule configuration."""
-    topic = f"system.session_schedule.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "sessions_enabled": sessions_enabled,
-            "schedule": schedule or {},
-        },
+    """Engine → operator: reply with the session schedule configuration.
+
+    ``schedule`` is the same ``SessionTimes`` record ``system.reference``
+    carries. It is ``None`` — not ``{}`` — when no ``schedule:`` block is
+    configured: one spelling of the absence rather than two.
+    """
+    return _gen_system.make_session_schedule(
+        gateway_id=gateway_id,
+        sessions_enabled=sessions_enabled,
+        schedule=schedule,
     )
 
 
@@ -446,20 +476,44 @@ def make_session_schedule_msg(
 
 def make_reference_request_msg(gateway_id: str) -> list[bytes]:
     """Any caller → engine: request the compiled reference-data bundle."""
-    return encode("system.reference_request", {"gateway_id": gateway_id})
+    return _gen_system.make_reference_request(gateway_id=gateway_id)
 
 
-def make_reference_msg(gateway_id: str, reference: dict[str, Any]) -> list[bytes]:
-    """Engine → caller: reply with the compiled reference-data bundle."""
-    topic = f"system.reference.{gateway_id}"
-    return encode(topic, reference)
+def make_reference_msg(
+    gateway_id: str,
+    *,
+    symbols: list[dict[str, Any]],
+    risk: dict[str, Any],
+    indexes: list[dict[str, Any]],
+    schedule: dict[str, Any],
+    config_version: str | None,
+) -> list[bytes]:
+    """Engine → caller: reply with the compiled reference-data bundle.
+
+    Named parameters rather than the single ``reference: dict[str, Any]`` this
+    replaces. ``from_dict`` reads declared keys only, so routing an open dict
+    through a generated builder would silently drop anything the spec does not
+    declare — the hazard design section 27.2 found on ``drop_copy``, where
+    adoption under the old signature would have made the wire *less* safe.
+
+    The bundle is always complete. Before an engine config is loaded it used to
+    be ``{"config_version": None}`` and nothing else, a second payload shape
+    every slicing endpoint compensated for with ``.get(key, {})``.
+    """
+    return _gen_system.make_reference(
+        gateway_id=gateway_id,
+        symbols=symbols,
+        risk=risk,
+        indexes=indexes,
+        schedule=schedule,
+        config_version=config_version,
+    )
 
 
 def make_reference_reload_msg(gateway_id: str, command_id: str) -> list[bytes]:
     """ADMIN → engine: request a reload of static reference data from disk."""
-    return encode(
-        "system.reference_reload",
-        {"gateway_id": gateway_id, "command_id": command_id},
+    return _gen_system.make_reference_reload(
+        gateway_id=gateway_id, command_id=command_id
     )
 
 
@@ -471,13 +525,13 @@ def make_reference_reload_ack_msg(
     reason: str | None = None,
 ) -> list[bytes]:
     """Engine → ADMIN: reload verdict."""
-    topic = f"system.reference_reload_ack.{gateway_id}"
-    payload: dict[str, Any] = {"command_id": command_id, "accepted": accepted}
-    if config_version is not None:
-        payload["config_version"] = config_version
-    if reason is not None:
-        payload["reason"] = reason
-    return encode(topic, payload)
+    return _gen_system.make_reference_reload_ack(
+        gateway_id=gateway_id,
+        command_id=command_id,
+        accepted=accepted,
+        config_version=config_version,
+        reason=reason,
+    )
 
 
 # ------------------------------------------------------------------
@@ -489,12 +543,20 @@ def make_reference_reload_ack_msg(
 
 def make_risk_state_request_msg(gateway_id: str) -> list[bytes]:
     """ADMIN → engine: request live per-symbol risk state."""
-    return encode("system.risk_state_request", {"gateway_id": gateway_id})
+    return _gen_system.make_risk_state_request(gateway_id=gateway_id)
 
 
-def make_risk_state_msg(gateway_id: str, symbols: dict[str, Any]) -> list[bytes]:
-    """Engine → ADMIN: reply with live per-symbol risk state."""
-    return encode(f"system.risk_state.{gateway_id}", {"symbols": symbols})
+def make_risk_state_msg(gateway_id: str, symbols: list[dict[str, Any]]) -> list[bytes]:
+    """Engine → ADMIN: reply with live per-symbol risk state.
+
+    One `SymbolRiskState` record per symbol, carrying its own symbol. This was
+    a map keyed by symbol, and the corridor inside each entry was a box named
+    `corridor` holding keys named `corridor_low`/`corridor_high` -- the prefix
+    and the box saying the same thing twice, from a helper that splats the
+    same three values *flat* into `circuit_breaker.halt`. Flat here too, so
+    one producer emits one shape.
+    """
+    return _gen_system.make_risk_state(gateway_id=gateway_id, symbols=symbols)
 
 
 # ------------------------------------------------------------------
@@ -504,7 +566,7 @@ def make_risk_state_msg(gateway_id: str, symbols: dict[str, Any]) -> list[bytes]
 
 def make_gateways_request_msg(gateway_id: str) -> list[bytes]:
     """Operator → engine: request the list of configured gateways."""
-    return encode("system.gateways_request", {"gateway_id": gateway_id})
+    return _gen_system.make_gateways_request(gateway_id=gateway_id)
 
 
 def make_gateways_msg(
@@ -512,8 +574,7 @@ def make_gateways_msg(
     gateways: list[dict[str, Any]],
 ) -> list[bytes]:
     """Engine → operator: reply with configured gateways and connection status."""
-    topic = f"system.gateways.{gateway_id}"
-    return encode(topic, {"gateways": gateways})
+    return _gen_system.make_gateways(gateway_id=gateway_id, gateways=gateways)
 
 
 # ------------------------------------------------------------------
@@ -523,26 +584,23 @@ def make_gateways_msg(
 
 def make_volume_request_msg(gateway_id: str) -> list[bytes]:
     """Operator → engine: request daily traded volume."""
-    return encode("system.volume_request", {"gateway_id": gateway_id})
+    return _gen_system.make_volume_request(gateway_id=gateway_id)
 
 
 def make_volume_msg(
     gateway_id: str,
-    symbols: dict[str, dict[str, Any]],
+    symbols: list[dict[str, Any]],
     total_qty: int,
     total_value: float,
     total_trades: int,
 ) -> list[bytes]:
     """Engine → operator: reply with daily volume data."""
-    topic = f"system.volume.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "symbols": symbols,
-            "total_qty": total_qty,
-            "total_value": total_value,
-            "total_trades": total_trades,
-        },
+    return _gen_system.make_volume(
+        gateway_id=gateway_id,
+        symbols=symbols,
+        total_qty=total_qty,
+        total_value=total_value,
+        total_trades=total_trades,
     )
 
 
@@ -553,18 +611,12 @@ def make_volume_msg(
 
 def make_combo_order_msg(combo_dict: dict[str, Any]) -> list[bytes]:
     """Gateway → engine: submit a combo order."""
-    return encode("order.combo", combo_dict)
+    return _gen_order.make_order_combo(**combo_dict)
 
 
 def make_combo_cancel_msg(combo_id: str, gateway_id: str) -> list[bytes]:
     """Gateway → engine: cancel a combo and all its child legs."""
-    return encode(
-        "order.combo_cancel",
-        {
-            "combo_id": combo_id,
-            "gateway_id": gateway_id,
-        },
-    )
+    return _gen_order.make_order_combo_cancel(combo_id=combo_id, gateway_id=gateway_id)
 
 
 def make_combo_ack_msg(
@@ -572,35 +624,42 @@ def make_combo_ack_msg(
     combo_id: str,
     accepted: bool,
     reason: str = "",
-    combo: dict[str, Any] | None = None,
 ) -> list[bytes]:
-    """Engine → gateway: combo accepted or rejected."""
-    topic = f"combo.ack.{gateway_id}"
-    payload: dict[str, Any] = {
-        "combo_id": combo_id,
-        "accepted": accepted,
-        "reason": reason,
-    }
-    if combo:
-        payload["combo"] = combo
-    return encode(topic, payload)
+    """Engine → gateway: combo accepted or rejected.
+
+    Carried a full ``ComboOrder.to_dict()`` state dump until the submission,
+    event and persistence shapes were separated. No consumer ever read it —
+    alf_console, alf_gwy, pm-stats and the api_gateway event stream all take
+    only ``combo_id``, ``accepted`` and ``reason``.
+    """
+    return _gen_structure.make_combo_ack(
+        gateway_id=gateway_id,
+        combo_id=combo_id,
+        accepted=accepted,
+        reason=reason,
+    )
 
 
 def make_combo_status_msg(
     gateway_id: str,
     combo_id: str,
     status: str,
-    details: dict[str, Any] | None = None,
+    reason: str = "",
 ) -> list[bytes]:
-    """Engine → gateway: combo status transition (MATCHED / FAILED / etc.)."""
-    topic = f"combo.status.{gateway_id}"
-    payload: dict[str, Any] = {
-        "combo_id": combo_id,
-        "status": status,
-    }
-    if details:
-        payload["details"] = details
-    return encode(topic, payload)
+    """Engine → gateway: combo status transition (MATCHED / FAILED / etc.).
+
+    ``reason`` replaced a ``details`` mapping that only ever carried one key,
+    always ``"reason"`` — and which both consumers unwrapped on arrival with
+    ``details.get("reason")``. Design section 15.4 excludes maps because a
+    spec that appears to need one is describing a message that should have
+    been simpler; this was the thinnest possible instance of that.
+    """
+    return _gen_structure.make_combo_status(
+        gateway_id=gateway_id,
+        combo_id=combo_id,
+        status=status,
+        reason=reason,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -631,13 +690,14 @@ def make_session_transition_msg(
     ``session.state`` broadcast already tells it what happened.
     """
     payload: dict[str, Any] = {"to_state": to_state}
+    # Both-or-neither, expressed as a record rather than a pair of keys: a
+    # phase without a time cannot be counted down to, and a time without a
+    # phase does not say what happens.
     if next_state and next_at:
-        payload["next_state"] = next_state
-        payload["next_at"] = next_at
+        payload["next"] = {"state": next_state, "at": next_at}
     if command_id and gateway_id:
-        payload["command_id"] = command_id
-        payload["gateway_id"] = gateway_id
-    return encode("session.transition", payload)
+        payload["reply_to"] = {"command_id": command_id, "gateway_id": gateway_id}
+    return _gen_session.make_session_transition(**payload)
 
 
 def make_session_transition_ack_msg(
@@ -659,15 +719,12 @@ def make_session_transition_ack_msg(
     of any kind, so a caller saw only a timeout and could not tell a rejected
     request from a slow one.
     """
-    topic = f"session.transition_ack.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "command_id": command_id,
-            "accepted": accepted,
-            "to_state": to_state,
-            "reason": reason,
-        },
+    return _gen_session.make_session_transition_ack_unchecked(
+        gateway_id=gateway_id,
+        command_id=command_id,
+        accepted=accepted,
+        to_state=to_state,
+        reason=reason,
     )
 
 
@@ -675,10 +732,14 @@ def make_session_state_msg(
     state: str, prev_state: str = "", next_state: str = "", next_at: str = ""
 ) -> list[bytes]:
     """Engine → all: broadcast current session state."""
-    typed = SessionStatePayload(
-        state=state, prev_state=prev_state, next_state=next_state, next_at=next_at
+    # The validating constructor, not an ``_unchecked`` one: a message with a
+    # nested record has no dict-literal fast path (design section 15.5), and a
+    # session transition happens a handful of times a day.
+    return _gen_session.make_session_state(
+        state=state,
+        prev_state=prev_state,
+        next=({"state": next_state, "at": next_at} if next_state and next_at else None),
     )
-    return encode("session.state", typed.to_dict())
 
 
 def make_auction_indicative_msg(
@@ -704,17 +765,19 @@ def make_auction_indicative_msg(
     ``eq_price`` is ``None`` when the book would not cross at all. That is a
     real and informative state during a call phase -- nothing would trade yet
     -- and is not the same as a price of zero.
+
+    ``imbalance_side`` is ``""`` when the book is balanced, and the spec
+    declares it an enum of BUY and SELL that omits when unset -- so the empty
+    string becomes an absent key here. Every reader already defaults it
+    through ``payload.get("imbalance_side", "")``.
     """
-    return encode(
-        f"auction.indicative.{symbol}",
-        {
-            "symbol": symbol,
-            "phase": phase,
-            "eq_price": eq_price,
-            "eq_qty": eq_qty,
-            "imbalance_side": imbalance_side,
-            "imbalance_qty": imbalance_qty,
-        },
+    return _gen_auction.make_auction_indicative(
+        symbol=symbol,
+        phase=phase,
+        eq_price=eq_price,
+        eq_qty=eq_qty,
+        imbalance_side=imbalance_side or None,
+        imbalance_qty=imbalance_qty,
     )
 
 
@@ -729,24 +792,26 @@ def make_auction_result_msg(
 ) -> list[bytes]:
     """Engine → all: auction uncross result for one symbol.
 
-    ``reason`` says which uncross this was, because the three are otherwise
+    ``reason`` says which uncross this was, because the four are otherwise
     indistinguishable to a consumer:
 
       ``SCHEDULED`` — leaving an auction or other non-matching session phase
       ``REOPEN``    — a halted symbol reopening at the end of its halt
       ``RECOVERY``  — restored GTC orders uncrossed at engine startup
+      ``BACKSTOP``  — the closing backstop forcing a still-halted symbol to
+                      reopen at the corridor boundary
+
+    ``imbalance_side`` is ``""`` when balanced and omits — see
+    ``make_auction_indicative_msg``.
     """
-    return encode(
-        f"auction.result.{symbol}",
-        {
-            "symbol": symbol,
-            "eq_price": eq_price,
-            "eq_qty": eq_qty,
-            "trades_count": trades_count,
-            "imbalance_side": imbalance_side,
-            "imbalance_qty": imbalance_qty,
-            "reason": reason,
-        },
+    return _gen_auction.make_auction_result(
+        symbol=symbol,
+        eq_price=eq_price,
+        eq_qty=eq_qty,
+        trades_count=trades_count,
+        imbalance_side=imbalance_side or None,
+        imbalance_qty=imbalance_qty,
+        reason=reason,
     )
 
 
@@ -757,12 +822,12 @@ def make_auction_result_msg(
 
 def make_oco_order_msg(payload: dict[str, Any]) -> list[bytes]:
     """Gateway → engine: submit an OCO (One-Cancels-Other) pair."""
-    return encode("order.oco", payload)
+    return _gen_order.make_order_oco(**payload)
 
 
 def make_oco_cancel_msg(oco_id: str, gateway_id: str) -> list[bytes]:
     """Gateway → engine: cancel an OCO pair and both its legs."""
-    return encode("order.oco_cancel", {"oco_id": oco_id, "gateway_id": gateway_id})
+    return _gen_order.make_order_oco_cancel(oco_id=oco_id, gateway_id=gateway_id)
 
 
 def make_oco_ack_msg(
@@ -774,29 +839,25 @@ def make_oco_ack_msg(
     order_id_2: str = "",
 ) -> list[bytes]:
     """Engine → gateway: OCO pair accepted or rejected."""
-    topic = f"oco.ack.{gateway_id}"
-    payload: dict[str, Any] = {
-        "oco_id": oco_id,
-        "accepted": accepted,
-        "reason": reason,
-        "order_id_1": order_id_1,
-        "order_id_2": order_id_2,
-    }
-    return encode(topic, payload)
+    return _gen_structure.make_oco_ack(
+        gateway_id=gateway_id,
+        oco_id=oco_id,
+        accepted=accepted,
+        reason=reason,
+        order_id_1=order_id_1,
+        order_id_2=order_id_2,
+    )
 
 
 def make_oco_cancelled_msg(
     gateway_id: str, oco_id: str, cancelled_order_id: str, reason: str = ""
 ) -> list[bytes]:
     """Engine → gateway: OCO sibling cancelled because the other leg was actioned."""
-    topic = f"oco.cancelled.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "oco_id": oco_id,
-            "cancelled_order_id": cancelled_order_id,
-            "reason": reason,
-        },
+    return _gen_structure.make_oco_cancelled(
+        gateway_id=gateway_id,
+        oco_id=oco_id,
+        cancelled_order_id=cancelled_order_id,
+        reason=reason,
     )
 
 
@@ -806,13 +867,21 @@ def make_oco_cancelled_msg(
 
 
 def make_quote_new_msg(payload: dict[str, Any]) -> list[bytes]:
-    """Gateway → engine: submit/replace two-sided quote for one symbol."""
-    return encode("quote.new", payload)
+    """Gateway → engine: submit/replace two-sided quote for one symbol.
+
+    Prices are **integer ticks**; the submitting gateway converts. They were
+    display money until 6.1b, which is the one path design section 15.2 missed
+    when it made ticks the sole engine-inbound unit — see section 25.2. Every
+    producer builds it from the declared fields in ticks, so unlike
+    ``order.new`` it routes through the validating builder, not an open
+    ``encode``.
+    """
+    return _gen_quote.make_quote_new(**payload)
 
 
 def make_quote_cancel_msg(gateway_id: str, symbol: str) -> list[bytes]:
     """Gateway → engine: cancel active quote for one symbol."""
-    return encode("quote.cancel", {"gateway_id": gateway_id, "symbol": symbol})
+    return _gen_quote.make_quote_cancel(gateway_id=gateway_id, symbol=symbol)
 
 
 def make_quote_ack_msg(
@@ -824,16 +893,13 @@ def make_quote_ack_msg(
     ask_order_id: str = "",
 ) -> list[bytes]:
     """Engine → gateway: quote accepted or rejected."""
-    topic = f"quote.ack.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "quote_id": quote_id,
-            "accepted": accepted,
-            "reason": reason,
-            "bid_order_id": bid_order_id,
-            "ask_order_id": ask_order_id,
-        },
+    return _gen_quote.make_quote_ack(
+        gateway_id=gateway_id,
+        quote_id=quote_id,
+        accepted=accepted,
+        reason=reason,
+        bid_order_id=bid_order_id,
+        ask_order_id=ask_order_id,
     )
 
 
@@ -844,26 +910,17 @@ def make_quote_status_msg(
     reason: str = "",
 ) -> list[bytes]:
     """Engine → gateway: quote lifecycle transition."""
-    topic = f"quote.status.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "quote_id": quote_id,
-            "status": status,
-            "reason": reason,
-        },
+    return _gen_quote.make_quote_status(
+        gateway_id=gateway_id,
+        quote_id=quote_id,
+        status=status,
+        reason=reason,
     )
 
 
 def make_gateway_disconnect_msg(gateway_id: str, reason: str = "") -> list[bytes]:
     """Gateway → engine: graceful disconnect notification."""
-    return encode(
-        "system.gateway_disconnect",
-        {
-            "gateway_id": gateway_id,
-            "reason": reason,
-        },
-    )
+    return _gen_system.make_gateway_disconnect(gateway_id=gateway_id, reason=reason)
 
 
 def make_gateway_bye_msg(gateway_id: str, reason: str = "") -> list[bytes]:
@@ -875,13 +932,15 @@ def make_gateway_bye_msg(gateway_id: str, reason: str = "") -> list[bytes]:
     never reaches PUB subscribers such as clearing; this broadcast republishes
     the disconnect on the public feed so downstream consumers can close the
     matching session.
+
+    ``gateway_id`` is in the topic and the body; ``clearing`` — the only
+    structural reader — takes it from the body, so the spec enumerates it.
     """
-    typed = GatewayByePayload(gateway_id=gateway_id, reason=reason)
-    return encode(f"system.gateway_bye.{typed.gateway_id}", typed.to_dict())
+    return _gen_system.make_gateway_bye(gateway_id=gateway_id, reason=reason)
 
 
 def make_kill_switch_msg(
-    gateway_id: str, symbol: str = "", command_id: str = ""
+    gateway_id: str, symbol: str = "", command_id: str = "", note: str = ""
 ) -> list[bytes]:
     """Gateway/admin → engine: cancel open risk-bearing exposure.
 
@@ -890,11 +949,19 @@ def make_kill_switch_msg(
     kill-switch ack has no natural identifier, so two concurrent mass cancels
     for one gateway were previously indistinguishable once both acks were in
     flight. Supplying it is optional; without it the ack is unchanged.
+
+    ``note`` is free text recorded on the admin monitor. The engine's handler
+    had always read one, but this builder had no parameter for it and none of
+    the four producers sent one — so ``kill_switch.self`` was the only admin
+    action whose note was permanently blank, while its two siblings recorded
+    a real one (design section 22.2).
     """
-    payload: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol}
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("risk.kill_switch", payload)
+    return _gen_risk.make_kill_switch(
+        gateway_id=gateway_id,
+        symbol=symbol,
+        note=note,
+        command_id=command_id,
+    )
 
 
 def make_kill_switch_ack_msg(
@@ -906,21 +973,19 @@ def make_kill_switch_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → gateway/admin: kill-switch result summary."""
-    topic = f"risk.kill_switch_ack.{gateway_id}"
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "reason": reason,
-        "cancelled_orders": cancelled_orders,
-        "cancelled_quotes": cancelled_quotes,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(topic, payload)
+    return _gen_risk.make_kill_switch_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        cancelled_orders=cancelled_orders,
+        cancelled_quotes=cancelled_quotes,
+        command_id=command_id,
+    )
 
 
 def make_circuit_breaker_halt_all_msg(gateway_id: str) -> list[bytes]:
     """Admin → engine: halt trading for all known symbols."""
-    return encode("risk.circuit_breaker_halt_all", {"gateway_id": gateway_id})
+    return _gen_risk.make_circuit_breaker_halt_all(gateway_id=gateway_id)
 
 
 def make_circuit_breaker_halt_all_ack_msg(
@@ -931,21 +996,18 @@ def make_circuit_breaker_halt_all_ack_msg(
     cancelled_quotes: int = 0,
 ) -> list[bytes]:
     """Engine → admin: global circuit-breaker halt result summary."""
-    topic = f"risk.circuit_breaker_halt_all_ack.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "accepted": accepted,
-            "reason": reason,
-            "halted_symbols": halted_symbols,
-            "cancelled_quotes": cancelled_quotes,
-        },
+    return _gen_risk.make_circuit_breaker_halt_all_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        halted_symbols=halted_symbols,
+        cancelled_quotes=cancelled_quotes,
     )
 
 
 def make_circuit_breaker_resume_all_msg(gateway_id: str) -> list[bytes]:
     """Admin → engine: resume trading for all symbols halted by global CB halt."""
-    return encode("risk.circuit_breaker_resume_all", {"gateway_id": gateway_id})
+    return _gen_risk.make_circuit_breaker_resume_all(gateway_id=gateway_id)
 
 
 def make_circuit_breaker_resume_all_ack_msg(
@@ -955,14 +1017,11 @@ def make_circuit_breaker_resume_all_ack_msg(
     resumed_symbols: int = 0,
 ) -> list[bytes]:
     """Engine → admin: global circuit-breaker resume result summary."""
-    topic = f"risk.circuit_breaker_resume_all_ack.{gateway_id}"
-    return encode(
-        topic,
-        {
-            "accepted": accepted,
-            "reason": reason,
-            "resumed_symbols": resumed_symbols,
-        },
+    return _gen_risk.make_circuit_breaker_resume_all_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        resumed_symbols=resumed_symbols,
     )
 
 
@@ -987,14 +1046,13 @@ def make_symbol_halt_msg(
     unmatched, the halt falls back to the previous behaviour: an indefinite
     halt with no timed resume, cleared only by an explicit resume.
     """
-    payload: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol.upper()}
-    if level:
-        payload["level"] = level.upper()
-    if note:
-        payload["note"] = note
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("risk.symbol_halt", payload)
+    return _gen_risk.make_symbol_halt(
+        gateway_id=gateway_id,
+        symbol=symbol.upper(),
+        level=(level or "").upper(),
+        note=note,
+        command_id=command_id,
+    )
 
 
 def make_symbol_halt_ack_msg(
@@ -1006,27 +1064,26 @@ def make_symbol_halt_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → admin: per-symbol halt result."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "symbol": symbol,
-        "reason": reason,
-        "cancelled_quotes": cancelled_quotes,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(f"risk.symbol_halt_ack.{gateway_id}", payload)
+    return _gen_risk.make_symbol_halt_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        symbol=symbol,
+        reason=reason,
+        cancelled_quotes=cancelled_quotes,
+        command_id=command_id,
+    )
 
 
 def make_symbol_resume_msg(
     gateway_id: str, symbol: str, note: str = "", command_id: str = ""
 ) -> list[bytes]:
     """Admin → engine: resume trading on a single halted symbol (ADMIN role required)."""
-    payload: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol.upper()}
-    if note:
-        payload["note"] = note
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("risk.symbol_resume", payload)
+    return _gen_risk.make_symbol_resume(
+        gateway_id=gateway_id,
+        symbol=symbol.upper(),
+        note=note,
+        command_id=command_id,
+    )
 
 
 def make_symbol_resume_ack_msg(
@@ -1037,14 +1094,13 @@ def make_symbol_resume_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → admin: per-symbol resume result."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "symbol": symbol,
-        "reason": reason,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(f"risk.symbol_resume_ack.{gateway_id}", payload)
+    return _gen_risk.make_symbol_resume_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        symbol=symbol,
+        reason=reason,
+        command_id=command_id,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1056,12 +1112,12 @@ def make_cancel_symbol_msg(
     gateway_id: str, symbol: str, note: str = "", command_id: str = ""
 ) -> list[bytes]:
     """Admin → engine: cancel all resting orders for *symbol* across every gateway."""
-    payload: dict[str, Any] = {"gateway_id": gateway_id, "symbol": symbol.upper()}
-    if note:
-        payload["note"] = note
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("risk.cancel_symbol", payload)
+    return _gen_risk.make_cancel_symbol(
+        gateway_id=gateway_id,
+        symbol=symbol.upper(),
+        note=note,
+        command_id=command_id,
+    )
 
 
 def make_cancel_symbol_ack_msg(
@@ -1074,16 +1130,15 @@ def make_cancel_symbol_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → admin: symbol-level mass-cancel result."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "symbol": symbol,
-        "reason": reason,
-        "cancelled_orders": cancelled_orders,
-        "cancelled_quotes": cancelled_quotes,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(f"risk.cancel_symbol_ack.{gateway_id}", payload)
+    return _gen_risk.make_cancel_symbol_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        symbol=symbol,
+        reason=reason,
+        cancelled_orders=cancelled_orders,
+        cancelled_quotes=cancelled_quotes,
+        command_id=command_id,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1102,15 +1157,12 @@ def make_kill_switch_gateway_msg(
     ack topic); ``target_gateway_id`` is whose exposure gets cancelled —
     unlike ``risk.kill_switch``, these are allowed to differ.
     """
-    payload: dict[str, Any] = {
-        "gateway_id": gateway_id,
-        "target_gateway_id": target_gateway_id.upper(),
-    }
-    if note:
-        payload["note"] = note
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("risk.kill_switch_gateway", payload)
+    return _gen_risk.make_kill_switch_gateway(
+        gateway_id=gateway_id,
+        target_gateway_id=target_gateway_id.upper(),
+        note=note,
+        command_id=command_id,
+    )
 
 
 def make_kill_switch_gateway_ack_msg(
@@ -1123,28 +1175,26 @@ def make_kill_switch_gateway_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → ADMIN: gateway-targeted kill-switch result."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "target_gateway_id": target_gateway_id,
-        "reason": reason,
-        "cancelled_orders": cancelled_orders,
-        "cancelled_quotes": cancelled_quotes,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(f"risk.kill_switch_gateway_ack.{gateway_id}", payload)
+    return _gen_risk.make_kill_switch_gateway_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        target_gateway_id=target_gateway_id,
+        reason=reason,
+        cancelled_orders=cancelled_orders,
+        cancelled_quotes=cancelled_quotes,
+        command_id=command_id,
+    )
 
 
 def make_kill_switch_global_msg(
     gateway_id: str, note: str = "", command_id: str = ""
 ) -> list[bytes]:
     """ADMIN → engine: cancel every resting order/quote for every gateway."""
-    payload: dict[str, Any] = {"gateway_id": gateway_id}
-    if note:
-        payload["note"] = note
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("risk.kill_switch_global", payload)
+    return _gen_risk.make_kill_switch_global(
+        gateway_id=gateway_id,
+        note=note,
+        command_id=command_id,
+    )
 
 
 def make_kill_switch_global_ack_msg(
@@ -1157,16 +1207,15 @@ def make_kill_switch_global_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """Engine → ADMIN: market-wide kill-switch result."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "reason": reason,
-        "cancelled_orders": cancelled_orders,
-        "cancelled_quotes": cancelled_quotes,
-        "affected_gateways": affected_gateways,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(f"risk.kill_switch_global_ack.{gateway_id}", payload)
+    return _gen_risk.make_kill_switch_global_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        cancelled_orders=cancelled_orders,
+        cancelled_quotes=cancelled_quotes,
+        affected_gateways=affected_gateways,
+        command_id=command_id,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1189,19 +1238,23 @@ def make_admin_action_msg(
 
     ``gateway_id`` is the initiator (the ADMIN caller), ``action`` names the
     command (e.g. ``"circuit_breaker.trigger"``, ``"kill_switch.global"``),
-    and ``scope`` carries whatever identifies what it acted on (symbol,
-    target_gateway_id, index_id, ...) — shape varies by ``action``.
+    and ``scope`` says what it acted on and what it did.
+
+    ``scope`` is a declared record, not the open map it used to be: the twelve
+    producer sites draw on a closed set of seven keys and never anything else.
+    A key outside that set is silently dropped by ``from_dict`` rather than
+    rejected, so ``test_msgen_admin.py`` walks the engine's ``scope=`` literals
+    and fails on an undeclared one. The docstring here used to offer
+    ``index_id`` as an example and no producer has ever sent it.
     """
-    return encode(
-        f"admin.action.{gateway_id}",
-        {
-            "command_id": command_id,
-            "initiator_gateway_id": gateway_id,
-            "action": action,
-            "scope": scope,
-            "accepted": accepted,
-            "reason": reason,
-        },
+    return _gen_admin.make_admin_action(
+        gateway_id=gateway_id,
+        command_id=command_id,
+        initiator_gateway_id=gateway_id,
+        action=action,
+        scope=scope,
+        accepted=accepted,
+        reason=reason,
     )
 
 
@@ -1212,7 +1265,7 @@ def make_admin_action_msg(
 
 def make_halt_status_request_msg(gateway_id: str) -> list[bytes]:
     """Any process → engine: request current halt state for all symbols."""
-    return encode("system.halt_status_request", {"gateway_id": gateway_id})
+    return _gen_system.make_halt_status_request(gateway_id=gateway_id)
 
 
 def make_halt_status_msg(
@@ -1226,8 +1279,7 @@ def make_halt_status_msg(
       ``level`` (str | None), ``halt_source`` (str | None).
     An empty list means no symbols are currently halted.
     """
-    topic = f"system.halt_status.{gateway_id}"
-    return encode(topic, {"halted": halted})
+    return _gen_system.make_halt_status(gateway_id=gateway_id, halted=halted)
 
 
 def make_position_request_msg(gateway_id: str) -> list[bytes]:
@@ -1235,7 +1287,7 @@ def make_position_request_msg(gateway_id: str) -> list[bytes]:
 
     The engine replies on ``system.position_snapshot.<GW_ID>``.
     """
-    return encode("system.position_request", {"gateway_id": gateway_id})
+    return _gen_system.make_position_request(gateway_id=gateway_id)
 
 
 def make_position_snapshot_msg(
@@ -1250,8 +1302,9 @@ def make_position_snapshot_msg(
     Only symbols with a non-zero net position are included.
     An empty list means the gateway is flat across all symbols.
     """
-    topic = f"system.position_snapshot.{gateway_id}"
-    return encode(topic, {"positions": positions})
+    return _gen_system.make_position_snapshot(
+        gateway_id=gateway_id, positions=positions
+    )
 
 
 # ------------------------------------------------------------------
@@ -1265,24 +1318,25 @@ def make_index_update_msg(
     aggregate_cap: float,
     divisor: float,
     session_state: str,
-    day_open: float | None = None,
-    day_high: float | None = None,
-    day_low: float | None = None,
+    day: Mapping[str, float] | None = None,
 ) -> list[bytes]:
-    """pm-index → subscribers: current index level broadcast."""
-    payload: dict[str, Any] = {
-        "index_id": index_id,
-        "level": level,
-        "aggregate_cap": aggregate_cap,
-        "divisor": divisor,
-        "session_state": session_state,
-        "timestamp": time.time(),
-    }
-    if day_open is not None:
-        payload["day_open"] = day_open
-        payload["day_high"] = day_high
-        payload["day_low"] = day_low
-    return encode("index.update", payload)
+    """pm-index → subscribers: current index level broadcast.
+
+    *day* is the session's ``{open, high, low}`` or None. It replaced three
+    flat ``day_*`` keys under one ``if day_open is not None`` guard: three
+    keys sharing a guard are a record that was flattened for want of one, and
+    a nullable record makes the half-set state unrepresentable rather than
+    merely invalid (design section 16.2).
+    """
+    return _gen_index.make_index_update(
+        index_id=index_id,
+        level=level,
+        aggregate_cap=aggregate_cap,
+        divisor=divisor,
+        session_state=session_state,
+        timestamp=time.time(),
+        day=dict(day) if day is not None else None,
+    )
 
 
 def make_index_history_request_msg(
@@ -1296,20 +1350,22 @@ def make_index_history_request_msg(
     """Gateway/operator → pm-index: request structural/audit index records.
 
     pm-index's history is a structural audit log only (INIT, CORP_ACTION,
-    ADD_CONSTITUENT, DELIST) — it no longer stores level or EOD ticks.
-    Omitting *types* returns all structural record types. For index
+    ADD_CONSTITUENT, DELIST, REBALANCE) — it no longer stores level or EOD
+    ticks. Omitting *types* returns all structural record types. For index
     level/EOD time-series history, query pm-stats instead.
+
+    The key is now **omitted** when *types* is None rather than sent as a
+    client-side copy of the server's default. That copy had drifted: it listed
+    four of the five structural types, so every caller taking the default
+    silently never saw a REBALANCE record (design section 20.4).
     """
-    return encode(
-        "index.history_request",
-        {
-            "gateway_id": gateway_id,
-            "index_id": index_id,
-            "from_ts": from_ts,
-            "to_ts": to_ts,
-            "types": types or ["INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"],
-            "max_records": max_records,
-        },
+    return _gen_index.make_index_history_request(
+        gateway_id=gateway_id,
+        index_id=index_id,
+        from_ts=from_ts,
+        to_ts=to_ts,
+        types=list(types) if types else [],
+        max_records=max_records,
     )
 
 
@@ -1319,11 +1375,19 @@ def make_index_history_msg(
     records: list[dict[str, Any]],
     warnings: list[str] | None = None,
 ) -> list[bytes]:
-    """pm-index → requestor: history response."""
-    payload: dict[str, Any] = {"index_id": index_id, "records": records}
-    if warnings:
-        payload["warnings"] = warnings
-    return encode(f"index.history.{gateway_id}", payload)
+    """pm-index → requestor: history response.
+
+    The archive is written through the generated ``HistoryRecord`` (validated on
+    append) and ``IndexHistory.query`` drops any non-conforming row on read, so
+    every record here is canonical and the checked builder replays it. See
+    design section 9.
+    """
+    return _gen_index.make_index_history(
+        gateway_id=gateway_id,
+        index_id=index_id,
+        records=records,
+        warnings=warnings or [],
+    )
 
 
 def make_index_corp_action_msg(
@@ -1333,16 +1397,20 @@ def make_index_corp_action_msg(
     gateway_id: str,
     params: dict[str, Any],
 ) -> list[bytes]:
-    """Operator → pm-index: apply a corporate action."""
-    return encode(
-        "index.corp_action",
-        {
-            "action": action,
-            "index_id": index_id,
-            "symbol": symbol,
-            "gateway_id": gateway_id,
-            **params,
-        },
+    """Operator → pm-index: apply a corporate action.
+
+    *params* carries the action-specific fields — ``ratio_numerator`` and
+    ``ratio_denominator`` for SPLIT, ``dividend_per_share`` for
+    CASH_DIVIDEND, ``new_shares_outstanding`` for SHARES_ISSUANCE. The IDL has
+    no variant type to say "these belong to that action", so they are declared
+    flat and optional; design section 20.3 records why one was not built.
+    """
+    return _gen_index.make_index_corp_action(
+        action=action,
+        index_id=index_id,
+        symbol=symbol,
+        gateway_id=gateway_id,
+        **params,
     )
 
 
@@ -1355,17 +1423,14 @@ def make_index_constituent_change_msg(
     initial_price: float | None = None,
 ) -> list[bytes]:
     """Operator → pm-index: add or delist a constituent."""
-    payload: dict[str, Any] = {
-        "change_type": change_type,
-        "index_id": index_id,
-        "symbol": symbol,
-        "gateway_id": gateway_id,
-    }
-    if shares_outstanding is not None:
-        payload["shares_outstanding"] = shares_outstanding
-    if initial_price is not None:
-        payload["initial_price"] = initial_price
-    return encode("index.constituent_change", payload)
+    return _gen_index.make_index_constituent_change(
+        change_type=change_type,
+        index_id=index_id,
+        symbol=symbol,
+        gateway_id=gateway_id,
+        shares_outstanding=shares_outstanding,
+        initial_price=initial_price,
+    )
 
 
 def make_index_corp_action_ack_msg(
@@ -1377,18 +1442,15 @@ def make_index_corp_action_ack_msg(
     divisor: float | None = None,
 ) -> list[bytes]:
     """pm-index → requestor: corporate action ack."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "reason": reason,
-        "timestamp": time.time(),
-    }
-    if index_id:
-        payload["index_id"] = index_id
-    if level is not None:
-        payload["level"] = level
-    if divisor is not None:
-        payload["divisor"] = divisor
-    return encode(f"index.corp_action_ack.{gateway_id}", payload)
+    return _gen_index.make_index_corp_action_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        timestamp=time.time(),
+        index_id=index_id,
+        level=level,
+        divisor=divisor,
+    )
 
 
 def make_index_constituent_change_ack_msg(
@@ -1400,18 +1462,15 @@ def make_index_constituent_change_ack_msg(
     divisor: float | None = None,
 ) -> list[bytes]:
     """pm-index → requestor: constituent change ack."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "reason": reason,
-        "timestamp": time.time(),
-    }
-    if index_id:
-        payload["index_id"] = index_id
-    if level is not None:
-        payload["level"] = level
-    if divisor is not None:
-        payload["divisor"] = divisor
-    return encode(f"index.constituent_change_ack.{gateway_id}", payload)
+    return _gen_index.make_index_constituent_change_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        timestamp=time.time(),
+        index_id=index_id,
+        level=level,
+        divisor=divisor,
+    )
 
 
 def make_index_rebalance_msg(
@@ -1426,15 +1485,18 @@ def make_index_rebalance_msg(
     — each entry mirrors the existing SHARES_ISSUANCE corporate action,
     applied to every named *existing* constituent as one batch with a single
     recompute/publish, rather than one corp-action round-trip per symbol.
+
+    The non-empty and positive-share rules were pydantic constraints on
+    ``IndexRebalanceRequest``, so they held for the API gateway and for
+    nobody else. Declaring them in the spec makes them properties of the
+    message (design section 15.5).
     """
-    payload: dict[str, Any] = {
-        "index_id": index_id,
-        "gateway_id": gateway_id,
-        "updates": updates,
-    }
-    if command_id:
-        payload["command_id"] = command_id
-    return encode("index.rebalance", payload)
+    return _gen_index.make_index_rebalance(
+        index_id=index_id,
+        gateway_id=gateway_id,
+        updates=updates,
+        command_id=command_id,
+    )
 
 
 def make_index_rebalance_ack_msg(
@@ -1448,28 +1510,26 @@ def make_index_rebalance_ack_msg(
     command_id: str = "",
 ) -> list[bytes]:
     """pm-index → ADMIN: rebalance result."""
-    payload: dict[str, Any] = {
-        "accepted": accepted,
-        "reason": reason,
-        "timestamp": time.time(),
-        "updated_symbols": updated_symbols,
-    }
-    if index_id:
-        payload["index_id"] = index_id
-    if level is not None:
-        payload["level"] = level
-    if divisor is not None:
-        payload["divisor"] = divisor
-    if command_id:
-        payload["command_id"] = command_id
-    return encode(f"index.rebalance_ack.{gateway_id}", payload)
+    return _gen_index.make_index_rebalance_ack(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        timestamp=time.time(),
+        updated_symbols=updated_symbols,
+        index_id=index_id,
+        level=level,
+        divisor=divisor,
+        command_id=command_id,
+    )
 
 
 def make_index_error_msg(gateway_id: str, reason: str) -> list[bytes]:
     """pm-index → requestor: generic index error reply."""
-    return encode(
-        f"index.error.{gateway_id}",
-        {"accepted": False, "reason": reason, "timestamp": time.time()},
+    return _gen_index.make_index_error(
+        gateway_id=gateway_id,
+        accepted=False,
+        reason=reason,
+        timestamp=time.time(),
     )
 
 
@@ -1488,7 +1548,7 @@ def make_depth_msg(symbol: str, depth: dict[str, Any]) -> list[bytes]:
     first dot, so it recorded a phantom instrument literally named
     ``depth.AAPL`` into daily_stats.
     """
-    return encode(f"depth.{symbol}", depth)
+    return _gen_book.make_depth(**depth)
 
 
 # ---------------------------------------------------------------------------
@@ -1507,31 +1567,35 @@ def make_log_subscribe_msg(
     sub_id: str,
     mode: str = "STREAM",
     log_filter: dict[str, Any] | None = None,
-    backfill_minutes: int = 0,
+    backfill_minutes: int | None = None,
     lease_sec: int | None = None,
     notify_interval_ms: int | None = None,
 ) -> list[bytes]:
-    """Subscriber → pm-log-srv: open or replace a leased subscription."""
-    payload: dict[str, Any] = {"sub_id": sub_id, "mode": mode}
-    if log_filter:
-        payload["filter"] = log_filter
-    if backfill_minutes:
-        payload["backfill_minutes"] = backfill_minutes
-    if lease_sec is not None:
-        payload["lease_sec"] = lease_sec
-    if notify_interval_ms is not None:
-        payload["notify_interval_ms"] = notify_interval_ms
-    return encode("log.subscribe", payload)
+    """Subscriber → pm-log-srv: open or replace a leased subscription.
+
+    Every optional field is ``omit_when_none`` in the spec, so the builder
+    drops whatever the caller left unset rather than the wrapper deciding it
+    here; the filter is validated and filled to the canonical ``LogFilter``
+    shape the server reads, not passed through raw.
+    """
+    return _gen_log.make_log_subscribe(
+        sub_id=sub_id,
+        mode=mode,
+        filter=log_filter,
+        backfill_minutes=backfill_minutes,
+        lease_sec=lease_sec,
+        notify_interval_ms=notify_interval_ms,
+    )
 
 
 def make_log_renew_msg(sub_id: str) -> list[bytes]:
     """Subscriber → pm-log-srv: lease keepalive; the liveness signal."""
-    return encode("log.renew", {"sub_id": sub_id, "timestamp": time.time()})
+    return _gen_log.make_log_renew(sub_id=sub_id, timestamp=time.time())
 
 
 def make_log_unsubscribe_msg(sub_id: str) -> list[bytes]:
     """Subscriber → pm-log-srv: close a subscription immediately."""
-    return encode("log.unsubscribe", {"sub_id": sub_id, "timestamp": time.time()})
+    return _gen_log.make_log_unsubscribe(sub_id=sub_id, timestamp=time.time())
 
 
 def make_log_backfill_request_msg(
@@ -1541,14 +1605,14 @@ def make_log_backfill_request_msg(
     max_rows: int | None = None,
 ) -> list[bytes]:
     """Subscriber → pm-log-srv: replay the last ``minutes`` of history."""
-    payload: dict[str, Any] = {"sub_id": sub_id, "minutes": minutes}
-    if log_filter is not None:
-        payload["filter"] = log_filter
-    if max_rows is not None:
-        payload["max_rows"] = max_rows
-    return encode("log.backfill_request", payload)
+    return _gen_log.make_log_backfill_request(
+        sub_id=sub_id,
+        minutes=minutes,
+        filter=log_filter,
+        max_rows=max_rows,
+    )
 
 
 def make_log_status_request_msg(sub_id: str) -> list[bytes]:
     """Subscriber → pm-log-srv: request subscription/server diagnostics."""
-    return encode("log.status_request", {"sub_id": sub_id, "timestamp": time.time()})
+    return _gen_log.make_log_status_request(sub_id=sub_id, timestamp=time.time())

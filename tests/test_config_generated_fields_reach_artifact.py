@@ -28,6 +28,7 @@ from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
 from edumatcher.config_gen.cb_spec import parse_cb_spec
 from edumatcher.config_gen.gateway_spec import parse_gateway_spec
 from edumatcher.config_gen.renderer import render_yaml
+from edumatcher.config_gen.symbol_spec import SymbolOverride
 from edumatcher.index.config_loader import index_runtime_configs
 
 # Where each generated top-level key lands in the artifact. A key with no entry
@@ -74,6 +75,9 @@ def _maximal_spec() -> ConfigSpec:
         static_band_pct=0.20,
         dynamic_band_pct=0.02,
         cb_levels=[parse_cb_spec("L1:0.07:5"), parse_cb_spec("L2:0.13:15")],
+        symbol_overrides={
+            "MSFT": SymbolOverride(cb_halt_mins={"L1": 10}),
+        },
         # Deliberately none of the ReopeningConfig dataclass defaults. If the
         # compiler drops the block the dataclass default fills in silently,
         # and a spec that matched those defaults would notice nothing.
@@ -169,6 +173,20 @@ class TestGeneratedFieldsReachTheArtifact:
                 {"widen_pct": e.widen_pct, "min_duration_ns": e.min_duration_ns}
                 for e in landed.expansions
             ] == generated["expansions"]
+
+    def test_symbol_cb_halt_override_inherits_its_default_price_shift(
+        self, compiled: tuple[CompiledConfig, dict[str, object]]
+    ) -> None:
+        config, payload = compiled
+        generated_symbols = payload["symbols"]
+        assert isinstance(generated_symbols, dict)
+        generated_level = generated_symbols["MSFT"]["circuit_breaker"]["levels"]["L1"]
+        assert generated_level == {"halt_duration_ns": 600_000_000_000}
+
+        compiled_level = config.engine.symbols["MSFT"].circuit_breaker
+        assert compiled_level is not None
+        assert compiled_level.levels[0].price_shift_pct == pytest.approx(0.07)
+        assert compiled_level.levels[0].halt_duration_ns == 600_000_000_000
 
 
 class TestIndexReferenceDataIsDerivable:

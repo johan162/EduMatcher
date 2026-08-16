@@ -13,6 +13,7 @@ from edumatcher.engine.main import Engine
 from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderType, Side
 from edumatcher.models.participant import ParticipantRole
+from edumatcher.models.price import to_ticks
 
 
 @dataclass
@@ -133,8 +134,8 @@ def test_quote_rejected_when_symbol_not_allowed_and_no_book_created(
             "gateway_id": "TRADER01",
             "symbol": "MSFT",
             "quote_id": "Q-1",
-            "bid_price": 100.0,
-            "ask_price": 101.0,
+            "bid_price": to_ticks(100.0, "AAPL"),
+            "ask_price": to_ticks(101.0, "AAPL"),
             "bid_qty": 10,
             "ask_qty": 10,
             "tif": "DAY",

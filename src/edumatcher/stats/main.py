@@ -72,7 +72,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import math
 import signal
 import sqlite3
 import sys
@@ -93,6 +92,7 @@ from edumatcher.config import (
     ENGINE_PUB_ADDR,
     INDEX_PUB_CONNECT_ADDR,
     STATS_DB_FILE,
+    resolve_data_path,
 )
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
@@ -101,6 +101,7 @@ from edumatcher.log_srv.config import (
 )
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.message import (
     decode,
     decode_sequence,
@@ -115,6 +116,34 @@ from edumatcher.stats.trading_day import (
     trading_date,
     trading_day_bounds,
 )
+from edumatcher.models.generated.order import (
+    PREFIX_ORDER_ACK,
+    PREFIX_ORDER_AMENDED,
+    PREFIX_ORDER_CANCELLED,
+    PREFIX_ORDER_EXPIRED,
+    PREFIX_ORDER_FILL,
+)
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
+from edumatcher.models.generated.index import TOPIC_INDEX_UPDATE
+from edumatcher.models.generated.quote import (
+    PREFIX_QUOTE_ACK,
+    PREFIX_QUOTE_STATUS,
+)
+from edumatcher.models.generated.structure import (
+    PREFIX_COMBO_ACK,
+    PREFIX_COMBO_STATUS,
+    PREFIX_OCO_ACK,
+    PREFIX_OCO_CANCELLED,
+)
+from edumatcher.models.generated.system import (
+    TOPIC_EOD,
+    topic_symbols,
+)
+
+#: The fixed gateway id pm-stats identifies itself with. It subscribes
+#: `system.symbols.STATS` and requests on the same id, so the two were the same
+#: literal written twice -- one of them in a subscription and one in a request.
+STATS_GATEWAY_ID = "STATS"
 
 _CLIENT_NAME = "pm-stats"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -139,6 +168,7 @@ _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 # a burst deeper than the mark is dropped silently at the socket. Matches the
 # order of magnitude pm-log-srv already uses for its publisher.
 _SUB_RCVHWM = 100_000
+_ENGINE_RETRY_SEC = 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -305,7 +335,10 @@ class _IndexDayAccum:
 SCHEMA_VERSION = 5
 
 #: Stream name recorded in ``feed_gaps.stream`` for engine trade prints.
-TRADE_STREAM = "trade.executed"
+#: Taken from the generated binding rather than retyped, so a topic rename in
+#: spec/messages/trade.yaml reaches this recorder instead of silently leaving
+#: it subscribed to a topic nobody publishes any more.
+TRADE_STREAM = TOPIC_TRADE_EXECUTED
 
 
 def _payload_tick_decimals(payload: dict[str, Any]) -> int:
@@ -872,21 +905,21 @@ class StatsProcess:
         try:
             self.sub = make_subscriber(
                 ENGINE_PUB_ADDR,
-                "trade.executed",
-                "book.",
-                "system.eod",
-                "system.symbols.STATS",
-                "order.ack.",
-                "order.fill.",
-                "order.amended.",
-                "order.cancelled.",
-                "order.expired.",
-                "combo.ack.",
-                "combo.status.",
-                "oco.ack.",
-                "oco.cancelled.",
-                "quote.ack.",
-                "quote.status.",
+                TOPIC_TRADE_EXECUTED,
+                PREFIX_BOOK_SNAPSHOT,
+                TOPIC_EOD,
+                topic_symbols(STATS_GATEWAY_ID),
+                PREFIX_ORDER_ACK,
+                PREFIX_ORDER_FILL,
+                PREFIX_ORDER_AMENDED,
+                PREFIX_ORDER_CANCELLED,
+                PREFIX_ORDER_EXPIRED,
+                PREFIX_COMBO_ACK,
+                PREFIX_COMBO_STATUS,
+                PREFIX_OCO_ACK,
+                PREFIX_OCO_CANCELLED,
+                PREFIX_QUOTE_ACK,
+                PREFIX_QUOTE_STATUS,
                 rcvhwm=_SUB_RCVHWM,
             )
             # Separate socket: pm-index binds its own PUB endpoint, distinct
@@ -895,7 +928,7 @@ class StatsProcess:
             # topic).
             self.index_sub = make_subscriber(
                 INDEX_PUB_CONNECT_ADDR,
-                "index.update",
+                TOPIC_INDEX_UPDATE,
                 rcvhwm=_SUB_RCVHWM,
             )
             self.push = make_pusher(ENGINE_PULL_ADDR)
@@ -1469,9 +1502,14 @@ class StatsProcess:
         aggregate_cap = payload.get("aggregate_cap")
         divisor = payload.get("divisor")
         session_state = payload.get("session_state")
-        day_open = payload.get("day_open")
-        day_high = payload.get("day_high")
-        day_low = payload.get("day_low")
+        # One nullable record on the wire (design section 16.2); three flat
+        # columns in index_level_snapshots. The table keeps its shape — a
+        # column per value is what SQL wants, and rewriting a schema to mirror
+        # a message is the tail wagging the dog.
+        day = payload.get("day") or {}
+        day_open = day.get("open")
+        day_high = day.get("high")
+        day_low = day.get("low")
 
         epoch_sec = payload.get("timestamp")
         if epoch_sec is None:
@@ -1661,10 +1699,10 @@ class StatsProcess:
         Split out of the receive loop so the topic-matching rules are
         reachable from a test without driving a socket.
         """
-        if topic.startswith("trade.executed"):
+        if topic.startswith(TOPIC_TRADE_EXECUTED):
             self._dbg_count("trade_topics")
             self._on_trade(payload)
-        elif topic.startswith("book."):
+        elif topic.startswith(PREFIX_BOOK_SNAPSHOT):
             self._dbg_count("book_topics")
             symbol = topic.split(".", 1)[1]
             # A `book.` subscription also matches any sub-topic such as
@@ -1679,10 +1717,10 @@ class StatsProcess:
                 )
             else:
                 self._on_book(symbol, payload)
-        elif topic == "system.eod":
+        elif topic == TOPIC_EOD:
             self._dbg_count("eod_topics")
             self._on_eod(payload)
-        elif topic == "system.symbols.STATS":
+        elif topic == topic_symbols(STATS_GATEWAY_ID):
             self._dbg_count("startup_symbols_topics")
             self._on_startup_symbols(payload)
         elif _is_order_event_topic(topic):
@@ -1700,7 +1738,7 @@ class StatsProcess:
         self._dbg_count("index_messages_received")
         self._check_topic_sequence(topic, decode_sequence(frames))
         try:
-            if topic == "index.update":
+            if topic == TOPIC_INDEX_UPDATE:
                 self._dbg_count("index_update_topics")
                 self._on_index_update(payload)
         except Exception as exc:
@@ -1712,27 +1750,37 @@ class StatsProcess:
         and an initial price_snapshots row are recorded even if no new orders
         arrive after the stats process starts.
         """
-        symbols = payload.get("symbols", [])
-
-        # symbol_meta carries the engine's configured tick_size, which is the
-        # authoritative scale for every symbol — including ones that never
-        # trade and would otherwise never appear in the reference table.
-        symbol_meta = payload.get("symbol_meta") or {}
-        for sym, meta in symbol_meta.items():
-            tick_size = (meta or {}).get("tick_size")
-            if tick_size is None or tick_size <= 0:
+        # Each entry carries the engine's configured tick scale, which is
+        # authoritative for every symbol — including ones that never trade and
+        # would otherwise never appear in the reference table.
+        entries = payload.get("symbols", [])
+        symbols = [str(e.get("symbol", "")) for e in entries]
+        for entry in entries:
+            sym = str(entry.get("symbol", ""))
+            tick_decimals = entry.get("tick_decimals")
+            if not sym or tick_decimals is None:
                 continue
-            # tick_size is 10^-tick_decimals; recover the exponent.
-            tick_decimals = int(round(-math.log10(float(tick_size))))
-            self._record_instrument(str(sym).upper(), tick_decimals, "config")
-        if symbol_meta:
-            log.info("recorded tick metadata for %d symbol(s)", len(symbol_meta))
+            # The engine sends the exponent it holds. This used to recover it
+            # from `tick_size` with `round(-log10(x))`, one of three spellings
+            # of the same number the wire carried before 6.1e.
+            self._record_instrument(sym.upper(), int(tick_decimals), "config")
+        if entries:
+            log.info("recorded tick metadata for %d symbol(s)", len(entries))
 
         with self._push_lock:
             for sym in symbols:
                 self.push.send_multipart(make_book_snapshot_request_msg(sym))
         if symbols:
             log.info("requested opening snapshots for: %s", ", ".join(symbols))
+
+    def _request_startup_symbols(self) -> bool:
+        """Request engine symbols, reporting whether the engine is reachable."""
+        try:
+            with self._push_lock:
+                self.push.send_multipart(make_symbols_request_msg(STATS_GATEWAY_ID))
+        except zmq.Again:
+            return False
+        return True
 
     def run(self) -> int:
         """Run until stopped. Returns the intended process exit code."""
@@ -1746,8 +1794,13 @@ class StatsProcess:
         # then request the symbol list so we can pull opening book snapshots.
         # This handles the race where the engine seeded MM orders before we started.
         time.sleep(0.3)
-        with self._push_lock:
-            self.push.send_multipart(make_symbols_request_msg("STATS"))
+        if not self._request_startup_symbols():
+            log.warning("pm-stats waiting for pm-engine to start")
+            while self._running and not self._request_startup_symbols():
+                time.sleep(_ENGINE_RETRY_SEC)
+        if not self._running:
+            self.close()
+            return 0
         log.debug("requested startup symbols for gateway_id=STATS")
 
         log.info("recording market statistics (Ctrl-C to stop)")
@@ -1822,17 +1875,17 @@ class StatsProcess:
 def _is_order_event_topic(topic: str) -> bool:
     return topic.startswith(
         (
-            "order.ack.",
-            "order.fill.",
-            "order.amended.",
-            "order.cancelled.",
-            "order.expired.",
-            "combo.ack.",
-            "combo.status.",
-            "oco.ack.",
-            "oco.cancelled.",
-            "quote.ack.",
-            "quote.status.",
+            PREFIX_ORDER_ACK,
+            PREFIX_ORDER_FILL,
+            PREFIX_ORDER_AMENDED,
+            PREFIX_ORDER_CANCELLED,
+            PREFIX_ORDER_EXPIRED,
+            PREFIX_COMBO_ACK,
+            PREFIX_COMBO_STATUS,
+            PREFIX_OCO_ACK,
+            PREFIX_OCO_CANCELLED,
+            PREFIX_QUOTE_ACK,
+            PREFIX_QUOTE_STATUS,
         )
     )
 
@@ -1872,27 +1925,27 @@ def _event_type_from_topic(topic: str, payload: dict[str, Any]) -> str:
     ``oco.cancelled`` under ``OCO``, where no cancel-oriented filter could
     find it.
     """
-    if topic.startswith("order.ack."):
+    if topic.startswith(PREFIX_ORDER_ACK):
         return _accept_reject(topic, payload, "ACK", "REJECT")
-    if topic.startswith("order.fill."):
+    if topic.startswith(PREFIX_ORDER_FILL):
         return "FILL"
-    if topic.startswith("order.amended."):
+    if topic.startswith(PREFIX_ORDER_AMENDED):
         return "AMEND"
-    if topic.startswith("order.cancelled."):
+    if topic.startswith(PREFIX_ORDER_CANCELLED):
         return "CANCEL"
-    if topic.startswith("order.expired."):
+    if topic.startswith(PREFIX_ORDER_EXPIRED):
         return "EXPIRE"
-    if topic.startswith("combo.ack."):
+    if topic.startswith(PREFIX_COMBO_ACK):
         return _accept_reject(topic, payload, "COMBO_ACK", "COMBO_REJECT")
-    if topic.startswith("combo.status."):
+    if topic.startswith(PREFIX_COMBO_STATUS):
         return "COMBO_STATUS"
-    if topic.startswith("oco.ack."):
+    if topic.startswith(PREFIX_OCO_ACK):
         return _accept_reject(topic, payload, "OCO_ACK", "OCO_REJECT")
-    if topic.startswith("oco.cancelled."):
+    if topic.startswith(PREFIX_OCO_CANCELLED):
         return "OCO_CANCEL"
-    if topic.startswith("quote.ack."):
+    if topic.startswith(PREFIX_QUOTE_ACK):
         return _accept_reject(topic, payload, "QUOTE_ACK", "QUOTE_REJECT")
-    if topic.startswith("quote.status."):
+    if topic.startswith(PREFIX_QUOTE_STATUS):
         return "QUOTE_STATUS"
     return "EVENT"
 
@@ -2068,7 +2121,7 @@ def main() -> None:
         parser.error(f"--timezone: unknown timezone {args.timezone!r}")
     try:
         process = StatsProcess(
-            Path(args.db),
+            resolve_data_path(args.db),
             snapshot_interval_sec=args.snapshot_interval,
             sql_trace=args.sql_trace,
             session_tz=session_tz,

@@ -50,8 +50,10 @@ from edumatcher.log_srv.config import (
 from edumatcher.logclient.discovery import resolve_handler
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
 
 _CLIENT_NAME = "pm-audit"
+
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 _POLL_TIMEOUT_MS = 300
@@ -251,7 +253,7 @@ class AuditProcess:
 
     @staticmethod
     def _topic_family(topic: str) -> str:
-        if topic.startswith("book."):
+        if topic.startswith(PREFIX_BOOK_SNAPSHOT):
             return "book"
         if topic.startswith("order."):
             return "order"
@@ -347,6 +349,7 @@ class AuditProcess:
             self.flush_interval,
             ENGINE_PUB_ADDR,
         )
+        log.info("pm-audit waiting for pm-engine events")
         try:
             while self._running:
                 t.join(timeout=_JOIN_POLL_SEC)  # re-check _running every 500 ms

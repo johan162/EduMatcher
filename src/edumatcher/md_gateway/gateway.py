@@ -29,10 +29,24 @@ from edumatcher.md_gateway.sequencer import SequenceAllocator
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
 from edumatcher.models.price import DEFAULT_TICK_DECIMALS
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.session import TOPIC_SESSION_STATE
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
+from edumatcher.models.generated.auction import (
+    PREFIX_AUCTION_INDICATIVE,
+    PREFIX_AUCTION_RESULT,
+)
+from edumatcher.models.generated.circuit_breaker import (
+    PREFIX_CIRCUIT_BREAKER_EXTEND,
+    PREFIX_CIRCUIT_BREAKER_HALT,
+    PREFIX_CIRCUIT_BREAKER_RESUME,
+)
+from edumatcher.models.generated.index import TOPIC_INDEX_UPDATE
 
 _ALLOWED_CHANNELS = frozenset(
     {"TOP", "TRADE", "STATE", "INDEX", "DEPTH", "AUCTION", "CB"}
 )
+
 # Channels that may be combined with SYM=* on a single SUB line (CALF 1.0.0,
 # see EduMatcher-CALF-Extensions.md §5; AUCTION added by
 # EduMatcher-CALF-auction-cb.md §6.4). INDEX, DEPTH, and CB are deliberately
@@ -92,14 +106,14 @@ class MarketDataGateway:
 
         self._sub_sock = make_subscriber(
             config.engine_pub_addr,
-            "book.",
-            "trade.executed",
-            "session.state",
-            "circuit_breaker.halt.",
-            "circuit_breaker.resume.",
-            "circuit_breaker.extend.",
-            "auction.result.",
-            "auction.indicative.",
+            PREFIX_BOOK_SNAPSHOT,
+            TOPIC_TRADE_EXECUTED,
+            TOPIC_SESSION_STATE,
+            PREFIX_CIRCUIT_BREAKER_HALT,
+            PREFIX_CIRCUIT_BREAKER_RESUME,
+            PREFIX_CIRCUIT_BREAKER_EXTEND,
+            PREFIX_AUCTION_RESULT,
+            PREFIX_AUCTION_INDICATIVE,
         )
         self._index_sub = make_subscriber(config.index_pub_addr, "index.")
 
@@ -783,7 +797,7 @@ class MarketDataGateway:
             try:
                 now_seconds = _extract_ts(payload)
 
-                if topic.startswith("book."):
+                if topic.startswith(PREFIX_BOOK_SNAPSHOT):
                     self._dbg_count("book_topics")
                     sym = topic[5:].upper()
                     self._known_symbols.add(sym)
@@ -799,7 +813,7 @@ class MarketDataGateway:
                         )
                     continue
 
-                if topic == "trade.executed":
+                if topic == TOPIC_TRADE_EXECUTED:
                     self._dbg_count("trade_topics")
                     sym, trade_fields = self._normaliser.normalise_trade(payload)
                     if sym:
@@ -813,7 +827,7 @@ class MarketDataGateway:
                         )
                     continue
 
-                if topic == "session.state":
+                if topic == TOPIC_SESSION_STATE:
                     self._dbg_count("session_state_topics")
                     sym, state_fields = self._normaliser.normalise_session_state(
                         payload
@@ -836,7 +850,7 @@ class MarketDataGateway:
                         )
                     continue
 
-                if topic.startswith("circuit_breaker.halt."):
+                if topic.startswith(PREFIX_CIRCUIT_BREAKER_HALT):
                     self._dbg_count("halt_topics")
                     sym = topic.split(".", 2)[2].upper()
                     state_sym, state_fields = self._normaliser.normalise_halt(sym)
@@ -851,7 +865,7 @@ class MarketDataGateway:
                     self._emit_stream_event("CB", "CB", cb_sym, cb_fields, now_seconds)
                     continue
 
-                if topic.startswith("circuit_breaker.extend."):
+                if topic.startswith(PREFIX_CIRCUIT_BREAKER_EXTEND):
                     # An ACE extension leaves the symbol halted, so STATE is
                     # unchanged and deliberately not re-emitted — only the CB
                     # corridor and resume time have moved.
@@ -863,7 +877,7 @@ class MarketDataGateway:
                     self._emit_stream_event("CB", "CB", cb_sym, cb_fields, now_seconds)
                     continue
 
-                if topic.startswith("circuit_breaker.resume."):
+                if topic.startswith(PREFIX_CIRCUIT_BREAKER_RESUME):
                     self._dbg_count("resume_topics")
                     sym = topic.split(".", 2)[2].upper()
                     state_sym, state_fields = self._normaliser.normalise_resume(sym)
@@ -880,7 +894,7 @@ class MarketDataGateway:
                     self._emit_stream_event("CB", "CB", cb_sym, cb_fields, now_seconds)
                     continue
 
-                if topic.startswith("auction.indicative."):
+                if topic.startswith(PREFIX_AUCTION_INDICATIVE):
                     self._dbg_count("auction_indicative_topics")
                     (
                         indic_sym,
@@ -897,7 +911,7 @@ class MarketDataGateway:
                         )
                     continue
 
-                if topic.startswith("auction.result."):
+                if topic.startswith(PREFIX_AUCTION_RESULT):
                     self._dbg_count("auction_topics")
                     sym, auction_fields = self._normaliser.normalise_auction_result(
                         payload
@@ -923,7 +937,7 @@ class MarketDataGateway:
             budget -= 1
             try:
                 now_seconds = _extract_ts(payload)
-                if topic == "index.update":
+                if topic == TOPIC_INDEX_UPDATE:
                     self._dbg_count("index_update_topics")
                     index_id, fields = self._normaliser.normalise_index_update(payload)
                     if index_id:

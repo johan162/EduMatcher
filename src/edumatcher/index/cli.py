@@ -126,11 +126,15 @@ def _resolve_history_files(
             )
 
     result: dict[str, Path] = {}
+    from edumatcher.config import resolve_data_path
+
     for idx_id in index_ids:
         if idx_id in from_config:
-            result[idx_id] = Path(from_config[idx_id])
+            result[idx_id] = resolve_data_path(from_config[idx_id])
         else:
-            result[idx_id] = Path(data_dir) / f"{idx_id}_history.jsonl"
+            result[idx_id] = resolve_data_path(
+                str(Path(data_dir) / f"{idx_id}_history.jsonl")
+            )
     return result
 
 

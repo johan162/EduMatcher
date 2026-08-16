@@ -1,86 +1,12 @@
-Version: 1.8.0
+Version: 1.11.13
 
-Date: 2026-08-05
+Date: 2026-08-14
 
-Status: Design and Research Proposal
+Status: Design and Research Proposal — fully implemented (all 17 phases of §23 built in `trader-gui/`)
 
 
 # EduMatcher — Trading Web UI (`pm-trading-ui`)
 
-> **Revision History**
->
-> - **1.8.0 (2026-08-05)** — Backend implemented [§26.4.2 Reference-data service boundary](#2642-reference-data-service-boundary)
->   and added two key stable endpoints for UI bootstrap: `GET /api/v1/reference/schedule` and
->   `GET /api/v1/reference` (full bundle in one round-trip). The design now treats reference data as
->   a runtime API artifact rather than a planned/config-backed fallback: updated
->   [§6.6](#66-halts-and-risk-configuration-runtime-read-only), [§6.11](#611-capability-summary-table),
->   [§15.5](#155-risk-control-panel), [§18.2](#182-tanstack-query-for-server-state),
->   [§23](#23-implementation-plan), [§26.2](#262-highest-impact-changes),
->   [§26.4.2](#2642-reference-data-service-boundary), and [§26.5](#265-suggested-implementation-order)
->   accordingly.
-> - **1.7.0 (2026-08-05)** — Backend shipped three of the four items in
->   [§26.3.6 Admin monitor replay and order drill-down](#2636-admin-monitor-replay-and-order-drill-down):
->   `WS /api/v1/admin/monitor` now opens with a `monitor.snapshot` (orders/halts/gateways/last_seq),
->   and `GET /api/v1/admin/orders` / `GET /api/v1/admin/orders/{order_id}` give a cross-gateway
->   current-state view and an audit-trail-backed lifecycle drill-down, respectively. Only
->   cross-gateway *event* backfill remains proposed. Also added, as a related backend hardening item
->   not originally in the addendum: an `order_retention_sec` cache-eviction policy for terminal
->   orders. Updated [§6.9](#69-admin-monitor-websocket-apiv1adminmonitor),
->   [§6.11](#611-capability-summary-table), [§13.4](#134-order-detail-drawer),
->   [§15.1](#151-system-dashboard), [§15.9](#159-audit--monitor-log-viewer),
->   [§17.4](#174-admin-monitor-websocket-apiv1adminmonitor), Appendix A's `Order` type,
->   [§26.2](#262-highest-impact-changes), [§26.3.6](#2636-admin-monitor-replay-and-order-drill-down),
->   and [§26.5](#265-suggested-implementation-order) accordingly.
-> - **1.6.0 (2026-08-05)** — Backend implemented [§26.3.7 Uniform command acknowledgements](#2637-uniform-command-acknowledgements)
->   narrowly rather than as originally proposed: `command_id` was added only to kill switch/mass
->   cancel and session transition (the two commands with no completion signal), echoed on their acks;
->   cascading `command_id` onto every triggered event and blanket adoption across all async endpoints
->   were evaluated and declined. Fixed a real bug along the way — `POST /api/v1/admin/session/transition`
->   used to answer `202`/`PENDING` even when the handler silently dropped the request (sessions
->   disabled or unknown state); it now answers `200`/`ACCEPTED` or `409`/`TRANSITION_REJECTED` with a
->   reason. Updated [§6.3](#63-session-control), [§6.11](#611-capability-summary-table),
->   [§15.4](#154-session-control), [§26.2](#262-highest-impact-changes),
->   [§26.3.7](#2637-uniform-command-acknowledgements), and [§26.5](#265-suggested-implementation-order)
->   accordingly.
-> - **1.5.0 (2026-08-05)** — Backend shipped most of [§26.3.5 Private event recovery](#2635-private-event-recovery):
->   `/api/v1/events` now sends `event_seq` on auth, an `orders.snapshot` frame, and stable group ids on
->   `order.*`/`combo.*`/`oco.*`/`quote.*` events. Resume/replay (`{ "action": "resume", "from_seq": ... }`)
->   was evaluated and deliberately deferred: the only gap it would close — fill/cancel transitions
->   missed during a drop — is already covered by `/history/*` and drop copy. Updated
->   [§17.2.1](#1721-authentication-frame), [§17.3.1](#1731-authentication-and-subscription),
->   [§26.2](#262-highest-impact-changes), [§26.3.5](#2635-private-event-recovery), and
->   [§26.5](#265-suggested-implementation-order) accordingly.
-> - **1.4.0 (2026-08-05)** — Backend shipped two items from the [§26 addendum](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal):
->   `/api/v1/market-data` now carries a per-topic `seq` on every event, and the subscription model now
->   supports per-symbol channel groups (an `items` list) on a single connection. Replaced the earlier
->   two-socket (overview/focus) workaround with one `marketDataWs` carrying both a broad and a narrow
->   subscription item ([§17.3.1](#1731-authentication-and-subscription)), updated the `WebSocketManager`
->   API, `ActiveSymbolStore`/watchlist wording, environment variable descriptions, and Appendix A, and
->   removed the corresponding rows from [§26.2](#262-highest-impact-changes).
-> - **1.3.0 (2026-08-05)** — Added [§26 Addendum: Protocol and Backend Changes That Would Improve
->   the Trading Terminal](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal),
->   covering protocol/API changes that are worth making before release because backwards compatibility
->   is not yet a constraint: sequenced snapshot/delta streams, richer subscription semantics,
->   browser-friendly CALF evolution, admin history/replay, uniform command acknowledgements, and
->   runtime reference/risk/index management.
-> - **1.2.0 (2026-07-09)** — Major revision. Formalised the ADMIN persona's backend
->   dependency into a dedicated section, [§6 Backend Capability Matrix](#6-backend-capability-matrix-pm-api-gwy),
->   replacing the earlier "future endpoint" hand-waving. Resolved the ADMIN data-source
->   contradictions (events WebSocket vs. admin monitor). Added the previously missing feature
->   surfaces (cancel-replace, OCO/combo group cancel, order-lifecycle drill-down, MM quote-leg
->   source). Added auction support (indicative price panel, `auction` market-data channel).
->   Introduced a workspace-centric TRADER UX: a new [§11 Trading Workspace](#11-screen-design--trading-workspace-trader),
->   a global active-symbol context, click-to-trade from the depth ladder, dual BUY/SELL order
->   ticket, one-click position flatten, a session clock/countdown, a [§20 Notification / Event
->   Center](#20-notification--event-center), a power-user mode, and a promoted watchlist feature.
->   Added routing (React Router v7), renamed the WebSocket wrapper to `ManagedSocket`, added
->   [Appendix A: Core TypeScript Types](#appendix-a-core-typescript-types), and fixed two bugs
->   (Tailwind `muted` colour, change-% definition). Sections 6–25 were renumbered from the 1.0.0
->   layout; the Table of Contents, Feature Matrix, Implementation Plan, Keyboard Shortcuts, and
->   Summary were regenerated accordingly.
-> - **1.0.0 (2026-07-09)** — Initial design and research proposal.
-
----
 
 ## Table of Contents
 
@@ -108,7 +34,7 @@ Status: Design and Research Proposal
     - [6.5 Gateway administration (available now)](#65-gateway-administration-available-now)
     - [6.6 Halts and risk configuration (runtime read-only)](#66-halts-and-risk-configuration-runtime-read-only)
     - [6.7 Symbol administration (still blocked on engine prerequisite)](#67-symbol-administration-still-blocked-on-engine-prerequisite)
-    - [6.8 Index administration (still dependent on `pm-index` bridge)](#68-index-administration-still-dependent-on-pm-index-bridge)
+    - [6.8 Index administration (read-only today, write/admin bridge missing)](#68-index-administration-read-only-today-writeadmin-bridge-missing)
     - [6.9 Admin monitor WebSocket (`/api/v1/admin/monitor`) (available now)](#69-admin-monitor-websocket-apiv1adminmonitor-available-now)
     - [6.10 Auction market-data channel (available now)](#610-auction-market-data-channel-available-now)
     - [6.11 Capability summary table](#611-capability-summary-table)
@@ -215,10 +141,12 @@ Status: Design and Research Proposal
       - [17.2.1 Authentication frame](#1721-authentication-frame)
       - [17.2.2 Event routing](#1722-event-routing)
       - [17.2.3 Fill toast content](#1723-fill-toast-content)
+      - [17.2.4 Order acknowledgement safety](#1724-order-acknowledgement-safety)
     - [17.3 Market Data WebSocket (`/api/v1/market-data`)](#173-market-data-websocket-apiv1market-data)
       - [17.3.1 Authentication and subscription](#1731-authentication-and-subscription)
       - [17.3.2 Event routing](#1732-event-routing)
       - [17.3.3 Flash cell animation](#1733-flash-cell-animation)
+      - [17.3.4 Bandwidth and the 100-symbol overview](#1734-bandwidth-and-the-100-symbol-overview)
     - [17.4 Admin Monitor WebSocket (`/api/v1/admin/monitor`)](#174-admin-monitor-websocket-apiv1adminmonitor)
     - [17.5 Connection health monitoring](#175-connection-health-monitoring)
   - [18. State Management](#18-state-management)
@@ -250,6 +178,7 @@ Status: Design and Research Proposal
     - [22.2 `vite.config.ts`](#222-viteconfigts)
     - [22.3 Tailwind theme](#223-tailwind-theme)
   - [23. Implementation Plan](#23-implementation-plan)
+    - [23.1 Implementation status and findings (phases 1–7)](#231-implementation-status-and-findings-phases-17)
   - [24. Testing Plan](#24-testing-plan)
     - [24.1 Unit tests (Vitest)](#241-unit-tests-vitest)
     - [24.2 Component tests (React Testing Library + Vitest)](#242-component-tests-react-testing-library--vitest)
@@ -261,9 +190,22 @@ Status: Design and Research Proposal
     - [26.1 Design principle](#261-design-principle)
     - [26.2 Highest-impact changes](#262-highest-impact-changes)
     - [26.3 Recommended protocol shape](#263-recommended-protocol-shape)
+      - [26.3.1 Uniform WebSocket envelope](#2631-uniform-websocket-envelope)
+      - [26.3.2 Snapshot, resume, and reset handshake](#2632-snapshot-resume-and-reset-handshake)
+      - [26.3.3 Per-symbol channel subscriptions](#2633-per-symbol-channel-subscriptions)
+      - [26.3.4 Authoritative depth and auction topics](#2634-authoritative-depth-and-auction-topics)
+      - [26.3.5 Private event recovery](#2635-private-event-recovery)
+      - [26.3.6 Admin monitor replay and order drill-down](#2636-admin-monitor-replay-and-order-drill-down)
+      - [26.3.7 Uniform command acknowledgements](#2637-uniform-command-acknowledgements)
     - [26.4 Recommended backend components](#264-recommended-backend-components)
+      - [26.4.1 API gateway stream cache](#2641-api-gateway-stream-cache)
+      - [26.4.2 Reference-data service boundary](#2642-reference-data-service-boundary)
+      - [26.4.3 Runtime admin commands](#2643-runtime-admin-commands)
+      - [26.4.4 Terminal-oriented aggregate endpoints](#2644-terminal-oriented-aggregate-endpoints)
+      - [26.4.5 Capability discovery](#2645-capability-discovery)
     - [26.5 Suggested implementation order](#265-suggested-implementation-order)
   - [Appendix A: Core TypeScript Types](#appendix-a-core-typescript-types)
+    - [Appendix A.1: WebSocket event `data` payloads (pm-msgen wire)](#appendix-a1-websocket-event-data-payloads-pm-msgen-wire)
 
 ---
 
@@ -477,9 +419,10 @@ The UI **does not connect directly to CALF** from the browser. Recent CALF capab
 `pm-api-gwy`'s JSON WebSocket. The current API WebSocket exposes the useful channels (`book`,
 `trades`, `depth`, `auction`, plus always-on `session`/`circuit_breaker`) and now carries a per-topic
 `seq` on every market-data event ([§17.3.1](#1731-authentication-and-subscription)), so the UI can
-detect a gap the same way a CALF client detects a sequence break. It does **not** yet expose a
-CALF-style `SNAP`/`RESUME` replay handshake, so a detected gap is repaired with a fresh subscribe plus
-a REST/bootstrap refresh rather than a targeted replay.
+detect a gap the same way a CALF client detects a sequence break. It now also exposes a
+`SNAP`/`RESUME` replay handshake ([§26.3.2](#2632-snapshot-resume-and-reset-handshake)), so a
+detected gap is repaired with a targeted `{ "action": "resume" }` rather than a full re-subscribe
+and REST refresh.
 
 ### 5.3 Client-side state layers
 
@@ -580,10 +523,10 @@ Purpose: drive the engine through its session phases (the same capability the sc
 { "to_state": "CONTINUOUS" }   // PRE_OPEN | OPENING_AUCTION | CONTINUOUS | CLOSING_AUCTION | CLOSED
 ```
 
-**Response `200 OK` (transition accepted):**
+**Response `202 Accepted` (transition accepted):**
 
 ```jsonc
-{ "command_id": "cmd-01J4...", "requested_state": "CONTINUOUS", "status": "ACCEPTED" }
+{ "command_id": "cmd-01J4...", "requested_state": "CONTINUOUS", "status": "APPLIED" }
 ```
 
 **Response `409 Conflict` (transition rejected):**
@@ -598,8 +541,8 @@ This closed a real bug found during implementation: the handler previously **ret
 published nothing** when sessions were disabled or the requested state was unknown, yet the endpoint
 still answered `202 Accepted` / `PENDING` regardless — so a caller's only signal was a timeout
 indistinguishable from a slow engine. All three paths (success, sessions-disabled, unknown-state) now
-produce an acknowledgement, so the REST response is authoritative (`200`/`ACCEPTED` or
-`409`/`TRANSITION_REJECTED` with the engine's reason) instead of a blind `202`. The UI should still
+produce an acknowledgement, so the REST response is authoritative (`202`/`APPLIED` or
+`409`/`TRANSITION_REJECTED` with the engine's reason) rather than the earlier blind `202`/`PENDING`. The UI should still
 observe the subsequent `session.state` broadcast on `/market-data` to reflect the resulting phase
 across the app, but no longer needs it just to learn whether the request was accepted.
 
@@ -669,23 +612,34 @@ semantics). The UI's confirmation dialog states this explicitly.
 
 **`GET /api/v1/admin/halts`**
 
-Purpose: list active circuit breaker halts.
+Purpose: list currently-halted symbols. Returns the engine `system.halt_status` reply verbatim
+(pm-msgen `HaltStatus` → `HaltedSymbol[]`).
 
 **Response `200 OK`:**
 
 ```jsonc
 {
-  "halts": [
-    { "symbol": "AAPL", "level": 2, "trigger_price": 145.00, "reference_price": 150.00,
-      "halted_at": "2026-07-09T14:30:00Z", "resume_at": "2026-07-09T14:45:00Z",
-      "resumption_mode": "AUCTION" }
+  "halted": [
+    // `symbol` is always present; the other three are omitted when absent.
+    { "symbol": "AAPL", "resume_at_ns": 1765293900000000000, "level": "L2",
+      "halt_source": "CIRCUIT_BREAKER" }
   ]
 }
 ```
 
-**Current reality:** `GET /api/v1/admin/halts` is available now and should be treated as the
-authoritative bootstrap for the ADMIN halt table, with websocket `circuit_breaker` events providing
-the live delta stream.
+- The array key is **`halted`** (not `halts`); each entry is a `HaltedSymbol`.
+- `resume_at_ns` is **epoch nanoseconds**, and is **omitted** for an indefinite halt (`halt_all`, or a
+  per-symbol halt named without a level).
+- `level` is the level **name string** (e.g. `"L2"`); omitted on an ADMIN halt.
+- `halt_source` is e.g. `"CIRCUIT_BREAKER"` / `"ADMIN"`; omitted when absent.
+- **Not present here:** `trigger_price`, `reference_price`, `halted_at`, an ISO `resume_at`, or a
+  `resumption_mode`. The richer price context (`trigger_price`, `reference_price`, corridor) rides the
+  live `circuit_breaker` **WS** halt event only (`CircuitBreakerHalt`, Appendix A). Every halt reopens
+  via a call auction, so there is no per-halt resumption mode.
+
+**Current reality:** `GET /api/v1/admin/halts` is available now and is the authoritative **bootstrap**
+for the ADMIN halt table; the `circuit_breaker` WS events provide the live delta stream (and the only
+source of trigger/reference price).
 
 **`GET /api/v1/admin/risk/collars`**
 
@@ -775,31 +729,39 @@ ADMIN monitoring no longer needs a design-time trade-off: the current gateway al
 read-only `/api/v1/admin/monitor` WebSocket for cross-gateway order/fill/session/CB activity.
 
 **Connection lifecycle:** identical to `/events` — the client opens the socket, sends
-`{ "api_key": "..." }` (must resolve to an ADMIN key, else close code `4003`), receives
-`{ "type": "authenticated" }`, then receives a merged stream. `pm-api-gwy` subscribes to the engine
-drop-copy socket and to `session.state` / `circuit_breaker.*`, and fans them out here.
+`{ "api_key": "..." }`, receives `{ "type": "authenticated" }`, then receives a merged stream.
+`pm-api-gwy` subscribes to the engine drop-copy socket and to `session.state` /
+`circuit_breaker.*`, and fans them out here.
 
-**Event envelope** (uniform with `/events`):
+> **Verified backend behaviour (phase 11):** a key that is read-only or not ADMIN gets a
+> `{ "type": "error", "data": { "message": "ADMIN role required" } }` frame followed by close code
+> **`1008`** (WS policy violation) — NOT `4003` as an earlier revision stated.
+
+**Event envelope** — the admin monitor forwards the **same uniform envelopes** as `/events` and
+`/market-data`, keyed by `type`. There is **no** `monitor.event` wrapper and **no**
+`data.event_type` discriminator (an earlier revision invented both). A live frame is:
 
 ```jsonc
 {
-  "type": "monitor.event",
+  "type": "order.fill",             // websocket_type(topic): order.ack | order.fill | order.cancelled
+                                    // | order.amended | order.expired | session | circuit_breaker
+                                    // | admin.action | trade | book | depth | auction | ...
+  "topic": "order.fill.GW01",       // the engine topic; `seq` counts within it
   "ts": "2026-07-09T14:15:03.221Z",
-  "seq": 100482,                    // from drop-copy sequence (FR-OPS-001)
-  "gateway_id": "GW01",
-  "data": {
-    "event_type": "FILL",           // ACK | FILL | CANCEL | AMEND | EXPIRE | REJECT | SESSION | CB
-    "order_id": "ORD-...",
-    "symbol": "AAPL",
-    "fill_qty": 50, "fill_price": 150.50, "remaining_qty": 50, "liquidity": "MAKER"
-  }
+  "seq": 100482,
+  "gateway_id": "GW01",             // present only on private/order-scoped frames (order.*/quote.*)
+  "stream_seq": 42,                 // ditto
+  "data": { "order_id": "ORD-...", "symbol": "AAPL", "fill_qty": 50, "fill_price": 150.50, "remaining_qty": 50 }
 }
 ```
 
-Session and circuit-breaker transitions arrive as `event_type: "SESSION"` / `"CB"` with the
-corresponding payloads. This one socket powers both the System Dashboard recent-events feed
-([§15.1](#151-system-dashboard)) and the Audit / Monitor Log Viewer
-([§15.9](#159-audit--monitor-log-viewer)).
+So a client classifies events by the envelope `type` (and `topic` for the
+`circuit_breaker.halt`/`.resume` split), not a payload field. Session and circuit-breaker
+transitions arrive as ordinary `type: "session"` / `type: "circuit_breaker"` frames; ADMIN-initiated
+commands arrive as `type: "admin.action"`. Cross-gateway `order.*` events (which an ADMIN receives
+**only** here, having no `/events` socket) carry `gateway_id`; market-data frames carry `seq` only.
+This one socket powers both the System Dashboard recent-events feed ([§15.1](#151-system-dashboard))
+and the Audit / Monitor Log Viewer ([§15.9](#159-audit--monitor-log-viewer)).
 
 **UX implication:** the ADMIN dashboard and monitor log can now be designed around a true live feed,
 not around polling or speculative backend work.
@@ -846,38 +808,66 @@ regardless of age. For anything older than the retention window, use
 
 ### 6.10 Auction market-data channel (available now)
 
-The engine publishes `auction.result.{SYMBOL}` on its bus when a symbol uncrosses, and the current
-gateway already exposes that stream as an `auction` channel on `/market-data`, subscribed like
-`book`/`trades`/`depth`.
+The engine publishes **two** auction topics on its bus, and the gateway now exposes **both** on the
+`auction` channel of `/market-data`, subscribed like `book`/`trades`/`depth`:
+
+- `auction.result.{SYMBOL}` — a completed uncross (what printed), published for every uncross.
+- `auction.indicative.{SYMBOL}` — where the symbol *would* uncross if the call phase ended now,
+  republished on a timer (default 1 s, `auction_indicative_interval_sec`) throughout an opening or
+  closing auction. `eq_price` is `null` when the book would not cross — a real, informative reading,
+  not an error.
+
+The two are delivered as **distinct envelope `type`s on the same channel** — `type: "auction"` for the
+final result and `type: "auction.indicative"` for the running indicative — so the UI routes on `type`
+rather than inspecting the payload. The engine publishes the indicative for every symbol in a call
+phase (skipping halted symbols, which have their own circuit-breaker indicative), so no client-side
+approximation is needed.
 
 **Subscribe:** `{ "action": "subscribe", "symbols": ["AAPL"], "channels": ["auction"] }`
 
-**Event payload:**
+**Final-result payload (`type: "auction"`)** — note the pm-msgen shape carries `reason`, not an
+`indicative` flag:
 
 ```jsonc
 {
-  "type": "auction", "ts": "...",
+  "type": "auction", "topic": "auction.result.AAPL", "ts": "...", "seq": 4412,
   "data": {
     "symbol": "AAPL",
-    "eq_price": 150.50,            // indicative/uncross equilibrium price; null if no cross
-    "eq_qty": 5000,               // matched quantity at eq_price
-    "imbalance_side": "BUY",      // "BUY" | "SELL" | ""
-    "imbalance_qty": 500,
+    "eq_price": 150.50,          // uncross price; null if nothing crossed
+    "eq_qty": 5000,             // matched quantity at eq_price
     "trades_count": 12,
-    "indicative": true             // true during an auction phase (pre-uncross), false for the final result
+    "imbalance_qty": 500,
+    "imbalance_side": "BUY",     // "BUY" | "SELL" | null
+    "reason": "SCHEDULED"        // SCHEDULED | REOPEN | RECOVERY | BACKSTOP
   }
 }
 ```
 
-**Design consequence:** the auction / indicative-price panel should now be treated as a first-class
-surface, not as a speculative enhancement.
+**Indicative payload (`type: "auction.indicative"`):**
+
+```jsonc
+{
+  "type": "auction.indicative", "topic": "auction.indicative.AAPL", "ts": "...", "seq": 88,
+  "data": {
+    "symbol": "AAPL",
+    "phase": "OPENING_AUCTION", // OPENING_AUCTION | CLOSING_AUCTION
+    "eq_price": 150.50,          // null if the book would not cross yet
+    "eq_qty": 5000,
+    "imbalance_qty": 500,
+    "imbalance_side": "BUY"      // "BUY" | "SELL" | null
+  }
+}
+```
+
+**Design consequence:** the auction / indicative-price panel is a first-class surface backed by an
+authoritative engine feed, not a client-side approximation.
 
 ### 6.11 Capability summary table
 
 | Capability | Current status | Notes |
 |---|---|---|
 | `GET /api/v1/status` → `gateway_role`, admin `gateway_count` | Available now | Use for role-aware routing and ADMIN KPI bootstrap |
-| `POST /api/v1/admin/session/transition` | Available now | REST response is authoritative: `200`/`ACCEPTED` with `command_id`, or `409`/`TRANSITION_REJECTED` with reason; still observe `session.state` for the resulting phase |
+| `POST /api/v1/admin/session/transition` | Available now | REST response is authoritative: `202`/`APPLIED` with `command_id`, or `409`/`TRANSITION_REJECTED` with reason; still observe `session.state` for the resulting phase |
 | `POST /api/v1/admin/circuit-breaker/trigger` / `/resume` | Available, but symbol-level | Treat as manual symbol halt / resume until `level` is semantically honoured |
 | `GET /api/v1/admin/gateways` | Available now | Supports Gateway Management screen |
 | `POST /api/v1/admin/gateways/{id}/disconnect` | Available now | “Kick” action already implementable |
@@ -890,7 +880,7 @@ surface, not as a speculative enhancement.
 | `WS /api/v1/admin/monitor` | Available now | Opens with a `monitor.snapshot` (orders/halts/gateways/last_seq); use as the primary ADMIN live feed |
 | `GET /api/v1/admin/orders?symbol=&gateway_id=&status=` | Available now | Current-state, cross-gateway; bounded by `order_retention_sec` |
 | `GET /api/v1/admin/orders/{order_id}` | Available now, requires `pm-audit` | Audit-trail lifecycle, unaffected by cache retention; `503` if the audit index isn't built |
-| `auction` channel on `/api/v1/market-data` | Available now | Use for auction panel, badges, and workspace cues |
+| `auction` channel on `/api/v1/market-data` | Available now | Carries both `type: "auction"` (final `auction.result`) and `type: "auction.indicative"` (running indicative); use for the auction panel, badges, and workspace cues |
 | Per-symbol subscription items + per-topic `seq` on `/api/v1/market-data` | Available now | One socket handles broad + focused subscriptions ([§17.3.1](#1731-authentication-and-subscription)); `seq` enables client-side gap detection |
 | Admin global/by-gateway kill switch | Not exposed | Current admin API supports symbol-scoped cancel only; global/by-gateway controls stay disabled |
 
@@ -904,10 +894,12 @@ surface, not as a speculative enhancement.
 2. **Live symbol addition/mutation.** The engine loads symbols from `engine_config.yaml` at startup
    (FR-ENG-017); there is no runtime add-symbol command. **Prerequisite** for
    [§6.7](#67-symbol-administration). Until added, Symbol Management stays read-only.
-3. **Indicative auction price.** Does the engine publish an *indicative* equilibrium during an
-   auction phase, or only the final `auction.result` on phase exit? If only the latter, the UI
-   computes an indicative client-side from the resting book (see
-   [§16.6](#166-auction--indicative-price-panel)). Confirmation needed.
+3. **Indicative auction price.** *Resolved.* The engine publishes an authoritative
+   `auction.indicative.{SYMBOL}` on a timer (default 1 s) throughout opening and closing auctions,
+   and the gateway forwards it on the `auction` channel as `type: "auction.indicative"`
+   ([§6.10](#610-auction-market-data-channel-available-now)). The UI renders the engine feed directly;
+   the client-side approximation in [§16.6](#166-auction--indicative-price-panel) is retained only as
+   an offline fallback for when the `auction` channel is unsubscribed.
 4. **`pm-index` availability.** Index admin ([§6.8](#68-index-administration)) depends on the
   separate `pm-index` process and a future `pm-api-gwy` bridge to it. Current API support is limited
   to read-only index history/statistics under `/history/index-*`, not `/admin/indexes`.
@@ -944,9 +936,11 @@ sequenceDiagram
     alt key valid
         GW-->>UI: 200 OK { gateway_role, gateway_count?, cache summary }
         UI->>UI: Store key and role in Zustand
+        UI->>GW: GET /api/v1/bootstrap/{role}  (trader | mm | admin)
+        GW-->>UI: 200 OK { gateway_id, symbols, session, positions, orders, ... }
+        UI->>UI: Hydrate Zustand + TanStack Query cache from bootstrap response
         UI->>GW: WS /api/v1/events  { api_key: "..." }
         GW-->>UI: { type: "authenticated", gateway_id: "GW01" }
-        UI->>UI: Store gateway_id from events auth response
         UI->>GW: WS /api/v1/market-data  { api_key: "..." }
         GW-->>UI: { type: "authenticated" }
         opt role == ADMIN
@@ -962,8 +956,12 @@ sequenceDiagram
 
 The role is read from the `gateway_role` field of `GET /api/v1/status` (see
 [§6.2](#62-extended-get-apiv1status)); it maps to TRADER / MARKET_MAKER / ADMIN. Using `/status`
-(rather than `/symbols`) as the login probe gives the UI the role in a single call. The authenticated
-`gateway_id` is learned from the `/events` WebSocket authentication reply for trading credentials.
+(rather than `/symbols`) as the login probe gives the UI the role in a single call. The
+`GET /api/v1/bootstrap/{role}` call then replaces the subsequent multi-request waterfall (symbols,
+session, positions, orders, etc.) with one round-trip that hydrates the Zustand stores and TanStack
+Query cache before the WebSockets open. The authenticated `gateway_id` is available from the bootstrap
+response; the `/events` WebSocket auth reply confirms it and is still the canonical source for the
+running session.
 
 ### 7.3 HTTP client wrapper
 
@@ -1288,7 +1286,9 @@ with a Retry button that re-fetches `GET /symbols`.
 
 ```
 GET /api/v1/symbols
-→ { symbols: [{ symbol, tick_decimals, reference_price, ... }] }
+→ { symbols: [{ symbol, tick_decimals, prev_close?, enforce_mm_obligation?, mm_max_spread_ticks?, mm_min_qty? }] }
+   // pm-msgen `SymbolInfo`, resolved per caller. reference_price and the collar `level` are NOT
+   // here — source those from GET /api/v1/reference (see §12.6, §15.2.1, §18.1.5).
 
 GET /api/v1/history/daily?date=<today>
 → { stats: [{ symbol, open_price, close_price, volume, ... }] }
@@ -1495,9 +1495,11 @@ auction phases, the auction banner ([§12.10](#1210-auction-phase-banner)) also 
 
 The Symbol field is a combobox (shadcn `<Combobox>`) populated from the Zustand symbol list.
 Typing filters symbols by prefix. Selecting a symbol also **sets the active symbol** (so the chart,
-DOM, and blotter follow) and pre-fills a reference price hint next to the Price field:
-`"Ref: 150.25"` (from `symbol.reference_price`). In Workspace mode the picker is bound to the active
-symbol and changing it re-binds the whole workspace.
+DOM, and blotter follow) and pre-fills a reference price hint next to the Price field: `"Ref: 150.25"`.
+The reference price is **not** on `GET /symbols` (`SymbolInfo`); source it from the reference bundle
+(`GET /api/v1/reference/risk` → `SymbolRiskState.reference_price`), falling back to
+`SymbolInfo.prev_close` from `/symbols` when the risk bundle is not loaded. In Workspace mode the
+picker is bound to the active symbol and changing it re-binds the whole workspace.
 
 ### 12.7 OCO Order Entry sub-panel
 
@@ -1560,10 +1562,26 @@ The resulting combo is shown as a group in the blotter ([§13.3](#133-oco-and-co
 
 1. User presses **BUY** or **SELL** (or `B` / `S` when the ticket is focused).
 2. The handler injects the chosen `side`, then runs Zod validation; inline field errors shown on failure.
-3. On success, `POST /api/v1/orders` (or `/oco`, `/combos` for the advanced sub-panels).
-4. Immediately show a toast: `"Order submitted — pending ACK"` and record it in the Event Center.
-5. On WebSocket `order.ack` with `accepted: true`: toast updates to `"ACK: order accepted"`.
-6. On `accepted: false`: toast shows `"REJECTED: {reason}"` in red; recorded in the Event Center.
+3. `POST /api/v1/orders` (or `/oco`, `/combos`). **The HTTP status is the first authority:**
+   - `202 Accepted` — the order reached the engine. Insert a local **PENDING** row keyed on the
+     returned `order_id` and toast `"Order submitted — pending ACK"`. `202` means *submitted*, not
+     *accepted*.
+   - `4xx` (`422` validation, `409` duplicate `client_order_id`, `429` rate limit) — an immediate,
+     **synchronous rejection**: no order exists, so create **no PENDING row**; toast the error. There
+     is no `order.ack` for a `4xx`.
+4. The authoritative outcome then arrives on `/events` as `order.ack` — see the two-ACK model in
+   [§17.2.4](#1724-order-acknowledgement-safety). Apply it to the PENDING row:
+   - `accepted: true` → mark the row **NEW** (working). For LIMIT/STOP/… this is final until a later
+     fill/cancel.
+   - `accepted: false` → mark the row **REJECTED** (terminal) and toast `"REJECTED: {reason}"` — even
+     if a prior `accepted: true` was already seen, because MARKET/FOK/IOC can emit a gateway ACK and
+     then a book rejection, and the **later ACK wins**.
+5. Fills (`order.fill`) and terminals (`order.cancelled`/`order.expired`) update the row thereafter.
+6. If no `order.ack` arrives within a short timeout (e.g. 3 s), **reconcile** the PENDING row against
+   `GET /orders` (and `GET /history/orders/{order_id}` if absent there) rather than leaving it PENDING
+   — the ACK may have been dropped under backpressure and is recoverable via the `stream_seq` gap +
+   snapshot path ([§17.2.4](#1724-order-acknowledgement-safety)). Alternatively submit with
+   `?wait=ack` to fold the first ACK into the HTTP response synchronously.
 7. The ticket keeps its parameters after submit (symbol, qty, price) so the trader can immediately
    act on the other side; only transient fields are cleared. This is deliberate for fast two-sided
    trading from the Workspace.
@@ -1728,8 +1746,17 @@ A paginated table of fill events for this gateway.
 
 #### 13.5.1 Data source
 
-- Initial load: `GET /api/v1/history/fills?limit=200`
+- Initial load: `GET /api/v1/history/fills?limit=200` (durable FILL order-events from `stats.db`).
 - Live updates: WebSocket `order.fill` events appended to the top of the table.
+
+> **Trade ID (pm-msgen):** the private `order.fill` event now carries a **`trade_ids`** array — the
+> public `trade.executed` id(s) that composed the fill
+> ([order.py `OrderFill`](../src/edumatcher/models/generated/order.py)). It is usually a single id; it
+> holds several when an aggressor swept multiple resting orders and the engine coalesced them into one
+> VWAP fill (H5/H6), and is `[]` only for a fill with no trade behind it. The Trade ID column reads
+> `trade_ids[0]` (badging “＋N” when there is more than one), so a live `order.fill` row shows its
+> trade id immediately — no correlation against the public `trade` tape and no wait for
+> `/history/fills`. `/history/fills` remains the source for historical rows.
 
 #### 13.5.2 Columns
 
@@ -1741,7 +1768,7 @@ A paginated table of fill events for this gateway.
 | Fill Qty | |
 | Fill Price | |
 | Remaining | After this fill |
-| Trade ID | First 8 chars; hover shows full UUID |
+| Trade ID | First 8 chars of `trade_ids[0]`; hover shows the full id(s). A “＋N” badge marks a multi-trade (swept VWAP) fill; `[]` (no trade) shows `—`. Present on the live `order.fill` immediately (see §13.5.1) |
 | Order ID | First 8 chars; click opens the Order Detail drawer ([§13.4](#134-order-detail-drawer)) |
 
 #### 13.5.3 Filters
@@ -1824,9 +1851,15 @@ active two-sided quote for that symbol.
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- **BID / ASK rows**: price, quantity, and a per-leg fill progress bar (`fill_qty / orig_qty`). The
-  authoritative per-leg fill flags come from `GET /api/v1/quotes/legs` (see
-  [§14.3](#143-quote-bootstrap-and-legs-view)).
+- **BID / ASK rows**: price, quantity, and a per-leg fill progress bar (`filled / qty`). These come
+  from the `ActiveQuote` record in `GET /api/v1/quotes/bootstrap`, which carries `bid_price`/
+  `ask_price`, `bid_qty`/`ask_qty`, `bid_remaining_qty`/`ask_remaining_qty` and per-leg status
+  directly, so `filled = qty - remaining_qty`. **Implementation note (phase 9):** the 1.11.x design
+  planned to source these from `GET /api/v1/quotes/legs`, but that endpoint is dual-shaped — it only
+  returns per-leg `QuoteLeg` records on the cold engine round-trip; once any `quote.ack`/`quote.status`
+  has landed it serves the gateway's warm cache, which holds *quote-level* ack/status dicts with no
+  per-leg qty/price. `ActiveQuote` from `/bootstrap` is therefore the authoritative card source; the
+  legs endpoint is a supplementary detail view (see [§14.3](#143-quote-bootstrap-and-legs-view)).
 - **Status badge**: ACTIVE (green), INACTIVE (amber), CANCELLED (slate), PENDING (slate).
 - **New Quote button**: opens the New Quote Form inline ([§14.2](#142-new-quote-form)).
 - **Cancel button**: calls `DELETE /api/v1/quotes/{symbol}` with confirmation.
@@ -1876,11 +1909,18 @@ Two complementary read sources:
 
 - **`GET /api/v1/quotes/bootstrap`** returns all active quote state — used on MM startup to verify
   which quotes are already active on the engine side.
-- **`GET /api/v1/quotes/legs`** returns the individual quote **legs with per-leg fill flags** (API
-  Gateway spec §6.11 — a session-cache endpoint fed by `quote.ack`, `quote.status`, and fills). This
-  is the **authoritative source for the quote cards' fill indicators** in
-  [§14.1.1](#1411-quote-card-anatomy); `/bootstrap` provides the higher-level active-quote snapshot,
-  while `/legs` provides the granular bid/ask fill quantities that drive the progress bars.
+- **`GET /api/v1/quotes/legs`** is intended to return the individual quote **legs with per-leg fill
+  flags** (API Gateway spec §6.11). **Verified backend behaviour (phase 9):** this endpoint returns
+  **two structurally different shapes**. On a cold cache it round-trips the engine and returns full
+  pm-msgen `QuoteLeg` records (`quote_id`, `order_id`, `symbol`, `leg_side`, `qty`, `remaining`,
+  `filled`, `status`, `quote_status`, optional `price`) inside a `{ legs, show_requested, complete,
+  recent }` envelope. But once any `quote.ack`/`quote.status` has landed, the gateway serves its warm
+  session cache, whose entries are keyed by `quote_id` and hold merged *quote-level* ack/status dicts
+  (`quote_id`, `accepted`, `reason`, `bid_order_id`, `ask_order_id`, `status`) with **no** per-leg
+  `order_id`/`leg_side`/`qty`/`price`. Because that warm path is the common case, `/legs` is **not** a
+  dependable source for the card fill bars — the cards use `ActiveQuote` from `/bootstrap` instead
+  ([§14.1.1](#1411-quote-card-anatomy)). The UI normalizes both `/legs` shapes defensively and flags
+  the degraded rows in this view.
 
 These two endpoints should also define the MM reconnect/recovery path:
 
@@ -1891,17 +1931,21 @@ These two endpoints should also define the MM reconnect/recovery path:
 - show a small “reconciled at HH:MM:SS” stamp so the user can see that the dashboard has been
   resynced after a disconnect
 
-The combined table shows:
+The combined table shows (the pm-msgen `QuoteLeg` shape is per-side, keyed on `leg_side`, and now
+carries its own `price`, so every column below is available from `/quotes/legs` alone):
 
-| Column | Source |
-|--------|--------|
-| Symbol | bootstrap / legs |
-| Quote ID | bootstrap / legs |
-| Side (bid/ask) | legs |
-| Price | legs |
-| Qty | legs |
-| Fill Qty | legs (per-leg fill flag) |
-| Status | bootstrap / legs |
+| Column | Source | pm-msgen field |
+|--------|--------|----------------|
+| Symbol | legs | `symbol` |
+| Quote ID | legs | `quote_id` |
+| Order ID | legs | `order_id` |
+| Side | legs | `leg_side` (`"BUY"` \| `"SELL"`, **not** bid/ask) |
+| Price | legs | `price` (display money; `null` only if the resting order's price is unavailable) |
+| Qty | legs | `qty` |
+| Remaining | legs | `remaining` |
+| Filled | legs | `filled` |
+| Leg status | legs | `status` |
+| Quote status | legs | `quote_status` |
 
 ### 14.4 MM Position Panel
 
@@ -1967,12 +2011,13 @@ A table of all configured symbols with:
 
 | Column | Source |
 |--------|--------|
-| Symbol | `GET /symbols` |
-| Tick Decimals | `symbol.tick_decimals` |
-| Reference Price | `symbol.reference_price` |
+| Symbol | `GET /symbols` (`SymbolInfo`) |
+| Tick Decimals | `SymbolInfo.tick_decimals` |
+| Reference Price | `GET /reference/risk` → `SymbolRiskState.reference_price` (**not** on `/symbols`) |
+| Prev Close | `SymbolInfo.prev_close` |
 | Last Buy Price | `bookStore` (from WS `book` events) |
 | Last Ask Price | `bookStore` |
-| CB Level | `symbol.level` (collar profile name) |
+| CB Level | `GET /reference` → `ReferenceSymbol.level` (collar profile name; **not** on `/symbols`) |
 
 **Add / edit symbol:** the "Add Symbol" form and inline edits map to
 `POST /api/v1/admin/symbols` / `PATCH /api/v1/admin/symbols/{symbol}`
@@ -1995,9 +2040,15 @@ endpoints:
 - `GET /api/v1/history/index-snapshots`
 - `GET /api/v1/history/index-events`
 
-The panel shows current/recorded index data when those endpoints are available and displays this
-placeholder for write controls: "Index administration requires a future pm-api-gwy bridge to
-pm-index. Use `pm-index-admin-cli` for index write operations until then."
+The panel shows configured indexes (`GET /admin/indexes` — id, description, base value,
+constituents) and, for a selected index, recorded daily levels (`GET /history/index-daily`).
+
+> **Corrected in phase 13.** `POST /admin/indexes/{id}/rebalance` DOES exist and is wired to a live
+> `pm-index` bridge (`request.app.state.index_client`, constructed at startup; `503 INDEX_TIMEOUT` if
+> pm-index is down, `409 REBALANCE_REJECTED` on refusal) — so index writes are no longer "blocked on a
+> future bridge." A corporate-action rebalance UI is nonetheless **out of scope for this read-only
+> admin phase**; the panel shows no write control and notes that rebalancing is available via the API
+> / `pm-index-admin-cli`. This is a deliberate scoping choice, not a disabled placeholder.
 
 ### 15.4 Session Control
 
@@ -2029,7 +2080,7 @@ const VALID_TRANSITIONS: Record<SessionState, SessionState[]> = {
 
 Each enabled button shows a confirmation dialog before calling
 `POST /api/v1/admin/session/transition` with `{ to_state }` ([§6.3](#63-session-control)). The REST
-response is now authoritative: `200`/`ACCEPTED` confirms the transition immediately, and
+response is now authoritative: `202`/`APPLIED` confirms the transition immediately, and
 `409`/`TRANSITION_REJECTED` surfaces the engine's reason (e.g. sessions disabled,
 invalid-from-current-phase) directly in the error toast — no more inferring success from a
 `session.state` broadcast or timing out. The UI still watches `session.state` on `/market-data` to
@@ -2057,17 +2108,22 @@ config-file import fallback.
 
 #### 15.5.2 Circuit breaker ladder
 
-For each circuit breaker level (L1/L2/L3):
+> **Corrected in phase 13.** Reading the engine's reference builder showed the circuit-breaker ladder
+> is configured **per symbol**, not per named risk level — and the named `risk.levels` from
+> `/reference/risk` carry **only** a collar, no CB rungs. So this ladder is sourced from
+> `GET /reference` → `symbols[].circuit_breaker.levels[]`, one block per symbol.
 
-| Field | Description |
-|-------|-------------|
-| Level | L1 / L2 / L3 |
-| Price Shift % | Threshold for trigger |
-| Halt Duration | Minutes or "Rest of day" |
-| Resumption Mode | AUCTION / CONTINUOUS |
+Per symbol, for each configured rung:
 
-This view has the same backing as the collar table above: runtime reference-data (`/reference/risk`)
-for level definitions and display metadata.
+| Field | Source |
+|-------|--------|
+| Symbol | `symbols[].symbol` |
+| Level | `circuit_breaker.levels[].name` |
+| Price Shift % | `circuit_breaker.levels[].price_shift_pct` |
+| Halt Duration | `circuit_breaker.levels[].halt_duration_ns` (NANOSECONDS — formatted to `Xm`/`Xh Ym`) |
+
+There is **no** Resumption Mode column — every halt reopens via a call auction. A symbol with no
+`circuit_breaker` block simply contributes no rows.
 
 ### 15.6 Circuit Breaker Management
 
@@ -2075,22 +2131,30 @@ The live operational view of circuit breakers — which are active, plus manual 
 
 #### 15.6.1 Active halts table
 
-Columns: Symbol, Level, Trigger Price, Reference Price, Halt Start, Estimated Resume, Resumption Mode.
+Columns: Symbol, Level, Trigger Price, Reference Price, Estimated Resume, Halt Source.
 
 Populated from Zustand `haltStore` (fed by WebSocket `circuit_breaker` events) + initial bootstrap
-from `GET /api/v1/admin/halts` ([§6.6](#66-halts-and-risk-configuration-runtime-read-only)).
+from `GET /api/v1/admin/halts` ([§6.6](#66-halts-and-risk-configuration-runtime-read-only)). The two
+sources differ: the `/admin/halts` bootstrap carries only `symbol`, `level`, `resume_at_ns`, and
+`halt_source`, so **Trigger Price / Reference Price render only for halts seen live** on the WS
+`circuit_breaker` event (which alone carries them) — rows restored from the bootstrap leave those
+cells blank until the symbol is re-halted. "Estimated Resume" is derived from `resume_at_ns` (blank
+for an indefinite halt). There is **no** Resumption Mode column — every halt reopens via a call
+auction.
 
 #### 15.6.2 Manual CB trigger
 
-A form with: Symbol picker + Level selector (L1/L2/L3) + Confirm button, mapping to
-`POST /api/v1/admin/circuit-breaker/trigger` `{ symbol, level }`
-([§6.4](#64-circuit-breaker-control)). Confirmation dialog: "Trigger L2 circuit breaker for AAPL?
-This will halt the symbol for 15 minutes."
+A form with: Symbol picker + Level selector + Confirm button, mapping to
+`POST /api/v1/admin/circuit-breaker/trigger` `{ symbol, level? }`
+([§6.4](#64-circuit-breaker-control)), returning `SymbolHaltAck`
+`{ accepted, symbol, cancelled_quotes }` (rejection → `403 ROLE_DENIED`).
 
-> **Current limitation:** the gateway currently exposes this endpoint, but the backend semantics are
-> closer to a manual symbol halt than a true level-aware simulated breaker trigger. The UI should
-> therefore either (a) remove the Level selector for now, or (b) keep it visibly disabled / marked as
-> informational until the backend honours `level` as an input.
+> **Corrected in phase 13.** `level` IS honoured end-to-end: naming one of the symbol's configured
+> circuit-breaker levels runs the real `CircuitBreakerState.activate()` path (real `resume_at_ns`,
+> auto-resume), while omitting it halts indefinitely until an explicit clear; the engine **rejects**
+> a level for a symbol with no circuit breaker configured. So the Level selector is **functional**,
+> populated from the *selected symbol's own* ladder (`/reference` → `circuit_breaker.levels`), with an
+> "Indefinite (no level)" option; it is disabled only when the chosen symbol has no CB configured.
 
 #### 15.6.3 Manual CB clear
 
@@ -2125,18 +2189,29 @@ mode (truly destructive, affects another participant).
 
 ### 15.8 Kill Switch (Admin)
 
-The current implementable ADMIN kill switch is **symbol-scoped only**:
+> **Adapted in phase 12.** An earlier revision treated By Gateway / Global as disabled placeholders
+> "pending a future admin endpoint." Reading the gateway source confirmed all three scopes now exist
+> as ADMIN endpoints with their own acks, so all three are implemented and working. Each **always
+> confirms** regardless of power-user mode; the market-wide Global scope requires typing `CONFIRM`.
 
-- **By Symbol**: select a symbol → calls `POST /api/v1/admin/kill-switch/symbol` with
-  `{ "symbol": "AAPL" }`, cancelling orders for that symbol through the engine's admin cancel-symbol
-  path.
+All three scopes cancel resting orders/quotes (they do **not** halt trading — a participant may
+re-submit immediately). A rejection comes back as `403 ROLE_DENIED` with the engine's reason, not an
+`accepted: false` body, so a `202` always means it ran.
 
-The following controls are shown disabled with explicit prerequisite text, not wired to the trading
-`/kill-switch` endpoint:
+- **By Symbol**: `POST /api/v1/admin/kill-switch/symbol` `{ symbol }` → `CancelSymbolAck`
+  `{ accepted, symbol, cancelled_orders, cancelled_quotes, command_id? }`. Cancels that symbol across
+  every gateway.
+- **By Gateway**: `POST /api/v1/admin/kill-switch/gateway` `{ target_gateway_id, reason? }` →
+  `KillSwitchGatewayAck` `{ accepted, target_gateway_id, cancelled_orders, cancelled_quotes }`.
+  Cancels one named participant's resting exposure **without disconnecting it** — distinct from the
+  Gateway Kick ([§15.7.2](#1572-kick-disconnect-gateway)), which disconnects and cancels as a side
+  effect.
+- **Global**: `POST /api/v1/admin/kill-switch/global` `{ reason? }` → `KillSwitchGlobalAck`
+  `{ accepted, cancelled_orders, cancelled_quotes, affected_gateways }`. Full-market emergency stop;
+  guarded by the type-`CONFIRM` dialog ([§20.3](#203-power-user-mode)).
 
-- **By Gateway**: requires a future admin endpoint; `POST /api/v1/kill-switch` is caller-gateway
-  scoped and cannot cancel another gateway's orders.
-- **Global**: requires a future admin endpoint and engine acknowledgement semantics.
+The panel lives on the Gateway Management screen ([§15.7](#157-gateway-management)) alongside the
+roster, since two of the three scopes are gateway-oriented.
 
 The enabled symbol-scoped action always confirms, even in power-user mode. If global kill switch is
 added later, it should use the three-step confirmation pattern: first dialog → second dialog → type
@@ -2222,16 +2297,16 @@ Buttons above the chart: `1m` | `5m` | `1h` | `1D` | `All`.
 When a WebSocket `trade` event arrives for the current symbol:
 
 ```typescript
-const handleTrade = (trade: WSTrade) => {
-  if (trade.symbol !== activeSymbol) return;
-  // Update last candle or create new one depending on current time bucket
+const handleTrade = (t: TradeData) => {
+  if (t.symbol !== activeSymbol) return;
+  // `t` is the WS event `data` (pm-msgen TradeExecuted); `timestamp` is epoch seconds.
   chartRef.current?.updateLastBar({
-    time: bucketTimestamp(trade.ts, timeframe),
+    time: bucketTimestamp(t.timestamp, timeframe),
     open: candle.open,
-    high: Math.max(candle.high, trade.price),
-    low: Math.min(candle.low, trade.price),
-    close: trade.price,
-    volume: candle.volume + trade.quantity,
+    high: Math.max(candle.high, t.price),
+    low: Math.min(candle.low, t.price),
+    close: t.price,
+    volume: candle.volume + t.quantity,
   });
 };
 ```
@@ -2313,14 +2388,14 @@ phases — a high-value teaching moment, since it shows *how* the opening/closin
   quantity that would remain unexecuted on the heavier side.
 - A small bid/ask cumulative-quantity curve highlighting the crossing point.
 
-**Data source:** the new `auction` market-data channel ([§6.10](#610-auction-market-data-channel)),
-carrying `auction.result.{SYMBOL}` payloads (`eq_price`, `eq_qty`, `imbalance_side`, `imbalance_qty`,
-`trades_count`, `indicative`). If the engine only publishes the **final** uncross result on phase
-exit (rather than periodic indicative values — see
-[§6.12](#612-open-questions-and-backend-prerequisites)), the panel shows the last indicative received
-and may compute an **educational approximation** client-side from available depth/book data. That
-approximation is labelled as non-authoritative; only engine-provided `auction` payloads are treated
-as the authoritative indicative or final auction result.
+**Data source:** the `auction` market-data channel ([§6.10](#610-auction-market-data-channel-available-now)),
+which now carries two engine-authoritative message types: `type: "auction.indicative"`
+(`symbol`, `phase`, `eq_price`, `eq_qty`, `imbalance_qty`, `imbalance_side`) republished on a timer
+throughout the call phase, and `type: "auction"` (the final `auction.result`, adding `trades_count`
+and `reason`, dropping `phase`). The panel renders the latest indicative live and locks to the final
+result on phase exit. A **client-side educational approximation** from the resting book is kept only
+as a fallback for when the `auction` channel is not subscribed; it is labelled non-authoritative and
+never overrides an engine-provided value.
 
 **Educational value:** the panel makes the equilibrium-price mechanism visible — students can watch
 the indicative price and imbalance move as auction orders arrive, then see it "lock in" at the
@@ -2386,15 +2461,17 @@ for its cross-gateway feed, since `/events` only carries the calling gateway's o
 
 Must be sent within 5 seconds of connection. Server responds with:
 ```jsonc
-{ "type": "authenticated", "gateway_id": "GW01", "event_seq": 9182 }
+{ "type": "authenticated", "gateway_id": "GW01", "stream_seq": 9182 }
 ```
 
 An `orders.snapshot` frame with the gateway's current active orders follows immediately after
 authentication, so the blotter can rebuild its state without a separate `/orders` round-trip.
 
-`/api/v1/events` now carries a private per-gateway `event_seq`, so the UI can detect a gap in private
-events the same way it does for market data ([§17.3.1](#1731-authentication-and-subscription)). There
-is **no resume/replay handshake, and none is planned**: replay's only advantage over `event_seq` +
+`/api/v1/events` carries a private per-gateway **`stream_seq`** (one contiguous counter across the
+whole private stream, since a private subscriber is unfiltered), so the UI can detect a gap in private
+events. This is distinct from the per-**topic** `seq` on market data ([§17.3.1](#1731-authentication-and-subscription)),
+which is filtered and therefore counted per topic. There
+is **no resume/replay handshake, and none is planned**: replay's only advantage over `stream_seq` +
 `orders.snapshot` is visibility into transitions missed during a gap (e.g. a fill immediately followed
 by a cancel, which the snapshot alone would only show as `CANCELLED`). Those transitions are already
 recoverable from `/history/*`, with drop copy as the authoritative fill record (see
@@ -2433,6 +2510,43 @@ grouping client-side.
 Toast persists for 8 seconds (longer than standard toasts) and is retained in the Event Center.
 Clicking "View Order" opens the Order Detail drawer ([§13.4](#134-order-detail-drawer)) for that order.
 
+#### 17.2.4 Order acknowledgement safety
+
+An order acknowledgement can be neither **lost** (an order that went through but the UI never learns)
+nor **falsely granted** (showing accepted for an order the engine rejected), provided the UI follows
+the rules below. They reflect how the engine and gateway actually behave.
+
+**Two-ACK model — `accepted:true` is not "it rested/filled".** The engine publishes `order.ack`
+`accepted:true` **before** it runs the order through the book. That first ACK is a *gateway/processing*
+ACK: it confirms only that the symbol is valid, the session is open, and the gateway is authenticated.
+For **MARKET/FOK/IOC**, if the book then rejects (e.g. FOK with insufficient liquidity), a **second
+`order.ack` `accepted:false`** follows on the same topic and is **authoritative**. Therefore:
+
+- The UI must process **every** `order.ack` for an `order_id`, in order, and let the **latest** win.
+- `accepted:false` sets the row **REJECTED** (terminal) even if a prior `accepted:true` was seen.
+- Never render the first `accepted:true` as a terminal "done/good" state for MARKET/FOK/IOC; only a
+  fill, a cancel, or the absence of a follow-up rejection makes the outcome final.
+- For LIMIT/STOP/STOP_LIMIT/ICEBERG/TRAILING_STOP the first `accepted:true` is the resting ACK; fills
+  and cancels follow as their own events.
+
+**No lost ACK.** Every private event on `/events` carries a monotonic per-gateway `stream_seq`
+([§17.2.1](#1721-authentication-frame)), so a dropped ACK (e.g. shed under sink backpressure) shows up
+as a **sequence gap** rather than vanishing silently. Recovery, in order of cost:
+
+1. On reconnect, the `orders.snapshot` frame and `GET /orders` return each order's **current status**
+   (`NEW`/`REJECTED`/`PARTIAL`/`FILLED`/`CANCELLED`/`EXPIRED`) — the gateway cache folds every ACK into
+   the order (`accepted → NEW`, `!accepted → REJECTED`), so a missed ACK is reflected there.
+2. `GET /history/orders/{order_id}` is the durable backstop (from `stats.db`), independent of cache
+   retention.
+3. A local **PENDING** row with no ACK after a short timeout is reconciled against (1)–(2) rather than
+   displayed indefinitely.
+
+**No false ACK.** The design never optimistically promotes an order to a working/accepted state
+without an `order.ack`; a `4xx` POST is a synchronous rejection that creates no order and no PENDING
+row ([§12.9](#129-submit-flow-and-feedback-buysell-actions)); and because ACK handling is keyed on
+`order_id` and status transitions are monotonic toward a terminal state, re-processing the same ACK
+(after a reconnect/replay) is idempotent and cannot resurrect a rejected order.
+
 ### 17.3 Market Data WebSocket (`/api/v1/market-data`)
 
 Used by: all roles.
@@ -2467,7 +2581,7 @@ state for that topic, and re-subscribes the affected item to force a fresh serie
 replay proposal). `session` and `circuit_breaker` remain always-on regardless of the subscribed
 items. `ManagedSocket` replays the full `items` list on every reconnect, and the UI still refreshes
 REST/bootstrap queries (`/orders`, `/positions`, `/quotes/bootstrap`, `/quotes/legs`) after reconnect
-to repair any private-event gap; `/api/v1/events` now carries `event_seq` for gap *detection*
+to repair any private-event gap; `/api/v1/events` now carries `stream_seq` for gap *detection*
 ([§17.2.1](#1721-authentication-frame)) but has no resume/replay handshake yet.
 
 #### 17.3.2 Event routing
@@ -2477,7 +2591,8 @@ to repair any private-event gap; `/api/v1/events` now carries `event_seq` for ga
 | `book` | `bookStore.updateBook(symbol, data)` — triggers flash cells |
 | `trade` | `bookStore.updateLastPrice(symbol, price, qty)` + chart tick handler |
 | `depth` | `bookStore.updateDepth(symbol, data)` |
-| `auction` | `bookStore.updateAuction(symbol, data)` — feeds Auction panel + Market Overview badge |
+| `auction` | `bookStore.updateAuction(symbol, data)` — final uncross result; feeds Auction panel + Market Overview badge |
+| `auction.indicative` | `bookStore.updateAuction(symbol, data, {indicative: true})` — running call-phase indicative on the same `auction` channel |
 | `session` | `sessionStore.setPhase(state, prevState)` + top-bar badge + Event Center |
 | `circuit_breaker` | `haltStore.setHalt(symbol, data)` / `haltStore.clearHalt(symbol)` + Event Center |
 
@@ -2501,18 +2616,48 @@ When `bookStore.updateBook` fires with a changed price:
 }
 ```
 
+#### 17.3.4 Bandwidth and the 100-symbol overview
+
+The market-data stream is **snapshot-based, not delta-based**, and this shapes how the UI subscribes
+at scale.
+
+- **`book` is a full snapshot on a timer.** Each `book` event is the entire aggregated book for one
+  symbol — all `bids`, all `asks`, **plus a `recent_trades` tail** ([book.py `BookSnapshot`](../src/edumatcher/models/generated/book.py)) —
+  republished about every 0.5 s (the engine's per-symbol `SNAPSHOT_INTERVAL`). A `*` `book`
+  subscription across 100+ symbols is therefore on the order of 200 full book payloads per second.
+- **`depth` is also a full snapshot** ([book.py `Depth`](../src/edumatcher/models/generated/book.py)),
+  and there is no incremental depth channel (the delta proposal in [§26.3.4](#2634-authoritative-depth-and-auction-topics)
+  is not built). Depth and `auction` must therefore be subscribed for the **focus set only**
+  (active symbol + watchlist), bounded by `VITE_MAX_FOCUS_SYMBOLS`.
+
+**Consequences for the subscription plan:**
+
+1. The overview grid needs only top-of-book (best bid/ask + last), which the `book` snapshot provides;
+   it must **not** request `depth`/`auction` broadly. The broad item stays `{"*": ["book","trades"]}`;
+   the narrow item carries `depth`/`auction` for the focus set ([§17.3.1](#1731-authentication-and-subscription)).
+2. Overview rendering must stay virtualized (TanStack Virtual) and use fine-grained `bookStore`
+   selectors so a 100-symbol snapshot storm re-renders only changed cells.
+3. **`seq`-gap handling:** a detected per-topic `seq` gap is now repaired with a targeted
+   `{ "action": "resume" }` ([§26.3.2](#2632-snapshot-resume-and-reset-handshake)), avoiding the
+   earlier full re-subscribe + REST refresh storm. On reconnect, `ManagedSocket` passes `resume_from`
+   per topic in the `subscribe` frame so each channel picks up where it left off. A `resume.rejected`
+   (e.g. `too_old`) falls back to a `{ "action": "snapshot" }` for that topic only. Keeping the heavy
+   (`depth`) focus set small bounds worst-case snapshot fan-out when the replay window has expired.
+
 ### 17.4 Admin Monitor WebSocket (`/api/v1/admin/monitor`)
 
 Used by: ADMIN only. This is a **required gateway extension**
 ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor)) that fans out the engine drop-copy stream
 (`drop_copy.event.*`) plus `session`/`circuit_breaker` transitions.
 
-- **Auth:** `{ "api_key": "..." }`; the key must resolve to ADMIN or the server closes with code
-  `4003`.
+- **Auth:** `{ "api_key": "..." }`; a non-ADMIN key gets an `error` frame then close code **`1008`**
+  (not `4003`).
 - **Opening state:** a `monitor.snapshot` frame ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor))
   with current active orders, active halts, connected gateways, and last sequence per gateway.
-- **Envelope:** `monitor.event` with `seq`, `gateway_id`, and a `data.event_type`
-  (`ACK`/`FILL`/`CANCEL`/`AMEND`/`EXPIRE`/`REJECT`/`SESSION`/`CB`).
+- **Envelope:** the **uniform** envelope keyed by `type` (`order.ack`/`order.fill`/`order.cancelled`/
+  `order.amended`/`order.expired`/`session`/`circuit_breaker`/`admin.action`/…), with per-topic `seq`
+  and `gateway_id` on the private/order-scoped frames — **not** a `monitor.event`/`event_type` shape
+  (see the §6.9 correction). The client classifies by `type`/`topic`.
 - **Cross-gateway order REST views:** `GET /api/v1/admin/orders` (current-state, filtered, bounded by
   `order_retention_sec`) and `GET /api/v1/admin/orders/{order_id}` (full lifecycle from the audit
   trail) complement the WebSocket for tabular/drill-down views ([§6.9](#69-admin-monitor-websocket-apiv1adminmonitor)).
@@ -2597,7 +2742,13 @@ interface BookStore {
   books: Record<string, BookEntry>;
   updateBook: (symbol: string, data: BookSnapshot) => void;
   updateLastPrice: (symbol: string, price: number, qty: number) => void;
-  updateAuction: (symbol: string, data: AuctionResult) => void;
+  // Accepts both the final `auction` (AuctionResult) and the running
+  // `auction.indicative` (AuctionIndicative); `opts.indicative` flags the latter.
+  updateAuction: (
+    symbol: string,
+    data: AuctionResult | AuctionIndicative,
+    opts?: { indicative?: boolean },
+  ) => void;
 }
 ```
 
@@ -2610,15 +2761,20 @@ const bestBid = useBookStore((s) => s.books["AAPL"]?.bids[0]?.price);
 
 #### 18.1.4 `useHaltStore`
 
+Fed by the `circuit_breaker` WS event (`CircuitBreakerHalt`, see Appendix A) and bootstrapped by
+`GET /api/v1/admin/halts`. The shape matches the wire: `level` is a **name string** (not a number),
+timing is `resumeAtNs` (epoch nanoseconds), and `triggerPrice`/`referencePrice` are null on an ADMIN
+(non-price) halt. There is **no `resumptionMode` on the wire** — every halt reopens via a call
+auction, so the UI need not carry a per-halt mode.
+
 ```typescript
 interface HaltEntry {
   symbol: string;
-  level: number;
-  triggerPrice: number;
-  referencePrice: number;
-  haltedAt: string;
-  resumeAt: string | null;
-  resumptionMode: "AUCTION" | "CONTINUOUS";
+  level: string | null;            // level NAME, e.g. "L2"; null on an ADMIN halt
+  triggerPrice: number | null;     // null on an ADMIN (non-price) halt
+  referencePrice: number | null;
+  resumeAtNs: number | null;       // epoch nanoseconds; null = indefinite halt
+  haltSource?: string;             // e.g. "CIRCUIT_BREAKER" | "ADMIN"
 }
 
 interface HaltStore {
@@ -2633,9 +2789,10 @@ interface HaltStore {
 ```typescript
 interface SymbolEntry {
   symbol: string;
-  tickDecimals: number;
-  referencePrice: number | null;
-  level: string | null;
+  tickDecimals: number;          // GET /symbols (SymbolInfo)
+  prevClose: number | null;      // GET /symbols (SymbolInfo)
+  referencePrice: number | null; // GET /reference/risk (SymbolRiskState) — NOT /symbols
+  level: string | null;          // GET /reference (ReferenceSymbol) — NOT /symbols
 }
 
 interface SymbolStore {
@@ -2644,7 +2801,9 @@ interface SymbolStore {
 }
 ```
 
-Populated once from `GET /symbols` on login. Rarely changes during a session.
+Assembled once on login by **merging** `GET /symbols` (`tick_decimals`, `prev_close`, MM fields) with
+the `GET /reference` bundle (`level`, collar) and `/reference/risk` (`reference_price`). Rarely
+changes during a session.
 
 #### 18.1.6 `useActiveSymbolStore`
 
@@ -2693,6 +2852,9 @@ interface NotificationStore {
 
 | Query key | Endpoint | Stale time |
 |-----------|----------|------------|
+| `["bootstrap/trader"]` | `GET /bootstrap/trader` | load-once on login / reconnect |
+| `["bootstrap/mm"]` | `GET /bootstrap/mm` | load-once on login / reconnect |
+| `["bootstrap/admin"]` | `GET /bootstrap/admin` | load-once on login / reconnect |
 | `["orders"]` | `GET /orders` | 30s (refreshed by WS events) |
 | `["orders", id]` | `GET /orders/{id}` | 60s |
 | `["order-history", id]` | `GET /history/orders/{id}` | 30s (Order Detail drawer) |
@@ -2717,7 +2879,7 @@ WebSocket events invalidate relevant queries using `queryClient.invalidateQuerie
 // In the WS event handler for order.fill:
 queryClient.invalidateQueries({ queryKey: ["positions"] });
 queryClient.setQueryData(["orders"], (old: Order[]) =>
-  old?.map((o) => o.id === fill.order_id ? { ...o, ...updatedFields } : o)
+  old?.map((o) => o.order_id === fill.order_id ? { ...o, ...updatedFields } : o)
 );
 ```
 
@@ -2727,7 +2889,10 @@ The active orders blotter maintains a local React state derived from the TanStac
 but patched in real-time by WebSocket events without waiting for a full refetch:
 
 1. Initial data: `useQuery(["orders"])` — fills the table.
-2. WS `order.ack` (accepted): `queryClient.setQueryData` — inserts new order row.
+2. WS `order.ack` with `accepted: true`: `queryClient.setQueryData` — insert/mark the row **NEW**.
+2b. WS `order.ack` with `accepted: false`: mark the row **REJECTED** (terminal), **overriding** any
+   prior `accepted: true` — MARKET/FOK/IOC emit a gateway ACK then a possible book rejection, and the
+   later ACK is authoritative ([§17.2.4](#1724-order-acknowledgement-safety)).
 3. WS `order.fill`: updates `remaining_qty` and `status` in the cached row.
 4. WS `order.cancelled` / `order.expired`: updates `status` in cached row.
 5. WS `order.amended`: updates `price`, `quantity`, `remaining_qty` in cached row.
@@ -2939,6 +3104,15 @@ A modal search dialog (shadcn `<CommandDialog>`):
 Selecting a symbol sets the active symbol (and opens its Symbol Detail panel); the star toggles
 watchlist membership. Selecting an action triggers the corresponding shortcut or navigation.
 
+> **Implemented in phase 15.** The palette is a dependency-free, keyboard-navigable overlay (↑/↓,
+> Enter, Escape) — symbols come from the symbol store (shown with their live last price; the app has
+> no company-name field), and the action list is role-filtered from `lib/commandItems.ts`. The
+> "toggle panel" shortcuts in [§21](#21-keyboard-shortcuts-reference) (`F3` positions, `F4` blotter,
+> `Ctrl+L` watchlist) are implemented as **navigation to the relevant route**, since those surfaces
+> are routes rather than docked panels; `Ctrl+Shift+F` (Flatten All) navigates to Positions, where the
+> always-confirm flatten-all dialog lives. `Shift+F` (flatten the *selected* position) is deferred —
+> the Positions screen has no row-selection model yet.
+
 ---
 
 ## 22. Configuration
@@ -3041,31 +3215,562 @@ action buttons ([§12.2](#122-layout-overview)) use `bid`/`ask` as their backgro
 Build incrementally. Each phase produces a working, visually functional slice that can be
 demonstrated in isolation.
 
-| Phase | Deliverable | Verification |
-|-------|-------------|-------------|
-| 1 | Project scaffold: Vite + React + TS + Tailwind + shadcn/ui + React Router v7; login page; `apiFetch`; `useAuthStore`; role detection via `GET /status` | Enter API key, see "Connected as GW01 (TRADER)"; routed to role landing |
-| 2 | `ManagedSocket` + `WebSocketManager` with a single market-data socket (overview + focus subscription items); `useBookStore`; `useSessionStore`; `useHaltStore`; top bar with health dot, session badge + clock/countdown | Book events update Zustand; session badge changes colour; countdown ticks; depth is received only for focus symbols |
-| 3 | Market Overview table with FlashCell; `GET /symbols`; `GET /history/daily` for change % (vs today's open); auction + halt badges | Real-time price table with green/red flashes and correct change % |
-| 4 | Symbol Detail right panel: Chart, Depth (with click-to-trade), Trades tape, Stats, Auction tab; `useActiveSymbolStore` | Click a row → active symbol set; panel opens; candles load; auction panel populates during auction |
-| 5 | **Trading Workspace**: 4-quadrant layout bound to the active symbol; embed chart + DOM + ticket + compact blotter; click-to-trade wiring | Click a DOM level → ticket price prefilled; all quadrants follow active symbol |
-| 6 | TRADER Order Ticket (all 8 single-leg types, Zod validation, TIF phase restrictions, dual BUY/SELL buttons + `B`/`S`, auction banner) | Submit LIMIT via BUY; receive ACK toast + Event Center entry |
-| 7 | TRADER Active Orders Blotter (TanStack Table, WS updates, Amend, **Cancel-Replace**, cancel); Order Detail drawer | Cancel-replace an order; open drawer; lifecycle timeline renders |
-| 8 | TRADER OCO/Combo entry + **group rows/badges + group cancel**; Trade History; Position Panel + **Flatten / Flatten All** | Submit OCO; watch one leg fill and sibling cancel; flatten a position |
-| 9 | MARKET_MAKER: Quote card grid, New Quote form, fill alerts, bootstrap + **quotes/legs** fill indicators | Submit two-sided quote; simulate fill; per-leg fill bar updates from `/quotes/legs` |
-| 10 | **Notification / Event Center** + bell; **power-user mode** (undo-toast + always-confirm exceptions); **Watchlist** | Fills/rejects persist in Event Center; toggle confirmations; curate watchlist |
-| 11 | **Admin API client for existing endpoints** (`GET /status` role, `/admin/session`, `/admin/gateways`, `/admin/halts`, `/admin/kill-switch/symbol`); System Dashboard; `/admin/monitor` WS; Monitor Log Viewer | Dashboard KPIs from monitor stream; monitor log tails cross-gateway events; unsupported admin controls render disabled |
-| 12 | ADMIN Session Control, Gateway Management (Kick), symbol-scoped Kill Switch, disabled global/by-gateway kill-switch placeholders | Transition session from UI; kick a gateway; symbol kill switch works; unsupported scopes stay disabled |
-| 13 | ADMIN Risk Control panel (runtime read-only from `/reference`/`/reference/risk`), Circuit Breaker Management (level selector disabled where unsupported), Symbol Management (read-only until backend), Index Admin read-only history plus disabled write controls | Risk panel renders from stable reference API; unsupported write controls show prerequisite tooltips |
-| 14 | Help system: help drawer, field tooltips, shortcut reference, `F1`/`Ctrl+/` | All help content accessible; tooltips visible on ticket fields |
-| 15 | Command palette (`Ctrl+K`), full keyboard shortcut implementation (incl. `B`/`S`, flatten, `Ctrl+.`, `Ctrl+L`) | Navigate entire UI without mouse |
-| 16 | Polish: confirmation dialogs / undo-toasts; empty states; loading skeletons; error boundaries | No uncaught errors; graceful degradation when engine is stopped |
-| 17 | Build pipeline: `vite build`, output to `dist/`, serve via `pm-trading-ui-serve` script | `npm run build` produces deployable `dist/` |
+| Phase | Status | Deliverable | Verification |
+|-------|--------|-------------|-------------|
+| 1 | ✅ Implemented | Project scaffold: Vite + React + TS + Tailwind + shadcn/ui + React Router v7; login page; `apiFetch`; `useAuthStore`; role detection via `GET /status` | Enter API key, see "Connected as GW01 (TRADER)"; routed to role landing |
+| 2 | ✅ Implemented | `ManagedSocket` + `WebSocketManager` with a single market-data socket (overview + focus subscription items); `useBookStore`; `useSessionStore`; `useHaltStore`; top bar with health dot, session badge + clock/countdown | Book events update Zustand; session badge changes colour; countdown ticks; depth is received only for focus symbols |
+| 3 | ✅ Implemented | Market Overview table with FlashCell; `GET /symbols`; `GET /history/daily` for change % (vs today's open); auction + halt badges | Real-time price table with green/red flashes and correct change % |
+| 4 | ✅ Implemented | Symbol Detail right panel: Chart, Depth (with click-to-trade), Trades tape, Stats, Auction tab; `useActiveSymbolStore` | Click a row → active symbol set; panel opens; candles load; auction panel populates during auction |
+| 5 | ✅ Implemented | **Trading Workspace**: 4-quadrant layout bound to the active symbol; embed chart + DOM + ticket + compact blotter; click-to-trade wiring | Click a DOM level → ticket price prefilled; all quadrants follow active symbol |
+| 6 | ✅ Implemented | TRADER Order Ticket (all 8 single-leg types, Zod validation, TIF phase restrictions, dual BUY/SELL buttons + `B`/`S`, auction banner) | Submit LIMIT via BUY; receive ACK toast + Event Center entry |
+| 7 | ✅ Implemented | TRADER Active Orders Blotter (TanStack Table, WS updates, Amend, **Cancel-Replace**, cancel); Order Detail drawer | Cancel-replace an order; open drawer; lifecycle timeline renders |
+| 8 | ✅ Implemented | TRADER OCO/Combo entry + **group rows/badges + group cancel**; Trade History; Position Panel + **Flatten / Flatten All** | Submit OCO; watch one leg fill and sibling cancel; flatten a position |
+| 9 | ✅ Implemented | MARKET_MAKER: Quote card grid, New Quote form, fill alerts, bootstrap + **quotes/legs** fill indicators | Submit two-sided quote; simulate fill; per-leg fill bar updates from `/quotes/bootstrap` (see §23.1 — `/legs` is dual-shaped and not card-authoritative) |
+| 10 | ✅ Implemented | **Notification / Event Center** + bell; **power-user mode** (undo-toast + always-confirm exceptions); **Watchlist** | Fills/rejects persist in Event Center; toggle confirmations; curate watchlist |
+| 11 | ✅ Implemented | **Admin API client for existing endpoints** (`GET /status` role, `/admin/session`, `/admin/gateways`, `/admin/halts`, `/admin/kill-switch/symbol`); System Dashboard; `/admin/monitor` WS; Monitor Log Viewer | Dashboard KPIs from monitor stream; monitor log tails cross-gateway events; unsupported admin controls render disabled |
+| 12 | ✅ Implemented | ADMIN Session Control, Gateway Management (Kick), Kill Switch — symbol / by-gateway / **global** (all backend-supported; see §23.1 — the design's "disabled placeholder" premise was obsolete) | Transition session from UI; kick a gateway; all three kill-switch scopes work with escalating confirmation |
+| 13 | ✅ Implemented | ADMIN Risk Control panel (read-only from `/reference`/`/reference/risk`), Circuit Breaker Management (**functional** per-symbol level selector — see §23.1), Symbol Management (read-only; Add/Edit genuinely unsupported → disabled + tooltip), Index Admin read-only config + history (rebalance API exists; write UI out of scope) | Risk panel renders from stable reference API; Symbol Add/Edit shows prerequisite tooltip; CB level halt works |
+| 14 | ✅ Implemented | Help system: help drawer (`Ctrl+/` + top-bar button), field tooltips on the ticket, shortcut reference dialog (`?`), `F1` (already wired) | All help content accessible; tooltips visible on ticket fields |
+| 15 | ✅ Implemented | Command palette (`Ctrl+K`), global shortcuts (`Ctrl+.`, `Ctrl+L`, `F3`, `F4`, `Ctrl+Shift+F`, `Ctrl+Enter`); `B`/`S`/`F1`/blotter keys already wired. "Toggle panel" shortcuts navigate to the panel's route (see §23.1) | Navigate entire UI without mouse |
+| 16 | ✅ Implemented | Polish: route-level **error boundary** (crash → inline recoverable alert, chrome stays live); app-wide **connection banner** (reconnecting/disconnected); reusable **loading skeletons** + **empty state** (confirmations/undo-toasts already shipped in phase 10 — see §23.1) | No uncaught errors (crashing screen degrades gracefully); disconnected engine surfaces a banner instead of silent staleness |
+| 17 | ✅ Implemented | `pm-trading-ui-serve`: zero-extra-dep Node `http` static file server (`apps/serve/serve.ts`), SPA fallback routing, immutable cache headers for hashed Vite assets, `no-cache` for `index.html`, optional `/api/*` proxy (`API_PROXY_TARGET`), `HOST`/`PORT`/`STATIC_DIR` env vars, `--help` flag, SIGTERM/SIGINT graceful shutdown; wired as `npm run pm-trading-ui-serve` + `make serve` | `npm run build && npm run pm-trading-ui-serve` starts a production server; SPA deep-links resolve; `/api/*` returns 503 with guidance when proxy not configured |
 
 > **Backend dependency callout:** Phases 11–13 must implement only the ADMIN endpoints that exist
 > today and render the rest as disabled or placeholder controls. Unmet backend prerequisites (live
 > symbol add/update, `pm-index` write/admin bridge, level-aware CB trigger,
 > and global/by-gateway admin kill switch) must be tracked as backend work items. The TRADER/MM phases
 > (1–10) have no backend dependency beyond the existing API and current `auction` market-data channel.
+
+### 23.1 Implementation status and findings (phases 1–7)
+
+The application lives in **`trader-gui/`** (an npm workspace, app at `trader-gui/apps/web/`),
+not the `pm-trading-ui/` directory name used illustratively elsewhere in this document. Phases 1–7
+are implemented and green under `npm run typecheck`, `npm run test` (Vitest), and `npm run build`.
+
+Findings and deviations recorded during implementation:
+
+- **Login uses the bootstrap endpoint, not the `/status` waterfall.** The backend shipped the
+  aggregate bootstrap endpoints ([EduMatcher-bootstrap-api.md](./EduMatcher-bootstrap-api.md)) ahead
+  of the UI, so login calls `GET /api/v1/bootstrap/trader` (`/admin` for ADMIN) in one round-trip
+  instead of the §7.2 sequence. Role is still resolved from the payload; the WebSocket auth reply
+  still supplies the authenticated `gateway_id`.
+- **Market Overview is rendered off a throttled book snapshot.** `useThrottledBooks`
+  (`VITE_MARKET_THROTTLE_MS`, default 250 ms) bounds table re-renders under a 100-symbol wildcard
+  feed, keeping the row model coherent while staying inside the 500 ms flash window
+  ([§17.3.4](#1734-bandwidth-and-the-100-symbol-overview)).
+- **Depth ladder reads the `book` snapshot's multi-level arrays.** In the pm-msgen wire format the
+  `book` channel carries full `bids[]`/`asks[]` (price/qty/count), and the `depth` channel carries
+  aggregate metrics (imbalance, microprice, cost-to-move) rather than a ladder. The §16.3 ladder is
+  therefore built from `book` levels; `depth` metrics remain available for future use.
+- **Click-to-trade is mediated by a `useTicketPrefillStore`.** Clicking a depth level records
+  `{ symbol, price, side, nonce }` (bid → SELL, ask → BUY). The order ticket (phase 6) consumes the
+  latest prefill; the shared `DepthLadder` accepts an `onPriceClick` override so the Trading
+  Workspace DOM (phase 5) can target its own ticket.
+- **Chart uses Lightweight Charts v5.** Series are created with `chart.addSeries(CandlestickSeries |
+  LineSeries, …)` (the v4 `addCandlestickSeries()` helper was removed). Intraday timeframes
+  (1m/5m/1h) are bucketed client-side from `GET /history/trades`; **1D/All** render `GET
+  /history/daily`, which is keyset-paginated one trading day per call — so 1D/All currently show the
+  latest day only. A multi-day backfill (paging backwards) is a follow-up, tracked as a phase-4
+  limitation rather than a blocker; the live intraday candles are the primary chart experience.
+- **Symbol Detail is a global overlay gated on an explicit open flag.** `useSymbolDetailStore.isOpen`
+  is set by the Market Overview row click (which also sets the active symbol). Gating on `isOpen`
+  rather than on `activeSymbol` keeps the overlay from appearing when the Trading Workspace (phase 5)
+  sets the active symbol for its own embedded chart/DOM.
+- **Live chart append reads refs, not closures.** `useWsEvent` binds its handler once (keyed on
+  event type), so the live-tick handler reads the current symbol/timeframe/series/last-bar from refs
+  updated each render rather than from a stale closure.
+
+Phase 5 (Trading Workspace) findings:
+
+- **The Workspace reuses the phase-4 chart and depth ladder.** The four-quadrant cockpit
+  (`pages/TradingWorkspacePage.tsx`) embeds `SymbolChart` and `DepthLadder` directly; the DOM
+  ladder's default `onPriceClick` already writes to `useTicketPrefillStore`, so click-to-trade is
+  wired without any Workspace-specific handler.
+- **Ticket ⇄ DOM coupling is via the prefill store, not props.** `WorkspaceTicket` reads the latest
+  `{ symbol, price, side, nonce }` from `useTicketPrefillStore`; a bid click suggests SELL, an ask
+  click BUY (side-inference default-on per §11.4), and the suggested side's button is highlighted.
+  The ticket never auto-submits.
+- **The embedded ticket started as a compact subset and was replaced in phase 6.** Phase 5 shipped a
+  stopgap `WorkspaceTicket` (LIMIT/MARKET only); phase 6 replaced it with the single shared
+  `OrderTicket` in `compact` mode, so the Workspace now hosts the full eight-type ticket. The stopgap
+  component was deleted.
+- **The compact blotter is a filtered slice of `GET /orders`.** It shows the active symbol's working
+  orders with inline cancel and reflects cancels via query invalidation; live `/events` blotter
+  updates and the full Active Orders Blotter are **phase 7**. Fixed a latent typing bug along the
+  way — `GET /orders` returns `{ orders: [...] }`, not a bare array, so `getOrders`/`useOrdersQuery`
+  were corrected.
+- **The Workspace adopts the first symbol when none is active** so all four quadrants have something
+  to bind to on first landing; it sets the active symbol directly (not via `useSymbolDetailStore`),
+  so the §16 detail overlay does not appear over the cockpit.
+
+Post-phase-5 review — two wire-contract mismatches found and fixed:
+
+- **Order identity is `id`, not `order_id`.** `GET /orders` returns the engine pm-msgen
+  `OrderDisplay`, whose id key is `id`, timestamp is `timestamp` (epoch seconds), and client tag is
+  `client_tag`; a reply-timeout fallback returns a thinner cache row keyed on `order_id`. The client
+  now folds both into the canonical `Order` (§ Appendix A) via `normalizeOrder()` in `useOrdersQuery`,
+  so screens read `order_id`/`updated_at`/`client_order_id` uniformly. Without this the compact
+  blotter's cancel button and row keys were driven by an `undefined` id. Appendix A's `Order` type was
+  corrected to match (`smp_action`/`updated_at` are now nullable).
+- **The `session.state` broadcast's `next` object uses `state`, not `to_state`.** (`to_state` is the
+  field on the separate `session.transition` *command*.) The client read `next.to_state`, so the
+  engine's authoritative countdown target was silently discarded and the top bar always fell back to
+  its schedule-derived guess. Fixed in `NextTransitionEvent`/`SessionEvent` and the Appendix A type.
+  Both fixes carry regression tests (`test/reviewFixes.test.ts`).
+
+Phase 6 (Order Ticket) findings:
+
+- **One shared `OrderTicket` serves both surfaces.** `components/orders/OrderTicket.tsx` is used by
+  the standalone Order Entry screen (`OrderEntryPage`, symbol picker unlocked) and, with `compact` +
+  `lockedSymbol`, by the Trading Workspace quadrant — replacing (and deleting) the phase-5
+  `WorkspaceTicket`. Field visibility per order type is driven by `useOrderFields(type)`
+  ([§12.3](#123-order-type-tabs-and-field-visibility)); the eight type tabs, `orderSchema`
+  validation, `ALLOWED_TIF` phase gating, the auction banner, and click-to-trade prefill are all
+  wired through it.
+- **ACK feedback uses `?wait=ack`, not a PENDING-row + `/events` reconciliation.** §12.9 step 6
+  explicitly offers this: the ticket submits with `POST /api/v1/orders?wait=ack`, the gateway folds
+  the first `order.ack` into the HTTP response (`schemas.OrderAccepted` → `{ status, accepted,
+  event }`), and the ticket toasts accepted/rejected/pending synchronously and records an Event
+  Center entry. The PENDING-row blotter machinery and the two-ACK "later ACK wins" reconciliation
+  stay in **phase 7** (the blotter). A lightweight `useOrderEventNotifications` hook still bridges
+  live `order.fill`/`order.cancelled`/`order.expired` to toasts + the Event Center, mounted at the
+  app root for TRADER/MM. (Verified against the backend: those three engine topics map through
+  `events.websocket_type()` to exactly the `order.*` envelope types the bridge subscribes to, and
+  `order.fill.fill_price` is already in display units — no client-side tick conversion needed.)
+- **A `wait=ack` timeout is `503 ENGINE_TIMEOUT`, not a `PENDING` body — and must not read as a
+  rejection.** The gateway's `_await_order_event` raises `503` when the ack does not arrive in
+  `wait_ack_sec`, *after* `send_new_order` has already been dispatched. The first cut treated every
+  submit error as a REJECT, which would falsely tell a trader a possibly-live order had failed and
+  invite a duplicate resubmit. The ticket now special-cases `503`/`ENGINE_TIMEOUT` as "submitted —
+  awaiting confirmation (check blotter)" with a neutral ACK-pending Event Center entry, per §12.9
+  step 6; genuine `4xx` (422/409/429) remain rejections. (The `accepted == null` success branch is
+  consequently only reachable if `wait` is omitted, and is kept as defensive code.)
+- **The reference-price hint is sourced from the symbol store, not `/reference/risk`.** §12.6/§15.2.1
+  say per-symbol `reference_price` lives on `GET /api/v1/reference/risk` → `SymbolRiskState`, but that
+  endpoint returns the static named collar *levels* bundle, not per-symbol reference prices (those are
+  live per-symbol risk state on the admin-only `/admin/risk/state`). To avoid baking in an incorrect
+  assumption, the ticket shows `reference_price ?? prev_close` from `useSymbolStore` (both already
+  hydrated at login), and simply omits the hint when neither is known. **This is a doc-vs-backend
+  discrepancy to reconcile before the ADMIN Risk/Symbol screens (phase 13) rely on that field.**
+- **`B`/`S` hotkeys must omit the react-hotkeys-hook dependency array.** With a deps array the hook
+  freezes a *stale* callback closure (it only assigns `cbRef.current = callback` when no deps are
+  given); passing `[canSubmit]` captured the first render's order type and fields. The handlers are
+  registered without deps so they always read current state, and `enableOnFormTags: false` gives the
+  §12.11 "ignore input/textarea/select" behaviour for free.
+- **The symbol picker is a native `<input list>` + `<datalist>`.** Accessible and dependency-free
+  (shadcn's Combobox is not set up); typing filters by the datalist, and selecting a known symbol
+  sets the active symbol so the rest of the app follows (§12.6).
+
+Phase 7 (Active Orders Blotter, Amend/Replace, Order Detail) findings:
+
+- **The blotter is driven by a live `useOrderStore`, seeded from the `/events` `orders.snapshot`, not
+  by polling `GET /orders`.** The private events socket sends an `orders.snapshot` frame on every
+  (re)connect specifically to remove the reconnect round-trip to `GET /orders`; a root-level
+  `useOrderStream` hook seeds the store from it and folds each live `order.ack/fill/amended/
+  cancelled/expired` event, mirroring the gateway's own `SessionCaches.apply` status transitions so
+  the client agrees with the server without polling. `GET /orders` is retained only as a manual
+  **Refresh** reconcile (`hydrate`), which upserts rows but never resurrects an order already seen
+  terminal locally. The Workspace `CompactBlotter` now reads the same store, so both blotters are
+  live from one source.
+- **The snapshot/event rows are the accreted session-cache shape, not engine `OrderDisplay`.** They
+  are keyed on `order_id` (not `id`), carry `qty` rather than `quantity`, and can carry a cache-only
+  `status: "AMENDED"`. `normalizeOrder` was extended to fold `qty`→`quantity` and to resolve
+  `"AMENDED"` back to a canonical working status (`PARTIAL` if partly filled, else `NEW`), since the
+  design's status vocabulary (§13.1.2) has no `AMENDED`. `order.amended` carries only
+  `order_id/price/qty/remaining_qty/priority_reset` — no symbol/side — so it can only *update* an
+  existing row, which the snapshot guarantees exists.
+- **Amend, Replace, and Cancel are all fire-and-forget 202s with no existence check.** There is no
+  `404`/`409` for an unknown or already-terminal order on `PATCH`/`DELETE`/`replace`; the row simply
+  updates (or not) from the live event. `Replace` performs an atomic cancel-then-new server-side and
+  does **not** accept `?wait=ack`; if the cancel leg's ack never arrives (the order already filled),
+  it returns **503 `ENGINE_TIMEOUT`** and no replacement is sent — the Replace dialog surfaces this
+  as "the order may have already filled" rather than a generic error. Cancel/amend `503` timeouts are
+  likewise shown as "awaiting confirmation", consistent with the phase-6 ticket.
+- **`mass-cancel` is an alias of `kill-switch` and cannot target a set of ids.** `POST
+  /api/v1/mass-cancel` and `POST /api/v1/kill-switch` are the *same* handler and take only an optional
+  `symbol` (gateway-wide or symbol-wide). The blotter's bulk "Cancel selected" therefore issues
+  individual `DELETE /orders/{id}` calls for the chosen rows rather than a single mass-cancel.
+- **The Order Detail drawer merges durable history with a live tail.** It seeds from
+  `GET /history/orders/{order_id}` (chronological `order_events`, display prices, `event_type` in the
+  stats vocabulary ACK/REJECT/FILL/AMEND/CANCEL/EXPIRE) and appends live `order.*` events for that id
+  while open, so it stays current even when stats.db lags. An unknown id returns `200` with an empty
+  list (not `404`); a missing stats DB returns `503 STATS_DB`, rendered as "history unavailable" with
+  the live tail still active. The drawer is remounted per `order_id` (React `key`) so its once-bound
+  WS handlers always read the current id.
+
+Phase 7 review — one logical fix and known simplifications:
+
+- **A fill must not resurrect a pre-amend quantity (fixed in review).** The engine's `order.fill`
+  carries the order's *original* `qty`; if an amend had already reduced the total, folding the fill's
+  `qty` back over it would wrongly restore the old quantity. `useOrderStore.applyFill` now updates
+  only `remaining_qty`/`status` and never overwrites an already-known positive `quantity`, with a
+  regression test.
+- **Row interactions now cover §13.1.3.** Single row-click selects (highlights), Shift-click selects
+  a contiguous range, ⌘/Ctrl-click toggles, double-click or `Enter` opens the Order Detail drawer,
+  and `Delete`/`Backspace` cancels the current selection (or the focused row when none is selected);
+  a per-row checkbox column remains for explicit additive multi-select, and per-row buttons do
+  Amend/Replace/Cancel. Rows are focusable (`tabIndex`) with a visible focus ring. The only deferred
+  piece is power-user "confirmations off" + undo-toast (phase 10, §20.3) — for now cancels always
+  confirm.
+- **`["orders"]` TanStack Query is now unused.** The blotter reads the live store, so the
+  cancel/amend/replace mutations' `invalidateQueries(["orders"])` is a harmless no-op kept for any
+  future REST consumer; the Refresh button reconciles by calling `GET /orders` and `hydrate()`ing the
+  store directly.
+- **Terminal orders are capped to bound growth.** The store keeps FILLED/CANCELLED/REJECTED/EXPIRED
+  rows so their pill shows, but retains at most `MAX_TERMINAL` (200) of them, dropping the oldest by
+  `updated_at` — working orders are never dropped. A fresh `orders.snapshot` on reconnect (which
+  `seed` applies as a full replace) additionally reconciles to whatever the gateway still holds.
+
+Phase 8 (OCO/Combo entry + group cancel, Trade History, Position Panel + Flatten) findings:
+
+- **`POST /oco` and `POST /combos` respond with `id`, not `oco_id`/`combo_id`.** Both submit
+  endpoints return the gateway's `PendingIdResponse` (`{ id, status, event }`), where `id` echoes the
+  submitted `oco_id`/`combo_id` (§12.7/§12.8 wrote the response as `{ oco_id }`/`{ combo_id }`, which
+  was wrong). The client types both as `PendingIdResponse` and the forms read `res.id`. Their
+  **DELETE** counterparts are asymmetric — `DELETE /oco/{id}` → `{ oco_id, status:"PENDING_CANCEL" }`
+  and `DELETE /combos/{id}` → `{ combo_id, status:"PENDING_CANCEL" }` — but the client ignores those
+  bodies (the blotter reacts to the live `order.cancelled`/`oco.cancelled`/`combo.status` events).
+  Neither submit endpoint supports `?wait=ack` (unlike `POST /orders`), so `event` is always null and
+  the response is a bare `202`/`PENDING`; the group only materialises in the blotter once the per-leg
+  `order.ack`s arrive carrying `oco_group_id`/`combo_parent_id`.
+- **OCO/Combo request bodies are `StrictModel` (`extra="forbid"`).** The forms send only the fields
+  the type uses — an OCO leg sends `side`/`order_type` plus **either** `price` (LIMIT) **or**
+  `stop_price` (STOP), never a stray key — so a valid submit is not `422`-rejected for unknown fields.
+  The gateway uppercases every `symbol` (parent OCO symbol and each combo leg). `ocoSchema`/
+  `comboSchema` were given per-leg price/stop refinements so a missing leg price is an inline error
+  rather than an engine reject. (The backend leg models also accept `trail_offset` (OCO) and
+  `stop_price` (combo) — a superset the UI does not yet expose.)
+- **`GET /history/fills` is the `order_events` row shape, and its prices are display money.** The
+  endpoint returns the standard keyset envelope `{ events, count, has_more, next_cursor? }`; each row
+  is a stats.db `order_events` FILL row — `ts` (ISO), `side`, `fill_qty`, `fill_price`,
+  `remaining_qty`, `trade_id` (**singular**), `order_id`, `seq` — identical to
+  `GET /history/orders/{id}`. `fill_price` is persisted verbatim from the private `order.fill`
+  payload, which is already display money, so the Fills panel formats it directly (no tick
+  conversion). The live `order.fill` event's `trade_ids` **array** is folded to `trade_ids[0]` with a
+  "+N" badge, matching the historical singular `trade_id`. The endpoint takes `symbol`/`date`/`from`/
+  `to`/`limit`/`after` but **no `side` param**, so Side is filtered client-side; a missing stats DB
+  is `503 STATS_DB`.
+- **Trade History merges a live tail ahead of durable history, deduped by trade id.** Live
+  `order.fill` rows are prepended (bounded to 500) and shown only when the date filter is today; a
+  live row whose `trade_id` already appears in the fetched history is dropped so a catch-up refetch
+  does not double-count. Clicking an Order ID opens the phase-7 Order Detail drawer.
+- **Group cancel is one call; the blotter reacts to events.** `DELETE /oco/{id}` cancels both legs;
+  `DELETE /combos/{id}` cancels the combo and all legs (already-filled legs are not reversed). The
+  `OrderGroupsPanel` renders one parent row per OCO/combo group (kind badge, id, symbols, aggregate
+  "N live / M cancelled") computed by the pure `computeOrderGroups`, alongside the existing per-row
+  Group badge. A `503`/`ENGINE_TIMEOUT` on the cancel is surfaced as "awaiting confirmation".
+- **Flatten builds a MARKET close from the net position.** `buildFlattenOrder` maps a long → SELL and
+  a short → BUY for `abs(net_qty)`, `POST /orders { order_type:"MARKET", tif:"DAY" }` (no `wait`).
+  Flatten is disabled outside CONTINUOUS (MARKET is rejected then, FR-ENG-030). Per-row Flatten
+  confirms by default and uses an undo-toast (cancel the just-sent order) in power-user mode; **Flatten
+  All always confirms**, even in power-user mode. Positions refresh by invalidating `["positions"]` on
+  `order.fill`. `avg_cost`/P&L stay out of scope until the backend exposes them.
+
+Phase 9 (MARKET_MAKER quote management) findings:
+
+- **`POST /quotes` responds with `id`, not `quote_id`.** Like `/oco` and `/combos`, it returns the
+  gateway's `PendingIdResponse` (`{ id, status:"PENDING", event:null }`); `id` echoes the submitted
+  `quote_id`, or the **uppercased symbol** when `quote_id` was omitted. The client types it as
+  `PendingIdResponse` and reads `res.id` (§14.2 first showed `{ quote_id }`, which was wrong). There
+  is no `?wait=ack` — acceptance is observed only via the `quote.ack` WebSocket event. `QuoteRequest`
+  is a `StrictModel` (`extra="forbid"`), uppercases `symbol`, and rejects `bid_price >= ask_price`
+  with `422`; the New Quote form mirrors that spread rule client-side (`quoteSchema`). `DELETE
+  /quotes/{symbol}` answers `{ symbol, status:"PENDING_CANCEL" }` (quotes are cancelled by symbol, one
+  active quote per gateway+symbol).
+- **`GET /quotes/legs` is dual-shaped; the cards read `/quotes/bootstrap` instead.** As detailed in
+  [§14.3](#143-quote-bootstrap-and-legs-view), the warm-cache fast path returns quote-level ack/status
+  dicts, not per-leg `QuoteLeg` records, so it cannot reliably drive the fill bars. The cards source
+  `ActiveQuote` from `/quotes/bootstrap` (always carries per-side `bid/ask_price`, `qty`,
+  `remaining_qty`, status → `filled = qty - remaining`). `lib/quotes.ts::normalizeQuoteLegRows`
+  handles both `/legs` shapes and the Bootstrap+Legs view flags degraded rows. `ActiveQuote` carries
+  no `tif`, so the card omits it (TIF lives only on the submitted request).
+- **Quote WS events carry no `symbol` (and no `gateway_id` in `data`).** `quote.ack`
+  (`{quote_id, accepted, reason, bid_order_id, ask_order_id}`) and `quote.status`
+  (`{quote_id, status, reason}`, status ∈ ACTIVE / INACTIVE_BID_FILLED / INACTIVE_ASK_FILLED /
+  CANCELLED) identify the quote by id only; `gateway_id` is topic-only, on the envelope not the data.
+  `useQuoteEvents` resolves the symbol from the bootstrap query cache by `quote_id`, so a fill alert
+  for a brand-new quote not yet in the refreshed bootstrap falls back to labelling by `quote_id` and
+  omits the Re-quote action until the next reconcile.
+- **Cache reconciliation.** The quote caches (`/bootstrap`, `/legs`) are invalidated on
+  `orders.snapshot` (the first `/events` frame on connect **and** every reconnect) and on every
+  `quote.ack`/`quote.status`, so the dashboard resyncs to engine truth before replayed live events
+  continue. The Bootstrap+Legs view shows a "reconciled at HH:MM:SS" stamp (last successful fetch)
+  and a Resync button. A very active MM therefore triggers frequent bootstrap round-trips; acceptable
+  at classroom scale, a candidate for optimistic cache updates later.
+- **Fill-alert interaction with the generic fill toast.** A quote leg is a resting order, so a leg
+  fill also arrives as `order.fill` and is toasted by `useOrderEventNotifications` (qty @ price). The
+  quote-specific alert (`useQuoteEvents`) adds the "which side filled + Re-quote" toast. Two toasts
+  for one economic event is intentional for now (distinct information); deduplication belongs to the
+  phase-10 notification preferences.
+- **No MARKET_MAKER gate at the gateway.** All quote endpoints require only a trading key
+  (`require_trading`), not the MM role; a non-MM quote is rejected asynchronously via
+  `quote.ack accepted=false`. The UI still restricts the quote screens to MARKET_MAKER via `RoleGuard`.
+- **Card-per-configured-symbol.** The grid renders one card per symbol in the symbol store (matching
+  §14.1), merging the `ActiveQuote` by symbol; F2 opens the active symbol's New Quote form (via the
+  quote prefill store) and focuses the Quote ID field. Bounded by the classroom symbol list;
+  virtualization is a later concern if symbol counts grow large.
+
+Phase 10 (Notification/Event Center, power-user mode, Watchlist) findings:
+
+- **No backend surface — pure client feature.** Phase 10 added no new API calls; it composes existing
+  stores and streams. The Event Center is fed by the already-wired push sites: fills/cancels/rejects
+  and OCO/combo outcomes from `useOrderEventNotifications`, quote acks/fills from `useQuoteEvents`,
+  and `SESSION`/`CB` entries pushed directly from the market-data WS router (`WebSocketManager`). No
+  extra source was needed to satisfy §20.2.
+- **One shared Order Detail drawer via `useUiStore`.** The drawer is now rendered once in the
+  `AppShell` and driven by `useUiStore.orderDetailId`, so the blotter, Trade History, and Event Center
+  all open the *same* instance. `openOrderDetail` also closes the Event Center so the two right-edge
+  sheets never stack. (The Symbol Detail panel remains independent; a user can still have it and the
+  Order Detail drawer open together — a minor visual overlap left for phase-16 polish.)
+- **Power-user cancel is centralized in `useOrderCancel`.** Both the full Active Orders blotter and
+  the Workspace compact blotter route single-order cancels through this hook: confirm dialog when
+  "Confirm cancellations" is on (default), immediate cancel + undo-toast when off. This also fixed a
+  pre-existing §20.3 gap — the compact blotter previously cancelled with no confirmation at all. The
+  undo re-submits an *equivalent* order for the still-live `remaining_qty` (`lib/resubmit.ts`),
+  explicitly not preserving priority (the toast says so) and returning null (a no-op with a message)
+  when nothing remains. Bulk cancel, OCO/combo group cancel, and Flatten All remain **always-confirm**
+  regardless of the setting.
+- **Settings toggle is memory-only.** `useSettingsStore.confirmCancellations` is surfaced in a
+  top-bar `SettingsPopover`; like the rest of app state it does not persist across reload (§20.3).
+- **Watchlist reuses the existing focus plumbing.** The star toggles on Market Overview and the
+  `useWatchlistStore`-driven focus subscription (`useMarketDataSubscription`) already existed; phase 10
+  added the compact `WatchlistPanel` (built from the same pure `buildMarketRows`, filtered to watched
+  symbols) plus an all-roles `/watchlist` route and sidebar entry. Clicking a row opens Symbol Detail
+  and sets the active symbol, so watched symbols keep their `depth`/`auction` focus subscription.
+- **Event Center marks read on open.** Opening the sheet clears the unread badge; events arriving
+  while it is open re-mark on the next open (a deliberate simplification, not a per-event live
+  re-mark). The buffer is the bounded in-memory ring already in `useNotificationStore` (500).
+
+Phase 11 (ADMIN dashboard, monitor WS, Monitor Log Viewer) findings:
+
+- **The admin monitor feed is NOT `monitor.event`/`event_type`.** The biggest correction from reading
+  the gateway source: `/admin/monitor` forwards the **same uniform envelopes** as the other sockets,
+  keyed by `type` (`order.ack`/`order.fill`/`order.cancelled`/`order.amended`/`order.expired`/
+  `session`/`circuit_breaker`/`admin.action`/…). `lib/monitorEvents.ts::classifyMonitorEnvelope`
+  classifies by `type` (and `topic` for the CB halt/resume split), not a payload field. §6.9/§15.9/
+  §17.4 were corrected. The non-ADMIN WS close code is **`1008`** (preceded by an `error` frame), not
+  `4003`.
+- **`monitor.snapshot` shape.** `data = { orders: [...], halts: {halted:[]}|null, gateways:
+  {gateways:[]}|null, last_seq: {gid:int}, incomplete: [] }`. `halts`/`gateways` are **objects** (not
+  bare arrays) and are **null** when their best-effort engine query timed out (listed in
+  `incomplete`); `orders` and `last_seq` are always present. Gateway items use **`id`**, not
+  `gateway_id`. Halt entries carry `symbol` plus optional `level`/`resume_at_ns`(epoch nanos)/
+  `halt_source`.
+- **`useMonitorStore` is fed directly, off the shared bus.** An ADMIN runs both the market-data
+  socket (always-on `session`/`circuit_breaker` + the broad `*` book item) and the admin monitor
+  socket, which "sees every event." Routing the admin feed onto the shared `wsOn` bus would
+  double-process the market-data events an ADMIN already gets there. So `handleAdminMonitorMessage`
+  routes into `useMonitorStore` only. Consequence: `session`/`circuit_breaker` update `sessionStore`/
+  `haltStore` once (from market-data) and appear once in the monitor **log** (from the admin feed);
+  cross-gateway `order.*` events reach ADMIN **only** via the monitor feed (no `/events` socket) and
+  live solely in `useMonitorStore`.
+- **KPIs and per-symbol table sourcing.** Session ← `sessionStore` (market-data). Active Orders ←
+  `selectActiveOrderCount` over the monitor snapshot/live orders (non-terminal only; the snapshot is
+  the same `engine.all_orders()` as `GET /admin/orders`, so a separate REST call is redundant).
+  Connected Gateways ← `GET /admin/gateways` (`id`/`connected`). Active CB Halts ← `haltStore`
+  (bootstrapped at login and re-reconciled from `GET /admin/halts`, kept live by the market-data
+  `circuit_breaker` channel). The per-symbol board reuses `buildMarketRows` (broad book) plus
+  `selectOrderCountsBySymbol`.
+- **Cross-gateway drill-down uses the audit endpoint, not the trader drawer.** Clicking an order row
+  opens `AdminOrderDetailModal`, which reads `GET /admin/orders/{id}` (pm-audit trail) — the correct
+  cross-gateway source. The gateway-scoped `/history/orders/{id}` behind the shared Order Detail
+  drawer (phase 10) cannot see another gateway's order, so it is deliberately not reused here. The
+  modal degrades gracefully on `503 AUDIT_INDEX_UNAVAILABLE` and `404 UNKNOWN_ORDER` (and the query
+  disables retry so the definitive answer shows immediately).
+- **Reconnect gap marker.** On a fresh `monitor.snapshot` after prior events (a reconnect), the store
+  inserts a `GAP` row — there is no monitor event-replay API, so the log shows a visible boundary
+  rather than pretending continuity (§15.9). The cross-gateway orders map is bounded only by
+  reconnect reconciliation (terminal orders are not evicted client-side); acceptable at classroom
+  scale, a candidate for a periodic `GET /admin/orders` reconcile later.
+
+Phase 12 (Session Control, Gateway Management + Kick, Kill Switch) findings:
+
+- **The "disabled placeholder" premise for by-gateway / global kill-switch was obsolete.** §15.8
+  disabled those scopes "pending a future admin endpoint," but the gateway source has
+  `POST /admin/kill-switch/gateway` (`KillSwitchGatewayAck` — `accepted`, `target_gateway_id`,
+  `cancelled_orders`, `cancelled_quotes`, `command_id?`) and `POST /admin/kill-switch/global`
+  (`KillSwitchGlobalAck` — same counters plus `affected_gateways`). Both are `require_admin`, await
+  their own ack, and answer `202` with the ack or `403 ROLE_DENIED` on rejection. So all three
+  scopes are implemented and working; §15.8 and the phase-12 row were adapted. Nothing in phase 12 is
+  genuinely unsupported — the truly-disabled controls (symbol add/edit, CB `level`, index rebalance)
+  belong to phase 13.
+- **Escalating, always-on confirmation.** Session transition, Gateway Kick, and symbol/gateway
+  kill-switch use the single-step `CancelConfirm`; the market-wide Global kill-switch uses a new
+  `ConfirmTypedDialog` that only arms Execute once the operator types `CONFIRM` (§20.3). None consult
+  the power-user `confirmCancellations` setting — these are admin destructive actions that always
+  confirm.
+- **Kick ≠ by-gateway kill-switch.** Two distinct actions on a gateway: **Kick** = `POST
+  /admin/gateways/{id}/disconnect` (`{gateway_id, status:"DISCONNECTED"}`) disconnects the participant
+  (the engine cancels its orders/quotes as a disconnect side effect, FR-MMQ-006); **by-gateway
+  kill-switch** cancels its resting exposure while leaving it connected. Both are on the Gateway
+  Management screen.
+- **Session transition REST response is authoritative.** `POST /admin/session/transition {to_state}`
+  → `202 { status:"APPLIED", requested_state, command_id }`, `409 TRANSITION_REJECTED` (reason
+  surfaced in the toast, e.g. sessions disabled / invalid-from-phase), or `503 ENGINE_TIMEOUT`. The
+  button set is derived from `useSessionStore.phase` via `VALID_TRANSITIONS`; the resulting phase
+  still arrives app-wide over the `session.state` broadcast, which re-derives the offered buttons.
+- **A rejection is a `403`, not `accepted:false`.** All the admin ack endpoints raise `403
+  ROLE_DENIED` with the engine's reason when the engine rejects, so the success handlers never have
+  to inspect `accepted`; the error handler maps `ROLE_DENIED` → an error toast and `503`/
+  `ENGINE_TIMEOUT` → "submitted, awaiting confirmation."
+
+Phase 13 (Risk / Circuit Breaker / Symbol / Index admin — mostly read-only) findings:
+
+- **The circuit-breaker ladder is per-SYMBOL, not per risk level.** `GET /reference/risk` `levels[]`
+  carry only `{name, collar?: {static_band_pct, dynamic_band_pct}}` — no CB rungs. The ladder lives
+  on `GET /reference` `symbols[].circuit_breaker.levels[]` = `{name, price_shift_pct,
+  halt_duration_ns}` (+ `reference_window_ns`). §15.5.2 was corrected. Halt duration is in
+  **nanoseconds** (`formatNsDuration` → `Xm`/`Xh Ym`); there is no resumption-mode column (every halt
+  reopens via a call auction). The Risk panel resolves each symbol's *effective* collar (its own,
+  else its risk level's, else the default level's).
+- **The CB manual-trigger `level` is functional, not cosmetic.** `POST /admin/circuit-breaker/trigger`
+  honours `level` end-to-end (`SymbolHalt` → engine `CircuitBreakerState.activate()`): a named level
+  runs the real breaker with auto-resume, no level halts indefinitely, and the engine **rejects** a
+  level for a symbol with no CB configured. So the selector is populated from the *selected symbol's*
+  ladder (from `/reference`) with an "Indefinite" option, and disabled when that symbol has no CB —
+  §15.6.2's "disable the selector" limitation was obsolete. Acks: `SymbolHaltAck`
+  `{accepted, symbol, cancelled_quotes}`, `SymbolResumeAck` `{accepted, symbol}`; rejection → `403`.
+- **Symbol add/edit is the one genuinely-absent write control.** `POST/PATCH /admin/symbols` do NOT
+  exist (grepped the whole admin router); symbols are static `engine_config.yaml`, changed only by a
+  config reload (which itself rejects a changed symbol set). So Symbol Management is read-only with
+  Add/Edit rendered **disabled with a prerequisite tooltip** — this is the phase's "unsupported write
+  control shows a prerequisite tooltip." (The design's §15.2 "Reference Price ← /reference/risk"
+  column was inaccurate — per-symbol reference price is live on `GET /admin/risk/state`, not the
+  static `/reference/risk`; the read-only table omits it and shows live top-of-book from the book
+  store instead.)
+- **Index rebalance exists (like the phase-12 kill-switch discrepancy).** `POST
+  /admin/indexes/{id}/rebalance` is wired to a live pm-index bridge (`503 INDEX_TIMEOUT` if pm-index
+  is down, `409 REBALANCE_REJECTED` on refusal). Rather than a false "requires a future bridge"
+  placeholder, the Index panel is read-only (config from `/admin/indexes`; recent levels from
+  `/history/index-daily`, degrading to a note on `503 STATS_DB`) with an accurate statement that
+  rebalancing is available via the API — a corporate-action UI is a deliberate out-of-scope choice
+  for this read-only phase, not a block.
+- **All the read panels source static config from `/reference`** (open to any key; ADMIN already
+  bootstraps it at login), and the CB active-halts table reuses the live `haltStore` (bootstrapped by
+  `GET /admin/halts`, kept current by the always-on `circuit_breaker` channel that ADMIN also
+  receives on its market-data socket).
+
+Phase 14 (Help system) findings:
+
+- **Pure client feature; no backend.** Help drawer, field tooltips, and the shortcut reference are
+  all local UI. The drawer + shortcuts state live in `useUiStore` alongside the other overlays, and
+  the help drawer is mutually exclusive with the Event Center (both are right-edge sheets — opening
+  one closes the other; opening the Order Detail drawer closes both).
+- **`F1` was already wired (phase 6);** it focuses the Order Ticket's first field via
+  `react-hotkeys-hook` inside the ticket. Phase 14 added `Ctrl+/` (toggle help drawer, works even
+  while a field has focus) and `?` (open the shortcut reference — bound with `enableOnFormTags:false`
+  so typing `?` in an input is unaffected, per §19.4). The `?`-key section-switch on an open drawer
+  (§19.2 item 2) is deferred as a minor nicety.
+- **Help content is authored inline, not loaded from `/help/*.md`.** §19.1.1 envisioned Markdown
+  files; the implementation uses a typed `HELP_TOPICS` tree instead, avoiding a Markdown-renderer
+  dependency and keeping the content type-checked and testable. The "Keyboard Shortcuts" topic and
+  the `?` dialog both render one shared `SHORTCUTS` table (`lib/shortcuts.ts`) so they never drift.
+- **Field tooltips are accessible and dependency-free.** `FieldInfo` is an info-icon button
+  (`aria-label="{field} help"`) revealing a `role="tooltip"` popover on hover OR keyboard focus,
+  linked by `aria-describedby`. It is wired onto every Order Ticket field. NOTE: the ticket's
+  `labelledField` wrapper had to change from `<label>` to `<div>` — a `<label>` wrapping both the
+  input and the FieldInfo `<button>` would associate the label with the button (the first labelable
+  descendant) rather than the input; every ticket input already carries its own `aria-label`, so the
+  `<div>` loses nothing.
+
+Phase 15 (Command palette + global shortcuts) findings:
+
+- **Pure client feature; no backend.** The command palette (`Ctrl+K`) is a dependency-free
+  keyboard-navigable overlay (↑/↓ move, Enter runs, Escape closes) rendered in the AppShell and gated
+  on `useUiStore.commandPaletteOpen`. It fuzzy-searches the symbol store (rows show the live last
+  price — the app has no company-name field, so the `§21.1` "Apple Inc." mock label is not shown) and
+  a role-filtered action list from the pure `lib/commandItems.ts`. Selecting a symbol opens Symbol
+  Detail + sets the active symbol; the star toggles the watchlist; actions navigate or fire a UI
+  toggle.
+- **"Toggle panel" shortcuts are route navigation.** `F3` (Positions), `F4` (Active Orders), and
+  `Ctrl+L` (Watchlist) navigate to the corresponding route, because those surfaces are routes, not
+  docked panels. They are role-gated in `useGlobalShortcuts` (role read fresh from the store) so an
+  ADMIN pressing `F4` is not bounced by a RoleGuard. `Ctrl+.` toggles the Event Center;
+  `Ctrl+Shift+F` (Flatten All) navigates to Positions, where the always-confirm flatten-all dialog
+  lives — a truly global flatten would need the positions list + that dialog, which are page-scoped.
+  `Shift+F` (flatten the *selected* position) is deferred: Positions has no row-selection model.
+- **`Ctrl+Enter`** submits the focused OCO / Combo form (a keydown on the form root).
+- **What was already wired stays where its behaviour is:** `B`/`S`/`F1` in the Order Ticket, the
+  blotter row keys (Enter / Delete / arrows) in the blotter, `F2` on the quote screen, and
+  `Ctrl+/`/`?` in the help hook. The palette action list surfaces the same navigation for
+  discoverability and mouse-free reach.
+- **Known browser conflicts (noted, `preventDefault` applied):** `Ctrl+L` is the browser's
+  address-bar shortcut and `F3`/`Ctrl+K` are used by some browsers; `preventDefault` wins while the
+  app has focus, but a hardened browser extension could still intercept them — the top-bar search
+  affordance and the palette action list provide mouse-reachable equivalents.
+
+Phase 16 (Polish) findings:
+
+- **Scope was reconciled against what earlier phases already shipped.** The phase-16 line item lists
+  four polish tasks; two were already delivered: confirmation dialogs (`CancelConfirm`,
+  `ConfirmTypedDialog` for the global kill switch) and undo-toasts (power-user single-order cancel)
+  landed in phases 7/10/12, and most data views already carry bespoke empty states (Market Overview
+  "is pm-api-gwy running?", blotter/positions/trade-history/admin "No …" rows). Phase 16 therefore
+  focused on the two genuinely-missing pieces — **error boundaries** and an app-wide **connection
+  banner** — plus factoring out reusable **skeleton** and **empty-state** primitives.
+- **`ErrorBoundary` is a class component** (`components/shared/ErrorBoundary.tsx`; React error
+  boundaries have no hook equivalent) using `getDerivedStateFromError` + `componentDidCatch`. It
+  renders a `role="alert"` fallback with the error message and a "Try again" button that resets the
+  boundary in place. It wraps **only the routed `<Outlet/>`** inside `<main>`, keyed by
+  `location.pathname`, so: (a) the persistent chrome (top bar, sidebar, connection banner) stays
+  mounted and usable when a screen crashes, and (b) navigating to a different route auto-remounts the
+  boundary and clears the error. App-level overlays (Event Center, drawers, command palette) sit
+  outside this boundary by design — they are independently, conditionally mounted from `useUiStore`
+  and a crash in one should not blank the route content, nor vice-versa. `tsconfig` has
+  `noImplicitOverride`, so the lifecycle members carry explicit `override`.
+- **`ConnectionBanner`** (`components/layout/ConnectionBanner.tsx`) renders under the top bar and is
+  driven by `useConnectionHealth().overall` (§17.5). It is `null` while `connected`, amber
+  ("Reconnecting… live data is paused") while `reconnecting`, and red ("Disconnected … is pm-api-gwy /
+  the engine running?") while `disconnected` — the "graceful degradation when the engine is stopped"
+  verification. `overall` is computed only from the sockets a role actually owns, so an ADMIN with no
+  market-data socket is not dragged red by it, and REST panels keep their own 503 notes. `role="status"`
+  so the change is announced without stealing focus.
+- **Skeletons + empty state are reusable primitives.** `Skeleton`/`TableSkeleton`
+  (`components/shared/Skeleton.tsx`) use Tailwind's built-in `animate-pulse` with a `motion-reduce`
+  opt-out; `TableSkeleton` is a `role="status" aria-busy` region with an `sr-only` "Loading…" label.
+  They replaced the bare "Loading…" spinner/text on **Market Overview** and **Risk Controls** (the
+  admin view also now hides its otherwise-empty tables while the reference fetch is in flight). The
+  shared `EmptyState` (icon + title + hint + optional action) now backs the Watchlist empty case;
+  other views keep their existing tailored empty states to avoid churn.
+
+Phase 17 (Build pipeline / pm-trading-ui-serve) findings:
+
+- **`vite build` was already working** before this phase (the CI smoke-test from phase 1 ran it);
+  phase 17's deliverable is the named `pm-trading-ui-serve` entry point that makes the built `dist/`
+  runnable without an external static server.
+- **Zero additional runtime dependencies.** `apps/serve/serve.ts` uses only Node built-in modules
+  (`node:http`, `node:fs`, `node:path`, `node:url`) and the existing `tsx` dev-dependency already in
+  the workspace root. No Express, Fastify, `serve`, or `http-server` packages were added. This
+  matches the project's philosophy of not growing the dependency surface for infrastructure glue.
+- **Why not `vite preview`?** `vite preview` is intentionally a smoke-test tool, not a production
+  server — it has no graceful-shutdown hook, no environment-variable-driven configuration, and no
+  `/api/*` proxy forwarding. `pm-trading-ui-serve` is the production-ready equivalent.
+- **SPA fallback is the critical behaviour.** React Router v7 uses client-side routing; every
+  path except real asset files must return `index.html` with a 200 so the router can hydrate the
+  correct component. The server resolves each request against `STATIC_DIR`, falls through to
+  `index.html` on a miss, and never returns 404 for a `GET` that could be a valid client route.
+- **Caching strategy mirrors Vite's output convention.** Vite names hashed bundles
+  `assets/index-<hash>.js`; the server detects the `assets/` subdirectory and the `.[a-f0-9]{8,}.\w+$`
+  pattern and applies `Cache-Control: public, max-age=31536000, immutable`. `index.html` gets
+  `no-cache` so browsers re-fetch the entry point on every deploy and immediately pick up new
+  hashed bundle filenames.
+- **`/api/*` proxy is opt-in.** Setting `API_PROXY_TARGET=http://localhost:8080` makes the server
+  forward `/api/*` to `pm-api-gwy`, matching the Vite dev-server proxy behaviour. When unset the
+  server returns 503 with an explicit message — clear in the browser console, avoids silently serving
+  stale cached responses. The recommended production topology is a reverse proxy (nginx/Caddy/Traefik)
+  in front; the built-in proxy covers single-machine dev/staging deployments.
+- **Path-traversal protection.** `path.normalize` + a `startsWith(STATIC_DIR + sep)` guard ensures
+  URL-encoded traversal (`/..%2F..%2Fetc%2Fpasswd`) returns 403. Plain `/../` is normalised by the
+  browser/curl before it reaches the server.
+- **Smoke-test results (all green):** `GET /` → 200 HTML; deep React Router path → 200 SPA fallback;
+  hashed `.js` asset → `immutable` cache header; `/api/v1/status` without proxy target → 503;
+  URL-encoded traversal → 403; `HEAD /` → 200; `--help` → prints usage.
+- **Typecheck fix:** the base `tsconfig.base.json` has `noUncheckedIndexedAccess`; the regex
+  `match[1]` in the `--help` handler had to be guarded as `match?.[1]`.
+- **`apps/serve` workspace.** A minimal `package.json` + `tsconfig.json` was added so
+  `npm run typecheck --workspaces` covers the serve script alongside the web app. The tsconfig
+  uses `moduleResolution: Node` (not `Bundler`) because it is a plain Node script, not a Vite-
+  bundled browser app.
 
 ---
 
@@ -3210,7 +3915,7 @@ use the same operational model, even if the wire encoding remains JSON rather th
 
 > **Update (2026-08-05):** the former top two rows of this table — per-topic sequence numbers and the
 > per-symbol subscription model for `/api/v1/market-data` — have shipped and are documented in
-> [§17.3.1](#1731-authentication-and-subscription). `/api/v1/events` has also gained `event_seq` and
+> [§17.3.1](#1731-authentication-and-subscription). `/api/v1/events` has also gained `stream_seq` and
 > an `orders.snapshot` frame ([§17.2.1](#1721-authentication-frame)); resume/replay for private events
 > was evaluated and deliberately deferred (see [§26.3.5](#2635-private-event-recovery)). `command_id`
 > was also added, narrowly, to kill switch/mass cancel and session transition
@@ -3221,11 +3926,14 @@ use the same operational model, even if the wire encoding remains JSON rather th
 > stable runtime bootstrap APIs ([§26.4.2](#2642-reference-data-service-boundary)), so the
 > "Reference/risk/admin APIs" row now covers only remaining runtime admin write surfaces and index
 > admin bridging. The "Private order events" and "Command lifecycle" rows have been dropped entirely.
-> The other items remain proposed.
+> The market-data snapshot/resume handshake ([§26.3.2](#2632-snapshot-resume-and-reset-handshake)) and
+> the terminal bootstrap endpoints ([§26.4.4](#2644-terminal-oriented-aggregate-endpoints)) have also
+> shipped; the "CALF/browser bridge" row below reflects that `SNAP`/`RESUME` is complete for market
+> data, and §26.4.4 is now a description of what exists rather than a proposal.
 
 | Area | Recommended change | Why it helps the terminal |
 |---|---|---|
-| CALF/browser bridge | Define a canonical JSON envelope that mirrors CALF `SEQ`/`SNAP`/`RESUME` semantics | Lets the UI, API gateway, and external protocol stay conceptually aligned |
+| CALF/browser bridge | `SEQ` and `SNAP`/`RESUME` **implemented for market data** ([§26.3.2](#2632-snapshot-resume-and-reset-handshake)); remaining: uniform envelope across private events and admin monitor, `snapshot_id`/`*.reset` framing | Market-data gap repair is now targeted rather than a full re-subscribe; envelope unification across all three streams is still proposed |
 | Book/depth data | Publish full depth snapshots plus incremental depth deltas with clear reset markers | Makes DOM ladders precise and efficient |
 | Auction data | Publish periodic authoritative indicative auction updates during auction phases | Removes client-side approximation and makes the teaching panel trustworthy |
 | Admin monitor | Add cross-gateway *event* backfill (`GET /api/v1/admin/monitor/events?from_seq=&limit=`) — snapshot and order drill-down already ship | Repairs the Monitor Log Viewer's gap after a dropped connection |
@@ -3266,10 +3974,9 @@ Rules:
 
 #### 26.3.2 Snapshot, resume, and reset handshake
 
-Per-symbol channel items and per-topic `seq` are now implemented
-([§17.3.1](#1731-authentication-and-subscription)); this section proposes the remaining piece — an
-explicit snapshot/resume/reset handshake so a detected gap can be repaired with a targeted replay
-instead of a full re-subscribe. It extends the implemented `items` subscribe shape:
+**Implemented.** Per-symbol channel items, per-topic `seq`, and the snapshot/resume/reset handshake
+are all now in place ([§17.3.1](#1731-authentication-and-subscription)). The wire shapes below are
+the live contract:
 
 ```jsonc
 // subscribe with optional resume point
@@ -3295,8 +4002,7 @@ Server responses:
 - `*.reset` tells the client to discard cached state and request a new snapshot.
 - `resume.rejected` includes a reason such as `too_old`, `unknown_topic`, or `snapshot_required`.
 
-This is the browser equivalent of CALF `SNAP`/`RESUME`, expressed in JSON and aligned with React
-state management.
+This is the browser-JSON equivalent of CALF `SNAP`/`RESUME`.
 
 #### 26.3.3 Per-symbol channel subscriptions
 
@@ -3328,13 +4034,13 @@ should not reimplement the matching algorithm to manufacture authoritative price
 `/api/v1/events` now exposes most of this recovery contract:
 
 - **Done:** on authentication, the server sends
-  `{ "type": "authenticated", "gateway_id": "GW01", "event_seq": 9182 }`.
+  `{ "type": "authenticated", "gateway_id": "GW01", "stream_seq": 9182 }`.
 - **Done:** an `orders.snapshot` frame follows authentication with the gateway's current active
   orders.
 - **Done:** `order.*`/`combo.*`/`oco.*`/`quote.*` events carry stable group ids (`oco_group_id`,
   `combo_parent_id`, quote group id) for OCO/combo/quote workflows.
 - **Deliberately deferred:** `{ "action": "resume", "from_seq": 9000 }` support. This would need a
-  server-side event replay buffer that does not exist. What resume buys over `event_seq` +
+  server-side event replay buffer that does not exist. What resume buys over `stream_seq` +
   `orders.snapshot` is visibility into *transitions* missed during a gap — e.g. an order that filled
   and was then cancelled shows only as `CANCELLED` in the snapshot, and the UI never sees the fill.
   That matters for a blotter, but fills are already recoverable from `/history/*`, and drop copy
@@ -3386,7 +4092,7 @@ correlator, echoed on their acks:
   turned out to be a real bug, not just a missing correlator — the handler returned early and
   published nothing when sessions were disabled or the state was unknown, so the endpoint answered
   `202`/`PENDING` regardless and a caller's only signal was an indistinguishable timeout. It now
-  answers `200`/`ACCEPTED` with a `command_id`, or `409`/`TRANSITION_REJECTED` with the engine's
+  answers `202`/`APPLIED` with a `command_id`, or `409`/`TRANSITION_REJECTED` with the engine's
   reason, on all three paths.
 
 **Deliberately declined:**
@@ -3460,7 +4166,8 @@ Each command should accept an optional `reason` field and emit an admin monitor 
 
 #### 26.4.4 Terminal-oriented aggregate endpoints
 
-Small aggregate endpoints reduce UI boot time and avoid waterfalls:
+**Implemented.** Aggregate endpoints now ship for all three roles, eliminating the startup
+waterfall:
 
 - `GET /api/v1/bootstrap/trader` returns status, gateway id, symbols, session, positions, active
   orders, recent fills, and watchable capabilities.
@@ -3468,8 +4175,9 @@ Small aggregate endpoints reduce UI boot time and avoid waterfalls:
 - `GET /api/v1/bootstrap/admin` adds gateways, halts, current active order counts, reference-data
   version, and monitor last sequence.
 
-These endpoints should be thin composition layers over existing services. They are not a replacement
-for normalized REST resources; they make browser startup predictable.
+These are thin composition layers over existing services, not a replacement for normalized REST
+resources. See [§7.2](#72-login-flow) for the updated startup sequence and
+[§18.2](#182-tanstack-query-key-conventions) for the corresponding TanStack Query keys.
 
 #### 26.4.5 Capability discovery
 
@@ -3491,12 +4199,14 @@ This keeps the terminal honest during staged backend work and makes demos less b
 
 1. ~~Unify WebSocket envelopes and sequence numbers.~~ **Done for market data and private events** —
    market data carries a per-topic `seq` ([§17.3.1](#1731-authentication-and-subscription)) and
-   `/api/v1/events` carries a private `event_seq` ([§17.2.1](#1721-authentication-frame)). Remaining:
+   `/api/v1/events` carries a private `stream_seq` ([§17.2.1](#1721-authentication-frame)). Remaining:
    extend the same convention to `/api/v1/admin/monitor`, and unify all three into one shared envelope.
-2. **Add snapshot/resume for market data.** Private-event resume/replay was evaluated and
-   deliberately deferred ([§26.3.5](#2635-private-event-recovery)) — `event_seq` + `orders.snapshot`
-   plus `/history/*` and drop copy already cover the practical recovery cases. Market data still
-   lacks a replay handshake, so this item stays scoped to `book`/`trades`/`depth`/`auction`.
+2. ~~Add snapshot/resume for market data.~~ **Done** — the full `snapshot`/`resume`/`reset`
+   handshake now ships for `/api/v1/market-data` ([§26.3.2](#2632-snapshot-resume-and-reset-handshake)).
+   A detected `seq` gap is repaired with a targeted `{ "action": "resume" }` rather than a full
+   re-subscribe + REST refresh storm; `resume.rejected` falls back to a fresh `snapshot` for that
+   topic only. Private-event resume/replay remains deliberately deferred
+   ([§26.3.5](#2635-private-event-recovery)).
 3. ~~Replace the market-data subscription shape with per-symbol channel items.~~ **Done** — see
    [§17.3.1](#1731-authentication-and-subscription) and
    [§26.3.3](#2633-per-symbol-channel-subscriptions).
@@ -3515,23 +4225,30 @@ This keeps the terminal honest during staged backend work and makes demos less b
   `/reference*`; remaining work is symbol mutation, expanded kill-switch scopes, and `pm-index`
   admin bridge endpoints.
 
-Items 1, 3, 5, and 6 are complete for their narrowed scope: market data and private events for item 1,
-per-symbol subscriptions for item 3, admin monitor snapshot/order drill-down for item 5 (event backfill
-still open), and kill switch/mass cancel plus session transition for item 6. Item 7 is now partially
-complete: reference reads are stable via `/reference*`, while admin/index write surfaces remain.
-Private-event
-resume/replay (originally part of item 2) has been deliberately deferred — see
-[§26.3.5](#2635-private-event-recovery). The next highest-leverage remaining step is item 2 for market
-data: sequence numbers alone only let the UI detect a gap — they do not yet let it repair one without
-a full re-subscribe.
+Items 1, 2, 3, 5, and 6 are complete for their narrowed scope: market data and private events for
+item 1, full snapshot/resume for market data for item 2, per-symbol subscriptions for item 3, admin
+monitor snapshot/order drill-down for item 5 (event backfill still open), and kill switch/mass cancel
+plus session transition for item 6. Item 7 is now partially complete: reference reads are stable via
+`/reference*`, while admin/index write surfaces remain. The bootstrap endpoints
+([§26.4.4](#2644-terminal-oriented-aggregate-endpoints)) have also shipped (not a numbered item above,
+but eliminating the startup waterfall). Private-event resume/replay (originally part of item 2) has
+been deliberately deferred — see [§26.3.5](#2635-private-event-recovery). The highest-leverage
+remaining steps are item 5 (monitor event backfill) and item 7 (runtime admin/index write APIs).
 
 ---
 
 ## Appendix A: Core TypeScript Types
 
-Canonical interfaces for the main API response shapes and WebSocket event payloads. Field names are
-based on the Requirements document payloads (§3.3, §18.1) and the API Gateway JSON examples (§6–§8).
-These live in `src/types/`.
+Canonical interfaces for the main API response shapes and WebSocket event payloads.
+
+> **Source of truth (pm-msgen):** two different contracts meet here and must not be conflated.
+> **REST resource** shapes (e.g. `Order`, `Position`) are defined by the gateway's Pydantic models and
+> are published as OpenAPI at `/openapi.json` — generate these TS types with `openapi-typescript`
+> rather than hand-maintaining them. **WebSocket `data`** shapes are the engine's pm-msgen
+> `to_dict()` payloads, forwarded verbatim, and use the **engine field names** (`qty`, `client_tag`,
+> `oco_group_id`, …), which differ from the REST resource names (`quantity`, `client_order_id`). The
+> per-`type` WS `data` payloads are catalogued in [the WS payload reference](#appendix-a1-websocket-event-data-payloads-pm-msgen-wire)
+> below; the REST resource types follow here. These live in `src/types/`.
 
 ```typescript
 // ── Enums ──────────────────────────────────────────────────────────────────
@@ -3559,6 +4276,14 @@ export interface StatusResponse {
 }
 
 // ── Order / Fill / Trade ─────────────────────────────────────────────────────
+// CANONICAL client shape, NOT the raw wire shape. `GET /orders` returns the
+// engine pm-msgen `OrderDisplay`, whose id key is `id`, timestamp is
+// `timestamp` (epoch seconds), and client tag is `client_tag`; a reply timeout
+// makes the gateway fall back to a thinner cache row keyed on `order_id` with
+// no display prices. The client folds BOTH into this shape via
+// `normalizeOrder()` (id||order_id → order_id, timestamp → updated_at ISO,
+// client_tag||client_order_id → client_order_id), so every screen reads
+// `order_id`/`updated_at`/`client_order_id` regardless of which path served it.
 export interface Order {
   order_id: string;
   client_order_id?: string | null;
@@ -3572,24 +4297,32 @@ export interface Order {
   stop_price: number | null;
   visible_qty: number | null;
   trail_offset: number | null;
-  smp_action: SmpAction;
+  smp_action: SmpAction | null;    // OrderDisplay omits it when unset
   status: OrderStatus;
   oco_group_id?: string | null;
   combo_parent_id?: string | null;
   gateway_id?: string;              // present on admin cross-gateway views (§6.9); absent on own-gateway `/orders`
-  updated_at: string;              // ISO-8601
+  updated_at: string | null;       // ISO-8601, derived from OrderDisplay `timestamp`; null on the thin fallback row
 }
 
 export interface Fill {
+  // The PRIVATE `order.fill` event (pm-msgen `OrderFill`).
+  gateway_id: string;
   order_id: string;
-  trade_id: string;
-  symbol: string;
-  side: Side;
   fill_qty: number;
   fill_price: number;
   remaining_qty: number;
   status: OrderStatus;             // PARTIAL | FILLED
-  ts: string;
+  trade_ids: string[];             // public trade id(s) composing this fill; [] if none (always present)
+  symbol?: string;
+  side?: Side;
+  qty?: number;                    // original order qty (engine name, not `quantity`)
+  price?: number;
+  client_tag?: string;             // engine name for the client order id
+  oco_group_id?: string;
+  combo_parent_id?: string;
+  quote_id?: string;
+  leg_index?: number;
 }
 
 export interface Trade {
@@ -3623,30 +4356,59 @@ export interface DepthMetrics {
   cost_to_move: number;
 }
 
+// Final uncross result. pm-msgen carries `reason`, NOT an `indicative` flag; the
+// indicative is a separate message/type (see AuctionIndicative). `type: "auction"`.
+export type AuctionReason = "SCHEDULED" | "REOPEN" | "RECOVERY" | "BACKSTOP";
 export interface AuctionResult {
   symbol: string;
-  eq_price: number | null;         // null if no cross
+  eq_price: number | null;         // null if nothing crossed
   eq_qty: number;
-  imbalance_side: Side | "";
+  imbalance_side: Side | null;     // "BUY" | "SELL" | null
   imbalance_qty: number;
   trades_count: number;
-  indicative: boolean;             // true = ongoing-auction indicative; false = final uncross
+  reason: AuctionReason;
+}
+
+// Running call-phase indicative. `type: "auction.indicative"`, same `auction` channel.
+export interface AuctionIndicative {
+  symbol: string;
+  phase: "OPENING_AUCTION" | "CLOSING_AUCTION";
+  eq_price: number | null;         // null if the book would not cross yet
+  eq_qty: number;
+  imbalance_side: Side | null;
+  imbalance_qty: number;
 }
 
 // ── Session / Circuit breaker (market-data, always-on) ───────────────────────
 export interface SessionEvent {
   state: SessionState;
-  prev_state: SessionState | null;
+  prev_state?: SessionState;       // omitted (not null) when empty on the wire
+  next?: {                         // present only on a scheduler-driven transition
+    state: SessionState;           // pm-msgen NextTransition: phase moved-to is `state`, NOT `to_state`
+    at: string;                    // scheduled transition time (ISO-8601)
+  };
 }
 
-export interface CircuitBreakerEvent {
-  action: "HALT" | "RESUME";
+// Two topics, one `type: "circuit_breaker"`; discriminate on the envelope `topic`
+// (circuit_breaker.halt.* vs circuit_breaker.resume.*), NOT on an `action` field.
+export interface CircuitBreakerHalt {
   symbol: string;
-  level: number;
-  trigger_price: number;
-  reference_price: number;
-  resume_at: string | null;
-  resumption_mode: ResumptionMode;
+  level: string | null;            // level NAME, e.g. "L2" (string, not a number)
+  trigger_price: number | null;    // null on an ADMIN (non-price) halt
+  reference_price: number | null;
+  resume_at_ns: number | null;     // epoch NANOSECONDS; null = indefinite halt
+  halt_source?: string;            // e.g. "CIRCUIT_BREAKER" | "ADMIN"
+  corridor_low?: number | null;
+  corridor_high?: number | null;
+  expansion?: number | null;
+}
+
+export interface CircuitBreakerResume {
+  symbol: string;
+  halt_source?: string;
+  reason?: string;
+  clamped?: boolean | null;        // closing backstop only
+  print_price?: number | null;     // closing backstop only
 }
 
 // ── Positions ────────────────────────────────────────────────────────────────
@@ -3664,23 +4426,41 @@ export interface PositionPnlExtension {
 }
 
 // ── MM quote legs (§14.3) ────────────────────────────────────────────────────
+// pm-msgen `QuoteLeg` is per-side; `leg_side` is "BUY"/"SELL", not "bid"/"ask".
 export interface QuoteLeg {
   quote_id: string;
+  order_id: string;
   symbol: string;
-  side: "bid" | "ask";
-  price: number;
+  leg_side: Side;                  // "BUY" | "SELL"
+  price?: number | null;           // leg limit price (display money); omitted/null if unavailable
   qty: number;
-  fill_qty: number;                // per-leg fill flag
-  status: "ACTIVE" | "INACTIVE" | "CANCELLED" | "PENDING";
+  remaining: number;
+  filled: number;                  // per-leg filled quantity
+  status: string;                  // leg order status
+  quote_status: string;            // parent quote status
 }
 
-// ── Symbol metadata (§6.7, GET /symbols) ─────────────────────────────────────
+// ── Symbol metadata ──────────────────────────────────────────────────────────
+// `GET /symbols` returns pm-msgen `SymbolInfo`, resolved per caller. reference_price, level and
+// outstanding_shares are NOT on it — see the merged `Symbol` view below.
+export interface SymbolInfoDTO {           // GET /symbols
+  symbol: string;
+  tick_decimals: number;
+  prev_close?: number | null;
+  enforce_mm_obligation?: boolean | null;
+  mm_max_spread_ticks?: number | null;
+  mm_min_qty?: number | null;
+}
+
+// The merged view the UI stores (§18.1.5): tick_decimals/prev_close from /symbols, level from
+// /reference (ReferenceSymbol), reference_price from /reference/risk (SymbolRiskState).
+// outstanding_shares is not currently returned by any read model.
 export interface Symbol {
   symbol: string;
   tick_decimals: number;
-  reference_price: number | null;
-  outstanding_shares?: number | null;
-  level?: string | null;           // collar profile name
+  prev_close: number | null;
+  reference_price: number | null;  // from /reference/risk (SymbolRiskState)
+  level?: string | null;           // from /reference (ReferenceSymbol); collar profile name
 }
 
 // ── Market-data subscription (§17.3.1) ───────────────────────────────────────
@@ -3691,32 +4471,32 @@ export interface MarketDataSubscriptionItem {
 
 // ── WebSocket envelopes ──────────────────────────────────────────────────────
 export interface WsEnvelope<T> {
-  type: string;
+  type: string;                    // stable public type; the UI routes on this
+  topic: string;                   // engine topic; `seq` counts WITHIN this — gap-track on `topic`
   ts: string;
-  gateway_id?: string;
-  symbol?: string;                 // present on market-data events; combines with `type` as the seq topic key
-  seq?: number;                    // per-topic on market-data (§17.3.1); also used by admin monitor (§6.9)
+  gateway_id?: string;             // present on private events
+  seq?: number;                    // per-TOPIC counter (market data + admin monitor)
+  stream_seq?: number;             // private events only: one contiguous counter for the whole stream
   data: T;
 }
 
 // ── Admin (§6) ───────────────────────────────────────────────────────────────
 export interface AdminGateway {
-  gateway_id?: string;
-  id?: string;                     // current gateway-list payloads may use id
+  id: string;                      // pm-msgen `GatewayInfo.id` (not `gateway_id`)
   role: GatewayRole;
-  description?: string;
   connected: boolean;
+  description?: string;
 }
 
+// pm-msgen `HaltedSymbol` (in `system.halt_status`) / `circuit_breaker.halt` broadcast.
+// `level` is a NAME string; timing is `resume_at_ns` (epoch nanos), not an ISO `resume_at`.
 export interface HaltEntry {
   symbol: string;
-  level?: number | string | null;
-  trigger_price?: number | null;
-  reference_price?: number | null;
-  halted_at?: string;
-  resume_at?: string | null;
+  level?: string | null;
   resume_at_ns?: number | null;
-  resumption_mode?: ResumptionMode;
+  halt_source?: string | null;
+  trigger_price?: number | null;   // present on the circuit_breaker.halt broadcast
+  reference_price?: number | null;
 }
 
 export interface MonitorEvent {
@@ -3731,3 +4511,381 @@ export interface MonitorEvent {
 }
 ```
 
+### Appendix A.1: WebSocket event `data` payloads (pm-msgen wire)
+
+The envelope is `WsEnvelope<T>` (above). `T` is the engine's pm-msgen `to_dict()` payload, forwarded
+verbatim, so these use **engine field names** (`qty`, `client_tag`, `filled`, `resume_at_ns`, …), not
+the REST resource names. The UI routes on the envelope `type`; the map at the end binds `type` → `data`
+shape. Optional fields are those the engine omits from `to_dict()` when null.
+
+```typescript
+// ── Private events (/api/v1/events) ──────────────────────────────────────────
+export interface OrderAckData {
+  gateway_id: string;
+  order_id: string;
+  accepted: boolean;
+  reason: string;                  // "" on acceptance
+  symbol?: string; side?: Side; order_type?: OrderType; tif?: Tif;
+  qty?: number; price?: number;
+  client_tag?: string; oco_group_id?: string; combo_parent_id?: string;
+  quote_id?: string; leg_index?: number;
+}
+
+// `order.fill` data === the `Fill` interface above (carries `trade_ids`).
+
+export interface OrderAmendedData {
+  gateway_id: string;
+  order_id: string;
+  qty: number;
+  remaining_qty: number;
+  priority_reset: boolean;
+  price: number | null;            // always present; null for a MARKET order
+}
+
+// `order.cancelled` and `order.expired` share this shape.
+export interface OrderTerminalData {
+  gateway_id: string;
+  order_id: string;
+  client_tag?: string; oco_group_id?: string; combo_parent_id?: string;
+  quote_id?: string; leg_index?: number;
+}
+
+export interface ComboAckData    { gateway_id: string; combo_id: string; accepted: boolean; reason: string; }
+export interface ComboStatusData { gateway_id: string; combo_id: string; status: string; reason?: string; }
+export interface OcoAckData      { gateway_id: string; oco_id: string; accepted: boolean; reason: string; order_id_1: string; order_id_2: string; }
+export interface OcoCancelledData{ gateway_id: string; oco_id: string; cancelled_order_id: string; reason?: string; }
+export interface QuoteAckData    { gateway_id: string; accepted: boolean; quote_id: string; reason: string; bid_order_id: string; ask_order_id: string; }
+export interface QuoteStatusData { gateway_id: string; status: string; quote_id: string; reason?: string; }
+
+// `mass_cancel.ack` (pm-msgen `KillSwitchAck`) — carries the shared command_id.
+export interface MassCancelAckData {
+  gateway_id: string;
+  accepted: boolean;
+  reason: string;
+  cancelled_orders: number;
+  cancelled_quotes: number;
+  command_id: string;
+}
+
+// ── Market data (/api/v1/market-data) ────────────────────────────────────────
+export interface RecentTrade {
+  id: string; symbol: string;
+  buy_order_id: string; sell_order_id: string;
+  buy_gateway_id: string; sell_gateway_id: string;
+  price: number; quantity: number; timestamp: number; // epoch seconds
+}
+
+// `book` — full snapshot every ~0.5s (see §17.3.4). tick_decimals + recent_trades
+// tail are on the wire in addition to the fields on BookSnapshot above.
+export interface BookData {
+  symbol: string;
+  tick_decimals: number;
+  bids: BookLevel[];
+  asks: BookLevel[];
+  recent_trades: RecentTrade[];
+  last_price: number | null;
+  last_qty: number | null;
+  last_buy_price: number | null;
+  last_sell_price: number | null;
+}
+
+// `depth` — full snapshot (no deltas). Note tick + display + microprice fields.
+export interface DepthData {
+  symbol: string;
+  mid_price_ticks: number;
+  mid_price: number;
+  tolerance_ticks: number;
+  bid_depth: number;
+  ask_depth: number;
+  imbalance: number;               // [-1, 1]
+  microprice: number;
+  cost_to_move: number;
+}
+
+// `trade` — public print (pm-msgen `TradeExecuted`); the only event with a trade id.
+export interface TradeData {
+  id: string;
+  symbol: string;
+  buy_order_id: string; sell_order_id: string;
+  buy_gateway_id: string; sell_gateway_id: string;
+  price: number;
+  quantity: number;
+  aggressor_side: "BUY" | "SELL" | "AUCTION";
+  timestamp: number;               // epoch seconds
+  tick_decimals: number;
+}
+
+// ── type → data binding ──────────────────────────────────────────────────────
+export interface WsDataByType {
+  "order.ack": OrderAckData;
+  "order.fill": Fill;
+  "order.amended": OrderAmendedData;
+  "order.cancelled": OrderTerminalData;
+  "order.expired": OrderTerminalData;
+  "combo.ack": ComboAckData;
+  "combo.status": ComboStatusData;
+  "oco.ack": OcoAckData;
+  "oco.cancelled": OcoCancelledData;
+  "quote.ack": QuoteAckData;
+  "quote.status": QuoteStatusData;
+  "mass_cancel.ack": MassCancelAckData;
+  "book": BookData;
+  "depth": DepthData;
+  "trade": TradeData;
+  "auction": AuctionResult;
+  "auction.indicative": AuctionIndicative;
+  "session": SessionEvent;
+  // Both halt and resume arrive as type "circuit_breaker"; discriminate on the
+  // envelope `topic` (circuit_breaker.halt.* vs circuit_breaker.resume.*).
+  "circuit_breaker": CircuitBreakerHalt | CircuitBreakerResume;
+}
+```
+
+
+---
+
+> **Revision History**
+>
+> - **1.11.13 (2026-08-14)** — Phase 17 implemented in `trader-gui/`. Added `apps/serve/serve.ts`
+>   (`pm-trading-ui-serve`): a zero-extra-dependency Node built-in `http` static file server for the
+>   production SPA. Features: SPA fallback routing (`/* → index.html`), `Cache-Control: immutable`
+>   for Vite hashed assets, `no-cache` for `index.html`, opt-in `/api/*` proxy via
+>   `API_PROXY_TARGET`, `HOST`/`PORT`/`STATIC_DIR` env vars, URL-encoded path-traversal guard (403),
+>   `--help` flag, SIGTERM/SIGINT graceful shutdown. Wired as `npm run pm-trading-ui-serve` and
+>   `make serve`. Also added `apps/serve/package.json` + `tsconfig.json` so the workspace typecheck
+>   covers the script. Updated `trader-gui/README.md`: all 17 phases marked ✅, added
+>   "Serving the production build" section. Marked phase 17 ✅ in [§23](#23-implementation-plan),
+>   recorded findings in [§23.1](#231-implementation-status-and-findings-phases-17). Suite: 327
+>   tests / 46 files green; typecheck (fix: `match?.[1]` for `noUncheckedIndexedAccess`) + `vite
+>   build` clean. Status line updated to "fully implemented".
+> - **1.11.12 (2026-08-14)** — Phase 16 (Polish) implemented in `trader-gui/`. Added a route-level
+>   `ErrorBoundary` (class component wrapping the `<Outlet/>`, keyed by pathname) so a crashing screen
+>   degrades to an inline `role="alert"` "Try again" panel while the chrome stays live and navigating
+>   away auto-recovers; an app-wide `ConnectionBanner` under the top bar driven by
+>   `useConnectionHealth().overall` (amber reconnecting / red disconnected) for graceful degradation
+>   when the engine/gateway is stopped; and reusable `Skeleton`/`TableSkeleton` + `EmptyState`
+>   primitives, applied to Market Overview + Risk Controls loading states and the Watchlist empty
+>   case. Confirmation dialogs and undo-toasts were already shipped in phases 7/10/12, and most views
+>   already had bespoke empty states, so those items were reconciled rather than rebuilt. Marked phase
+>   16 ✅ in [§23](#23-implementation-plan) and recorded findings in
+>   [§23.1](#231-implementation-status-and-findings-phases-17). Added `phase16Polish.test.tsx` (error
+>   boundary fallback + recovery, connection banner states, skeleton a11y/shape, empty state). Suite:
+>   327 tests / 46 files green; typecheck + `vite build` clean.
+> - **1.11.11 (2026-08-14)** — Phase 15 implemented in `trader-gui/` (command palette on `Ctrl+K` —
+>   dependency-free, keyboard-navigable symbol + role-aware action search — plus the global shortcuts
+>   `Ctrl+.`, `Ctrl+L`, `F3`, `F4`, `Ctrl+Shift+F`, and `Ctrl+Enter`; a top-bar search affordance). The
+>   "toggle panel" shortcuts navigate to the relevant route (those surfaces are routes, not docked
+>   panels); `Ctrl+Shift+F` routes to Positions where the flatten-all dialog lives; `Shift+F` (flatten
+>   selected) is deferred pending a position row-selection model. Annotated
+>   [§21.1](#211-command-palette-ctrlk), marked phase 15 ✅ in [§23](#23-implementation-plan), and
+>   recorded findings in [§23.1](#231-implementation-status-and-findings-phases-17). Added tests
+>   (role-aware command items + filter, and the palette: filter, symbol-open, action-navigate, star
+>   toggle, Escape).
+> - **1.11.10 (2026-08-14)** — Phase 14 implemented in `trader-gui/` (Help system: right-edge help
+>   drawer toggled by `Ctrl+/` and a top-bar button, accessible field tooltips on every Order Ticket
+>   field, and a keyboard shortcut reference dialog opened by `?`). Pure client UX, no backend. Help
+>   content is authored as a typed topic tree rather than `/help/*.md` (no Markdown-renderer
+>   dependency); the drawer and `?` dialog share one `SHORTCUTS` table; help/Event-Center are mutually
+>   exclusive right-edge sheets. `F1` (focus the ticket) was already wired in phase 6. Marked phase 14
+>   ✅ in [§23](#23-implementation-plan) and recorded findings in
+>   [§23.1](#231-implementation-status-and-findings-phases-17). Added tests (help drawer topics +
+>   shortcuts topic + Escape, shortcuts dialog, FieldInfo hover/focus, and a ticket field-tooltip).
+> - **1.11.9 (2026-08-14)** — Phase 13 implemented in `trader-gui/` (ADMIN read-only Risk Control
+>   panel, Circuit Breaker Management with a functional per-symbol level selector + manual trigger/
+>   clear, read-only Symbol Management with disabled Add/Edit, read-only Index Admin config + history).
+>   **Corrected the design** against the gateway source: the circuit-breaker ladder is per-symbol (not
+>   per risk level) with `halt_duration_ns` in nanoseconds ([§15.5.2](#1552-circuit-breaker-ladder));
+>   the CB trigger `level` is honoured end-to-end so the selector is functional
+>   ([§15.6.2](#1562-manual-cb-trigger)); and `POST /admin/indexes/{id}/rebalance` already exists
+>   (pm-index bridge), so §15.3's "requires a future bridge" was obsolete (write UI left out of scope
+>   deliberately). Symbol add/edit remains genuinely absent → disabled with a prerequisite tooltip.
+>   Marked phase 13 ✅ in [§23](#23-implementation-plan) and recorded findings in
+>   [§23.1](#231-implementation-status-and-findings-phases-17). Added tests (risk collar/ladder
+>   resolution + ns formatting, CB level selector + trigger/resume, symbol read-only + disabled write,
+>   index read-only config/history + 503 degradation).
+> - **1.11.8 (2026-08-14)** — Phase 12 implemented in `trader-gui/` (ADMIN Session Control with
+>   valid-transition buttons + 202/409/503 handling; Gateway Management with Kick; a Kill Switch panel
+>   covering symbol / by-gateway / global scopes). **Adapted the design**: reading the gateway source
+>   showed `POST /admin/kill-switch/gateway` and `/global` already exist, so §15.8's "disabled
+>   placeholder" treatment of those scopes was obsolete — all three are now implemented and working,
+>   with a new type-`CONFIRM` dialog gating the market-wide Global scope. Rewrote
+>   [§15.8](#158-kill-switch-admin), marked phase 12 ✅ in [§23](#23-implementation-plan), and recorded
+>   findings in [§23.1](#231-implementation-status-and-findings-phases-17). Added tests (session
+>   transition confirm/APPLIED/409, gateway roster + Kick, and all three kill-switch scopes incl. the
+>   type-CONFIRM global gate).
+> - **1.11.7 (2026-08-14)** — Phase 11 implemented in `trader-gui/` (ADMIN: System Dashboard with KPI
+>   cards + per-symbol summary + recent-events feed; `/admin/monitor` WS wired into a new
+>   `useMonitorStore`; Monitor Log Viewer with kind/symbol/gateway filters, CSV export, and a
+>   cross-gateway audit drill-down; typed the admin REST client). Corrected the admin-monitor contract
+>   after reading the gateway source: live frames are the **uniform** envelopes keyed by `type` (no
+>   `monitor.event`/`data.event_type`), the non-ADMIN WS close code is **`1008`** (not `4003`), and the
+>   `monitor.snapshot` `halts`/`gateways` are nullable objects (`{halted:[]}`/`{gateways:[]}`) with
+>   gateway items keyed `id`. Updated [§6.9](#69-admin-monitor-websocket-apiv1adminmonitor-available-now)
+>   and [§17.4](#174-admin-monitor-websocket-apiv1adminmonitor), marked phase 11 ✅ in
+>   [§23](#23-implementation-plan), and recorded findings in
+>   [§23.1](#231-implementation-status-and-findings-phases-17). Added tests (monitor classifier + CSV,
+>   monitor store fold/gap/counts, dashboard KPIs/feed, monitor log filter + audit drill-down).
+> - **1.11.6 (2026-08-14)** — Phase 10 implemented in `trader-gui/` (Notification / Event Center + bell
+>   with kind filter, clear, mark-read-on-open and deep-link to a now-global Order Detail drawer;
+>   power-user mode via a top-bar Settings popover with an undo-toast cancel path; Watchlist panel +
+>   all-roles route). Centralized single-order cancel in a shared `useOrderCancel` hook used by both
+>   the full and compact blotters — fixing a pre-existing §20.3 gap where the compact blotter never
+>   confirmed — and centralized the Order Detail drawer in `useUiStore`/`AppShell`. Pure client
+>   feature, no new API calls. Marked phase 10 ✅ in [§23](#23-implementation-plan) and recorded
+>   findings in [§23.1](#231-implementation-status-and-findings-phases-17). Added tests (resubmit
+>   builder, Event Center filter/clear/read/deep-link, `useUiStore`, Settings toggle, power-user vs
+>   confirm cancel on both blotters, Watchlist panel).
+> - **1.11.5 (2026-08-14)** — Phase 9 implemented in `trader-gui/` (MARKET_MAKER: quote card grid,
+>   New Quote form with live spread indicator, fill alerts with Re-quote, Quote Bootstrap + Legs view)
+>   and verified against the backend. Corrected two contracts after reading the gateway source:
+>   `POST /quotes` returns `PendingIdResponse` keyed **`id`** (not `quote_id`) with no `?wait=ack`; and
+>   `GET /quotes/legs` is **dual-shaped** (per-leg `QuoteLeg` records on the cold engine round-trip vs
+>   quote-level ack/status dicts on the warm cache), so the cards now source per-side data from
+>   `ActiveQuote`/`GET /quotes/bootstrap` instead. Updated [§14.1.1](#1411-quote-card-anatomy) and
+>   [§14.3](#143-quote-bootstrap-and-legs-view), marked phase 9 ✅ in [§23](#23-implementation-plan),
+>   and recorded findings in [§23.1](#231-implementation-status-and-findings-phases-17). Added
+>   component/integration tests (quote helpers, New Quote submit + spread validation, quote card fill
+>   bars + cancel + Re-quote prefill, `useQuoteEvents` fill alerts/reject/reconcile, Bootstrap+Legs
+>   dual-shape rendering).
+> - **1.11.4 (2026-08-13)** — Phase 8 implemented in `trader-gui/` (TRADER OCO/Combo entry with
+>   group rows/badges + group cancel, Trade History / Fills, Position Panel with Flatten / Flatten
+>   All) and verified against the backend. Corrected two response-shape contracts after reading the
+>   gateway source: `POST /oco` and `POST /combos` return `PendingIdResponse` keyed **`id`** (not
+>   `oco_id`/`combo_id`) and have no `?wait=ack`; `GET /history/fills` returns the `order_events` row
+>   shape (`trade_id` singular, `fill_price` already display money) in the keyset envelope with no
+>   `side` param (Side filtered client-side). Marked phase 8 ✅ in [§23](#23-implementation-plan) and
+>   recorded the findings in [§23.1](#231-implementation-status-and-findings-phases-17). Added
+>   integration/component tests (OCO/combo submit + validation, group summary + cancel, fills
+>   merge/dedup, Trade History live tail + side filter, Flatten builder + Position Panel session
+>   guard / always-confirm).
+> - **1.11.3 (2026-08-12)** — Two more §26 gaps closed. (1) **Market-data snapshot/resume:**
+>   `/api/v1/market-data` now supports the full `snapshot`/`resume`/`reset` handshake from
+>   [§26.3.2](#2632-snapshot-resume-and-reset-handshake) — a detected `seq` gap is repaired with a
+>   targeted `{ "action": "resume" }` rather than a full re-subscribe + REST refresh storm. Updated
+>   [§5.2](#52-data-flow-summary), [§17.3.1](#1731-authentication-and-subscription),
+>   [§17.3.4](#1734-bandwidth-and-the-100-symbol-overview), [§26.2](#262-highest-impact-changes),
+>   [§26.3.2](#2632-snapshot-resume-and-reset-handshake), and [§26.5](#265-suggested-implementation-order).
+>   (2) **Bootstrap endpoints:** `GET /api/v1/bootstrap/trader`, `/bootstrap/mm`, and
+>   `/bootstrap/admin` are now available, replacing the multi-request startup waterfall. Updated
+>   [§7.2](#72-login-flow), [§18.2](#182-tanstack-query-key-conventions),
+>   [§26.4.4](#2644-terminal-oriented-aggregate-endpoints), and [§26.5](#265-suggested-implementation-order).
+> - **1.11.2 (2026-08-11)** — Aligned the session-transition response with the code and the REST API
+>   reference: `POST /api/v1/admin/session/transition` returns **`202`/`APPLIED`** on success (not
+>   `200`/`ACCEPTED`), or `409`/`TRANSITION_REJECTED`. Updated
+>   [§6.3](#63-session-control-available-now), [§6.11](#611-capability-summary-table),
+>   [§15.4](#154-session-control), and [§26.3.7](#2637-uniform-command-acknowledgements).
+> - **1.11.1 (2026-08-11)** — Backend confirmation for the ADMIN halts table. `GET /api/v1/admin/halts`
+>   returns the engine `system.halt_status` reply verbatim (`HaltStatus` → `HaltedSymbol[]`): key
+>   `halted`, each entry `{ symbol, resume_at_ns?, level?(string), halt_source? }` — **no**
+>   `trigger_price`/`reference_price`/`halted_at`/ISO `resume_at`/`resumption_mode` (those price fields
+>   are on the live `circuit_breaker` WS event only). Corrected [§6.6](#66-halts-and-risk-configuration-runtime-read-only)
+>   and the [§15.6.1](#1561-active-halts-table) columns/sources accordingly. This clears the last
+>   sign-off caveat.
+> - **1.11.0 (2026-08-11)** — Final pre-handover review. (1) **Order-ACK safety:** documented the
+>   engine's two-ACK model — `accepted:true` is a pre-match *gateway* ACK, and MARKET/FOK/IOC may get a
+>   later authoritative `accepted:false` — in a new [§17.2.4](#1724-order-acknowledgement-safety), and
+>   made [§12.9](#129-submit-flow-and-feedback-buysell-actions) and [§18.3](#183-order-cache-reconciliation)
+>   apply the later ACK, treat a `4xx` POST as a synchronous rejection (no PENDING row), and reconcile
+>   a missing ACK via `stream_seq` + `orders.snapshot`/`GET /orders` so an ACK can be neither lost nor
+>   falsely granted. (2) **Symbol metadata:** corrected the source — `reference_price`/`level` are not
+>   on `GET /symbols` (`SymbolInfo`); `level` comes from `/reference` (`ReferenceSymbol`) and
+>   `reference_price` from `/reference/risk` (`SymbolRiskState`). Updated
+>   [§10.6](#106-relevant-api-calls), [§12.6](#126-symbol-picker), [§15.2.1](#1521-symbol-table),
+>   [§18.1.5](#1815-usesymbolstore), and Appendix A. (3) Fixed example code: `o.order_id` in
+>   [§18.2](#182-tanstack-query-key-conventions), an indicative-aware `updateAuction` in
+>   [§18.1.3](#1813-usebookstore), and `TradeData.timestamp` in [§16.2.3](#1623-live-tick-append).
+> - **1.10.0 (2026-08-11)** — Backend closed the two wire gaps 1.9.0 flagged as not-yet-buildable.
+>   (1) `order.fill` now carries a `trade_ids` array — the public `trade.executed` id(s) that composed
+>   the fill (VWAP-coalesced per H5/H6) — so the Fills panel Trade ID is buildable straight from the
+>   live event, no join against the public `trade` tape ([§13.5](#135-trade-history--fills-panel),
+>   Appendix A `Fill`). (2) `QuoteLeg` now carries `price`, so the MM quote-card fill bars and legs
+>   table read price directly from `/quotes/legs` without joining the bootstrap `ActiveQuote`
+>   ([§14.1.1](#1411-quote-card-anatomy), [§14.3](#143-quote-bootstrap-and-legs-view), Appendix A
+>   `QuoteLeg`). Regenerated the affected Appendix A types.
+> - **1.9.0 (2026-08-11)** — Aligned the client contract with the **pm-msgen** wire format after the
+>   message-structure rework. (1) Regenerated [Appendix A](#appendix-a-core-typescript-types): fixed
+>   `WsEnvelope` (added `topic`, `stream_seq`; `seq` is per-topic), `Fill` (no `trade_id`; engine names
+>   `qty`/`client_tag`), `QuoteLeg` (`leg_side`/`filled`/`remaining`, no price), `AuctionResult`
+>   (`reason`, not an `indicative` flag) plus a new `AuctionIndicative`, `CircuitBreakerHalt`/`Resume`
+>   (two topics; `level` is a name string; `resume_at_ns`), `AdminGateway` (`id`), and `HaltEntry`;
+>   added [Appendix A.1](#appendix-a1-websocket-event-data-payloads-pm-msgen-wire), a per-`type` WS
+>   `data` payload catalogue. (2) Corrected the fills Trade ID ([§13.5](#135-trade-history--fills-panel))
+>   and MM quote-legs ([§14.1.1](#1411-quote-card-anatomy), [§14.3](#143-quote-bootstrap-and-legs-view))
+>   to the real wire shapes. (3) **Backend:** wired `auction.indicative` onto the `auction` channel and
+>   rewrote [§6.10](#610-auction-market-data-channel-available-now), [§6.12](#612-open-questions-and-backend-prerequisites),
+>   [§16.6](#166-auction--indicative-price-panel), and the [§17.3.2](#1732-event-routing) routing table;
+>   the engine already publishes it. (4) Added [§17.3.4](#1734-bandwidth-and-the-100-symbol-overview) on
+>   snapshot fan-out and `seq`-gap blast radius at 100+ symbols. Also renamed the private-stream field
+>   from `event_seq` to its real name `stream_seq` throughout ([§17.2.1](#1721-authentication-frame), §26).
+> - **1.8.0 (2026-08-05)** — Backend implemented [§26.4.2 Reference-data service boundary](#2642-reference-data-service-boundary)
+>   and added two key stable endpoints for UI bootstrap: `GET /api/v1/reference/schedule` and
+>   `GET /api/v1/reference` (full bundle in one round-trip). The design now treats reference data as
+>   a runtime API artifact rather than a planned/config-backed fallback: updated
+>   [§6.6](#66-halts-and-risk-configuration-runtime-read-only), [§6.11](#611-capability-summary-table),
+>   [§15.5](#155-risk-control-panel), [§18.2](#182-tanstack-query-for-server-state),
+>   [§23](#23-implementation-plan), [§26.2](#262-highest-impact-changes),
+>   [§26.4.2](#2642-reference-data-service-boundary), and [§26.5](#265-suggested-implementation-order)
+>   accordingly.
+> - **1.7.0 (2026-08-05)** — Backend shipped three of the four items in
+>   [§26.3.6 Admin monitor replay and order drill-down](#2636-admin-monitor-replay-and-order-drill-down):
+>   `WS /api/v1/admin/monitor` now opens with a `monitor.snapshot` (orders/halts/gateways/last_seq),
+>   and `GET /api/v1/admin/orders` / `GET /api/v1/admin/orders/{order_id}` give a cross-gateway
+>   current-state view and an audit-trail-backed lifecycle drill-down, respectively. Only
+>   cross-gateway *event* backfill remains proposed. Also added, as a related backend hardening item
+>   not originally in the addendum: an `order_retention_sec` cache-eviction policy for terminal
+>   orders. Updated [§6.9](#69-admin-monitor-websocket-apiv1adminmonitor),
+>   [§6.11](#611-capability-summary-table), [§13.4](#134-order-detail-drawer),
+>   [§15.1](#151-system-dashboard), [§15.9](#159-audit--monitor-log-viewer),
+>   [§17.4](#174-admin-monitor-websocket-apiv1adminmonitor), Appendix A's `Order` type,
+>   [§26.2](#262-highest-impact-changes), [§26.3.6](#2636-admin-monitor-replay-and-order-drill-down),
+>   and [§26.5](#265-suggested-implementation-order) accordingly.
+> - **1.6.0 (2026-08-05)** — Backend implemented [§26.3.7 Uniform command acknowledgements](#2637-uniform-command-acknowledgements)
+>   narrowly rather than as originally proposed: `command_id` was added only to kill switch/mass
+>   cancel and session transition (the two commands with no completion signal), echoed on their acks;
+>   cascading `command_id` onto every triggered event and blanket adoption across all async endpoints
+>   were evaluated and declined. Fixed a real bug along the way — `POST /api/v1/admin/session/transition`
+>   used to answer `202`/`PENDING` even when the handler silently dropped the request (sessions
+>   disabled or unknown state); it now answers `202`/`APPLIED` or `409`/`TRANSITION_REJECTED` with a
+>   reason. Updated [§6.3](#63-session-control), [§6.11](#611-capability-summary-table),
+>   [§15.4](#154-session-control), [§26.2](#262-highest-impact-changes),
+>   [§26.3.7](#2637-uniform-command-acknowledgements), and [§26.5](#265-suggested-implementation-order)
+>   accordingly.
+> - **1.5.0 (2026-08-05)** — Backend shipped most of [§26.3.5 Private event recovery](#2635-private-event-recovery):
+>   `/api/v1/events` now sends `stream_seq` on auth, an `orders.snapshot` frame, and stable group ids on
+>   `order.*`/`combo.*`/`oco.*`/`quote.*` events. Resume/replay (`{ "action": "resume", "from_seq": ... }`)
+>   was evaluated and deliberately deferred: the only gap it would close — fill/cancel transitions
+>   missed during a drop — is already covered by `/history/*` and drop copy. Updated
+>   [§17.2.1](#1721-authentication-frame), [§17.3.1](#1731-authentication-and-subscription),
+>   [§26.2](#262-highest-impact-changes), [§26.3.5](#2635-private-event-recovery), and
+>   [§26.5](#265-suggested-implementation-order) accordingly.
+> - **1.4.0 (2026-08-05)** — Backend shipped two items from the [§26 addendum](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal):
+>   `/api/v1/market-data` now carries a per-topic `seq` on every event, and the subscription model now
+>   supports per-symbol channel groups (an `items` list) on a single connection. Replaced the earlier
+>   two-socket (overview/focus) workaround with one `marketDataWs` carrying both a broad and a narrow
+>   subscription item ([§17.3.1](#1731-authentication-and-subscription)), updated the `WebSocketManager`
+>   API, `ActiveSymbolStore`/watchlist wording, environment variable descriptions, and Appendix A, and
+>   removed the corresponding rows from [§26.2](#262-highest-impact-changes).
+> - **1.3.0 (2026-08-05)** — Added [§26 Addendum: Protocol and Backend Changes That Would Improve
+>   the Trading Terminal](#26-addendum-protocol-and-backend-changes-that-would-improve-the-trading-terminal),
+>   covering protocol/API changes that are worth making before release because backwards compatibility
+>   is not yet a constraint: sequenced snapshot/delta streams, richer subscription semantics,
+>   browser-friendly CALF evolution, admin history/replay, uniform command acknowledgements, and
+>   runtime reference/risk/index management.
+> - **1.2.0 (2026-07-09)** — Major revision. Formalised the ADMIN persona's backend
+>   dependency into a dedicated section, [§6 Backend Capability Matrix](#6-backend-capability-matrix-pm-api-gwy),
+>   replacing the earlier "future endpoint" hand-waving. Resolved the ADMIN data-source
+>   contradictions (events WebSocket vs. admin monitor). Added the previously missing feature
+>   surfaces (cancel-replace, OCO/combo group cancel, order-lifecycle drill-down, MM quote-leg
+>   source). Added auction support (indicative price panel, `auction` market-data channel).
+>   Introduced a workspace-centric TRADER UX: a new [§11 Trading Workspace](#11-screen-design--trading-workspace-trader),
+>   a global active-symbol context, click-to-trade from the depth ladder, dual BUY/SELL order
+>   ticket, one-click position flatten, a session clock/countdown, a [§20 Notification / Event
+>   Center](#20-notification--event-center), a power-user mode, and a promoted watchlist feature.
+>   Added routing (React Router v7), renamed the WebSocket wrapper to `ManagedSocket`, added
+>   [Appendix A: Core TypeScript Types](#appendix-a-core-typescript-types), and fixed two bugs
+>   (Tailwind `muted` colour, change-% definition). Sections 6–25 were renumbered from the 1.0.0
+>   layout; the Table of Contents, Feature Matrix, Implementation Plan, Keyboard Shortcuts, and
+>   Summary were regenerated accordingly.
+> - **1.0.0 (2026-07-09)** — Initial design and research proposal.
+
+---

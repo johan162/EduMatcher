@@ -7,6 +7,14 @@ from typing import Annotated, Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from edumatcher.api_gateway.sessions import Session, auth, require_trading
+from edumatcher.models.generated.system import (
+    topic_gateways,
+    topic_quote_bootstrap,
+    topic_quote_legs,
+    topic_reference,
+    topic_session_status,
+    topic_symbols,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["reference"])
 
@@ -60,7 +68,7 @@ async def fetch_reference_bundle(request: Request, session: Session) -> dict[str
         return cast(
             dict[str, Any],
             await engine.await_topic(
-                f"system.reference.{correlation_id}",
+                topic_reference(correlation_id),
                 request.app.state.config.timeouts.engine_reply_sec,
             ),
         )
@@ -91,9 +99,12 @@ async def reference_symbols(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     bundle = await fetch_reference_bundle(request, session)
+    # A list of objects each carrying its own `symbol`, not a map keyed by it:
+    # a client can iterate this without knowing the keys. The bundle is always
+    # complete, so there is nothing to default.
     return {
-        "symbols": bundle.get("symbols", {}),
-        "config_version": bundle.get("config_version"),
+        "symbols": bundle["symbols"],
+        "config_version": bundle["config_version"],
     }
 
 
@@ -102,8 +113,8 @@ async def reference_risk(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     bundle = await fetch_reference_bundle(request, session)
-    risk = cast(dict[str, Any], bundle.get("risk", {}))
-    return {**risk, "config_version": bundle.get("config_version")}
+    risk = cast(dict[str, Any], bundle["risk"])
+    return {**risk, "config_version": bundle["config_version"]}
 
 
 @router.get("/reference/indexes")
@@ -122,8 +133,11 @@ async def reference_schedule(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     bundle = await fetch_reference_bundle(request, session)
-    schedule = cast(dict[str, Any], bundle.get("schedule", {}))
-    return {**schedule, "config_version": bundle.get("config_version")}
+    # `sessions_enabled`, `country` and a nested `schedule` — the five clock
+    # times moved inside the last of those in 6.1e, so that one record could be
+    # declared once and carried by `system.session_schedule` too.
+    schedule = cast(dict[str, Any], bundle["schedule"])
+    return {**schedule, "config_version": bundle["config_version"]}
 
 
 @router.get("/symbols")
@@ -132,7 +146,7 @@ async def symbols(
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     return await _request_reply(
-        request, "symbols", f"system.symbols.{gateway_id}", gateway_id
+        request, "symbols", topic_symbols(gateway_id), gateway_id
     )
 
 
@@ -142,7 +156,7 @@ async def session_state(
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     return await _request_reply(
-        request, "session", f"system.session_status.{gateway_id}", gateway_id
+        request, "session", topic_session_status(gateway_id), gateway_id
     )
 
 
@@ -152,7 +166,7 @@ async def quote_bootstrap(
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     return await _request_reply(
-        request, "quote_bootstrap", f"system.quote_bootstrap.{gateway_id}", gateway_id
+        request, "quote_bootstrap", topic_quote_bootstrap(gateway_id), gateway_id
     )
 
 
@@ -165,7 +179,7 @@ async def quote_legs(
     if cache.quote_legs:
         return {"legs": list(cache.quote_legs.values())}
     return await _request_reply(
-        request, "quote_legs", f"system.quote_legs.{gateway_id}", gateway_id
+        request, "quote_legs", topic_quote_legs(gateway_id), gateway_id
     )
 
 
@@ -199,7 +213,7 @@ async def status_summary(
         try:
             reply = cast(
                 dict[str, Any],
-                await engine.await_topic(f"system.gateways.{gateway_id}", timeout),
+                await engine.await_topic(topic_gateways(gateway_id), timeout),
             )
         except TimeoutError:
             reply = {}

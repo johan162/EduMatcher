@@ -53,6 +53,7 @@ from edumatcher.models.order import (
     TIF,
 )
 from edumatcher.models.participant import ParticipantRole
+from edumatcher.models.price import to_ticks
 
 SYMBOL = "AAPL"  # 2 tick decimals by default → 100.00 == 10000 ticks
 
@@ -81,8 +82,37 @@ class _FakeDropCopy:
 
     events: list[tuple[str, str, dict[str, Any]]] = field(default_factory=list)
 
-    def publish(self, gateway_id: str, event_type: str, payload: dict) -> None:
-        self.events.append((gateway_id, event_type, payload))
+    def publish_fill(
+        self,
+        gateway_id: str,
+        *,
+        order_id: str,
+        symbol: str,
+        fill_qty: int,
+        fill_price: float,
+        liquidity_flag: str,
+    ) -> None:
+        """Mirrors DropCopyPublisher.publish_fill — a second copy of the
+        double in engine_harness.py, kept in step with it by hand.
+
+        The recorded tuple is unchanged, so the H4 assertions that read
+        ``events[i][0]`` and ``[2]["symbol"]`` still hold: the double spies on
+        the wire shape and the wire shape did not change, only the signature
+        that produces it.
+        """
+        self.events.append(
+            (
+                gateway_id,
+                "order.fill",
+                {
+                    "order_id": order_id,
+                    "symbol": symbol,
+                    "fill_qty": fill_qty,
+                    "fill_price": fill_price,
+                    "liquidity_flag": liquidity_flag,
+                },
+            )
+        )
 
     def close(self) -> None:  # pragma: no cover - interface parity
         pass
@@ -187,8 +217,11 @@ def _quote(
             "gateway_id": gateway_id,
             "symbol": SYMBOL,
             "quote_id": quote_id,
-            "bid_price": bid_price,
-            "ask_price": ask_price,
+            # Callers pass display money, as a market maker's own pricer
+            # produces; the wire carries ticks, and converting is the
+            # submitting side's job (design section 15.2, quotes in 6.1b).
+            "bid_price": to_ticks(bid_price, SYMBOL),
+            "ask_price": to_ticks(ask_price, SYMBOL),
             "bid_qty": bid_qty,
             "ask_qty": ask_qty,
             "tif": "DAY",
@@ -354,8 +387,8 @@ class TestH3PositionLedgerCompleteness:
                 "symbol": SYMBOL,
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 100.0},
-                "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 120.0},
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 10000},
+                "leg2": {"side": "SELL", "order_type": "LIMIT", "price": 12000},
             }
         )
 

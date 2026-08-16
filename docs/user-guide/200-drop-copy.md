@@ -105,7 +105,17 @@ Payloads are serialized with `orjson` when it is installed (the normal case);
 | `timestamp`          | int    | Nanosecond timestamp from `now_ns()`                                 |
 | `gateway_id`         | str    | ID of the gateway that submitted the order                           |
 | `event_type`         | str    | Type of event (currently `"order.fill"`)                             |
-| *…additional fields* | varies | Event-specific data merged into the top-level object                 |
+| `order_id`           | str    | The order this execution belongs to                                  |
+| `symbol`             | str    | Instrument ticker                                                    |
+| `fill_qty`           | int    | Executed quantity                                                    |
+| `fill_price`         | float  | Display money, not ticks                                             |
+| `liquidity_flag`     | str    | `"TAKER"` for the aggressor, `"MAKER"` for the resting side          |
+
+The field set is fixed, not open. It used to be described as "event-specific
+data merged into the top-level object", because `DropCopyPublisher.publish`
+took a `payload` dict — but the single producer has always sent these five
+keys, and since phase 6.1d the publisher takes them as named arguments and
+the spec declares them. A second event type is a spec change, not a new key.
 
 ### `order.fill` event
 

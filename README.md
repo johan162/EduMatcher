@@ -8,7 +8,7 @@
 | **Documentation** | [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://johan162.github.io/EduMatcher/) |
 | **License**       | [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  |
 | **Release**       | [![GitHub release](https://img.shields.io/github/v/release/johan162/edumatcher?include_prereleases)](https://github.com/johan162/edumatcher/releases)  |
-| **CI/CD**         | [![Coverage](https://img.shields.io/badge/coverage-86%25-brightgreen.svg)](coverage.svg)   |
+| **CI/CD**         | [![Coverage](https://img.shields.io/badge/coverage-84%25-brightgreen.svg)](coverage.svg)   |
 | **Code Quality**  | [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![Linting: flake8](https://img.shields.io/badge/linting-flake8-yellowgreen)](https://flake8.pycqa.org/) |
 | Repo URL          | [![GitHub](https://img.shields.io/badge/GitHub-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/johan162/edumatcher) |
 
@@ -92,34 +92,7 @@ for every match. They are required for realistic risk control and add measurable
   the reopening auction. Both Nasdaq and Xetra accept them into the call; here
   the uncross prices interest by book level, so unpriced interest has no level
   to sit at and would be invisible to `compute_equilibrium()`
-- The ACE expansion ladder is exchange-wide only (see below)
-
-
-## Possible Future Extensions
-
-**Per-symbol ACE expansion ladders.** A symbol may currently override the
-starting corridor (`initial_band_pct`), whether ACE applies at all, and the
-random-end bound — but not the expansion ladder itself, which is rejected on a
-symbol (`pm-cverifier` `S112`).
-
-The reasoning is that the starting corridor describes the *instrument* (a thin
-small-cap needs a wider reopening corridor than a liquid blue chip), while the
-escalation schedule describes the *venue's* willingness to keep an instrument
-suspended, and uniformity there is what makes halt durations comparable across
-the book.
-
-That line is defensible rather than airtight. `min_duration_ns` lives in the
-ladder and is arguably instrument-shaped: a thin name may need longer call
-phases simply for liquidity to arrive. Real venues disagree — Nasdaq varies
-nothing per security, while Deutsche Börse's ACE publishes corridor widths
-*and* durations per instrument in reference data.
-
-Lifting the restriction would mean: dropping the loader guard and `S112`;
-teaching the Config GUI a per-symbol ladder editor (a list of rungs does not
-fit a table cell, so it needs a dialog); and giving `pm-config-gen` a way to
-express a ladder that is not a comma-separated `--symbol-opts` value. The
-engine's merge already treats a symbol ladder as all-or-nothing, so the
-runtime side is close to free — the cost is almost entirely in the tooling.
+- The ACE expansion ladder is exchange-wide only
 
 
 ## Citation
@@ -132,7 +105,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.19.1}
+  version = {0.20.0}
 }
 ```
 

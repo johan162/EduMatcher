@@ -34,9 +34,24 @@ from edumatcher.models.message import (
     make_order_new_msg,
     make_symbols_request_msg,
 )
+from edumatcher.models.order import TIF, Order, OrderType, Side
+from edumatcher.models.price import to_ticks
+from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
+from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
+from edumatcher.models.generated.order import (
+    topic_order_ack,
+    topic_order_cancelled,
+    topic_order_expired,
+    topic_order_fill,
+)
+from edumatcher.models.generated.system import (
+    topic_gateway_auth,
+    topic_symbols,
+)
 
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-ai-trader"
+
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 
 log = logging.getLogger(__name__)
@@ -103,14 +118,14 @@ class AITraderBot:
         self.push_sock = make_pusher(ENGINE_PULL_ADDR)
         self.sub_sock = make_subscriber(
             ENGINE_PUB_ADDR,
-            f"system.gateway_auth.{self.gateway_id}",
-            f"system.symbols.{self.gateway_id}",
-            f"order.ack.{self.gateway_id}",
-            f"order.fill.{self.gateway_id}",
-            f"order.cancelled.{self.gateway_id}",
-            f"order.expired.{self.gateway_id}",
-            "book.",
-            "trade.executed",
+            topic_gateway_auth(self.gateway_id),
+            topic_symbols(self.gateway_id),
+            topic_order_ack(self.gateway_id),
+            topic_order_fill(self.gateway_id),
+            topic_order_cancelled(self.gateway_id),
+            topic_order_expired(self.gateway_id),
+            PREFIX_BOOK_SNAPSHOT,
+            TOPIC_TRADE_EXECUTED,
         )
 
     def _log(self, text: str) -> None:
@@ -147,7 +162,7 @@ class AITraderBot:
 
     @staticmethod
     def _topic_family(topic: str) -> str:
-        if topic.startswith("book."):
+        if topic.startswith(PREFIX_BOOK_SNAPSHOT):
             return "book"
         if topic.startswith("trade."):
             return "trade"
@@ -173,7 +188,7 @@ class AITraderBot:
                 continue
             topic, payload = decode(self.sub_sock.recv_multipart())
             self._dbg_count("auth_messages")
-            if topic == f"system.gateway_auth.{self.gateway_id}":
+            if topic == topic_gateway_auth(self.gateway_id):
                 accepted = bool(payload.get("accepted", False))
                 if accepted:
                     self._log("authenticated")
@@ -266,15 +281,15 @@ class AITraderBot:
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         self._dbg_count("incoming_total")
         self._dbg_count(f"incoming_topic_{self._topic_family(topic)}")
-        if topic.startswith("book."):
+        if topic.startswith(PREFIX_BOOK_SNAPSHOT):
             self._on_book(topic.split(".", 1)[1].upper(), payload)
             return
 
-        if topic == "trade.executed":
+        if topic == TOPIC_TRADE_EXECUTED:
             self._on_trade(payload)
             return
 
-        if topic == f"system.symbols.{self.gateway_id}":
+        if topic == topic_symbols(self.gateway_id):
             raw = payload.get("symbols", [])
             all_syms = [str(sym).upper() for sym in raw if str(sym).strip()]
             if self._symbols_filter:
@@ -284,7 +299,7 @@ class AITraderBot:
                 self._known_symbols = all_syms
             return
 
-        if topic == f"order.ack.{self.gateway_id}":
+        if topic == topic_order_ack(self.gateway_id):
             if payload.get("accepted", False):
                 self.metrics.acknowledged += 1
             else:
@@ -294,7 +309,7 @@ class AITraderBot:
                 self._on_reject(reason)
             return
 
-        if topic == f"order.fill.{self.gateway_id}":
+        if topic == topic_order_fill(self.gateway_id):
             self.metrics.filled += 1
             symbol = str(payload.get("symbol", "")).upper()
             side = str(payload.get("side", "")).upper()
@@ -307,8 +322,8 @@ class AITraderBot:
             return
 
         if topic in {
-            f"order.cancelled.{self.gateway_id}",
-            f"order.expired.{self.gateway_id}",
+            topic_order_cancelled(self.gateway_id),
+            topic_order_expired(self.gateway_id),
         }:
             self.metrics.cancelled += 1
             return
@@ -393,17 +408,21 @@ class AITraderBot:
             else:
                 price = ref + self.profile.passive_offset_ticks * self.profile.tick_size
 
-        return {
-            "symbol": symbol,
-            "side": side,
-            "order_type": "LIMIT",
-            "quantity": qty,
-            "price": round(price, 4),
-            "tif": "DAY",
-            "gateway_id": self.gateway_id,
-            "run_id": self._run_id,
-            "strategy": self.profile.name,
-        }
+        # The bot talks straight to the engine, so it builds a complete order
+        # (id, remaining_qty, timestamp, status) in ticks, exactly as a gateway
+        # would; run/strategy provenance rides in the declared client_tag,
+        # echoed on every lifecycle event, not undeclared keys the engine drops.
+        order = Order.create(
+            symbol=symbol,
+            side=Side.BUY if side == "BUY" else Side.SELL,
+            order_type=OrderType.LIMIT,
+            quantity=qty,
+            gateway_id=self.gateway_id,
+            tif=TIF.DAY,
+            price=to_ticks(price, symbol),
+        )
+        order.client_tag = f"{self.profile.name}:{self._run_id}"
+        return order.to_dict()
 
     def _maybe_submit_order(self) -> None:
         now = time.monotonic()

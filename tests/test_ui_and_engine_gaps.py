@@ -266,7 +266,9 @@ class TestStatsOnStartupSymbols:
             sp = StatsProcess(tmp_path / "test.db")
 
         try:
-            sp._on_startup_symbols({"symbols": ["AAPL", "MSFT"]})
+            sp._on_startup_symbols(
+                {"symbols": [{"symbol": "AAPL"}, {"symbol": "MSFT"}]}
+            )
             # Should have called send_multipart twice (once per symbol)
             assert fake_push.send_multipart.call_count == 2
         finally:
@@ -346,8 +348,8 @@ class TestEngineCancelOCO:
                 "symbol": "AAPL",
                 "quantity": 100,
                 "tif": "DAY",
-                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 95.0},
-                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 105.0},
+                "leg1": {"side": "BUY", "order_type": "LIMIT", "price": 9500},
+                "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 10500},
             }
         )
         order_ids = engine._oco_groups.get("OCO_CANCEL_TEST", [])

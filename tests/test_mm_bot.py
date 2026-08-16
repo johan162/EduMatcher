@@ -488,7 +488,7 @@ def _auth_msg(accepted: bool = True) -> list[bytes]:
 def _symbols_msg(symbols: list[str] | None = None) -> list[bytes]:
     return encode(
         "system.symbols.MM_AAPL_01",
-        {"symbols": symbols or ["AAPL", "MSFT"]},
+        {"symbols": [{"symbol": s} for s in (symbols or ["AAPL", "MSFT"])]},
     )
 
 
@@ -729,10 +729,14 @@ class TestMMBotStartup:
                 encode(
                     "system.symbols.MM_AAPL_01",
                     {
-                        "symbols": ["AAPL", "MSFT"],
-                        "symbol_meta": {
-                            "AAPL": {"tick_size": 0.01, "mm_max_spread_ticks": 8}
-                        },
+                        "symbols": [
+                            {
+                                "symbol": "AAPL",
+                                "tick_decimals": 2,
+                                "mm_max_spread_ticks": 8,
+                            },
+                            {"symbol": "MSFT", "tick_decimals": 2},
+                        ]
                     },
                 ),
                 _boot_msg(),
@@ -765,10 +769,14 @@ class TestMMBotStartup:
                 encode(
                     "system.symbols.MM_AAPL_01",
                     {
-                        "symbols": ["AAPL", "MSFT"],
-                        "symbol_meta": {
-                            "AAPL": {"tick_size": 0.01, "mm_max_spread_ticks": 10}
-                        },
+                        "symbols": [
+                            {
+                                "symbol": "AAPL",
+                                "tick_decimals": 2,
+                                "mm_max_spread_ticks": 10,
+                            },
+                            {"symbol": "MSFT", "tick_decimals": 2},
+                        ]
                     },
                 ),
             ]
@@ -1617,7 +1625,10 @@ class TestMainValidation:
         sub.recv_queue.extend(
             [
                 _auth_msg(),
-                encode("system.symbols.MM_AAPL_01", {"symbols": ["MSFT", "TSLA"]}),
+                encode(
+                    "system.symbols.MM_AAPL_01",
+                    {"symbols": [{"symbol": "MSFT"}, {"symbol": "TSLA"}]},
+                ),
             ]
         )
         monkeypatch.setattr(

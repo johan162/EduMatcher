@@ -14,6 +14,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from edumatcher.md_gateway.protocol import iso_utc
+from edumatcher.models.generated.trade import project_trade_executed_calf
 
 
 @dataclass(frozen=True)
@@ -189,13 +190,29 @@ class EngineNormaliser:
         return changed
 
     def normalise_trade(self, payload: dict[str, Any]) -> tuple[str, dict[str, str]]:
-        """Return ``(symbol, fields)`` for a CALF ``TRADE`` message."""
+        """Return ``(symbol, fields)`` for a CALF ``TRADE`` message.
+
+        The ``{PX, QTY, SIDE}`` map is built by the generated projection, from
+        ``spec/messages/trade.yaml``, rather than by a dict literal here — so
+        adding a field to the public trade feed is a spec edit rather than an
+        edit here that the C clients would never see. The envelope
+        (``CH``/``SYM``/``SEQ``/``TS``) stays with ``_emit_stream_event``, and
+        the top-of-book bookkeeping below stays hand-written: the generator owns
+        the projection, not the state around it (design section 4.6, N1).
+
+        The projection reads only the three fields this feed carries, so a
+        payload need not contain the rest of the bus message — ``id``,
+        ``buy_order_id`` and the other keys CALF drops are never touched.
+
+        It does raise ``KeyError`` on a payload missing ``price`` or
+        ``quantity``, where the previous dict literal substituted ``"0"``. That
+        is a deliberate improvement: both are ``required`` in the spec, the
+        engine always sends them, and the caller's handler logs and skips — so
+        a malformed message is now dropped with a warning instead of published
+        to live clients as a print of zero shares at zero price.
+        """
         sym = str(payload.get("symbol", "")).upper()
-        fields = {
-            "PX": _as_decimal(payload.get("price")) or "0",
-            "QTY": _as_int_text(payload.get("quantity")) or "0",
-            "SIDE": str(payload.get("aggressor_side", "")).upper(),
-        }
+        fields = project_trade_executed_calf(payload)
 
         # Keep the *current* top-of-book in step with trades, so a SNAP issued
         # before the next book republish already reports this price rather than
@@ -364,9 +381,15 @@ class EngineNormaliser:
             "SESSION": str(payload.get("session_state", "")).upper() or "UNKNOWN",
         }
 
-        day_open = payload.get("day_open")
-        day_high = payload.get("day_high")
-        day_low = payload.get("day_low")
+        # One nullable record replaced three flat day_* keys, so there is one
+        # absence to test instead of three (design section 16.2). The three
+        # per-field guards below are kept: a legacy payload is gone, but a
+        # non-numeric value still has to fall through to no CALF field rather
+        # than a malformed one.
+        day = payload.get("day") or {}
+        day_open = day.get("open")
+        day_high = day.get("high")
+        day_low = day.get("low")
         if day_open is not None:
             open_text = _as_decimal(day_open)
             if open_text is not None:
