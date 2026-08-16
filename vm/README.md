@@ -2,6 +2,15 @@
 
 This folder contains a reproducible VM provisioning pipeline for a pinned EduMatcher PyPI release.
 
+## Files in this directory
+
+- `curl_setup_vm.sh` is the repository-free entry point. Run it with `curl | bash` when the host does not have an EduMatcher checkout. It downloads the runtime VM scripts for the selected branch or tag and forwards the remaining arguments to `build_multipass_vm.sh`.
+- `build_multipass_vm.sh` creates a small, ready-to-use EduMatcher runtime VM. Use it from a repository checkout for a pinned PyPI release or with `--dev` to install the current wheel from `dist/`. It also creates the sample session and an optional clean snapshot.
+- `install_edumatcher_runtime.sh` is the in-VM runtime installer used by `build_multipass_vm.sh`. It creates `/opt/edumatcher/.venv`, installs the requested EduMatcher version or wheel, and links the `pm-*` commands into `/usr/local/bin`. Run it directly only when reprovisioning an existing VM.
+- `mkdevnode.sh` creates a larger development workstation VM from a repository checkout. Use it when the node needs SSH access and the development tools checked by `scripts/verify_setup.sh`; it is not a replacement for the runtime VM or the curl bootstrap path.
+
+The two VM creation scripts intentionally serve different purposes: use `build_multipass_vm.sh` for a lightweight runtime or demo image, and use `mkdevnode.sh` for a repository-oriented development node.
+
 ## What this pipeline guarantees
 
 - Installs a selected EduMatcher version from PyPI
