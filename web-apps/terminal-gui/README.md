@@ -1,7 +1,7 @@
 # EduMatcher Market Data Terminal (`pm-terminal`)
 
 A read-only, credential-free Bloomberg-style viewer for the EduMatcher
-exchange. Design: [`docs-design/EduMatcher-Terminal-GUI.md`](../docs-design/EduMatcher-Terminal-GUI.md).
+exchange. Design: [`docs-design/EduMatcher-Terminal-GUI.md`](../../docs-design/EduMatcher-Terminal-GUI.md).
 
 Structured the same way as [`log-gui`](../log-gui): an `apps/*` + `packages/*`
 npm workspace, a small first-party Node/Fastify backend alongside a Vite/React

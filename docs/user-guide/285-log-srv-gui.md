@@ -140,7 +140,7 @@ below.
 ### What the bridge does on the LALF-PS wire
 
 The bridge implements the subscriber side in
-`log-gui/apps/bridge/src/lalf-ps-uplink.ts`. The sequence, in order:
+`web-apps/log-gui/apps/bridge/src/lalf-ps-uplink.ts`. The sequence, in order:
 
 1. Connect `SUB` to `:5601` and `PUSH` to `:5602`.
 2. Subscribe to the ZeroMQ topic prefix **`log.`** — not `log.<sub_id>`.
@@ -199,7 +199,7 @@ extensions are required.
 ### Option 1 — One command with the container stack
 
 The fastest path with a repository checkout and a container runtime. From the
-`log-gui/` directory:
+`web-apps/log-gui/` directory:
 
 ```bash
 make up
@@ -265,7 +265,7 @@ podman run -d --name log-gui -p 8091:8091 \
 ### Option 3 — Local development
 
 ```bash
-cd log-gui
+cd web-apps/log-gui
 make install      # npm ci from the lockfile
 make dev          # bridge (8091) + web dev server (5178) together
 ```
@@ -295,7 +295,7 @@ that line first if a view is unexpectedly empty.
     `@npmcli/arborist`'s dedup step. `make install` already works around this
     by running `npm install --no-dedupe` for the first resolution. If you hit
     the crash by calling `npm install` directly, rerun with `--no-dedupe`.
-    See `log-gui/README.md` for the full explanation.
+    See `web-apps/log-gui/README.md` for the full explanation.
 
 ### Developer commands
 
@@ -709,7 +709,7 @@ read-only — enforced by the `:ro` mount in the container deployment.
 | **`make up` on macOS: podman machine not running** | The Podman VM is not started | `make up` starts it automatically; otherwise `podman machine init && podman machine start`. |
 | **Container cannot reach `pm-log-srv` on `localhost`** | `localhost` inside a container is the container | Use `host.docker.internal` (Docker Desktop) or `host.containers.internal` (Podman), or a real hostname. |
 | **`npm install` crashes: `TypeError: Invalid Version:`** | npm dedup bug | Use `make install`, or rerun with `--no-dedupe`. |
-| **Port `8091` or `5178` already in use** | Another process holds it | Change `PORT`, or the `server.port` in `log-gui/apps/web/vite.config.ts`. |
+| **Port `8091` or `5178` already in use** | Another process holds it | Change `PORT`, or the `server.port` in `web-apps/log-gui/apps/web/vite.config.ts`. |
 | **Blank page in production**, API responds | Frontend not built or `STATIC_DIR` wrong | `make build`, then point `STATIC_DIR` at an **absolute** path to `apps/web/dist`. |
 | **A client route 404s in production** | Static host with no SPA fallback | Let the bridge serve the UI via `STATIC_DIR`; it falls back to `index.html`. |
 | **Explorer shows fewer rows than expected** | `QUERY_MAX_ROWS` cap (5 000) | Narrow the filter, use a time range, or export instead. |

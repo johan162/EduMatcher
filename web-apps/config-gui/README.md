@@ -10,12 +10,12 @@ guaranteed parseable by the engine.
 > **Deploying what you export** — the GUI produces the *authored* YAML. Run
 > `pm-config-deploy <file>` to validate and compile it into the artifact every
 > `pm-*` process reads. See the
-> [Configuration chapter](../docs/user-guide/010-configuration.md#file-location).
+> [Configuration chapter](../../docs/user-guide/010-configuration.md#file-location).
 
 > **User & operator documentation** — installation, running in development,
 > production and container deployment, environment variables, and a full
 > troubleshooting guide — lives in the user guide:
-> **[Configuration GUI chapter](../docs/user-guide/030-config-GUI.md)**.
+> **[Configuration GUI chapter](../../docs/user-guide/030-config-GUI.md)**.
 >
 > This README is the **developer** reference: project layout, getting started,
 > and how to keep the GUI in sync with `pm-config-gen`.

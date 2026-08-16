@@ -31,7 +31,7 @@
 ## What the Trading GUI is
 
 The **Trading GUI**, system name `pm-trading-ui`, is the graphical trading
-terminal for the EduMatcher exchange. Its source code lives in `trader-gui/`
+terminal for the EduMatcher exchange. Its source code lives in `web-apps/trader-gui/`
 and its full specification is `docs-design/EduMatcher-Trading-GUI.md`. Unlike
 [TapeDeck](290-trader-info-terminal.md), which is a read-only market display
 with no login, the Trading GUI is a **write-capable** application: it is how a
@@ -114,12 +114,12 @@ Three details shape how the screens behave:
 ## Running the application
 
 The Trading GUI can run as a plain Node/Vite project, or as a single
-container built from `trader-gui/Dockerfile` — the same pattern
+container built from `web-apps/trader-gui/Dockerfile` — the same pattern
 [TapeDeck](290-trader-info-terminal.md) uses.
 
 ### Recommended: run the container
 
-From `trader-gui/`:
+From `web-apps/trader-gui/`:
 
 ```bash
 make up     # auto-detects Docker or Podman
@@ -221,7 +221,7 @@ which needs no extra infrastructure for a single-machine setup.
 | `make clean` | Remove build artefacts and `node_modules` |
 
 Run `make help` for the authoritative list, `npm run serve -- --help` for the
-static server's own flag reference, and see `trader-gui/README.md` for the
+static server's own flag reference, and see `web-apps/trader-gui/README.md` for the
 implementation's own notes.
 
 ## Logging in
@@ -1571,7 +1571,7 @@ them is reversible with an undo:
 ## Configuration reference
 
 The app reads its configuration from Vite environment variables at build
-time. Copy `trader-gui/.env.example` to `.env` and adjust.
+time. Copy `web-apps/trader-gui/.env.example` to `.env` and adjust.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -1664,6 +1664,6 @@ host name:
 - `docs-design/EduMatcher-Trading-GUI.md` — the full design document,
   including the backend capability matrix (§6) and complete screen
   specifications (repository checkout only)
-- `trader-gui/README.md` — the implementation's own record of setup,
+- `web-apps/trader-gui/README.md` — the implementation's own record of setup,
   environment variables, and phase-by-phase implementation status
   (repository checkout only)

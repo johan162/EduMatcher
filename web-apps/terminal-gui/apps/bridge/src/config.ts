@@ -56,11 +56,11 @@ export interface BridgeConfig {
 
 // Mirrors edumatcher.config._resolve_data_dir()'s priority order so the bridge
 // and the Python processes agree on where `logs/` lives without either side
-// configuring the other. This file sits four levels below the repo root in
+// configuring the other. This file sits five levels below the repo root in
 // every way the bridge is run (tsx in dev; the container always sets the paths
 // explicitly and never reaches the source-tree branch).
 const thisFileDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(thisFileDir, "..", "..", "..", "..");
+const repoRoot = resolve(thisFileDir, "..", "..", "..", "..", "..");
 const repoSrcDir = join(repoRoot, "src");
 
 function resolveDataDir(): string {

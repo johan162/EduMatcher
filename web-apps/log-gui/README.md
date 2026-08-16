@@ -9,7 +9,7 @@ list with shared acknowledgement, a process registry, and the existing
 > **Design** — the full design proposal (data-availability audit, protocol
 > reasoning, per-view wireframes, and the open questions this build resolves
 > or defers) lives at
-> **[docs-design/EduMatcher-log-GUI.md](../docs-design/EduMatcher-log-GUI.md)**.
+> **[docs-design/EduMatcher-log-GUI.md](../../docs-design/EduMatcher-log-GUI.md)**.
 > This README is the **developer** reference: project layout and getting
 > started.
 

@@ -49,9 +49,9 @@ export interface BridgeConfig {
 // agree on log.db's location without either side needing to configure the
 // other — see the v1.1.0 design-doc changelog for why this matters (§20).
 //
-// This file lives at <repo>/log-gui/apps/bridge/src/config.ts, four levels
-// below the repo root, in every way this bridge is ever run (dev via tsx,
-// or the production container, which never reaches this branch at all
+// This file lives at <repo>/web-apps/log-gui/apps/bridge/src/config.ts, five
+// levels below the repo root, in every way this bridge is ever run (dev via
+// tsx, or the production container, which never reaches this branch at all
 // since its Dockerfile always sets LOG_DB_PATH/ACK_STORE_PATH explicitly) —
 // so that fixed relative distance is safe to hard-code, unlike a typical
 // compiled-output path that can shift between dev and build.
@@ -63,7 +63,7 @@ export interface BridgeConfig {
 // pm-log-srv would pick, rather than falling through to the home
 // directory just because nothing has been created there yet.
 const _thisFileDir = dirname(fileURLToPath(import.meta.url));
-const _repoRoot = resolve(_thisFileDir, "..", "..", "..", "..");
+const _repoRoot = resolve(_thisFileDir, "..", "..", "..", "..", "..");
 const _repoSrcDir = join(_repoRoot, "src");
 
 function resolveDataDir(): string {
