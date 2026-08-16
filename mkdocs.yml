@@ -124,6 +124,7 @@ nav:
     - Centralized Log Server: user-guide/280-log-srv.md
     - Log Operator Console (pm-log-ui): user-guide/285-log-srv-gui.md
     - Trader Information Terminal (TapeDeck): user-guide/290-trader-info-terminal.md
+    - Trader Order Entry Terminal (TraderUI): user-guide/300-trader-order-entry-terminal.md
     - Examples: user-guide/800-examples.md
     - Example Engine Configs: user-guide/810-example-configs.md
     - Known Limitations & Bugs: user-guide/890-known-limitations-bugs.md
