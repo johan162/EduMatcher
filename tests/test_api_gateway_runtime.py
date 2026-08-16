@@ -341,20 +341,29 @@ def test_config_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_main_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[tuple[str, Any]] = []
-    config = ApiGatewayConfig(host="127.0.0.9", port=9191, log_level="debug")
-    monkeypatch.setattr(sys, "argv", ["pm-api-gwy"])
-    monkeypatch.setattr(main, "_config_with_overrides", lambda _args: config)
-    monkeypatch.setattr(main, "create_app", lambda cfg: {"config": cfg})
-    monkeypatch.setattr(
-        uvicorn,
-        "run",
-        lambda app, host, port, log_level, log_config: calls.append(
-            ("run", (app, host, port, log_level, log_config))
-        ),
-    )
-    main.main()
-    assert calls == [("run", ({"config": config}, "127.0.0.9", 9191, "debug", None))]
+    # log_level="debug" makes main() -> _route_uvicorn_logging() lower the
+    # root logger's level for real; restore it so that side effect doesn't
+    # leak into whichever test runs next in this process (see
+    # test_uvicorn_logs_route_to_root_handler below for the same guard).
+    root = logging.getLogger()
+    original_level = root.level
+    try:
+        calls: list[tuple[str, Any]] = []
+        config = ApiGatewayConfig(host="127.0.0.9", port=9191, log_level="debug")
+        monkeypatch.setattr(sys, "argv", ["pm-api-gwy"])
+        monkeypatch.setattr(main, "_config_with_overrides", lambda _args: config)
+        monkeypatch.setattr(main, "create_app", lambda cfg: {"config": cfg})
+        monkeypatch.setattr(
+            uvicorn,
+            "run",
+            lambda app, host, port, log_level, log_config: calls.append(
+                ("run", (app, host, port, log_level, log_config))
+            ),
+        )
+        main.main()
+        assert calls == [("run", ({"config": config}, "127.0.0.9", 9191, "debug", None))]
+    finally:
+        root.setLevel(original_level)
 
 
 def test_uvicorn_logs_route_to_root_handler() -> None:
