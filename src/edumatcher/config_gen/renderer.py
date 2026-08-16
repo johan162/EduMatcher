@@ -9,8 +9,7 @@ import yaml
 
 # Wrap the recorded command line between options rather than leaving it as
 # one very long line -- pm-config-gen invocations routinely carry a dozen+
-# flags. 78 matches the repo's other hand-wrapped comment blocks (e.g. the
-# "Validate with" block below).
+# flags.
 _COMMAND_WRAP_WIDTH = 100
 
 

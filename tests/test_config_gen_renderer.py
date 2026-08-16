@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import yaml
 
-from edumatcher.config_gen.renderer import render_yaml
+from edumatcher.config_gen.renderer import _COMMAND_WRAP_WIDTH, render_yaml
 
 
 def test_renderer_emits_header_and_yaml_sections() -> None:
@@ -237,7 +237,9 @@ def test_long_command_wraps_between_options_near_target_width() -> None:
 
     for line in command_lines:
         assert line.startswith("#"), "every wrapped line must stay a YAML comment"
-        assert len(line) <= 80, f"line exceeds the ~70-80 char target: {line!r}"
+        assert (
+            len(line) <= _COMMAND_WRAP_WIDTH
+        ), f"line exceeds the configured wrap width ({_COMMAND_WRAP_WIDTH}): {line!r}"
         content = line.removesuffix("\\").rstrip()
         # Never break an option across lines -- each line ends at a space
         # boundary that was already in the source command.
