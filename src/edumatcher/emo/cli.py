@@ -127,7 +127,7 @@ DEFAULT_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
     {"name": "audit", "command": ["pm-audit", "--verbose"]},
     {
-        "name": "stats", 
+        "name": "stats",
         "command": ["pm-stats", "--verbose"],
         "healthcheck": ["pm-stats-cli", "health", "-q"],
     },
@@ -159,8 +159,16 @@ DEFAULT_PROCESSES: list[dict[str, Any]] = [
         "command": ["pm-api-gwy", "--verbose", "--instance", "dashboards"],
         "tcp": "127.0.0.1:8081",
     },
-    {"name": "alf-gwy", "command": ["pm-alf-gwy", "--verbose"], "tcp": "127.0.0.1:5565"},
-    {"name": "balf-gwy", "command": ["pm-balf-gwy", "--verbose"], "tcp": "127.0.0.1:5560"},
+    {
+        "name": "alf-gwy",
+        "command": ["pm-alf-gwy", "--verbose"],
+        "tcp": "127.0.0.1:5565",
+    },
+    {
+        "name": "balf-gwy",
+        "command": ["pm-balf-gwy", "--verbose"],
+        "tcp": "127.0.0.1:5560",
+    },
 ]
 
 MICRO_PROCESSES: list[dict[str, Any]] = [
@@ -171,7 +179,7 @@ MICRO_PROCESSES: list[dict[str, Any]] = [
 MINI_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
     {
-        "name": "stats", 
+        "name": "stats",
         "command": ["pm-stats", "--verbose"],
         "healthcheck": ["pm-stats-cli", "health", "-q"],
     },
@@ -187,7 +195,11 @@ MINI_PROCESSES: list[dict[str, Any]] = [
         "command": ["pm-api-gwy", "--verbose", "--instance", "desk"],
         "tcp": "127.0.0.1:8080",
     },
-    {"name": "alf-gwy", "command": ["pm-alf-gwy", "--verbose"], "tcp": "127.0.0.1:5565"},
+    {
+        "name": "alf-gwy",
+        "command": ["pm-alf-gwy", "--verbose"],
+        "tcp": "127.0.0.1:5565",
+    },
     {
         "name": "post-trade-gwy",
         "command": ["pm-ralf-gwy", "--verbose"],
