@@ -29,6 +29,7 @@ Usage
   pm-config-deploy engine_config.yaml       # validate, compile and install
   pm-config-deploy --check engine_config.yaml   # validate only, install nothing
   pm-config-deploy --show                   # print the deployed paths
+  pm-config-deploy --example three-basic    # deploy a bundled example config
 """
 
 from __future__ import annotations
@@ -60,6 +61,49 @@ from edumatcher.engine.config_loader import load_engine_config
 from edumatcher.log_srv.config import load_log_client_config, load_log_server_config
 from edumatcher.md_gateway.config import load_market_data_gateway_config
 from edumatcher.ralf_gateway.config import load_ralf_gateway_config
+
+# ---------------------------------------------------------------------------
+# --example resolution
+# ---------------------------------------------------------------------------
+# docs/examples/ref_data/<book-count>-book(s)-<profile>-setup/engine_config.yaml
+# is shipped both in the source tree and, alongside the installed package, in
+# the wheel (see pyproject.toml's [tool.poetry.include]). The two layouts
+# differ by one directory level: in a source checkout "docs/" is a sibling of
+# "src/" (repo root), but a wheel install has no "src/" layer, so "docs/"
+# lands as a sibling of the "edumatcher" package directory itself. This mirrors
+# edumatcher.config's own source-tree detection (this file lives in the same
+# "src/edumatcher/" directory that module's _IN_SOURCE_TREE check is based on).
+_EXAMPLE_COUNTS = {"one": "book", "three": "books", "ten": "books", "thirty": "books"}
+_EXAMPLE_PROFILES = ("basic", "nominal", "complex")
+
+
+def _examples_root() -> Path:
+    pkg_dir = Path(__file__).parent  # .../edumatcher/
+    src_dir = pkg_dir.parent  # .../src/  (source) or site-packages (installed)
+    base = src_dir.parent if src_dir.name == "src" else src_dir
+    return base / "docs" / "examples" / "ref_data"
+
+
+def resolve_example(name: str) -> Path:
+    """Resolve an ``--example`` shorthand (e.g. ``three-basic``) to its YAML.
+
+    Raises ``ValueError`` with the available names when *name* is not one of
+    the bundled examples.
+    """
+    count, _, profile = name.partition("-")
+    unit = _EXAMPLE_COUNTS.get(count)
+    if unit is None or profile not in _EXAMPLE_PROFILES:
+        available = ", ".join(
+            f"{count}-{profile}"
+            for count in _EXAMPLE_COUNTS
+            for profile in _EXAMPLE_PROFILES
+        )
+        raise ValueError(f"Unknown example {name!r}. Available: {available}")
+
+    path = _examples_root() / f"{count}-{unit}-{profile}-setup" / "engine_config.yaml"
+    if not path.is_file():
+        raise ValueError(f"Example {name!r} not found (expected {path})")
+    return path
 
 
 class CompileError(Exception):
@@ -184,6 +228,14 @@ def main() -> None:
         help="Authored engine_config.yaml to validate, compile and install",
     )
     parser.add_argument(
+        "--example",
+        metavar="NAME",
+        help=(
+            "Use a bundled example config instead of SOURCE, e.g. 'three-basic' "
+            "for docs/examples/ref_data/three-books-basic-setup/engine_config.yaml"
+        ),
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
         help="Validate and compile, but install nothing",
@@ -200,13 +252,23 @@ def main() -> None:
         print(f"source:   {ENGINE_CONFIG_FILE}")
         return
 
-    if not args.source:
-        parser.error("SOURCE is required (or pass --show)")
+    if args.source and args.example:
+        parser.error("SOURCE and --example are mutually exclusive")
 
-    source = Path(args.source).expanduser().resolve()
-    if not source.is_file():
-        print(f"[ERROR] No such configuration file: {source}", file=sys.stderr)
-        sys.exit(1)
+    if args.example:
+        try:
+            source = resolve_example(args.example)
+        except ValueError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            sys.exit(1)
+    elif args.source:
+        source = Path(args.source).expanduser().resolve()
+        if not source.is_file():
+            print(f"[ERROR] No such configuration file: {source}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        parser.error("SOURCE is required (or pass --example / --show)")
+        return  # unreachable, parser.error() exits; keeps type checkers happy
 
     try:
         config = compile_config(source) if args.check else deploy(source)

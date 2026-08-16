@@ -14,7 +14,14 @@ authors = ["Johan Persson <johan162@gmail.com>"]
 readme = "README.md"
 packages = [{include = "edumatcher", from = "src"}]
 include = [
-    { path = "src/edumatcher/engine_config.sample.yaml", format = ["sdist", "wheel"] }
+    { path = "src/edumatcher/engine_config.sample.yaml", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/*.md", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/*.yaml", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/*.sh", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/*.py", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/*.c", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/*.h", format = ["sdist", "wheel"] },
+    { path = "docs/examples/**/Makefile", format = ["sdist", "wheel"] },
 ]
 keywords = ["finance", "exchange", "matching-engine", "trading", "education", "learning", "order-matching", "market-microstructure"]
 license = "MIT"

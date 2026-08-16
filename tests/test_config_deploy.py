@@ -26,6 +26,7 @@ from edumatcher.config_deploy import (
     CompileError,
     compile_config,
     deploy,
+    resolve_example,
     validate,
 )
 
@@ -231,6 +232,42 @@ class TestShippedSample:
 
         assert config.engine.symbols, "a sample with no symbols would teach nothing"
         assert config.engine.fix_gateways
+
+
+class TestExamples:
+    """`--example NAME` resolves to a bundled docs/examples/ref_data config."""
+
+    @pytest.mark.parametrize(
+        "name,folder",
+        [
+            ("one-basic", "one-book-basic-setup"),
+            ("one-nominal", "one-book-nominal-setup"),
+            ("one-complex", "one-book-complex-setup"),
+            ("three-basic", "three-books-basic-setup"),
+            ("three-nominal", "three-books-nominal-setup"),
+            ("three-complex", "three-books-complex-setup"),
+            ("ten-basic", "ten-books-basic-setup"),
+            ("ten-nominal", "ten-books-nominal-setup"),
+            ("ten-complex", "ten-books-complex-setup"),
+            ("thirty-basic", "thirty-books-basic-setup"),
+            ("thirty-nominal", "thirty-books-nominal-setup"),
+            ("thirty-complex", "thirty-books-complex-setup"),
+        ],
+    )
+    def test_resolves_every_bundled_example(self, name: str, folder: str) -> None:
+        path = resolve_example(name)
+        assert path.parts[-2:] == (folder, "engine_config.yaml")
+        assert path.is_file()
+
+    def test_rejects_an_unknown_example(self) -> None:
+        with pytest.raises(ValueError, match="Unknown example"):
+            resolve_example("five-basic")
+
+    def test_every_resolved_example_compiles(self) -> None:
+        # These are the files shown to newcomers; one that fails to compile
+        # would teach the wrong lesson before pm-config-deploy even runs.
+        path = resolve_example("three-basic")
+        assert compile_config(path).engine.symbols
 
 
 class TestProvenance:

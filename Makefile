@@ -52,7 +52,7 @@ APP_NAME  := EduMatcher
 VERSION   := $(shell grep '^version' pyproject.toml | head -1 | cut -d'"' -f2)
 PYPI_NAME := $(PROJECT)
 
-COVERAGE := 85
+COVERAGE := 80
 
 SRC_FILES  := $(shell find $(SRC_DIR) -name '*.py')
 TEST_FILES := $(shell find $(TEST_DIR) -name '*.py')

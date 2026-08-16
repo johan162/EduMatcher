@@ -1007,6 +1007,54 @@ process deserialise rather than decide.
 Deployment replaces the running configuration but does not disturb live
 processes; restart them to pick it up.
 
+### Deploying example configurations
+
+By using the option `--example` it is possible to deploy one of the example configurations
+supplied as examples in an easy way. 
+
+The available examples are all located in the directory `docs/examples/ref_data/<SPEC>/engine_config.yaml` and are as follows
+
+| Directory | `--example` shorthand | Profile | Number of symbols | Session enabled |
+|---|---|---|---|---|
+| `one-book-basic-setup` | `one-basic` | basic | 1 | no |
+| `one-book-nominal-setup` | `one-nominal` | nominal | 1 | yes |
+| `one-book-complex-setup` | `one-complex` | complex | 1 | yes |
+| `three-books-basic-setup` | `three-basic` | basic | 3 | no |
+| `three-books-nominal-setup` | `three-nominal` | nominal | 3 | yes |
+| `three-books-complex-setup` | `three-complex` | complex | 3 | yes |
+| `ten-books-basic-setup` | `ten-basic` | basic | 10 | no |
+| `ten-books-nominal-setup` | `ten-nominal` | nominal | 10 | yes |
+| `ten-books-complex-setup` | `ten-complex` | complex | 10 | yes |
+| `thirty-books-basic-setup` | `thirty-basic` | basic | 30 | no |
+| `thirty-books-nominal-setup` | `thirty-nominal` | nominal | 30 | yes |
+| `thirty-books-complex-setup` | `thirty-complex` | complex | 30 | yes |
+
+The shorthand is always `<count>-<profile>`, where `<count>` is one of `one`,
+`three`, `ten`, or `thirty` and `<profile>` is one of `basic`, `nominal`, or
+`complex`. The three profiles differ as follows:
+
+| Profile | Gateways | Sessions and schedule | Auxiliary blocks | Risk controls |
+|---|---|---|---|---|
+| basic | 4 (2 `TRADER`, 1 `MARKET_MAKER`, 1 `ADMIN`) | disabled — starts in `CONTINUOUS` | none | engine defaults only |
+| nominal | 4 (2 `TRADER`, 1 `MARKET_MAKER`, 1 `ADMIN`) | enabled, with a full `schedule` | `post_trade_gateway`, `market_data_gateway`, `api_gateways` (`desk` + `dashboards`) | engine defaults only |
+| complex | 8 (5 `TRADER`, 2 `MARKET_MAKER`, 1 `ADMIN`) | enabled, with a full `schedule` | same as nominal, plus `market_maker_combos` | named `risk_controls` levels and a `circuit_breaker_defaults` ladder |
+
+Pick `basic` for a quick matching demo with no scheduler, `nominal` for a
+realistic single-desk session with the market-data, post-trade, and REST
+gateways available, and `complex` when you need multiple desks, two market
+makers, startup combo seeds, and explicit collar/circuit-breaker policy.
+
+For example
+
+```bash
+pm-config-deploy --example three-basic
+```
+
+will validate, compile, and install
+`docs/examples/ref_data/three-books-basic-setup/engine_config.yaml` as the
+deployed `ref_data/engine_config.json` artifact, exactly as if you had passed
+that path as `SOURCE`.
+
 ### What the artifact records about itself
 
 ```json
