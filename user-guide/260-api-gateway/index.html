@@ -2010,6 +2010,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#bootstrap-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bootstrap endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bootstrap endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-partial-failures-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How partial failures work
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#role-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Role access
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fills_limit-query-parameter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fills_limit query parameter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#updated-login-sequence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Updated login sequence
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#admin-endpoints" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2198,6 +2259,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#market-data-snapshot-and-resume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Market-data snapshot and resume
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2319,6 +2391,17 @@
   
     <nav class="md-nav" aria-label="Reference">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bootstrap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bootstrap
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#trading-rest" class="md-nav__link">
@@ -3972,6 +4055,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/06-msgen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Generator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4104,23 +4215,27 @@ the existing CALF and RALF gateway pattern.</p>
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span><span class="c1"># Seconds a terminal order stays in the in-memory cache. 0 disables</span>
 <a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="c1"># eviction (unbounded growth).</span>
 <a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="nt">order_retention_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3600</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-trader-demo</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Demo trading client</span>
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-dashboard-demo</span>
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Read-only dashboard client</span>
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
-<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">    </span><span class="nt">rate_limit</span><span class="p">:</span>
-<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">      </span><span class="nt">writes_per_second</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">      </span><span class="nt">burst</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="c1"># Seconds the market-data stream cache retains the per-symbol trades tail</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="c1"># for WS snapshot/resume. Latest book/depth/auction snapshots are kept</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">    </span><span class="c1"># regardless of age; 0 disables the trade buffer but still serves snapshots.</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">    </span><span class="nt">market_data_cache_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-trader-demo</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Demo trading client</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-dashboard-demo</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">        </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Read-only dashboard client</span>
 <a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>
-<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">    </span><span class="nt">timeouts</span><span class="p">:</span>
-<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">      </span><span class="nt">engine_auth_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
-<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">      </span><span class="nt">engine_reply_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
-<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="w">      </span><span class="nt">wait_ack_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">    </span><span class="nt">rate_limit</span><span class="p">:</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">      </span><span class="nt">writes_per_second</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">      </span><span class="nt">burst</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="w">    </span><span class="nt">timeouts</span><span class="p">:</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="w">      </span><span class="nt">engine_auth_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="w">      </span><span class="nt">engine_reply_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="w">      </span><span class="nt">wait_ack_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
 </code></pre></div>
 <table>
 <thead>
@@ -4161,6 +4276,10 @@ the existing CALF and RALF gateway pattern.</p>
 <tr>
 <td><code>order_retention_sec</code></td>
 <td>Seconds a terminal order stays cached (default <code>3600</code>; <code>0</code> disables eviction)</td>
+</tr>
+<tr>
+<td><code>market_data_cache_sec</code></td>
+<td>Seconds the market-data cache retains the per-symbol <code>trades</code> tail for WS snapshot/resume (default <code>60</code>; latest book/depth/auction snapshots are kept regardless of age; <code>0</code> disables the trade buffer)</td>
 </tr>
 <tr>
 <td><code>rate_limit</code></td>
@@ -4649,6 +4768,24 @@ surfaces but cannot submit, cancel, or inspect private orders.</p>
 </tr>
 <tr>
 <td><code>GET</code></td>
+<td><code>/bootstrap/trader</code></td>
+<td>any valid key</td>
+<td>One-request TRADER/MM/ADMIN startup payload</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/bootstrap/mm</code></td>
+<td>MARKET_MAKER</td>
+<td>One-request MARKET_MAKER startup payload (adds quote state)</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/bootstrap/admin</code></td>
+<td>admin</td>
+<td>One-request ADMIN startup payload</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
 <td><code>/healthz</code></td>
 <td>none</td>
 <td>Liveness probe (not in Swagger)</td>
@@ -4832,8 +4969,8 @@ replacement (see <a href="#implementation-notes-and-design-deviations">Implement
 </tr>
 <tr>
 <td><code>GET /quotes/legs</code></td>
-<td><code>{ "legs": [...] }</code></td>
-<td>Served from the gateway's local quote-leg cache when populated, otherwise round-tripped from the engine</td>
+<td><code>{ "legs": [...], "recent": [...], "show_requested":..., "complete":... }</code></td>
+<td>Served from the gateway's local quote-leg cache when populated, otherwise round-tripped from the engine. <code>legs</code> and <code>recent</code> are always present, empty when the requested half does not include them</td>
 </tr>
 <tr>
 <td><code>GET /positions</code></td>
@@ -4874,13 +5011,13 @@ reference data changes only when an admin reloads it.</p>
 </tr>
 <tr>
 <td><code>GET /reference/symbols</code></td>
-<td><code>{ "symbols": {SYM: {tick_size, level, collar?, circuit_breaker?}}, "config_version":... }</code></td>
-<td><code>collar</code>/<code>circuit_breaker</code> are omitted for a symbol with neither configured</td>
+<td><code>{ "symbols": [{symbol, tick_decimals, level?, collar?, circuit_breaker?}], "config_version":... }</code></td>
+<td>A list, not a map: each entry carries its own <code>symbol</code>, so a client can iterate without knowing the keys. <code>collar</code>/<code>circuit_breaker</code> are omitted for a symbol with neither configured</td>
 </tr>
 <tr>
 <td><code>GET /reference/risk</code></td>
-<td><code>{ "default_level":..., "levels": {LEVEL: {collar: {...}}}, "config_version":... }</code></td>
-<td>Risk-band definitions referenced by <code>symbols.*.level</code></td>
+<td><code>{ "default_level"?:..., "levels": [{name, collar?}], "config_version":... }</code></td>
+<td>Risk-band definitions referenced by each symbol's <code>level</code>. <code>collar</code> is omitted for a level that configures none</td>
 </tr>
 <tr>
 <td><code>GET /reference/indexes</code></td>
@@ -4889,8 +5026,8 @@ reference data changes only when an admin reloads it.</p>
 </tr>
 <tr>
 <td><code>GET /reference/schedule</code></td>
-<td><code>{ "sessions_enabled":..., "country":..., "pre_open":..., "opening_auction_start":..., "continuous_start":..., "closing_auction_start":..., "closing_auction_end":..., "config_version":... }</code></td>
-<td><code>null</code> schedule fields mean no <code>schedule:</code> block is configured</td>
+<td><code>{ "sessions_enabled":..., "country"?:..., "schedule": {pre_open, opening_auction_start, continuous_start, closing_auction_start, closing_auction_end} \| null, "config_version":... }</code></td>
+<td>The five clock times are nested under <code>schedule</code>, which is the same record <code>system.session_schedule</code> carries. <code>schedule: null</code> means no <code>schedule:</code> block is configured</td>
 </tr>
 </tbody>
 </table>
@@ -5209,6 +5346,67 @@ reply to a subset of <code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONS
 (repeat the query parameter for multiple values); omitting it returns all
 four. There are no level or end-of-day tick records here — use
 <code>/history/index-daily</code> and <code>/history/index-snapshots</code> for those.</p>
+<h2 id="bootstrap-endpoints">Bootstrap endpoints<a class="headerlink" href="#bootstrap-endpoints" title="Permanent link">&para;</a></h2>
+<p>Bootstrap endpoints collapse the 6–13 sequential REST calls a browser client
+currently needs at login into a single round-trip per role.  Sub-queries
+inside each handler run in parallel; the total wall-clock time is the slowest
+of the concurrent engine queries, not their sum.</p>
+<h3 id="how-partial-failures-work">How partial failures work<a class="headerlink" href="#how-partial-failures-work" title="Permanent link">&para;</a></h3>
+<p>Each response carries an <code>incomplete</code> array.  When any optional sub-query
+times out or errors, the corresponding field is set to <code>null</code> and its name is
+appended to <code>incomplete</code>.  The rest of the response is still valid and useful.
+Required fields — <code>reference</code> and <code>orders</code> for <code>/bootstrap/trader</code> and
+<code>/bootstrap/mm</code>; <code>reference</code> for <code>/bootstrap/admin</code> — return <code>503
+ENGINE_TIMEOUT</code> if they fail rather than a partial response, because the UI
+cannot render anything meaningful without them.</p>
+<h3 id="role-access">Role access<a class="headerlink" href="#role-access" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Allowed</th>
+<th>Returns <code>403</code> for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /api/v1/bootstrap/trader</code></td>
+<td>Any valid key</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/bootstrap/mm</code></td>
+<td>MARKET_MAKER</td>
+<td>TRADER, ADMIN, read-only</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/bootstrap/admin</code></td>
+<td>ADMIN</td>
+<td>TRADER, MARKET_MAKER, read-only</td>
+</tr>
+</tbody>
+</table>
+<p>Read-only credentials (no <code>gateway_id</code>) may call <code>/bootstrap/trader</code>.  They
+receive <code>gateway_role: "READ_ONLY"</code>, empty <code>positions</code>, and empty <code>orders</code>
+without triggering any engine round-trip for those fields.</p>
+<h3 id="fills_limit-query-parameter"><code>fills_limit</code> query parameter<a class="headerlink" href="#fills_limit-query-parameter" title="Permanent link">&para;</a></h3>
+<p><code>/bootstrap/trader</code> and <code>/bootstrap/mm</code> accept an optional <code>fills_limit</code>
+integer query parameter (default <code>50</code>, max <code>500</code>) that controls how many of
+today's fill events are returned in the <code>recent_fills</code> field.  The engine
+session timezone in the stats database determines what "today" means,
+consistent with <code>GET /api/v1/history/fills</code>.</p>
+<h3 id="updated-login-sequence">Updated login sequence<a class="headerlink" href="#updated-login-sequence" title="Permanent link">&para;</a></h3>
+<p>With a bootstrap endpoint the login sequence becomes:</p>
+<ol>
+<li><code>GET /api/v1/bootstrap/&lt;role&gt;</code> — one HTTP request with parallel internal
+   engine queries; populates identity, reference data, session state, orders,
+   positions, and capability flags before any WebSocket opens.</li>
+<li>Open WebSockets in parallel — <code>/events</code>, <code>/market-data</code>, and (ADMIN)
+   <code>/admin/monitor</code> — all of which can start immediately because
+   <code>gateway_id</code> and <code>gateway_role</code> are already known from step 1.</li>
+</ol>
+<p>For the full response shapes and error codes see
+<a href="../950-app-REST-API-reference/#bootstrap">Appendix: REST API Reference — Bootstrap</a>.</p>
 <h2 id="admin-endpoints">Admin endpoints<a class="headerlink" href="#admin-endpoints" title="Permanent link">&para;</a></h2>
 <p>Base path: <code>/api/v1/admin</code>.</p>
 <p>These endpoints require an API key whose <code>gateway_id</code> maps to an engine gateway
@@ -5285,7 +5483,7 @@ admin call performs one extra engine round-trip.</p>
 <td><code>GET</code></td>
 <td><code>/admin/risk/state</code></td>
 <td>none</td>
-<td><code>{ "symbols": {SYM: {collar_reference_price, circuit_breaker:{...}}} }</code></td>
+<td><code>{ "symbols": [{symbol, collar_reference_price?, circuit_breaker?}] }</code></td>
 <td><code>system.risk_state_request</code></td>
 </tr>
 <tr>
@@ -5504,11 +5702,60 @@ to know each command's own ack shape:</p>
 </code></pre></div>
 <p><code>action</code> is one of <code>circuit_breaker.trigger</code>, <code>circuit_breaker.resume</code>,
 <code>kill_switch.self</code>, <code>kill_switch.symbol</code>, <code>kill_switch.gateway</code>,
-<code>kill_switch.global</code>. <code>scope</code> varies by <code>action</code> — it carries whatever
-identifies what the command acted on (symbol, target gateway, cancelled
-counts) plus the request's <code>reason</code> field under the key <code>note</code>. This event
-is admin-monitor-only: it never reaches a trading gateway's private stream or
-the public market-data stream, regardless of which gateway initiated it.</p>
+<code>kill_switch.global</code>. <code>scope</code> carries what the command acted on and what it
+did, and every key is optional because each <code>action</code> uses a different subset.
+The set is closed — since phase 6.1d it is a declared record, and a key
+outside it cannot reach the wire:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Present on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td>str</td>
+<td>the per-symbol actions</td>
+</tr>
+<tr>
+<td><code>target_gateway_id</code></td>
+<td>str</td>
+<td><code>kill_switch.gateway</code></td>
+</tr>
+<tr>
+<td><code>level</code></td>
+<td>str</td>
+<td><code>circuit_breaker.trigger</code></td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>str</td>
+<td>any action carrying the request's <code>reason</code></td>
+</tr>
+<tr>
+<td><code>cancelled_orders</code></td>
+<td>int</td>
+<td>accepted kill switches</td>
+</tr>
+<tr>
+<td><code>cancelled_quotes</code></td>
+<td>int</td>
+<td>accepted kill switches</td>
+</tr>
+<tr>
+<td><code>affected_gateways</code></td>
+<td>int</td>
+<td>an accepted <code>kill_switch.global</code></td>
+</tr>
+</tbody>
+</table>
+<p>A key whose value is unset is <strong>absent</strong> rather than <code>null</code>, and <code>scope</code> is
+<code>{}</code> on a rejection that named nothing. This event is admin-monitor-only: it
+never reaches a trading gateway's private stream or the public market-data
+stream, regardless of which gateway initiated it.</p>
 <div class="admonition note">
 <p class="admonition-title">Index rebalance does not emit <code>admin.action</code></p>
 <p><code>POST /admin/indexes/{id}/rebalance</code> talks to <code>pm-index</code>, a separate
@@ -5795,8 +6042,9 @@ else. <code>seq</code> is how you find out it happened.</p>
 <a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>        <span class="k">if</span> <span class="n">previous</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">seq</span> <span class="o">!=</span> <span class="n">previous</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
 <a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;gap on </span><span class="si">{</span><span class="n">topic</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">seq</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">previous</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> event(s) lost&quot;</span><span class="p">)</span>
 <a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a>            <span class="c1"># book/depth carry full state, so the next message re-syncs you.</span>
-<a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a>            <span class="c1"># A missed trade is gone — refetch from the history endpoints.</span>
-<a id="__codelineno-41-12" name="__codelineno-41-12" href="#__codelineno-41-12"></a>        <span class="n">last</span><span class="p">[</span><span class="n">topic</span><span class="p">]</span> <span class="o">=</span> <span class="n">seq</span>
+<a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a>            <span class="c1"># A missed trade can be replayed with a `resume` (see below),</span>
+<a id="__codelineno-41-12" name="__codelineno-41-12" href="#__codelineno-41-12"></a>            <span class="c1"># or refetched from the history endpoints if it aged out.</span>
+<a id="__codelineno-41-13" name="__codelineno-41-13" href="#__codelineno-41-13"></a>        <span class="n">last</span><span class="p">[</span><span class="n">topic</span><span class="p">]</span> <span class="o">=</span> <span class="n">seq</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Why <code>seq</code> is per topic, not per connection</p>
@@ -5809,8 +6057,12 @@ topics (<code>depth.AAPL</code>, <code>depth.MSFT</code>), each independently nu
 </div>
 <p><code>book</code> and <code>depth</code> events carry <strong>complete state</strong>, not deltas, so a client
 that missed some simply takes the next one. Trades are the events worth
-reacting to: a dropped <code>trade</code> is not repeated, and the
-<a href="#history-endpoints">history endpoints</a> are the way to recover it.</p>
+reacting to: a dropped <code>trade</code> is not repeated on the live feed, but it can be
+recovered without leaving the socket — send a
+<a href="#market-data-snapshot-and-resume"><code>resume</code></a> with the last <code>seq</code> you saw, and
+the gateway replays the buffered prints (falling back to the
+<a href="#history-endpoints">history endpoints</a> only when the gap is older than
+<code>market_data_cache_sec</code>).</p>
 <p>The server side of the same signal is on <code>GET /healthz</code>, which reports
 <code>dropped_events</code> per sink (<code>market_data</code>, <code>private</code>, <code>admin</code>). The gateway also
 logs a warning on the first drop per sink and every hundredth thereafter.</p>
@@ -5994,20 +6246,114 @@ subscribing <code>{AAPL, [book]}</code> and then <code>{MSFT, [depth]}</code> al
 depth for <code>AAPL</code> and book for <code>MSFT</code>. Each rule is now independent. A
 single control frame behaves exactly as before.</p>
 </div>
+<h3 id="market-data-snapshot-and-resume">Market-data snapshot and resume<a class="headerlink" href="#market-data-snapshot-and-resume" title="Permanent link">&para;</a></h3>
+<p>Unlike the private stream, market data can be recovered without a REST round
+trip: the gateway keeps a small in-memory cache of the latest <code>book</code>, <code>depth</code>,
+and <code>auction</code> snapshot per symbol, plus a time-bounded tail of recent <code>trade</code>
+prints. It serves that cache three ways.</p>
+<p><strong>Snapshot on subscribe.</strong> A <code>subscribe</code> is answered — after the <code>subscription</code>
+ack — with the current cached snapshot for each newly matched symbol/channel,
+so a (re)subscribing client renders immediately instead of waiting for the next
+tick. When the cache is cold (nothing seen yet) the burst is simply empty and
+the client waits for the first live event, exactly as before. This is additive:
+a client that ignores the extra frames is unaffected, since they are ordinary
+<code>book</code>/<code>depth</code>/<code>auction</code>/<code>trade</code> envelopes it already routes.</p>
+<p><strong>Explicit <code>snapshot</code>.</strong> Re-request the current snapshot for some
+symbols/channels without changing the subscription — useful after a detected
+gap on a snapshot channel:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;snapshot&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;items&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;symbols&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;AAPL&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;channels&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;book&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;depth&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p><strong><code>resume</code>.</strong> Recover the events missed on one stream after the last <code>seq</code> you
+processed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;resume&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;topic&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;trade.executed&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbols&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;AAPL&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;from_seq&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128400</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>The topic names the stream; a symbol-qualified topic (<code>book.AAPL</code>,
+<code>depth.AAPL</code>, <code>auction.result.AAPL</code>) carries its own symbol, while
+<code>trade.executed</code> takes it from <code>symbols</code>. What happens next depends on the
+channel:</p>
+<table>
+<thead>
+<tr>
+<th>Channel</th>
+<th><code>resume</code> behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trades</code></td>
+<td>Buffered prints with <code>seq &gt; from_seq</code> are replayed. If <code>from_seq</code> predates the retained window, the server sends a <code>trades.reset</code>, then a <code>resume.rejected</code> with <code>reason: "too_old"</code>, then a fresh tail</td>
+</tr>
+<tr>
+<td><code>book</code> / <code>depth</code> / <code>auction</code></td>
+<td>Self-healing — the current snapshot <strong>is</strong> the resume, so the latest snapshot is sent. These channels carry full state, not deltas, so there is nothing older to replay</td>
+</tr>
+</tbody>
+</table>
+<p>You can also fold a resume into a <code>subscribe</code> with a per-item <code>resume_from</code>
+hint, mapping a channel to the last <code>seq</code> you saw:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a><span class="p">{</span>
+<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a><span class="w">  </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;subscribe&quot;</span><span class="p">,</span>
+<a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a><span class="w">  </span><span class="nt">&quot;items&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-50-4" name="__codelineno-50-4" href="#__codelineno-50-4"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;symbols&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;AAPL&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;channels&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;trades&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;resume_from&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;trades&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128400</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-50-5" name="__codelineno-50-5" href="#__codelineno-50-5"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-50-6" name="__codelineno-50-6" href="#__codelineno-50-6"></a><span class="p">}</span>
+</code></pre></div>
+<p><code>resume_from</code> is honoured for <code>trades</code> (prints after that <code>seq</code> are replayed
+instead of the whole tail) and ignored for the self-healing channels (which get
+a plain snapshot).</p>
+<p>Rejections arrive as a <code>resume.rejected</code> envelope rather than silently:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;resume.rejected&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;topic&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;trade.executed&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;from_seq&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;too_old&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th><code>reason</code></th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>too_old</code></td>
+<td><code>from_seq</code> predates the retained <code>trades</code> window; a <code>trades.reset</code> and fresh tail follow</td>
+</tr>
+<tr>
+<td><code>unknown_topic</code></td>
+<td>The topic is not a cached market-data topic, or nothing has ever been seen for it</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Retention is set by <code>market_data_cache_sec</code></p>
+<p>Default 60 s. It bounds only the <code>trades</code> tail — the latest
+<code>book</code>/<code>depth</code>/<code>auction</code> snapshot per topic is kept regardless of age, so a
+snapshot is always available even for a symbol that has been quiet longer
+than the window. <code>0</code> disables the trade buffer while still serving
+snapshots. There is intentionally no on-disk retention: this is the
+classroom/local scale the gateway targets, and older trades live in the
+<a href="#history-endpoints">history endpoints</a>.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">This does not exist for private events</p>
+<p><code>/api/v1/events</code> keeps no replay buffer — see
+<a href="#private-event-recovery">Private event recovery</a>. Market data can offer
+<code>resume</code> because <code>book</code>/<code>depth</code>/<code>auction</code> are self-healing snapshots and
+the <code>trades</code> tail is cheap to retain; private order state is recovered in
+full from <code>orders.snapshot</code> instead.</p>
+</div>
 <h2 id="python-rest-example">Python REST example<a class="headerlink" href="#python-rest-example" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
-<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a>
-<a id="__codelineno-48-3" name="__codelineno-48-3" href="#__codelineno-48-3"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span><span class="s2">&quot;http://127.0.0.1:8080&quot;</span><span class="p">,</span> <span class="s2">&quot;key-trader-demo&quot;</span><span class="p">)</span>
-<a id="__codelineno-48-4" name="__codelineno-48-4" href="#__codelineno-48-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">&quot;/api/v1/status&quot;</span><span class="p">))</span>
-<a id="__codelineno-48-5" name="__codelineno-48-5" href="#__codelineno-48-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">&quot;/api/v1/symbols&quot;</span><span class="p">))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
+<a id="__codelineno-52-2" name="__codelineno-52-2" href="#__codelineno-52-2"></a>
+<a id="__codelineno-52-3" name="__codelineno-52-3" href="#__codelineno-52-3"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span><span class="s2">&quot;http://127.0.0.1:8080&quot;</span><span class="p">,</span> <span class="s2">&quot;key-trader-demo&quot;</span><span class="p">)</span>
+<a id="__codelineno-52-4" name="__codelineno-52-4" href="#__codelineno-52-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">&quot;/api/v1/status&quot;</span><span class="p">))</span>
+<a id="__codelineno-52-5" name="__codelineno-52-5" href="#__codelineno-52-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">get_json</span><span class="p">(</span><span class="s2">&quot;/api/v1/symbols&quot;</span><span class="p">))</span>
 </code></pre></div>
 <p>Runnable examples live under <code>docs/examples/REST/python/</code>.</p>
 <h2 id="c-rest-example">C REST example<a class="headerlink" href="#c-rest-example" title="Permanent link">&para;</a></h2>
 <p>The C example uses a small POSIX socket helper for simple HTTP GET calls:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a><span class="n">ApiGatewayClient</span><span class="w"> </span><span class="n">client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_client</span><span class="p">(</span><span class="s">&quot;127.0.0.1&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">8080</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;key-trader-demo&quot;</span><span class="p">);</span>
-<a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_get</span><span class="p">(</span><span class="o">&amp;</span><span class="n">client</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;/api/v1/status&quot;</span><span class="p">);</span>
-<a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a><span class="n">puts</span><span class="p">(</span><span class="n">body</span><span class="p">);</span>
-<a id="__codelineno-49-4" name="__codelineno-49-4" href="#__codelineno-49-4"></a><span class="n">free</span><span class="p">(</span><span class="n">body</span><span class="p">);</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a><span class="n">ApiGatewayClient</span><span class="w"> </span><span class="n">client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_client</span><span class="p">(</span><span class="s">&quot;127.0.0.1&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">8080</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;key-trader-demo&quot;</span><span class="p">);</span>
+<a id="__codelineno-53-2" name="__codelineno-53-2" href="#__codelineno-53-2"></a><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">api_gateway_get</span><span class="p">(</span><span class="o">&amp;</span><span class="n">client</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;/api/v1/status&quot;</span><span class="p">);</span>
+<a id="__codelineno-53-3" name="__codelineno-53-3" href="#__codelineno-53-3"></a><span class="n">puts</span><span class="p">(</span><span class="n">body</span><span class="p">);</span>
+<a id="__codelineno-53-4" name="__codelineno-53-4" href="#__codelineno-53-4"></a><span class="n">free</span><span class="p">(</span><span class="n">body</span><span class="p">);</span>
 </code></pre></div>
 <p>Runnable examples live under <code>docs/examples/REST/c/</code>.</p>
 <h2 id="implementation-notes-and-design-deviations">Implementation notes and design deviations<a class="headerlink" href="#implementation-notes-and-design-deviations" title="Permanent link">&para;</a></h2>
@@ -6054,14 +6400,14 @@ created and populated the configured database.</p>
 <p>The script below lives at <code>docs/examples/REST/python/submit_market_order.py</code>
 and reuses the same <code>ApiGatewayClient</code> library used by <code>demo_info.py</code>.</p>
 <p>Run it from the examples directory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/python
-<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w">  </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
-<a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>SELL<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--qty<span class="w"> </span><span class="m">50</span><span class="w"> </span>--wait-ack
+<div class="highlight"><pre><span></span><code><a id="__codelineno-54-1" name="__codelineno-54-1" href="#__codelineno-54-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/python
+<a id="__codelineno-54-2" name="__codelineno-54-2" href="#__codelineno-54-2"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w">  </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
+<a id="__codelineno-54-3" name="__codelineno-54-3" href="#__codelineno-54-3"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>SELL<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--qty<span class="w"> </span><span class="m">50</span><span class="w"> </span>--wait-ack
 </code></pre></div>
 <p>Override gateway URL and key with environment variables:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a><span class="nv">EDUMATCHER_API_URL</span><span class="o">=</span>http://127.0.0.1:8080<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-51-2" name="__codelineno-51-2" href="#__codelineno-51-2"></a><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span>key-trader-demo<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-51-3" name="__codelineno-51-3" href="#__codelineno-51-3"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-55-1" name="__codelineno-55-1" href="#__codelineno-55-1"></a><span class="nv">EDUMATCHER_API_URL</span><span class="o">=</span>http://127.0.0.1:8080<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-55-2" name="__codelineno-55-2" href="#__codelineno-55-2"></a><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span>key-trader-demo<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-55-3" name="__codelineno-55-3" href="#__codelineno-55-3"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
 </code></pre></div>
 <table>
 <thead>
@@ -6112,19 +6458,19 @@ and reuses the same <code>ApiGatewayClient</code> library used by <code>demo_inf
 </tbody>
 </table>
 <p>Example output without <code>--wait-ack</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a>order_id  : ORD-3a7f1e2c
-<a id="__codelineno-52-2" name="__codelineno-52-2" href="#__codelineno-52-2"></a>status    : PENDING
+<div class="highlight"><pre><span></span><code><a id="__codelineno-56-1" name="__codelineno-56-1" href="#__codelineno-56-1"></a>order_id  : ORD-3a7f1e2c
+<a id="__codelineno-56-2" name="__codelineno-56-2" href="#__codelineno-56-2"></a>status    : PENDING
 </code></pre></div>
 <p>Example output with <code>--wait-ack</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a>order_id  : ORD-3a7f1e2c
-<a id="__codelineno-53-2" name="__codelineno-53-2" href="#__codelineno-53-2"></a>status    : ACKED
-<a id="__codelineno-53-3" name="__codelineno-53-3" href="#__codelineno-53-3"></a>accepted  : True
-<a id="__codelineno-53-4" name="__codelineno-53-4" href="#__codelineno-53-4"></a>engine ack:
-<a id="__codelineno-53-5" name="__codelineno-53-5" href="#__codelineno-53-5"></a>{
-<a id="__codelineno-53-6" name="__codelineno-53-6" href="#__codelineno-53-6"></a>  &quot;order_id&quot;: &quot;ORD-3a7f1e2c&quot;,
-<a id="__codelineno-53-7" name="__codelineno-53-7" href="#__codelineno-53-7"></a>  &quot;accepted&quot;: true,
-<a id="__codelineno-53-8" name="__codelineno-53-8" href="#__codelineno-53-8"></a>  &quot;reason&quot;: null
-<a id="__codelineno-53-9" name="__codelineno-53-9" href="#__codelineno-53-9"></a>}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-57-1" name="__codelineno-57-1" href="#__codelineno-57-1"></a>order_id  : ORD-3a7f1e2c
+<a id="__codelineno-57-2" name="__codelineno-57-2" href="#__codelineno-57-2"></a>status    : ACKED
+<a id="__codelineno-57-3" name="__codelineno-57-3" href="#__codelineno-57-3"></a>accepted  : True
+<a id="__codelineno-57-4" name="__codelineno-57-4" href="#__codelineno-57-4"></a>engine ack:
+<a id="__codelineno-57-5" name="__codelineno-57-5" href="#__codelineno-57-5"></a>{
+<a id="__codelineno-57-6" name="__codelineno-57-6" href="#__codelineno-57-6"></a>  &quot;order_id&quot;: &quot;ORD-3a7f1e2c&quot;,
+<a id="__codelineno-57-7" name="__codelineno-57-7" href="#__codelineno-57-7"></a>  &quot;accepted&quot;: true,
+<a id="__codelineno-57-8" name="__codelineno-57-8" href="#__codelineno-57-8"></a>  &quot;reason&quot;: null
+<a id="__codelineno-57-9" name="__codelineno-57-9" href="#__codelineno-57-9"></a>}
 </code></pre></div>
 <p>MARKET orders must not include <code>price</code> or <code>stop_price</code>. The gateway validates
 this and returns <code>400 VALIDATION</code> if either field is present.</p>
@@ -6133,34 +6479,34 @@ this and returns <code>400 VALIDATION</code> if either field is present.</p>
 <p>Before starting <code>pm-api-gwy</code>, or when a client cannot connect, verify that
 something is listening on the configured port (default <code>8080</code>).</p>
 <p><strong>macOS:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-54-1" name="__codelineno-54-1" href="#__codelineno-54-1"></a><span class="c1"># lsof — shows the process name and PID holding the port</span>
-<a id="__codelineno-54-2" name="__codelineno-54-2" href="#__codelineno-54-2"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:8080<span class="w"> </span>-sTCP:LISTEN
-<a id="__codelineno-54-3" name="__codelineno-54-3" href="#__codelineno-54-3"></a>
-<a id="__codelineno-54-4" name="__codelineno-54-4" href="#__codelineno-54-4"></a><span class="c1"># BSD netstat (ships with macOS)</span>
-<a id="__codelineno-54-5" name="__codelineno-54-5" href="#__codelineno-54-5"></a>netstat<span class="w"> </span>-an<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>LISTEN<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">8080</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-58-1" name="__codelineno-58-1" href="#__codelineno-58-1"></a><span class="c1"># lsof — shows the process name and PID holding the port</span>
+<a id="__codelineno-58-2" name="__codelineno-58-2" href="#__codelineno-58-2"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:8080<span class="w"> </span>-sTCP:LISTEN
+<a id="__codelineno-58-3" name="__codelineno-58-3" href="#__codelineno-58-3"></a>
+<a id="__codelineno-58-4" name="__codelineno-58-4" href="#__codelineno-58-4"></a><span class="c1"># BSD netstat (ships with macOS)</span>
+<a id="__codelineno-58-5" name="__codelineno-58-5" href="#__codelineno-58-5"></a>netstat<span class="w"> </span>-an<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>LISTEN<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">8080</span>
 </code></pre></div>
 <p><strong>Linux:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-55-1" name="__codelineno-55-1" href="#__codelineno-55-1"></a><span class="c1"># ss — preferred on modern Linux</span>
-<a id="__codelineno-55-2" name="__codelineno-55-2" href="#__codelineno-55-2"></a>ss<span class="w"> </span>-tlnp<span class="w"> </span><span class="s1">&#39;sport = :8080&#39;</span>
-<a id="__codelineno-55-3" name="__codelineno-55-3" href="#__codelineno-55-3"></a>
-<a id="__codelineno-55-4" name="__codelineno-55-4" href="#__codelineno-55-4"></a><span class="c1"># lsof</span>
-<a id="__codelineno-55-5" name="__codelineno-55-5" href="#__codelineno-55-5"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:8080<span class="w"> </span>-sTCP:LISTEN
-<a id="__codelineno-55-6" name="__codelineno-55-6" href="#__codelineno-55-6"></a>
-<a id="__codelineno-55-7" name="__codelineno-55-7" href="#__codelineno-55-7"></a><span class="c1"># netstat (older distributions)</span>
-<a id="__codelineno-55-8" name="__codelineno-55-8" href="#__codelineno-55-8"></a>netstat<span class="w"> </span>-tlnp<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">8080</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-59-1" name="__codelineno-59-1" href="#__codelineno-59-1"></a><span class="c1"># ss — preferred on modern Linux</span>
+<a id="__codelineno-59-2" name="__codelineno-59-2" href="#__codelineno-59-2"></a>ss<span class="w"> </span>-tlnp<span class="w"> </span><span class="s1">&#39;sport = :8080&#39;</span>
+<a id="__codelineno-59-3" name="__codelineno-59-3" href="#__codelineno-59-3"></a>
+<a id="__codelineno-59-4" name="__codelineno-59-4" href="#__codelineno-59-4"></a><span class="c1"># lsof</span>
+<a id="__codelineno-59-5" name="__codelineno-59-5" href="#__codelineno-59-5"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:8080<span class="w"> </span>-sTCP:LISTEN
+<a id="__codelineno-59-6" name="__codelineno-59-6" href="#__codelineno-59-6"></a>
+<a id="__codelineno-59-7" name="__codelineno-59-7" href="#__codelineno-59-7"></a><span class="c1"># netstat (older distributions)</span>
+<a id="__codelineno-59-8" name="__codelineno-59-8" href="#__codelineno-59-8"></a>netstat<span class="w"> </span>-tlnp<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">8080</span>
 </code></pre></div>
 <p>Replace <code>8080</code> with the <code>port</code> value from your <code>api_gateways.&lt;name&gt;</code> config block.
 If no output appears, the gateway is not running.</p>
 <h3 id="test-http-connectivity-from-the-command-line">Test HTTP connectivity from the command line<a class="headerlink" href="#test-http-connectivity-from-the-command-line" title="Permanent link">&para;</a></h3>
 <p>The health endpoint requires no authentication and is the fastest connectivity check:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-56-1" name="__codelineno-56-1" href="#__codelineno-56-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8080/api/v1/healthz
-<a id="__codelineno-56-2" name="__codelineno-56-2" href="#__codelineno-56-2"></a><span class="c1"># Expected: {&quot;ok&quot;: true, &quot;enabled&quot;: true, &quot;active_gateways&quot;: [&quot;TRADER01&quot;],</span>
-<a id="__codelineno-56-3" name="__codelineno-56-3" href="#__codelineno-56-3"></a><span class="c1">#            &quot;dropped_events&quot;: {}}</span>
-<a id="__codelineno-56-4" name="__codelineno-56-4" href="#__codelineno-56-4"></a><span class="c1">#</span>
-<a id="__codelineno-56-5" name="__codelineno-56-5" href="#__codelineno-56-5"></a><span class="c1"># A non-zero &quot;dropped_events&quot; entry means a WebSocket client read too slowly</span>
-<a id="__codelineno-56-6" name="__codelineno-56-6" href="#__codelineno-56-6"></a><span class="c1"># and lost events. The gateway is still healthy — shedding for a slow consumer</span>
-<a id="__codelineno-56-7" name="__codelineno-56-7" href="#__codelineno-56-7"></a><span class="c1"># is intended — but that client&#39;s data has holes. See &quot;Detecting dropped</span>
-<a id="__codelineno-56-8" name="__codelineno-56-8" href="#__codelineno-56-8"></a><span class="c1"># events&quot; above.</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-60-1" name="__codelineno-60-1" href="#__codelineno-60-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>http://127.0.0.1:8080/api/v1/healthz
+<a id="__codelineno-60-2" name="__codelineno-60-2" href="#__codelineno-60-2"></a><span class="c1"># Expected: {&quot;ok&quot;: true, &quot;enabled&quot;: true, &quot;active_gateways&quot;: [&quot;TRADER01&quot;],</span>
+<a id="__codelineno-60-3" name="__codelineno-60-3" href="#__codelineno-60-3"></a><span class="c1">#            &quot;dropped_events&quot;: {}}</span>
+<a id="__codelineno-60-4" name="__codelineno-60-4" href="#__codelineno-60-4"></a><span class="c1">#</span>
+<a id="__codelineno-60-5" name="__codelineno-60-5" href="#__codelineno-60-5"></a><span class="c1"># A non-zero &quot;dropped_events&quot; entry means a WebSocket client read too slowly</span>
+<a id="__codelineno-60-6" name="__codelineno-60-6" href="#__codelineno-60-6"></a><span class="c1"># and lost events. The gateway is still healthy — shedding for a slow consumer</span>
+<a id="__codelineno-60-7" name="__codelineno-60-7" href="#__codelineno-60-7"></a><span class="c1"># is intended — but that client&#39;s data has holes. See &quot;Detecting dropped</span>
+<a id="__codelineno-60-8" name="__codelineno-60-8" href="#__codelineno-60-8"></a><span class="c1"># events&quot; above.</span>
 </code></pre></div>
 <p><code>ok</code> reflects whether the gateway is <code>enabled</code> in config <strong>and</strong> whether its
 own engine-event listener thread is alive — it does <strong>not</strong> confirm that
@@ -6170,19 +6516,19 @@ can report <code>{"ok": true}</code> even before <code>pm-engine</code> has ever
 only flips to <code>false</code> if the gateway itself is disabled or its listener
 thread has crashed.</p>
 <p>Test an authenticated endpoint:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-57-1" name="__codelineno-57-1" href="#__codelineno-57-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer key-trader-demo&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-57-2" name="__codelineno-57-2" href="#__codelineno-57-2"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/status
+<div class="highlight"><pre><span></span><code><a id="__codelineno-61-1" name="__codelineno-61-1" href="#__codelineno-61-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer key-trader-demo&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-61-2" name="__codelineno-61-2" href="#__codelineno-61-2"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/status
 </code></pre></div>
 <p>Test WebSocket connectivity:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-58-1" name="__codelineno-58-1" href="#__codelineno-58-1"></a><span class="c1"># websocat (brew install websocat / apt install websocat)</span>
-<a id="__codelineno-58-2" name="__codelineno-58-2" href="#__codelineno-58-2"></a>websocat<span class="w"> </span>ws://127.0.0.1:8080/api/v1/market-data
-<a id="__codelineno-58-3" name="__codelineno-58-3" href="#__codelineno-58-3"></a>
-<a id="__codelineno-58-4" name="__codelineno-58-4" href="#__codelineno-58-4"></a><span class="c1"># curl — look for HTTP 101 Switching Protocols in the response headers</span>
-<a id="__codelineno-58-5" name="__codelineno-58-5" href="#__codelineno-58-5"></a>curl<span class="w"> </span>-v<span class="w"> </span>--no-buffer<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-58-6" name="__codelineno-58-6" href="#__codelineno-58-6"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">&quot;Connection: Upgrade&quot;</span><span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Upgrade: websocket&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-58-7" name="__codelineno-58-7" href="#__codelineno-58-7"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">&quot;Sec-WebSocket-Version: 13&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-58-8" name="__codelineno-58-8" href="#__codelineno-58-8"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">&quot;Sec-WebSocket-Key: dGhlc2FtcGxla2V5&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-58-9" name="__codelineno-58-9" href="#__codelineno-58-9"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/market-data
+<div class="highlight"><pre><span></span><code><a id="__codelineno-62-1" name="__codelineno-62-1" href="#__codelineno-62-1"></a><span class="c1"># websocat (brew install websocat / apt install websocat)</span>
+<a id="__codelineno-62-2" name="__codelineno-62-2" href="#__codelineno-62-2"></a>websocat<span class="w"> </span>ws://127.0.0.1:8080/api/v1/market-data
+<a id="__codelineno-62-3" name="__codelineno-62-3" href="#__codelineno-62-3"></a>
+<a id="__codelineno-62-4" name="__codelineno-62-4" href="#__codelineno-62-4"></a><span class="c1"># curl — look for HTTP 101 Switching Protocols in the response headers</span>
+<a id="__codelineno-62-5" name="__codelineno-62-5" href="#__codelineno-62-5"></a>curl<span class="w"> </span>-v<span class="w"> </span>--no-buffer<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-62-6" name="__codelineno-62-6" href="#__codelineno-62-6"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">&quot;Connection: Upgrade&quot;</span><span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Upgrade: websocket&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-62-7" name="__codelineno-62-7" href="#__codelineno-62-7"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">&quot;Sec-WebSocket-Version: 13&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-62-8" name="__codelineno-62-8" href="#__codelineno-62-8"></a><span class="w">     </span>-H<span class="w"> </span><span class="s2">&quot;Sec-WebSocket-Key: dGhlc2FtcGxla2V5&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-62-9" name="__codelineno-62-9" href="#__codelineno-62-9"></a><span class="w">     </span>http://127.0.0.1:8080/api/v1/market-data
 </code></pre></div>
 <h3 id="common-problems">Common problems<a class="headerlink" href="#common-problems" title="Permanent link">&para;</a></h3>
 <table>
@@ -6265,6 +6611,31 @@ thread has crashed.</p>
 <p>Quick index of the endpoints on this page, grouped by how the UI uses them.</p>
 <p>For the full normative request/response contract for each endpoint, see the
 <a href="../950-app-REST-API-reference/">Appendix: REST API Reference</a>.</p>
+<h3 id="bootstrap">Bootstrap<a class="headerlink" href="#bootstrap" title="Permanent link">&para;</a></h3>
+<p>Single-fetch startup payloads.  Any valid key for <code>/bootstrap/trader</code>;
+MARKET_MAKER key for <code>/bootstrap/mm</code>; ADMIN role for <code>/bootstrap/admin</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /api/v1/bootstrap/trader</code></td>
+<td>Identity, reference, session, positions, orders, recent fills, capabilities</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/bootstrap/mm</code></td>
+<td>All of trader + quote bootstrap and quote legs</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/bootstrap/admin</code></td>
+<td>Reference, session, gateways, halts, order counts, monitor sequence</td>
+</tr>
+</tbody>
+</table>
 <h3 id="trading-rest">Trading REST<a class="headerlink" href="#trading-rest" title="Permanent link">&para;</a></h3>
 <p><code>trading</code> auth.</p>
 <table>

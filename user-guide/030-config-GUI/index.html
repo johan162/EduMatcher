@@ -3904,6 +3904,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/06-msgen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Generator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4044,7 +4072,7 @@ experts see everything, and a full <strong>round-trip import</strong> of existin
 <div class="admonition info">
 <p class="admonition-title">Where it lives</p>
 <p>The application is a self-contained Node.js/TypeScript project in the
-<code>config-gui/</code> directory at the repository root. It is independent of the
+<code>web-apps/config-gui/</code> directory. It is independent of the
 Python engine and needs no Python to run — with one optional exception, the
 <a href="#optional-server-side-verification">server-side verification</a> feature.</p>
 </div>
@@ -4173,7 +4201,7 @@ effort. Pick the one that matches your situation.</p>
 </table>
 <h3 id="option-1-one-command-with-the-container-stack">Option 1 — One command with the container stack<a class="headerlink" href="#option-1-one-command-with-the-container-stack" title="Permanent link">&para;</a></h3>
 <p>If you have a repository checkout and a container runtime, this is the fastest
-path. From the <code>config-gui/</code> directory:</p>
+path. From the <code>web-apps/config-gui/</code> directory:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w"> </span>up
 </code></pre></div>
 <p><code>make up</code> auto-detects Podman or Docker (preferring Podman), starts the Podman
@@ -4218,7 +4246,7 @@ Docker — no Node.js, no npm, and no repository clone.</p>
 <h3 id="option-3-local-development">Option 3 — Local development<a class="headerlink" href="#option-3-local-development" title="Permanent link">&para;</a></h3>
 <p>To hack on the GUI, run the two processes (the Fastify <strong>API</strong> and the Vite
 <strong>web</strong> dev server) from a checkout:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>config-gui
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/config-gui
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>npm<span class="w"> </span>install
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>npm<span class="w"> </span>run<span class="w"> </span>dev<span class="w">          </span><span class="c1"># starts the API (port 5175) and the web UI (port 5174)</span>
 </code></pre></div>
@@ -4228,7 +4256,7 @@ proxies <code>/api/*</code> to the backend, so you only ever open the <code>5174
 and <code>npm run dev:web</code> (or <code>make dev-server</code> / <code>make dev-web</code>). Developer-facing
 details — project layout, tests, and how to keep the GUI in sync with the
 engine — live in the project's
-<a href="https://github.com/johan162/EduMatcher/blob/main/config-gui/README.md"><code>config-gui/README.md</code></a>.</p>
+<a href="https://github.com/johan162/EduMatcher/blob/main/web-apps/config-gui/README.md"><code>config-gui/README.md</code></a>.</p>
 <h2 id="a-tour-of-the-interface">A tour of the interface<a class="headerlink" href="#a-tour-of-the-interface" title="Permanent link">&para;</a></h2>
 <p>The window is a persistent <strong>three-pane layout</strong> designed so that you always
 know what to edit, what you are editing, and what still needs attention.</p>
@@ -4995,7 +5023,7 @@ assets. The API serves the UI and falls back to <code>index.html</code> for clie
 routes.</p>
 <h3 id="manual-production-build">Manual production build<a class="headerlink" href="#manual-production-build" title="Permanent link">&para;</a></h3>
 <p>To run the pieces yourself:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>config-gui
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/config-gui
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>npm<span class="w"> </span>install
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>npm<span class="w"> </span>run<span class="w"> </span>build<span class="w">            </span><span class="c1"># emits the static UI to apps/web/dist</span>
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nv">STATIC_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">/apps/web/dist&quot;</span><span class="w"> </span><span class="nv">HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="nv">PORT</span><span class="o">=</span><span class="m">8092</span><span class="w"> </span><span class="se">\</span>
@@ -5131,7 +5159,7 @@ test (<code>npm run verify:python</code>) generates representative configs and r
 through the engine's real <code>load_engine_config()</code>. Keeping that check green is
 what guarantees GUI output loads in the engine. The developer checklist for
 keeping the two in sync lives in the
-<a href="https://github.com/johan162/EduMatcher/blob/main/config-gui/README.md"><code>config-gui/README.md</code></a>.</p>
+<a href="https://github.com/johan162/EduMatcher/blob/main/web-apps/config-gui/README.md"><code>config-gui/README.md</code></a>.</p>
 <h2 id="architecture-at-a-glance">Architecture at a glance<a class="headerlink" href="#architecture-at-a-glance" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart LR
     U["Browser (React app)"] --&gt;|edits| S["In-memory draft (Zustand store)"]
@@ -5208,7 +5236,7 @@ server can also serve the built UI, collapsing the two into one container.</p>
 <tr>
 <td><strong>Port already in use</strong></td>
 <td>Another process holds <code>5174</code>/<code>5175</code>/<code>8092</code></td>
-<td>Change <code>PORT</code> (API) or <code>server.port</code> / proxy target in <code>config-gui/apps/web/vite.config.ts</code> (web).</td>
+<td>Change <code>PORT</code> (API) or <code>server.port</code> / proxy target in <code>web-apps/config-gui/apps/web/vite.config.ts</code> (web).</td>
 </tr>
 <tr>
 <td><strong>Imported config shows an "unmapped" banner</strong></td>

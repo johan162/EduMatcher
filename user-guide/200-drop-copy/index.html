@@ -3617,6 +3617,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/06-msgen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Generator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3830,12 +3858,37 @@ below), which does enforce per-connection role entitlement.</p>
 <td>Type of event (currently <code>"order.fill"</code>)</td>
 </tr>
 <tr>
-<td><em>…additional fields</em></td>
-<td>varies</td>
-<td>Event-specific data merged into the top-level object</td>
+<td><code>order_id</code></td>
+<td>str</td>
+<td>The order this execution belongs to</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td>str</td>
+<td>Instrument ticker</td>
+</tr>
+<tr>
+<td><code>fill_qty</code></td>
+<td>int</td>
+<td>Executed quantity</td>
+</tr>
+<tr>
+<td><code>fill_price</code></td>
+<td>float</td>
+<td>Display money, not ticks</td>
+</tr>
+<tr>
+<td><code>liquidity_flag</code></td>
+<td>str</td>
+<td><code>"TAKER"</code> for the aggressor, <code>"MAKER"</code> for the resting side</td>
 </tr>
 </tbody>
 </table>
+<p>The field set is fixed, not open. It used to be described as "event-specific
+data merged into the top-level object", because <code>DropCopyPublisher.publish</code>
+took a <code>payload</code> dict — but the single producer has always sent these five
+keys, and since phase 6.1d the publisher takes them as named arguments and
+the spec declares them. A second event type is a spec change, not a new key.</p>
 <h3 id="orderfill-event"><code>order.fill</code> event<a class="headerlink" href="#orderfill-event" title="Permanent link">&para;</a></h3>
 <p>Published whenever a trade occurs. This is the only live drop-copy event
 type currently emitted by the engine. Every trade produces <strong>two</strong> drop-copy

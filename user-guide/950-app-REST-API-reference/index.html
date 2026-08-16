@@ -2164,6 +2164,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#bootstrap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bootstrap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#trading-rest" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2361,6 +2372,56 @@
     <span class="md-ellipsis">
       
         Compatibility and deprecation policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bootstrap_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bootstrap
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bootstrap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1bootstraptrader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/bootstrap/trader
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1bootstrapmm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/bootstrap/mm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apiv1bootstrapadmin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/bootstrap/admin
       
     </span>
   </a>
@@ -4273,6 +4334,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/06-msgen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Generator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4369,6 +4458,33 @@ in <a href="../260-api-gateway/">API Gateway (REST/WebSocket)</a> and are not re
 here.</p>
 <p>All paths are rooted at <code>/api/v1</code>.</p>
 <h2 id="endpoint-index">Endpoint index<a class="headerlink" href="#endpoint-index" title="Permanent link">&para;</a></h2>
+<h3 id="bootstrap">Bootstrap<a class="headerlink" href="#bootstrap" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Access</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#get-apiv1bootstraptrader">GET /api/v1/bootstrap/trader</a></td>
+<td>Any valid key</td>
+<td>One-request startup payload for TRADER / MARKET_MAKER / ADMIN</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1bootstrapmm">GET /api/v1/bootstrap/mm</a></td>
+<td>MARKET_MAKER key</td>
+<td>One-request startup payload for MARKET_MAKER (adds quote state)</td>
+</tr>
+<tr>
+<td><a href="#get-apiv1bootstrapadmin">GET /api/v1/bootstrap/admin</a></td>
+<td>Admin role</td>
+<td>One-request startup payload for ADMIN</td>
+</tr>
+</tbody>
+</table>
 <h3 id="trading-rest">Trading REST<a class="headerlink" href="#trading-rest" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -4928,7 +5044,7 @@ illustrative.</p>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">&quot;quantity&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">&quot;price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">187.25</span><span class="p">,</span>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">&quot;tif&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;DAY&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">&quot;smp_action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CANCEL_NEW&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">&quot;smp_action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CANCEL_AGGRESSOR&quot;</span><span class="p">,</span>
 <a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">&quot;client_order_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;desk1-aapl-00042&quot;</span>
 <a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="p">}</span>
 </code></pre></div>
@@ -4954,7 +5070,7 @@ illustrative.</p>
 <h4 id="reference-data-example-get-apiv1reference">Reference data example (<code>GET /api/v1/reference</code>)<a class="headerlink" href="#reference-data-example-get-apiv1reference" title="Permanent link">&para;</a></h4>
 <p>Minimal response:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;symbols&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;symbols&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">&quot;risk&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">&quot;indexes&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
 <a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">&quot;schedule&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
@@ -4963,33 +5079,34 @@ illustrative.</p>
 </code></pre></div>
 <p>Full response:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">&quot;symbols&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="nt">&quot;AAPL&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">      </span><span class="nt">&quot;tick_decimals&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">      </span><span class="nt">&quot;lot_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">  </span><span class="p">},</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span><span class="nt">&quot;risk&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">    </span><span class="nt">&quot;default_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;L1&quot;</span><span class="p">,</span>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">    </span><span class="nt">&quot;levels&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">      </span><span class="nt">&quot;L1&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">        </span><span class="nt">&quot;soft_pct&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">5.0</span><span class="p">,</span>
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">        </span><span class="nt">&quot;hard_pct&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">10.0</span>
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="w">      </span><span class="p">}</span>
-<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="w">  </span><span class="p">},</span>
-<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="w">  </span><span class="nt">&quot;indexes&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="w">      </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TECH10&quot;</span><span class="p">,</span>
-<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="w">      </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Tech sample index&quot;</span>
-<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="w">  </span><span class="p">],</span>
-<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a><span class="w">  </span><span class="nt">&quot;schedule&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="w">    </span><span class="nt">&quot;sessions_enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="w">    </span><span class="nt">&quot;country&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;US&quot;</span>
-<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="w">  </span><span class="p">},</span>
-<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a><span class="w">  </span><span class="nt">&quot;config_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sha256:6d8d...&quot;</span>
-<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="p">}</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">&quot;symbols&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">      </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">      </span><span class="nt">&quot;tick_decimals&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">      </span><span class="nt">&quot;level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;L1&quot;</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">  </span><span class="nt">&quot;risk&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">    </span><span class="nt">&quot;default_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;L1&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">    </span><span class="nt">&quot;levels&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">      </span><span class="nt">&quot;L1&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">        </span><span class="nt">&quot;soft_pct&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">5.0</span><span class="p">,</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="w">        </span><span class="nt">&quot;hard_pct&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">10.0</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">      </span><span class="p">}</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="w">  </span><span class="nt">&quot;indexes&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="w">      </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TECH10&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="w">      </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Tech sample index&quot;</span>
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="w">  </span><span class="nt">&quot;schedule&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="w">    </span><span class="nt">&quot;sessions_enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="w">    </span><span class="nt">&quot;country&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;US&quot;</span>
+<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="w">  </span><span class="nt">&quot;config_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sha256:6d8d...&quot;</span>
+<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a><span class="p">}</span>
 </code></pre></div>
 <h4 id="history-example-get-apiv1historytrades">History example (<code>GET /api/v1/history/trades</code>)<a class="headerlink" href="#history-example-get-apiv1historytrades" title="Permanent link">&para;</a></h4>
 <p>Minimal response:</p>
@@ -5017,24 +5134,24 @@ illustrative.</p>
 <h4 id="admin-example-post-apiv1adminsessiontransition">Admin example (<code>POST /api/v1/admin/session/transition</code>)<a class="headerlink" href="#admin-example-post-apiv1adminsessiontransition" title="Permanent link">&para;</a></h4>
 <p>Minimal request:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">&quot;to_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OPEN&quot;</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">&quot;to_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CONTINUOUS&quot;</span>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="p">}</span>
 </code></pre></div>
 <p>Full request:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">&quot;to_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OPEN&quot;</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">&quot;to_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CONTINUOUS&quot;</span>
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="p">}</span>
 </code></pre></div>
 <p>Minimal response:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="p">{</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">&quot;requested_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OPEN&quot;</span><span class="p">,</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">&quot;requested_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CONTINUOUS&quot;</span><span class="p">,</span>
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;APPLIED&quot;</span><span class="p">,</span>
 <a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span><span class="nt">&quot;command_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;c_01K17P...&quot;</span>
 <a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="p">}</span>
 </code></pre></div>
 <p>Full response:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="p">{</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">&quot;requested_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;OPEN&quot;</span><span class="p">,</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">&quot;requested_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;CONTINUOUS&quot;</span><span class="p">,</span>
 <a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;APPLIED&quot;</span><span class="p">,</span>
 <a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="nt">&quot;command_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;c_01K17P9B7C6W9X0Y8Z7&quot;</span>
 <a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="p">}</span>
@@ -5049,6 +5166,248 @@ illustrative.</p>
 <li>Deprecation: deprecated fields/endpoints SHOULD be documented with migration
   guidance before removal in a later major API version.</li>
 </ul>
+<h2 id="bootstrap_1">Bootstrap<a class="headerlink" href="#bootstrap_1" title="Permanent link">&para;</a></h2>
+<p>Bootstrap endpoints return a single composed response that a browser client
+can fetch immediately after authenticating, replacing the 6–13 sequential
+round-trips the current login flow requires.  Sub-queries inside each handler
+run in parallel using <code>asyncio.gather</code>.</p>
+<p>Each response includes an <code>incomplete</code> array.  When a field is listed there
+its value is <code>null</code>; the rest of the response is still usable.  Required
+fields (marked below) return <code>503 ENGINE_TIMEOUT</code> on failure — the response
+would be too incomplete to be useful without them.</p>
+<hr />
+<h3 id="get-apiv1bootstraptrader"><code>GET /api/v1/bootstrap/trader</code><a class="headerlink" href="#get-apiv1bootstraptrader" title="Permanent link">&para;</a></h3>
+<p>Purpose: one-request startup payload for TRADER, MARKET_MAKER, and ADMIN
+sessions.  Returns identity, full reference data, live session state,
+positions, active orders, today's recent fills, and capability flags.</p>
+<p><strong>Access:</strong> any valid key (read-only keys receive <code>gateway_role: "READ_ONLY"</code>,
+empty <code>positions</code>, and empty <code>orders</code>).</p>
+<p><strong>Query parameters</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Default</th>
+<th>Constraints</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fills_limit</code></td>
+<td><code>int</code></td>
+<td><code>50</code></td>
+<td><code>1..500</code></td>
+<td>Maximum number of today's fill events to include in <code>recent_fills</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply <code>200 OK</code></strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>{
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>  &quot;ts&quot;: &quot;2026-07-27T09:30:01.123Z&quot;,
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>  &quot;incomplete&quot;: [],               // field names that timed out (values are null)
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>  &quot;gateway_id&quot;: &quot;TRADER01&quot;,       // null for read-only keys
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>  &quot;gateway_role&quot;: &quot;TRADER&quot;,       // TRADER | MARKET_MAKER | ADMIN | READ_ONLY
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>  // identical to GET /reference
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>  &quot;reference&quot;: {
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>    &quot;symbols&quot;: [ { &quot;symbol&quot;: &quot;AAPL&quot;, &quot;tick_decimals&quot;: 2, ... } ],
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>    &quot;risk&quot;:     { &quot;default_level&quot;: &quot;L2&quot;, &quot;levels&quot;: { ... } },
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>    &quot;schedule&quot;: { &quot;sessions_enabled&quot;: true, &quot;country&quot;: &quot;Sweden&quot;, &quot;schedule&quot;: { ... } },
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>    &quot;config_version&quot;: &quot;7f3a2c1&quot;
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>  },
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>  // identical to GET /session; null if engine timed out (optional)
+<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a>  &quot;session&quot;: { &quot;state&quot;: &quot;CONTINUOUS&quot;, &quot;since&quot;: &quot;2026-07-27T09:30:00.000Z&quot; },
+<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a>
+<a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a>  // identical to GET /positions (pure cache, never null)
+<a id="__codelineno-14-20" name="__codelineno-14-20" href="#__codelineno-14-20"></a>  &quot;positions&quot;: [ { &quot;symbol&quot;: &quot;AAPL&quot;, &quot;net_qty&quot;: 200, &quot;last_price&quot;: 210.25 } ],
+<a id="__codelineno-14-21" name="__codelineno-14-21" href="#__codelineno-14-21"></a>
+<a id="__codelineno-14-22" name="__codelineno-14-22" href="#__codelineno-14-22"></a>  // identical to GET /orders response body (required — 503 on failure)
+<a id="__codelineno-14-23" name="__codelineno-14-23" href="#__codelineno-14-23"></a>  &quot;orders&quot;: { &quot;orders&quot;: [ /* Order[] */ ] },
+<a id="__codelineno-14-24" name="__codelineno-14-24" href="#__codelineno-14-24"></a>
+<a id="__codelineno-14-25" name="__codelineno-14-25" href="#__codelineno-14-25"></a>  // today&#39;s fills, limited to fills_limit; null if stats DB absent (optional)
+<a id="__codelineno-14-26" name="__codelineno-14-26" href="#__codelineno-14-26"></a>  &quot;recent_fills&quot;: { &quot;events&quot;: [ /* Fill[] */ ], &quot;count&quot;: 12 },
+<a id="__codelineno-14-27" name="__codelineno-14-27" href="#__codelineno-14-27"></a>
+<a id="__codelineno-14-28" name="__codelineno-14-28" href="#__codelineno-14-28"></a>  // capability flags — assembled from config, never null
+<a id="__codelineno-14-29" name="__codelineno-14-29" href="#__codelineno-14-29"></a>  &quot;capabilities&quot;: {
+<a id="__codelineno-14-30" name="__codelineno-14-30" href="#__codelineno-14-30"></a>    &quot;sessions_enabled&quot;: true,    // from reference.schedule.sessions_enabled
+<a id="__codelineno-14-31" name="__codelineno-14-31" href="#__codelineno-14-31"></a>    &quot;stats_db_available&quot;: true,  // false → history unavailable
+<a id="__codelineno-14-32" name="__codelineno-14-32" href="#__codelineno-14-32"></a>    &quot;audit_db_available&quot;: false, // false → order lifecycle drill-down unavailable
+<a id="__codelineno-14-33" name="__codelineno-14-33" href="#__codelineno-14-33"></a>    &quot;index_available&quot;: false     // false → index tab unavailable
+<a id="__codelineno-14-34" name="__codelineno-14-34" href="#__codelineno-14-34"></a>  }
+<a id="__codelineno-14-35" name="__codelineno-14-35" href="#__codelineno-14-35"></a>}
+</code></pre></div>
+<p><strong>Required fields</strong> (return <code>503 ENGINE_TIMEOUT</code> if they fail):
+<code>reference</code>, <code>orders</code> (omitted for read-only keys).</p>
+<p><strong>Optional fields</strong> (appear as <code>null</code> + listed in <code>incomplete</code> on failure):
+<code>session</code>, <code>recent_fills</code>.</p>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td><code>401</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td><code>reference</code> or <code>orders</code> could not be fetched</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td><code>422</code></td>
+<td><code>fills_limit</code> is not a valid integer</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="get-apiv1bootstrapmm"><code>GET /api/v1/bootstrap/mm</code><a class="headerlink" href="#get-apiv1bootstrapmm" title="Permanent link">&para;</a></h3>
+<p>Purpose: one-request startup payload for MARKET_MAKER sessions.  Superset of
+<code>/bootstrap/trader</code> — adds active quote bootstrap state and quote legs.</p>
+<p><strong>Access:</strong> MARKET_MAKER key only.  TRADER and ADMIN keys receive <code>403</code>.</p>
+<p><strong>Query parameters:</strong> same as <code>/bootstrap/trader</code> (<code>fills_limit</code>).</p>
+<p><strong>Reply <code>200 OK</code></strong></p>
+<p>All fields from <code>/bootstrap/trader</code>, plus:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>{
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>  // ...trader fields...
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>  &quot;gateway_role&quot;: &quot;MARKET_MAKER&quot;,
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>  // identical to GET /quotes/bootstrap; null if engine timed out (optional)
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>  &quot;quote_bootstrap&quot;: { &quot;quotes&quot;: [ /* ActiveQuote[] */ ] },
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>  // identical to GET /quotes/legs; null if engine timed out (optional)
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>  &quot;quote_legs&quot;: { &quot;legs&quot;: [ /* QuoteLeg[] */ ] }
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>}
+</code></pre></div>
+<p><strong>Required fields:</strong> <code>reference</code>, <code>orders</code>.</p>
+<p><strong>Optional fields:</strong> <code>session</code>, <code>recent_fills</code>, <code>quote_bootstrap</code>, <code>quote_legs</code>.</p>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td><code>401</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>READ_ONLY</code></td>
+<td><code>403</code></td>
+<td>Read-only key (no gateway_id)</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
+<td>Key resolves to TRADER or ADMIN role</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td><code>reference</code> or <code>orders</code> could not be fetched</td>
+</tr>
+<tr>
+<td><code>VALIDATION</code></td>
+<td><code>422</code></td>
+<td><code>fills_limit</code> is not a valid integer</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="get-apiv1bootstrapadmin"><code>GET /api/v1/bootstrap/admin</code><a class="headerlink" href="#get-apiv1bootstrapadmin" title="Permanent link">&para;</a></h3>
+<p>Purpose: one-request startup payload for ADMIN sessions.  Returns reference
+data, session state, the full gateway roster, active halts, per-gateway
+active-order counts, per-gateway drop-copy sequence numbers, and capability
+flags.</p>
+<p><strong>Access:</strong> ADMIN role required.  TRADER and MARKET_MAKER keys receive <code>403</code>.</p>
+<p><strong>No query parameters.</strong></p>
+<p><strong>Reply <code>200 OK</code></strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>{
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>  &quot;ts&quot;: &quot;2026-07-27T09:30:01.250Z&quot;,
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>  &quot;incomplete&quot;: [],
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>  &quot;gateway_id&quot;: &quot;INSTRUCTOR&quot;,
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>  &quot;gateway_role&quot;: &quot;ADMIN&quot;,
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>  // identical to GET /reference (required — 503 on failure)
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>  &quot;reference&quot;: { /* symbols, risk, schedule, config_version */ },
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>  // identical to GET /session; null if engine timed out (optional)
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>  &quot;session&quot;: { &quot;state&quot;: &quot;CONTINUOUS&quot;, &quot;since&quot;: &quot;...&quot; },
+<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a>
+<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a>  // identical to GET /admin/gateways response body; null if engine timed out (optional)
+<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a>  &quot;gateways&quot;: {
+<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a>    &quot;gateways&quot;: [
+<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a>      { &quot;gateway_id&quot;: &quot;TRADER01&quot;, &quot;role&quot;: &quot;TRADER&quot;, &quot;description&quot;: &quot;...&quot;, &quot;connected&quot;: true }
+<a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a>    ]
+<a id="__codelineno-16-19" name="__codelineno-16-19" href="#__codelineno-16-19"></a>  },
+<a id="__codelineno-16-20" name="__codelineno-16-20" href="#__codelineno-16-20"></a>
+<a id="__codelineno-16-21" name="__codelineno-16-21" href="#__codelineno-16-21"></a>  // identical to GET /admin/halts response body; null if engine timed out (optional)
+<a id="__codelineno-16-22" name="__codelineno-16-22" href="#__codelineno-16-22"></a>  &quot;halts&quot;: { &quot;halted&quot;: [ { &quot;symbol&quot;: &quot;AAPL&quot;, &quot;level&quot;: &quot;L2&quot;, ... } ] },
+<a id="__codelineno-16-23" name="__codelineno-16-23" href="#__codelineno-16-23"></a>
+<a id="__codelineno-16-24" name="__codelineno-16-24" href="#__codelineno-16-24"></a>  // per-gateway active (non-terminal) order count — pure cache, never null
+<a id="__codelineno-16-25" name="__codelineno-16-25" href="#__codelineno-16-25"></a>  &quot;active_order_counts&quot;: { &quot;TRADER01&quot;: 3, &quot;MM01&quot;: 12 },
+<a id="__codelineno-16-26" name="__codelineno-16-26" href="#__codelineno-16-26"></a>
+<a id="__codelineno-16-27" name="__codelineno-16-27" href="#__codelineno-16-27"></a>  // per-gateway highest drop-copy stream_seq seen — pure cache, never null
+<a id="__codelineno-16-28" name="__codelineno-16-28" href="#__codelineno-16-28"></a>  &quot;monitor_last_seq&quot;: { &quot;TRADER01&quot;: 100482, &quot;MM01&quot;: 88213 },
+<a id="__codelineno-16-29" name="__codelineno-16-29" href="#__codelineno-16-29"></a>
+<a id="__codelineno-16-30" name="__codelineno-16-30" href="#__codelineno-16-30"></a>  &quot;capabilities&quot;: {
+<a id="__codelineno-16-31" name="__codelineno-16-31" href="#__codelineno-16-31"></a>    &quot;sessions_enabled&quot;: true,
+<a id="__codelineno-16-32" name="__codelineno-16-32" href="#__codelineno-16-32"></a>    &quot;stats_db_available&quot;: true,
+<a id="__codelineno-16-33" name="__codelineno-16-33" href="#__codelineno-16-33"></a>    &quot;audit_db_available&quot;: false,
+<a id="__codelineno-16-34" name="__codelineno-16-34" href="#__codelineno-16-34"></a>    &quot;index_available&quot;: false
+<a id="__codelineno-16-35" name="__codelineno-16-35" href="#__codelineno-16-35"></a>  }
+<a id="__codelineno-16-36" name="__codelineno-16-36" href="#__codelineno-16-36"></a>}
+</code></pre></div>
+<p><strong>Required fields:</strong> <code>reference</code>.</p>
+<p><strong>Optional fields:</strong> <code>session</code>, <code>gateways</code>, <code>halts</code>.
+The <code>gateways</code> and <code>halts</code> fields are also supplied by the <code>monitor.snapshot</code>
+frame that the <code>WS /api/v1/admin/monitor</code> socket sends immediately after auth
+— a partial bootstrap response is therefore recoverable without a manual retry.</p>
+<p><strong>Errors</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH</code></td>
+<td><code>401</code></td>
+<td>Missing or malformed key</td>
+</tr>
+<tr>
+<td><code>ROLE_DENIED</code></td>
+<td><code>403</code></td>
+<td>Key is not ADMIN</td>
+</tr>
+<tr>
+<td><code>ENGINE_TIMEOUT</code></td>
+<td><code>503</code></td>
+<td><code>reference</code> could not be fetched</td>
+</tr>
+</tbody>
+</table>
+<hr />
 <h2 id="trading-rest_1">Trading REST<a class="headerlink" href="#trading-rest_1" title="Permanent link">&para;</a></h2>
 <h3 id="post-apiv1orders"><code>POST /api/v1/orders</code><a class="headerlink" href="#post-apiv1orders" title="Permanent link">&para;</a></h3>
 <p>Purpose: submit one order for the caller's gateway.</p>
@@ -6688,8 +7047,8 @@ that changes only when an admin reloads it.</p>
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td><code>{ "symbols": {...}, "config_version": "..." }</code></td>
-<td>Symbol metadata keyed by symbol</td>
+<td><code>{ "symbols": [...], "config_version": "..." }</code></td>
+<td>One object per symbol (each carries its own <code>symbol</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -8227,8 +8586,8 @@ gateway id; public history accepts any valid key.</p>
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td><code>{ "halts": [...] }</code></td>
-<td>Active halts for the venue</td>
+<td><code>{ "halted": [...] }</code></td>
+<td>Currently-halted symbols; each <code>{ symbol, resume_at_ns?, level?, halt_source? }</code></td>
 </tr>
 </tbody>
 </table>
@@ -8288,8 +8647,8 @@ gateway id; public history accepts any valid key.</p>
 <tbody>
 <tr>
 <td><code>200 OK</code></td>
-<td><code>{ "symbols": {...} }</code></td>
-<td>Current collar and circuit-breaker state</td>
+<td><code>{ "symbols": [...] }</code></td>
+<td>Current collar and circuit-breaker state (one object per symbol)</td>
 </tr>
 </tbody>
 </table>
@@ -8869,6 +9228,10 @@ gateway id; public history accepts any valid key.</p>
   but not trading or admin write endpoints.</li>
 <li><code>order_retention_sec</code> bounds the live order cache, the private
   <code>orders.snapshot</code> frame, and <code>GET /api/v1/admin/orders</code>.</li>
+<li><code>market_data_cache_sec</code> bounds the market-data stream cache that backs the
+  snapshot-on-subscribe, <code>snapshot</code>, and <code>resume</code> controls on
+  <code>WS /api/v1/market-data</code> (latest <code>book</code>/<code>depth</code>/<code>auction</code> snapshots are kept
+  regardless of age; only the <code>trades</code> tail is bounded).</li>
 <li>WebSocket streams use the chapter-level contracts in
   <a href="../260-api-gateway/">API Gateway (REST/WebSocket)</a>; this appendix is REST
   only.</li>

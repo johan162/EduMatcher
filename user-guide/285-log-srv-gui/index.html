@@ -3722,6 +3722,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/06-msgen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Generator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4003,7 +4031,7 @@ set in §"<code>LOG</code>" is what becomes a row in every table and detail pane
 below.</p>
 <h3 id="what-the-bridge-does-on-the-lalf-ps-wire">What the bridge does on the LALF-PS wire<a class="headerlink" href="#what-the-bridge-does-on-the-lalf-ps-wire" title="Permanent link">&para;</a></h3>
 <p>The bridge implements the subscriber side in
-<code>log-gui/apps/bridge/src/lalf-ps-uplink.ts</code>. The sequence, in order:</p>
+<code>web-apps/log-gui/apps/bridge/src/lalf-ps-uplink.ts</code>. The sequence, in order:</p>
 <ol>
 <li>Connect <code>SUB</code> to <code>:5601</code> and <code>PUSH</code> to <code>:5602</code>.</li>
 <li>Subscribe to the ZeroMQ topic prefix <strong><code>log.</code></strong> — not <code>log.&lt;sub_id&gt;</code>.
@@ -4103,7 +4131,7 @@ sources:</p>
 extensions are required.</p>
 <h3 id="option-1-one-command-with-the-container-stack">Option 1 — One command with the container stack<a class="headerlink" href="#option-1-one-command-with-the-container-stack" title="Permanent link">&para;</a></h3>
 <p>The fastest path with a repository checkout and a container runtime. From the
-<code>log-gui/</code> directory:</p>
+<code>web-apps/log-gui/</code> directory:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w"> </span>up
 </code></pre></div>
 <p><code>make up</code> auto-detects Podman or Docker (preferring Podman), starts the Podman
@@ -4150,7 +4178,7 @@ the target host:</p>
 <p>The archive is fully self-contained. The host needs only Podman or Docker.</p>
 </div>
 <h3 id="option-3-local-development">Option 3 — Local development<a class="headerlink" href="#option-3-local-development" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>log-gui
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/log-gui
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>make<span class="w"> </span>install<span class="w">      </span><span class="c1"># npm ci from the lockfile</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>make<span class="w"> </span>dev<span class="w">          </span><span class="c1"># bridge (8091) + web dev server (5178) together</span>
 </code></pre></div>
@@ -4175,7 +4203,7 @@ that line first if a view is unexpectedly empty.</p>
 <code>@npmcli/arborist</code>'s dedup step. <code>make install</code> already works around this
 by running <code>npm install --no-dedupe</code> for the first resolution. If you hit
 the crash by calling <code>npm install</code> directly, rerun with <code>--no-dedupe</code>.
-See <code>log-gui/README.md</code> for the full explanation.</p>
+See <code>web-apps/log-gui/README.md</code> for the full explanation.</p>
 </div>
 <h3 id="developer-commands">Developer commands<a class="headerlink" href="#developer-commands" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>make<span class="w"> </span><span class="nb">test</span><span class="w">        </span><span class="c1"># Vitest: log-query, fingerprinting, issue index, ack store</span>
@@ -4843,7 +4871,7 @@ read-only — enforced by the <code>:ro</code> mount in the container deployment
 <tr>
 <td><strong>Port <code>8091</code> or <code>5178</code> already in use</strong></td>
 <td>Another process holds it</td>
-<td>Change <code>PORT</code>, or the <code>server.port</code> in <code>log-gui/apps/web/vite.config.ts</code>.</td>
+<td>Change <code>PORT</code>, or the <code>server.port</code> in <code>web-apps/log-gui/apps/web/vite.config.ts</code>.</td>
 </tr>
 <tr>
 <td><strong>Blank page in production</strong>, API responds</td>

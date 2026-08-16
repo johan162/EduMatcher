@@ -3982,6 +3982,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/06-msgen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Generator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4462,14 +4490,14 @@ production-like rehearsal.</p>
 <tr>
 <td style="text-align: right;">12</td>
 <td>TapeDeck</td>
-<td><code>cd terminal-gui &amp;&amp; PM_TERMINAL_API_KEY=... make up</code></td>
+<td><code>cd web-apps/terminal-gui &amp;&amp; PM_TERMINAL_API_KEY=... make up</code></td>
 <td><code>PM_TERMINAL_API_KEY</code> for history; <code>CALF_HOST</code>, <code>API_GATEWAY_URL</code> when remote</td>
 <td>The browser terminal needs <code>pm-md-gwy</code> for live data and <code>pm-api-gwy</code> for history, so it starts after both.</td>
 </tr>
 <tr>
 <td style="text-align: right;">13</td>
 <td>Log Operator Console (<code>pm-log-ui</code>)</td>
-<td><code>cd log-gui &amp;&amp; make up</code></td>
+<td><code>cd web-apps/log-gui &amp;&amp; make up</code></td>
 <td>Configure it to reach <code>pm-log-srv</code> / <code>log.db</code> as described in its chapter</td>
 <td>The log UI is useful only after <code>pm-log-srv</code> is running and has data to display.</td>
 </tr>
@@ -4563,13 +4591,13 @@ rolled out process by process; see <a href="../280-log-srv/">Centralized Log Ser
 current support and CLI workflows.</p>
 <h3 id="tapedeck-trader-information-terminal">TapeDeck trader information terminal<a class="headerlink" href="#tapedeck-trader-information-terminal" title="Permanent link">&para;</a></h3>
 <p>TapeDeck (<code>pm-terminal</code>) is the browser-based read-only market display in
-<code>terminal-gui/</code>. It is not a Python <code>pm-*</code> console script. It depends on:</p>
+<code>web-apps/terminal-gui/</code>. It is not a Python <code>pm-*</code> console script. It depends on:</p>
 <ul>
 <li><code>pm-md-gwy</code> for live CALF market data</li>
 <li><code>pm-api-gwy</code> with a read-only API key for history and charts</li>
 <li>optionally <code>pm-log-srv</code> for bridge logs</li>
 </ul>
-<p>From <code>terminal-gui/</code>:</p>
+<p>From <code>web-apps/terminal-gui/</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span><span class="s1">&#39;...&#39;</span>
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>make<span class="w"> </span>up
 </code></pre></div>
@@ -5100,7 +5128,7 @@ runbook and replace IDs, symbols, timezones and ports with your own.</p>
 </li>
 <li>
 <p>Start TapeDeck:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a><span class="nb">cd</span><span class="w"> </span>terminal-gui
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/terminal-gui
 <a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span><span class="s1">&#39;...&#39;</span>
 <a id="__codelineno-48-3" name="__codelineno-48-3" href="#__codelineno-48-3"></a>make<span class="w"> </span>up
 </code></pre></div>

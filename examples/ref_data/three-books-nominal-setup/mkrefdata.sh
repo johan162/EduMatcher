@@ -82,6 +82,9 @@ COMMON_ARGS=(
   --comment-default-config-fields
   "${SEED_ARGS[@]}"
   "${OUTSTANDING_ARGS[@]}"
+  --api-gateway-instance desk:TRADER01,TRADER02,MM01,OPS01:8080
+  --api-gateway-instance dashboards::8081
+  --api-gateway-readonly-key
 )
 "${CONFIG_GEN[@]}" "${COMMON_ARGS[@]}" \
   --sessions-enabled \

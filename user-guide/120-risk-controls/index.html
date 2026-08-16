@@ -4132,6 +4132,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/06-msgen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Generator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4824,8 +4852,12 @@ can be watched as it happens:</p>
 <p>On the wire, <code>circuit_breaker.halt.{symbol}</code> and the new
 <code>circuit_breaker.extend.{symbol}</code> both carry <code>corridor_low</code>, <code>corridor_high</code>
 and <code>expansion</code>; <code>extend</code> adds <code>indicative_price</code>, <code>indicative_qty</code>,
-<code>imbalance_side</code> and the next <code>resume_at_ns</code>. A backstop resume carries
-<code>reason: "CLOSING_BACKSTOP"</code>, <code>clamped</code> and <code>print_price</code>.</p>
+<code>imbalance_side</code> and the next <code>resume_at_ns</code>. On <code>extend</code> the three corridor
+fields are always present — the event is published by the widening itself. On
+<code>halt</code> all three are <strong>omitted</strong> when the halt has no corridor: either ACE is
+disabled, or the halt began with no reference price to centre one on, or it is
+an operator halt. A backstop resume carries <code>reason: "CLOSING_BACKSTOP"</code>,
+<code>clamped</code> and <code>print_price</code>.</p>
 <h3 id="configuration_1">Configuration<a class="headerlink" href="#configuration_1" title="Permanent link">&para;</a></h3>
 <p>Define a global threshold ladder under <code>circuit_breaker_defaults</code>, then override
 per symbol only where needed:</p>
@@ -5091,12 +5123,15 @@ only added to the rolling history <em>after</em> the deviation check.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>topic:   b&quot;circuit_breaker.halt.MSFT&quot;
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>payload: {
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    &quot;symbol&quot;:           &quot;MSFT&quot;,
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    &quot;trigger_price&quot;:    10800,
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    &quot;reference_price&quot;:  10100,
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    &quot;trigger_price&quot;:    108.00,   # display money, not ticks
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    &quot;reference_price&quot;:  101.00,
 <a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    &quot;resume_at_ns&quot;:     &lt;timestamp&gt;,
 <a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    &quot;halt_source&quot;:      &quot;CB&quot;,
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>    &quot;level&quot;:            &quot;L1&quot;
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>}
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>    &quot;level&quot;:            &quot;L1&quot;,
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>    &quot;corridor_low&quot;:     90.00,    # all three omitted when there is
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>    &quot;corridor_high&quot;:    110.00,   # no corridor — see above
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>    &quot;expansion&quot;:        0
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>}
 </code></pre></div>
 <h3 id="circuit-breaker-extend-ace">Circuit breaker extend (ACE)<a class="headerlink" href="#circuit-breaker-extend-ace" title="Permanent link">&para;</a></h3>
 <p>Published when a call phase ends with the indicative price outside the
@@ -5106,7 +5141,7 @@ corridor. The symbol stays halted and a fresh call phase begins.</p>
 <a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    &quot;symbol&quot;:           &quot;MSFT&quot;,
 <a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    &quot;indicative_price&quot;: 122.00,   # what it would have reopened at
 <a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    &quot;indicative_qty&quot;:   500,
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    &quot;imbalance_side&quot;:   &quot;BUY&quot;,
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    &quot;imbalance_side&quot;:   &quot;BUY&quot;,   # omitted entirely when balanced
 <a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>    &quot;corridor_low&quot;:     80.00,    # corridor AFTER widening
 <a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>    &quot;corridor_high&quot;:    120.00,
 <a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>    &quot;expansion&quot;:        1,        # rungs consumed so far
@@ -5252,10 +5287,10 @@ same PUSH socket:</p>
 </ol>
 <p>Expected inbound events:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>topic:   b&quot;circuit_breaker.resume.AAPL&quot;
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>payload: { &quot;symbol&quot;: &quot;AAPL&quot;, &quot;mode&quot;: &quot;MANUAL&quot; }
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>payload: { &quot;symbol&quot;: &quot;AAPL&quot;, &quot;halt_source&quot;: &quot;ADMIN&quot; }
 <a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>
 <a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>topic:   b&quot;circuit_breaker.resume.MSFT&quot;
-<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>payload: { &quot;symbol&quot;: &quot;MSFT&quot;, &quot;mode&quot;: &quot;MANUAL&quot; }
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>payload: { &quot;symbol&quot;: &quot;MSFT&quot;, &quot;halt_source&quot;: &quot;ADMIN&quot; }
 <a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>
 <a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>topic:   b&quot;risk.circuit_breaker_resume_all_ack.GW_ADMIN&quot;
 <a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>payload: {
@@ -5281,8 +5316,8 @@ the engine will begin enforcing MM obligation checks again immediately.</p>
     Note over Op,Sub: ... incident resolved ...
 
     Op-&gt;&gt;Eng: risk.circuit_breaker_resume_all&lt;br/&gt;{gateway_id: "GW_ADMIN"}
-    Eng-&gt;&gt;Sub: circuit_breaker.resume.AAPL  {mode: MANUAL}
-    Eng-&gt;&gt;Sub: circuit_breaker.resume.MSFT  {mode: MANUAL}
+    Eng-&gt;&gt;Sub: circuit_breaker.resume.AAPL  {halt_source: ADMIN}
+    Eng-&gt;&gt;Sub: circuit_breaker.resume.MSFT  {halt_source: ADMIN}
     Eng-&gt;&gt;Op: risk.circuit_breaker_resume_all_ack.GW_ADMIN&lt;br/&gt;{accepted: true, resumed_symbols: 2}</code></pre>
 <h3 id="key-differences-from-automatic-circuit-breakers">Key differences from automatic circuit breakers<a class="headerlink" href="#key-differences-from-automatic-circuit-breakers" title="Permanent link">&para;</a></h3>
 <table>
@@ -5356,7 +5391,7 @@ the "Per-symbol operator halt" row in the
 <code>"&lt;SYMBOL&gt; is not halted"</code> if the symbol isn't currently halted, otherwise
 clears the halt, deactivates the circuit breaker state, runs the same
 unconditional uncross as an automatic resume, publishes
-<code>circuit_breaker.resume.&lt;SYMBOL&gt;</code> with <code>"mode": "MANUAL"</code>, and acks on
+<code>circuit_breaker.resume.&lt;SYMBOL&gt;</code> with <code>"halt_source": "ADMIN"</code>, and acks on
 <code>risk.symbol_resume_ack.&lt;GW_ADMIN&gt;</code> with <code>{"accepted": true, "symbol": "AAPL", "reason": ""}</code>.</p>
 <p>Both <code>symbol_halt</code> and <code>symbol_resume</code> also reject with <code>"symbol required"</code>
 if the <code>symbol</code> field is missing, and <code>symbol_halt</code> additionally rejects with

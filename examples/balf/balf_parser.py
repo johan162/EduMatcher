@@ -30,12 +30,12 @@ FRAME_SIZES: Dict[int, int] = {
     MSG_LOGON: 32,
     MSG_LOGON_ACK: 92,
     MSG_NEW_ORDER: 60,
-    MSG_ORDER_ACK: 68,
-    MSG_CANCEL_ORDER: 32,
-    MSG_CANCEL_ACK: 40,
-    MSG_AMEND_ORDER: 52,
-    MSG_AMEND_ACK: 56,
-    MSG_EXECUTION_REPORT: 72,
+    MSG_ORDER_ACK: 60,
+    MSG_CANCEL_ORDER: 24,
+    MSG_CANCEL_ACK: 32,
+    MSG_AMEND_ORDER: 44,
+    MSG_AMEND_ACK: 48,
+    MSG_EXECUTION_REPORT: 64,
     MSG_HEARTBEAT: 16,
     MSG_HEARTBEAT_ACK: 16,
     MSG_LOGOUT: 8,
@@ -117,15 +117,15 @@ def parse_logon_ack(body: bytes) -> dict[str, Any]:
 
 
 def parse_order_ack(body: bytes) -> dict[str, Any]:
-    if len(body) != 60:
-        raise ValueError("ORDER_ACK body must be 60 bytes")
+    if len(body) != 52:
+        raise ValueError("ORDER_ACK body must be 52 bytes")
     client_order_id = _read_u64_le(body, 0)
-    order_id = body[8:24]
-    timestamp_ns = _read_u64_le(body, 24)
-    accepted = body[32] == 1
-    reject_code = body[33]
-    reason_len = body[34]
-    reason = body[35 : 35 + min(reason_len, 25)].decode("ascii", errors="replace")
+    order_id = _read_u64_le(body, 8)
+    timestamp_ns = _read_u64_le(body, 16)
+    accepted = body[24] == 1
+    reject_code = body[25]
+    reason_len = body[26]
+    reason = body[27 : 27 + min(reason_len, 25)].decode("ascii", errors="replace")
     return {
         "client_order_id": client_order_id,
         "order_id": order_id,
@@ -137,17 +137,17 @@ def parse_order_ack(body: bytes) -> dict[str, Any]:
 
 
 def parse_execution_report(body: bytes) -> dict[str, Any]:
-    if len(body) != 64:
-        raise ValueError("EXECUTION_REPORT body must be 64 bytes")
+    if len(body) != 56:
+        raise ValueError("EXECUTION_REPORT body must be 56 bytes")
     client_order_id = _read_u64_le(body, 0)
-    order_id = body[8:24]
-    fill_price_raw = _read_i64_le(body, 24)
-    fill_qty = _read_u32_le(body, 32)
-    remaining_qty = _read_u32_le(body, 36)
-    timestamp_ns = _read_u64_le(body, 40)
-    symbol = _read_ascii_zp(body[48:56])
-    side = body[56]
-    status = body[57]
+    order_id = _read_u64_le(body, 8)
+    fill_price_raw = _read_i64_le(body, 16)
+    fill_qty = _read_u32_le(body, 24)
+    remaining_qty = _read_u32_le(body, 28)
+    timestamp_ns = _read_u64_le(body, 32)
+    symbol = _read_ascii_zp(body[40:48])
+    side = body[48]
+    status = body[49]
     return {
         "client_order_id": client_order_id,
         "order_id": order_id,

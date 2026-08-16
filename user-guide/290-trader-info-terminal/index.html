@@ -3634,6 +3634,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/06-msgen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Generator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3733,7 +3761,7 @@
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p><strong>TapeDeck</strong> is the friendly nickname this guide uses for the Trader
 Information Terminal, whose system name is <code>pm-terminal</code> and whose source code
-lives in <code>terminal-gui/</code>. It is a read-only market display for the EduMatcher
+lives in <code>web-apps/terminal-gui/</code>. It is a read-only market display for the EduMatcher
 exchange: a browser window for watching live prices, trades, auctions, halts,
 indexes, and depth-of-book information.</p>
 <p>It is deliberately <em>not</em> a trading application. There is no order entry, no
@@ -3807,7 +3835,7 @@ from inside the container:</p>
 <li>Optionally start <code>pm-log-srv</code> for centralized operational logs.</li>
 <li>Start TapeDeck and open the browser.</li>
 </ol>
-<p>From <code>terminal-gui/</code>:</p>
+<p>From <code>web-apps/terminal-gui/</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span><span class="s1">&#39;...&#39;</span><span class="w">   </span><span class="c1"># read-only API-gateway key, history only</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>make<span class="w"> </span>up<span class="w">                            </span><span class="c1"># auto-detects Docker or Podman</span>
 </code></pre></div>
@@ -3911,7 +3939,7 @@ If the page loads but shows <code>RECONNECTING</code>, the display server can se
 UI but cannot reach <code>pm-md-gwy</code>. If live prices tick but charts or previous
 close values are missing, check <code>API_GATEWAY_URL</code> and <code>PM_TERMINAL_API_KEY</code>.</p>
 <h3 id="local-development">Local development<a class="headerlink" href="#local-development" title="Permanent link">&para;</a></h3>
-<p>From the <code>terminal-gui/</code> directory:</p>
+<p>From the <code>web-apps/terminal-gui/</code> directory:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>make<span class="w"> </span>install<span class="w">    </span><span class="c1"># npm workspace install</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>make<span class="w"> </span>dev<span class="w">        </span><span class="c1"># bridge on :8090, Vite dev server on :5179</span>
 </code></pre></div>
@@ -4317,7 +4345,7 @@ default host names, <code>CALF_HOST</code>, <code>API_GATEWAY_URL</code>, and <c
   application TapeDeck shares its monorepo shape and deployment conventions
   with</li>
 <li><code>docs-design/EduMatcher-Terminal-GUI.md</code> — the full design document (repository checkout only)</li>
-<li><code>terminal-gui/README.md</code> — the implementation's own record of every
+<li><code>web-apps/terminal-gui/README.md</code> — the implementation's own record of every
   deviation from that design document (repository checkout only)</li>
 </ul>
 
