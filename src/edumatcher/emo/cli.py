@@ -126,37 +126,41 @@ RESET = "\033[0m"
 DEFAULT_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
     {"name": "audit", "command": ["pm-audit", "--verbose"]},
-    {"name": "stats", "command": ["pm-stats", "--verbose"]},
+    {
+        "name": "stats", 
+        "command": ["pm-stats", "--verbose"],
+        "healthcheck": ["pm-stats-cli", "health", "-q"],
+    },
     {"name": "clearing", "command": ["pm-clearing", "--verbose"]},
     {"name": "engine", "command": ["pm-engine", "--verbose"], "tcp": "127.0.0.1:5555"},
     {"name": "scheduler", "command": ["pm-scheduler", "--daily", "--verbose"]},
     {
-        "name": "market-data",
+        "name": "market-data-gwy",
         "command": ["pm-md-gwy", "--verbose"],
         "tcp": "127.0.0.1:5570",
     },
     {
-        "name": "post-trade",
+        "name": "post-trade-gwy",
         "command": ["pm-ralf-gwy", "--verbose"],
         "tcp": "127.0.0.1:5580",
     },
     {
-        "name": "drop-copy",
+        "name": "drop-copy-gwy",
         "command": ["pm-dc-gwy", "--verbose"],
         "tcp": "127.0.0.1:5590",
     },
     {
-        "name": "api-desk",
+        "name": "api-desk-gwy",
         "command": ["pm-api-gwy", "--verbose", "--instance", "desk"],
         "tcp": "127.0.0.1:8080",
     },
     {
-        "name": "api-dashboards",
+        "name": "api-dashboards-gwy",
         "command": ["pm-api-gwy", "--verbose", "--instance", "dashboards"],
         "tcp": "127.0.0.1:8081",
     },
-    {"name": "alf", "command": ["pm-alf-gwy", "--verbose"], "tcp": "127.0.0.1:5565"},
-    {"name": "balf", "command": ["pm-balf-gwy", "--verbose"], "tcp": "127.0.0.1:5560"},
+    {"name": "alf-gwy", "command": ["pm-alf-gwy", "--verbose"], "tcp": "127.0.0.1:5565"},
+    {"name": "balf-gwy", "command": ["pm-balf-gwy", "--verbose"], "tcp": "127.0.0.1:5560"},
 ]
 
 MICRO_PROCESSES: list[dict[str, Any]] = [
@@ -166,27 +170,31 @@ MICRO_PROCESSES: list[dict[str, Any]] = [
 
 MINI_PROCESSES: list[dict[str, Any]] = [
     {"name": "log", "command": ["pm-log-srv"], "tcp": "127.0.0.1:5600"},
-    {"name": "stats", "command": ["pm-stats", "--verbose"]},
+    {
+        "name": "stats", 
+        "command": ["pm-stats", "--verbose"],
+        "healthcheck": ["pm-stats-cli", "health", "-q"],
+    },
     {"name": "engine", "command": ["pm-engine", "--verbose"], "tcp": "127.0.0.1:5555"},
     {"name": "scheduler", "command": ["pm-scheduler", "--daily", "--verbose"]},
     {
-        "name": "market-data",
+        "name": "market-data-gwy",
         "command": ["pm-md-gwy", "--verbose"],
         "tcp": "127.0.0.1:5570",
     },
     {
-        "name": "api",
+        "name": "api-desk-gwy",
         "command": ["pm-api-gwy", "--verbose", "--instance", "desk"],
         "tcp": "127.0.0.1:8080",
     },
-    {"name": "alf", "command": ["pm-alf-gwy", "--verbose"], "tcp": "127.0.0.1:5565"},
+    {"name": "alf-gwy", "command": ["pm-alf-gwy", "--verbose"], "tcp": "127.0.0.1:5565"},
     {
-        "name": "post-trade",
+        "name": "post-trade-gwy",
         "command": ["pm-ralf-gwy", "--verbose"],
         "tcp": "127.0.0.1:5580",
     },
     {
-        "name": "drop-copy",
+        "name": "drop-copy-gwy",
         "command": ["pm-dc-gwy", "--verbose"],
         "tcp": "127.0.0.1:5590",
     },
