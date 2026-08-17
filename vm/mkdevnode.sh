@@ -16,7 +16,7 @@
 # 
 # Requires: multipass, ssh-keygen, and access to this repository checkout.
 
-set -euo pipefail
+set -uo pipefail
 
 # Color codes for terminal output
 RED='\033[0;31m'
@@ -39,7 +39,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 NODE_NAME="pm-devnode"
 NODE_IMAGE="lts"
 NODE_CPUS="8"
-NODE_MEMORY="12G"
+NODE_MEMORY="10G"
 NODE_DISK="20G"
 NODE_USER="ubuntu"
 VERIFY_SETUP_SCRIPT="$REPO_ROOT/scripts/verify_setup.sh"
@@ -148,7 +148,8 @@ mkdir -p "$(dirname "$SSH_KEY_PATH")"
 #   exit 1
 # fi
 
-echo "=== EduMatcher Multipass Dev Node Setup ==="
+echo "${LIGHT_CYAN}=== EduMatcher Multipass Dev Node Setup ===${NC}"
+echo ##
 echo "Node name : $NODE_NAME"
 echo "Image     : $NODE_IMAGE"
 echo "CPUs      : $NODE_CPUS"
@@ -157,9 +158,9 @@ echo "Disk      : $NODE_DISK"
 echo "User      : $NODE_USER"
 echo "SSH key   : $SSH_KEY_PATH"
 echo ""
-echo "=== Starting setup process ==="
+echo -e "${LIGHT_CYAN}=== Starting setup process ===${NC}"
 echo ""
-echo "This will take about 10 minutes depending on your system and how many updates are available."
+echo "This will take about 10-15 minutes depending on your system and how many updates are available."
 echo "So grab a coffee and please wait..."
 echo ""
 
@@ -175,14 +176,14 @@ if ! multipass launch "$NODE_IMAGE" \
 fi
 
 echo -e "${LIGHT_CYAN}2/5${NC} Generating a fresh SSH key pair in the node..."
-multipass exec "$NODE_NAME" -- bash -lc "ssh-keygen -t ed25519 -f \"/home/ubuntu/.ssh/id_ed25519\" -N \"\"" 
+multipass exec ${NODE_NAME} -- bash -lc "ssh-keygen -t ed25519 -f \"/home/ubuntu/.ssh/id_ed25519\" -N \"\"" 
 if [ $? -ne 0 ]; then
   echo -e "❌ ${RED}Failed to generate SSH key pair in the node.${NC}" >&2
   exit 1
 fi
 
-echo -e "${LIGHT_CYAN}3/5${NC} Installing the host SSH public key for user '$NODE_USER'..."
-multipass transfer "${SSH_KEY_PATH}.pub" "$NODE_NAME:/tmp/${NODE_NAME}.pub"
+echo -e "${LIGHT_CYAN}3/5${NC} Installing the host SSH public key for passwordless login for user '$NODE_USER'..."
+multipass transfer "${SSH_KEY_PATH}.pub" "$NODE_NAME:/tmp/${NODE_NAME}.pub" > /dev/null 
 if [ $? -ne 0 ]; then
   echo -e "❌ ${RED}Failed to install the host SSH public key in the node.${NC}" >&2
   exit 1
@@ -211,9 +212,9 @@ echo -e "${LIGHT_CYAN}4/5${NC} Copying verify_setup.sh as the standard user..."
 echo -e "    Will install poetry, xetex, pandoc, nodejs, npm, and Google Chrome."
 echo -e "    Logging to '$VERIFY_LOG_REMOTE_PATH' on the node."
 
-multipass transfer "$VERIFY_SETUP_SCRIPT" "$NODE_NAME:$VERIFY_SETUP_REMOTE_PATH"
+multipass transfer "$VERIFY_SETUP_SCRIPT" "$NODE_NAME:$VERIFY_SETUP_REMOTE_PATH" 
 if [ $? -ne 0 ]; then
-  echo -e "❌ ${RED}Failed to copy verify_setup.sh to the node.${NC}" >&2
+  echo -e "❌ ${RED}Failed to copy verify_setup.sh to the node.${NC}" >&2 
   exit 1
 fi
 
@@ -229,29 +230,32 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-echo -e "${LIGHT_CYAN}5/5${NC} Restarting and snapshotting the node to ensure all changes take effect..."
+echo -e "${LIGHT_CYAN}5/5${NC} Restarting and creating a snapshot of the node..."
 echo "    Stopping the node..."
 multipass stop "$NODE_NAME"
 sleep 2  # Wait a few seconds for the node to stop
 
 SNAPSHOT_NAME="pm-devnode-core"
-if multipass info "$NODE_NAME" | grep -q "Snapshots"; then
-  echo "    Deleting existing snapshot '$SNAPSHOT_NAME'..."
-  multipass delete "$SNAPSHOT_NAME" > /dev/null 2>&1
-  if [ $? -eq 0 ]; then
-    echo "    Existing snapshot '$SNAPSHOT_NAME' deleted."
-  else
-    echo -e "❌ ${RED}Failed to delete existing snapshot '$SNAPSHOT_NAME'.${NC}" >&2
-    exit 1
-  fi
-fi
-echo "    Creating snapshot '$SNAPSHOT_NAME'..."
-multipass snapshot "$NODE_NAME" --name "$SNAPSHOT_NAME" --comment "Core dev-node state with verify_setup.sh applied" > /dev/null 2>&1
+
+
+#if multipass list --snapshots | grep "$SNAPSHOT_NAME" ; then
+#  echo "    Deleting existing snapshot '$SNAPSHOT_NAME'..."
+#  multipass delete "$SNAPSHOT_NAME" 
+#  if [ $? -eq 0 ]; then
+#    echo "    Existing snapshot '$SNAPSHOT_NAME' deleted."
+#  else
+#    echo -e "❌ ${RED}Failed to delete existing snapshot '$SNAPSHOT_NAME'.${NC}"
+#    exit 1
+#  fi
+#fi
+
+echo "    Creating snapshot '${SNAPSHOT_NAME}'..."
+multipass snapshot "${NODE_NAME}" --name "${SNAPSHOT_NAME}" --comment "Core dev-node state with verify_setup.sh applied" > /dev/null
 
 if [ $? -eq 0 ]; then
-  echo "    Snapshot '$SNAPSHOT_NAME' created successfully."
+  echo "    Snapshot '${SNAPSHOT_NAME}' created successfully."
 else
-  echo -e "❌ ${RED}Failed to create snapshot '$SNAPSHOT_NAME'.${NC}" >&2
+  echo -e "❌ ${RED}Failed to create snapshot '${SNAPSHOT_NAME}'.${NC}" >&2
   exit 1
 fi
 
@@ -259,18 +263,18 @@ echo "    Starting the node..."
 multipass start "$NODE_NAME"
 
 if [ $? -ne 0 ]; then
-  echo -e "❌ ${RED}Failed to start the node '$NODE_NAME' after snapshotting.${NC}" >&2
+  echo -e "❌ ${RED}Failed to start the node '${NODE_NAME}' after snapshotting.${NC}" >&2
   exit 1
 fi
 
 echo ""
-echo "✅ Multipass development node '$NODE_NAME' is ready."
+echo "✅ Multipass development node '${NODE_NAME}' is ready."
 echo ""
 echo "Connect with:"
-echo "  multipass shell $NODE_NAME"
+echo "  multipass shell ${NODE_NAME}"
 echo ""
 echo "SSH with:"
-echo "  ssh -i $SSH_KEY_PATH $NODE_USER@$(multipass info $NODE_NAME | awk '/IPv4/ {print $2; exit}')"
+echo "  ssh -i $SSH_KEY_PATH $NODE_USER@$(multipass info ${NODE_NAME} | awk '/IPv4/ {print $2; exit}')"
 
 
 # Notes:
