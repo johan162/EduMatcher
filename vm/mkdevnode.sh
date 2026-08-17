@@ -39,8 +39,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 NODE_NAME="pm-devnode"
 NODE_IMAGE="lts"
 NODE_CPUS="8"
-NODE_MEMORY="10G"
-NODE_DISK="20G"
+NODE_MEMORY="8G"
+NODE_DISK="12G"
 NODE_USER="ubuntu"
 VERIFY_SETUP_SCRIPT="$REPO_ROOT/scripts/verify_setup.sh"
 
@@ -148,7 +148,7 @@ mkdir -p "$(dirname "$SSH_KEY_PATH")"
 #   exit 1
 # fi
 
-echo "${LIGHT_CYAN}=== EduMatcher Multipass Dev Node Setup ===${NC}"
+echo -e "${LIGHT_CYAN}=== EduMatcher Multipass Dev Node Setup ===${NC}"
 echo ##
 echo "Node name : $NODE_NAME"
 echo "Image     : $NODE_IMAGE"
@@ -183,13 +183,20 @@ if [ $? -ne 0 ]; then
 fi
 
 echo -e "${LIGHT_CYAN}3/5${NC} Installing the host SSH public key for passwordless login for user '$NODE_USER'..."
+
+# Check that the host unique key for this instance exists
+if [ ! -f ${SSH_KEY_PATH} ]; then
+  echo -e "❌ ${RED}No host SSH key exists${NC}. Will create a new key-pair as in ${HOME}/.ssh/${NODE_NAME}" >&2
+  ssh-keygen -f ${SSH_KEY_PATH} -t ed25519 -N ""  
+fi
+
 multipass transfer "${SSH_KEY_PATH}.pub" "$NODE_NAME:/tmp/${NODE_NAME}.pub" > /dev/null 
 if [ $? -ne 0 ]; then
   echo -e "❌ ${RED}Failed to install the host SSH public key in the node.${NC}" >&2
   exit 1
 fi
 
-multipass exec "$NODE_NAME" -- bash -lc "
+ multipass exec "$NODE_NAME" -- bash -lc "
   set -euo pipefail
   sudo install -d -m 700 -o '$NODE_USER' -g '$NODE_USER' '/home/$NODE_USER/.ssh'
   sudo touch '/home/$NODE_USER/.ssh/authorized_keys'
@@ -204,15 +211,15 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-
 VERIFY_SETUP_REMOTE_PATH="/home/$NODE_USER/verify_setup.sh"
 VERIFY_LOG_REMOTE_PATH="/home/$NODE_USER/${NODE_NAME}_verify_setup.log"
 
 echo -e "${LIGHT_CYAN}4/5${NC} Copying verify_setup.sh as the standard user..."
 echo -e "    Will install poetry, xetex, pandoc, nodejs, npm, and Google Chrome."
 echo -e "    Logging to '$VERIFY_LOG_REMOTE_PATH' on the node."
+echo -e "    This will take some time..."
 
-multipass transfer "$VERIFY_SETUP_SCRIPT" "$NODE_NAME:$VERIFY_SETUP_REMOTE_PATH" 
+multipass transfer "$VERIFY_SETUP_SCRIPT" "$NODE_NAME:$VERIFY_SETUP_REMOTE_PATH" > /dev/null 
 if [ $? -ne 0 ]; then
   echo -e "❌ ${RED}Failed to copy verify_setup.sh to the node.${NC}" >&2 
   exit 1
