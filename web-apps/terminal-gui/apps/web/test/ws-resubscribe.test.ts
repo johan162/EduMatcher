@@ -63,7 +63,7 @@ class FakeSocket {
 beforeEach(() => {
   FakeSocket.instances = [];
   vi.stubGlobal("WebSocket", FakeSocket);
-  vi.stubGlobal("window", { location: { protocol: "http:", host: "localhost:5173" } });
+  vi.stubGlobal("window", { location: { protocol: "http:", host: "localhost:8190" } });
   vi.useFakeTimers();
 });
 

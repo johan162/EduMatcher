@@ -6,12 +6,11 @@ a live tail, a searchable/aggregable history, a fingerprint-grouped alert
 list with shared acknowledgement, a process registry, and the existing
 `pm-log-cli diagnose` heuristics surfaced on a schedule.
 
-> **Design** — the full design proposal (data-availability audit, protocol
-> reasoning, per-view wireframes, and the open questions this build resolves
-> or defers) lives at
-> **[docs-design/EduMatcher-log-GUI.md](../../docs-design/EduMatcher-log-GUI.md)**.
-> This README is the **developer** reference: project layout and getting
-> started.
+**Dependencies:** `pm-log-srv` must be running and reachable (its LALF-PS
+publish/pull ports, default `5601`/`5602`) with `log.db` on a filesystem
+path the bridge can read. The Diagnostics view additionally needs
+`pm-log-cli` on `PATH` wherever the bridge runs; without it, that one
+endpoint returns a friendly 503 and every other view keeps working.
 
 ## Project layout
 
@@ -23,7 +22,8 @@ log-gui/
   packages/
     log-types/                     Shared TS types (rows, filters, issues, WS frame schema)
     log-query/                     Filter -> parameterised SQL compiler + aggregate query builders
-  Dockerfile / docker-compose.yml  Single-container production image
+  Dockerfile                       Single-container production image
+  docker-compose.yml               Compose wrapper around Dockerfile
   Makefile                         Full local and container lifecycle targets
 ```
 
@@ -34,9 +34,9 @@ read-only for history/search/aggregation, fingerprints `WARNING+` rows into
 issues, and owns a separate, small SQLite file for acknowledgement state —
 the only thing this project writes anywhere.
 
-## Getting started
+## Quick start
 
-**Fastest path — container:**
+### Container
 
 ```bash
 make up     # detects podman or docker, builds image, starts on http://localhost:8091
@@ -45,97 +45,113 @@ make down   # stop and remove
 
 The container needs to reach `pm-log-srv`'s LALF-PS ports (`5601`/`5602` by
 default) and a filesystem path to `log.db`; see the comments in
-`docker-compose.yml` for how those are wired in.
+`docker-compose.yml` for how those are wired in (two separate volumes: one
+read-only mount of `pm-log-srv`'s data directory, one read-write for this
+project's own ack store).
 
-**Local development:**
+### Development server
 
 ```bash
 make install   # npm ci from lockfile
-make dev       # starts the bridge (port 8091) + web dev server (port 5178) together
+make dev       # starts the bridge (port 5191) + web dev server (port 8191) together
 ```
 
-Open **http://127.0.0.1:5178**. Run `make help` for a full list of targets.
+Open **http://127.0.0.1:8191**. This assumes `pm-log-srv` is already
+running locally with its default ports (`5600` LALF, `5601` PUB, `5602`
+PULL) and `data/log.db` exists. Run `make help` for the full target list.
 
-This assumes `pm-log-srv` is already running locally with its default ports
-(`5600` LALF, `5601` PUB, `5602` PULL) and `data/log.db` exists. Override with
-environment variables (`LOG_SRV_HOST`, `LOG_SRV_PUB_PORT`, `LOG_SRV_PULL_PORT`,
-`LOG_DB_PATH`, `ACK_STORE_PATH`) — see `apps/bridge/src/config.ts` for the
-full list and defaults, which mirror the design's §20 config reference.
+## Environment variables
 
-### Settings the frontend needs
+| Variable                 | Default                                    | Description                                           |
+| -------------------------- | --------------------------------------------- | -------------------------------------------------------- |
+| `HOST`                     | `127.0.0.1`                                    | Bridge bind address                                       |
+| `PORT`                      | `5191` (dev), `8091` (container)                | Bridge listen port                                         |
+| `CORS_ORIGIN`               | `*`                                             | CORS allow-list; restrict to your site origin in production |
+| `STATIC_DIR`                | _(unset)_                                       | Serve a built frontend from here (single-container mode)  |
+| `LOG_SRV_HOST`              | `127.0.0.1`                                     | Host running `pm-log-srv`                                  |
+| `LOG_SRV_PUB_PORT`          | `5601`                                          | `pm-log-srv` LALF-PS publish port                          |
+| `LOG_SRV_PULL_PORT`         | `5602`                                          | `pm-log-srv` LALF-PS pull port                             |
+| `SUB_ID_PREFIX`             | `pm-log-bridge`                                 | LALF-PS subscription id prefix                             |
+| `LEASE_SEC`                 | `30`                                            | LALF-PS subscription lease, in seconds                     |
+| `LOG_DB_PATH`               | `<data dir>/log.db`                             | Path to `pm-log-srv`'s SQLite database (read-only)          |
+| `ACK_STORE_PATH`            | `<data dir>/log-ui-acks.db`                     | Path to this project's own acknowledgement store (read-write) |
+| `ISSUES_RETENTION_DAYS`     | `7`                                             | How long fingerprinted issues are kept                     |
+| `ISSUES_MIN_LEVEL`          | `WARNING`                                       | Minimum log level fingerprinted into an issue              |
+| `ISSUES_ALERT_LEVEL`        | `ERROR`                                         | Minimum log level that raises an alert                     |
+| `ERROR_RATE_NORMAL_PER_MIN` | `5`                                              | Error-rate threshold: normal band                          |
+| `ERROR_RATE_ELEVATED_PER_MIN` | `20`                                           | Error-rate threshold: elevated band                        |
+| `ERROR_RATE_SEVERE_PER_MIN` | `100`                                            | Error-rate threshold: severe band                          |
+| `PROCESS_SILENCE_SEC`       | `30`                                             | Seconds of silence before a process is flagged stalled      |
+| `QUERY_MAX_ROWS`            | `5000`                                          | Row cap on interactive queries                             |
+| `EXPORT_MAX_ROWS`           | `1000000`                                       | Row cap on CSV/export queries                              |
+| `LIVE_BATCH_THRESHOLD_PER_SEC` | `50`                                          | Live-tail rows/sec above which the bridge batches WS frames |
+| `LOG_CLI_COMMAND`           | `pm-log-cli`                                    | Command used to invoke `pm-log-cli --format json diagnose` |
+| `EDUMATCHER_DATA_DIR`       | _(auto-detected)_                               | Overrides the data directory `LOG_DB_PATH`/`ACK_STORE_PATH` default from |
 
-`alertLevel`, `issuesMinLevel`, `processSilenceSec` and the `errorRate`
-thresholds reach the browser through **`GET /api/ui-config`**
-(`apps/bridge/src/routes/ui-config.ts`). The frontend deliberately keeps **no
-local defaults** for these — a fallback constant in a component is how these
-settings previously ended up parsed-but-ignored, with the bridge reading an
-environment variable while the UI used a hard-coded number. When adding a
-setting the UI must respect, extend `UiConfig` in
-`packages/log-types/src/ui-config.ts` and read it via `useUiConfig()`; do not
-introduce a component-level constant.
+`<data dir>` resolves the same way the Python side does: `$EDUMATCHER_DATA_DIR`
+if set, else `<repo>/src/data` when running from a source checkout, else
+`~/.local/share/edumatcher`.
 
-Anything shared between the two sides belongs in `@edumatcher/log-types` for
-the same reason — `classifyErrorRate()` lives there so the bridge and the
-browser cannot disagree about where a severity band begins.
+The `PORT` default above (`5191`) applies only when running the bridge
+directly via `make dev`/`tsx`; the container always sets `PORT=8091`
+explicitly via its Dockerfile, so the two never conflict.
 
-### A note on `package-lock.json` and a known npm dedup bug
+## Startup sequence
 
-`make install` runs `npm ci` once `package-lock.json` exists, exactly like
-`config-gui`. If that lockfile is ever deleted and regenerated from scratch,
-some npm versions (observed on npm 11.17.0) crash during dependency
-resolution with `TypeError: Invalid Version:` thrown from
-`@npmcli/arborist`'s dedup step. The cause: the workspace root (via
-`vitest`'s `vite` peer dependency) and `apps/web` (which needs its own real
-`vite` devDependency to run the dev server/build) both resolve to the
-*same* `vite` version, which pulls the *same* `esbuild` version at both
-nesting levels — and that specific "two nodes, identical version, should
-dedupe" case trips the bug in that npm release. `config-gui` never hits
-this because its older `vitest` pin happens to resolve a different `vite`/
-`esbuild` pair than its own `apps/web` — an accident of version history,
-not a deliberate design.
+1. Start `pm-log-srv` first (it must already be publishing on its LALF-PS
+   ports and have created `log.db`).
+2. Optionally have `pm-log-cli` on `PATH` if you want the Diagnostics view.
+3. Start this GUI: `make up` (container) or `make dev` (development). The
+   bridge connects to `pm-log-srv` on startup; if it's unreachable, retry by
+   restarting the bridge once `pm-log-srv` is up.
 
-`make install`'s `install` target already works around this: when no
-lockfile exists yet, it runs `npm install --no-dedupe` for the first
-resolution (skipping the crashing dedup step), then relies on plain
-`npm ci` against the resulting lockfile from then on. If you hit the
-`Invalid Version:` crash anyway (e.g. calling `npm install` directly
-instead of through `make install`), rerun with `--no-dedupe`.
+## Other Makefile targets
 
-## Developer commands
+| Target        | Description                                                          |
+| -------------- | ---------------------------------------------------------------------- |
+| `build`         | Type-check + production build of all workspaces                        |
+| `build-debug`   | Frontend build with sourcemaps, unminified                             |
+| `typecheck`     | Type-check every workspace                                             |
+| `test`          | Run unit tests (Vitest): log-query, bridge fingerprinting/issue-index/ack-store |
+| `lint`          | Alias for `typecheck`                                                  |
+| `format`        | Format source with Prettier                                            |
+| `dev-web`       | Only the web dev server (Vite)                                         |
+| `dev-bridge`    | Only the Fastify bridge (LALF-PS + log.db + WS)                        |
+| `cnt-build`     | Build the container image via compose without starting it              |
+| `proxy-up`      | Start the container stack through a local dev proxy                    |
+| `restart`       | Restart the container stack                                            |
+| `logs`          | Follow container logs                                                  |
+| `ps`            | Show container stack status                                            |
+| `dist`          | Build a distributable: container image + exported OCI tarball in `dist/` |
+| `clean`         | Remove local build artifacts and `dist/`                               |
 
-```bash
-npm test              # unit tests: log-query, bridge fingerprinting/issue-index/ack-store (Vitest)
-npm run typecheck     # type-check every workspace
-npm run build         # type-check + build the production frontend bundle
-```
+## Other relevant information
 
-## Diagnostics endpoint and `pm-log-cli`
+**Settings the frontend needs:** `alertLevel`, `issuesMinLevel`,
+`processSilenceSec` and the `errorRate` thresholds reach the browser through
+`GET /api/ui-config` (`apps/bridge/src/routes/ui-config.ts`). The frontend
+deliberately keeps no local defaults for these — extend `UiConfig` in
+`packages/log-types/src/ui-config.ts` and read it via `useUiConfig()` rather
+than introducing a component-level constant.
 
-`GET /api/diagnostics` shells out to `pm-log-cli --format json diagnose`
-rather than reimplementing the seven heuristics in TypeScript, so there is
-exactly one implementation to keep correct (see design §12.2, §23 open
-question 1). This means the Diagnostics view needs `pm-log-cli` installed
-and on `PATH` wherever the bridge runs; if it is not, the endpoint returns a
-friendly 503 and every other view keeps working. Override the command with
-the `LOG_CLI_COMMAND` environment variable if it isn't invoked as
-`pm-log-cli` in your deployment (e.g. `poetry run pm-log-cli`).
+**A note on `package-lock.json` and a known npm dedup bug:** `make install`
+runs `npm ci` once `package-lock.json` exists. If that lockfile is ever
+deleted and regenerated from scratch, some npm versions (observed on npm
+11.17.0) crash during dependency resolution with `TypeError: Invalid
+Version:` — the workspace root and `apps/web` both resolve the same `vite`/
+`esbuild` pair, which trips an arborist dedup bug. `make install` already
+works around this: when no lockfile exists yet, it runs
+`npm install --no-dedupe` for the first resolution, then relies on plain
+`npm ci` from then on. If you hit the crash calling `npm install` directly,
+rerun with `--no-dedupe`.
 
-## Maintenance — keeping the bridge in sync with `pm-log-srv`
-
-Two places re-implement pieces of `pm-log-srv`'s Python surface in
-TypeScript, and both carry a `MAINTENANCE:`-style comment naming their
-Python counterpart:
-
-- `packages/log-query/src/filter-to-sql.ts` mirrors
-  `edumatcher.log_srv.pubsub.LogFilter.sql_where()` /
-  `edumatcher.log_cli.queries.query_events()`.
-- `apps/bridge/src/lalf-ps-uplink.ts` mirrors the LALF-PS wire messages
-  documented in `docs-design/EduMatcher-log-srv.md` §15 and implemented in
-  `edumatcher.log_srv.pubsub`.
-- `apps/bridge/src/fingerprint.ts` implements the normalisation rules from
-  `docs-design/EduMatcher-log-GUI.md` §11.1 — there is no Python
-  counterpart to mirror, since fingerprinting is new surface this project
-  introduces.
-
-When `pm-log-srv`'s schema, LALF-PS message set, or `log_cli` query shape
-changes, update the corresponding TypeScript side and re-run `npm test`.
+**Keeping the bridge in sync with `pm-log-srv`:** two places re-implement
+pieces of `pm-log-srv`'s Python surface in TypeScript and carry a
+`MAINTENANCE:`-style comment naming their Python counterpart —
+`packages/log-query/src/filter-to-sql.ts` (mirrors
+`edumatcher.log_srv.pubsub.LogFilter.sql_where()` /
+`edumatcher.log_cli.queries.query_events()`) and
+`apps/bridge/src/lalf-ps-uplink.ts` (mirrors the LALF-PS wire messages
+implemented in `edumatcher.log_srv.pubsub`). When `pm-log-srv`'s schema,
+LALF-PS message set, or `log_cli` query shape changes, update the
+corresponding TypeScript side and re-run `npm test`.

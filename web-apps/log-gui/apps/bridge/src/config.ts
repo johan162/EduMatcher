@@ -89,7 +89,7 @@ function logLevelFromEnv(name: string, fallback: LogLevel): LogLevel {
 export function loadBridgeConfig(): BridgeConfig {
   return {
     host: process.env.HOST ?? "127.0.0.1",
-    port: intFromEnv("PORT", 8091),
+    port: intFromEnv("PORT", 5191),
     corsOrigin: process.env.CORS_ORIGIN ?? "*",
     staticDir: process.env.STATIC_DIR || undefined,
 

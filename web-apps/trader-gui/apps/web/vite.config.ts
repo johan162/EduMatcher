@@ -12,7 +12,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 8193,
     proxy: {
       // Forward REST and WebSocket calls to pm-api-gwy during development,
       // avoiding browser CORS restrictions.
