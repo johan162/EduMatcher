@@ -57,7 +57,7 @@ NC        := \033[0m
 	dev serve \
 	cnt-build proxy-up up down restart logs ps \
 	dist \
-	clean
+	clean distclean
 
 # --------------------------------------------------------------------------------------------
 # Help
@@ -150,15 +150,15 @@ format: check-npm ## Format all source files with Prettier
 # --------------------------------------------------------------------------------------------
 # Development server
 # --------------------------------------------------------------------------------------------
-dev: check-npm ## Start the Vite dev server (hot-reload on :5173)
-	@echo -e "$(CYAN)→ Starting dev server on http://localhost:5173$(NC)"
+dev: check-npm ## Start the Vite dev server (hot-reload on :8193)
+	@echo -e "$(CYAN)→ Starting dev server on http://localhost:8193$(NC)"
 	$(NPM) run dev
 
 # --------------------------------------------------------------------------------------------
 # Production serve
 # --------------------------------------------------------------------------------------------
-serve: check-npm ## Serve the production build (apps/web/dist/) on :4173
-	@echo -e "$(CYAN)→ Serving production build on http://localhost:4173$(NC)"
+serve: check-npm ## Serve the production build (apps/web/dist/) on :8093
+	@echo -e "$(CYAN)→ Serving production build on http://localhost:8093$(NC)"
 	@echo -e "$(YELLOW)   Set PORT / HOST / API_PROXY_TARGET to override defaults.$(NC)"
 	$(NPM) run pm-trading-ui-serve
 
@@ -231,12 +231,22 @@ dist: check-container-env ## Build a distributable: container image + exported O
 	@echo -e "$(GREEN)✓ Distributable ready: $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar.gz$(NC)"
 	@echo -e "$(BLUE)  Load on another host:$(NC)"
 	@echo -e "$(BLUE)    $(CONTAINER_RUNTIME) load --input $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar.gz$(NC)"
-	@echo -e "$(BLUE)  Then run: $(CONTAINER_RUNTIME) run -p 4173:4173 $(IMAGE)$(NC)"
+	@echo -e "$(BLUE)  Then run: $(CONTAINER_RUNTIME) run -p 8093:8093 $(IMAGE)$(NC)"
 
 # --------------------------------------------------------------------------------------------
 # Clean
 # --------------------------------------------------------------------------------------------
-clean: ## Remove build artefacts and node_modules
+clean: ## Remove local Node build artifacts and dist/
 	@echo -e "$(YELLOW)→ Cleaning…$(NC)"
-	rm -rf apps/web/$(DIST_DIR) node_modules apps/web/node_modules
+	rm -rf apps/web/$(DIST_DIR)
+	find apps -type d -name dist -prune -exec rm -rf {} +
+	find apps -type f -name '*.tsbuildinfo' -delete
+	rm -rf $(DIST_DIR)
 	@echo -e "$(GREEN)✓ Clean$(NC)"
+
+distclean: clean ## Remove node_modules and package-lock.json for a pristine `make install`
+	@echo -e "$(YELLOW)→ Removing installed dependencies and lockfile…$(NC)"
+	rm -rf node_modules
+	find apps -type d -name node_modules -prune -exec rm -rf {} +
+	rm -f package-lock.json
+	@echo -e "$(GREEN)✓ Distclean completed — run 'make install' for a pristine environment$(NC)"

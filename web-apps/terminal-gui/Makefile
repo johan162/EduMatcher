@@ -65,7 +65,7 @@ NC := \033[0m
 	dev dev-web dev-bridge \
 	cnt-build proxy-up up down restart logs ps \
 	dist \
-	clean
+	clean distclean
 
 # --------------------------------------------------------------------------------------------
 # Tool checks
@@ -122,7 +122,7 @@ endef
 
 help: ## Show this help message
 	@echo -e "$(YELLOW)EduMatcher Market Data Terminal - Makefile Targets$(NC)"
-	@$(call print_section,Setup,install|clean)
+	@$(call print_section,Setup,install|clean|distclean)
 	@$(call print_section,Build and Checks,build|build-debug|typecheck|test|lint|format)
 	@$(call print_section,Development,dev|dev-web|dev-bridge)
 	@$(call print_section,Container,check-container-env|cnt-build|proxy-up|up|down|restart|logs|ps)
@@ -268,3 +268,10 @@ clean: ## Remove local Node build artifacts and dist/
 	@find apps packages -type f -name '*.tsbuildinfo' -delete
 	@rm -rf $(DIST_DIR)
 	@echo -e "$(GREEN)✓ Clean completed$(NC)"
+
+distclean: clean ## Remove node_modules and package-lock.json for a pristine `make install`
+	@echo -e "$(YELLOW)- Removing installed dependencies and lockfile...$(NC)"
+	@rm -rf node_modules
+	@find apps packages -type d -name node_modules -prune -exec rm -rf {} +
+	@rm -f package-lock.json
+	@echo -e "$(GREEN)✓ Distclean completed — run 'make install' for a pristine environment$(NC)"
