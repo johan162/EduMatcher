@@ -12,7 +12,7 @@ KEEP_WORK_DIR="${KEEP_WORK_DIR:-0}"
 
 BASE_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_REF}/vm"
 BUILD_SCRIPT_PATH="$WORK_DIR/mknode.sh"
-INSTALL_SCRIPT_PATH="$WORK_DIR/install_edumatcher_runtime.sh"
+INSTALL_SCRIPT_PATH="$WORK_DIR/install_edumatcher.sh"
 
 cleanup() {
   if [[ "$KEEP_WORK_DIR" != "1" ]]; then
@@ -35,7 +35,7 @@ fi
 
 echo "Downloading VM scripts from ${REPO_OWNER}/${REPO_NAME}@${REPO_REF}..."
 curl -fsSL "${BASE_URL}/build_multipass_vm.sh" -o "$BUILD_SCRIPT_PATH"
-curl -fsSL "${BASE_URL}/install_edumatcher_runtime.sh" -o "$INSTALL_SCRIPT_PATH"
+curl -fsSL "${BASE_URL}/install_edumatcher.sh" -o "$INSTALL_SCRIPT_PATH"
 chmod +x "$BUILD_SCRIPT_PATH" "$INSTALL_SCRIPT_PATH"
 
 echo "Starting VM build..."

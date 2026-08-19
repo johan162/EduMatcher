@@ -173,13 +173,8 @@ def main() -> None:
     print()
     print("  Then start the exchange with:")
     print()
-    print("    pm-engine --verbose     # terminal 1 — matching engine")
-    print("    pm-scheduler            # terminal 2 — session phases (optional)")
-    print("    pm-alf-console --id GW01    # terminal 3 — participant terminal")
+    print("    pm-opctl-cli start")
     print()
-    print("  Or launch everything at once:")
-    print()
-    print("    tools/launch_all.sh")
     print()
 
 

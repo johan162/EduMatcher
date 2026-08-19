@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# Build and provision a VM with a pinned EduMatcher runtime.
+# Build and provision a multipass VM with a pinned EduMatcher runtime.
 # Requires: multipass on the host machine.
-
-
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -11,15 +9,17 @@ BLUE='\033[0;34m'
 WHITE='\033[1;37m'
 TEAL='\033[0;36m'
 GRAY='\033[0;37m'
+DARK_GREY='\033[90m'
 LIGHT_GRAY='\033[0;37m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+INSTALL_SCRIPT="install_edumatcher.sh"
 
-VM_NAME="edumatcher-vm"
+VM_NAME="ems"
 VM_IMAGE="lts"
-VM_CPUS="2"
+VM_CPUS="4"
 VM_MEMORY="4G"
 VM_DISK="6G"
 CREATE_SNAPSHOT="true"
@@ -46,7 +46,7 @@ Options:
   --help                       Show this help text
 
 Example:
-  $0 --name edumatcher-vm --version 0.20.1 --snapshot
+  $0 --name ems --version 0.20.1 --snapshot
 EOF
 }
 
@@ -146,7 +146,7 @@ if ! multipass launch "$VM_IMAGE" \
 fi
 
 echo -e "${BLUE}Installing provisioning script...${NC}"
-multipass transfer "$SCRIPT_DIR/install_edumatcher_runtime.sh" "$VM_NAME:/tmp/install_edumatcher_runtime.sh"
+multipass transfer "$SCRIPT_DIR/$INSTALL_SCRIPT" "$VM_NAME:/tmp/$INSTALL_SCRIPT"
 
 echo -e "${BLUE}Now provisioning EduMatcher $EDUMATCHER_VERSION...${NC}"
 
@@ -156,17 +156,17 @@ multipass exec "$VM_NAME" -- sudo apt-get upgrade -y
 # Run the provisioning script with the specified version. 
 # The script will install Python, create a virtual environment, 
 # install the specified version of edumatcher, and symlink the console scripts.
-multipass exec "$VM_NAME" -- sudo chmod +x /tmp/install_edumatcher_runtime.sh
+multipass exec "$VM_NAME" -- sudo chmod +x /tmp/"$INSTALL_SCRIPT"
 if [[ "$EDUMATCHER_VERSION" == "latest" ]]; then
-  multipass exec "$VM_NAME" -- sudo /tmp/install_edumatcher_runtime.sh
+  multipass exec "$VM_NAME" -- sudo /tmp/"$INSTALL_SCRIPT"
 elif [[ "$EDUMATCHER_VERSION" == "dev" ]]; then
   echo -e "${BLUE}Transferring local wheel file to VM for dev installation...${NC}"
   echo -e "${BLUE}Looking for wheel file in \"$REPO_ROOT/dist/*.whl\" to \"$VM_NAME:/tmp/\"...${NC}"
   multipass transfer $REPO_ROOT/dist/*.whl $VM_NAME:/tmp/
   echo -e "${GREEN}Installing local wheel file DONE.${NC}"
-  multipass exec "$VM_NAME" -- sudo /tmp/install_edumatcher_runtime.sh --dev
+  multipass exec "$VM_NAME" -- sudo /tmp/"$INSTALL_SCRIPT" --dev
 else
-  multipass exec "$VM_NAME" -- sudo /tmp/install_edumatcher_runtime.sh --version "$EDUMATCHER_VERSION"
+  multipass exec "$VM_NAME" -- sudo /tmp/"$INSTALL_SCRIPT" --version "$EDUMATCHER_VERSION"
 fi
 
 if [[ $? -ne 0 ]]; then
@@ -197,26 +197,29 @@ if [[ "$CREATE_SNAPSHOT" == "true" ]]; then
   multipass start "$VM_NAME"
 fi
 
+sleep 2 # Give the VM a moment to start and get an IP address
+
+VM_IP=$(multipass info "$VM_NAME" | grep IP |  grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
+
 echo -e "--------------------------------------------------------------------------"
 echo -e "${GREEN}VM '$VM_NAME' is ready with EduMatcher $EDUMATCHER_VERSION installed.${NC}"
-
-echo -e "${GRAY}Open a shell into the VM:${NC}"
-echo -e "${WHITE}multipass shell $VM_NAME${NC}"
-echo -e "${GRAY}Inside the VM, check the installed pm-* commands:${NC}"
-echo -e "${WHITE}ls -1 /usr/local/bin/pm-*${NC}"
 echo ""
-echo -e "${GRAY}Change to the session directory:${NC}"
-echo -e "${WHITE}cd /home/ubuntu/session${NC}"
+echo -e "${DARK_GRAY}Open a shell into the VM:${NC}" "\t\t${WHITE}multipass shell $VM_NAME${NC}"
+echo -e "${DARK_GRAY}Change to the session directory:${NC}" "\t${WHITE}cd /home/ubuntu/session${NC}"
 echo ""
-echo -e "${GRAY}To start the system:${NC}"
-echo -e "${WHITE}pm-opctl-cli start${NC}"
+echo -e "${DARK_GRAY}Start the system:${NC}" "\t\t\t${WHITE}pm-opctl-cli start${NC}"
+echo -e "${DARK_GRAY}Stop the system:${NC}" "\t\t\t${WHITE}pm-opctl-cli stop${NC}"
 echo ""
-echo -e "${GRAY}To stop the system:${NC}"
-echo -e "${WHITE}pm-opctl-cli stop${NC}"
+echo -e "${DARK_GRAY}Check the installed pm-* commands:${NC}" "\t${WHITE}ls -1 /usr/local/bin/pm-*${NC}"
+echo -e "${DARK_GRAY}To list all running processes:${NC}" "\t\t${WHITE}pm-opctl-cli list${NC}"
+echo -e "${DARK_GRAY}Restore snapshot:${NC}" "\t\t\t${WHITE}multipass restore -d $VM_NAME.$SNAPSHOT_NAME${NC}"
+echo -e "${DARK_GRAY}Delete VM:${NC}" "\t\t\t\t${WHITE}multipass delete --purge $VM_NAME${NC}"
+echo -e "${DARK_GRAY}List all VMs:${NC}" "\t\t\t\t${WHITE}multipass list${NC}"
+echo -e "${DARK_GRAY}List all snapshots:${NC}" "\t\t\t${WHITE}multipass list --snapshots${NC}"
+echo -e "${DARK_GRAY}Delete snapshot:${NC}" "\t\t\t${WHITE}multipass delete --purge $VM_NAME.$SNAPSHOT_NAME${NC}"
+echo -e ""
+echo -e "${DARK_GRAY}The VM is running as non-root user: \t${YELLOW}ubuntu${NC}"
+echo -e "${DARK_GRAY}VM IP address: \t\t\t\t${YELLOW}$VM_IP${NC}"
+echo -e "--------------------------------------------------------------------------"
 echo ""
-echo -e "${GRAY}To list all running processes:${NC}"
-echo -e "${WHITE}pm-opctl-cli list${NC}"
-
-echo -e "${GRAY}To restore snapshot to get back to a clean state:${NC}"
-echo -e "${WHITE}multipass restore -d $VM_NAME.$SNAPSHOT_NAME${NC}"
-
+exit 0
