@@ -1857,6 +1857,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -4520,10 +4548,10 @@ The repetition form:</p>
 <li><code>key = 1*( ALPHA / DIGIT / "_" / "." )</code> means a key is <strong>one or more</strong>
   letters, digits, underscores, or dots</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>alf-line      = command *( &quot;|&quot; segment )
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>command       = 1*( ALPHA / &quot;_&quot; )
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>segment       = key &quot;=&quot; value
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>key           = 1*( ALPHA / DIGIT / &quot;_&quot; / &quot;.&quot; )
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>alf-line      = command *( "|" segment )
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>command       = 1*( ALPHA / "_" )
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>segment       = key "=" value
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>key           = 1*( ALPHA / DIGIT / "_" / "." )
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>value         = *VCHAR
 </code></pre></div>
 <p><code>VCHAR</code> is also ABNF terminology. It means a <strong>visible printable character</strong>.
@@ -4793,12 +4821,12 @@ print a summary to.</p>
 </code></pre></div>
 <h3 id="formal-grammar_1">Formal grammar<a class="headerlink" href="#formal-grammar_1" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>new-single =
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    &quot;NEW&quot;
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    &quot;|SYM=&quot; symbol
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    &quot;|SIDE=&quot; side
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    &quot;|TYPE=&quot; order-type
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    &quot;|QTY=&quot; quantity
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    *( &quot;|&quot; option )
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    "NEW"
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    "|SYM=" symbol
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    "|SIDE=" side
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    "|TYPE=" order-type
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    "|QTY=" quantity
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    *( "|" option )
 </code></pre></div>
 <p>Where <code>option</code> depends on the selected order type.</p>
 <h3 id="supported-single-leg-order-types">Supported single-leg order types<a class="headerlink" href="#supported-single-leg-order-types" title="Permanent link">&para;</a></h3>

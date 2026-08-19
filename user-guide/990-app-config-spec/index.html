@@ -1857,6 +1857,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -4160,7 +4188,7 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="nt">market_maker_combos</span><span class="p">:</span><span class="w">        </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">List&lt;ComboSeedSpec&gt;</span><span class="w">              </span><span class="c1"># each: 2..10 legs</span>
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="nt">indices</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">List&lt;IndexSpec&gt;</span><span class="w">                  </span><span class="c1"># ≤ 5</span>
 <a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="nt">schedule</span><span class="p">:</span><span class="w">                   </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ScheduleSpec</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="nt">country</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Country = &quot;Sweden&quot;</span><span class="w">               </span><span class="c1"># read by pm-scheduler only</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="nt">country</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Country = "Sweden"</span><span class="w">               </span><span class="c1"># read by pm-scheduler only</span>
 <a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
 <a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="c1"># ── AUXILIARY GATEWAY BLOCKS (each read by its own process) ─────────────────</span>
 <a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="nt">alf_gateway</span><span class="p">:</span><span class="w">                </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AlfGwyProcSpec</span><span class="w">        </span><span class="c1"># pm-alf-gwy</span>
@@ -4183,7 +4211,7 @@ This tree is normative for <em>shape</em>; §4–§6 are normative for <em>field
 <a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>
 <a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="nt">AlfGatewaySpec</span><span class="p">:</span><span class="w">                              </span><span class="c1"># one entry of gateways.alf</span>
 <a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="w">  </span><span class="nt">id</span><span class="p">:</span><span class="w">                       </span><span class="kt">!</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GatewayId</span>
-<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Str = &quot;&quot;</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w">              </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Str = ""</span>
 <a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="w">  </span><span class="nt">role</span><span class="p">:</span><span class="w">                    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;Role&gt; = TRADER</span>
 <a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a><span class="w">  </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w">    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;DisconnectBehaviour&gt; = CANCEL_QUOTES_ONLY</span>
 <a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="w">  </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w">    </span><span class="err">?</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Enum&lt;QuoteRefreshPolicy&gt; = INACTIVATE_ON_ANY_FILL</span>

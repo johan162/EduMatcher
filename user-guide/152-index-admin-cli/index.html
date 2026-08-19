@@ -2086,6 +2086,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -3814,15 +3842,15 @@ for the command (<code>index.corp_action_ack.&lt;gateway_id&gt;</code> /
 method and raises immediately instead of waiting out the full <code>--timeout</code>
 for an ack that will never arrive:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>split<span class="w"> </span>--index<span class="w"> </span>NOPE<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--ratio<span class="w"> </span><span class="m">2</span>:1<span class="w"> </span>--yes
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>REJECTED<span class="w">  </span>Unknown<span class="w"> </span>index_id<span class="w"> </span><span class="s1">&#39;NOPE&#39;</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>REJECTED<span class="w">  </span>Unknown<span class="w"> </span>index_id<span class="w"> </span><span class="s1">'NOPE'</span>
 </code></pre></div>
 <p><code>--format json</code> prints the raw error payload instead of the summary line,
 consistent with every other rejection:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>split<span class="w"> </span>--index<span class="w"> </span>NOPE<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--ratio<span class="w"> </span><span class="m">2</span>:1<span class="w"> </span>--yes
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="o">{</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="s2">&quot;accepted&quot;</span>:<span class="w"> </span>false,
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="s2">&quot;reason&quot;</span>:<span class="w"> </span><span class="s2">&quot;Unknown index_id &#39;NOPE&#39;&quot;</span>,
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="s2">&quot;timestamp&quot;</span>:<span class="w"> </span><span class="m">1784500215</span>.39
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="s2">"accepted"</span>:<span class="w"> </span>false,
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="s2">"reason"</span>:<span class="w"> </span><span class="s2">"Unknown index_id 'NOPE'"</span>,
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="s2">"timestamp"</span>:<span class="w"> </span><span class="m">1784500215</span>.39
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="o">}</span>
 </code></pre></div>
 <p>Under the hood, this is implemented as an <code>error_prefix</code> parameter on
@@ -3837,7 +3865,7 @@ to any caller of <code>index_corp_action()</code>, <code>index_delist()</code>,
 <p>A genuine unreachable-<code>pm-index</code> timeout (no reply of any kind) is
 unaffected and still produces the original timeout message:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>--push<span class="w"> </span>tcp://127.0.0.1:59999<span class="w"> </span>split<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--ratio<span class="w"> </span><span class="m">4</span>:1<span class="w"> </span>--yes
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Timed<span class="w"> </span>out<span class="w"> </span>waiting<span class="w"> </span><span class="k">for</span><span class="w"> </span>pm-index:<span class="w"> </span>No<span class="w"> </span>ack<span class="w"> </span>with<span class="w"> </span>prefix<span class="w"> </span><span class="s1">&#39;index.corp_action_ack.OPS01&#39;</span><span class="w"> </span>within<span class="w"> </span><span class="m">3000</span><span class="w"> </span>ms
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Timed<span class="w"> </span>out<span class="w"> </span>waiting<span class="w"> </span><span class="k">for</span><span class="w"> </span>pm-index:<span class="w"> </span>No<span class="w"> </span>ack<span class="w"> </span>with<span class="w"> </span>prefix<span class="w"> </span><span class="s1">'index.corp_action_ack.OPS01'</span><span class="w"> </span>within<span class="w"> </span><span class="m">3000</span><span class="w"> </span>ms
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Is<span class="w"> </span>pm-index<span class="w"> </span>running<span class="w"> </span>and<span class="w"> </span>reachable<span class="w"> </span>at<span class="w"> </span>tcp://127.0.0.1:59999?
 </code></pre></div>
 <h2 id="confirmation-prompts-and-dry-run">Confirmation prompts and <code>--dry-run</code><a class="headerlink" href="#confirmation-prompts-and-dry-run" title="Permanent link">&para;</a></h2>
@@ -3850,14 +3878,14 @@ than hanging — this matters for CI/cron use.</p>
 without sending anything or prompting. Use it to check a <code>--ratio</code> parse or a
 <code>--delta</code>-resolved share count before committing:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>split<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--ratio<span class="w"> </span><span class="m">4</span>:1<span class="w"> </span>--dry-run
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>DRY<span class="w"> </span>RUN<span class="w"> </span>—<span class="w"> </span>would<span class="w"> </span>send<span class="w"> </span><span class="nv">topic</span><span class="o">=</span><span class="s1">&#39;index.corp_action&#39;</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>DRY<span class="w"> </span>RUN<span class="w"> </span>—<span class="w"> </span>would<span class="w"> </span>send<span class="w"> </span><span class="nv">topic</span><span class="o">=</span><span class="s1">'index.corp_action'</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="o">{</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="s2">&quot;action&quot;</span>:<span class="w"> </span><span class="s2">&quot;SPLIT&quot;</span>,
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="s2">&quot;gateway_id&quot;</span>:<span class="w"> </span><span class="s2">&quot;OPS01&quot;</span>,
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="s2">&quot;index_id&quot;</span>:<span class="w"> </span><span class="s2">&quot;TECH10&quot;</span>,
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="s2">&quot;ratio_denominator&quot;</span>:<span class="w"> </span><span class="m">1</span>,
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="s2">&quot;ratio_numerator&quot;</span>:<span class="w"> </span><span class="m">4</span>,
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="s2">&quot;symbol&quot;</span>:<span class="w"> </span><span class="s2">&quot;AAPL&quot;</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="s2">"action"</span>:<span class="w"> </span><span class="s2">"SPLIT"</span>,
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="s2">"gateway_id"</span>:<span class="w"> </span><span class="s2">"OPS01"</span>,
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="s2">"index_id"</span>:<span class="w"> </span><span class="s2">"TECH10"</span>,
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="s2">"ratio_denominator"</span>:<span class="w"> </span><span class="m">1</span>,
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="s2">"ratio_numerator"</span>:<span class="w"> </span><span class="m">4</span>,
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="s2">"symbol"</span>:<span class="w"> </span><span class="s2">"AAPL"</span>
 <a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="o">}</span>
 </code></pre></div>
 <p><code>history</code> is read-only and never prompts, regardless of <code>--yes</code>.</p>
@@ -4119,11 +4147,11 @@ the raw ack payload (or, for <code>history</code>, a JSON array of records) inst
 for scripting:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>$<span class="w"> </span>pm-index-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>split<span class="w"> </span>--index<span class="w"> </span>TECH10<span class="w"> </span>--sym<span class="w"> </span>AAPL<span class="w"> </span>--ratio<span class="w"> </span><span class="m">4</span>:1<span class="w"> </span>--yes
 <a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="o">{</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="s2">&quot;accepted&quot;</span>:<span class="w"> </span>true,
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">  </span><span class="s2">&quot;divisor&quot;</span>:<span class="w"> </span><span class="m">118</span>.3352,
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">  </span><span class="s2">&quot;index_id&quot;</span>:<span class="w"> </span><span class="s2">&quot;TECH10&quot;</span>,
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">  </span><span class="s2">&quot;level&quot;</span>:<span class="w"> </span><span class="m">8452</span>.17,
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">  </span><span class="s2">&quot;reason&quot;</span>:<span class="w"> </span><span class="s2">&quot;&quot;</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="s2">"accepted"</span>:<span class="w"> </span>true,
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">  </span><span class="s2">"divisor"</span>:<span class="w"> </span><span class="m">118</span>.3352,
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">  </span><span class="s2">"index_id"</span>:<span class="w"> </span><span class="s2">"TECH10"</span>,
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">  </span><span class="s2">"level"</span>:<span class="w"> </span><span class="m">8452</span>.17,
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">  </span><span class="s2">"reason"</span>:<span class="w"> </span><span class="s2">""</span>
 <a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="o">}</span>
 </code></pre></div>
 <h2 id="typical-operator-workflow">Typical operator workflow<a class="headerlink" href="#typical-operator-workflow" title="Permanent link">&para;</a></h2>

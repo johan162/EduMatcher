@@ -2280,6 +2280,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -3941,7 +3969,7 @@ persistent files:</p>
 </tbody>
 </table>
 <p>Override with <code>EDUMATCHER_DATA_DIR</code> or <code>--log-file</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/sessions/morning&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/sessions/morning"</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-audit<span class="w">  </span><span class="c1"># writes to $HOME/sessions/morning/audit.log</span>
 </code></pre></div>
 <h2 id="pm-audit-event-recorder">pm-audit — Event Recorder<a class="headerlink" href="#pm-audit-event-recorder" title="Permanent link">&para;</a></h2>
@@ -4023,7 +4051,7 @@ to <code>--buffer-size</code> messages that had not yet been flushed.</p>
 </code></pre></div>
 <h3 id="log-format">Log format<a class="headerlink" href="#log-format" title="Permanent link">&para;</a></h3>
 <p>Every line is an independent JSON record in this exact format:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[2026-07-08T09:30:00.123+00:00] [trade.executed] {&quot;id&quot;: &quot;TRD-001&quot;, &quot;symbol&quot;: &quot;AAPL&quot;, ...}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[2026-07-08T09:30:00.123+00:00] [trade.executed] {"id": "TRD-001", "symbol": "AAPL", ...}
 </code></pre></div>
 <table>
 <thead>
@@ -4479,7 +4507,7 @@ size.</p>
 <a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="c1"># Order events for AAPL in a session</span>
 <a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-08T09:30:00+00:00
 <a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>
-<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="c1"># Export one order&#39;s lifecycle as JSON for a support ticket</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="c1"># Export one order's lifecycle as JSON for a support ticket</span>
 <a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>pm-audit-cli<span class="w"> </span>orders<span class="w"> </span>--id<span class="w"> </span>ORD-GW01-00142<span class="w"> </span>--format<span class="w"> </span>json
 <a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>
 <a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="c1"># Order activity for market-maker in CSV</span>

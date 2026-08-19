@@ -1857,6 +1857,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -4155,13 +4183,13 @@ by <code>10^8</code>.</p>
 <h3 id="symbol-encoding">Symbol encoding<a class="headerlink" href="#symbol-encoding" title="Permanent link">&para;</a></h3>
 <p>Symbols are stored as 8 bytes, zero-padded ASCII, left-aligned.</p>
 <p>Example:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>&quot;AAPL&quot; -&gt; 41 50 50 4C 00 00 00 00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>"AAPL" -&gt; 41 50 50 4C 00 00 00 00
 </code></pre></div>
 <p>Symbols longer than 8 ASCII characters are not supported in BALF <code>1.0.0</code>.</p>
 <h3 id="gateway-id-encoding">Gateway ID encoding<a class="headerlink" href="#gateway-id-encoding" title="Permanent link">&para;</a></h3>
 <p>Gateway IDs are stored as 16 bytes, zero-padded ASCII, left-aligned.</p>
 <p>Example:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>&quot;TRADER01&quot; -&gt; 54 52 41 44 45 52 30 31 00 00 00 00 00 00 00 00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>"TRADER01" -&gt; 54 52 41 44 45 52 30 31 00 00 00 00 00 00 00 00
 </code></pre></div>
 <h3 id="order-id-encoding">Order ID encoding<a class="headerlink" href="#order-id-encoding" title="Permanent link">&para;</a></h3>
 <p>BALF uses a compact <code>u64</code> session-scoped order ID on the wire.</p>
@@ -4566,7 +4594,7 @@ is 1 second.</p>
 <p>If the timeout is exceeded, the connection is considered stale and should be
 closed.</p>
 <p><strong>Body (8 bytes):</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>Offset  0  |  send_time_ns  |  u64 LE  |  Sender&#39;s wall-clock time in nanoseconds since Unix epoch
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>Offset  0  |  send_time_ns  |  u64 LE  |  Sender's wall-clock time in nanoseconds since Unix epoch
 </code></pre></div>
 <h3 id="heartbeat_ack-0x31-bidirectional"><code>HEARTBEAT_ACK</code> (0x31) - Bidirectional<a class="headerlink" href="#heartbeat_ack-0x31-bidirectional" title="Permanent link">&para;</a></h3>
 <p><strong>Body (8 bytes):</strong></p>
@@ -4712,7 +4740,7 @@ any pending outbound messages and then close the connection on its side.</p>
 </table>
 <p><strong>Example:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">balf_gateway</span><span class="p">:</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">"0.0.0.0"</span>
 <a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5560</span>
 <a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
 <a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">  </span><span class="nt">heartbeat_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>

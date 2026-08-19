@@ -5877,6 +5877,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../user-guide/300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../user-guide/800-examples/" class="md-nav__link">
         
   
@@ -9647,37 +9675,37 @@ stateDiagram-v2
 <p>```mermaid{.mermaid width=450}
 flowchart TD
     A["Incoming order\nfrom participant"] --&gt; B</p>
-<div class="highlight"><pre><span></span><code>B{&quot;1. Format &amp;\nsyntax valid?&quot;}
-B --&gt;|No| R1[&quot;REJECTED\nMalformed message&quot;]
+<div class="highlight"><pre><span></span><code>B{"1. Format &amp;\nsyntax valid?"}
+B --&gt;|No| R1["REJECTED\nMalformed message"]
 B --&gt;|Yes| C
 
-C{&quot;2. Symbol\nvalid &amp; tradeable?&quot;}
-C --&gt;|No| R2[&quot;REJECTED\nUnknown / halted symbol&quot;]
+C{"2. Symbol\nvalid &amp; tradeable?"}
+C --&gt;|No| R2["REJECTED\nUnknown / halted symbol"]
 C --&gt;|Yes| D
 
-D{&quot;3. Within rate\nlimit for gateway?&quot;}
-D --&gt;|No| R3[&quot;REJECTED or QUEUED\nThrottle limit exceeded&quot;]
+D{"3. Within rate\nlimit for gateway?"}
+D --&gt;|No| R3["REJECTED or QUEUED\nThrottle limit exceeded"]
 D --&gt;|Yes| E
 
-E{&quot;4. Price within\nfat-finger band?&quot;}
-E --&gt;|No| R4[&quot;REJECTED\nPrice too far from reference&quot;]
+E{"4. Price within\nfat-finger band?"}
+E --&gt;|No| R4["REJECTED\nPrice too far from reference"]
 E --&gt;|Yes| F
 
-F{&quot;5. Quantity &amp;\nnotional within limits?&quot;}
-F --&gt;|No| R5[&quot;REJECTED\nSize / value limit exceeded&quot;]
+F{"5. Quantity &amp;\nnotional within limits?"}
+F --&gt;|No| R5["REJECTED\nSize / value limit exceeded"]
 F --&gt;|Yes| G
 
-G{&quot;6. Short sale\nflag correct?&quot;}
-G --&gt;|No| R6[&quot;REJECTED\nReg SHO violation&quot;]
+G{"6. Short sale\nflag correct?"}
+G --&gt;|No| R6["REJECTED\nReg SHO violation"]
 G --&gt;|Yes| H
 
-H{&quot;7. Position &amp;\ncredit limits OK?&quot;}
-H --&gt;|No| R7[&quot;REJECTED\nPosition / credit limit breached&quot;]
+H{"7. Position &amp;\ncredit limits OK?"}
+H --&gt;|No| R7["REJECTED\nPosition / credit limit breached"]
 H --&gt;|Yes| I
 
-I{&quot;8. SMP\npre-check&quot;}
-I --&gt;|Self-match| R8[&quot;CANCELLED\nper SMP policy&quot;]
-I --&gt;|Clear| J[&quot;→ Matching Engine&quot;]
+I{"8. SMP\npre-check"}
+I --&gt;|Self-match| R8["CANCELLED\nper SMP policy"]
+I --&gt;|Clear| J["→ Matching Engine"]
 </code></pre></div>
 <p>```
 </p>

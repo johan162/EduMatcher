@@ -2440,6 +2440,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -5026,7 +5054,7 @@ routes.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/config-gui
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>npm<span class="w"> </span>install
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>npm<span class="w"> </span>run<span class="w"> </span>build<span class="w">            </span><span class="c1"># emits the static UI to apps/web/dist</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nv">STATIC_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">/apps/web/dist&quot;</span><span class="w"> </span><span class="nv">HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="nv">PORT</span><span class="o">=</span><span class="m">8092</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nv">STATIC_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/apps/web/dist"</span><span class="w"> </span><span class="nv">HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0<span class="w"> </span><span class="nv">PORT</span><span class="o">=</span><span class="m">8092</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span>npm<span class="w"> </span>run<span class="w"> </span>start<span class="w"> </span>--workspace<span class="w"> </span>@edumatcher/server
 </code></pre></div>
 <p>Alternatively host <code>apps/web/dist</code> on any static server and run the API
@@ -5086,7 +5114,7 @@ inherit your host's npm or proxy settings</strong> — it has its own network an
 empty npm config. Behind a proxy or a TLS-intercepting firewall, <code>npm install</code>
 may <strong>hang</strong> (the connection is silently dropped) rather than fail fast.</p>
 <p>First confirm the registry is reachable from inside a container:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>node:22-slim<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;npm config set fetch-timeout 30000 &amp;&amp; npm ping&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>node:22-slim<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s2">"npm config set fetch-timeout 30000 &amp;&amp; npm ping"</span>
 </code></pre></div>
 <p>If that hangs, pass build arguments to route around it. <code>docker compose</code> picks
 up your shell's proxy variables automatically:</p>

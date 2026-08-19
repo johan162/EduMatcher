@@ -1848,6 +1848,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -3492,10 +3520,10 @@ opaque <strong>frames</strong> — byte arrays that are sent and received atomic
 group.  It is up to the application to define what those bytes mean.</p>
 <p>EduMatcher uses exactly <strong>two frames</strong> for every message:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>frame[0]  →  topic string, UTF-8 encoded
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>             e.g.  b&quot;order.ack.GW01&quot;
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>             e.g.  b"order.ack.GW01"
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>frame[1]  →  JSON payload, UTF-8 encoded
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>             e.g.  b&#39;{&quot;order_id&quot;: &quot;3f2a...&quot;, &quot;accepted&quot;: true}&#39;
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>             e.g.  b'{"order_id": "3f2a...", "accepted": true}'
 </code></pre></div>
 <p><code>frame[0]</code> doubles as the <strong>PUB/SUB filter key</strong>.  A subscriber that
 registers for prefix <code>"order.ack.GW01"</code> will receive only messages whose

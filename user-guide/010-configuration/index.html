@@ -2855,6 +2855,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -5881,7 +5909,7 @@ a plain integer tick count (e.g. <code>20950</code>) <strong>or</strong> a decim
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span>--combo<span class="w"> </span><span class="s2">&quot;SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span>--combo<span class="w"> </span><span class="s2">"SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Generated <code>market_maker_combos</code> section:</p>
@@ -5909,8 +5937,8 @@ a plain integer tick count (e.g. <code>20950</code>) <strong>or</strong> a decim
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">  </span>--combo<span class="w"> </span><span class="s2">&quot;PAIR-AM:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">  </span>--combo<span class="w"> </span><span class="s2">&quot;PAIR-AT:AON:DAY:AAPL/BUY/LIMIT/100/20950,TSLA/SELL/LIMIT/20/24800&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">  </span>--combo<span class="w"> </span><span class="s2">"PAIR-AM:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">  </span>--combo<span class="w"> </span><span class="s2">"PAIR-AT:AON:DAY:AAPL/BUY/LIMIT/100/20950,TSLA/SELL/LIMIT/20/24800"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <h3 id="practical-recipes">Practical recipes<a class="headerlink" href="#practical-recipes" title="Permanent link">&para;</a></h3>
@@ -5949,7 +5977,7 @@ a plain integer tick count (e.g. <code>20950</code>) <strong>or</strong> a decim
 <a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>After generation, validate manually:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;from pathlib import Path; from edumatcher.engine.config_loader import load_engine_config; print(load_engine_config(Path(&quot;engine_config.yaml&quot;)))&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'from pathlib import Path; from edumatcher.engine.config_loader import load_engine_config; print(load_engine_config(Path("engine_config.yaml")))'</span>
 </code></pre></div>
 <p>If MM gateways are present and you do not use <code>--seed-mm-mid-range</code>, fill all <code>market_maker_quotes</code> prices first, then
 run the validation command.</p>
@@ -6030,8 +6058,8 @@ run the validation command.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">  </span>--api-key<span class="w"> </span>trader-secret:TRADER01:<span class="s2">&quot;Desk app&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="w">  </span>--api-key<span class="w"> </span>dashboard-secret:null:<span class="s2">&quot;Read-only dashboard&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">  </span>--api-key<span class="w"> </span>trader-secret:TRADER01:<span class="s2">"Desk app"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="w">  </span>--api-key<span class="w"> </span>dashboard-secret:null:<span class="s2">"Read-only dashboard"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="w">  </span>--no-api-gateway-generate-keys<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
@@ -6078,7 +6106,7 @@ of <code>pm-api-gwy</code>.</p>
 <a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7430000000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>TSLA:3200000000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="w">  </span>--index<span class="w"> </span>EDU100:<span class="s2">&quot;EduMatcher broad index&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="w">  </span>--index<span class="w"> </span>EDU100:<span class="s2">"EduMatcher broad index"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="w">  </span>--index-constituents<span class="w"> </span>EDU100:AAPL,MSFT,TSLA<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
@@ -6102,11 +6130,11 @@ of <code>pm-api-gwy</code>.</p>
 <a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15400000000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7430000000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>TSLA:3200000000<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="w">  </span>--index<span class="w"> </span>TECH2:<span class="s2">&quot;Technology pair&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="w">  </span>--index<span class="w"> </span>TECH2:<span class="s2">"Technology pair"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a><span class="w">  </span>--index-constituents<span class="w"> </span>TECH2:AAPL,MSFT<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a><span class="w">  </span>--index-base-value<span class="w"> </span>TECH2:500.0<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a><span class="w">  </span>--index-interval<span class="w"> </span>TECH2:2.0<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a><span class="w">  </span>--index<span class="w"> </span>VOLAT1:<span class="s2">&quot;High-beta watch&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a><span class="w">  </span>--index<span class="w"> </span>VOLAT1:<span class="s2">"High-beta watch"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="w">  </span>--index-constituents<span class="w"> </span>VOLAT1:TSLA<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
@@ -6118,8 +6146,8 @@ of <code>pm-api-gwy</code>.</p>
 <a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7430000000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>TSLA:3200000000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="w">  </span>--combo<span class="w"> </span><span class="s2">&quot;SEED-AM:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="w">  </span>--combo<span class="w"> </span><span class="s2">&quot;SEED-AT:AON:DAY:AAPL/BUY/LIMIT/100/20950,TSLA/SELL/LIMIT/20/24800&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="w">  </span>--combo<span class="w"> </span><span class="s2">"SEED-AM:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="w">  </span>--combo<span class="w"> </span><span class="s2">"SEED-AT:AON:DAY:AAPL/BUY/LIMIT/100/20950,TSLA/SELL/LIMIT/20/24800"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Circuit-breaker ladder with <code>CONTINUOUS</code> resumption on level 2 (no auction on L2 halt recovery):</p>
@@ -6142,10 +6170,10 @@ of <code>pm-api-gwy</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">  </span>--gateways<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="w">    </span><span class="s2">&quot;TRADER01:TRADER:CANCEL_ALL:Student desk 1&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="w">    </span><span class="s2">&quot;TRADER02:TRADER:CANCEL_ALL:Student desk 2&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="w">    </span><span class="s2">&quot;MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="w">    </span><span class="s2">&quot;OPS01:ADMIN:LEAVE_ALL:Instructor console&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="w">    </span><span class="s2">"TRADER01:TRADER:CANCEL_ALL:Student desk 1"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="w">    </span><span class="s2">"TRADER02:TRADER:CANCEL_ALL:Student desk 2"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="w">    </span><span class="s2">"MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="w">    </span><span class="s2">"OPS01:ADMIN:LEAVE_ALL:Instructor console"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a><span class="w">  </span>--enforce-mm-obligations<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>AAPL:enforce_mm_obligation<span class="o">=</span>true,mm_spread_ticks<span class="o">=</span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a><span class="w">  </span>--symbol-opts<span class="w"> </span>MSFT:enforce_mm_obligation<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
@@ -6331,13 +6359,13 @@ makers, startup combo seeds, and explicit collar/circuit-breaker policy.</p>
 deployed <code>ref_data/engine_config.json</code> artifact, exactly as if you had passed
 that path as <code>SOURCE</code>.</p>
 <h3 id="what-the-artifact-records-about-itself">What the artifact records about itself<a class="headerlink" href="#what-the-artifact-records-about-itself" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="nt">&quot;meta&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="w">  </span><span class="nt">&quot;schema_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
-<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="w">  </span><span class="nt">&quot;compiler_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.17.0&quot;</span><span class="p">,</span>
-<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="w">  </span><span class="nt">&quot;compiled_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-07-30T16:43:18.000Z&quot;</span><span class="p">,</span>
-<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a><span class="w">  </span><span class="nt">&quot;source_path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/Users/you/course/engine_config.yaml&quot;</span><span class="p">,</span>
-<a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a><span class="w">  </span><span class="nt">&quot;source_sha256&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;e3bc2f14cf5c10da…&quot;</span><span class="p">,</span>
-<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a><span class="w">  </span><span class="nt">&quot;content_sha256&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;87be4dc0b9b645cb…&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="nt">"meta"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="w">  </span><span class="nt">"schema_version"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="w">  </span><span class="nt">"compiler_version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0.17.0"</span><span class="p">,</span>
+<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a><span class="w">  </span><span class="nt">"compiled_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-07-30T16:43:18.000Z"</span><span class="p">,</span>
+<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a><span class="w">  </span><span class="nt">"source_path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/Users/you/course/engine_config.yaml"</span><span class="p">,</span>
+<a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a><span class="w">  </span><span class="nt">"source_sha256"</span><span class="p">:</span><span class="w"> </span><span class="s2">"e3bc2f14cf5c10da…"</span><span class="p">,</span>
+<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a><span class="w">  </span><span class="nt">"content_sha256"</span><span class="p">:</span><span class="w"> </span><span class="s2">"87be4dc0b9b645cb…"</span>
 <a id="__codelineno-37-8" name="__codelineno-37-8" href="#__codelineno-37-8"></a><span class="p">}</span>
 </code></pre></div>
 <p>The two digests answer different questions, and both are checked:</p>
@@ -7163,11 +7191,11 @@ operator gateway, reusable collar levels, and a normal continuous trading day.</
 <a id="__codelineno-46-47" name="__codelineno-46-47" href="#__codelineno-46-47"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LEAVE_ALL</span>
 <a id="__codelineno-46-48" name="__codelineno-46-48" href="#__codelineno-46-48"></a>
 <a id="__codelineno-46-49" name="__codelineno-46-49" href="#__codelineno-46-49"></a><span class="nt">schedule</span><span class="p">:</span>
-<a id="__codelineno-46-50" name="__codelineno-46-50" href="#__codelineno-46-50"></a><span class="w">  </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:00&quot;</span>
-<a id="__codelineno-46-51" name="__codelineno-46-51" href="#__codelineno-46-51"></a><span class="w">  </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:25&quot;</span>
-<a id="__codelineno-46-52" name="__codelineno-46-52" href="#__codelineno-46-52"></a><span class="w">  </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:30&quot;</span>
-<a id="__codelineno-46-53" name="__codelineno-46-53" href="#__codelineno-46-53"></a><span class="w">  </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;16:00&quot;</span>
-<a id="__codelineno-46-54" name="__codelineno-46-54" href="#__codelineno-46-54"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;16:05&quot;</span>
+<a id="__codelineno-46-50" name="__codelineno-46-50" href="#__codelineno-46-50"></a><span class="w">  </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"09:00"</span>
+<a id="__codelineno-46-51" name="__codelineno-46-51" href="#__codelineno-46-51"></a><span class="w">  </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:25"</span>
+<a id="__codelineno-46-52" name="__codelineno-46-52" href="#__codelineno-46-52"></a><span class="w">  </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:30"</span>
+<a id="__codelineno-46-53" name="__codelineno-46-53" href="#__codelineno-46-53"></a><span class="w">  </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"16:00"</span>
+<a id="__codelineno-46-54" name="__codelineno-46-54" href="#__codelineno-46-54"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"16:05"</span>
 </code></pre></div>
 <p>This still avoids market-maker seed quotes. Students can supply liquidity
 manually, and the operator can manage session phases and exchange-wide
@@ -7355,11 +7383,11 @@ symbol overrides, startup combo seeds, and scheduler times.</p>
 <a id="__codelineno-47-177" name="__codelineno-47-177" href="#__codelineno-47-177"></a><span class="w">        </span><span class="nt">smp_action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NONE</span>
 <a id="__codelineno-47-178" name="__codelineno-47-178" href="#__codelineno-47-178"></a>
 <a id="__codelineno-47-179" name="__codelineno-47-179" href="#__codelineno-47-179"></a><span class="nt">schedule</span><span class="p">:</span>
-<a id="__codelineno-47-180" name="__codelineno-47-180" href="#__codelineno-47-180"></a><span class="w">  </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:00&quot;</span>
-<a id="__codelineno-47-181" name="__codelineno-47-181" href="#__codelineno-47-181"></a><span class="w">  </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:25&quot;</span>
-<a id="__codelineno-47-182" name="__codelineno-47-182" href="#__codelineno-47-182"></a><span class="w">  </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:30&quot;</span>
-<a id="__codelineno-47-183" name="__codelineno-47-183" href="#__codelineno-47-183"></a><span class="w">  </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;16:00&quot;</span>
-<a id="__codelineno-47-184" name="__codelineno-47-184" href="#__codelineno-47-184"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;16:05&quot;</span>
+<a id="__codelineno-47-180" name="__codelineno-47-180" href="#__codelineno-47-180"></a><span class="w">  </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"09:00"</span>
+<a id="__codelineno-47-181" name="__codelineno-47-181" href="#__codelineno-47-181"></a><span class="w">  </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:25"</span>
+<a id="__codelineno-47-182" name="__codelineno-47-182" href="#__codelineno-47-182"></a><span class="w">  </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:30"</span>
+<a id="__codelineno-47-183" name="__codelineno-47-183" href="#__codelineno-47-183"></a><span class="w">  </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"16:00"</span>
+<a id="__codelineno-47-184" name="__codelineno-47-184" href="#__codelineno-47-184"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"16:05"</span>
 </code></pre></div>
 <div class="admonition important">
 <p class="admonition-title">Combo seed prices are ticks</p>
@@ -8391,11 +8419,11 @@ are not managing persistence deliberately.</p>
 <h2 id="session-schedule">Session Schedule<a class="headerlink" href="#session-schedule" title="Permanent link">&para;</a></h2>
 <p>The scheduler reads <code>schedule</code> and sends transitions to the engine.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-68-1" name="__codelineno-68-1" href="#__codelineno-68-1"></a><span class="nt">schedule</span><span class="p">:</span>
-<a id="__codelineno-68-2" name="__codelineno-68-2" href="#__codelineno-68-2"></a><span class="w">  </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:00&quot;</span>
-<a id="__codelineno-68-3" name="__codelineno-68-3" href="#__codelineno-68-3"></a><span class="w">  </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:25&quot;</span>
-<a id="__codelineno-68-4" name="__codelineno-68-4" href="#__codelineno-68-4"></a><span class="w">  </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:30&quot;</span>
-<a id="__codelineno-68-5" name="__codelineno-68-5" href="#__codelineno-68-5"></a><span class="w">  </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;16:00&quot;</span>
-<a id="__codelineno-68-6" name="__codelineno-68-6" href="#__codelineno-68-6"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;16:05&quot;</span>
+<a id="__codelineno-68-2" name="__codelineno-68-2" href="#__codelineno-68-2"></a><span class="w">  </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"09:00"</span>
+<a id="__codelineno-68-3" name="__codelineno-68-3" href="#__codelineno-68-3"></a><span class="w">  </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:25"</span>
+<a id="__codelineno-68-4" name="__codelineno-68-4" href="#__codelineno-68-4"></a><span class="w">  </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:30"</span>
+<a id="__codelineno-68-5" name="__codelineno-68-5" href="#__codelineno-68-5"></a><span class="w">  </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"16:00"</span>
+<a id="__codelineno-68-6" name="__codelineno-68-6" href="#__codelineno-68-6"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"16:05"</span>
 </code></pre></div>
 <table>
 <thead>
@@ -8503,7 +8531,7 @@ When changing seed behavior or symbol definitions, consider removing stale data:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-72-1" name="__codelineno-72-1" href="#__codelineno-72-1"></a><span class="c1"># from a source checkout:</span>
 <a id="__codelineno-72-2" name="__codelineno-72-2" href="#__codelineno-72-2"></a>rm<span class="w"> </span>-f<span class="w"> </span>src/data/gtc_orders.json<span class="w"> </span>src/data/book_stats.json<span class="w"> </span>src/data/gtc_combos.json
 <a id="__codelineno-72-3" name="__codelineno-72-3" href="#__codelineno-72-3"></a><span class="c1"># or, if EDUMATCHER_DATA_DIR is set:</span>
-<a id="__codelineno-72-4" name="__codelineno-72-4" href="#__codelineno-72-4"></a>rm<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>/gtc_orders.json<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>/book_stats.json<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>/gtc_combos.json
+<a id="__codelineno-72-4" name="__codelineno-72-4" href="#__codelineno-72-4"></a>rm<span class="w"> </span>-f<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span>/gtc_orders.json<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span>/book_stats.json<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span>/gtc_combos.json
 </code></pre></div>
 <h2 id="adding-or-removing-symbols">Adding or Removing Symbols<a class="headerlink" href="#adding-or-removing-symbols" title="Permanent link">&para;</a></h2>
 <p>Adding a symbol is the configuration equivalent of an <strong>IPO (initial listing)</strong>:
@@ -8532,11 +8560,11 @@ listing.</p>
 </ul>
 <h2 id="validation-commands">Validation Commands<a class="headerlink" href="#validation-commands" title="Permanent link">&para;</a></h2>
 <p>For a quick parser check from a source checkout:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-73-1" name="__codelineno-73-1" href="#__codelineno-73-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;from pathlib import Path; from edumatcher.engine.config_loader import load_engine_config; print(load_engine_config(Path(&quot;engine_config.yaml&quot;)))&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-73-1" name="__codelineno-73-1" href="#__codelineno-73-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'from pathlib import Path; from edumatcher.engine.config_loader import load_engine_config; print(load_engine_config(Path("engine_config.yaml")))'</span>
 </code></pre></div>
 <p>If the file is valid, this prints the parsed <code>EngineConfig</code> object.  On error
 you get a traceback ending with a descriptive message:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-74-1" name="__codelineno-74-1" href="#__codelineno-74-1"></a>ValueError: Engine config must have a &#39;symbols&#39; mapping
+<div class="highlight"><pre><span></span><code><a id="__codelineno-74-1" name="__codelineno-74-1" href="#__codelineno-74-1"></a>ValueError: Engine config must have a 'symbols' mapping
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-75-1" name="__codelineno-75-1" href="#__codelineno-75-1"></a>ValueError: gateways.alf[0].disconnect_behaviour is invalid
 </code></pre></div>

@@ -2053,6 +2053,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/800-examples/" class="md-nav__link">
         
   
@@ -3727,11 +3755,11 @@ section, which is read by <code>pm-scheduler</code> (not by the engine itself):<
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">sessions_enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nt">schedule</span><span class="p">:</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">pre_open</span><span class="p">:</span><span class="w">              </span><span class="s">&quot;09:00&quot;</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:25&quot;</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w">      </span><span class="s">&quot;09:30&quot;</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;16:00&quot;</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w">   </span><span class="s">&quot;16:05&quot;</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">pre_open</span><span class="p">:</span><span class="w">              </span><span class="s">"09:00"</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:25"</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w">      </span><span class="s">"09:30"</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"16:00"</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w">   </span><span class="s">"16:05"</span>
 </code></pre></div>
 <p>All values are <code>HH:MM</code> in the <strong>local time of the machine running the
 scheduler</strong>.</p>
@@ -3890,7 +3918,7 @@ the day. The <code>TIF=ATC</code> (At-The-Close) order type is only valid in thi
 <p>The uncross algorithm runs and produces the official closing price.</p>
 <h2 id="phase-5-closed">Phase 5 — CLOSED<a class="headerlink" href="#phase-5-closed" title="Permanent link">&para;</a></h2>
 <p>The market is closed. All incoming orders are rejected:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[GW01] order.ack: accepted=false reason=&quot;Market is CLOSED&quot;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[GW01] order.ack: accepted=false reason="Market is CLOSED"
 </code></pre></div>
 <p>When the engine shuts down it:
 1. Serialises all resting <strong>GTC</strong> (Good-Till-Cancelled) orders to <code>data/gtc_orders.json</code>.

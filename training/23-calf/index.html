@@ -1854,6 +1854,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/800-examples/" class="md-nav__link">
         
   
@@ -3830,11 +3858,11 @@ gateway sent, nothing injected or inferred on your behalf.</p>
 <a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>pm-calf-spy<span class="w"> </span>--resume<span class="w"> </span>TOP:AAPL:1042<span class="w"> </span>--channels<span class="w"> </span>TOP<span class="w"> </span>--symbols<span class="w"> </span>AAPL
 <a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>
 <a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="c1"># Stop after 20 data-carrying lines</span>
-<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>TRADE<span class="w"> </span>--symbols<span class="w"> </span><span class="s1">&#39;*&#39;</span><span class="w"> </span>--count<span class="w"> </span><span class="m">20</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>TRADE<span class="w"> </span>--symbols<span class="w"> </span><span class="s1">'*'</span><span class="w"> </span>--count<span class="w"> </span><span class="m">20</span>
 </code></pre></div>
 <p>Now try the wildcard default against a mix of eligible and ineligible
 channels:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span><span class="s1">&#39;*&#39;</span><span class="w"> </span>--symbols<span class="w"> </span><span class="s1">&#39;*&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span><span class="s1">'*'</span><span class="w"> </span>--symbols<span class="w"> </span><span class="s1">'*'</span>
 </code></pre></div>
 <p>Since <code>SYM=*</code> is only valid for <code>TOP</code>/<code>TRADE</code>/<code>STATE</code>/<code>AUCTION</code>, a naive
 single <code>SUB|CH=*|SYM=*</code> would be rejected outright by the gateway.

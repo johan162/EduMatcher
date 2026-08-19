@@ -2258,6 +2258,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -4145,9 +4173,9 @@ Open <strong>http://localhost:8091</strong>.</p>
 </code></pre></div>
 <p>The compose file mounts two separate volumes, deliberately:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">volumes</span><span class="p">:</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="c1"># pm-log-srv&#39;s directory, mounted READ-ONLY</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="c1"># pm-log-srv's directory, mounted READ-ONLY</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./logsrv-data:/app/logsrv-data:ro</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="c1"># this project&#39;s own ack store, read-write</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="c1"># this project's own ack store, read-write</span>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./ack-data:/app/ack-data</span>
 </code></pre></div>
 <p>The <code>:ro</code> on the first mount is not decoration. "This project never writes to
@@ -4528,7 +4556,7 @@ legible. Suggested file: <code>images/log-gui/fig-07-health.png</code>.</p>
 <p><code>GET /api/logs/export</code> returns the current filter's matches as CSV (default)
 or JSON:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>curl<span class="w"> </span>-o<span class="w"> </span>logs.csv<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="s1">&#39;http://localhost:8091/api/logs/export?minLevel=ERROR&amp;processes=pm-engine&amp;format=csv&#39;</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="s1">'http://localhost:8091/api/logs/export?minLevel=ERROR&amp;processes=pm-engine&amp;format=csv'</span>
 </code></pre></div>
 <p>The CSV carries <code>seq,client_ts,level,process,logger,message</code>. Export is capped
 at <code>EXPORT_MAX_ROWS</code> (1 000 000 by default), and the whole result set is

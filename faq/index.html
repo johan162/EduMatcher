@@ -1852,6 +1852,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../user-guide/300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../user-guide/800-examples/" class="md-nav__link">
         
   
@@ -4012,7 +4040,7 @@ aggregation. Using integer ticks makes price-time matching and level math exact.
 <a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>rm<span class="w"> </span>-f<span class="w"> </span>src/data/*.json<span class="w"> </span>src/data/*.csv<span class="w"> </span>src/data/*.db<span class="w"> </span>src/data/audit.log
 <a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
 <a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># Or with a custom directory</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>rm<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>/*.json<span class="w"> </span>...
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>rm<span class="w"> </span>-f<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span>/*.json<span class="w"> </span>...
 </code></pre></div>
 <p>This resets GTC orders, book statistics, clearing history, and audit logs.
 The engine will re-seed MM quotes as if it were day 1 (because <code>book_stats.json</code>
@@ -4023,7 +4051,7 @@ no longer exists).</p>
 <p>IOC (Immediate-Or-Cancel) orders <strong>cannot rest on the book</strong>, so they are
 rejected during any non-matching phase (PRE_OPEN, OPENING_AUCTION,
 CLOSING_AUCTION, CLOSED). IOC is only valid during <code>CONTINUOUS</code> trading.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[GW01] order.ack: accepted=false reason=&quot;IOC rejected outside CONTINUOUS phase&quot;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[GW01] order.ack: accepted=false reason="IOC rejected outside CONTINUOUS phase"
 </code></pre></div>
 <p><strong>Fix:</strong> The gateway has no <code>SESSION</code> command. Watch the scheduler output,
 run <code>pm-audit --terminal</code>, or use <code>pm-viewer</code> / <code>pm-orders</code> to see
@@ -4034,7 +4062,7 @@ with <code>TIF=DAY</code> if you're willing to have the order rest.</p>
 <p>STOP orders only trigger from <strong>last trade price</strong> events. If no trades have
 occurred since you submitted the STOP, the trigger is never evaluated —
 regardless of the current bid/ask quotes.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a># This SELL STOP at 148 won&#39;t fire if no trades have happened yet
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a># This SELL STOP at 148 won't fire if no trades have happened yet
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=148.00
 </code></pre></div>
 <p><strong>Fix:</strong> Check whether any trades have printed in the engine output (<code>--verbose</code>

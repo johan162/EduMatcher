@@ -2346,6 +2346,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -4063,7 +4091,7 @@ persistent files:</p>
 </tbody>
 </table>
 <p>Override with <code>EDUMATCHER_DATA_DIR</code> or <code>--db</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/sessions/morning&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/sessions/morning"</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-log-srv<span class="w">  </span><span class="c1"># writes to $HOME/sessions/morning/log.db</span>
 </code></pre></div>
 <h2 id="pm-log-srv-log-collector">pm-log-srv — Log Collector<a class="headerlink" href="#pm-log-srv-log-collector" title="Permanent link">&para;</a></h2>
@@ -4175,7 +4203,7 @@ for the full config field reference.</p>
 </code></pre></div>
 <p>Expected startup output:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>2026-07-29 09:30:00,180 INFO edumatcher.log_srv.main - starting pm-log-srv with log level INFO
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>2026-07-29 09:30:00,206 INFO edumatcher.log_srv.server - pm-log-srv &#39;log-srv01&#39; listening on 127.0.0.1:5600 db=data/log.db retention_days=30
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>2026-07-29 09:30:00,206 INFO edumatcher.log_srv.server - pm-log-srv 'log-srv01' listening on 127.0.0.1:5600 db=data/log.db retention_days=30
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>2026-07-29 09:30:00,211 INFO edumatcher.log_srv.pubsub - LALF-PS interface up: PUB=tcp://127.0.0.1:5601 PULL=tcp://127.0.0.1:5602 lease=30s max_subscribers=32
 </code></pre></div>
 <p><code>pm-log-srv</code> occupies a contiguous three-port block: <code>5600</code> for LALF/TCP
@@ -4274,11 +4302,11 @@ a byte.</p>
 exactly the role <code>gateway_id</code> plays elsewhere on the bus: the server
 appends it to each reply topic, so a subscriber needs only two <code>SUBSCRIBE</code>
 prefixes to receive everything relevant to it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;log.&quot;</span><span class="p">)</span>               <span class="c1"># simplest: everything</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">b</span><span class="s2">"log."</span><span class="p">)</span>               <span class="c1"># simplest: everything</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># or, more precisely:</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;log.event.</span><span class="si">{</span><span class="n">sub_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;log.backfill.</span><span class="si">{</span><span class="n">sub_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;log.server_state&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"log.event.</span><span class="si">{</span><span class="n">sub_id</span><span class="si">}</span><span class="s2">"</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"log.backfill.</span><span class="si">{</span><span class="n">sub_id</span><span class="si">}</span><span class="s2">"</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">b</span><span class="s2">"log.server_state"</span><span class="p">)</span>
 </code></pre></div>
 <p>Pick something stable and unique — <code>logview-&lt;pid&gt;</code>, <code>dashboard-01</code>. Two
 live subscribers sharing a <code>sub_id</code> will each receive the other's traffic
@@ -4528,12 +4556,12 @@ alive.</p>
 <a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">make_log_unsubscribe_msg</span><span class="p">,</span>
 <a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="p">)</span>
 <a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="n">SUB_ID</span> <span class="o">=</span> <span class="s2">&quot;logview-demo&quot;</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="n">SUB_ID</span> <span class="o">=</span> <span class="s2">"logview-demo"</span>
 <a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="n">ctx</span> <span class="o">=</span> <span class="n">zmq</span><span class="o">.</span><span class="n">Context</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span>
 <a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>
 <a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="n">sub</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUB</span><span class="p">)</span>
 <a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="n">sub</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">LOG_SRV_PUB_ADDR</span><span class="p">)</span>
-<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;log.&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="n">sub</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">SUBSCRIBE</span><span class="p">,</span> <span class="sa">b</span><span class="s2">"log."</span><span class="p">)</span>
 <a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>
 <a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="n">push</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">PUSH</span><span class="p">)</span>
 <a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a><span class="n">push</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">LOG_SRV_PULL_ADDR</span><span class="p">)</span>
@@ -4542,13 +4570,13 @@ alive.</p>
 <a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a><span class="n">push</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span>
 <a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>    <span class="n">make_log_subscribe_msg</span><span class="p">(</span>
 <a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>        <span class="n">SUB_ID</span><span class="p">,</span>
-<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;STREAM&quot;</span><span class="p">,</span>
-<a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>        <span class="n">log_filter</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;min_level&quot;</span><span class="p">:</span> <span class="s2">&quot;WARNING&quot;</span><span class="p">},</span>
+<a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>        <span class="n">mode</span><span class="o">=</span><span class="s2">"STREAM"</span><span class="p">,</span>
+<a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>        <span class="n">log_filter</span><span class="o">=</span><span class="p">{</span><span class="s2">"min_level"</span><span class="p">:</span> <span class="s2">"WARNING"</span><span class="p">},</span>
 <a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a>        <span class="n">backfill_minutes</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
 <a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a>    <span class="p">)</span>
 <a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a><span class="p">)</span>
 <a id="__codelineno-6-30" name="__codelineno-6-30" href="#__codelineno-6-30"></a>
-<a id="__codelineno-6-31" name="__codelineno-6-31" href="#__codelineno-6-31"></a><span class="n">renew_every</span> <span class="o">=</span> <span class="mf">15.0</span>          <span class="c1"># updated from the ack&#39;s renew_before_sec</span>
+<a id="__codelineno-6-31" name="__codelineno-6-31" href="#__codelineno-6-31"></a><span class="n">renew_every</span> <span class="o">=</span> <span class="mf">15.0</span>          <span class="c1"># updated from the ack's renew_before_sec</span>
 <a id="__codelineno-6-32" name="__codelineno-6-32" href="#__codelineno-6-32"></a><span class="n">next_renew</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">+</span> <span class="n">renew_every</span>
 <a id="__codelineno-6-33" name="__codelineno-6-33" href="#__codelineno-6-33"></a><span class="n">poller</span> <span class="o">=</span> <span class="n">zmq</span><span class="o">.</span><span class="n">Poller</span><span class="p">()</span>
 <a id="__codelineno-6-34" name="__codelineno-6-34" href="#__codelineno-6-34"></a><span class="n">poller</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">sub</span><span class="p">,</span> <span class="n">zmq</span><span class="o">.</span><span class="n">POLLIN</span><span class="p">)</span>
@@ -4558,28 +4586,28 @@ alive.</p>
 <a id="__codelineno-6-38" name="__codelineno-6-38" href="#__codelineno-6-38"></a>        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">dict</span><span class="p">(</span><span class="n">poller</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">250</span><span class="p">)):</span>
 <a id="__codelineno-6-39" name="__codelineno-6-39" href="#__codelineno-6-39"></a>            <span class="n">topic</span><span class="p">,</span> <span class="n">payload</span> <span class="o">=</span> <span class="n">decode</span><span class="p">(</span><span class="n">sub</span><span class="o">.</span><span class="n">recv_multipart</span><span class="p">())</span>
 <a id="__codelineno-6-40" name="__codelineno-6-40" href="#__codelineno-6-40"></a>
-<a id="__codelineno-6-41" name="__codelineno-6-41" href="#__codelineno-6-41"></a>            <span class="k">if</span> <span class="n">topic</span> <span class="o">==</span> <span class="sa">f</span><span class="s2">&quot;log.subscribe_ack.</span><span class="si">{</span><span class="n">SUB_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span>
+<a id="__codelineno-6-41" name="__codelineno-6-41" href="#__codelineno-6-41"></a>            <span class="k">if</span> <span class="n">topic</span> <span class="o">==</span> <span class="sa">f</span><span class="s2">"log.subscribe_ack.</span><span class="si">{</span><span class="n">SUB_ID</span><span class="si">}</span><span class="s2">"</span><span class="p">:</span>
 <a id="__codelineno-6-42" name="__codelineno-6-42" href="#__codelineno-6-42"></a>                <span class="c1"># Always trust the ack over what you asked for: the server</span>
 <a id="__codelineno-6-43" name="__codelineno-6-43" href="#__codelineno-6-43"></a>                <span class="c1"># clamps the lease and normalises the filter.</span>
-<a id="__codelineno-6-44" name="__codelineno-6-44" href="#__codelineno-6-44"></a>                <span class="n">renew_every</span> <span class="o">=</span> <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;renew_before_sec&quot;</span><span class="p">]</span>
+<a id="__codelineno-6-44" name="__codelineno-6-44" href="#__codelineno-6-44"></a>                <span class="n">renew_every</span> <span class="o">=</span> <span class="n">payload</span><span class="p">[</span><span class="s2">"renew_before_sec"</span><span class="p">]</span>
 <a id="__codelineno-6-45" name="__codelineno-6-45" href="#__codelineno-6-45"></a>                <span class="n">next_renew</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">+</span> <span class="n">renew_every</span>
 <a id="__codelineno-6-46" name="__codelineno-6-46" href="#__codelineno-6-46"></a>
-<a id="__codelineno-6-47" name="__codelineno-6-47" href="#__codelineno-6-47"></a>            <span class="k">elif</span> <span class="n">topic</span> <span class="ow">in</span> <span class="p">(</span><span class="sa">f</span><span class="s2">&quot;log.event.</span><span class="si">{</span><span class="n">SUB_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;log.backfill.</span><span class="si">{</span><span class="n">SUB_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">):</span>
-<a id="__codelineno-6-48" name="__codelineno-6-48" href="#__codelineno-6-48"></a>                <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;rows&quot;</span><span class="p">]:</span>
-<a id="__codelineno-6-49" name="__codelineno-6-49" href="#__codelineno-6-49"></a>                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;client_ts&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;level&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">&lt;8</span><span class="si">}</span><span class="s2"> &quot;</span>
-<a id="__codelineno-6-50" name="__codelineno-6-50" href="#__codelineno-6-50"></a>                          <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;process&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">&lt;12</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-6-51" name="__codelineno-6-51" href="#__codelineno-6-51"></a>                <span class="k">if</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dropped&quot;</span><span class="p">):</span>
-<a id="__codelineno-6-52" name="__codelineno-6-52" href="#__codelineno-6-52"></a>                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;!! </span><span class="si">{</span><span class="n">payload</span><span class="p">[</span><span class="s1">&#39;dropped&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> rows dropped — not keeping up&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-47" name="__codelineno-6-47" href="#__codelineno-6-47"></a>            <span class="k">elif</span> <span class="n">topic</span> <span class="ow">in</span> <span class="p">(</span><span class="sa">f</span><span class="s2">"log.event.</span><span class="si">{</span><span class="n">SUB_ID</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"log.backfill.</span><span class="si">{</span><span class="n">SUB_ID</span><span class="si">}</span><span class="s2">"</span><span class="p">):</span>
+<a id="__codelineno-6-48" name="__codelineno-6-48" href="#__codelineno-6-48"></a>                <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">payload</span><span class="p">[</span><span class="s2">"rows"</span><span class="p">]:</span>
+<a id="__codelineno-6-49" name="__codelineno-6-49" href="#__codelineno-6-49"></a>                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'client_ts'</span><span class="p">]</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'level'</span><span class="p">]</span><span class="si">:</span><span class="s2">&lt;8</span><span class="si">}</span><span class="s2"> "</span>
+<a id="__codelineno-6-50" name="__codelineno-6-50" href="#__codelineno-6-50"></a>                          <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'process'</span><span class="p">]</span><span class="si">:</span><span class="s2">&lt;12</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'message'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<a id="__codelineno-6-51" name="__codelineno-6-51" href="#__codelineno-6-51"></a>                <span class="k">if</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"dropped"</span><span class="p">):</span>
+<a id="__codelineno-6-52" name="__codelineno-6-52" href="#__codelineno-6-52"></a>                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"!! </span><span class="si">{</span><span class="n">payload</span><span class="p">[</span><span class="s1">'dropped'</span><span class="p">]</span><span class="si">}</span><span class="s2"> rows dropped — not keeping up"</span><span class="p">)</span>
 <a id="__codelineno-6-53" name="__codelineno-6-53" href="#__codelineno-6-53"></a>
-<a id="__codelineno-6-54" name="__codelineno-6-54" href="#__codelineno-6-54"></a>            <span class="k">elif</span> <span class="n">topic</span> <span class="o">==</span> <span class="sa">f</span><span class="s2">&quot;log.lease_expired.</span><span class="si">{</span><span class="n">SUB_ID</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span>
+<a id="__codelineno-6-54" name="__codelineno-6-54" href="#__codelineno-6-54"></a>            <span class="k">elif</span> <span class="n">topic</span> <span class="o">==</span> <span class="sa">f</span><span class="s2">"log.lease_expired.</span><span class="si">{</span><span class="n">SUB_ID</span><span class="si">}</span><span class="s2">"</span><span class="p">:</span>
 <a id="__codelineno-6-55" name="__codelineno-6-55" href="#__codelineno-6-55"></a>                <span class="c1"># We were reaped. Re-subscribing is always safe.</span>
 <a id="__codelineno-6-56" name="__codelineno-6-56" href="#__codelineno-6-56"></a>                <span class="n">push</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span>
-<a id="__codelineno-6-57" name="__codelineno-6-57" href="#__codelineno-6-57"></a>                    <span class="n">make_log_subscribe_msg</span><span class="p">(</span><span class="n">SUB_ID</span><span class="p">,</span> <span class="s2">&quot;STREAM&quot;</span><span class="p">,</span>
-<a id="__codelineno-6-58" name="__codelineno-6-58" href="#__codelineno-6-58"></a>                                           <span class="p">{</span><span class="s2">&quot;min_level&quot;</span><span class="p">:</span> <span class="s2">&quot;WARNING&quot;</span><span class="p">})</span>
+<a id="__codelineno-6-57" name="__codelineno-6-57" href="#__codelineno-6-57"></a>                    <span class="n">make_log_subscribe_msg</span><span class="p">(</span><span class="n">SUB_ID</span><span class="p">,</span> <span class="s2">"STREAM"</span><span class="p">,</span>
+<a id="__codelineno-6-58" name="__codelineno-6-58" href="#__codelineno-6-58"></a>                                           <span class="p">{</span><span class="s2">"min_level"</span><span class="p">:</span> <span class="s2">"WARNING"</span><span class="p">})</span>
 <a id="__codelineno-6-59" name="__codelineno-6-59" href="#__codelineno-6-59"></a>                <span class="p">)</span>
 <a id="__codelineno-6-60" name="__codelineno-6-60" href="#__codelineno-6-60"></a>
-<a id="__codelineno-6-61" name="__codelineno-6-61" href="#__codelineno-6-61"></a>            <span class="k">elif</span> <span class="n">topic</span> <span class="o">==</span> <span class="s2">&quot;log.server_state&quot;</span> <span class="ow">and</span> <span class="n">payload</span><span class="p">[</span><span class="s2">&quot;state&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;DOWN&quot;</span><span class="p">:</span>
-<a id="__codelineno-6-62" name="__codelineno-6-62" href="#__codelineno-6-62"></a>                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;pm-log-srv is shutting down&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-61" name="__codelineno-6-61" href="#__codelineno-6-61"></a>            <span class="k">elif</span> <span class="n">topic</span> <span class="o">==</span> <span class="s2">"log.server_state"</span> <span class="ow">and</span> <span class="n">payload</span><span class="p">[</span><span class="s2">"state"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"DOWN"</span><span class="p">:</span>
+<a id="__codelineno-6-62" name="__codelineno-6-62" href="#__codelineno-6-62"></a>                <span class="nb">print</span><span class="p">(</span><span class="s2">"pm-log-srv is shutting down"</span><span class="p">)</span>
 <a id="__codelineno-6-63" name="__codelineno-6-63" href="#__codelineno-6-63"></a>
 <a id="__codelineno-6-64" name="__codelineno-6-64" href="#__codelineno-6-64"></a>        <span class="k">if</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="n">next_renew</span><span class="p">:</span>
 <a id="__codelineno-6-65" name="__codelineno-6-65" href="#__codelineno-6-65"></a>            <span class="n">push</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span><span class="n">make_log_renew_msg</span><span class="p">(</span><span class="n">SUB_ID</span><span class="p">))</span>
@@ -4852,11 +4880,11 @@ free text, or exception presence.</p>
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># Rows with an attached traceback, most recent first</span>
 <a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--has-exception<span class="w"> </span>--limit<span class="w"> </span><span class="m">20</span>
 <a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># Free-text search across every process&#39;s messages</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--grep<span class="w"> </span><span class="s2">&quot;Connection reset&quot;</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># Free-text search across every process's messages</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--grep<span class="w"> </span><span class="s2">"Connection reset"</span>
 <a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="c1"># One process&#39;s logging for a specific subsystem</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--process<span class="w"> </span>pm-api-gwy<span class="w"> </span>--logger<span class="w"> </span><span class="s2">&quot;edumatcher.api_gateway.%&quot;</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="c1"># One process's logging for a specific subsystem</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--process<span class="w"> </span>pm-api-gwy<span class="w"> </span>--logger<span class="w"> </span><span class="s2">"edumatcher.api_gateway.%"</span>
 <a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>
 <a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="c1"># A specific time window, oldest first</span>
 <a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--since<span class="w"> </span><span class="m">2026</span>-07-28T09:30:00.000Z<span class="w"> </span>--until<span class="w"> </span><span class="m">2026</span>-07-28T09:35:00.000Z<span class="w"> </span>--reverse
@@ -4906,7 +4934,7 @@ polls on <code>--interval</code> seconds.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Follow everything as it arrives</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-log-cli<span class="w"> </span>tail
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Follow only one process&#39;s warnings and above</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Follow only one process's warnings and above</span>
 <a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>pm-log-cli<span class="w"> </span>tail<span class="w"> </span>--process<span class="w"> </span>pm-md-gwy<span class="w"> </span>--level<span class="w"> </span>WARNING,ERROR,CRITICAL
 <a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
 <a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Follow as JSON for piping into another tool</span>
@@ -5054,9 +5082,9 @@ issues detected" rather than printing nothing — a clean run is visibly a
 clean run. Exit code <code>3</code> signals at least one finding, useful for scripting
 a periodic health check.</p>
 <p><strong>Example output (an issue found):</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[WARNING] repeated_warning: pm-api-gwy logged &quot;ENGINE_TIMEOUT&quot; 47 times in the last hour
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[WARNING] repeated_warning: pm-api-gwy logged "ENGINE_TIMEOUT" 47 times in the last hour
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>  Recommendation: Investigate why edumatcher.api_gateway.engine_client keeps repeating this message; it may indicate a stuck retry loop or a persistent misconfiguration.
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>  Reproduce with: pm-log-cli query --process pm-api-gwy --logger &#39;edumatcher.api_gateway.engine_client&#39; --grep &#39;ENGINE_TIMEOUT&#39;
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>  Reproduce with: pm-log-cli query --process pm-api-gwy --logger 'edumatcher.api_gateway.engine_client' --grep 'ENGINE_TIMEOUT'
 </code></pre></div>
 <p><strong>Example output (clean session):</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>No issues detected in the queried window.
@@ -5072,7 +5100,7 @@ a periodic health check.</p>
 <a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>pm-log-cli<span class="w"> </span>diagnose<span class="w"> </span>--since<span class="w"> </span><span class="m">2026</span>-07-28T13:00:00.000Z
 <a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>
 <a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="c1"># Scripted health check — non-zero exit means something was flagged</span>
-<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a>pm-log-cli<span class="w"> </span>diagnose<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;logging issues detected, see above&quot;</span>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a>pm-log-cli<span class="w"> </span>diagnose<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"logging issues detected, see above"</span>
 </code></pre></div>
 <h3 id="prune-manual-retention-pruning"><code>prune</code> — Manual retention pruning<a class="headerlink" href="#prune-manual-retention-pruning" title="Permanent link">&para;</a></h3>
 <p>Deletes <code>log_events</code> rows older than a given number of days — the same
@@ -5147,13 +5175,13 @@ pushed rows as they land.</p>
 </code></pre></div>
 <h3 id="free-text-searching-across-the-whole-system">Free-text searching across the whole system<a class="headerlink" href="#free-text-searching-across-the-whole-system" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># Find every mention of a specific error string, any process</span>
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--grep<span class="w"> </span><span class="s2">&quot;Connection reset&quot;</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--grep<span class="w"> </span><span class="s2">"Connection reset"</span>
 <a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="c1"># Narrow to one subsystem&#39;s loggers</span>
-<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--grep<span class="w"> </span><span class="s2">&quot;timeout&quot;</span><span class="w"> </span>--logger<span class="w"> </span><span class="s2">&quot;edumatcher.api_gateway.%&quot;</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="c1"># Narrow to one subsystem's loggers</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--grep<span class="w"> </span><span class="s2">"timeout"</span><span class="w"> </span>--logger<span class="w"> </span><span class="s2">"edumatcher.api_gateway.%"</span>
 </code></pre></div>
 <h3 id="exporting-for-external-analysis">Exporting for external analysis<a class="headerlink" href="#exporting-for-external-analysis" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Export a whole day&#39;s logging for one process</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Export a whole day's logging for one process</span>
 <a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>pm-log-cli<span class="w"> </span>query<span class="w"> </span>--process<span class="w"> </span>pm-engine<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">  </span>--since<span class="w"> </span><span class="m">2026</span>-07-28T00:00:00.000Z<span class="w"> </span>--until<span class="w"> </span><span class="m">2026</span>-07-28T23:59:59.000Z<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">  </span>--format<span class="w"> </span>json<span class="w"> </span>--limit<span class="w"> </span><span class="m">100000</span><span class="w"> </span>&gt;<span class="w"> </span>pm-engine_2026-07-28.json

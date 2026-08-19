@@ -1854,6 +1854,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/800-examples/" class="md-nav__link">
         
   
@@ -3707,7 +3735,7 @@ binary frames into the same engine semantics used by ALF command workflows.</p>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Inspect the generated section:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>grep<span class="w"> </span>-A20<span class="w"> </span><span class="s1">&#39;^balf_gateway:&#39;</span><span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>grep<span class="w"> </span>-A20<span class="w"> </span><span class="s1">'^balf_gateway:'</span><span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Expected output includes:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">balf_gateway</span><span class="p">:</span>
@@ -3731,7 +3759,7 @@ binary frames into the same engine semantics used by ALF command workflows.</p>
 </code></pre></div>
 <p>Expected: a line with <code>pm-balf-gwy</code> (or <code>Python</code> under Poetry) and <code>LISTEN</code>.</p>
 <p><strong>Linux:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>ss<span class="w"> </span>-tlnp<span class="w"> </span><span class="s1">&#39;sport = :5560&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>ss<span class="w"> </span>-tlnp<span class="w"> </span><span class="s1">'sport = :5560'</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>sudo<span class="w"> </span>lsof<span class="w"> </span>-iTCP:5560<span class="w"> </span>-sTCP:LISTEN
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>netstat<span class="w"> </span>-tlnp<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="m">5560</span>
 </code></pre></div>
@@ -3746,7 +3774,7 @@ binary frames into the same engine semantics used by ALF command workflows.</p>
 <h2 id="exercise-3-manual-binary-logon-probe-with-python">Exercise 3: Manual Binary <code>LOGON</code> Probe with Python<a class="headerlink" href="#exercise-3-manual-binary-logon-probe-with-python" title="Permanent link">&para;</a></h2>
 <p>Because BALF is binary, use a short Python probe instead of <code>nc</code> or <code>telnet</code>.
 This verifies the full auth lifecycle with no client framework.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;EOF&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'EOF'</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="s">import socket</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="s">import struct</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
@@ -3761,44 +3789,44 @@ This verifies the full auth lifecycle with no client framework.</p>
 <a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="s">    while len(buf) &lt; n:</span>
 <a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="s">        chunk = sock.recv(n - len(buf))</span>
 <a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="s">        if not chunk:</span>
-<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="s">            raise RuntimeError(&quot;connection closed&quot;)</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="s">            raise RuntimeError("connection closed")</span>
 <a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="s">        buf.extend(chunk)</span>
 <a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="s">    return bytes(buf)</span>
 <a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>
-<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="s">header = struct.pack(&quot;&lt;BBBBI&quot;, BALF_MAGIC, BALF_VERSION, MSG_LOGON, 0, 0)</span>
-<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="s">body = struct.pack(&quot;&lt;16sB7s&quot;, b&quot;TRADER01&quot;, BALF_VERSION, b&quot;\x00&quot; * 7)</span>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a><span class="s">header = struct.pack("&lt;BBBBI", BALF_MAGIC, BALF_VERSION, MSG_LOGON, 0, 0)</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a><span class="s">body = struct.pack("&lt;16sB7s", b"TRADER01", BALF_VERSION, b"\x00" * 7)</span>
 <a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>
-<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a><span class="s">sock = socket.create_connection((&quot;127.0.0.1&quot;, 5560), timeout=5)</span>
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a><span class="s">sock = socket.create_connection(("127.0.0.1", 5560), timeout=5)</span>
 <a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a><span class="s">sock.sendall(header + body)</span>
 <a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>
 <a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a><span class="s">ack = recv_exact(sock, 92)</span>
 <a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a><span class="s">msg_type = ack[2]</span>
 <a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a><span class="s">if msg_type != MSG_LOGON_ACK:</span>
-<a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a><span class="s">    raise RuntimeError(f&quot;expected LOGON_ACK, got 0x{msg_type:02X}&quot;)</span>
+<a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a><span class="s">    raise RuntimeError(f"expected LOGON_ACK, got 0x{msg_type:02X}")</span>
 <a id="__codelineno-6-30" name="__codelineno-6-30" href="#__codelineno-6-30"></a>
 <a id="__codelineno-6-31" name="__codelineno-6-31" href="#__codelineno-6-31"></a><span class="s">payload = ack[8:]</span>
-<a id="__codelineno-6-32" name="__codelineno-6-32" href="#__codelineno-6-32"></a><span class="s">gw_raw, accepted, reject_code, msg_len, _, msg_bytes = struct.unpack(&quot;&lt;16sBBBB64s&quot;, payload)</span>
-<a id="__codelineno-6-33" name="__codelineno-6-33" href="#__codelineno-6-33"></a><span class="s">gw = gw_raw.rstrip(b&quot;\x00&quot;).decode(&quot;ascii&quot;, errors=&quot;replace&quot;)</span>
-<a id="__codelineno-6-34" name="__codelineno-6-34" href="#__codelineno-6-34"></a><span class="s">msg = msg_bytes[:msg_len].decode(&quot;ascii&quot;, errors=&quot;replace&quot;)</span>
+<a id="__codelineno-6-32" name="__codelineno-6-32" href="#__codelineno-6-32"></a><span class="s">gw_raw, accepted, reject_code, msg_len, _, msg_bytes = struct.unpack("&lt;16sBBBB64s", payload)</span>
+<a id="__codelineno-6-33" name="__codelineno-6-33" href="#__codelineno-6-33"></a><span class="s">gw = gw_raw.rstrip(b"\x00").decode("ascii", errors="replace")</span>
+<a id="__codelineno-6-34" name="__codelineno-6-34" href="#__codelineno-6-34"></a><span class="s">msg = msg_bytes[:msg_len].decode("ascii", errors="replace")</span>
 <a id="__codelineno-6-35" name="__codelineno-6-35" href="#__codelineno-6-35"></a>
-<a id="__codelineno-6-36" name="__codelineno-6-36" href="#__codelineno-6-36"></a><span class="s">print(f&quot;LOGON_ACK gateway={gw!r} accepted={bool(accepted)} code=0x{reject_code:02X} msg={msg!r}&quot;)</span>
+<a id="__codelineno-6-36" name="__codelineno-6-36" href="#__codelineno-6-36"></a><span class="s">print(f"LOGON_ACK gateway={gw!r} accepted={bool(accepted)} code=0x{reject_code:02X} msg={msg!r}")</span>
 <a id="__codelineno-6-37" name="__codelineno-6-37" href="#__codelineno-6-37"></a><span class="s">sock.close()</span>
 <a id="__codelineno-6-38" name="__codelineno-6-38" href="#__codelineno-6-38"></a><span class="s">EOF</span>
 </code></pre></div>
 <p>Expected success pattern:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>LOGON_ACK gateway=&#39;TRADER01&#39; accepted=True code=0x00 msg=&#39;gateway=balf-gwy01 hbint=1s&#39;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>LOGON_ACK gateway='TRADER01' accepted=True code=0x00 msg='gateway=balf-gwy01 hbint=1s'
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: probe receives <code>LOGON_ACK</code> with <code>accepted=True</code>.</p>
 <h2 id="exercise-3b-non-interactive-reachability-check-for-ci">Exercise 3B: Non-Interactive Reachability Check for CI<a class="headerlink" href="#exercise-3b-non-interactive-reachability-check-for-ci" title="Permanent link">&para;</a></h2>
 <p>Use this one-liner to fail fast in scripts and CI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;EOF&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'EOF'</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="s">import socket, struct, sys</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="s">sock = socket.create_connection((&quot;127.0.0.1&quot;, 5560), timeout=3)</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="s">logon = struct.pack(&quot;&lt;BBBBI16sB7s&quot;, 0xBA, 0x01, 0x01, 0, 0, b&quot;TRADER01&quot;, 0x01, b&quot;\x00&quot;*7)</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="s">sock = socket.create_connection(("127.0.0.1", 5560), timeout=3)</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="s">logon = struct.pack("&lt;BBBBI16sB7s", 0xBA, 0x01, 0x01, 0, 0, b"TRADER01", 0x01, b"\x00"*7)</span>
 <a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="s">sock.sendall(logon)</span>
 <a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="s">ack = sock.recv(92)</span>
 <a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="s">ok = len(ack) == 92 and ack[2] == 0x02 and ack[24] == 1</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="s">print(&quot;BALF_PROBE_OK&quot; if ok else &quot;BALF_PROBE_FAIL&quot;)</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="s">print("BALF_PROBE_OK" if ok else "BALF_PROBE_FAIL")</span>
 <a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="s">sock.close()</span>
 <a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="s">sys.exit(0 if ok else 1)</span>
 <a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="s">EOF</span>
@@ -3808,7 +3836,7 @@ This verifies the full auth lifecycle with no client framework.</p>
 <h2 id="exercise-4-submit-and-cancel-an-order-over-balf">Exercise 4: Submit and Cancel an Order over BALF<a class="headerlink" href="#exercise-4-submit-and-cancel-an-order-over-balf" title="Permanent link">&para;</a></h2>
 <p>Run a minimal BALF client that authenticates, sends <code>NEW_ORDER</code>, waits for
 <code>ORDER_ACK</code>, then sends <code>CANCEL_ORDER</code> and checks <code>CANCEL_ACK</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;EOF&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>python3<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;'EOF'</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="s">import socket</span>
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="s">import struct</span>
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
@@ -3835,7 +3863,7 @@ This verifies the full auth lifecycle with no client framework.</p>
 <a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a>
 <a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a>
 <a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a><span class="s">def build_header(msg_type, seq_no):</span>
-<a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a><span class="s">    return struct.pack(&quot;&lt;BBBBI&quot;, BALF_MAGIC, BALF_VERSION, msg_type, 0, seq_no)</span>
+<a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a><span class="s">    return struct.pack("&lt;BBBBI", BALF_MAGIC, BALF_VERSION, msg_type, 0, seq_no)</span>
 <a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a>
 <a id="__codelineno-9-30" name="__codelineno-9-30" href="#__codelineno-9-30"></a>
 <a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a><span class="s">def recv_exact(sock, n):</span>
@@ -3843,7 +3871,7 @@ This verifies the full auth lifecycle with no client framework.</p>
 <a id="__codelineno-9-33" name="__codelineno-9-33" href="#__codelineno-9-33"></a><span class="s">    while len(buf) &lt; n:</span>
 <a id="__codelineno-9-34" name="__codelineno-9-34" href="#__codelineno-9-34"></a><span class="s">        chunk = sock.recv(n - len(buf))</span>
 <a id="__codelineno-9-35" name="__codelineno-9-35" href="#__codelineno-9-35"></a><span class="s">        if not chunk:</span>
-<a id="__codelineno-9-36" name="__codelineno-9-36" href="#__codelineno-9-36"></a><span class="s">            raise RuntimeError(&quot;connection closed&quot;)</span>
+<a id="__codelineno-9-36" name="__codelineno-9-36" href="#__codelineno-9-36"></a><span class="s">            raise RuntimeError("connection closed")</span>
 <a id="__codelineno-9-37" name="__codelineno-9-37" href="#__codelineno-9-37"></a><span class="s">        buf.extend(chunk)</span>
 <a id="__codelineno-9-38" name="__codelineno-9-38" href="#__codelineno-9-38"></a><span class="s">    return bytes(buf)</span>
 <a id="__codelineno-9-39" name="__codelineno-9-39" href="#__codelineno-9-39"></a>
@@ -3855,23 +3883,23 @@ This verifies the full auth lifecycle with no client framework.</p>
 <a id="__codelineno-9-45" name="__codelineno-9-45" href="#__codelineno-9-45"></a><span class="s">    body = recv_exact(sock, size - 8)</span>
 <a id="__codelineno-9-46" name="__codelineno-9-46" href="#__codelineno-9-46"></a><span class="s">    return msg_type, body</span>
 <a id="__codelineno-9-47" name="__codelineno-9-47" href="#__codelineno-9-47"></a>
-<a id="__codelineno-9-48" name="__codelineno-9-48" href="#__codelineno-9-48"></a><span class="s">sock = socket.create_connection((&quot;127.0.0.1&quot;, 5560), timeout=5)</span>
+<a id="__codelineno-9-48" name="__codelineno-9-48" href="#__codelineno-9-48"></a><span class="s">sock = socket.create_connection(("127.0.0.1", 5560), timeout=5)</span>
 <a id="__codelineno-9-49" name="__codelineno-9-49" href="#__codelineno-9-49"></a><span class="s">seq = 0</span>
 <a id="__codelineno-9-50" name="__codelineno-9-50" href="#__codelineno-9-50"></a>
 <a id="__codelineno-9-51" name="__codelineno-9-51" href="#__codelineno-9-51"></a><span class="s"># LOGON</span>
-<a id="__codelineno-9-52" name="__codelineno-9-52" href="#__codelineno-9-52"></a><span class="s">logon = build_header(MSG_LOGON, 0) + struct.pack(&quot;&lt;16sB7s&quot;, b&quot;TRADER01&quot;, BALF_VERSION, b&quot;\x00&quot; * 7)</span>
+<a id="__codelineno-9-52" name="__codelineno-9-52" href="#__codelineno-9-52"></a><span class="s">logon = build_header(MSG_LOGON, 0) + struct.pack("&lt;16sB7s", b"TRADER01", BALF_VERSION, b"\x00" * 7)</span>
 <a id="__codelineno-9-53" name="__codelineno-9-53" href="#__codelineno-9-53"></a><span class="s">sock.sendall(logon)</span>
 <a id="__codelineno-9-54" name="__codelineno-9-54" href="#__codelineno-9-54"></a><span class="s">msg_type, body = recv_frame(sock)</span>
 <a id="__codelineno-9-55" name="__codelineno-9-55" href="#__codelineno-9-55"></a><span class="s">if msg_type != MSG_LOGON_ACK or body[16] != 1:</span>
-<a id="__codelineno-9-56" name="__codelineno-9-56" href="#__codelineno-9-56"></a><span class="s">    raise RuntimeError(&quot;LOGON failed&quot;)</span>
-<a id="__codelineno-9-57" name="__codelineno-9-57" href="#__codelineno-9-57"></a><span class="s">print(&quot;LOGON_ACK accepted&quot;)</span>
+<a id="__codelineno-9-56" name="__codelineno-9-56" href="#__codelineno-9-56"></a><span class="s">    raise RuntimeError("LOGON failed")</span>
+<a id="__codelineno-9-57" name="__codelineno-9-57" href="#__codelineno-9-57"></a><span class="s">print("LOGON_ACK accepted")</span>
 <a id="__codelineno-9-58" name="__codelineno-9-58" href="#__codelineno-9-58"></a>
 <a id="__codelineno-9-59" name="__codelineno-9-59" href="#__codelineno-9-59"></a><span class="s"># NEW_ORDER (LIMIT BUY 100 AAPL @ 150.00)</span>
 <a id="__codelineno-9-60" name="__codelineno-9-60" href="#__codelineno-9-60"></a><span class="s">seq += 1</span>
 <a id="__codelineno-9-61" name="__codelineno-9-61" href="#__codelineno-9-61"></a><span class="s">new_order = build_header(MSG_NEW_ORDER, seq) + struct.pack(</span>
-<a id="__codelineno-9-62" name="__codelineno-9-62" href="#__codelineno-9-62"></a><span class="s">    &quot;&lt;Q8sqqqIIBBBB&quot;,</span>
+<a id="__codelineno-9-62" name="__codelineno-9-62" href="#__codelineno-9-62"></a><span class="s">    "&lt;Q8sqqqIIBBBB",</span>
 <a id="__codelineno-9-63" name="__codelineno-9-63" href="#__codelineno-9-63"></a><span class="s">    1,</span>
-<a id="__codelineno-9-64" name="__codelineno-9-64" href="#__codelineno-9-64"></a><span class="s">    b&quot;AAPL&quot;,</span>
+<a id="__codelineno-9-64" name="__codelineno-9-64" href="#__codelineno-9-64"></a><span class="s">    b"AAPL",</span>
 <a id="__codelineno-9-65" name="__codelineno-9-65" href="#__codelineno-9-65"></a><span class="s">    int(150.00 * PRICE_SCALE),</span>
 <a id="__codelineno-9-66" name="__codelineno-9-66" href="#__codelineno-9-66"></a><span class="s">    0,</span>
 <a id="__codelineno-9-67" name="__codelineno-9-67" href="#__codelineno-9-67"></a><span class="s">    0,</span>
@@ -3888,32 +3916,32 @@ This verifies the full auth lifecycle with no client framework.</p>
 <a id="__codelineno-9-78" name="__codelineno-9-78" href="#__codelineno-9-78"></a><span class="s">    msg_type, body = recv_frame(sock)</span>
 <a id="__codelineno-9-79" name="__codelineno-9-79" href="#__codelineno-9-79"></a><span class="s">    if msg_type == MSG_HEARTBEAT:</span>
 <a id="__codelineno-9-80" name="__codelineno-9-80" href="#__codelineno-9-80"></a><span class="s">        seq += 1</span>
-<a id="__codelineno-9-81" name="__codelineno-9-81" href="#__codelineno-9-81"></a><span class="s">        sent_ns = struct.unpack_from(&quot;&lt;Q&quot;, body)[0]</span>
-<a id="__codelineno-9-82" name="__codelineno-9-82" href="#__codelineno-9-82"></a><span class="s">        hb_ack = build_header(MSG_HEARTBEAT_ACK, seq) + struct.pack(&quot;&lt;Q&quot;, sent_ns)</span>
+<a id="__codelineno-9-81" name="__codelineno-9-81" href="#__codelineno-9-81"></a><span class="s">        sent_ns = struct.unpack_from("&lt;Q", body)[0]</span>
+<a id="__codelineno-9-82" name="__codelineno-9-82" href="#__codelineno-9-82"></a><span class="s">        hb_ack = build_header(MSG_HEARTBEAT_ACK, seq) + struct.pack("&lt;Q", sent_ns)</span>
 <a id="__codelineno-9-83" name="__codelineno-9-83" href="#__codelineno-9-83"></a><span class="s">        sock.sendall(hb_ack)</span>
 <a id="__codelineno-9-84" name="__codelineno-9-84" href="#__codelineno-9-84"></a><span class="s">        continue</span>
 <a id="__codelineno-9-85" name="__codelineno-9-85" href="#__codelineno-9-85"></a><span class="s">    if msg_type == MSG_ORDER_ACK:</span>
-<a id="__codelineno-9-86" name="__codelineno-9-86" href="#__codelineno-9-86"></a><span class="s">        order_id = struct.unpack_from(&quot;&lt;Q&quot;, body, 8)[0]</span>
+<a id="__codelineno-9-86" name="__codelineno-9-86" href="#__codelineno-9-86"></a><span class="s">        order_id = struct.unpack_from("&lt;Q", body, 8)[0]</span>
 <a id="__codelineno-9-87" name="__codelineno-9-87" href="#__codelineno-9-87"></a><span class="s">        accepted = body[24] == 1</span>
 <a id="__codelineno-9-88" name="__codelineno-9-88" href="#__codelineno-9-88"></a><span class="s">        if not accepted:</span>
-<a id="__codelineno-9-89" name="__codelineno-9-89" href="#__codelineno-9-89"></a><span class="s">            raise RuntimeError(&quot;ORDER_ACK rejected&quot;)</span>
-<a id="__codelineno-9-90" name="__codelineno-9-90" href="#__codelineno-9-90"></a><span class="s">        print(f&quot;ORDER_ACK accepted order_id={order_id}&quot;)</span>
+<a id="__codelineno-9-89" name="__codelineno-9-89" href="#__codelineno-9-89"></a><span class="s">            raise RuntimeError("ORDER_ACK rejected")</span>
+<a id="__codelineno-9-90" name="__codelineno-9-90" href="#__codelineno-9-90"></a><span class="s">        print(f"ORDER_ACK accepted order_id={order_id}")</span>
 <a id="__codelineno-9-91" name="__codelineno-9-91" href="#__codelineno-9-91"></a><span class="s">        break</span>
 <a id="__codelineno-9-92" name="__codelineno-9-92" href="#__codelineno-9-92"></a>
 <a id="__codelineno-9-93" name="__codelineno-9-93" href="#__codelineno-9-93"></a><span class="s"># CANCEL_ORDER</span>
 <a id="__codelineno-9-94" name="__codelineno-9-94" href="#__codelineno-9-94"></a><span class="s">seq += 1</span>
-<a id="__codelineno-9-95" name="__codelineno-9-95" href="#__codelineno-9-95"></a><span class="s">cancel = build_header(MSG_CANCEL_ORDER, seq) + struct.pack(&quot;&lt;QQ&quot;, 2, order_id)</span>
+<a id="__codelineno-9-95" name="__codelineno-9-95" href="#__codelineno-9-95"></a><span class="s">cancel = build_header(MSG_CANCEL_ORDER, seq) + struct.pack("&lt;QQ", 2, order_id)</span>
 <a id="__codelineno-9-96" name="__codelineno-9-96" href="#__codelineno-9-96"></a><span class="s">sock.sendall(cancel)</span>
 <a id="__codelineno-9-97" name="__codelineno-9-97" href="#__codelineno-9-97"></a><span class="s">msg_type, body = recv_frame(sock)</span>
 <a id="__codelineno-9-98" name="__codelineno-9-98" href="#__codelineno-9-98"></a><span class="s">if msg_type != MSG_CANCEL_ACK or body[16] != 1:</span>
-<a id="__codelineno-9-99" name="__codelineno-9-99" href="#__codelineno-9-99"></a><span class="s">    raise RuntimeError(&quot;CANCEL_ACK rejected&quot;)</span>
-<a id="__codelineno-9-100" name="__codelineno-9-100" href="#__codelineno-9-100"></a><span class="s">print(&quot;CANCEL_ACK accepted&quot;)</span>
+<a id="__codelineno-9-99" name="__codelineno-9-99" href="#__codelineno-9-99"></a><span class="s">    raise RuntimeError("CANCEL_ACK rejected")</span>
+<a id="__codelineno-9-100" name="__codelineno-9-100" href="#__codelineno-9-100"></a><span class="s">print("CANCEL_ACK accepted")</span>
 <a id="__codelineno-9-101" name="__codelineno-9-101" href="#__codelineno-9-101"></a>
 <a id="__codelineno-9-102" name="__codelineno-9-102" href="#__codelineno-9-102"></a><span class="s"># LOGOUT</span>
 <a id="__codelineno-9-103" name="__codelineno-9-103" href="#__codelineno-9-103"></a><span class="s">seq += 1</span>
 <a id="__codelineno-9-104" name="__codelineno-9-104" href="#__codelineno-9-104"></a><span class="s">sock.sendall(build_header(MSG_LOGOUT, seq))</span>
 <a id="__codelineno-9-105" name="__codelineno-9-105" href="#__codelineno-9-105"></a><span class="s">sock.close()</span>
-<a id="__codelineno-9-106" name="__codelineno-9-106" href="#__codelineno-9-106"></a><span class="s">print(&quot;LOGOUT sent&quot;)</span>
+<a id="__codelineno-9-106" name="__codelineno-9-106" href="#__codelineno-9-106"></a><span class="s">print("LOGOUT sent")</span>
 <a id="__codelineno-9-107" name="__codelineno-9-107" href="#__codelineno-9-107"></a><span class="s">EOF</span>
 </code></pre></div>
 <p>Expected behavior:</p>

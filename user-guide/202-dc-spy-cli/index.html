@@ -2014,6 +2014,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -3752,24 +3780,24 @@ counterparty — the pair above is a single matched trade, TAKER and MAKER
 side by side.</p>
 <p>Pass <code>--raw</code> to also print the exact topic and JSON payload underneath:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>10:02:17.512  FILL     TRADER01   AAPL       #1      100@150.05       TAKER  order_id=ord-001 remaining_qty=0
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  drop_copy.event.TRADER01|{&quot;event_type&quot;: &quot;order.fill&quot;, &quot;fill_price&quot;: 150.05, &quot;fill_qty&quot;: 100, &quot;gateway_id&quot;: &quot;TRADER01&quot;, &quot;order_id&quot;: &quot;ord-001&quot;, &quot;remaining_qty&quot;: 0, &quot;seq&quot;: 1, &quot;symbol&quot;: &quot;AAPL&quot;, &quot;timestamp&quot;: 1700000000000000000}
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  drop_copy.event.TRADER01|{"event_type": "order.fill", "fill_price": 150.05, "fill_qty": 100, "gateway_id": "TRADER01", "order_id": "ord-001", "remaining_qty": 0, "seq": 1, "symbol": "AAPL", "timestamp": 1700000000000000000}
 </code></pre></div>
 <h2 id="json-output">JSON output<a class="headerlink" href="#json-output" title="Permanent link">&para;</a></h2>
 <p><code>--format json</code> prints one JSON object per line — no banner, no colour,
 straightforward to pipe into <code>jq</code>, log to a file, or feed into another
 program. Every field from the drop-copy payload is preserved verbatim at
 the top level; <code>topic</code>, <code>recv_ts</code>, and a derived <code>replay</code> boolean are added:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span><span class="nt">&quot;recv_ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1784577849.634</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;topic&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;drop_copy.event.TRADER01&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;replay&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;seq&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1700000000000000000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TRADER01&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;event_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;order.fill&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;order_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ord-001&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;fill_qty&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;fill_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">150.05</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;liquidity_flag&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TAKER&quot;</span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span><span class="nt">"recv_ts"</span><span class="p">:</span><span class="w"> </span><span class="mf">1784577849.634</span><span class="p">,</span><span class="w"> </span><span class="nt">"topic"</span><span class="p">:</span><span class="w"> </span><span class="s2">"drop_copy.event.TRADER01"</span><span class="p">,</span><span class="w"> </span><span class="nt">"replay"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">"seq"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"timestamp"</span><span class="p">:</span><span class="w"> </span><span class="mi">1700000000000000000</span><span class="p">,</span><span class="w"> </span><span class="nt">"gateway_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TRADER01"</span><span class="p">,</span><span class="w"> </span><span class="nt">"event_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"order.fill"</span><span class="p">,</span><span class="w"> </span><span class="nt">"order_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ord-001"</span><span class="p">,</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"fill_qty"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span><span class="w"> </span><span class="nt">"fill_price"</span><span class="p">:</span><span class="w"> </span><span class="mf">150.05</span><span class="p">,</span><span class="w"> </span><span class="nt">"liquidity_flag"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TAKER"</span><span class="p">}</span>
 </code></pre></div>
 <p>Typical uses:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Only TRADER01&#39;s fills, as they happen</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Only TRADER01's fills, as they happen</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-dc-spy<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Capture the first 100 fills across all gateways for later analysis</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pm-dc-spy<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>--count<span class="w"> </span><span class="m">100</span><span class="w"> </span>&gt;<span class="w"> </span>fills.jsonl
 <a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
 <a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># Fills where AAPL was the symbol, piped through jq</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>pm-dc-spy<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;select(.symbol == &quot;AAPL&quot;)&#39;</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>pm-dc-spy<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'select(.symbol == "AAPL")'</span>
 </code></pre></div>
 <h2 id="observing-replay">Observing replay<a class="headerlink" href="#observing-replay" title="Permanent link">&para;</a></h2>
 <p><code>DropCopyPublisher.replay(recipient_id, from_seq)</code> is currently an
@@ -3787,7 +3815,7 @@ with <code>--gateway</code> and <code>--replay-of</code> together.</p>
 <h2 id="running-several-instances-at-once">Running several instances at once<a class="headerlink" href="#running-several-instances-at-once" title="Permanent link">&para;</a></h2>
 <p>Since each <code>pm-dc-spy</code> process opens its own independent <code>SUB</code> socket, you
 can split gateways across terminals instead of filtering one firehose:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Terminal 1 — one participant&#39;s fills</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Terminal 1 — one participant's fills</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pm-dc-spy<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># Terminal 2 — everything, as JSON, captured to a file</span>

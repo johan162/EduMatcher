@@ -2003,6 +2003,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -3780,14 +3808,14 @@ straightforward to pipe into <code>jq</code>, log to a file, or feed into anothe
 program. The envelope fields (<code>CH</code>, <code>SYM</code>, <code>SEQ</code>) are lifted to top-level
 keys for easy filtering; every field, including the envelope ones, is also
 kept verbatim under <code>fields</code> so nothing is lost relative to the raw line:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span><span class="nt">&quot;recv_ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1784576040.335</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;msg_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;SNAP&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ch&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TOP&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;sym&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;seq&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-07-20T10:02:17.048Z&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;fields&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;CH&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TOP&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;SYM&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;SEQ&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;TS&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-07-20T10:02:17.048Z&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;BID&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;150.10&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;BIDSZ&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1200&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ASK&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;150.12&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ASKSZ&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;900&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;LAST&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;150.11&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;LASTSZ&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;300&quot;</span><span class="p">}}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span><span class="nt">"recv_ts"</span><span class="p">:</span><span class="w"> </span><span class="mf">1784576040.335</span><span class="p">,</span><span class="w"> </span><span class="nt">"msg_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SNAP"</span><span class="p">,</span><span class="w"> </span><span class="nt">"ch"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TOP"</span><span class="p">,</span><span class="w"> </span><span class="nt">"sym"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"seq"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"ts"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-07-20T10:02:17.048Z"</span><span class="p">,</span><span class="w"> </span><span class="nt">"fields"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"CH"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TOP"</span><span class="p">,</span><span class="w"> </span><span class="nt">"SYM"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"SEQ"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"TS"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-07-20T10:02:17.048Z"</span><span class="p">,</span><span class="w"> </span><span class="nt">"BID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"150.10"</span><span class="p">,</span><span class="w"> </span><span class="nt">"BIDSZ"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1200"</span><span class="p">,</span><span class="w"> </span><span class="nt">"ASK"</span><span class="p">:</span><span class="w"> </span><span class="s2">"150.12"</span><span class="p">,</span><span class="w"> </span><span class="nt">"ASKSZ"</span><span class="p">:</span><span class="w"> </span><span class="s2">"900"</span><span class="p">,</span><span class="w"> </span><span class="nt">"LAST"</span><span class="p">:</span><span class="w"> </span><span class="s2">"150.11"</span><span class="p">,</span><span class="w"> </span><span class="nt">"LASTSZ"</span><span class="p">:</span><span class="w"> </span><span class="s2">"300"</span><span class="p">}}</span>
 </code></pre></div>
 <p>Typical uses:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Only circuit-breaker events, as they happen</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>CB<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;select(.fields.STATUS == &quot;HALTED&quot;)&#39;</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>CB<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'select(.fields.STATUS == "HALTED")'</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Capture the first 50 trades to a file for later analysis</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>TRADE<span class="w"> </span>--symbols<span class="w"> </span><span class="s1">&#39;*&#39;</span><span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>--count<span class="w"> </span><span class="m">50</span><span class="w"> </span>&gt;<span class="w"> </span>trades.jsonl
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>TRADE<span class="w"> </span>--symbols<span class="w"> </span><span class="s1">'*'</span><span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>--count<span class="w"> </span><span class="m">50</span><span class="w"> </span>&gt;<span class="w"> </span>trades.jsonl
 </code></pre></div>
 <h2 id="running-several-instances-at-once">Running several instances at once<a class="headerlink" href="#running-several-instances-at-once" title="Permanent link">&para;</a></h2>
 <p>Since each <code>pm-calf-spy</code> process opens its own independent TCP connection
@@ -3797,7 +3825,7 @@ filtering one firehose:</p>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>TOP,DEPTH<span class="w"> </span>--symbols<span class="w"> </span>AAPL
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># Terminal 2 — market-wide trade tape</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>TRADE<span class="w"> </span>--symbols<span class="w"> </span><span class="s1">&#39;*&#39;</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>TRADE<span class="w"> </span>--symbols<span class="w"> </span><span class="s1">'*'</span>
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># Terminal 3 — everything auction- and circuit-breaker-related</span>
 <a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>pm-calf-spy<span class="w"> </span>--channels<span class="w"> </span>AUCTION,CB<span class="w"> </span>--symbols<span class="w"> </span>AAPL,MSFT

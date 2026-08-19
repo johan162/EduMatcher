@@ -2773,6 +2773,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -4458,13 +4486,13 @@ this applies.</p>
 </div>
 <h3 id="inspecting-what-a-database-was-recorded-with">Inspecting what a database was recorded with<a class="headerlink" href="#inspecting-what-a-database-was-recorded-with" title="Permanent link">&para;</a></h3>
 <p><code>stats_meta</code> is a plain key/value table:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gp">$ </span>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">&quot;SELECT key, value FROM stats_meta&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gp">$ </span>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">"SELECT key, value FROM stats_meta"</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="go">recorder|pm-stats</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="go">session_timezone|Europe/Stockholm</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="go">snapshot_interval_sec|900.0</span>
 </code></pre></div>
 <p>The schema version is in <code>PRAGMA user_version</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">&quot;PRAGMA user_version&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="gp">$ </span>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">"PRAGMA user_version"</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="go">5</span>
 </code></pre></div>
 <p>The version is bumped both when the table definitions change and when the
@@ -4545,7 +4573,7 @@ precision if you want to include it.</p>
 </tbody>
 </table>
 <p><strong>Set the data directory in your shell profile</strong> (<code>~/.zshrc</code> or <code>~/.bashrc</code>) to override either default:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/.local/share/edumatcher&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/.local/share/edumatcher"</span>
 </code></pre></div>
 <p>Then every <code>pm-*</code> command — including <code>pm-stats</code> and <code>pm-stats-cli</code> — will use that location automatically:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Uses $EDUMATCHER_DATA_DIR/stats.db</span>
@@ -4586,13 +4614,13 @@ precision if you want to include it.</p>
 </table>
 <p><strong>Example: Per-session isolation</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Session 1: Morning trading (uses custom data directory)</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/sessions/morning&quot;</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/sessions/morning"</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats
 <a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats-cli<span class="w"> </span>daily
 <a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
 <a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># Session 2: Afternoon trading (different database)</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/sessions/afternoon&quot;</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/sessions/afternoon"</span>
 <a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine
 <a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats
 </code></pre></div>
@@ -4601,7 +4629,7 @@ precision if you want to include it.</p>
 <p class="admonition-title">Finding your data</p>
 <p>To see where <code>pm-stats</code> is writing data:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">echo</span><span class="w"> </span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="w">  </span><span class="c1"># Shows override if set, otherwise empty</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from edumatcher.config import DATA_DIR; print(DATA_DIR)&quot;</span><span class="w">  </span><span class="c1"># Shows resolved path</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"from edumatcher.config import DATA_DIR; print(DATA_DIR)"</span><span class="w">  </span><span class="c1"># Shows resolved path</span>
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>ls<span class="w"> </span>-la<span class="w"> </span><span class="nv">$EDUMATCHER_DATA_DIR</span>/stats.db<span class="w">  </span><span class="c1"># If env var is set</span>
 </code></pre></div></p>
 </div>
@@ -4610,7 +4638,7 @@ precision if you want to include it.</p>
 <p><strong>The single most important thing to know about this database: the price
 columns do not contain money.</strong> They contain an integer count of ticks. If you
 open <code>stats.db</code> in a SQL browser and see <code>15025</code>, that is <code>150.25</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="gp">$ </span>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">&quot;SELECT symbol, price, quantity, tick_decimals FROM trade_log LIMIT 1&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="gp">$ </span>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">"SELECT symbol, price, quantity, tick_decimals FROM trade_log LIMIT 1"</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="go">AAPL|15025|100|2</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="gp">$ </span>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span>
@@ -5216,14 +5244,14 @@ defect against its own archive as finding CL-C1.</p>
 it is also the only way to separate auction prints from continuous ones:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Continuous-session buy-side pressure for one trading day</span>
 <a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>--limit<span class="w"> </span><span class="m">100000</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
 <a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="s2">import json, sys, collections</span>
 <a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="s2">rows = json.load(sys.stdin)</span>
 <a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="s2">by_side = collections.Counter()</span>
 <a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="s2">for r in rows:</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="s2">    by_side[r[&#39;aggressor_side&#39;]] += r[&#39;quantity&#39;]</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="s2">    by_side[r['aggressor_side']] += r['quantity']</span>
 <a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="s2">print(dict(by_side))</span>
-<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="s2">&quot;</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="s2">"</span>
 </code></pre></div>
 <p><strong>Use case</strong>: Trade-by-trade analysis, order-flow imbalance, separating auction
 from continuous volume, audit trails.</p>
@@ -5884,7 +5912,7 @@ figures that describe neither process — so a second one refuses to start:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="gp">$ </span>pm-stats<span class="w"> </span>--db<span class="w"> </span>data/stats.db
 <a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="go">[ERROR] fatal startup error: another pm-stats process is already recording to</span>
 <a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="go">        data/stats.db (lock held on data/stats.db.lock). Two recorders on one</span>
-<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="go">        database overwrite each other&#39;s daily rollups — use a different --db.</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="go">        database overwrite each other's daily rollups — use a different --db.</span>
 <a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="gp">$ </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
 <a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="go">1</span>
 </code></pre></div>
@@ -6495,8 +6523,8 @@ API gateway with matching config:</p>
 <a id="__codelineno-45-3" name="__codelineno-45-3" href="#__codelineno-45-3"></a>pm-api-gwy<span class="w"> </span>--instance<span class="w"> </span>desk
 </code></pre></div>
 <p>Then query order lifecycle history through HTTP with a trading API key:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;Authorization: Bearer key-trader-demo&#39;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a><span class="w">   </span><span class="s1">&#39;http://127.0.0.1:8080/api/v1/history/orders?symbol=AAPL&amp;event_type=FILL&amp;limit=50&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-trader-demo'</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a><span class="w">   </span><span class="s1">'http://127.0.0.1:8080/api/v1/history/orders?symbol=AAPL&amp;event_type=FILL&amp;limit=50'</span>
 </code></pre></div>
 <p>API filters for <code>/api/v1/history/orders</code>:</p>
 <table>
@@ -6551,12 +6579,12 @@ more rows are available. See
 <code>count</code>/<code>has_more</code>/<code>next_cursor</code> contract, including which endpoints are
 exceptions to it.</p>
 <p>To reconstruct one order's lifecycle, use the order ID path:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;Authorization: Bearer key-trader-demo&#39;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a><span class="w">   </span><span class="s1">&#39;http://127.0.0.1:8080/api/v1/history/orders/ORDER_ID&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-trader-demo'</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a><span class="w">   </span><span class="s1">'http://127.0.0.1:8080/api/v1/history/orders/ORDER_ID'</span>
 </code></pre></div>
 <p>For fill-only history, use the shortcut endpoint:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;Authorization: Bearer key-trader-demo&#39;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a><span class="w">   </span><span class="s1">&#39;http://127.0.0.1:8080/api/v1/history/fills?symbol=AAPL&amp;date=2026-06-14&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">'Authorization: Bearer key-trader-demo'</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a><span class="w">   </span><span class="s1">'http://127.0.0.1:8080/api/v1/history/fills?symbol=AAPL&amp;date=2026-06-14'</span>
 </code></pre></div>
 <p>Responses include an <code>events</code> array, <code>count</code>, and for list-style queries a <code>has_more</code> flag. Each event row mirrors the <code>order_events</code> table columns, so JSON output can be loaded directly into audit notebooks or support tooling.</p>
 <p>Read-only API keys with <code>gateway_id: null</code> cannot query private order lifecycle history. Use a trading credential whose <code>gateway_id</code> owns the orders being investigated.</p>
@@ -6568,15 +6596,15 @@ exceptions to it.</p>
 <p>Good for: interactive exploration, demos, quick spot-checks.</p>
 <h3 id="json-format">JSON Format<a class="headerlink" href="#json-format" title="Permanent link">&para;</a></h3>
 <p>Machine-readable structured output for automation and downstream tools.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.[] | select(.symbol == &quot;AAPL&quot;)&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'.[] | select(.symbol == "AAPL")'</span>
 </code></pre></div>
 <p>Output:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a><span class="p">[</span>
 <a id="__codelineno-51-2" name="__codelineno-51-2" href="#__codelineno-51-2"></a><span class="w">  </span><span class="p">{</span>
-<a id="__codelineno-51-3" name="__codelineno-51-3" href="#__codelineno-51-3"></a><span class="w">    </span><span class="nt">&quot;date&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-14&quot;</span><span class="p">,</span>
-<a id="__codelineno-51-4" name="__codelineno-51-4" href="#__codelineno-51-4"></a><span class="w">    </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span>
-<a id="__codelineno-51-5" name="__codelineno-51-5" href="#__codelineno-51-5"></a><span class="w">    </span><span class="nt">&quot;open_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">150.0</span><span class="p">,</span>
-<a id="__codelineno-51-6" name="__codelineno-51-6" href="#__codelineno-51-6"></a><span class="w">    </span><span class="nt">&quot;high_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">153.25</span><span class="p">,</span>
+<a id="__codelineno-51-3" name="__codelineno-51-3" href="#__codelineno-51-3"></a><span class="w">    </span><span class="nt">"date"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-06-14"</span><span class="p">,</span>
+<a id="__codelineno-51-4" name="__codelineno-51-4" href="#__codelineno-51-4"></a><span class="w">    </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span>
+<a id="__codelineno-51-5" name="__codelineno-51-5" href="#__codelineno-51-5"></a><span class="w">    </span><span class="nt">"open_price"</span><span class="p">:</span><span class="w"> </span><span class="mf">150.0</span><span class="p">,</span>
+<a id="__codelineno-51-6" name="__codelineno-51-6" href="#__codelineno-51-6"></a><span class="w">    </span><span class="nt">"high_price"</span><span class="p">:</span><span class="w"> </span><span class="mf">153.25</span><span class="p">,</span>
 <a id="__codelineno-51-7" name="__codelineno-51-7" href="#__codelineno-51-7"></a><span class="w">    </span><span class="err">...</span>
 <a id="__codelineno-51-8" name="__codelineno-51-8" href="#__codelineno-51-8"></a><span class="w">  </span><span class="p">},</span>
 <a id="__codelineno-51-9" name="__codelineno-51-9" href="#__codelineno-51-9"></a><span class="w">  </span><span class="err">...</span>
@@ -6621,21 +6649,21 @@ exceptions to it.</p>
 </code></pre></div>
 <p>Then analyze in a spreadsheet or Python:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-58-1" name="__codelineno-58-1" href="#__codelineno-58-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<a id="__codelineno-58-2" name="__codelineno-58-2" href="#__codelineno-58-2"></a><span class="n">trades</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s1">&#39;aapl_trades.csv&#39;</span><span class="p">,</span> <span class="n">parse_dates</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;ts&#39;</span><span class="p">])</span>
-<a id="__codelineno-58-3" name="__codelineno-58-3" href="#__codelineno-58-3"></a><span class="n">trades</span><span class="p">[</span><span class="s1">&#39;hour&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">trades</span><span class="p">[</span><span class="s1">&#39;ts&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">hour</span>
+<a id="__codelineno-58-2" name="__codelineno-58-2" href="#__codelineno-58-2"></a><span class="n">trades</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s1">'aapl_trades.csv'</span><span class="p">,</span> <span class="n">parse_dates</span><span class="o">=</span><span class="p">[</span><span class="s1">'ts'</span><span class="p">])</span>
+<a id="__codelineno-58-3" name="__codelineno-58-3" href="#__codelineno-58-3"></a><span class="n">trades</span><span class="p">[</span><span class="s1">'hour'</span><span class="p">]</span> <span class="o">=</span> <span class="n">trades</span><span class="p">[</span><span class="s1">'ts'</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">hour</span>
 <a id="__codelineno-58-4" name="__codelineno-58-4" href="#__codelineno-58-4"></a>
 <a id="__codelineno-58-5" name="__codelineno-58-5" href="#__codelineno-58-5"></a><span class="c1"># Trades per hour</span>
-<a id="__codelineno-58-6" name="__codelineno-58-6" href="#__codelineno-58-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">trades</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;hour&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">())</span>
+<a id="__codelineno-58-6" name="__codelineno-58-6" href="#__codelineno-58-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">trades</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">'hour'</span><span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">())</span>
 <a id="__codelineno-58-7" name="__codelineno-58-7" href="#__codelineno-58-7"></a>
 <a id="__codelineno-58-8" name="__codelineno-58-8" href="#__codelineno-58-8"></a><span class="c1"># Average trade size</span>
-<a id="__codelineno-58-9" name="__codelineno-58-9" href="#__codelineno-58-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">trades</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;hour&#39;</span><span class="p">)[</span><span class="s1">&#39;quantity&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
+<a id="__codelineno-58-9" name="__codelineno-58-9" href="#__codelineno-58-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">trades</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">'hour'</span><span class="p">)[</span><span class="s1">'quantity'</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
 <a id="__codelineno-58-10" name="__codelineno-58-10" href="#__codelineno-58-10"></a>
 <a id="__codelineno-58-11" name="__codelineno-58-11" href="#__codelineno-58-11"></a><span class="c1"># Who are the active participants?</span>
-<a id="__codelineno-58-12" name="__codelineno-58-12" href="#__codelineno-58-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">trades</span><span class="p">[</span><span class="s1">&#39;buy_gateway_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">()</span> <span class="o">+</span> <span class="n">trades</span><span class="p">[</span><span class="s1">&#39;sell_gateway_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">())</span>
+<a id="__codelineno-58-12" name="__codelineno-58-12" href="#__codelineno-58-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">trades</span><span class="p">[</span><span class="s1">'buy_gateway_id'</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">()</span> <span class="o">+</span> <span class="n">trades</span><span class="p">[</span><span class="s1">'sell_gateway_id'</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">())</span>
 </code></pre></div>
 <h3 id="participant-performance-analysis">Participant Performance Analysis<a class="headerlink" href="#participant-performance-analysis" title="Permanent link">&para;</a></h3>
 <p>Export trade logs and group by participant to see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-59-1" name="__codelineno-59-1" href="#__codelineno-59-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.[] | {buyer: .buy_gateway_id, seller: .sell_gateway_id, price: .price, qty: .quantity}&#39;</span><span class="w"> </span>&gt;<span class="w"> </span>participant_flows.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-59-1" name="__codelineno-59-1" href="#__codelineno-59-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'.[] | {buyer: .buy_gateway_id, seller: .sell_gateway_id, price: .price, qty: .quantity}'</span><span class="w"> </span>&gt;<span class="w"> </span>participant_flows.json
 </code></pre></div>
 <p>Then aggregate in your tool of choice:
 - How many trades did each participant execute?
@@ -6687,7 +6715,7 @@ has rolled over, so <code>close_level</code> cannot change after the fact.</p>
 before trusting it, since <code>close_level</code> is updated on every tick and is a
 live "last level so far" until the session closes:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-66-1" name="__codelineno-66-1" href="#__codelineno-66-1"></a>pm-stats-cli<span class="w"> </span>index-daily<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-66-2" name="__codelineno-66-2" href="#__codelineno-66-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import json,sys; r=json.load(sys.stdin)[0]; print(r[&#39;close_level&#39;], r[&#39;close_session_state&#39;])&quot;</span>
+<a id="__codelineno-66-2" name="__codelineno-66-2" href="#__codelineno-66-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import json,sys; r=json.load(sys.stdin)[0]; print(r['close_level'], r['close_session_state'])"</span>
 </code></pre></div>
 <p>If <code>close_session_state</code> prints <code>CLOSED</code>, <code>close_level</code> is the final EOD
 print. Any other value (e.g. <code>CONTINUOUS</code>, <code>OPENING_AUCTION</code>) means the
@@ -6695,13 +6723,13 @@ session is still running and <code>close_level</code> will keep moving — re-qu
 after the close, or wait for <code>close_session_state</code> to flip to <code>CLOSED</code>.</p>
 <p>For scripting, JSON output makes this a one-line check:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-67-1" name="__codelineno-67-1" href="#__codelineno-67-1"></a>pm-stats-cli<span class="w"> </span>index-daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>--index-id<span class="w"> </span>EDU100<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-67-2" name="__codelineno-67-2" href="#__codelineno-67-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-67-2" name="__codelineno-67-2" href="#__codelineno-67-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
 <a id="__codelineno-67-3" name="__codelineno-67-3" href="#__codelineno-67-3"></a><span class="s2">import json, sys</span>
 <a id="__codelineno-67-4" name="__codelineno-67-4" href="#__codelineno-67-4"></a><span class="s2">row = json.load(sys.stdin)[0]</span>
-<a id="__codelineno-67-5" name="__codelineno-67-5" href="#__codelineno-67-5"></a><span class="s2">if row[&#39;close_session_state&#39;] != &#39;CLOSED&#39;:</span>
-<a id="__codelineno-67-6" name="__codelineno-67-6" href="#__codelineno-67-6"></a><span class="s2">    sys.exit(&#39;not final yet: &#39; + row[&#39;close_session_state&#39;])</span>
-<a id="__codelineno-67-7" name="__codelineno-67-7" href="#__codelineno-67-7"></a><span class="s2">print(f\&quot;EOD close for {row[&#39;date&#39;]} {row[&#39;index_id&#39;]}: {row[&#39;close_level&#39;]}\&quot;)</span>
-<a id="__codelineno-67-8" name="__codelineno-67-8" href="#__codelineno-67-8"></a><span class="s2">&quot;</span>
+<a id="__codelineno-67-5" name="__codelineno-67-5" href="#__codelineno-67-5"></a><span class="s2">if row['close_session_state'] != 'CLOSED':</span>
+<a id="__codelineno-67-6" name="__codelineno-67-6" href="#__codelineno-67-6"></a><span class="s2">    sys.exit('not final yet: ' + row['close_session_state'])</span>
+<a id="__codelineno-67-7" name="__codelineno-67-7" href="#__codelineno-67-7"></a><span class="s2">print(f\"EOD close for {row['date']} {row['index_id']}: {row['close_level']}\")</span>
+<a id="__codelineno-67-8" name="__codelineno-67-8" href="#__codelineno-67-8"></a><span class="s2">"</span>
 </code></pre></div>
 <h3 id="validation-did-the-trade-complete-correctly">Validation — Did the Trade Complete Correctly?<a class="headerlink" href="#validation-did-the-trade-complete-correctly" title="Permanent link">&para;</a></h3>
 <p>After a trading session ends, verify key metrics:</p>
@@ -6739,18 +6767,18 @@ after the close, or wait for <code>close_session_state</code> to flip to <code>C
 </ol>
 <p>The authoritative count without any limit concerns:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-72-1" name="__codelineno-72-1" href="#__codelineno-72-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-72-2" name="__codelineno-72-2" href="#__codelineno-72-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import json,sys; print(sum(r[&#39;trade_count&#39;] for r in json.load(sys.stdin)))&quot;</span>
+<a id="__codelineno-72-2" name="__codelineno-72-2" href="#__codelineno-72-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import json,sys; print(sum(r['trade_count'] for r in json.load(sys.stdin)))"</span>
 </code></pre></div>
 <ol>
 <li>
 <p><strong>Check for any empty books:</strong>
    <div class="highlight"><pre><span></span><code><a id="__codelineno-73-1" name="__codelineno-73-1" href="#__codelineno-73-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>snapshots<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-73-2" name="__codelineno-73-2" href="#__codelineno-73-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-73-2" name="__codelineno-73-2" href="#__codelineno-73-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
 <a id="__codelineno-73-3" name="__codelineno-73-3" href="#__codelineno-73-3"></a><span class="s2">import json, sys</span>
 <a id="__codelineno-73-4" name="__codelineno-73-4" href="#__codelineno-73-4"></a><span class="s2">for row in json.load(sys.stdin):</span>
-<a id="__codelineno-73-5" name="__codelineno-73-5" href="#__codelineno-73-5"></a><span class="s2">    if row[&#39;best_bid&#39;] is None or row[&#39;best_ask&#39;] is None:</span>
-<a id="__codelineno-73-6" name="__codelineno-73-6" href="#__codelineno-73-6"></a><span class="s2">        print(row[&#39;ts&#39;], row[&#39;best_bid&#39;], row[&#39;best_ask&#39;])</span>
-<a id="__codelineno-73-7" name="__codelineno-73-7" href="#__codelineno-73-7"></a><span class="s2">&quot;</span>
+<a id="__codelineno-73-5" name="__codelineno-73-5" href="#__codelineno-73-5"></a><span class="s2">    if row['best_bid'] is None or row['best_ask'] is None:</span>
+<a id="__codelineno-73-6" name="__codelineno-73-6" href="#__codelineno-73-6"></a><span class="s2">        print(row['ts'], row['best_bid'], row['best_ask'])</span>
+<a id="__codelineno-73-7" name="__codelineno-73-7" href="#__codelineno-73-7"></a><span class="s2">"</span>
 </code></pre></div>
    Empty books during active trading hours may indicate a problem. Use JSON
    here: <code>table</code> and <code>csv</code> render a null as an empty cell, so a text search for
@@ -6789,7 +6817,7 @@ after the close, or wait for <code>close_session_state</code> to flip to <code>C
 </ul>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-76-1" name="__codelineno-76-1" href="#__codelineno-76-1"></a><span class="c1"># Every rejection across all event families for one gateway</span>
 <a id="__codelineno-76-2" name="__codelineno-76-2" href="#__codelineno-76-2"></a><span class="k">for</span><span class="w"> </span>t<span class="w"> </span><span class="k">in</span><span class="w"> </span>REJECT<span class="w"> </span>COMBO_REJECT<span class="w"> </span>OCO_REJECT<span class="w"> </span>QUOTE_REJECT<span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-76-3" name="__codelineno-76-3" href="#__codelineno-76-3"></a><span class="w">  </span>pm-stats-cli<span class="w"> </span>order-events<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--event-type<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$t</span><span class="s2">&quot;</span>
+<a id="__codelineno-76-3" name="__codelineno-76-3" href="#__codelineno-76-3"></a><span class="w">  </span>pm-stats-cli<span class="w"> </span>order-events<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--event-type<span class="w"> </span><span class="s2">"</span><span class="nv">$t</span><span class="s2">"</span>
 <a id="__codelineno-76-4" name="__codelineno-76-4" href="#__codelineno-76-4"></a><span class="k">done</span>
 </code></pre></div>
 <h2 id="integration-with-other-tools">Integration with Other Tools<a class="headerlink" href="#integration-with-other-tools" title="Permanent link">&para;</a></h2>
@@ -6806,7 +6834,7 @@ after the close, or wait for <code>close_session_state</code> to flip to <code>C
 <a id="__codelineno-77-8" name="__codelineno-77-8" href="#__codelineno-77-8"></a>pm-ticker
 <a id="__codelineno-77-9" name="__codelineno-77-9" href="#__codelineno-77-9"></a>
 <a id="__codelineno-77-10" name="__codelineno-77-10" href="#__codelineno-77-10"></a><span class="c1"># Terminal 4: Live-check stats as trades occur</span>
-<a id="__codelineno-77-11" name="__codelineno-77-11" href="#__codelineno-77-11"></a>watch<span class="w"> </span>-n<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="s1">&#39;pm-stats-cli daily | tail -5&#39;</span>
+<a id="__codelineno-77-11" name="__codelineno-77-11" href="#__codelineno-77-11"></a>watch<span class="w"> </span>-n<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="s1">'pm-stats-cli daily | tail -5'</span>
 </code></pre></div>
 <h3 id="exporting-to-bi-tools">Exporting to BI Tools<a class="headerlink" href="#exporting-to-bi-tools" title="Permanent link">&para;</a></h3>
 <p>Example: Export daily summaries to a cloud data warehouse:</p>
@@ -6828,7 +6856,7 @@ after the close, or wait for <code>close_session_state</code> to flip to <code>C
 does not — and <code>date</code> cannot be interpreted without it. Read it before
 exporting and keep it with the file:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-79-1" name="__codelineno-79-1" href="#__codelineno-79-1"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-79-2" name="__codelineno-79-2" href="#__codelineno-79-2"></a><span class="w">  </span><span class="s2">&quot;SELECT value FROM stats_meta WHERE key = &#39;session_timezone&#39;&quot;</span>
+<a id="__codelineno-79-2" name="__codelineno-79-2" href="#__codelineno-79-2"></a><span class="w">  </span><span class="s2">"SELECT value FROM stats_meta WHERE key = 'session_timezone'"</span>
 </code></pre></div>
 <p>Tick size and price precision <strong>are</strong> now recorded, in the
 <a href="#instruments"><code>instruments</code></a> table — export it alongside your data and
@@ -6844,7 +6872,7 @@ NULL rather than a value to read.</p>
 <a id="__codelineno-80-4" name="__codelineno-80-4" href="#__codelineno-80-4"></a>
 <a id="__codelineno-80-5" name="__codelineno-80-5" href="#__codelineno-80-5"></a><span class="c1"># Get daily stats as JSON</span>
 <a id="__codelineno-80-6" name="__codelineno-80-6" href="#__codelineno-80-6"></a><span class="n">result</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
-<a id="__codelineno-80-7" name="__codelineno-80-7" href="#__codelineno-80-7"></a>    <span class="p">[</span><span class="s1">&#39;pm-stats-cli&#39;</span><span class="p">,</span> <span class="s1">&#39;--format&#39;</span><span class="p">,</span> <span class="s1">&#39;json&#39;</span><span class="p">,</span> <span class="s1">&#39;daily&#39;</span><span class="p">,</span> <span class="s1">&#39;--date&#39;</span><span class="p">,</span> <span class="s1">&#39;2026-06-14&#39;</span><span class="p">],</span>
+<a id="__codelineno-80-7" name="__codelineno-80-7" href="#__codelineno-80-7"></a>    <span class="p">[</span><span class="s1">'pm-stats-cli'</span><span class="p">,</span> <span class="s1">'--format'</span><span class="p">,</span> <span class="s1">'json'</span><span class="p">,</span> <span class="s1">'daily'</span><span class="p">,</span> <span class="s1">'--date'</span><span class="p">,</span> <span class="s1">'2026-06-14'</span><span class="p">],</span>
 <a id="__codelineno-80-8" name="__codelineno-80-8" href="#__codelineno-80-8"></a>    <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 <a id="__codelineno-80-9" name="__codelineno-80-9" href="#__codelineno-80-9"></a>    <span class="n">text</span><span class="o">=</span><span class="kc">True</span>
 <a id="__codelineno-80-10" name="__codelineno-80-10" href="#__codelineno-80-10"></a><span class="p">)</span>
@@ -6852,12 +6880,12 @@ NULL rather than a value to read.</p>
 <a id="__codelineno-80-12" name="__codelineno-80-12" href="#__codelineno-80-12"></a><span class="n">daily</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">stdout</span><span class="p">))</span>
 <a id="__codelineno-80-13" name="__codelineno-80-13" href="#__codelineno-80-13"></a>
 <a id="__codelineno-80-14" name="__codelineno-80-14" href="#__codelineno-80-14"></a><span class="c1"># Pivot to wide format for correlation analysis</span>
-<a id="__codelineno-80-15" name="__codelineno-80-15" href="#__codelineno-80-15"></a><span class="n">daily_pivot</span> <span class="o">=</span> <span class="n">daily</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;symbol&#39;</span><span class="p">)</span>
-<a id="__codelineno-80-16" name="__codelineno-80-16" href="#__codelineno-80-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">daily_pivot</span><span class="p">[[</span><span class="s1">&#39;open_price&#39;</span><span class="p">,</span> <span class="s1">&#39;close_price&#39;</span><span class="p">,</span> <span class="s1">&#39;volume&#39;</span><span class="p">]])</span>
+<a id="__codelineno-80-15" name="__codelineno-80-15" href="#__codelineno-80-15"></a><span class="n">daily_pivot</span> <span class="o">=</span> <span class="n">daily</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">'symbol'</span><span class="p">)</span>
+<a id="__codelineno-80-16" name="__codelineno-80-16" href="#__codelineno-80-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">daily_pivot</span><span class="p">[[</span><span class="s1">'open_price'</span><span class="p">,</span> <span class="s1">'close_price'</span><span class="p">,</span> <span class="s1">'volume'</span><span class="p">]])</span>
 <a id="__codelineno-80-17" name="__codelineno-80-17" href="#__codelineno-80-17"></a>
 <a id="__codelineno-80-18" name="__codelineno-80-18" href="#__codelineno-80-18"></a><span class="c1"># Calculate returns</span>
-<a id="__codelineno-80-19" name="__codelineno-80-19" href="#__codelineno-80-19"></a><span class="n">daily</span><span class="p">[</span><span class="s1">&#39;return_pct&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">daily</span><span class="p">[</span><span class="s1">&#39;close_price&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">daily</span><span class="p">[</span><span class="s1">&#39;open_price&#39;</span><span class="p">])</span> <span class="o">/</span> <span class="n">daily</span><span class="p">[</span><span class="s1">&#39;open_price&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">100</span>
-<a id="__codelineno-80-20" name="__codelineno-80-20" href="#__codelineno-80-20"></a><span class="nb">print</span><span class="p">(</span><span class="n">daily</span><span class="p">[[</span><span class="s1">&#39;symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;return_pct&#39;</span><span class="p">]])</span>
+<a id="__codelineno-80-19" name="__codelineno-80-19" href="#__codelineno-80-19"></a><span class="n">daily</span><span class="p">[</span><span class="s1">'return_pct'</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">daily</span><span class="p">[</span><span class="s1">'close_price'</span><span class="p">]</span> <span class="o">-</span> <span class="n">daily</span><span class="p">[</span><span class="s1">'open_price'</span><span class="p">])</span> <span class="o">/</span> <span class="n">daily</span><span class="p">[</span><span class="s1">'open_price'</span><span class="p">]</span> <span class="o">*</span> <span class="mi">100</span>
+<a id="__codelineno-80-20" name="__codelineno-80-20" href="#__codelineno-80-20"></a><span class="nb">print</span><span class="p">(</span><span class="n">daily</span><span class="p">[[</span><span class="s1">'symbol'</span><span class="p">,</span> <span class="s1">'return_pct'</span><span class="p">]])</span>
 </code></pre></div>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="no-data-recorded-where-did-the-trades-go">No data recorded — where did the trades go?<a class="headerlink" href="#no-data-recorded-where-did-the-trades-go" title="Permanent link">&para;</a></h3>
@@ -6876,7 +6904,7 @@ NULL rather than a value to read.</p>
 </li>
 <li>
 <p><strong>Verify the database file exists and has the right tables:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-83-1" name="__codelineno-83-1" href="#__codelineno-83-1"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">&quot;.tables&quot;</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-83-1" name="__codelineno-83-1" href="#__codelineno-83-1"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">".tables"</span>
 </code></pre></div>
    You should see: <code>daily_stats</code>, <code>price_snapshots</code>, <code>trade_log</code>, <code>order_events</code>,
    <code>index_daily_stats</code>, <code>index_level_snapshots</code>, <code>feed_gaps</code>, <code>instruments</code>,
@@ -6890,7 +6918,7 @@ NULL rather than a value to read.</p>
 </li>
 <li>
 <p><strong>Check for order lifecycle history:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-85-1" name="__codelineno-85-1" href="#__codelineno-85-1"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">&quot;SELECT ts,event_type,order_id,gateway_id,symbol FROM order_events ORDER BY seq DESC LIMIT 5;&quot;</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-85-1" name="__codelineno-85-1" href="#__codelineno-85-1"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">"SELECT ts,event_type,order_id,gateway_id,symbol FROM order_events ORDER BY seq DESC LIMIT 5;"</span>
 </code></pre></div>
    If empty, no private order lifecycle topics have reached <code>pm-stats</code> yet. Submit, amend, cancel, or fill an order while <code>pm-stats</code> is running.</p>
 </li>
@@ -6983,10 +7011,10 @@ NULL rather than a value to read.</p>
    file. In WAL mode a plain <code>cp</code> can capture a torn database without the
    companion <code>-wal</code> file:
    <div class="highlight"><pre><span></span><code><a id="__codelineno-92-1" name="__codelineno-92-1" href="#__codelineno-92-1"></a><span class="c1"># Safe while pm-stats is running; produces a consistent, compacted copy</span>
-<a id="__codelineno-92-2" name="__codelineno-92-2" href="#__codelineno-92-2"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">&quot;VACUUM INTO &#39;data/stats_backup.db&#39;&quot;</span>
+<a id="__codelineno-92-2" name="__codelineno-92-2" href="#__codelineno-92-2"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">"VACUUM INTO 'data/stats_backup.db'"</span>
 <a id="__codelineno-92-3" name="__codelineno-92-3" href="#__codelineno-92-3"></a>
 <a id="__codelineno-92-4" name="__codelineno-92-4" href="#__codelineno-92-4"></a><span class="c1"># Equivalent, and works on older sqlite3 builds</span>
-<a id="__codelineno-92-5" name="__codelineno-92-5" href="#__codelineno-92-5"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">&quot;.backup &#39;data/stats_backup.db&#39;&quot;</span>
+<a id="__codelineno-92-5" name="__codelineno-92-5" href="#__codelineno-92-5"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">".backup 'data/stats_backup.db'"</span>
 </code></pre></div></p>
 </li>
 </ol>
@@ -7008,16 +7036,16 @@ and monitor the file size. There is no built-in retention setting.</p>
 <li>If trading is light and no book updates occur during the interval, no snapshot is recorded for that period. This is by design — snapshots only record when the market moves.</li>
 </ul>
 <p>To verify:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-93-1" name="__codelineno-93-1" href="#__codelineno-93-1"></a>pm-stats-cli<span class="w"> </span>snapshots<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{print $1}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>uniq<span class="w"> </span>-c
+<div class="highlight"><pre><span></span><code><a id="__codelineno-93-1" name="__codelineno-93-1" href="#__codelineno-93-1"></a>pm-stats-cli<span class="w"> </span>snapshots<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">'{print $1}'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>uniq<span class="w"> </span>-c
 </code></pre></div>
 <p>You should see roughly one entry every 15 minutes. Large gaps indicate periods with no trading.</p>
 <h3 id="vwap-calculation-looks-wrong">VWAP calculation looks wrong<a class="headerlink" href="#vwap-calculation-looks-wrong" title="Permanent link">&para;</a></h3>
 <p>VWAP is recalculated on every trade and stored at that moment. The final VWAP for the day is stored in <code>daily_stats</code> after the close.</p>
 <p>To verify VWAP manually:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-94-1" name="__codelineno-94-1" href="#__codelineno-94-1"></a><span class="c1"># --limit must exceed the day&#39;s trade count, or you will be comparing a</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-94-1" name="__codelineno-94-1" href="#__codelineno-94-1"></a><span class="c1"># --limit must exceed the day's trade count, or you will be comparing a</span>
 <a id="__codelineno-94-2" name="__codelineno-94-2" href="#__codelineno-94-2"></a><span class="c1"># partial recomputation against the full-day figure and they will not match.</span>
 <a id="__codelineno-94-3" name="__codelineno-94-3" href="#__codelineno-94-3"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>--limit<span class="w"> </span><span class="m">100000</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-94-4" name="__codelineno-94-4" href="#__codelineno-94-4"></a><span class="w">  </span>awk<span class="w"> </span>-F,<span class="w"> </span><span class="s1">&#39;NR&gt;1 {qty_sum += $5; price_qty += $4*$5} END {print price_qty/qty_sum}&#39;</span>
+<a id="__codelineno-94-4" name="__codelineno-94-4" href="#__codelineno-94-4"></a><span class="w">  </span>awk<span class="w"> </span>-F,<span class="w"> </span><span class="s1">'NR&gt;1 {qty_sum += $5; price_qty += $4*$5} END {print price_qty/qty_sum}'</span>
 </code></pre></div>
 <p>This calculates <span class="arithmatex">\(\sum(price \times qty) / \sum(qty)\)</span> from the trade log. Compare it to the value in <code>daily_stats</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-95-1" name="__codelineno-95-1" href="#__codelineno-95-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14
@@ -7027,14 +7055,14 @@ prices on the way out, while <code>daily_stats.vwap</code> is in <strong>ticks</
 stored VWAP by <code>10^tick_decimals</code> before comparing, or the two will differ by
 a factor of a hundred and look catastrophically wrong when nothing is:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-96-1" name="__codelineno-96-1" href="#__codelineno-96-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>daily<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>--wide<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-96-2" name="__codelineno-96-2" href="#__codelineno-96-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-96-2" name="__codelineno-96-2" href="#__codelineno-96-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
 <a id="__codelineno-96-3" name="__codelineno-96-3" href="#__codelineno-96-3"></a><span class="s2">import json, sys</span>
 <a id="__codelineno-96-4" name="__codelineno-96-4" href="#__codelineno-96-4"></a><span class="s2">row = json.load(sys.stdin)[0]</span>
-<a id="__codelineno-96-5" name="__codelineno-96-5" href="#__codelineno-96-5"></a><span class="s2">scale = 10 ** row[&#39;tick_decimals&#39;]</span>
-<a id="__codelineno-96-6" name="__codelineno-96-6" href="#__codelineno-96-6"></a><span class="s2">print(&#39;vwap  (money):&#39;, row[&#39;vwap&#39;])          # already converted on output</span>
-<a id="__codelineno-96-7" name="__codelineno-96-7" href="#__codelineno-96-7"></a><span class="s2">print(&#39;vwap  (ticks):&#39;, row[&#39;vwap&#39;] * scale)</span>
-<a id="__codelineno-96-8" name="__codelineno-96-8" href="#__codelineno-96-8"></a><span class="s2">print(&#39;turnover/vol :&#39;, row[&#39;turnover&#39;] / row[&#39;volume&#39;] / scale)</span>
-<a id="__codelineno-96-9" name="__codelineno-96-9" href="#__codelineno-96-9"></a><span class="s2">&quot;</span>
+<a id="__codelineno-96-5" name="__codelineno-96-5" href="#__codelineno-96-5"></a><span class="s2">scale = 10 ** row['tick_decimals']</span>
+<a id="__codelineno-96-6" name="__codelineno-96-6" href="#__codelineno-96-6"></a><span class="s2">print('vwap  (money):', row['vwap'])          # already converted on output</span>
+<a id="__codelineno-96-7" name="__codelineno-96-7" href="#__codelineno-96-7"></a><span class="s2">print('vwap  (ticks):', row['vwap'] * scale)</span>
+<a id="__codelineno-96-8" name="__codelineno-96-8" href="#__codelineno-96-8"></a><span class="s2">print('turnover/vol :', row['turnover'] / row['volume'] / scale)</span>
+<a id="__codelineno-96-9" name="__codelineno-96-9" href="#__codelineno-96-9"></a><span class="s2">"</span>
 </code></pre></div>
 <p>Because prices are stored as exact integers, the recomputation should now
 agree to full precision rather than merely to within rounding — <code>turnover</code> is

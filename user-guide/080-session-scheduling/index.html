@@ -2292,6 +2292,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -4179,7 +4207,7 @@ messages to the engine at configured wall-clock times over a ZeroMQ PUSH
 socket. It only does so on working days — see
 <a href="#bank-holidays-and-weekends">Bank holidays and weekends</a> below.</p>
 <h3 id="starting-the-scheduler">Starting the scheduler<a class="headerlink" href="#starting-the-scheduler" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Use times from engine_config.yaml (or built-in defaults); run today&#39;s</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Use times from engine_config.yaml (or built-in defaults); run today's</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># schedule once (catching up on any times already passed) and then exit</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
@@ -4250,11 +4278,11 @@ socket. It only does so on working days — see
 <h3 id="configuring-the-schedule">Configuring the schedule<a class="headerlink" href="#configuring-the-schedule" title="Permanent link">&para;</a></h3>
 <p>Add a <code>schedule</code> section to <code>engine_config.yaml</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">schedule</span><span class="p">:</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:00&quot;</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:25&quot;</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:30&quot;</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;16:00&quot;</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;16:05&quot;</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">"09:00"</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:25"</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">"09:30"</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">"16:00"</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">"16:05"</span>
 </code></pre></div>
 <p>Times are <code>HH:MM</code> in local time.</p>
 <p>The schedule only runs on working days for the configured <code>country</code> — a
@@ -4324,10 +4352,10 @@ package:</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Germany&#39;s holiday calendar instead of the default (Sweden)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Germany's holiday calendar instead of the default (Sweden)</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nt">country</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DE</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>2026-12-25 is not a working day for Sweden (weekend or bank holiday); skipping today&#39;s schedule
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>2026-12-25 is not a working day for Sweden (weekend or bank holiday); skipping today's schedule
 </code></pre></div>
 <p>(shown with <code>-v</code>/<code>--verbose</code>, since it's an <code>INFO</code>-level log line)</p>
 <div class="admonition note">

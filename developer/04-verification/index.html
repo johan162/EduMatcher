@@ -1854,6 +1854,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/800-examples/" class="md-nav__link">
         
   
@@ -4131,7 +4159,7 @@ making a high fill rate likely and stress-testing deep-book mechanics.</p>
 <code>OrderBook</code> instances — one per symbol — without any networking:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">books</span> <span class="o">=</span> <span class="p">{</span><span class="n">sym</span><span class="p">:</span> <span class="n">OrderBook</span><span class="p">(</span><span class="n">sym</span><span class="p">)</span> <span class="k">for</span> <span class="n">sym</span> <span class="ow">in</span> <span class="n">SYMBOLS</span><span class="p">}</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">mm_lines</span> <span class="o">+</span> <span class="n">test_lines</span><span class="p">:</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">order</span> <span class="o">=</span> <span class="n">parse_fix_line</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">gateway_id</span><span class="o">=</span><span class="s2">&quot;PAPER01&quot;</span><span class="p">)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">order</span> <span class="o">=</span> <span class="n">parse_fix_line</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">gateway_id</span><span class="o">=</span><span class="s2">"PAPER01"</span><span class="p">)</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="k">if</span> <span class="n">order</span><span class="p">:</span>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>        <span class="n">books</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">symbol</span><span class="p">]</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 </code></pre></div>
@@ -4200,9 +4228,9 @@ too early).  The ACK loop enforces the same ordering in both paths.</p>
 <p>After all orders are sent, the client pauses 0.5 s (configurable via
 <code>DRAIN_PAUSE_S</code>) to let the engine finish any async work, then sends a
 <code>book.snapshot_request</code> message for each symbol:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">push_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span><span class="n">make_book_snapshot_request_msg</span><span class="p">(</span><span class="s2">&quot;AAPL&quot;</span><span class="p">))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">push_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span><span class="n">make_book_snapshot_request_msg</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">))</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="c1"># Engine publishes the snapshot to topic  book.AAPL</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">snap</span> <span class="o">=</span> <span class="n">wait_for_topic</span><span class="p">(</span><span class="s2">&quot;book.AAPL&quot;</span><span class="p">,</span> <span class="n">timeout_ms</span><span class="o">=</span><span class="mi">5000</span><span class="p">)</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">snap</span> <span class="o">=</span> <span class="n">wait_for_topic</span><span class="p">(</span><span class="s2">"book.AAPL"</span><span class="p">,</span> <span class="n">timeout_ms</span><span class="o">=</span><span class="mi">5000</span><span class="p">)</span>
 </code></pre></div>
 <p>The snapshot is normalised to the same <code>{bids, asks, last_price, ...}</code> shape
 used by the paper result, then saved to <code>data/verify/engine_result.json</code>.</p>

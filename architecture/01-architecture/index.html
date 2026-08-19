@@ -1854,6 +1854,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/800-examples/" class="md-nav__link">
         
   
@@ -5103,7 +5131,7 @@ making it safe from concurrent modification without locks.</p>
 used by the matching engine.</p>
 <h3 id="order-book-organization">Order Book Organization<a class="headerlink" href="#order-book-organization" title="Permanent link">&para;</a></h3>
 <p>Each symbol gets its own <code>OrderBook</code> instance.  Internally it maintains <strong>six primary data structures</strong> organized for fast price-time-priority matching:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>OrderBook(&quot;AAPL&quot;)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>OrderBook("AAPL")
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>│
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>├── _bids          max-heap  [HeapEntry(-price, timestamp, order), ...]
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>├── _asks          min-heap  [HeapEntry( price, timestamp, order), ...]
@@ -5133,7 +5161,7 @@ heap entry.</p>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">HeapEntry</span><span class="p">:</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">key</span><span class="p">:</span>   <span class="nb">tuple</span>       <span class="c1"># (-price, ts) for bids; (price, ts) for asks</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">order</span><span class="p">:</span> <span class="n">Order</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">valid</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span> <span class="c1"># set False on cancel/fill → &quot;tombstone&quot;</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">valid</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span> <span class="c1"># set False on cancel/fill → "tombstone"</span>
 </code></pre></div>
 <p>When an order is cancelled or filled, we do <strong>not</strong> remove it from the heap immediately
 (which would require O(n) search + O(log n) sift).  Instead we mark <code>entry.valid = False</code>
@@ -5699,15 +5727,15 @@ reason "Gateway not connected: {GW_ID}".</p>
 <a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>        if message available:
 <a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>            topic, payload = decode(message)
 <a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>            dispatch:
-<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>                &quot;order.new&quot;              → _handle_new_order(payload)
-<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a>                &quot;order.cancel&quot;           → _handle_cancel(payload)
-<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a>                &quot;order.combo&quot;            → _handle_combo_order(payload)
-<a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a>                &quot;order.combo_cancel&quot;     → _handle_combo_cancel(payload)
-<a id="__codelineno-22-15" name="__codelineno-22-15" href="#__codelineno-22-15"></a>                &quot;session.transition&quot;     → _handle_session_transition(payload)
-<a id="__codelineno-22-16" name="__codelineno-22-16" href="#__codelineno-22-16"></a>                &quot;system.gateway_connect&quot; → _handle_gateway_connect(payload)
-<a id="__codelineno-22-17" name="__codelineno-22-17" href="#__codelineno-22-17"></a>                &quot;system.symbols_request&quot; → _handle_symbols_request(payload)
-<a id="__codelineno-22-18" name="__codelineno-22-18" href="#__codelineno-22-18"></a>                &quot;book.snapshot_request&quot;  → _handle_snapshot_request(payload)
-<a id="__codelineno-22-19" name="__codelineno-22-19" href="#__codelineno-22-19"></a>                &quot;order.orders_request&quot;   → _handle_orders_request(payload)
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>                "order.new"              → _handle_new_order(payload)
+<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a>                "order.cancel"           → _handle_cancel(payload)
+<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a>                "order.combo"            → _handle_combo_order(payload)
+<a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a>                "order.combo_cancel"     → _handle_combo_cancel(payload)
+<a id="__codelineno-22-15" name="__codelineno-22-15" href="#__codelineno-22-15"></a>                "session.transition"     → _handle_session_transition(payload)
+<a id="__codelineno-22-16" name="__codelineno-22-16" href="#__codelineno-22-16"></a>                "system.gateway_connect" → _handle_gateway_connect(payload)
+<a id="__codelineno-22-17" name="__codelineno-22-17" href="#__codelineno-22-17"></a>                "system.symbols_request" → _handle_symbols_request(payload)
+<a id="__codelineno-22-18" name="__codelineno-22-18" href="#__codelineno-22-18"></a>                "book.snapshot_request"  → _handle_snapshot_request(payload)
+<a id="__codelineno-22-19" name="__codelineno-22-19" href="#__codelineno-22-19"></a>                "order.orders_request"   → _handle_orders_request(payload)
 <a id="__codelineno-22-20" name="__codelineno-22-20" href="#__codelineno-22-20"></a>
 <a id="__codelineno-22-21" name="__codelineno-22-21" href="#__codelineno-22-21"></a>        flush_snapshots()  // publish throttled book images for dirty symbols
 <a id="__codelineno-22-22" name="__codelineno-22-22" href="#__codelineno-22-22"></a>
@@ -5975,7 +6003,7 @@ Python stores attributes in a fixed-size C array instead.</p>
 </code></pre></div>
 <p>For classes that aren't dataclasses (like <code>_HeapEntry</code>), you define it manually:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">_HeapEntry</span><span class="p">:</span>
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;key&#39;</span><span class="p">,</span> <span class="s1">&#39;order&#39;</span><span class="p">,</span> <span class="s1">&#39;valid&#39;</span><span class="p">)</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'key'</span><span class="p">,</span> <span class="s1">'order'</span><span class="p">,</span> <span class="s1">'valid'</span><span class="p">)</span>
 <a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>
 <a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">valid</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">key</span>   <span class="o">=</span> <span class="n">key</span>
@@ -5994,11 +6022,11 @@ is easy to forget.</p>
 members comparing each string (~600–800 ns).  A dictionary lookup is ~50 ns.
 With 5 enums per order, this saves ~3 µs per deserialization call.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># Build once at module load time</span>
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="n">_SIDE_MAP</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">value</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">Side</span><span class="p">}</span>      <span class="c1"># {&quot;BUY&quot;: Side.BUY, &quot;SELL&quot;: Side.SELL}</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="n">_SIDE_MAP</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">value</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">Side</span><span class="p">}</span>      <span class="c1"># {"BUY": Side.BUY, "SELL": Side.SELL}</span>
 <a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="n">_TYPE_MAP</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">value</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">OrderType</span><span class="p">}</span>
 <a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>
 <a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="c1"># Then in from_dict():</span>
-<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="n">side</span> <span class="o">=</span> <span class="n">_SIDE_MAP</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;side&quot;</span><span class="p">]]</span>   <span class="c1"># ~50 ns instead of Side(&quot;BUY&quot;) at ~700 ns</span>
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="n">side</span> <span class="o">=</span> <span class="n">_SIDE_MAP</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="s2">"side"</span><span class="p">]]</span>   <span class="c1"># ~50 ns instead of Side("BUY") at ~700 ns</span>
 </code></pre></div>
 <p><strong>Drawbacks:</strong>  If you add a new enum member, you must remember that the lookup
 dict was built at import time — it won't automatically include the new member
@@ -6115,9 +6143,9 @@ fields.  Building a minimal dict inline costs ~250 ns.</p>
 <a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">([</span>
 <a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>    <span class="n">fill_topic_bytes</span><span class="p">,</span>
 <a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>    <span class="n">_dumps</span><span class="p">({</span>
-<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>        <span class="s2">&quot;order_id&quot;</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
-<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>        <span class="s2">&quot;fill_qty&quot;</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">quantity</span> <span class="o">-</span> <span class="n">evt</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">,</span>
-<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a>        <span class="s2">&quot;status&quot;</span><span class="p">:</span>   <span class="n">evt</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>        <span class="s2">"order_id"</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>        <span class="s2">"fill_qty"</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">quantity</span> <span class="o">-</span> <span class="n">evt</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">,</span>
+<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a>        <span class="s2">"status"</span><span class="p">:</span>   <span class="n">evt</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
 <a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>        <span class="o">...</span>
 <a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a>    <span class="p">}),</span>
 <a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a><span class="p">])</span>
@@ -6166,7 +6194,7 @@ dictionary, avoiding repeated <code>f"order.ack.{gw}".encode()</code> calls.</p>
 messages per order, that's ~300–400 ns wasted on creating the same bytes.  A dict
 lookup is ~50 ns total.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Populate on first use</span>
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_topic_cache</span><span class="p">[</span><span class="n">gw</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;order.ack.</span><span class="si">{</span><span class="n">gw</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_topic_cache</span><span class="p">[</span><span class="n">gw</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"order.ack.</span><span class="si">{</span><span class="n">gw</span><span class="si">}</span><span class="s2">"</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
 <a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
 <a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1"># Hot path</span>
 <a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="n">topic</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_topic_cache</span><span class="p">[</span><span class="n">gw</span><span class="p">]</span>  <span class="c1"># ~50 ns instead of ~100 ns</span>
@@ -6209,11 +6237,11 @@ each keyword argument — with 19 kwargs this alone costs ~400 ns.  <code>__new_
 creates a bare instance in ~80 ns, and then each <code>o.field = value</code> is a simple
 <code>STORE_ATTR</code> (~30 ns with slots).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nd">@classmethod</span>
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Order&quot;</span><span class="p">:</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">"Order"</span><span class="p">:</span>
 <a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>    <span class="n">o</span> <span class="o">=</span> <span class="nb">object</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
-<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>    <span class="n">o</span><span class="o">.</span><span class="n">id</span>         <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span>
-<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>    <span class="n">o</span><span class="o">.</span><span class="n">symbol</span>     <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;symbol&quot;</span><span class="p">]</span>
-<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>    <span class="n">o</span><span class="o">.</span><span class="n">side</span>       <span class="o">=</span> <span class="n">_SIDE_MAP</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;side&quot;</span><span class="p">]]</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>    <span class="n">o</span><span class="o">.</span><span class="n">id</span>         <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">"id"</span><span class="p">]</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>    <span class="n">o</span><span class="o">.</span><span class="n">symbol</span>     <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">"symbol"</span><span class="p">]</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>    <span class="n">o</span><span class="o">.</span><span class="n">side</span>       <span class="o">=</span> <span class="n">_SIDE_MAP</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="s2">"side"</span><span class="p">]]</span>
 <a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>    <span class="o">...</span>
 <a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>    <span class="k">return</span> <span class="n">o</span>
 </code></pre></div>

@@ -1854,6 +1854,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/800-examples/" class="md-nav__link">
         
   
@@ -3628,7 +3656,7 @@ operations, admins also need targeted controls for:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[GW_ADMIN|ADMIN]&gt; KICK|GW=TRADER02|REASON=Training_disconnect_check
 </code></pre></div>
 <p>Or with CLI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Training disconnect check&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--reason<span class="w"> </span><span class="s2">"Training disconnect check"</span>
 </code></pre></div>
 <p>Verification:</p>
 <ol>
@@ -3692,7 +3720,7 @@ intervention without relying on the MM terminal.</p>
 <li><code>SESSION|STATE=CONTINUOUS</code> to restore normal operation if needed.</li>
 </ol>
 <p>Example CLI sequence:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Training incident&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--reason<span class="w"> </span><span class="s2">"Training incident"</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>qcancel<span class="w"> </span>--gw<span class="w"> </span>MM_AAPL_01<span class="w"> </span>--sym<span class="w"> </span>AAPL
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>cancel-sym<span class="w"> </span>--sym<span class="w"> </span>AAPL
 <a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status

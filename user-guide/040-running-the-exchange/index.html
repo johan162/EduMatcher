@@ -2518,6 +2518,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -4255,8 +4283,8 @@ once per shell, service unit, tmux session, container, or launcher.</p>
 </tbody>
 </table>
 <p>Example per-session isolation:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/edumatcher-sessions/morning&quot;</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/edumatcher-sessions/morning"</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pm-config-deploy<span class="w"> </span>./configs/morning.yaml
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>pm-engine<span class="w"> </span>--verbose
 </code></pre></div>
@@ -4598,7 +4626,7 @@ current support and CLI workflows.</p>
 <li>optionally <code>pm-log-srv</code> for bridge logs</li>
 </ul>
 <p>From <code>web-apps/terminal-gui/</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span><span class="s1">&#39;...&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span><span class="s1">'...'</span>
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>make<span class="w"> </span>up
 </code></pre></div>
 <p>Then open <code>http://localhost:8090</code>. See
@@ -4784,7 +4812,7 @@ was started in the same data directory and has observed relevant activity.</p>
 <a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>session-status<span class="w"> </span>&gt;/dev/null
 <a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>OPS01<span class="w"> </span>symbols<span class="w"> </span>&gt;/dev/null
 <a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a>
-<a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;OK: engine sockets and admin queries are healthy&quot;</span>
+<a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">"OK: engine sockets and admin queries are healthy"</span>
 </code></pre></div>
 <p>Add scenario-specific checks for <code>pm-md-gwy</code>, <code>pm-api-gwy</code>, TapeDeck, clearing,
 stats or logs when those services are required.</p>
@@ -4997,7 +5025,7 @@ events. DAY orders expire.</p>
 </ol>
 <p>Example archive:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>tar<span class="w"> </span>-czf<span class="w"> </span>edumatcher-session-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d-%H%M%S<span class="k">)</span>.tgz<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">    </span>-C<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span><span class="w"> </span>.
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">    </span>-C<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span><span class="w"> </span>.
 </code></pre></div>
 <h2 id="appendix-operator-playbooks">Appendix: operator playbooks<a class="headerlink" href="#appendix-operator-playbooks" title="Permanent link">&para;</a></h2>
 <p>These playbooks are intentionally explicit. Copy them into a session-specific
@@ -5043,8 +5071,8 @@ runbook and replace IDs, symbols, timezones and ports with your own.</p>
 <ol>
 <li>
 <p>Set data directory and deploy config:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/edumatcher-sessions/class-01&quot;</span>
-<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/edumatcher-sessions/class-01"</span>
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">"</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">"</span>
 <a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>pm-config-deploy<span class="w"> </span>--check<span class="w"> </span>engine_config.yaml
 <a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>pm-config-deploy<span class="w"> </span>engine_config.yaml
 </code></pre></div>
@@ -5129,7 +5157,7 @@ runbook and replace IDs, symbols, timezones and ports with your own.</p>
 <li>
 <p>Start TapeDeck:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a><span class="nb">cd</span><span class="w"> </span>web-apps/terminal-gui
-<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span><span class="s1">&#39;...&#39;</span>
+<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PM_TERMINAL_API_KEY</span><span class="o">=</span><span class="s1">'...'</span>
 <a id="__codelineno-48-3" name="__codelineno-48-3" href="#__codelineno-48-3"></a>make<span class="w"> </span>up
 </code></pre></div>
 </li>

@@ -2014,6 +2014,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../300-trader-order-entry-terminal.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trader Order Entry Terminal (TraderUI)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../800-examples/" class="md-nav__link">
         
   
@@ -3794,7 +3822,7 @@ distinct), the symbol, the sequence number, and the remaining fields as
 <p>Session-level messages that carry no channel/symbol of their own (<code>WELCOME</code>,
 <code>HB</code>, <code>PONG</code>, <code>EXIT</code>) are rendered without the channel/symbol/sequence
 columns. <code>ERR</code> lines highlight the <code>CODE</code> field:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>10:02:21.010  ERR      ENTITLEMENT_DENIED  DETAIL=role &#39;CLEARING&#39; cannot access CH=DROP_COPY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>10:02:21.010  ERR      ENTITLEMENT_DENIED  DETAIL=role 'CLEARING' cannot access CH=DROP_COPY
 </code></pre></div>
 <p>An idle-timeout disconnect from the gateway looks like:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>10:05:00.000  EXIT      REASON=idle_timeout TS=2026-07-20T10:05:00.000Z
@@ -3807,14 +3835,14 @@ straightforward to pipe into <code>jq</code>, log to a file, or feed into anothe
 program. The envelope fields (<code>CH</code>, <code>SYM</code>, <code>SEQ</code>) are lifted to top-level
 keys for easy filtering; every field, including the envelope ones, is also
 kept verbatim under <code>fields</code> so nothing is lost relative to the raw line:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span><span class="nt">&quot;recv_ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1784577849.634</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;msg_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EXEC&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ch&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AUDIT&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;sym&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;seq&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-07-20T10:02:18.203Z&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;fields&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;CH&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AUDIT&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;SYM&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;SEQ&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;TS&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-07-20T10:02:18.203Z&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;EXEC_ID&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;44&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;MATCH_ID&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;44&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;PX&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;150.12&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;QTY&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;200&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;SIDE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;BUY&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;BUY_ORDER_ID&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1001&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;SELL_ORDER_ID&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1002&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;BUY_GW&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TRADER01&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;SELL_GW&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;TRADER02&quot;</span><span class="p">}}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span><span class="nt">"recv_ts"</span><span class="p">:</span><span class="w"> </span><span class="mf">1784577849.634</span><span class="p">,</span><span class="w"> </span><span class="nt">"msg_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EXEC"</span><span class="p">,</span><span class="w"> </span><span class="nt">"ch"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AUDIT"</span><span class="p">,</span><span class="w"> </span><span class="nt">"sym"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"seq"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"ts"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-07-20T10:02:18.203Z"</span><span class="p">,</span><span class="w"> </span><span class="nt">"fields"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"CH"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AUDIT"</span><span class="p">,</span><span class="w"> </span><span class="nt">"SYM"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AAPL"</span><span class="p">,</span><span class="w"> </span><span class="nt">"SEQ"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"TS"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-07-20T10:02:18.203Z"</span><span class="p">,</span><span class="w"> </span><span class="nt">"EXEC_ID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"44"</span><span class="p">,</span><span class="w"> </span><span class="nt">"MATCH_ID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"44"</span><span class="p">,</span><span class="w"> </span><span class="nt">"PX"</span><span class="p">:</span><span class="w"> </span><span class="s2">"150.12"</span><span class="p">,</span><span class="w"> </span><span class="nt">"QTY"</span><span class="p">:</span><span class="w"> </span><span class="s2">"200"</span><span class="p">,</span><span class="w"> </span><span class="nt">"SIDE"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BUY"</span><span class="p">,</span><span class="w"> </span><span class="nt">"BUY_ORDER_ID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1001"</span><span class="p">,</span><span class="w"> </span><span class="nt">"SELL_ORDER_ID"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1002"</span><span class="p">,</span><span class="w"> </span><span class="nt">"BUY_GW"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TRADER01"</span><span class="p">,</span><span class="w"> </span><span class="nt">"SELL_GW"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TRADER02"</span><span class="p">}}</span>
 </code></pre></div>
 <p>Typical uses:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Only fills, as they happen, for one symbol</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-ralf-spy<span class="w"> </span>--role<span class="w"> </span>AUDIT<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;select(.msg_type == &quot;EXEC&quot;)&#39;</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-ralf-spy<span class="w"> </span>--role<span class="w"> </span>AUDIT<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'select(.msg_type == "EXEC")'</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Capture the clearing feed&#39;s end-of-day summaries to a file</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>pm-ralf-spy<span class="w"> </span>--role<span class="w"> </span>CLEARING<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;select(.msg_type == &quot;EOD&quot;)&#39;</span><span class="w"> </span>&gt;<span class="w"> </span>eod.jsonl
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Capture the clearing feed's end-of-day summaries to a file</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>pm-ralf-spy<span class="w"> </span>--role<span class="w"> </span>CLEARING<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'select(.msg_type == "EOD")'</span><span class="w"> </span>&gt;<span class="w"> </span>eod.jsonl
 </code></pre></div>
 <h2 id="running-several-instances-at-once">Running several instances at once<a class="headerlink" href="#running-several-instances-at-once" title="Permanent link">&para;</a></h2>
 <p>Since each <code>pm-ralf-spy</code> process opens its own independent TCP connection,
