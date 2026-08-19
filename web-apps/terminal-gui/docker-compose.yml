@@ -63,10 +63,6 @@ services:
     volumes:
       # LALF failover log only — see the note above.
       - ./logs:/app/logs
-    extra_hosts:
-      # Makes host.docker.internal work on Linux Docker. Docker Desktop already
-      # provides it; Podman users can override the *_HOST variables instead.
-      - "host.docker.internal:host-gateway"
     healthcheck:
       test:
         [

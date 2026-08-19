@@ -111,7 +111,14 @@ export class FakeLogServer {
   }
 }
 
-/** Poll until `predicate` holds, or fail the calling test after `timeoutMs`. */
+/**
+ * Poll until `predicate` holds, or fail the calling test after `timeoutMs`.
+ *
+ * A predicate that throws (e.g. `readFileSync` on a file the code under test
+ * hasn't created yet) is treated as "not yet true" rather than failing the
+ * poll immediately — otherwise callers racing a not-yet-existing file fail
+ * intermittently depending on exactly when the first poll lands.
+ */
 export async function waitFor(
   predicate: () => boolean,
   timeoutMs = 2000,
@@ -119,7 +126,11 @@ export async function waitFor(
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (predicate()) return;
+    try {
+      if (predicate()) return;
+    } catch {
+      // Not ready yet — keep polling until the deadline.
+    }
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
   throw new Error(`timed out after ${timeoutMs}ms waiting for ${label}`);

@@ -1,3 +1,30 @@
+## [v0.20.1] - 2026-08-19
+
+Release Type: minor
+
+### 📋 Summary
+This release improves the local GUI and web-app development workflow, makes deployment and VM setup more reliable, and expands the documentation around Trader GUI and containerized development operations.
+
+### ✨ Additions
+- Added a unified development orchestration workflow for launching the GUI apps from a single Makefile during local development
+- Added clearer deployment design guidance covering the web-apps and their local container setup
+
+### 🚀 Improvements
+- Improved the web-app build and runtime setup to handle npm/CLI compatibility issues and keep development ports aligned across the web stack
+- Improved VM bootstrap and local virtual-environment setup to handle initial environment creation and cleanup more reliably
+- Improved the Trader GUI and web-app documentation flow for easier onboarding and maintenance
+
+### 🐛 Bug Fixes
+- Fixed web-app startup and build issues caused by port conflicts, cleanup gaps, and compatibility problems in the local development flow
+
+### 📚 Documentation
+- Updated deployment, VM, and Trader GUI documentation, including README guidance for the newer containerized workflows
+- Added and refreshed documentation covering the user-guide entry points and local orchestration steps for GUI development
+
+### 🛠 Internal
+- Hardened the Multipass and local-venv setup scripts with cleaner progress messages, validation, and bootstrap fixes
+- Tightened web-app cleanup, test fixes, and automation around the developer workflow and environment bootstrapping
+
 ## [v0.20.0] - 2026-08-16
 
 Release Type: major

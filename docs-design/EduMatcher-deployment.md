@@ -1,6 +1,6 @@
-Version: 2.0.0
+Version: 2.2.1
 
-Date: 2026-08-05
+Date: 2026-08-19
 
 Status: Design and Research Proposal
 
@@ -22,14 +22,6 @@ The strategy covers:
 The core goal is a predictable "download, configure, start, operate" flow with
 minimal manual wiring.
 
-**What v2.0.0 adds.** v1.0.0 established the strategy. This revision adds the
-technical design needed to actually build it: the deployment unit and why it is
-not what you might expect (§5), a complete port and address map including two
-collisions that exist today (§6), the start-ordering graph and what breaks when
-it is violated (§7), the supervision trade-off (§8), the full `deploy/` bundle
-with every script written out (§9–§14), release-artifact construction (§15),
-upgrade and rollback (§16), and an acceptance matrix per phase (§20).
-
 !!! note "Nothing here is implemented yet"
     Every path, script and file in §9 onward is a *specification*. None of it
     exists in the repository at the time of writing. Facts about the *current*
@@ -43,8 +35,8 @@ Today EduMatcher has strong runtime components, but packaging is split:
 
 - The Python runtime (`pm-*`) is installable and usable.
 - VM bootstrap scripts exist in `vm/`, but need refresh to current release shape.
-- Browser UIs (`terminal-gui`, `log-gui`, `config-gui`) are not delivered as one
-  cohesive operator deployment experience.
+- Browser UIs (`terminal-gui`, `log-gui`, `config-gui`, `trader-gui`) are not
+  delivered as one cohesive operator deployment experience.
 - There is no single, official orchestrator that starts the whole system in one
   command for common scenarios.
 
@@ -55,8 +47,12 @@ Three concrete symptoms, verified against the current tree:
 1. **40 console entry points, no start order.** `pyproject.toml` declares 40
    `pm-*` commands. Nothing states which are long-running services, which are
    one-shot tools, or in what order the services must start.
-2. **Two port collisions in a full-stack deployment** (§6.3). They cannot
-   surface until someone runs every plane at once, which nobody has yet.
+2. **Two port collisions in a full-stack deployment** (§6.3), at the time this
+   was first written. They could not surface until someone ran every plane at
+   once, which nobody had yet. **(current, as of v2.2.0)** One of the two —
+   `config-gui` vs. `pm-api-gwy` on 8080 — has since been fixed at the source
+   level; see §6.3. The other — `pm-api-gwy`'s `0.0.0.0` bind default — remains
+   open.
 3. **A deploy step exists but is undocumented as a deployment step.**
    `pm-config-deploy` **(current)** is already the compile-and-install boundary,
    and it is more load-bearing than the draft implied — see §5.
@@ -125,7 +121,8 @@ Operator/viewer UIs with their own bridge services:
 |---|---|---|
 | TapeDeck (`terminal-gui`) | 8090 | CALF 5570, log-srv 5600 |
 | Log Operator Console (`log-gui`) | 8091 | LALF-PS 5601/5602, `log.db` |
-| Config GUI (`config-gui`) | 8080 | none at runtime |
+| Config GUI (`config-gui`) | 8092 | none at runtime |
+| Trading GUI (`trader-gui`) | 8093 | `pm-api-gwy` 8080 (REST + WS) |
 
 These should ship as prebuilt container images and never require the operator
 to run npm locally.
@@ -248,9 +245,10 @@ rather than less.
 | 5601 | `pm-log-srv` | ZMQ PUB | LALF-PS to viewers | Ops |
 | 5602 | `pm-log-srv` | ZMQ PULL | LALF-PS control | Ops |
 | 8080 | `pm-api-gwy` | HTTP/WS | external clients | Access |
-| 8080 | `config-gui` | HTTP | operator browser | UX |
 | 8090 | `terminal-gui` bridge | HTTP/WS | operator browser | UX |
 | 8091 | `log-gui` bridge | HTTP/WS | operator browser | UX |
+| 8092 | `config-gui` | HTTP | operator browser | UX |
+| 8093 | `trader-gui` | HTTP/WS | operator browser | UX |
 
 ### 6.2 Reserved ranges
 
@@ -263,21 +261,30 @@ The design reserves, and the `.env.example` documents:
 | 5600–5602 | Logging subsystem |
 | 8080–8099 | HTTP services |
 
-### 6.3 Two collisions that exist today
+### 6.3 One collision that exists today, one that has been fixed
 
-Both are latent — they only bite when planes are combined, which no current
-workflow does.
+**Collision 1 — `pm-api-gwy` and `config-gui` both defaulted to 8080. Fixed;
+no longer true.** **(current, as of v2.1.0)** §6.1's port table already
+reflects this: `config-gui` binds **8092**, `pm-api-gwy` keeps **8080**, and
+they do not conflict. This subsection previously stated the old default in
+the present tense ("both default to 8080") after the fix had already landed,
+which was incorrect and has been corrected here — thank you to the reader who
+caught it.
 
-**Collision 1 — `pm-api-gwy` and `config-gui` both default to 8080.**
-Profile C (§17) runs both. Whichever binds second fails.
+*What happened, for context:* when this design was first written, both
+services really did default to 8080, and Profile C (§17), which runs both,
+would have had whichever bound second fail. The fix — move `config-gui` to
+**8092**, keeping the 8090–8092 block for browser UIs and leaving 8080 to the
+API gateway, which is the one an external client is likely to have
+hard-coded — has since been implemented **at the source level**, not merely
+patched over at the deployment layer: `config-gui`'s own Dockerfile and
+`docker-compose.yml` now default to container port 8092 directly.
+`trader-gui` (added after this collision was first documented) was given
+**8093** from the start, extending the same 809N block rather than ever
+colliding with anything. The 8090–8093 range is now fully assigned:
+terminal-gui, log-gui, config-gui, trader-gui — see §6.1.
 
-*Resolution:* move `config-gui` to **8092**, keeping the 8090–8092 block for
-browser UIs and leaving 8080 to the API gateway, which is the one an external
-client is likely to have hard-coded. `.env.example` sets `CONFIG_GUI_PORT=8092`
-and the Compose bundle publishes that. This is a deployment-level fix; the
-container's internal port need not change.
-
-**Collision 2 — `pm-api-gwy` defaults to `host = "0.0.0.0"`.**
+**Collision 2 — `pm-api-gwy` defaults to `host = "0.0.0.0"`. Still open.**
 **(current)** `api_gateway/config.py` defaults the bind host to all interfaces,
 which contradicts §18's "bind to localhost by default unless explicitly opened".
 On a laptop on a conference network this publishes an unauthenticated-by-default
@@ -289,12 +296,15 @@ warns when any `*_HOST` is `0.0.0.0` and `PROFILE` is not explicitly
 `public`. **Changing the code default is out of scope for this document** but is
 recommended separately.
 
-!!! warning "The UI plane has no authentication"
-    `log-gui` and `terminal-gui` have no login (see
+!!! warning "Most of the UI plane has no authentication"
+    `log-gui`, `terminal-gui`, and `config-gui` have no login (see
     `docs/user-guide/285-log-srv-gui.md` §Security notes). They must never be
     published beyond loopback or a trusted interface without a reverse proxy in
     front. The Compose bundle binds them to `127.0.0.1` and requires an explicit
-    opt-in to do otherwise.
+    opt-in to do otherwise. `trader-gui` is the exception — it requires an
+    API-key login (a Bearer token checked against `pm-api-gwy`, held in memory
+    only, never persisted) — but it still defaults to loopback binding here,
+    since a trading UI is not a service to expose casually regardless.
 
 
 ## 7. Start ordering
@@ -314,6 +324,7 @@ flowchart TD
     ENGINE --> GWY["access plane<br/>(alf/balf/md/ralf/dc/api)"]
     INDEX --> GWY
     GWY --> TD["terminal-gui bridge"]
+    GWY --> TG["trader-gui"]
     LOG --> LG["log-gui bridge"]
 ```
 
@@ -551,6 +562,8 @@ TERMINAL_GUI_PORT=8090
 LOG_GUI_PORT=8091
 # 8092, not 8080: pm-api-gwy owns 8080. See §6.3 collision 1.
 CONFIG_GUI_PORT=8092
+# trader-gui requires an API-key login (§18.1); still loopback-bound by default.
+TRADER_GUI_PORT=8093
 
 # --- log-gui tuning (see docs/user-guide/285-log-srv-gui.md) ----------------
 ISSUES_MIN_LEVEL=WARNING
@@ -715,7 +728,7 @@ case "$COMPOSE_PROFILES" in
 esac
 case "$COMPOSE_PROFILES" in
   *ui*) PORTS[$TERMINAL_GUI_PORT]="terminal-gui"; PORTS[$LOG_GUI_PORT]="log-gui"
-        PORTS[$CONFIG_GUI_PORT]="config-gui" ;;
+        PORTS[$CONFIG_GUI_PORT]="config-gui";     PORTS[$TRADER_GUI_PORT]="trader-gui" ;;
 esac
 for p in "${!PORTS[@]}"; do
   port_free "$p" && ok "$p free (${PORTS[$p]})" || fail "$p in use, needed by ${PORTS[$p]}"
@@ -739,7 +752,7 @@ fi
 [[ "${API_GWY_HOST:-}" == "0.0.0.0" ]] && warn "API_GWY_HOST=0.0.0.0 (see §6.3)"
 
 step "Images"
-for img in terminal-gui log-gui config-gui; do
+for img in terminal-gui log-gui config-gui trader-gui; do
   ref="edumatcher-${img}:${EDUMATCHER_VERSION}"
   $RUNTIME image exists "$ref" 2>/dev/null || $RUNTIME image inspect "$ref" >/dev/null 2>&1 \
     && ok "$ref present" || warn "$ref not present locally (will be pulled or built)"
@@ -925,7 +938,24 @@ case "${COMPOSE_PROFILES:-}" in *ui*)
   # Not just "is it up" — is its LALF-PS uplink actually ACTIVE?
   st="$(curl -fsS --max-time 5 "http://${BIND_ADDR}:${LOG_GUI_PORT}/api/bridge/status" 2>/dev/null || echo '{}')"
   grep -q '"ok":true' <<<"$st" || degraded "log-gui upstream not healthy: $st"
-  probe "terminal-gui bridge" "http://${BIND_ADDR}:${TERMINAL_GUI_PORT}/api/bridge/status" ;;
+  probe "terminal-gui bridge" "http://${BIND_ADDR}:${TERMINAL_GUI_PORT}/api/bridge/status"
+  # trader-gui (apps/serve/serve.ts) is a static-file server with no health
+  # route of its own **(current)** — it only ever serves index.html (SPA
+  # fallback) or proxies /api/*. "Is the process up" is therefore just "does
+  # / return 200"; that alone says nothing about whether trading actually
+  # works, so the real signal is the second probe below.
+  probe "trader-gui" "http://${BIND_ADDR}:${TRADER_GUI_PORT}/"
+  # trader-gui's /api/* proxy forwards to pm-api-gwy with no auth logic of its
+  # own **(current)** — the API key is checked server-side by pm-api-gwy, and
+  # /healthz is explicitly the one route that requires none (see
+  # api_gateway/routers/reference.py). So an unauthenticated GET through the
+  # proxy is a legitimate end-to-end check of "can trader-gui actually reach a
+  # healthy pm-api-gwy", not just "is trader-gui's own process up".
+  case "${COMPOSE_PROFILES:-}" in *access*)
+    ag="$(curl -fsS --max-time 5 "http://${BIND_ADDR}:${TRADER_GUI_PORT}/api/healthz" 2>/dev/null || echo '{}')"
+    grep -q '"ok":true' <<<"$ag" \
+      || degraded "trader-gui → pm-api-gwy proxy unhealthy: $ag" ;;
+  esac ;;
 esac
 
 echo
@@ -1112,12 +1142,20 @@ offline-bundle:  ## Build the air-gapped artifact set
 | `edumatcher-terminal-gui:<v>` | `terminal-gui/Makefile dist` | Compose |
 | `edumatcher-log-gui:<v>` | `log-gui/Makefile dist` | Compose |
 | `edumatcher-config-gui:<v>` | `config-gui/Makefile dist` | Compose |
+| `edumatcher-trader-gui:<v>` | `trader-gui/Makefile dist` | Compose |
 | `edumatcher-deploy-<v>.tar.gz` | §15.2 | operators |
 | `edumatcher-offline-<v>.tar.gz` | `offline-bundle.sh` | air-gapped sites |
 
-All six carry the **same version string**, which is the whole point: a
+All seven carry the **same version string**, which is the whole point: a
 deployment bundle pins images by tag and the wheel by version, so
 "which versions are running together" has one answer.
+
+**(current, as of v2.1.0) None of the four image rows above are actually
+published anywhere yet.** `make dist` in each `web-apps/*/` produces a local
+OCI tarball (`podman save` / `docker save`, gzipped) — that part of this table
+is accurate — but nothing in `.github/workflows/` pushes an image to a
+registry. The only CI publish step that exists today is
+`publish-to-pypi.yml`, which handles the wheel row alone. See §21.8.
 
 ### 15.2 `scripts/offline-bundle.sh`
 
@@ -1133,7 +1171,7 @@ OUT="${DEPLOY_DIR}/dist/edumatcher-offline-${EDUMATCHER_VERSION}"
 rm -rf "$OUT"; mkdir -p "$OUT"/{images,wheel,deploy}
 
 step "Container images"
-for img in terminal-gui log-gui config-gui; do
+for img in terminal-gui log-gui config-gui trader-gui; do
   ref="edumatcher-${img}:${EDUMATCHER_VERSION}"
   $RUNTIME image inspect "$ref" >/dev/null 2>&1 || die "missing image: $ref (build it first)"
   $RUNTIME save --output "$OUT/images/${img}.tar" "$ref"
@@ -1250,7 +1288,7 @@ ls -1d /opt/edumatcher/.venv-*
 | Planes | Core | Core + Access | Core + Access + UX + Ops |
 | `COMPOSE_PROFILES` | `core` | `core,access` | `core,access,ui,ops` |
 | Processes | 4–6 | 10–12 | 15–16 |
-| Ports published | none | 5560–5590, 8080 | + 8090–8092, 5600 |
+| Ports published | none | 5560–5590, 8080 | + 8090–8093, 5600 |
 | `pm-log-srv` | no | optional | **required** |
 | Backup schedule | manual | manual | daily via timer |
 | Typical host | laptop VM, 2 GB | lab VM, 4 GB | server, 8 GB |
@@ -1280,8 +1318,9 @@ for p in 5560 5565 5570 5580 5590 8080; do
 done
 # Internal ZMQ must never leave the host.
 for p in 5555 5556 5557 5558 5559; do ufw deny in to any port $p; done
-# Unauthenticated UIs: loopback only. Use an SSH tunnel to reach them.
-for p in 8090 8091 8092; do ufw deny in to any port $p; done
+# Unauthenticated UIs, plus trader-gui (authenticated but still loopback-only
+# by policy — §18.2): loopback only. Use an SSH tunnel to reach them.
+for p in 8090 8091 8092 8093; do ufw deny in to any port $p; done
 ufw enable
 ```
 
@@ -1290,6 +1329,11 @@ ufw enable
 Three services have **no authentication whatsoever**: `log-gui`,
 `terminal-gui`, and `config-gui`. Reaching any of them means reading every log
 line the exchange has produced, or editing the configuration it will run.
+`trader-gui` is the one UX-plane app that does authenticate (an `pm-api-gwy`
+API key, checked server-side on every request) — reaching it without a valid
+key gets nothing more than the login screen — but it is still bound to
+loopback by default alongside the other three, since it is a live trading
+interface and casual exposure is undesirable independent of the login gate.
 
 The design's position is that this is acceptable *only* on loopback, and that
 the deployment tooling should make exposing them a deliberate act rather than a
@@ -1299,7 +1343,8 @@ exists to be an uncomfortable extra step.
 The recommended pattern for remote access is an SSH tunnel, not a bind change:
 
 ```bash
-ssh -L 8090:127.0.0.1:8090 -L 8091:127.0.0.1:8091 operator@exchange-host
+ssh -L 8090:127.0.0.1:8090 -L 8091:127.0.0.1:8091 -L 8092:127.0.0.1:8092 \
+    -L 8093:127.0.0.1:8093 operator@exchange-host
 ```
 
 
@@ -1342,8 +1387,9 @@ exist".
 
 ### Phase 1 — Deployable
 
-**Work:** refresh `vm/` to the current release shape; publish the three UI
-images per release; create `deploy/` per §9–§14; resolve both §6.3 collisions;
+**Work:** refresh `vm/` to the current release shape; publish the four UI
+images per release (§22); create `deploy/` per §9–§14; resolve the remaining
+§6.3 collision (host bind default — collision 1 is already fixed, see §6.3);
 write the operator chapter for the user guide.
 
 **Acceptance:**
@@ -1399,9 +1445,558 @@ that does not require restoring a backup.
 6. Should schema-version downgrade protection block a rollback, or warn? (§16.2)
 7. Should `pm-api-gwy`'s `0.0.0.0` default be changed in code, or only overridden
    at deployment? This document does the latter; the former is safer.
+8. **How do the four GUI images actually get published?** (New in v2.1.0.)
+   §15.1 has always assumed `edumatcher-<gui>:<v>` images exist somewhere
+   Compose or an offline bundle can pull/load them from, but no CI job produces
+   that today — `make dist` per app only writes a local, gzipped OCI tarball
+   (§15's own artifact-set table), and `.github/workflows/` has exactly one
+   publish job, `publish-to-pypi.yml`, which handles the wheel alone. Nothing
+   currently pushes to any container registry.
+
+   A concrete, scoped follow-on was proposed and deliberately **not** built yet:
+   a `.github/workflows/publish-images.yml` triggered on the same `release`
+   event as the PyPI job, building all four `web-apps/*/Dockerfile`s in a
+   matrix and pushing to GHCR (`ghcr.io/<owner>/edumatcher-<gui>:<tag>`) using
+   the built-in `GITHUB_TOKEN` (no new secret needed for a public repo). Once
+   that exists, a thin operator-facing wrapper — sketched as `pm-gui`, a new
+   Poetry console-script alongside the other `pm-*` entries, exposing
+   `up`/`down`/`pull`/`ps`/`logs` and driving `docker`/`podman compose` against
+   a bundled umbrella compose file the wheel ships as package data (mirroring
+   how `pm-setup` extracts `engine_config.sample.yaml` via
+   `importlib.resources`) — becomes straightforward to add on top, giving a
+   single `pipx install edumatcher-<v>.whl && pm-gui up` flow with no Node.js
+   toolchain required anywhere on the target host.
+
+   Deferred rather than built now because it is a meaningfully separate
+   surface from everything else in this document — new CI permissions, a new
+   registry dependency, and a new console-script — and deserves its own review
+   rather than landing as a side effect of a documentation pass. Revisit
+   together with Open Decision 1 (core-plane images): if `pm-engine` and the
+   recorders get official images in the same cycle, `publish-images.yml`
+   should probably build all of them, GUIs and core alike, in one matrix
+   rather than two separate workflows drifting apart.
+
+   **§22 now scopes this into a concrete, step-by-step implementation plan**
+   (workflow YAML, `pm-gui` module skeleton, `pyproject.toml` wiring, tests,
+   and a phased rollout checklist) — still unbuilt, but no longer just an
+   idea. §23 separately evaluates a Kubernetes/Helm-based deployment track,
+   which is additive to and partly dependent on §22 rather than a substitute
+   for it.
 
 
-## 22. Alternatives Considered
+## 22. Implementation Plan: GUI Image Publishing and `pm-gui`
+
+This section scopes Open Decision §21.8 into concrete, ordered work. Nothing
+in it is built yet — it is a plan, marked **(planned)** throughout to
+distinguish it from the **(current)** facts elsewhere in this document.
+
+### 22.1 What "done" looks like
+
+```bash
+pipx install edumatcher-0.21.0-py3-none-any.whl
+pm-gui up
+# → pulls ghcr.io/johan162/edumatcher-{terminal,log,config,trader}-gui:0.21.0
+# → starts all four via a bundled compose file
+# → prints each app's URL
+pm-gui status
+pm-gui down
+```
+
+No Node.js, no `git clone`, no local `docker build`. The wheel and the four
+images share the tag `0.21.0`, so "which GUI build goes with this exchange
+build" has exactly one answer — the goal §15.1 already states, made real.
+
+### 22.2 Prerequisite: decouple image tags from `package.json` versions
+
+**(current)** Each `web-apps/*/package.json` carries its own independent
+version — `config-gui` is at `1.3.0`, `log-gui`/`terminal-gui`/`trader-gui` are
+all still at `0.1.0` — with no relationship to the exchange wheel's version in
+the root `pyproject.toml` (currently `0.20.1`). §15.1's "all seven artifacts
+carry the same version string" is descriptive of the *intent*, not of what
+would actually happen if `make dist` were run today.
+
+**(planned)** Do not attempt to keep four `package.json` versions and one
+`pyproject.toml` version in lockstep — that is a synchronization problem this
+plan should avoid creating. Instead, the CI workflow below tags every image
+with the **release tag** (`git describe`/`github.ref_name`, e.g. `v0.21.0`),
+ignoring each app's own internal `package.json` version entirely for tagging
+purposes. Each `package.json` version remains meaningful only as that
+individual app's own semver history (useful in its own CHANGELOG-equivalent,
+if one is added later) — it stops being read for anything deployment-facing.
+This is a one-line change in intent, not in code: the publish workflow simply
+never consults `package.json` for a tag.
+
+### 22.3 Step 1 — `.github/workflows/publish-images.yml` (planned)
+
+Triggered on the same `release: types: [published]` event as
+`publish-to-pypi.yml`, so both fire from one action (cutting a GitHub release)
+and neither can be forgotten independently.
+
+```yaml
+name: Publish GUI Container Images
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write   # required to push to ghcr.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false   # one broken GUI build must not block the other three
+      matrix:
+        app: [config-gui, log-gui, terminal-gui, trader-gui]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: web-apps/${{ matrix.app }}
+          file: web-apps/${{ matrix.app }}/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/edumatcher-${{ matrix.app }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/edumatcher-${{ matrix.app }}:latest
+          # Matches what `make cnt-build` already passes locally (§ web-apps
+          # Makefiles) — same build args, so CI and a developer's local build
+          # produce byte-comparable layers modulo the proxy args being empty.
+          build-args: |
+            NPM_STRICT_SSL=true
+```
+
+Notes tying this to work already done this session:
+
+- `github.ref_name` on a `release` event is the tag (e.g. `v0.21.0`), not the
+  branch — exactly the release-tag scheme §22.2 above settled on.
+- `fail-fast: false` matters concretely: config-gui's `npm install`-vs-`npm
+  ci` lockfile issue (fixed earlier this cycle) is the kind of app-specific
+  break this matrix must not let take down the other three GUIs' publishes.
+- No new secret is needed — `GITHUB_TOKEN` with `packages: write` is
+  sufficient for a public repository pushing to its own org's GHCR namespace.
+- This workflow does **not** touch `publish-to-pypi.yml`; they run in
+  parallel off the same release event and either can fail independently
+  without blocking the other. A release is not "fully published" until both
+  have gone green — worth a follow-up branch-protection-style check if this
+  matters enough to enforce, but out of scope for the initial version.
+
+### 22.4 Step 2 — `pm-gui` console-script (planned)
+
+New subpackage, following the exact shape every other `pm-*` command already
+uses (`src/edumatcher/setup_cmd.py` → `pm-setup`, per §5.1's citation):
+
+```
+src/edumatcher/gui/
+├── __init__.py
+├── main.py                 # argparse entry point, registered as pm-gui
+└── compose/
+    └── docker-compose.yml  # bundled package data — the umbrella file
+```
+
+`compose/docker-compose.yml` (planned) — one file referencing all four
+published images by tag, environment-driven the same way `.env.example`
+(§10) already is:
+
+```yaml
+services:
+  terminal-gui:
+    image: ghcr.io/${EDUMATCHER_GHCR_OWNER:-johan162}/edumatcher-terminal-gui:${EDUMATCHER_VERSION:-latest}
+    ports: ["${TERMINAL_GUI_PORT:-8090}:8090"]
+    environment:
+      CALF_HOST: "${CALF_HOST:-host.docker.internal}"
+      CALF_PORT: "${CALF_PORT:-5570}"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  log-gui:
+    image: ghcr.io/${EDUMATCHER_GHCR_OWNER:-johan162}/edumatcher-log-gui:${EDUMATCHER_VERSION:-latest}
+    ports: ["${LOG_GUI_PORT:-8091}:8091"]
+    environment:
+      LOG_SRV_HOST: "${LOG_SRV_HOST:-host.docker.internal}"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  config-gui:
+    image: ghcr.io/${EDUMATCHER_GHCR_OWNER:-johan162}/edumatcher-config-gui:${EDUMATCHER_VERSION:-latest}
+    ports: ["${CONFIG_GUI_PORT:-8092}:8092"]
+
+  trader-gui:
+    image: ghcr.io/${EDUMATCHER_GHCR_OWNER:-johan162}/edumatcher-trader-gui:${EDUMATCHER_VERSION:-latest}
+    ports: ["${TRADER_GUI_PORT:-8093}:8093"]
+    environment:
+      API_PROXY_TARGET: "${API_PROXY_TARGET:-http://host.docker.internal:8080}"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+```
+
+This is deliberately a **pure `image:` reference**, with no `build:` block —
+the whole point is a `pipx`-only user never needs the Dockerfiles or a Node
+toolchain. It is *not* the same file as any `web-apps/*/docker-compose.yml`
+(those stay build-oriented, for developers) or the full `deploy/compose.yaml`
+described in §9 (that also orchestrates the core Python plane and expects a
+Python environment on the host already, which is exactly the case `pm-gui`
+exists for). Three sibling compose files, three different audiences.
+
+`main.py` (planned) — thin, deliberately dumb: shells out rather than
+reimplementing compose semantics, following the exact runtime-detection
+pattern (prefer podman, fall back to docker) already duplicated four times
+across `web-apps/*/Makefile`:
+
+```python
+"""
+pm-gui — start/stop the four browser GUIs from a pipx install, no Node
+toolchain or source checkout required.
+
+Thin wrapper over `docker compose` / `podman-compose` against a bundled
+umbrella compose file (see gui/compose/docker-compose.yml) referencing the
+images published by .github/workflows/publish-images.yml (§22.3). Every
+subcommand is a compose invocation; this module adds no orchestration logic
+of its own beyond image-tag resolution and runtime detection.
+"""
+
+from __future__ import annotations
+
+import argparse
+import shutil
+import subprocess
+import sys
+from importlib import resources
+
+from edumatcher.cli_version import __version__
+
+
+def _detect_compose() -> list[str]:
+    if shutil.which("podman-compose"):
+        return ["podman-compose"]
+    if shutil.which("docker"):
+        return ["docker", "compose"]
+    print("✗ neither podman-compose nor docker found in PATH", file=sys.stderr)
+    sys.exit(1)
+
+
+def _compose_file() -> str:
+    # importlib.resources, same pattern as setup_cmd.py's sample-config
+    # extraction (§5.1) — works whether running from a wheel or source tree.
+    pkg = resources.files("edumatcher.gui.compose")
+    return str(pkg.joinpath("docker-compose.yml"))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="pm-gui",
+        description="Start/stop the EduMatcher browser GUIs (container images).",
+    )
+    parser.add_argument("--version", action="version", version=f"pm-gui {__version__}")
+    sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("up", help="Pull (if needed) and start all four GUIs")
+    sub.add_parser("down", help="Stop and remove the GUI containers")
+    sub.add_parser("pull", help="Pull the latest published images without starting")
+    sub.add_parser("ps", help="Show GUI container status")
+    p = sub.add_parser("logs", help="Follow logs for one GUI")
+    p.add_argument("app", choices=["terminal-gui", "log-gui", "config-gui", "trader-gui"])
+    args = parser.parse_args()
+
+    compose = _detect_compose()
+    compose_file = _compose_file()
+    base = [*compose, "-f", compose_file, "-p", "edumatcher-gui"]
+
+    action = {
+        "up": [*base, "up", "-d"],
+        "down": [*base, "down"],
+        "pull": [*base, "pull"],
+        "ps": [*base, "ps"],
+        "logs": [*base, "logs", "-f", args.command == "logs" and args.app or ""],
+    }[args.command]
+
+    result = subprocess.run(action, check=False)
+    sys.exit(result.returncode)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+The `logs` dispatch line above is intentionally terse pseudocode for this
+sketch — a real implementation should branch explicitly rather than lean on a
+conditional expression there, but the shape (parse, resolve compose file,
+shell out) is the actual design: **no port math, no health polling, no
+retries live in `pm-gui` itself.** `docker compose`/`podman-compose` already
+solve pull-if-missing, restart policies, and dependency ordering; duplicating
+that in Python would be the same mistake §9.2 already warns against for the
+`deploy/` bundle, inverted (there, the argument is Compose alone is *not*
+enough; here, Compose alone is *exactly* enough, because `pm-gui`'s whole job
+is four independent, stateless-at-the-container-boundary static/bridge
+services with no config-compile gate and no start-ordering dependency on each
+other).
+
+### 22.5 Step 3 — wire into `pyproject.toml` (planned)
+
+Two additions, both following existing conventions exactly:
+
+```toml
+[tool.poetry]
+# ... unchanged ...
+include = [
+    { path = "src/edumatcher/engine_config.sample.yaml", format = ["sdist", "wheel"] },
+    { path = "src/edumatcher/gui/compose/docker-compose.yml", format = ["sdist", "wheel"] },
+    # ... existing docs/examples/** entries unchanged ...
+]
+
+[tool.poetry.scripts]
+# ... existing pm-* entries unchanged ...
+pm-gui = "edumatcher.gui.main:main"
+```
+
+No new runtime dependency: `subprocess` and `importlib.resources` are
+stdlib, and `pm-gui` never talks to Docker's API directly — it only ever
+shells out to the `docker`/`podman` binary the operator already has installed
+to run the GUIs in the first place, exactly as every `web-apps/*/Makefile`
+already assumes.
+
+### 22.6 Step 4 — tests (planned)
+
+`tests/test_gui_main.py`, following this project's existing test-layout
+convention (`tests/` mirrors `src/edumatcher/`):
+
+- `_detect_compose()` returns `["podman-compose"]` / `["docker", "compose"]`
+  / exits 1, with `shutil.which` mocked for each of the three cases.
+- `_compose_file()` resolves to a real, readable file when the package is
+  installed (this is the one test that would have caught the
+  `importlib.resources` path issue if `docker-compose.yml` were ever left out
+  of `include`, the same class of bug §22.2's decoupling avoids at the
+  version layer).
+- `main()` with each subcommand builds the expected `subprocess.run` argument
+  list, with `subprocess.run` mocked — no real Docker/Podman invocation in
+  unit tests. An integration-level check (does `pm-gui up` against the real
+  published images actually work) belongs in a manual release checklist step
+  (§22.7), not CI, since it needs registry credentials and a running
+  container runtime that CI's existing `testing` job (§ci.yml) does not set
+  up today.
+
+### 22.7 Step 5 — rollout checklist (planned)
+
+1. Land `publish-images.yml`, `gui/` subpackage, and `pyproject.toml` changes
+   on a feature branch; confirm `poetry build` includes
+   `edumatcher/gui/compose/docker-compose.yml` in the wheel (`unzip -l
+   dist/*.whl | grep docker-compose.yml`).
+2. Cut a **pre-release** tag (`v0.21.0rc1`) first — `publish-to-pypi.yml`
+   already routes non-exact-semver tags to TestPyPI (§ existing workflow);
+   `publish-images.yml` has no such distinction built into the sketch above,
+   so add one before the first real run: skip the `:latest` tag push for
+   pre-release tags, so a release-candidate build never silently becomes the
+   default pull target.
+3. Manually verify end-to-end against the pre-release: `pipx install` from
+   TestPyPI, `pm-gui pull`, `pm-gui up`, hit all four URLs, `pm-gui down`.
+4. Only then cut the real `v0.21.0` tag.
+5. Update `docs-exchange-intro/` and the top-level `README.md` with the new
+   `pm-gui` quick-start, since both currently describe only the Python
+   console scripts.
+
+### 22.8 What this plan deliberately does not cover
+
+- **Core-plane images** (`pm-engine` and the recorders) — Open Decision
+  §21.1 is still open, and `pm-gui` as scoped here only ever touches the UX
+  plane. If §21.1 resolves toward "yes, ship core images too," the natural
+  extension is a `pm-gui` sibling or a `--profile` flag, not a rewrite —
+  worth a forward note, not a forward commitment.
+- **The full `deploy/` bundle** (§9) — that remains the recommended path for
+  an actual production/classroom operator running the whole exchange.
+  `pm-gui` is a narrower, friendlier convenience for "I already have
+  `pm-engine` and friends running some other way, and I just want the
+  browser UIs" — most usefully, a `pipx`-only student or instructor who
+  never intends to touch `deploy/` at all.
+- **Windows.** `host.docker.internal`/`host-gateway` extra_hosts plumbing is
+  already Docker-Desktop/Linux-oriented in every existing
+  `web-apps/*/docker-compose.yml` (§ current files); `pm-gui` inherits that
+  scope rather than widening it.
+
+
+## 23. Kubernetes / Helm: Pros and Cons for a Student-Facing Deployment Track
+
+### 23.1 Why this is being asked at all
+
+Everything from §4 onward assumes the hybrid model (§24 Alternative C): a VM
+or bare host runs the Python core, and containers run the browser GUIs. That
+model optimizes for **operator friction** — the shortest path from "nothing
+installed" to "exchange running." A Kubernetes/Helm track optimizes for a
+different, equally legitimate goal for this specific project: EduMatcher is
+explicitly educational (`pyproject.toml`'s own description: "Educational
+multi-process trading system..."), and deploying a genuinely multi-service,
+stateful, dependency-ordered system onto Kubernetes is itself one of the more
+common and more confusing things a student learns to do in industry. The
+exchange's own architecture — a dozen-plus long-running processes, a strict
+start-ordering graph (§7), a shared-mutable data volume (§5.1), a mix of
+stateless (GUIs) and stateful (recorders, the engine's GTC book) components —
+is unusually rich material for that lesson, arguably richer than a typical
+"deploy a stateless web app" tutorial most k8s courses default to.
+
+This section evaluates a **third, additive track** — not a replacement for
+§4's partitioning or §22's hybrid recommendation — scoped as a teaching
+artifact: a Helm chart (or chart family) that deploys some or all of
+EduMatcher onto Kubernetes, likely against a local cluster (`kind`, `minikube`,
+`k3d`) for coursework rather than a production cluster.
+
+### 23.2 Pros
+
+**Directly teaches an industry-standard skill on real, non-trivial material.**
+Most "learn Kubernetes" material uses a toy stateless app (nginx, a To-Do
+API) because real multi-service systems are hard to get access to for
+teaching. EduMatcher already has: a strict start-ordering dependency graph
+(§7) that maps naturally onto Kubernetes `initContainers` and readiness
+probes; a single shared-state volume (§5.1) that is a genuinely good vehicle
+for teaching `PersistentVolumeClaim`s and `ReadWriteMany` vs. `ReadWriteOnce`
+trade-offs; internal ZMQ ports that must **never** be reachable outside the
+cluster (§6.2), a real teaching case for `ClusterIP`-only `Service`s versus
+`NodePort`/`Ingress`; and four independently-versioned GUI images (§22) that
+map directly onto four Helm subchart or four `Deployment`+`Service` pairs
+with per-app `values.yaml` overrides — exactly the "many small services, one
+umbrella chart" pattern students will meet at most employers.
+
+**Forces explicit dependency ordering instead of hoping for the best.** §7.2
+already documents that a plain "start everything together" approach silently
+drops events when a recorder starts after the engine. Kubernetes'
+`readinessProbe`/`livenessProbe` plus `initContainers` (or a Job-based
+config-compile step, mirroring §5.2's "compile-then-start" gate) would force
+that ordering to be *modeled*, not assumed — arguably a more honest,
+more transferable lesson than the shell-script settle-delay this document
+already proposes for the VM path (§7.2's own "crude but effective" framing
+for the ordering-with-delay mitigation).
+
+**Reuses nearly everything already built this session.** The four Dockerfiles,
+the `.env`-style variable surface for every port (§10), and the
+container-images-with-published-tags plan (§22) are already exactly what a
+Helm chart's `values.yaml` needs — a chart is substantially "the same
+container images, described declaratively instead of imperatively," not a
+parallel packaging effort from scratch.
+
+**A natural "advanced" module, not a required one.** It can sit alongside
+§17's existing profiles as, effectively, "Profile D: Kubernetes," opt-in for
+students or courses that want the extra depth, without displacing Profile
+A's low-friction classroom-minimal path (§17) that most classroom use
+actually needs.
+
+**Demonstrates the config-compile gate as a real Kubernetes pattern.** §5.2's
+"nothing starts until `pm-config-deploy` succeeds" requirement maps cleanly
+onto a Kubernetes `Job` with `Init­Container`-style ordering — a legitimate,
+commonly-used pattern (config/migration Jobs gating a Deployment rollout) —
+so this is not a forced analogy; it is one of the more natural real-world
+uses of that k8s primitive.
+
+### 23.3 Cons
+
+**Kubernetes is a genuinely large prerequisite for a course about market
+microstructure, not container orchestration.** Every hour spent debugging a
+`CrashLoopBackOff` or a misconfigured `Service` selector is an hour not spent
+learning what a matching engine or a circuit breaker does — EduMatcher's
+actual subject matter. §3's own first design principle ("one obvious path")
+and §17's Profile A ("classroom minimal," 4–6 processes, laptop VM) are
+explicitly optimized against exactly this kind of prerequisite creep. A
+mandatory or default Kubernetes step would work directly against that
+principle for the majority of users this document already identifies.
+
+**§5.1's single-data-directory model is awkward on Kubernetes specifically,**
+more so than it already is in plain containers (§5.3 already flags this as a
+reason to prefer the hybrid model for the *core* plane). A `PersistentVolume`
+mounted `ReadWriteOnce` ties `pm-engine` and every recorder to one node unless
+a `ReadWriteMany` storage class (NFS, EFS-equivalent, Longhorn, etc.) is
+available — itself extra infrastructure a `kind`/`minikube` student cluster
+does not have by default, and one more thing to teach before the "real"
+lesson starts.
+
+**No production-grade authentication exists to protect what Kubernetes would
+now make easy to expose.** §18.2 is blunt that `log-gui`, `terminal-gui`, and
+`config-gui` have **no authentication whatsoever** (trader-gui is the sole
+exception — an API key checked by `pm-api-gwy`, per §6.3/§18.2). A student
+who has just learned to write an `Ingress` with a public `LoadBalancer` has
+also just learned the easiest way to accidentally publish an
+editable-by-anyone exchange configuration UI to the internet. This is not a
+hypothetical: it is the single most common Kubernetes-for-beginners mistake
+(defaulting to `LoadBalancer`/public `Ingress` because that's what most
+tutorials show), applied to services this document already treats as
+dangerous to expose even on a trusted LAN (§18.1's firewall rules).
+
+**A second, parallel packaging and CI surface to maintain indefinitely.** §22
+already proposes one new CI workflow, one new console-script, and one new
+compose file for the (comparatively simple) `pm-gui` convenience layer. A
+Helm chart is a materially larger ongoing commitment: chart versioning
+(independent of both the wheel's and the images' versions — a third version
+axis, compounding the already-flagged tag-coupling question in §22.2), a
+`helm test` suite, upgrade/rollback semantics distinct from §16's (Helm has
+its own release-history and rollback model, which would need to be
+reconciled with — or explicitly kept separate from — §16.2's schema-migration
+constraints), and chart-repository hosting (GitHub Pages, OCI-based Helm
+registry, or an external chart museum).
+
+**The core plane's process count and inter-process latency assumptions were
+never validated against a scheduler that can reschedule pods onto different
+nodes.** The engine's ZMQ PUB/PULL addressing (§6.1) is written assuming
+fixed, stable addresses; Kubernetes `Service` DNS names solve this in
+principle, but nothing in this document's start-ordering analysis (§7) or
+gap-detection design (§7.2, §12.1) has been re-examined for what changes when
+a pod restart also means a new pod IP and a `ClusterIP` DNS re-resolution
+mid-session. This is answerable, but it is unanswered — a real prerequisite
+for "core plane on k8s," not merely a footnote.
+
+### 23.4 A middle path, if pursued
+
+If the pros are judged to outweigh the cons for a specific course or cohort,
+the lowest-risk version is **not** "the whole exchange on Kubernetes." It is
+scoped narrowly, in this order:
+
+1. **UX plane only, first.** A Helm chart for exactly the four GUIs from §22
+   — genuinely stateless, already independently versioned and imaged, no
+   `PersistentVolume` question at all. This is close to a mechanical
+   translation of §22.4's bundled compose file into a chart's
+   `templates/*.yaml`, and validates the "reuse what's already built" pro
+   from §23.2 without touching any of the cons in §23.3 that are specific to
+   the core plane.
+2. **Access plane next**, once the UX-only chart is validated — `pm-api-gwy`
+   and friends are still comparatively stateless (§4.2's table shows no
+   persistent state owned by any access-plane process), so the main new
+   lesson is `Service`-to-`Service` addressing rather than storage.
+3. **Core plane last, and possibly never as a required module** — explicitly
+   gated on resolving the `ReadWriteMany` storage-class question and the
+   pod-rescheduling/ZMQ-addressing question raised in §23.3, both of which
+   are real engineering work, not chart-authoring work.
+
+This staged approach also means Open Decision §21.1 (core-plane container
+images generally) and this section are not actually coupled the way they
+might first appear — a UX-plane-only Helm chart needs nothing from §21.1 at
+all, since it is built entirely from the same four images §22 already plans
+to publish.
+
+### 23.5 Recommendation
+
+Treat as a **candidate follow-on course module, not part of this design's
+core deployment recommendation.** Do not block §22's `pm-gui` work on it —
+they solve different problems for different audiences (an operator wanting
+the GUIs running in one command, versus a student learning cluster
+orchestration) and a Helm chart for the UX plane specifically becomes
+*easier*, not harder, once §22 ships, since the images and their published
+tags are a prerequisite either way. If pursued, scope it per §23.4 and track
+it as its own open decision:
+
+9. **Should a Helm chart (UX-plane-only, per §23.4 step 1) be built as a
+   companion learning module, and if so, does it live in this repository
+   (e.g. `deploy/helm/`) or a separate teaching-materials repository** —
+   mirroring the same "one repo or two" question Open Decision §21.2 already
+   asks about the `deploy/` bundle generally, and probably worth resolving
+   both at once rather than separately.
+
+
+## 24. Alternatives Considered
 
 ### A. VM-only (everything installed directly)
 
@@ -1425,7 +2020,7 @@ Cons: two runtime models to document.
 **Decision:** recommended default for the next release cycle.
 
 
-## 23. Recommendation Summary
+## 25. Recommendation Summary
 
 - Adopt **hybrid VM + containerized UIs** as the default operator path.
 - Publish a **first-party `deploy/` bundle** with profiles, preflight, health
@@ -1438,8 +2033,71 @@ Cons: two runtime models to document.
 - Fix both port issues in §6.3 at the deployment layer now; consider fixing the
   `0.0.0.0` default in code separately.
 - Keep container-only full core deployment as a planned next step, not a blocker.
+- Build `pm-gui` and its GHCR publishing workflow (§22) as the next concrete
+  step once reviewed — it is scoped and ready, not merely an idea.
+- Treat a Kubernetes/Helm track (§23) as an optional, additive course module
+  for the UX plane specifically — valuable on its own terms, but not a
+  substitute for §22 or for this document's core hybrid recommendation.
 
 Two things in this design are load-bearing and easy to underestimate: the
 **single data directory** (§5.1), which silently defines instance identity, and
 the **recorder-before-engine ordering** (§7.2), whose violation is undetectable
 except through the sequence-gap check. Everything else is convenience.
+
+# Revision hstory
+
+
+**What v2.0.0 adds.** v1.0.0 established the strategy. This revision adds the
+technical design needed to actually build it: the deployment unit and why it is
+not what you might expect (§5), a complete port and address map including two
+collisions that exist today (§6), the start-ordering graph and what breaks when
+it is violated (§7), the supervision trade-off (§8), the full `deploy/` bundle
+with every script written out (§9–§14), release-artifact construction (§15),
+upgrade and rollback (§16), and an acceptance matrix per phase (§20).
+
+**What v2.1.0 adds.** `trader-gui` (pm-trading-ui) shipped after v2.0.0 was
+written and is folded into the UX Plane throughout (§4.3, §6.1, §6.2, §10,
+§15.1, §17, §18.1, §18.2) on container port **8093**, matching the 809N pattern
+the other three GUIs already use — see `web-apps/README.md` for the full
+dev/container port scheme. §6.1's port table is also corrected to the
+already-resolved `config-gui` port (8092, not 8080 — §6.3 collision 1 was fixed
+at the deployment layer some time ago; the table had not caught up). A new open
+decision (§21.8) records that this design's release-artifact table (§15.1) has
+never had a corresponding CI step that actually publishes the four GUI images
+anywhere — today's CI publishes the wheel to PyPI only (`.github/workflows/
+publish-to-pypi.yml`), and every image build (`make dist` / `make cnt-build`)
+is local-only. A `pm-gui` operator-facing pull/up/down convenience command was
+considered and deliberately deferred until that publishing story exists, since
+a "pull" command with nothing to pull from is worse than no command.
+
+**What v2.2.0 adds.** Two new sections, both purely additive — nothing from
+v2.1.0 is superseded. §12's health-check sketch gains a verified trader-gui
+probe: it has no health route of its own (it is a static-file server per
+`apps/serve/serve.ts`), so the probe checks `/` for liveness and, when the
+access plane is up, an unauthenticated `GET /api/healthz` through its own
+`/api/*` proxy — confirmed against `pm-api-gwy`'s actual
+`api_gateway/routers/reference.py`, where `/healthz` is deliberately the one
+route with no `Depends(auth)`. §22 turns Open Decision §21.8 into a concrete,
+step-by-step implementation plan (CI workflow, `pm-gui` module, `pyproject.toml`
+wiring, tests, phased rollout) — still unbuilt, now scoped. §23 is new
+evaluation, not a decision: pros and cons of a Kubernetes/Helm-based
+deployment track, framed explicitly as a student-facing learning module built
+on top of the exchange rather than a replacement for this document's hybrid
+recommendation. §22 and §23 renumber what were §22/§23 (Alternatives
+Considered, Recommendation Summary) to §24/§25; no other section numbers
+changed, and no cross-reference into those two was found elsewhere in the
+document.
+
+**What v2.2.1 fixes.** §6.3 stated, in the present tense, that `pm-api-gwy`
+and `config-gui` "both default to 8080" — factually wrong, and inconsistent
+with this document's own §6.1 port table, which already showed `config-gui`
+on 8092. The fix had been implemented and even noted in a follow-up paragraph
+within the same subsection, but the opening sentence was never corrected to
+match, so the section contradicted itself. §6.3 now states plainly that
+Collision 1 is fixed and no longer occurs, with the original collision kept
+only as historical context for why the fix looks the way it does. The same
+stale "both collisions are open" framing was corrected everywhere else it
+appeared — §2's problem statement and §20's Phase 1 migration work list — and
+two more places that had fallen behind trader-gui's addition were caught in
+the same pass: §2 was still listing only three GUIs, and §20 was still
+scoped to "publish the three UI images."

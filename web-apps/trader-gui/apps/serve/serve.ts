@@ -43,7 +43,7 @@ export const ENV_OPTIONS = [
   },
   {
     name: "PORT",
-    fallback: "4173",
+    fallback: "8093",
     help: ["Listen port."],
   },
   {

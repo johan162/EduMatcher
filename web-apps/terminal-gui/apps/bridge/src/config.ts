@@ -100,7 +100,7 @@ function csvFromEnv(name: string): string[] {
 export function loadBridgeConfig(): BridgeConfig {
   return {
     host: process.env["HOST"] ?? "127.0.0.1",
-    port: intFromEnv("PORT", 8090),
+    port: intFromEnv("PORT", 5190),
     corsOrigin: process.env["CORS_ORIGIN"] ?? "*",
     staticDir: process.env["STATIC_DIR"] || undefined,
     maxWsClients: intFromEnv("MAX_WS_CLIENTS", 200),

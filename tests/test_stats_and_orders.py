@@ -31,7 +31,6 @@ from edumatcher.stats.main import (
     main as stats_main,
 )
 from edumatcher.ticker.main import _query_daily_stats
-from edumatcher.config import DATA_DIR
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -142,9 +141,16 @@ class TestStatsStartup:
 
 
 def test_explicit_data_db_path_uses_shared_data_directory() -> None:
-    from edumatcher.config import resolve_data_path
+    # Import the module (not individual names) and read both DATA_DIR and
+    # resolve_data_path off the same object at the same instant. Other tests
+    # (test_config_runtime.py) reload edumatcher.config under different
+    # EDUMATCHER_DATA_DIR values via sys.modules manipulation; binding DATA_DIR
+    # at collection time here let this test compare a name from a stale
+    # reloaded module against a name from whatever module sits in sys.modules
+    # right now, which only failed intermittently depending on xdist ordering.
+    import edumatcher.config as cfg
 
-    assert resolve_data_path("data/stats.db") == DATA_DIR / "stats.db"
+    assert cfg.resolve_data_path("data/stats.db") == cfg.DATA_DIR / "stats.db"
 
 
 # ---------------------------------------------------------------------------

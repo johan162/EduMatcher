@@ -212,9 +212,9 @@ class AlfSession:
                 gw_id = msg.fields.get("ID", gateway_id.upper())
                 try:
                     hbint = int(msg.fields.get("HBINT", "5"))
-                    idle = int(msg.fields.get("IDLE", "30"))
+                    idle = int(msg.fields.get("IDLE", "300"))
                 except ValueError:
-                    hbint, idle = 5, 30
+                    hbint, idle = 5, 300
 
                 welcome = WelcomeInfo(
                     gateway_id=gw_id,

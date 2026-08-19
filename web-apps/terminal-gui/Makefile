@@ -34,12 +34,26 @@ SHELL := $(shell which bash)
 NPM ?= npm
 UNAME_S := $(shell uname -s)
 
+# If https_proxy is set, use it; otherwise use the default host.containers.internal proxy for builds
+# HTTP_PROXY_DEFAULT := $(if $(http_proxy),$(http_proxy),http://host.containers.internal:9000)
+# HTTPS_PROXY_DEFAULT := $(if $(https_proxy),$(https_proxy),http://host.containers.internal:9000)
+# NO_PROXY_DEFAULT := $(if $(no_proxy),$(no_proxy),localhost,127.0.0.1)
+HTTP_PROXY_DEFAULT := http://host.containers.internal:9000
+HTTPS_PROXY_DEFAULT := http://host.containers.internal:9000
+NO_PROXY_DEFAULT := localhost,127.0.0.1
+
 # Auto-detect container runtime (prefer podman when both are installed)
 CONTAINER_RUNTIME := $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; fi)
 ifeq ($(CONTAINER_RUNTIME),podman)
 	DOCKER_COMPOSE := podman-compose
 else ifeq ($(CONTAINER_RUNTIME),docker)
-	DOCKER_COMPOSE := docker compose
+	# On Linux, Docker needs the extra_hosts override (host-gateway injection).
+	# Docker Desktop on macOS/Windows provides host.docker.internal natively.
+	ifeq ($(UNAME_S),Linux)
+		DOCKER_COMPOSE := docker compose -f docker-compose.yml -f docker-compose.linux.yml
+	else
+		DOCKER_COMPOSE := docker compose
+	endif
 else
 	DOCKER_COMPOSE :=
 endif
@@ -65,7 +79,7 @@ NC := \033[0m
 	dev dev-web dev-bridge \
 	cnt-build proxy-up up down restart logs ps \
 	dist \
-	clean
+	clean distclean
 
 # --------------------------------------------------------------------------------------------
 # Tool checks
@@ -122,7 +136,7 @@ endef
 
 help: ## Show this help message
 	@echo -e "$(YELLOW)EduMatcher Market Data Terminal - Makefile Targets$(NC)"
-	@$(call print_section,Setup,install|clean)
+	@$(call print_section,Setup,install|clean|distclean)
 	@$(call print_section,Build and Checks,build|build-debug|typecheck|test|lint|format)
 	@$(call print_section,Development,dev|dev-web|dev-bridge)
 	@$(call print_section,Container,check-container-env|cnt-build|proxy-up|up|down|restart|logs|ps)
@@ -200,7 +214,12 @@ cnt-build: check-container ## Build container image via compose (podman/docker)
 
 proxy-up: check-container-env ## Start the stack through a local dev proxy (optional)
 	@echo -e "$(YELLOW)- Starting container stack via local proxy...$(NC)"
-	HTTP_PROXY=http://host.containers.internal:9000 HTTPS_PROXY=http://host.containers.internal:9000 NO_PROXY=localhost,127.0.0.1  $(MAKE) up
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@echo -e "$(BLUE)- Using proxy settings:$(NC)"
+	@echo -e "$(BLUE)  HTTP_PROXY: $(HTTP_PROXY_DEFAULT)$(NC)"
+	@echo -e "$(BLUE)  HTTPS_PROXY: $(HTTPS_PROXY_DEFAULT)$(NC)"
+	@echo -e "$(BLUE)  NO_PROXY: $(NO_PROXY_DEFAULT)$(NC)"
+	HTTP_PROXY="$(HTTP_PROXY_DEFAULT)" HTTPS_PROXY="$(HTTPS_PROXY_DEFAULT)" NO_PROXY="$(NO_PROXY_DEFAULT)" $(MAKE) up
 
 up: check-container-env ## Start container stack (detached) with build
 	@echo -e "$(YELLOW)- Starting container stack...$(NC)"
@@ -268,3 +287,10 @@ clean: ## Remove local Node build artifacts and dist/
 	@find apps packages -type f -name '*.tsbuildinfo' -delete
 	@rm -rf $(DIST_DIR)
 	@echo -e "$(GREEN)✓ Clean completed$(NC)"
+
+distclean: clean ## Remove node_modules and package-lock.json for a pristine `make install`
+	@echo -e "$(YELLOW)- Removing installed dependencies and lockfile...$(NC)"
+	@rm -rf node_modules
+	@find apps packages -type d -name node_modules -prune -exec rm -rf {} +
+	@rm -f package-lock.json
+	@echo -e "$(GREEN)✓ Distclean completed — run 'make install' for a pristine environment$(NC)"

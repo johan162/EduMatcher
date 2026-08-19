@@ -13,11 +13,11 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5178,
+    port: 8191,
     proxy: {
-      "/api": "http://127.0.0.1:8091",
+      "/api": "http://127.0.0.1:5191",
       "/ws": {
-        target: "ws://127.0.0.1:8091",
+        target: "ws://127.0.0.1:5191",
         ws: true,
       },
     },

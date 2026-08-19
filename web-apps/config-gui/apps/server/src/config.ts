@@ -23,7 +23,7 @@ function intFromEnv(name: string, fallback: number): number {
 export function loadServerConfig(): ServerConfig {
   return {
     host: process.env.HOST ?? "127.0.0.1",
-    port: intFromEnv("PORT", 5175),
+    port: intFromEnv("PORT", 5192),
     maxImportBytes: intFromEnv("MAX_IMPORT_BYTES", 1_000_000),
     // Overridable so deployments can point at `poetry run pm-cverifier`, etc.
     cverifierCommand: (process.env.CVERIFIER_COMMAND ?? "pm-cverifier").split(" "),

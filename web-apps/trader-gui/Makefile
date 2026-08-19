@@ -28,6 +28,14 @@ VERSION      ?= $(shell node -p "require('./package.json').version" 2>/dev/null 
 IMAGE        ?= $(APP_NAME):$(VERSION)
 DIST_DIR     ?= dist
 
+# If https_proxy is set, use it; otherwise use the default host.containers.internal proxy for builds
+# HTTP_PROXY_DEFAULT := $(if $(http_proxy),$(http_proxy),http://host.containers.internal:9000)
+# HTTPS_PROXY_DEFAULT := $(if $(https_proxy),$(https_proxy),http://host.containers.internal:9000)
+# NO_PROXY_DEFAULT := $(if $(no_proxy),$(no_proxy),localhost,127.0.0.1)
+HTTP_PROXY_DEFAULT := http://host.containers.internal:9000
+HTTPS_PROXY_DEFAULT := http://host.containers.internal:9000
+NO_PROXY_DEFAULT := localhost,127.0.0.1
+
 # Auto-detect container runtime (prefer podman)
 CONTAINER_RUNTIME := $(shell \
   if command -v podman >/dev/null 2>&1; then echo podman; \
@@ -37,7 +45,13 @@ CONTAINER_RUNTIME := $(shell \
 ifeq ($(CONTAINER_RUNTIME),podman)
   DOCKER_COMPOSE := podman-compose
 else ifeq ($(CONTAINER_RUNTIME),docker)
-  DOCKER_COMPOSE := docker compose
+  # On Linux, Docker needs the extra_hosts override (host-gateway injection).
+  # Docker Desktop on macOS/Windows provides host.docker.internal natively.
+  ifeq ($(UNAME_S),Linux)
+    DOCKER_COMPOSE := docker compose -f docker-compose.yml -f docker-compose.linux.yml
+  else
+    DOCKER_COMPOSE := docker compose
+  endif
 else
   DOCKER_COMPOSE :=
 endif
@@ -57,7 +71,7 @@ NC        := \033[0m
 	dev serve \
 	cnt-build proxy-up up down restart logs ps \
 	dist \
-	clean
+	clean distclean
 
 # --------------------------------------------------------------------------------------------
 # Help
@@ -150,15 +164,15 @@ format: check-npm ## Format all source files with Prettier
 # --------------------------------------------------------------------------------------------
 # Development server
 # --------------------------------------------------------------------------------------------
-dev: check-npm ## Start the Vite dev server (hot-reload on :5173)
-	@echo -e "$(CYAN)→ Starting dev server on http://localhost:5173$(NC)"
+dev: check-npm ## Start the Vite dev server (hot-reload on :8193)
+	@echo -e "$(CYAN)→ Starting dev server on http://localhost:8193$(NC)"
 	$(NPM) run dev
 
 # --------------------------------------------------------------------------------------------
 # Production serve
 # --------------------------------------------------------------------------------------------
-serve: check-npm ## Serve the production build (apps/web/dist/) on :4173
-	@echo -e "$(CYAN)→ Serving production build on http://localhost:4173$(NC)"
+serve: check-npm ## Serve the production build (apps/web/dist/) on :8093
+	@echo -e "$(CYAN)→ Serving production build on http://localhost:8093$(NC)"
 	@echo -e "$(YELLOW)   Set PORT / HOST / API_PROXY_TARGET to override defaults.$(NC)"
 	$(NPM) run pm-trading-ui-serve
 
@@ -176,7 +190,12 @@ cnt-build: check-container ## Build container image via compose (podman/docker)
 
 proxy-up: check-container-env ## Start the stack through a local dev proxy (optional)
 	@echo -e "$(YELLOW)- Starting container stack via local proxy...$(NC)"
-	HTTP_PROXY=http://host.containers.internal:9000 HTTPS_PROXY=http://host.containers.internal:9000 NO_PROXY=localhost,127.0.0.1  $(MAKE) up
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@echo -e "$(BLUE)- Using proxy settings:$(NC)"
+	@echo -e "$(BLUE)  HTTP_PROXY: $(HTTP_PROXY_DEFAULT)$(NC)"
+	@echo -e "$(BLUE)  HTTPS_PROXY: $(HTTPS_PROXY_DEFAULT)$(NC)"
+	@echo -e "$(BLUE)  NO_PROXY: $(NO_PROXY_DEFAULT)$(NC)"
+	HTTP_PROXY="$(HTTP_PROXY_DEFAULT)" HTTPS_PROXY="$(HTTPS_PROXY_DEFAULT)" NO_PROXY="$(NO_PROXY_DEFAULT)" $(MAKE) up
 
 up: check-container-env ## Start container stack (detached) with build
 	@echo -e "$(YELLOW)- Starting container stack...$(NC)"
@@ -231,12 +250,22 @@ dist: check-container-env ## Build a distributable: container image + exported O
 	@echo -e "$(GREEN)✓ Distributable ready: $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar.gz$(NC)"
 	@echo -e "$(BLUE)  Load on another host:$(NC)"
 	@echo -e "$(BLUE)    $(CONTAINER_RUNTIME) load --input $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar.gz$(NC)"
-	@echo -e "$(BLUE)  Then run: $(CONTAINER_RUNTIME) run -p 4173:4173 $(IMAGE)$(NC)"
+	@echo -e "$(BLUE)  Then run: $(CONTAINER_RUNTIME) run -p 8093:8093 $(IMAGE)$(NC)"
 
 # --------------------------------------------------------------------------------------------
 # Clean
 # --------------------------------------------------------------------------------------------
-clean: ## Remove build artefacts and node_modules
+clean: ## Remove local Node build artifacts and dist/
 	@echo -e "$(YELLOW)→ Cleaning…$(NC)"
-	rm -rf apps/web/$(DIST_DIR) node_modules apps/web/node_modules
+	rm -rf apps/web/$(DIST_DIR)
+	find apps -type d -name dist -prune -exec rm -rf {} +
+	find apps -type f -name '*.tsbuildinfo' -delete
+	rm -rf $(DIST_DIR)
 	@echo -e "$(GREEN)✓ Clean$(NC)"
+
+distclean: clean ## Remove node_modules and package-lock.json for a pristine `make install`
+	@echo -e "$(YELLOW)→ Removing installed dependencies and lockfile…$(NC)"
+	rm -rf node_modules
+	find apps -type d -name node_modules -prune -exec rm -rf {} +
+	rm -f package-lock.json
+	@echo -e "$(GREEN)✓ Distclean completed — run 'make install' for a pristine environment$(NC)"

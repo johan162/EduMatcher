@@ -505,7 +505,7 @@ describe("parseYamlToDraft round trip", () => {
     // surfaces exactly that for a real config with fully-specified quotes.
     const examplePath = fileURLToPath(
       new URL(
-        "../../../../docs/examples/ref_data/three-books-complex-setup/engine_config.yaml",
+        "../../../../../docs/examples/ref_data/three-books-complex-setup/engine_config.yaml",
         import.meta.url,
       ),
     );

@@ -32,7 +32,9 @@ services:
       CORS_ORIGIN: "*"
       # Reachable from inside the container — "host.docker.internal" on
       # Docker Desktop, or the actual host/container name running pm-log-srv.
-      LOG_SRV_HOST: "host.docker.internal"
+      # Override with the VM IP when the backend runs in a separate VM:
+      #   LOG_SRV_HOST=<vm-ip> docker compose up
+      LOG_SRV_HOST: "${LOG_SRV_HOST:-host.docker.internal}"
       LOG_SRV_PUB_PORT: "5601"
       LOG_SRV_PULL_PORT: "5602"
       LOG_DB_PATH: "/app/logsrv-data/log.db"

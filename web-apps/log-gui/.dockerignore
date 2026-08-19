@@ -5,3 +5,6 @@ data
 *.log
 .git
 .DS_Store
+ack-data
+logsrv-data
+

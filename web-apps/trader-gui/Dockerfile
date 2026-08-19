@@ -3,7 +3,7 @@
 # Mirrors terminal-gui/Dockerfile: builds the React frontend and serves it
 # from the zero-dependency Node static server (apps/serve/serve.ts) on one
 # port, so a production deployment is a single container listening on $PORT
-# (4173). The server proxies /api/* (REST + WebSocket upgrades) to
+# (8093). The server proxies /api/* (REST + WebSocket upgrades) to
 # pm-api-gwy — see docker-compose.yml for how that's wired in.
 #
 # Typically build the image when behind a corporate proxy with:
@@ -50,7 +50,7 @@ FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
-    PORT=4173 \
+    PORT=8093 \
     STATIC_DIR=/app/apps/web/dist
 
 COPY --from=build /app/node_modules ./node_modules
@@ -58,5 +58,5 @@ COPY --from=build /app/apps/serve ./apps/serve
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 COPY --from=build /app/package.json /app/tsconfig.base.json ./
 
-EXPOSE 4173
+EXPOSE 8093
 CMD ["npm", "run", "start", "--workspace", "@edumatcher/trader-serve"]

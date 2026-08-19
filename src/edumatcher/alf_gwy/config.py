@@ -28,7 +28,7 @@ class AlfGatewayConfig:
     drop_copy_pub_addr: str = DROP_COPY_PUB_ADDR
     heartbeat_interval_sec: int = 5
     handshake_timeout_sec: int = 10
-    idle_timeout_sec: int = 30
+    idle_timeout_sec: int = 3600
     max_connections: int = 64
     max_client_queue: int = 10_000
     max_commands_per_second: int = 100
