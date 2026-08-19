@@ -1,4 +1,4 @@
-# EduMatcher Config Builder (`config-gui`)
+# EduMatcher Config Builder (`pm-config-ui`)
 
 A browser-based builder for EduMatcher's authored `engine_config.yaml` — a
 human-friendly companion to the `pm-config-gen` CLI. It offers live
@@ -40,6 +40,11 @@ config-gui/
 make up     # detects podman or docker, builds image, starts on http://localhost:8092
 make down   # stop and remove
 ```
+
+
+If you are behind a proxy (or firewall) you need to use `make proxy-up` instead of `make up` to build and run the container. This target will set the HTTP_PROXY and HTTPS_PROXY environment variables for the build and run steps. See the `make help` output for more details. It asumes the two environment variables `http_proxy` and `https_proxy` are set in your shell. If they are not set, the Makefile will default to using `http://host.containers.internal:9000` for both.
+
+
 
 ### Development server
 

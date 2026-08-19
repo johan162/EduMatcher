@@ -1,3 +1,9 @@
+Version: 0.1.0
+
+Date: 2026-08-17
+
+Status: Design and Research Proposal
+
 # EduMatcher Trading GUI — Apache ECharts Chart Adaptation
 
 > Design for replacing TradingView **Lightweight Charts v5** with **Apache ECharts** in the
@@ -8,29 +14,36 @@
 > Apache ECharts carries no such clause. See the changelog at the end of this document for the
 > decision trail.
 
----
+
 
 ## Table of contents
 
-- [1. Goals and non-goals](#1-goals-and-non-goals)
-- [2. Current state: what `SymbolChart.tsx` actually does](#2-current-state-what-symbolcharttsx-actually-does)
-- [3. Functional inventory (the contract the replacement must honour)](#3-functional-inventory-the-contract-the-replacement-must-honour)
-- [4. Library decision record](#4-library-decision-record)
-- [5. Target architecture](#5-target-architecture)
-  - [5.1 Adapter interface](#51-adapter-interface)
-  - [5.2 ECharts adapter implementation notes](#52-echarts-adapter-implementation-notes)
-  - [5.3 Live-tick update path](#53-live-tick-update-path)
-  - [5.4 Zoom / pan](#54-zoom--pan)
-  - [5.5 Theming](#55-theming)
-  - [5.6 Data flow (unchanged)](#56-data-flow-unchanged)
-- [6. Risk register](#6-risk-register)
-- [7. Phased implementation plan](#7-phased-implementation-plan)
-- [8. Testing strategy](#8-testing-strategy)
-- [9. v2.0.0 candidate features (chart-adjacent)](#9-v200-candidate-features-chart-adjacent)
-- [10. Effort estimate](#10-effort-estimate)
-- [Changelog](#changelog)
+- [EduMatcher Trading GUI — Apache ECharts Chart Adaptation](#edumatcher-trading-gui--apache-echarts-chart-adaptation)
+  - [Table of contents](#table-of-contents)
+  - [1. Goals and non-goals](#1-goals-and-non-goals)
+  - [2. Current state: what `SymbolChart.tsx` actually does](#2-current-state-what-symbolcharttsx-actually-does)
+  - [3. Functional inventory (the contract the replacement must honour)](#3-functional-inventory-the-contract-the-replacement-must-honour)
+  - [4. Library decision record](#4-library-decision-record)
+  - [5. Target architecture](#5-target-architecture)
+    - [5.1 Adapter interface](#51-adapter-interface)
+    - [5.2 ECharts adapter implementation notes](#52-echarts-adapter-implementation-notes)
+    - [5.3 Live-tick update path](#53-live-tick-update-path)
+    - [5.4 Zoom / pan](#54-zoom--pan)
+    - [5.5 Theming](#55-theming)
+    - [5.6 Data flow (unchanged)](#56-data-flow-unchanged)
+  - [6. Risk register](#6-risk-register)
+  - [7. Phased implementation plan](#7-phased-implementation-plan)
+    - [Phase 0 — Spike: de-risk R1 (0.5 day)](#phase-0--spike-de-risk-r1-05-day)
+    - [Phase 1 — Adapter interface + ECharts implementation (0.5–1 day)](#phase-1--adapter-interface--echarts-implementation-051-day)
+    - [Phase 2 — Wire `SymbolChart.tsx` to the adapter (0.5–1 day)](#phase-2--wire-symbolcharttsx-to-the-adapter-051-day)
+    - [Phase 3 — Cleanup and removal (0.25 day)](#phase-3--cleanup-and-removal-025-day)
+    - [Phase 4 — Documentation sync (0.25 day)](#phase-4--documentation-sync-025-day)
+  - [8. Testing strategy](#8-testing-strategy)
+  - [9. v2.0.0 candidate features (chart-adjacent)](#9-v200-candidate-features-chart-adjacent)
+  - [10. Effort estimate](#10-effort-estimate)
+  - [Changelog](#changelog)
 
----
+
 
 ## 1. Goals and non-goals
 
@@ -61,7 +74,7 @@
   is shaped by having exactly one real implementation (ECharts); a second implementation is not
   planned, so the interface should be no more abstract than ECharts' own API already requires.
 
----
+
 
 ## 2. Current state: what `SymbolChart.tsx` actually does
 
@@ -91,7 +104,7 @@ All chart-library types currently leak into the component's public surface via i
 `ColorType`, `CrosshairMode`). That leakage is exactly what the adapter interface in [§5](#5-target-architecture)
 removes.
 
----
+
 
 ## 3. Functional inventory (the contract the replacement must honour)
 
@@ -126,7 +139,7 @@ current implementation, not swap regressions:
   swap should silently fix or silently carry forward as a new limitation. It is unaffected by the
   chart-library choice either way, since it is a data-fetching gap, not a rendering gap.
 
----
+
 
 ## 4. Library decision record
 
@@ -149,7 +162,7 @@ way. This document proceeds on that decision; R1 in [§6](#6-risk-register) is t
 from the decision record that this design explicitly carries forward and phases as a spike
 (§7 Phase 0) rather than assuming away.
 
----
+
 
 ## 5. Target architecture
 
@@ -339,7 +352,7 @@ Nothing here changes: `useHistoryTradesQuery`, `useHistoryDailyChartQuery`,
 code that changes is inside `SymbolChart.tsx`'s effects (talking to `ChartHandle` instead of
 `IChartApi`/`ISeriesApi` directly) and the new `lib/chart/` adapter module.
 
----
+
 
 ## 6. Risk register
 
@@ -352,7 +365,7 @@ code that changes is inside `SymbolChart.tsx`'s effects (talking to `ChartHandle
 | R5 | Bundle size: ECharts is a considerably larger dependency than Lightweight Charts (a known general trade-off of full-featured charting libraries vs. purpose-built ones) | Medium (near-certain some increase; magnitude unverified) | Low-medium — affects initial load, not runtime behaviour | Measure before/after with the existing Vite build's bundle analysis; use ECharts' modular imports (`echarts/core` + explicit `CandlestickChart`/`LineChart`/`GridComponent`/`DataZoomComponent` registration) rather than the full `echarts` barrel import, which is meaningfully smaller. |
 | R6 | Removing `lightweight-charts` from `package.json` while other, currently-undiscovered code references its types | Low | Low (compile-time catch) | TypeScript build will fail loudly on any stray import; not a runtime risk. Grep confirmed today (§ Investigation) that `SymbolChart.tsx` is the only file importing `lightweight-charts` in `trader-gui`. |
 
----
+
 
 ## 7. Phased implementation plan
 
@@ -401,7 +414,7 @@ this document's version. Cross-link back to this document.
 **Total: 1.75–3 days**, consistent with the effort estimate in §10 and explicitly not the
 unverifiable "~2 days" figure from the original ask — see the changelog on that point.
 
----
+
 
 ## 8. Testing strategy
 
@@ -425,7 +438,7 @@ unverifiable "~2 days" figure from the original ask — see the changelog on tha
 - **No new backend/contract tests needed** — this swap touches only the GUI's chart-rendering
   layer; the REST/WebSocket contracts are unchanged (§5.6).
 
----
+
 
 ## 9. v2.0.0 candidate features (chart-adjacent)
 
@@ -460,7 +473,7 @@ rather than committed to:
   bid/ask area chart) could reuse `lib/chart/`'s theming and lifecycle patterns, though it would
   need its own adapter surface, not the OHLC-shaped `ChartHandle` above.
 
----
+
 
 ## 10. Effort estimate
 
@@ -478,7 +491,7 @@ there is no record of a previously-given "~2 days" figure anywhere in this proje
 or memory (see changelog). The range's width mostly reflects R1 (Phase 0's go/no-go gate) and R3
 (load-verification outcome) — both are things this plan tests early rather than assumes.
 
----
+
 
 ## Changelog
 

@@ -26,6 +26,58 @@ Each app's own `README.md` is the full developer reference: project layout,
 getting started, every environment variable, startup order, and Makefile
 targets.
 
+## Starting all GUIs together
+
+A `Makefile` in this directory orchestrates `log-gui`, `terminal-gui`, and
+`trader-gui` as a group. The key variable is `VM_BACKEND_IP`: set it to the
+IP address of the VM (or host) running the EduMatcher backend processes, and
+all three containers are pointed at that address automatically.
+
+```bash
+# All three GUIs, backend on Docker Desktop host (no VM — uses host.docker.internal):
+make up
+
+# All three GUIs, backend running in a Multipass or other VM:
+make up VM_BACKEND_IP=192.168.64.10
+
+# Stop all three:
+make down VM_BACKEND_IP=192.168.64.10   # or just: make down
+
+# Export once for the session and omit from every command:
+export VM_BACKEND_IP=192.168.64.10
+make up
+make ps
+make down
+```
+
+`VM_BACKEND_IP` is translated into the right per-app environment variable
+before each app's compose stack starts:
+
+| App | Env var set | Port assumed |
+| --- | --- | --- |
+| `log-gui` | `LOG_SRV_HOST` | `5601`/`5602` (LALF-PS) |
+| `terminal-gui` | `CALF_HOST`, `API_GATEWAY_URL`, `LOG_SRV_HOST` | `5570` (CALF), `8080` (REST), `5600` (LALF) |
+| `trader-gui` | `API_PROXY_TARGET` | `8080` (REST/WS) |
+
+When `VM_BACKEND_IP` is not set, each app's compose file falls back to
+`host.docker.internal`, which is correct for Docker Desktop on macOS/Windows.
+
+Each app can still be driven individually from its own directory (`make up`,
+`make down`, etc.). The orchestration Makefile is purely additive — it
+delegates to each app's own Makefile via `$(MAKE) -C`.
+
+Available top-level targets:
+
+| Target | Description |
+| --- | --- |
+| `up` | Start all three GUI containers |
+| `down` | Stop and remove all three |
+| `restart` | `down` then `up` |
+| `ps` | Show container status for all three |
+| `up-log` / `up-terminal` / `up-trader` | Start a single app |
+| `down-log` / `down-terminal` / `down-trader` | Stop a single app |
+| `logs-log` / `logs-terminal` / `logs-trader` | Follow a single app's container logs |
+
 ## Backend dependencies
 
 None of these apps depend on each other, but each depends on one or more

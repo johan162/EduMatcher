@@ -1,14 +1,13 @@
-Version: 1.0.0
+Version: 1.1.0
 
 Date: 2026-07-27
 
-Status: Implemented — all three endpoints ship in `pm-api-gwy`
-(`src/edumatcher/api_gateway/routers/bootstrap.py`) and are consumed by the
-Trading UI login flow (`trader-gui/`, §23 phases 1–4).
+Status: Design and Research Proposal
 
----
 
-# EduMatcher — Bootstrap API (`GET /api/v1/bootstrap/*`)
+
+
+# EduMatcher — Bootstrap API 
 
 > **Revision History**
 >
@@ -21,11 +20,11 @@ Trading UI login flow (`trader-gui/`, §23 phases 1–4).
 >   [EduMatcher-Trading-GUI.md](./EduMatcher-Trading-GUI.md) and grounded in the
 >   current `pm-api-gwy` router code.
 
----
+
 
 ## Table of Contents
 
-- [EduMatcher — Bootstrap API (`GET /api/v1/bootstrap/*`)](#edumatcher--bootstrap-api-get-apiv1bootstrap)
+- [EduMatcher — Bootstrap API](#edumatcher--bootstrap-api)
   - [Table of Contents](#table-of-contents)
   - [1. Motivation](#1-motivation)
   - [2. Scope and non-goals](#2-scope-and-non-goals)
@@ -55,7 +54,7 @@ Trading UI login flow (`trader-gui/`, §23 phases 1–4).
   - [12. TypeScript types](#12-typescript-types)
   - [13. Open questions](#13-open-questions)
 
----
+
 
 ## 1. Motivation
 
@@ -70,7 +69,7 @@ the fix: three **role-scoped aggregate endpoints** that compose existing
 service responses into one round-trip per login. This document specifies
 those endpoints in enough detail to implement them.
 
----
+
 
 ## 2. Scope and non-goals
 
@@ -102,7 +101,7 @@ those endpoints in enough detail to implement them.
   be obtainable from an existing engine topic, ZMQ round-trip, or in-memory
   gateway cache.
 
----
+
 
 ## 3. The startup waterfall problem
 
@@ -156,7 +155,7 @@ single fetch. The `gateway_id` is returned in the HTTP response body rather
 than requiring a WebSocket auth frame to resolve it first (see §5.1), which
 also eliminates that serial dependency for the REST layer.
 
----
+
 
 ## 4. Design principles
 
@@ -186,7 +185,7 @@ bootstrap response automatically because the bootstrap handler delegates to
 the same code path. Documentation for individual fields belongs in the
 respective endpoint specs; this document focuses on the composition.
 
----
+
 
 ## 5. Endpoint specifications
 
@@ -203,7 +202,7 @@ All three endpoints share these conventions:
   are included in `recent_fills`. Clamped silently to the max; invalid
   (non-integer) values return `422`.
 
----
+
 
 ### 5.1 `GET /api/v1/bootstrap/trader`
 
@@ -303,7 +302,7 @@ everything a TRADER screen needs to be interactive immediately after opening.
   `"incomplete": ["recent_fills"]`, `capabilities.stats_db_available` is
   `false`. Response is still `200`.
 
----
+
 
 ### 5.2 `GET /api/v1/bootstrap/mm`
 
@@ -353,7 +352,7 @@ exactly `MARKET_MAKER`. Returns `403 Forbidden` for TRADER and ADMIN keys.
 pattern as trader fields: present in the array when their source query fails
 or times out, field set to `null`.
 
----
+
 
 ### 5.3 `GET /api/v1/bootstrap/admin`
 
@@ -450,7 +449,7 @@ state). Does include the full reference bundle.
   `"incomplete": ["halts"]`. The halts panel shows a stale indicator until
   the `circuit_breaker` WS events or a manual refresh catches up.
 
----
+
 
 ## 6. Partial-failure semantics
 
@@ -492,7 +491,7 @@ A client receiving a non-empty `incomplete` (for optional fields) must:
    endpoints (`/session`, `/admin/gateways`, etc.) are the correct retry
    targets for individual missing fields.
 
----
+
 
 ## 7. Caching and staleness
 
@@ -512,7 +511,7 @@ changed between a tab reload and the previous session. If the version
 matches what the client cached in memory, it can skip re-rendering the symbol
 list.
 
----
+
 
 ## 8. Error responses
 
@@ -529,7 +528,7 @@ All error responses use the existing gateway error envelope:
 | `422` | `VALIDATION` | `fills_limit` query parameter is not a valid integer |
 | `503` | `ENGINE_TIMEOUT` | Any **required** field (see §6) timed out — the response would be too incomplete to be useful |
 
----
+
 
 ## 9. Authorization
 
@@ -551,7 +550,7 @@ Read-only API keys (those with `gateway_id = null`) may call
 `gateway_id` to look up. `gateway_id` will be `null`, `orders` will be an
 empty envelope (no trading cache), and `positions` will be empty.
 
----
+
 
 ## 10. Implementation notes
 
@@ -634,7 +633,7 @@ verify completeness.
 | `monitor_last_seq` | `engine.monitor_last_seq()` or equivalent cache accessor | Per-gateway highest drop-copy seq; already tracked by the monitor WS handler |
 | `capabilities` | same as trader | |
 
----
+
 
 ## 11. Updated login sequence
 
@@ -686,7 +685,7 @@ sequenceDiagram
   reconciliation and fills in the `gateways` and `halts` fields if those
   timed out in the bootstrap response.
 
----
+
 
 ## 12. TypeScript types
 
@@ -744,7 +743,7 @@ The `ReferenceBundle`, `SessionState`, `Position`, `OrdersEnvelope`,
 `GatewaysEnvelope`, and `HaltStatusEnvelope` types are already defined in
 Appendix A of the Trading GUI spec; this document does not redefine them.
 
----
+
 
 ## 13. Open questions
 

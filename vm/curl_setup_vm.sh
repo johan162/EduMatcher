@@ -11,7 +11,7 @@ WORK_DIR="${WORK_DIR:-$(mktemp -d)}"
 KEEP_WORK_DIR="${KEEP_WORK_DIR:-0}"
 
 BASE_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_REF}/vm"
-BUILD_SCRIPT_PATH="$WORK_DIR/build_multipass_vm.sh"
+BUILD_SCRIPT_PATH="$WORK_DIR/mknode.sh"
 INSTALL_SCRIPT_PATH="$WORK_DIR/install_edumatcher_runtime.sh"
 
 cleanup() {

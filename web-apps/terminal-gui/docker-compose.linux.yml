@@ -1,0 +1,10 @@
+# Linux Docker override — applied automatically by the Makefile when
+# CONTAINER_RUNTIME=docker on Linux.
+#
+# Docker Desktop (macOS/Windows) provides host.docker.internal out of the box.
+# Podman does not support the "host-gateway" pseudo-address at all.
+# Only plain Linux Docker needs the extra_hosts entry to inject the mapping.
+services:
+  terminal-gui:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

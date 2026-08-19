@@ -28,6 +28,14 @@ VERSION      ?= $(shell node -p "require('./package.json').version" 2>/dev/null 
 IMAGE        ?= $(APP_NAME):$(VERSION)
 DIST_DIR     ?= dist
 
+# If https_proxy is set, use it; otherwise use the default host.containers.internal proxy for builds
+# HTTP_PROXY_DEFAULT := $(if $(http_proxy),$(http_proxy),http://host.containers.internal:9000)
+# HTTPS_PROXY_DEFAULT := $(if $(https_proxy),$(https_proxy),http://host.containers.internal:9000)
+# NO_PROXY_DEFAULT := $(if $(no_proxy),$(no_proxy),localhost,127.0.0.1)
+HTTP_PROXY_DEFAULT := http://host.containers.internal:9000
+HTTPS_PROXY_DEFAULT := http://host.containers.internal:9000
+NO_PROXY_DEFAULT := localhost,127.0.0.1
+
 # Auto-detect container runtime (prefer podman)
 CONTAINER_RUNTIME := $(shell \
   if command -v podman >/dev/null 2>&1; then echo podman; \
@@ -37,7 +45,13 @@ CONTAINER_RUNTIME := $(shell \
 ifeq ($(CONTAINER_RUNTIME),podman)
   DOCKER_COMPOSE := podman-compose
 else ifeq ($(CONTAINER_RUNTIME),docker)
-  DOCKER_COMPOSE := docker compose
+  # On Linux, Docker needs the extra_hosts override (host-gateway injection).
+  # Docker Desktop on macOS/Windows provides host.docker.internal natively.
+  ifeq ($(UNAME_S),Linux)
+    DOCKER_COMPOSE := docker compose -f docker-compose.yml -f docker-compose.linux.yml
+  else
+    DOCKER_COMPOSE := docker compose
+  endif
 else
   DOCKER_COMPOSE :=
 endif
@@ -176,7 +190,12 @@ cnt-build: check-container ## Build container image via compose (podman/docker)
 
 proxy-up: check-container-env ## Start the stack through a local dev proxy (optional)
 	@echo -e "$(YELLOW)- Starting container stack via local proxy...$(NC)"
-	HTTP_PROXY=http://host.containers.internal:9000 HTTPS_PROXY=http://host.containers.internal:9000 NO_PROXY=localhost,127.0.0.1  $(MAKE) up
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@echo -e "$(BLUE)- Using proxy settings:$(NC)"
+	@echo -e "$(BLUE)  HTTP_PROXY: $(HTTP_PROXY_DEFAULT)$(NC)"
+	@echo -e "$(BLUE)  HTTPS_PROXY: $(HTTPS_PROXY_DEFAULT)$(NC)"
+	@echo -e "$(BLUE)  NO_PROXY: $(NO_PROXY_DEFAULT)$(NC)"
+	HTTP_PROXY="$(HTTP_PROXY_DEFAULT)" HTTPS_PROXY="$(HTTPS_PROXY_DEFAULT)" NO_PROXY="$(NO_PROXY_DEFAULT)" $(MAKE) up
 
 up: check-container-env ## Start container stack (detached) with build
 	@echo -e "$(YELLOW)- Starting container stack...$(NC)"

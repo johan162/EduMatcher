@@ -37,9 +37,24 @@ make up     # detects podman or docker, builds image, starts on http://localhost
 make down   # stop and remove
 ```
 
+
+If you are behind a proxy (or firewall) you need to use `make proxy-up` instead of `make up` to build and run the container. This target will set the HTTP_PROXY and HTTPS_PROXY environment variables for the build and run steps. See the `make help` output for more details. It asumes the two environment variables `http_proxy` and `https_proxy` are set in your shell. If they are not set, the Makefile will default to using `http://host.containers.internal:9000` for both.
+
+
 The container needs network access to `pm-md-gwy`'s CALF port and
 `pm-api-gwy`; see the comments in `docker-compose.yml` for the `*_HOST`
 variables to override on Podman or non-Docker-Desktop setups.
+
+**`host.docker.internal` resolution:** the `*_HOST` defaults reference
+`host.docker.internal` to reach processes on the host machine. Docker
+Desktop (macOS/Windows) injects this name automatically. On bare Linux with
+plain Docker it requires an `extra_hosts` entry using the `host-gateway`
+pseudo-address, which Podman does not support. To keep a single base
+`docker-compose.yml` that works everywhere, that entry lives in a separate
+`docker-compose.linux.yml` overlay — the Makefile appends it automatically
+when it detects `docker` on Linux. On Podman the name `host.containers.internal`
+serves the same purpose; override `CALF_HOST`, `API_GATEWAY_URL`, and
+`LOG_SRV_HOST` to point there if needed.
 
 ### Development server
 

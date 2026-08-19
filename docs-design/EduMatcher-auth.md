@@ -232,18 +232,18 @@ using only the corresponding **public** key.
 ```mermaid
 sequenceDiagram
     autonumber
-    participant U as Browser / CLI / Bot
-    participant A as pm-auth (:8090)
-    participant G as Gateway (api-gwy / ALF / …)
-    participant E as pm-engine
+    participant U as "Browser / CLI / Bot"
+    participant A as "pm-auth (:8090)"
+    participant G as "Gateway (api-gwy / ALF / ...)"
+    participant E as "pm-engine"
 
     U->>A: 1. Authenticate (OIDC code+PKCE, or client_credentials)
     A->>A: 2. Verify against auth.db (argon2id)
     A-->>U: 3. Signed JWT (access + refresh)
     Note over U,G: pm-auth is not involved again until the token expires
     U->>G: 4. Present JWT (Bearer header / HELLO TOKEN= field)
-    G->>G: 5. Verify signature with cached public key — offline
-    G->>G: 6. Enforce scopes; map to gateway_id
+    G->>G: 5. Verify signature with cached public key - offline
+    G->>G: 6. Enforce scopes, map to gateway_id
     G->>E: 7. gateway_connect (unchanged)
     E-->>G: 8. Accepted (unchanged)
 ```

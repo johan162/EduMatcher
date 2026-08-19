@@ -96,7 +96,7 @@ pm-cverifier  = "edumatcher.cverifier.cli:main"
 pm-msgen      = "edumatcher.msgen.cli:main"
 pm-log-srv  = "edumatcher.log_srv.main:main"
 pm-log-cli  = "edumatcher.log_cli.main:main"
-pm-opctl    = "edumatcher.emo.cli:main"
+pm-opctl-cli    = "edumatcher.emo.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

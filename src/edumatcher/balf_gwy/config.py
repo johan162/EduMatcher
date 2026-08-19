@@ -32,7 +32,7 @@ class BalfGatewayConfig:
     # Liveness
     heartbeat_interval_sec: float = 1.0
     heartbeat_timeout_sec: float = 5.0
-    idle_timeout_sec: float = 30.0
+    idle_timeout_sec: float = 300.0
     auth_timeout_sec: float = 10.0
     # Capacity
     max_connections: int = 64

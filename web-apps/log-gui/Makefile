@@ -42,6 +42,15 @@ else
 	DOCKER_COMPOSE :=
 endif
 
+# If https_proxy is set, use it; otherwise use the default host.containers.internal proxy for builds
+# HTTP_PROXY_DEFAULT := $(if $(http_proxy),$(http_proxy),http://host.containers.internal:9000)
+# HTTPS_PROXY_DEFAULT := $(if $(https_proxy),$(https_proxy),http://host.containers.internal:9000)
+# NO_PROXY_DEFAULT := $(if $(no_proxy),$(no_proxy),localhost,127.0.0.1)
+HTTP_PROXY_DEFAULT := http://host.containers.internal:9000
+HTTPS_PROXY_DEFAULT := http://host.containers.internal:9000
+NO_PROXY_DEFAULT := localhost,127.0.0.1
+
+
 APP_NAME := edumatcher-log-gui
 SERVICE_NAME := log-gui
 VERSION ?= $(shell node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
@@ -193,9 +202,14 @@ cnt-build: check-container ## Build container image via compose (podman/docker)
 	    --build-arg NO_PROXY="$${NO_PROXY:-}"
 	@echo -e "$(GREEN)✓ Container image built$(NC)"
 
-proxy-up: check-container-env ## Start a local proxy container for development (optional)
-	@echo -e "$(YELLOW)- Starting local proxy container...$(NC)"
-	HTTP_PROXY=http://host.containers.internal:9000 HTTPS_PROXY=http://host.containers.internal:9000 NO_PROXY=localhost,127.0.0.1  $(MAKE) up
+proxy-up: check-container-env ## Start the stack through a local dev proxy (optional)
+	@echo -e "$(YELLOW)- Starting container stack via local proxy...$(NC)"
+	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
+	@echo -e "$(BLUE)- Using proxy settings:$(NC)"
+	@echo -e "$(BLUE)  HTTP_PROXY: $(HTTP_PROXY_DEFAULT)$(NC)"
+	@echo -e "$(BLUE)  HTTPS_PROXY: $(HTTPS_PROXY_DEFAULT)$(NC)"
+	@echo -e "$(BLUE)  NO_PROXY: $(NO_PROXY_DEFAULT)$(NC)"
+	HTTP_PROXY="$(HTTP_PROXY_DEFAULT)" HTTPS_PROXY="$(HTTPS_PROXY_DEFAULT)" NO_PROXY="$(NO_PROXY_DEFAULT)" $(MAKE) up
 
 up: check-container-env ## Start container stack (detached) with build
 	@echo -e "$(YELLOW)- Starting container stack...$(NC)"

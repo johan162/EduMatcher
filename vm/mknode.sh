@@ -20,16 +20,12 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 VM_NAME="edumatcher-vm"
 VM_IMAGE="lts"
 VM_CPUS="2"
-VM_MEMORY="3G"
+VM_MEMORY="4G"
 VM_DISK="6G"
 CREATE_SNAPSHOT="true"
 SNAPSHOT_NAME="clean"
 
-if [[ -f "$REPO_ROOT/pyproject.toml" ]]; then
-  DEFAULT_VERSION="$(grep '^version\s*=\s*"' "$REPO_ROOT/pyproject.toml" | head -1 | cut -d '"' -f2)"
-else
-  DEFAULT_VERSION="latest"
-fi
+DEFAULT_VERSION="dev"
 EDUMATCHER_VERSION="$DEFAULT_VERSION"
 
 usage() {
@@ -50,7 +46,7 @@ Options:
   --help                       Show this help text
 
 Example:
-  $0 --name edumatcher-071 --version 0.9.2 --snapshot
+  $0 --name edumatcher-vm --version 0.20.1 --snapshot
 EOF
 }
 
@@ -173,6 +169,12 @@ else
   multipass exec "$VM_NAME" -- sudo /tmp/install_edumatcher_runtime.sh --version "$EDUMATCHER_VERSION"
 fi
 
+if [[ $? -ne 0 ]]; then
+  echo -e "${RED}Provisioning failed. Please check the output above for errors.${NC}" >&2
+  multipass delete --purge "$VM_NAME"
+  exit 1
+fi
+
 # Setup a session directory with a sample session file for testing.
 multipass exec "$VM_NAME" -- mkdir -p /home/ubuntu/session
 
@@ -198,18 +200,23 @@ fi
 echo -e "--------------------------------------------------------------------------"
 echo -e "${GREEN}VM '$VM_NAME' is ready with EduMatcher $EDUMATCHER_VERSION installed.${NC}"
 
-echo -e "${LIGHT_GRAY}Open a shell into the VM:${NC}"
-echo -e "${YELLOW}multipass shell $VM_NAME${NC}"
-echo -e "${LIGHT_GRAY}Inside the VM, check the installed pm-* commands:${NC}"
-echo -e "${YELLOW}ls -1 /usr/local/bin/pm-*${NC}"
+echo -e "${GRAY}Open a shell into the VM:${NC}"
+echo -e "${WHITE}multipass shell $VM_NAME${NC}"
+echo -e "${GRAY}Inside the VM, check the installed pm-* commands:${NC}"
+echo -e "${WHITE}ls -1 /usr/local/bin/pm-*${NC}"
 echo ""
-echo -e "${LIGHT_GRAY}To start the matching engine:${NC}"
-echo -e "${YELLOW}cd /home/ubuntu/session${NC}"
-echo -e "${YELLOW}pm-engine --verbose${NC}"
+echo -e "${GRAY}Change to the session directory:${NC}"
+echo -e "${WHITE}cd /home/ubuntu/session${NC}"
 echo ""
-echo -e "${LIGHT_GRAY}To then start a trading console in a different terminal:${NC}"
-echo -e "${YELLOW}pm-alf-console --id TRADER01${NC}"
+echo -e "${GRAY}To start the system:${NC}"
+echo -e "${WHITE}pm-opctl-cli start${NC}"
 echo ""
-echo -e "${LIGHT_GRAY}To restore snapshot to get back to a clean state:${NC}"
-echo -e "${YELLOW}multipass restore -d $VM_NAME.$SNAPSHOT_NAME${NC}"
+echo -e "${GRAY}To stop the system:${NC}"
+echo -e "${WHITE}pm-opctl-cli stop${NC}"
+echo ""
+echo -e "${GRAY}To list all running processes:${NC}"
+echo -e "${WHITE}pm-opctl-cli list${NC}"
+
+echo -e "${GRAY}To restore snapshot to get back to a clean state:${NC}"
+echo -e "${WHITE}multipass restore -d $VM_NAME.$SNAPSHOT_NAME${NC}"
 

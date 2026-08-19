@@ -43,6 +43,10 @@ make up     # detects podman or docker, builds image, starts on http://localhost
 make down   # stop and remove
 ```
 
+If you are behind a proxy (or firewall) you need to use `make proxy-up` instead of `make up` to build and run the container. This target will set the HTTP_PROXY and HTTPS_PROXY environment variables for the build and run steps. See the `make help` output for more details. It asumes the two environment variables `http_proxy` and `https_proxy` are set in your shell. If they are not set, the Makefile will default to using `http://host.containers.internal:9000` for both.
+
+
+
 The container needs to reach `pm-log-srv`'s LALF-PS ports (`5601`/`5602` by
 default) and a filesystem path to `log.db`; see the comments in
 `docker-compose.yml` for how those are wired in (two separate volumes: one
