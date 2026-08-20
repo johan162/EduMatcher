@@ -6,19 +6,6 @@
 #
 # Loading
 
-# Design a.utility pm-show-config (create the script under src/edumatcher/config-show/) and add a short-link in pyproject.toml . The application shows by default shows the essential information from the current engine_configuration.yaml in the available space in the terminal it is running in. It should dynamially adapt to make maximum use of the space and use colors and ASCII line-drawing as needed to highlight the key information.
-# The python script is only to read the engine_config.yaml and make no data modifications. The following options shoud at minimum be supported
-
-# "---file, -f" Possibility to specify which *.yaml file should be read
-# "--more, -m" Show more information than the default making use of every available space.
-# "--all, -a" Show all information most likely force vertical scrolling
-
-# There is a lot of information and everything will not fit on screen. Be clever, could we use a double buffer of the terminal to smoothly switch screen buffers?
-
-# A good logical layout makeing use of available space requires carefull planning. If the terminal is really small we ahould just show some basic summary.
-
-# The default engine config should be read from the current data directory (under ref_data/ as is resolved by the `config.py:_resolve_data_dir()
-# 
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
