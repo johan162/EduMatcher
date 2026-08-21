@@ -28,26 +28,6 @@ SNAPSHOT_NAME="clean"
 DEFAULT_VERSION="dev"
 EDUMATCHER_VERSION="$DEFAULT_VERSION"
 
-# grep -E "^[ ]+\- api_key: [a-z0-9-]+" .local/share/edumatcher/ref_data/engine_config.yaml  |  grep "ops01" | awk -F ':' '{print $2}'| cut -c 2-
-ADMIN_API_KEY=$(multipass exec "$VM_NAME" -- bash -c "cat /home/ubuntu/.local/share/edumatcher/ref_data/engine_config.yaml | grep -E '^[ ]+\- api_key: [a-z0-9-]+' | grep 'ops01' | awk -F ':' '{print \$2}' | cut -c 2-")
-TRADER01_API_KEY=$(multipass exec "$VM_NAME" -- bash -c "cat /home/ubuntu/.local/share/edumatcher/ref_data/engine_config.yaml | grep -E '^[ ]+\- api_key: [a-z0-9-]+' | grep 'trader01' | awk -F ':' '{print \$2}' | cut -c 2-")
-TRADER02_API_KEY=$(multipass exec "$VM_NAME" -- bash -c "cat /home/ubuntu/.local/share/edumatcher/ref_data/engine_config.yaml | grep -E '^[ ]+\- api_key: [a-z0-9-]+' | grep 'trader02' | awk -F ':' '{print \$2}' | cut -c 2-")
-MM01_API_KEY=$(multipass exec "$VM_NAME" -- bash -c "cat /home/ubuntu/.local/share/edumatcher/ref_data/engine_config.yaml | grep -E '^[ ]+\- api_key: [a-z0-9-]+' | grep 'mm01' | awk -F ':' '{print \$2}' | cut -c 2-")
-
-
-echo ""
-echo -e "${DARK_GRAY}Admin API Key: \t\t${YELLOW}$ADMIN_API_KEY${NC}"
-echo -e "${DARK_GRAY}Trader01 API Key: \t${YELLOW}$TRADER01_API_KEY${NC}"
-echo -e "${DARK_GRAY}Trader02 API Key: \t${YELLOW}$TRADER02_API_KEY${NC}"
-echo -e "${DARK_GRAY}MM01 API Key: \t\t${YELLOW}$MM01_API_KEY${NC}"
-echo ""
-echo -e "${DARK_GRAY}To access the EduMatcher API Gateway:${NC}" "\t${WHITE}curl -s -H \"Authorization: Bearer <token>\" http://$VM_IP:8000/api/v1/${NC}"
-echo -e "${DARK_GRAY}For example:${NC}"
-echo -e "${WHITE}curl -s -H \"Authorization: Bearer ${ADMIN_API_KEY}\" http://$VM_IP:8000/api/v1/symbols${NC}"
-echo -e "--------------------------------------------------------------------------"
-echo ""
-
-exit 0
 
 usage() {
   cat <<EOF
@@ -249,12 +229,12 @@ echo -e ""
 echo -e "${DARK_GRAY}The VM is running as non-root user: \t${YELLOW}ubuntu${NC}"
 echo -e "${DARK_GRAY}VM IP address: \t\t\t\t${YELLOW}$VM_IP${NC}"
 echo ""
-echo -e "${DARK_GRAY}To connect to the VM via SSH:${NC}" "\t${WHITE}ssh ubuntu@$VM_IP${NC}"
+echo -e "${DARK_GRAY}To connect to the VM via SSH:${NC}" "\t\t${WHITE}ssh ubuntu@$VM_IP${NC}"
 echo ""
-echo -e "${DARK_GRAY}Admin API Key: \t\t${YELLOW}$ADMIN_API_KEY${NC}"
-echo -e "${DARK_GRAY}Trader01 API Key: \t${YELLOW}$TRADER01_API_KEY${NC}"
-echo -e "${DARK_GRAY}Trader02 API Key: \t${YELLOW}$TRADER02_API_KEY${NC}"
-echo -e "${DARK_GRAY}MM01 API Key: \t\t${YELLOW}$MM01_API_KEY${NC}"
+echo -e "${DARK_GRAY}Admin API Key: \t\t\t\t${YELLOW}$ADMIN_API_KEY${NC}"
+echo -e "${DARK_GRAY}Trader01 API Key: \t\t\t${YELLOW}$TRADER01_API_KEY${NC}"
+echo -e "${DARK_GRAY}Trader02 API Key: \t\t\t${YELLOW}$TRADER02_API_KEY${NC}"
+echo -e "${DARK_GRAY}MM01 API Key: \t\t\t\t${YELLOW}$MM01_API_KEY${NC}"
 echo ""
 echo -e "${DARK_GRAY}To access the EduMatcher API Gateway:${NC}" "\t${WHITE}curl -s -H \"Authorization: Bearer <token>\" http://$VM_IP:8080/api/v1/${NC}"
 echo -e "${DARK_GRAY}For example:${NC}"
