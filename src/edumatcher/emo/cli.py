@@ -178,7 +178,7 @@ DEFAULT_PROCESSES: list[dict[str, Any]] = [
         "name": "index-srv",
         "command": ["pm-index", "--verbose"],
         "tcp": "127.0.0.1:5610",
-    }
+    },
 ]
 
 MICRO_PROCESSES: list[dict[str, Any]] = [
@@ -749,9 +749,9 @@ def build_parser() -> argparse.ArgumentParser:
         prog="pm-opctl-cli", description="Manage EduMatcher operational process control"
     )
     from edumatcher.cli_version import add_version_argument
-    
+
     add_version_argument(parser, "pm-opctl-cli")
-    
+
     subparsers = parser.add_subparsers(dest="command", required=True)
     start = subparsers.add_parser("start", help="start a named process profile")
     start.add_argument("config_name", nargs="?", default="default")
