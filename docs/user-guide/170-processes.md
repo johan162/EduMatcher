@@ -236,6 +236,54 @@ See [`pm-config-deploy`](#pm-config-deploy) for installing a configuration.
 | **pm-dc-spy**    | `pm-dc-spy [--gateway GW_ID] [--replay-of ID] [--format human\|json]` | Read-only drop-copy spy — connects to the engine's drop-copy `PUB` socket (:5557) and prints every fill event | Optional |
 
 
+## Port Reference
+
+Port numbers are scattered across the protocol, gateway, and configuration
+chapters (for example [Protocols Overview](210-protocols-overview.md) and
+[Examples](800-examples.md)). The table below is the single place that
+collects every default port for every long-running process in one view, split
+into the internal ZeroMQ bus (bound only on `127.0.0.1` by default, spoken
+only between EduMatcher's own processes) and the external TCP gateways
+(bound on `0.0.0.0` by default, spoken by outside clients). All ports are
+configurable in `engine_config.yaml`; the values below are the shipped
+defaults, cross-checked against `src/edumatcher/config.py` and each
+process's own `config.py`.
+
+**Core processes:**
+
+| Process | Internal ZMQ port(s) | External port(s) | Protocol | Purpose |
+|---|---|---|---|---|
+| `pm-engine` | `5555` PULL (bind) · `5556` PUB (bind) · `5557` PUB (bind) | – | ZeroMQ (PULL/PUB) | Matching engine. `5555` receives all inbound commands; `5556` broadcasts all market/session events; `5557` is the dedicated drop-copy fill feed. |
+| `pm-log-srv` | `5601` PUB (bind) · `5602` PULL (bind) | `5600` | LALF over TCP (collection) · LALF-PS over ZeroMQ (distribution) | Centralized log collector. `5600` accepts LALF log lines from every other `pm-*` process; `5601`/`5602` are the LALF-PS PUB/PULL pair that pushes live rows to log viewers/subscribers without polling `log.db`. |
+| `pm-audit` | connects out to `5556` | – | ZeroMQ (SUB) | Subscribes to every engine event and writes the full audit trail to disk. Binds no port of its own. |
+| `pm-clearing` | connects out to `5556` | – | ZeroMQ (SUB) | Subscribes to trade events for P&L and settlement. Binds no port of its own. |
+| `pm-scheduler` | connects out to `5555` | – | ZeroMQ (PUSH) | Drives session-phase transitions by pushing commands to the engine. Binds no port of its own. |
+| `pm-md-gwy` | connects out to `5556`, `5558` | `5570` | CALF over TCP | External market-data gateway. Consumes engine and index PUB feeds internally and republishes top/book/trade/state channels to external CALF clients on `5570`. |
+| `pm-ralf-gwy` | connects out to `5556` | `5580` | RALF over TCP | External post-trade dissemination gateway for clearing, drop-copy, and audit consumers (role-gated). |
+| `pm-dc-gwy` | connects out to `5557` | `5590` | DC1 over TCP | Relays the engine's `5557` drop-copy feed as DC1 text lines to plain-TCP clients that don't speak ZeroMQ. |
+| `pm-api-gwy` | connects out to `5555`, `5556` | `8080` (`desk` instance) · `8081` (`dashboards` instance) | HTTP/REST + WebSocket | REST/WebSocket gateway; translates HTTP/WS requests into the same ZMQ order flow used by `pm-alf-console`. Each named `api_gateways` instance in config gets its own port. |
+| `pm-alf-gwy` | connects out to `5555`, `5556`, `5557` | `5565` | ALF over TCP | External ALF order-entry gateway for bots/remote clients (same protocol as `pm-alf-console`, over TCP instead of stdin/stdout). |
+| `pm-balf-gwy` | connects out to `5555`, `5556` | `5560` | BALF (binary) over TCP | External binary order-entry gateway for low-latency programmatic clients. |
+| `pm-index` | `5558` PUB (bind) · `5559` PULL (bind); connects out to `5556` | – | ZeroMQ (PUB/PULL) | Real-time cap-weighted index calculation. `5558` broadcasts `index.update`; `5559` receives operator commands and history requests. No external protocol of its own — external consumers reach index data via `pm-md-gwy`/CALF. |
+
+**Internal-only utilities** (ZeroMQ clients; no listening port of their own):
+
+| Process | Internal ZMQ port(s) used | Protocol | Purpose |
+|---|---|---|---|
+| `pm-alf-console` | connects out to `5555`, `5556` | ZeroMQ (PUSH/SUB) | Interactive ALF order-entry terminal for a human trader; the same PUSH/SUB pattern as a gateway, without a TCP front end. |
+| `pm-viewer` | connects out to `5556` | ZeroMQ (SUB) | Live single/multi-symbol order book display. |
+| `pm-board` | connects out to `5555`, `5556` | ZeroMQ (PUSH/SUB) | Full-screen multi-symbol market board. |
+| `pm-ticker` | connects out to `5556` | ZeroMQ (SUB) | Scrolling market-data ticker (reads recent trades from `pm-stats`'s `stats.db` as well). |
+
+!!! note "Reading the table"
+    "Internal ZMQ port(s)" are ZeroMQ endpoints intended for EduMatcher's own
+    processes on the same host (or a trusted internal network) — by default
+    bound to `127.0.0.1`. "External port(s)" are TCP/HTTP listeners meant for
+    outside clients — by default bound to `0.0.0.0`. Every port shown is a
+    default; production or multi-host deployments should bind internal ports
+    to a private interface and firewall external ports as appropriate. See
+    [Configuration](010-configuration.md) for how to override any of these.
+
 **Setup and configuration tools:**
 
 | Process           | Command                            | Role                                                    | Required?             |
@@ -267,31 +315,12 @@ See [`pm-config-deploy`](#pm-config-deploy) for installing a configuration.
          ```bash
          pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
          ```
-     3. Start the engine first:
-         ```bash
-         pm-engine --verbose
+     3. Use the operational control `pm-opctl-cli` to start the system in the correct order with:
          ```
-     4. Start `pm-stats` and `pm-audit` immediately after the engine:
-         ```bash
-         pm-stats
-         pm-audit --terminal
+         pm-opctl-cli start
          ```
-         Technically only `pm-engine` is required to match orders — every other
-         process, including these two, is an optional subscriber. In practice,
-         though, `pm-stats` and `pm-audit` are the *de facto* mandatory pair:
-         once a session starts, any trading, index, or book activity they
-         missed while offline is gone for good — there is no replay. Start
-         them right after the engine so nothing is lost, rather than as an
-         afterthought later in step 6.
-     5. Start one or more gateways:
-         ```bash
-         pm-alf-console --id TRADER01
-         pm-alf-console --id TRADER02
-         # or, for external / remote bots:
-         pm-alf-gwy
-         ```
-     6. Start remaining optional observers/tools as needed (`pm-board`,
-         `pm-viewer`, `pm-clearing`, `pm-ticker`, `pm-scheduler`, `pm-index`).
+         Then use `pm-opctl-cli lisgt` to lisgt status of each process
+     6. Start remaining optional observers/tools as needed (`pm-board`,`pm-viewer`, `pm-ticker`).
 
 
 
@@ -2382,7 +2411,7 @@ See [BALF TCP Gateway](230-balf-gateway.md) for operational usage and
 [BALF Protocol Reference](910-app-balf-protocol.md) for the wire-level contract.
 
 ```bash
-pm-balf-gwy [--bind 0.0.0.0] [--port 5566] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
+pm-balf-gwy [--bind 0.0.0.0] [--port 5560] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -2390,7 +2419,7 @@ pm-balf-gwy [--bind 0.0.0.0] [--port 5566] [--engine-host HOST] [--log-level LEV
 | Flag               | Default                 | Description                                                          |
 |--------------------|-------------------------|----------------------------------------------------------------------|
 | `--bind`           | from config / `0.0.0.0` | TCP bind address for BALF clients                                    |
-| `--port`           | from config / `5566`    | TCP listen port for BALF clients                                     |
+| `--port`           | from config / `5560`    | TCP listen port for BALF clients                                     |
 | `--engine-host`    | from config             | Override engine host for ZMQ ports `5555` / `5556`                  |
 | `--log-level`      | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                 |
