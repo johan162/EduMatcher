@@ -284,12 +284,23 @@ process's own `config.py`.
     to a private interface and firewall external ports as appropriate. See
     [Configuration](010-configuration.md) for how to override any of these.
 
+!!! tip "The same table, for the config you actually deployed"
+    This table lists the shipped defaults. To see the ports *one particular
+    configuration* resolves to — including which were set explicitly and which
+    fell back to a default — run
+    [`pm-config-show`](#pm-config-show-config-viewer). It derives its port map
+    from `edumatcher/gateway_ports.py`, the same table `pm-cverifier` uses for
+    its `M018` collision check.
+
 **Setup and configuration tools:**
 
-| Process           | Command                            | Role                                                    | Required?             |
-|-------------------|------------------------------------|---------------------------------------------------------|-----------------------|
-| **pm-setup**      | `pm-setup`                         | Bootstrap working directory and runtime files           | Recommended first run |
-| **pm-config-gen** | `pm-config-gen [options]`          | Generate `engine_config.yaml` from CLI options          | Optional              |
+| Process            | Command                            | Role                                                    | Required?             |
+|--------------------|------------------------------------|---------------------------------------------------------|-----------------------|
+| **pm-setup**       | `pm-setup`                         | Bootstrap working directory and runtime files           | Recommended first run |
+| **pm-config-gen**  | `pm-config-gen [options]`          | Generate `engine_config.yaml` from CLI options          | Optional              |
+| **pm-cverifier**   | `pm-cverifier CONFIG_FILE`         | Validate a config across four layers                    | Recommended           |
+| **pm-config-deploy** | `pm-config-deploy SOURCE`        | Compile and install the config every process reads      | Required to run       |
+| **pm-config-show** | `pm-config-show [options]`         | Display the deployed config, or render it as a PDF      | Optional              |
 
 **Optional AI trader tools:**
 
@@ -2051,6 +2062,87 @@ None. `pm-cverifier` reads the config file, prints its report, and exits.
 
 
 
+## pm-config-show — Config Viewer
+
+Prints the effective configuration as a terminal dashboard, or renders it as a
+multi-page A4 PDF, and exits. Where `pm-cverifier` answers *is this file
+correct*, `pm-config-show` answers *what does this file say* — including the
+port map, which cannot be read off the YAML at all because the engine and index
+sockets live in `config.py` and a gateway section without a `port:` key still
+binds on its runtime default.
+
+```bash
+pm-config-show
+pm-config-show -m 2
+pm-config-show --all
+pm-config-show -f my_config.yaml
+pm-config-show --format pdf -o exchange.pdf
+```
+
+**Startup options:**
+
+| Flag                     | Default                                    | Description                                                                     |
+|--------------------------|--------------------------------------------|----------------------------------------------------------------------------------|
+| `-f`, `--file <YAML>`    | `<DATA_DIR>/ref_data/engine_config.yaml`   | Config file to read                                                              |
+| `-m`, `--density [1\|2]` | `0` (bare `-m` means `1`)                  | Pack more information in; `1` adds risk and gateway detail, `2` adds every knob   |
+| `-a`, `--all`            | off                                        | Show everything: implies `-m 2`, unmasks API keys, lists unrecognised keys       |
+| `--format <FMT>`         | `terminal`                                 | Output format: `terminal` or `pdf`                                               |
+| `-o`, `--output <FILE>`  | `engine-config-<stem>.pdf`                 | Destination file for `--format pdf`                                              |
+| `--no-color`             | off                                        | Disable ANSI colour; also implied when stdout is not a TTY or `NO_COLOR` is set  |
+| `--ascii`                | off                                        | ASCII box drawing; auto-enabled on non-UTF-8 terminals                           |
+| `--width <N>`            | terminal width (`100` when piped)          | Force render width — for scripted capture and piping                             |
+| `--height <N>`           | terminal height                            | Force render height — affects default-density height trimming only               |
+| `--version`              | off                                        | Print version and exit                                                           |
+
+**Expected runtime input arguments:**
+
+None. `pm-config-show` reads the config file, prints its dashboard (or writes
+the PDF), and exits.
+
+**Exit codes:**
+
+- `0` — the configuration was displayed, or the PDF was written
+- `2` — the config file does not exist or cannot be read
+- `3` — the file is not valid YAML (the message points at `pm-cverifier`)
+
+With no `--file` it reads the deployed configuration from
+`<DATA_DIR>/ref_data/engine_config.yaml`, so what it shows is what the exchange
+was configured from. It is strictly **read-only**: it never writes to the
+configuration or the data directory, and `--output` is the only path it creates.
+
+The layout is computed from the terminal actually in use rather than a fixed
+column count — panels pack side by side where they fit, short panels stack
+beside tall ones, and tables shed optional columns as they narrow. Below 72
+columns or 18 rows it falls back to a plain summary of counts, flags, and the
+port map. At the default density the output is also trimmed to the window
+height, dropping optional panels and then shortening the symbol list; both
+trims say so and name the flag that restores the content. Passing `-m` or `-a`
+disables height trimming.
+
+Two details matter operationally:
+
+- **Ports.** Every listener appears in one table with its process, function,
+  bind address, and where the value came from — `fixed` (a `config.py`
+  constant), `env` (an environment override), `set` (explicit in the file), or
+  `default` (the section is present but omits `port:`). A port claimed twice is
+  flagged in red, the same condition `pm-cverifier` reports as `M018`.
+- **API keys.** Masked by default and revealed with `--all`. A key is never
+  wrapped or truncated at any width, and no styling is applied inside the
+  token, so a terminal double-click selects the whole thing. Masked and
+  revealed keys are the same length, so `--all` never moves the layout.
+
+Density is a *layout* control and `--all` is a *disclosure* control, which is
+why they are separate flags: `-m 2` shows every setting while keeping keys
+masked, so it stays safe to run on a projector. Note that a PDF produced with
+`--all` contains live credentials — masking is per-run, not per-file.
+
+For the panel-by-panel walkthrough and a worked example, see
+[Inspect Configs with `pm-config-show`](010-configuration.md#inspect-configs-with-pm-config-show).
+
+This tool is local inspection logic and does not participate in the ZeroMQ
+runtime message bus.
+
+
 ## pm-setup — Session Bootstrap Tool
 
 Bootstraps a runnable EduMatcher session directory with sensible defaults.
@@ -2539,6 +2631,7 @@ normative wire specification.
 
 - [Running the Engine](040-running-the-exchange.md) — startup order, launch scripts, and verification
 - [Configuration](010-configuration.md) — how each process is configured via `engine_config.yaml`
+- [Inspect Configs (pm-config-show)](010-configuration.md#inspect-configs-with-pm-config-show) — read-only viewer for the deployed config and its port map
 - [Messages](270-message-reference.md) — the full ZeroMQ message catalog all processes share
 - [Persistence](180-persistence.md) — which process writes which data file
 - [Drop Copy](200-drop-copy.md) — the engine's built-in :5557 drop-copy feed

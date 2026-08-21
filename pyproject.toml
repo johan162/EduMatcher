@@ -37,6 +37,7 @@ orjson = "^3.11.9"
 fastapi = ">=0.139.0"
 uvicorn = { version = ">=0.34", extras = ["standard"] }
 holidays = ">=0.60"
+reportlab = ">=4.2"
 
 [tool.poetry.group.dev.dependencies]
 mkdocs = "^1.6"
@@ -93,6 +94,7 @@ pm-setup    = "edumatcher.setup_cmd:main"
 pm-config-gen = "edumatcher.config_gen.cli:main"
 pm-config-deploy = "edumatcher.config_deploy:main"
 pm-cverifier  = "edumatcher.cverifier.cli:main"
+pm-config-show = "edumatcher.config_show.cli:main"
 pm-msgen      = "edumatcher.msgen.cli:main"
 pm-log-srv  = "edumatcher.log_srv.main:main"
 pm-log-cli  = "edumatcher.log_cli.main:main"
@@ -155,6 +157,18 @@ show_error_codes = true
 [[tool.mypy.overrides]]
 module = "yaml"
 ignore_missing_imports = true
+
+# reportlab ships no type information and has no maintained stubs; the PDF
+# renderer is its only consumer and is covered by tests instead.
+[[tool.mypy.overrides]]
+module = "reportlab.*"
+ignore_missing_imports = true
+
+# ...which makes BaseDocTemplate an implicit Any, so the one class that
+# subclasses it needs the allowance here rather than on reportlab itself.
+[[tool.mypy.overrides]]
+module = "edumatcher.config_show.render_pdf"
+disallow_subclassing_any = false
 
 [[tool.mypy.overrides]]
 module = "tests.*"

@@ -20,6 +20,12 @@ from edumatcher.cverifier.helpers import (
     symbol_cfg_by_upper_name,
 )
 from edumatcher.cverifier.models import CheckResult, Severity
+from edumatcher.gateway_ports import (
+    DEFAULT_API_GATEWAY_PORT,
+    LOG_SERVER_EXTRA_PORTS,
+    SINGLETON_GATEWAYS,
+    effective_port,
+)
 from edumatcher.models.session import VALID_TRANSITIONS, SessionState
 
 _TIME_FIELDS = (
@@ -803,38 +809,26 @@ def _check_balf_gateway_semantic(
 # Gateway port collisions (M018) — full N-way check
 # ---------------------------------------------------------------------------
 
-# (top-level key, display name, default port) for the single-instance
-# optional gateway sections. api_gateways is handled separately below since
-# it is a named mapping of possibly-many instances, each with its own port.
-_SINGLETON_GATEWAY_PORTS = (
-    ("alf_gateway", "pm-alf-gwy", 5565),
-    ("balf_gateway", "pm-balf-gwy", 5560),
-    ("post_trade_gateway", "pm-ralf-gwy", 5580),
-    ("market_data_gateway", "pm-md-gwy", 5570),
-    ("dc_gateway", "pm-dc-gwy", 5590),
-    ("log_server", "pm-log-srv", 5600),
+# The gateway/port table now lives in edumatcher.gateway_ports so that
+# pm-config-show and this collision check can never disagree about which
+# sections bind what.  Adding a gateway means editing that one table.
+_SINGLETON_GATEWAY_PORTS = tuple(
+    (spec.key, spec.process, spec.default_port) for spec in SINGLETON_GATEWAYS
 )
 
-_DEFAULT_API_GATEWAY_PORT = 8080
+_DEFAULT_API_GATEWAY_PORT = DEFAULT_API_GATEWAY_PORT
 
-# pm-log-srv is the one section that binds more than one listener: besides its
-# LALF/TCP 'port' above, LALF-PS binds a ZeroMQ PUB and a ZeroMQ PULL socket.
-# All three participate in the cross-section collision check — a pub_port that
-# happens to equal pm-md-gwy's port is exactly as fatal as two TCP gateways
-# sharing one, and far easier to overlook.
-_LOG_SERVER_EXTRA_PORTS = (
-    ("pub_port", "LALF-PS PUB", 5601),
-    ("pull_port", "LALF-PS PULL", 5602),
+_LOG_SERVER_EXTRA_PORTS = tuple(
+    (extra.field, extra.function, extra.default_port)
+    for extra in LOG_SERVER_EXTRA_PORTS
 )
 
 
 def _effective_port(
     section: dict[str, Any], default: int, key: str = "port"
 ) -> int | None:
-    port = section.get(key, default)
-    if isinstance(port, bool) or not isinstance(port, int):
-        return None  # malformed; already reported by layer 2
-    return port
+    # Malformed values return None; layer 2 has already reported them.
+    return effective_port(section, default, key)
 
 
 def _collect_log_server_pubsub_ports(
