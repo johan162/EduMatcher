@@ -4106,7 +4106,9 @@ if optional, its absence leaves the feature disabled.</p>
 <h3 id="15-unknown-keys">1.5 Unknown keys<a class="headerlink" href="#15-unknown-keys" title="Permanent link">&para;</a></h3>
 <p>Loaders are <strong>permissive</strong>: a key not defined in this specification is <strong>ignored</strong>
 and MUST NOT be relied upon for behaviour. Conforming producers SHOULD NOT emit
-unknown keys. <code>pm-cverifier</code> MAY warn on them.</p>
+unknown keys. <code>pm-cverifier</code> MAY warn on them, and <code>pm-config-show --all</code> lists
+every unrecognised top-level key it finds — a mistyped section name is otherwise
+indistinguishable from an absent one.</p>
 <h3 id="16-case-normalisation">1.6 Case normalisation<a class="headerlink" href="#16-case-normalisation" title="Permanent link">&para;</a></h3>
 <p><code>Symbol</code>, <code>GatewayId</code>, <code>IndexId</code>, and every <code>Enum&lt;E&gt;</code> value are upper-cased during
 load. Producers MAY write any case; consumers compare upper-case.</p>
@@ -5753,6 +5755,13 @@ rejected at load.</p>
 <li><strong>Whole-file validation.</strong> <code>pm-cverifier</code> validates every section — including
    blocks no runtime process consumes on its own — across four layers (YAML,
    schema, semantic, completeness). It is the reference conformance checker.</li>
+<li><strong>Whole-file presentation.</strong> <code>pm-config-show</code> reads every section for
+   display only. It is read-only and non-normative: it neither validates nor
+   resolves defaults, and it MUST NOT be treated as a conformance signal — a
+   document it renders without complaint may still be rejected by a loader.
+   Where it reports an <em>effective</em> value the specification does define — most
+   notably the port a section binds when <code>port</code> is omitted (§6) — that value
+   MUST agree with this document.</li>
 </ol>
 <hr />
 <h2 id="9-minimal-conformant-document">9. Minimal conformant document<a class="headerlink" href="#9-minimal-conformant-document" title="Permanent link">&para;</a></h2>
@@ -5773,6 +5782,7 @@ block on every symbol.</p>
 <ul>
 <li><a href="../010-configuration/">Configuration</a> — informative reference, generator, recipes</li>
 <li><a href="../020-config-verifier/">Config Verifier (<code>pm-cverifier</code>)</a> — the reference validator</li>
+<li><a href="../010-configuration/#inspect-configs-with-pm-config-show">Inspect Configs (<code>pm-config-show</code>)</a> — read-only viewer for a deployed document, including the effective port map</li>
 <li><a href="../120-risk-controls/">Risk Controls</a> — collar and circuit-breaker behaviour</li>
 <li><a href="../150-market-index/">Market Index (<code>pm-index</code>)</a> — index calculation using <code>indices</code></li>
 <li><a href="../210-protocols-overview/">External Protocols Overview</a> — the gateways that read the auxiliary blocks</li>

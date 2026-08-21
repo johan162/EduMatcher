@@ -86,7 +86,6 @@ COMMON_ARGS=(
   --api-gateway-readonly-key
 )
 "${CONFIG_GEN[@]}" "${COMMON_ARGS[@]}" \
-  --sessions-enabled \
   --post-trade-gateway \
   --post-trade-bind-address 127.0.0.1 \
   --post-trade-port 5580 \
