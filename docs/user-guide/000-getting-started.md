@@ -160,7 +160,7 @@ Multipass and `curl`; Python, Poetry and EduMatcher are installed inside the VM.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
-    bash -s -- --version 0.20.1 --snapshot
+    bash -s -- --version 0.20.2 --snapshot
 
 multipass shell edumatcher-vm
 cd /home/ubuntu/session
@@ -172,7 +172,7 @@ Useful options:
 ```bash
 # Name the VM and take an initial snapshot
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
-    bash -s -- --name edumatcher-vm --version 0.20.1 --snapshot
+    bash -s -- --name edumatcher-vm --version 0.20.2 --snapshot
 
 # Tune resources
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
@@ -184,7 +184,7 @@ If you prefer to inspect the script first:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.20.1 --snapshot
+bash curl_setup_vm.sh --version 0.20.2 --snapshot
 ```
 
 
