@@ -33,16 +33,19 @@ from edumatcher.gateway_ports import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_DIR = REPO_ROOT / "docs" / "examples" / "ref_data"
-SAMPLE = REPO_ROOT / "src" / "edumatcher" / "engine_config.sample.yaml"
 
 WIDTHS = (72, 80, 100, 120, 160, 200, 250)
 DENSITIES = (0, 1, 2)
 
 
 def _config_files() -> list[Path]:
+    """Every config in the repo worth rendering.
+
+    The generated examples are the real corpus; a working config at the repo
+    root is picked up when present, but is not required to be.
+    """
     files = sorted(EXAMPLE_DIR.glob("*/engine_config.yaml"))
-    if SAMPLE.is_file():
-        files.append(SAMPLE)
+    assert files, f"no example configs found under {EXAMPLE_DIR}"
     root_config = REPO_ROOT / "engine_config.yaml"
     if root_config.is_file():
         files.append(root_config)
@@ -268,8 +271,7 @@ def test_missing_file_exits_two(
 
 def test_config_file_is_not_modified(tmp_path: Path) -> None:
     config = tmp_path / "engine_config.yaml"
-    original = REPO_ROOT / "engine_config.yaml"
-    config.write_text(original.read_text(encoding="utf-8"), encoding="utf-8")
+    config.write_text(CONFIGS[0].read_text(encoding="utf-8"), encoding="utf-8")
     before = (config.stat().st_mtime_ns, config.read_bytes())
 
     assert main(["--file", str(config), "--width", "120", "--all"]) == 0

@@ -22,6 +22,7 @@ from edumatcher.config_artifact import (
     encode,
     source_digest,
 )
+from edumatcher.setup_cmd import DEFAULT_EXAMPLE_CONFIG
 from edumatcher.config_deploy import (
     CompileError,
     compile_config,
@@ -214,23 +215,31 @@ class TestDeterminism:
 
 
 class TestShippedSample:
-    """The config the product itself ships must compile.
+    """The config a fresh installation gets must exist and must compile.
 
-    `pm-setup` deploys this file into a fresh data directory, so if it ever
-    failed validation a new installation would be unable to start — and the
-    compile step is strictly more demanding than the runtime loaders were.
+    There is no longer a bundled ``engine_config.sample.yaml``; `pm-setup`
+    installs one of the generated examples under ``docs/examples/ref_data/``,
+    chosen by ``setup_cmd.DEFAULT_EXAMPLE_CONFIG``. If that file were missing
+    or failed validation, a new installation would be unable to start — and
+    the compile step is strictly more demanding than the runtime loaders were.
     """
 
-    def test_the_bundled_sample_config_compiles(self, tmp_path: Path) -> None:
-        from importlib import resources
+    def test_the_default_setup_config_exists(self) -> None:
+        path = resolve_example(DEFAULT_EXAMPLE_CONFIG)
 
-        sample = resources.files("edumatcher").joinpath("engine_config.sample.yaml")
+        assert path.is_file(), f"pm-setup would have nothing to deploy: {path}"
+        assert path.parts[-2:] == ("three-books-basic-setup", "engine_config.yaml")
+
+    def test_the_default_setup_config_compiles(self, tmp_path: Path) -> None:
         source = tmp_path / "engine_config.yaml"
-        source.write_text(sample.read_text(encoding="utf-8"), encoding="utf-8")
+        source.write_text(
+            resolve_example(DEFAULT_EXAMPLE_CONFIG).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
 
         config = compile_config(source)
 
-        assert config.engine.symbols, "a sample with no symbols would teach nothing"
+        assert config.engine.symbols, "a default with no symbols would teach nothing"
         assert config.engine.fix_gateways
 
 

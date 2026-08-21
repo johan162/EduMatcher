@@ -100,14 +100,25 @@ def _flag(value: Any) -> str:
     return '<font color="#6b6b6b">unset</font>'
 
 
+#: One rendered table row. ReportLab's ``Table`` accepts only concrete lists
+#: or tuples per row -- an abstract ``Sequence`` is not enough -- so the row
+#: type is pinned here rather than widened at the call sites.
+Row = list[Any]
+
+
 def _table(
-    data: Sequence[Sequence[Any]],
+    data: Sequence[Row],
     widths: Sequence[float],
     zebra_from: int = 1,
     mono_columns: Sequence[int] = (),
 ) -> Table:
     """A ruled, zebra-striped table with a repeating header row."""
-    table = Table(list(data), colWidths=list(widths), repeatRows=1, hAlign="LEFT")
+    table = Table(
+        [list(row) for row in data],
+        colWidths=list(widths),
+        repeatRows=1,
+        hAlign="LEFT",
+    )
     style: list[tuple[Any, ...]] = [
         ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 7.5),
         ("TEXTCOLOR", (0, 0), (-1, 0), MUTED),
@@ -132,7 +143,9 @@ def _table(
 class _Doc(BaseDocTemplate):
     """Adds the running header/footer and 'page N of M'."""
 
-    def __init__(self, path: Path, view: ConfigView, **kwargs: Any) -> None:
+    def __init__(
+        self, path: Path, view: ConfigView, page_total: int = 0, **kwargs: Any
+    ) -> None:
         super().__init__(
             str(path),
             pagesize=PAGE,
@@ -162,7 +175,9 @@ class _Doc(BaseDocTemplate):
                 PageTemplate(id="page", frames=[frame], onPage=self._decorate),
             ]
         )
-        self._page_total = 0
+        # 0 on the counting pass, when the total is not yet known; the footer
+        # then omits the "of M" rather than printing a wrong one.
+        self._page_total = page_total
 
     def _decorate(self, canvas: Any, doc: Any) -> None:
         view = self._view
@@ -668,9 +683,7 @@ def render_pdf(view: ConfigView, target: Path, density: int, reveal: bool) -> Pa
     # Two passes: the first only counts pages so the second can print
     # "page N of M". Platypus consumes the story, so each pass gets a copy.
     doc.build(list(story))
-    total_pages = doc.page
 
-    final = _Doc(target, view)
-    final._page_total = total_pages
+    final = _Doc(target, view, page_total=doc.page)
     final.build(list(story))
     return target

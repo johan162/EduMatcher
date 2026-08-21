@@ -14,7 +14,6 @@ authors = ["Johan Persson <johan162@gmail.com>"]
 readme = "README.md"
 packages = [{include = "edumatcher", from = "src"}]
 include = [
-    { path = "src/edumatcher/engine_config.sample.yaml", format = ["sdist", "wheel"] },
     { path = "docs/examples/**/*.md", format = ["sdist", "wheel"] },
     { path = "docs/examples/**/*.yaml", format = ["sdist", "wheel"] },
     { path = "docs/examples/**/*.sh", format = ["sdist", "wheel"] },

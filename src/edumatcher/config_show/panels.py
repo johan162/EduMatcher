@@ -579,19 +579,28 @@ def build_market_making(view: ConfigView, width: int) -> RenderableType:
 Justify = Literal["default", "left", "center", "right", "full"]
 
 
+#: Symbol sub-table columns, keyed by the lowest density that shows them.
+#: Spelled as one annotated table rather than built up with ``+=``: appending
+#: bare literals re-infers the element type as ``tuple[str, int, str]``, which
+#: an invariant ``list`` will not accept back.
+_SYMBOL_COLUMNS: tuple[tuple[int, str, int, Justify], ...] = (
+    (0, "SYMBOL", 6, "left"),
+    (0, "DEC", 3, "right"),
+    (0, "LAST", 9, "right"),
+    (1, "LEVEL", 9, "left"),
+    (0, "Q", 2, "right"),
+    (1, "SHARES", 6, "right"),
+    (2, "OVR", 4, "left"),
+)
+
+
 def _symbol_columns(density: int) -> tuple[tuple[str, int, Justify], ...]:
-    columns: list[tuple[str, int, Justify]] = [
-        ("SYMBOL", 6, "left"),
-        ("DEC", 3, "right"),
-        ("LAST", 9, "right"),
-    ]
-    if density >= 1:
-        columns += [("LEVEL", 9, "left"), ("Q", 2, "right"), ("SHARES", 6, "right")]
-    else:
-        columns += [("Q", 2, "right")]
-    if density >= 2:
-        columns += [("OVR", 4, "left")]
-    return tuple(columns)
+    """The columns shown at ``density``, in display order."""
+    return tuple(
+        (name, width, justify)
+        for needed, name, width, justify in _SYMBOL_COLUMNS
+        if density >= needed
+    )
 
 
 def symbols_natural_width(density: int) -> int:
