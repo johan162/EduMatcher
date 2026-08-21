@@ -28,6 +28,27 @@ SNAPSHOT_NAME="clean"
 DEFAULT_VERSION="dev"
 EDUMATCHER_VERSION="$DEFAULT_VERSION"
 
+# grep -E "^[ ]+\- api_key: [a-z0-9-]+" .local/share/edumatcher/ref_data/engine_config.yaml  |  grep "ops01" | awk -F ':' '{print $2}'| cut -c 2-
+ADMIN_API_KEY=$(multipass exec "$VM_NAME" -- bash -c "cat /home/ubuntu/.local/share/edumatcher/ref_data/engine_config.yaml | grep -E '^[ ]+\- api_key: [a-z0-9-]+' | grep 'ops01' | awk -F ':' '{print \$2}' | cut -c 2-")
+TRADER01_API_KEY=$(multipass exec "$VM_NAME" -- bash -c "cat /home/ubuntu/.local/share/edumatcher/ref_data/engine_config.yaml | grep -E '^[ ]+\- api_key: [a-z0-9-]+' | grep 'trader01' | awk -F ':' '{print \$2}' | cut -c 2-")
+TRADER02_API_KEY=$(multipass exec "$VM_NAME" -- bash -c "cat /home/ubuntu/.local/share/edumatcher/ref_data/engine_config.yaml | grep -E '^[ ]+\- api_key: [a-z0-9-]+' | grep 'trader02' | awk -F ':' '{print \$2}' | cut -c 2-")
+MM01_API_KEY=$(multipass exec "$VM_NAME" -- bash -c "cat /home/ubuntu/.local/share/edumatcher/ref_data/engine_config.yaml | grep -E '^[ ]+\- api_key: [a-z0-9-]+' | grep 'mm01' | awk -F ':' '{print \$2}' | cut -c 2-")
+
+
+echo ""
+echo -e "${DARK_GRAY}Admin API Key: \t\t${YELLOW}$ADMIN_API_KEY${NC}"
+echo -e "${DARK_GRAY}Trader01 API Key: \t${YELLOW}$TRADER01_API_KEY${NC}"
+echo -e "${DARK_GRAY}Trader02 API Key: \t${YELLOW}$TRADER02_API_KEY${NC}"
+echo -e "${DARK_GRAY}MM01 API Key: \t\t${YELLOW}$MM01_API_KEY${NC}"
+echo ""
+echo -e "${DARK_GRAY}To access the EduMatcher API Gateway:${NC}" "\t${WHITE}curl -s -H \"Authorization: Bearer <token>\" http://$VM_IP:8000/api/v1/${NC}"
+echo -e "${DARK_GRAY}For example:${NC}"
+echo -e "${WHITE}curl -s -H \"Authorization: Bearer ${ADMIN_API_KEY}\" http://$VM_IP:8000/api/v1/symbols${NC}"
+echo -e "--------------------------------------------------------------------------"
+echo ""
+
+exit 0
+
 usage() {
   cat <<EOF
 Usage:
@@ -201,6 +222,13 @@ sleep 2 # Give the VM a moment to start and get an IP address
 
 VM_IP=$(multipass info "$VM_NAME" | grep IP |  grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
 
+# Exatract the ADMIN (operator) API_KEY from the VM's .local/share/edumatcher directory. This is the key that can be used to access the API Gateway.
+# grep -E "^[ ]+\- api_key: [a-z0-9-]+" .local/share/edumatcher/ref_data/engine_config.yaml  |  grep "ops01" | awk -F ':' '{print $2}'| cut -c 2-
+ADMIN_API_KEY=$(multipass exec "$VM_NAME" -- bash -c "cat /home/ubuntu/.local/share/edumatcher/ref_data/engine_config.yaml | grep -E '^[ ]+\- api_key: [a-z0-9-]+' | grep 'ops01' | awk -F ':' '{print \$2}' | cut -c 2-")
+TRADER01_API_KEY=$(multipass exec "$VM_NAME" -- bash -c "cat /home/ubuntu/.local/share/edumatcher/ref_data/engine_config.yaml | grep -E '^[ ]+\- api_key: [a-z0-9-]+' | grep 'trader01' | awk -F ':' '{print \$2}' | cut -c 2-")
+TRADER02_API_KEY=$(multipass exec "$VM_NAME" -- bash -c "cat /home/ubuntu/.local/share/edumatcher/ref_data/engine_config.yaml | grep -E '^[ ]+\- api_key: [a-z0-9-]+' | grep 'trader02' | awk -F ':' '{print \$2}' | cut -c 2-")
+MM01_API_KEY=$(multipass exec "$VM_NAME" -- bash -c "cat /home/ubuntu/.local/share/edumatcher/ref_data/engine_config.yaml | grep -E '^[ ]+\- api_key: [a-z0-9-]+' | grep 'mm01' | awk -F ':' '{print \$2}' | cut -c 2-")
+
 echo -e "--------------------------------------------------------------------------"
 echo -e "${GREEN}VM '$VM_NAME' is ready with EduMatcher $EDUMATCHER_VERSION installed.${NC}"
 echo ""
@@ -220,6 +248,18 @@ echo -e "${DARK_GRAY}Delete snapshot:${NC}" "\t\t\t${WHITE}multipass delete --pu
 echo -e ""
 echo -e "${DARK_GRAY}The VM is running as non-root user: \t${YELLOW}ubuntu${NC}"
 echo -e "${DARK_GRAY}VM IP address: \t\t\t\t${YELLOW}$VM_IP${NC}"
-echo -e "--------------------------------------------------------------------------"
 echo ""
+echo -e "${DARK_GRAY}To connect to the VM via SSH:${NC}" "\t${WHITE}ssh ubuntu@$VM_IP${NC}"
+echo ""
+echo -e "${DARK_GRAY}Admin API Key: \t\t${YELLOW}$ADMIN_API_KEY${NC}"
+echo -e "${DARK_GRAY}Trader01 API Key: \t${YELLOW}$TRADER01_API_KEY${NC}"
+echo -e "${DARK_GRAY}Trader02 API Key: \t${YELLOW}$TRADER02_API_KEY${NC}"
+echo -e "${DARK_GRAY}MM01 API Key: \t\t${YELLOW}$MM01_API_KEY${NC}"
+echo ""
+echo -e "${DARK_GRAY}To access the EduMatcher API Gateway:${NC}" "\t${WHITE}curl -s -H \"Authorization: Bearer <token>\" http://$VM_IP:8080/api/v1/${NC}"
+echo -e "${DARK_GRAY}For example:${NC}"
+echo -e "${WHITE}curl -s -H \"Authorization: Bearer ${ADMIN_API_KEY}\" http://$VM_IP:8080/api/v1/symbols${NC}"
+echo -e "${WHITE}curl -s -H \"Authorization: Bearer ${ADMIN_API_KEY}\" http://$VM_IP:8080/api/v1/status${NC}"
+echo -e "--------------------------------------------------------------------------"
+echo "" 
 exit 0
