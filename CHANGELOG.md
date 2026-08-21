@@ -1,3 +1,34 @@
+## [v0.20.2] - 2026-08-21
+
+Release Type: minor
+
+### 📋 Summary
+This release adds clearer configuration inspection through a new tool and setup controls, improves VM and exchange startup behavior, and extends the operational documentation and development tooling.
+
+### ✨ Additions
+- Added `pm-config-show` for displaying the deployed configuration in a readable terminal format
+- Added a `--config` option to `pm-setup` for selecting the configuration used during setup
+- Added VM update support and top-level Makefile targets for creating and provisioning development nodes
+
+### 🚀 Improvements
+- Improved VM startup to launch all configured processes by default
+- Improved board startup so it obtains an initial drop-copy snapshot before displaying market data
+- Improved basic reference-data setups by handling configurations without enabled sessions
+- Improved the documentation build pipeline with quieter output and expanded setup guidance
+
+### 🐛 Bug Fixes
+- Fixed `pm-opctl-cli` version reporting and corrected formatting issues in the operational scripts
+- Fixed Pyright-reported type issues and related lint failures
+
+### 📚 Documentation
+- Added a complete table of ports used by exchange processes to the process guide
+- Added documentation and design notes for `pm-config-show`, VM update workflows, and setup configuration selection
+- Added a curl API example to the VM completion message
+
+### 🛠 Internal
+- Updated development and VM automation for repeatable node creation, provisioning, and startup
+- Added test and cleanup updates for the new configuration, board, and VM behavior
+
 ## [v0.20.1] - 2026-08-19
 
 Release Type: minor
