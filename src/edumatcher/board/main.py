@@ -33,17 +33,22 @@ from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
-from edumatcher.config import ENGINE_PUB_ADDR
+from edumatcher.config import ENGINE_PULL_ADDR, ENGINE_PUB_ADDR
 from edumatcher.log_srv.config import (
     load_default_log_client_config,
     load_default_log_server_config,
     resolve_host_default,
 )
 from edumatcher.logclient.discovery import resolve_handler
-from edumatcher.messaging.bus import make_subscriber
-from edumatcher.models.message import decode
+from edumatcher.messaging.bus import make_pusher, make_subscriber
+from edumatcher.models.message import (
+    decode,
+    make_book_snapshot_request_msg,
+    make_symbols_request_msg,
+)
 from edumatcher.models.generated.trade import TOPIC_TRADE_EXECUTED
 from edumatcher.models.generated.book import PREFIX_BOOK_SNAPSHOT
+from edumatcher.models.generated.system import topic_symbols
 
 console = Console()
 
@@ -51,6 +56,10 @@ log = logging.getLogger(__name__)
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 _CLIENT_NAME = "pm-board"
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
+
+#: Fixed id pm-board identifies itself with when requesting the symbol list.
+BOARD_GATEWAY_ID = "BOARD"
+_SYMBOLS_REQUEST_RETRY_SEC = 1.0
 
 
 def _colour_change(pct: float) -> str:
@@ -188,8 +197,30 @@ def main() -> None:
         debug_counts.clear()
         debug_last_summary = now
 
-    # Subscribe to all book snapshots and trade feed
-    sub = make_subscriber(ENGINE_PUB_ADDR, PREFIX_BOOK_SNAPSHOT, TOPIC_TRADE_EXECUTED)
+    # Subscribe to all book snapshots and trade feed, plus our own symbols reply
+    sub = make_subscriber(
+        ENGINE_PUB_ADDR,
+        PREFIX_BOOK_SNAPSHOT,
+        TOPIC_TRADE_EXECUTED,
+        topic_symbols(BOARD_GATEWAY_ID),
+    )
+    # PUSH socket to ask the engine for the symbol list and, per symbol, a
+    # book snapshot — otherwise symbols whose book was only ever seeded with
+    # startup market-maker quotes (no order/trade since) never publish a
+    # book.* message and stay invisible until someone happens to trade them.
+    push = make_pusher(ENGINE_PULL_ADDR)
+    _symbols_requested_at = 0.0
+    _symbols_received = False
+
+    def _request_symbols() -> None:
+        nonlocal _symbols_requested_at
+        try:
+            push.send_multipart(make_symbols_request_msg(BOARD_GATEWAY_ID))
+            _symbols_requested_at = time.monotonic()
+        except zmq.Again:
+            log.debug("engine not reachable yet for symbols request")
+
+    _request_symbols()
 
     # symbol → aggregated data
     symbols: dict[str, dict[str, Any]] = {}
@@ -272,8 +303,24 @@ def main() -> None:
                             entry["updated"] = datetime.now()
                             if entry["first_price"] is None and trade_price is not None:
                                 entry["first_price"] = trade_price
+                    elif topic_str == topic_symbols(BOARD_GATEWAY_ID):
+                        _dbg_count("incoming_symbols")
+                        _symbols_received = True
+                        for entry in payload.get("symbols", []):
+                            sym = str(entry.get("symbol", ""))
+                            if sym:
+                                push.send_multipart(make_book_snapshot_request_msg(sym))
                     else:
                         _dbg_count("incoming_unhandled")
+
+                # Retry the symbols request until the engine answers — it may
+                # not have been up yet when the board started.
+                if (
+                    not _symbols_received
+                    and time.monotonic() - _symbols_requested_at
+                    >= _SYMBOLS_REQUEST_RETRY_SEC
+                ):
+                    _request_symbols()
 
                 # Check for page advance
                 now = time.monotonic()
@@ -297,6 +344,7 @@ def main() -> None:
         pass
     finally:
         sub.close()
+        push.close()
         _flush_debug_summary(force=True)
         log.info("board shutdown complete")
 

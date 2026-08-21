@@ -8,6 +8,7 @@
     - Which fields the current engine and scheduler parsers recognize
     - How to configure the optional `pm-ralf-gwy`, `pm-md-gwy`, `pm-balf-gwy`, `pm-dc-gwy`, `pm-index`, `pm-log-srv`, and `pm-api-gwy` blocks
     - How to configure symbols, gateways, risk controls, market-maker seeds, combo seeds, and schedules
+    - How to inspect a deployed config at a glance with `pm-config-show`
     - How to choose between minimal, medium, and fully featured configurations
     - Which checks to perform before using a config in a class, demo, or test
 
@@ -25,10 +26,12 @@ flowchart LR
     B -- clean --> C["Deploy<br/>pm-config-deploy"]
     C --> D[("Compiled ref-data artifact<br/>ref_data/engine_config.json")]
     D --> E["pm-engine, pm-scheduler,<br/>and gateway processes"]
+    D -.-> F["Inspect<br/>pm-config-show"]
 ```
 
 The rest of this page documents each stage: generating a starter file,
-verifying it, and deploying it as the compiled artifact every process reads.
+verifying it, deploying it as the compiled artifact every process reads, and
+inspecting what was deployed.
 
 ## Configuring the Exchange
 
@@ -1101,6 +1104,140 @@ market-maker quotes, no configured startup combos, and no outstanding share
 metadata.
 
 
+## Inspect Configs with `pm-config-show`
+
+`pm-config-show` prints the effective configuration as a terminal dashboard and
+exits. Where `pm-cverifier` answers *is this file correct*, `pm-config-show`
+answers *what does this file actually say* — a question that is surprisingly
+hard to answer by reading the YAML, because a deployed config is 800–1500 lines
+of which perhaps 150 are data.
+
+```bash
+pm-config-show                       # the deployed config, essentials only
+pm-config-show -m                    # denser: risk, breakers, gateway tuning
+pm-config-show -a                    # everything, API keys unmasked
+pm-config-show -f my_config.yaml     # an authored file, before deploying it
+pm-config-show --format pdf -o exchange.pdf
+```
+
+With no arguments it reads `<DATA_DIR>/ref_data/engine_config.yaml` — the same
+file [File Location](#file-location) describes — so what you see is what the
+exchange was configured from. `pm-config-show` is **read-only**: it never writes
+to the configuration or the data directory, and `--output` is the only path it
+ever creates.
+
+Three questions dominate day-to-day use, and the layout is built around them.
+
+**Which ports are in use, and what binds each one?** This is the one thing that
+cannot be read off the file at all. Three engine sockets and two index sockets
+are compiled into `config.py` and appear nowhere in the YAML; and a gateway
+section present *without* a `port:` key still binds, on its runtime default. The
+ports panel shows all of them together with the process, the function, and where
+the value came from — `fixed`, `env`, `set` or `default` — and flags any port
+claimed twice in red, the same condition `pm-cverifier` reports as `M018`.
+
+**What are the API keys?** They exist to be copied, so a key is never wrapped or
+truncated at any width, and no styling is applied inside the token, which lets a
+terminal double-click select the whole thing. Keys are masked by default;
+`--all` reveals them. Masked and revealed keys are the same length, so revealing
+never moves the layout.
+
+**What instruments are configured?** The symbol list reflows into as many
+side-by-side sub-tables as the width allows, reading alphabetically *down* each
+column like a printed index.
+
+```text
+╭─  ENGINE CONFIGURATION  ─────────────────────────────────────────────────────────────────────────╮
+│ docs/examples/ref_data/ten-books-nominal-setup/engine_config.yaml                                │
+│ 33.7 kB  ·  2026-08-20 17:32  ·  via --file                                                      │
+│ ● on sessions   ● on collars   ● on breakers   ○ off mm-oblig                                    │
+│ 10 symbols   4 participants   2 API gateways   5 keys   9 listeners                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─  PORTS & LISTENERS  ────────────────────────────────────────────────────────────────────────────╮
+│  PORT   PROTO      PROCESS       FUNCTION                                    BIND                │
+│ ──────────────────────────────────────────────────────────────────────────────────────────────── │
+│  5555   ZMQ PULL   pm-engine     Order intake (CALF)                         127.0.0.1   fixed   │
+│  5556   ZMQ PUB    pm-engine     Event + book feed                           127.0.0.1   fixed   │
+│  5557   ZMQ PUB    pm-engine     Drop-copy feed                              127.0.0.1   fixed   │
+│  5558   ZMQ PUB    pm-index      Index value publish                         127.0.0.1   env     │
+│  5559   ZMQ PULL   pm-index      Index command intake                        127.0.0.1   env     │
+│  5570   TCP        pm-md-gwy     Market data (MDLF)                          127.0.0.1   set     │
+│  5580   TCP        pm-ralf-gwy   Post-trade (RALF)                           127.0.0.1   set     │
+│  8080   HTTP       pm-api-gwy    REST API — desk                             0.0.0.0     set     │
+│  8081   HTTP       pm-api-gwy    REST API — dashboards                       0.0.0.0     set     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─  API KEYS  ─────────────────────────────────────────────────────────────────────────────────────╮
+│ GATEWAY ID      API GW        ROLE              API KEY                                          │
+│ ──────────────────────────────────────────────────────────────────────────────────────────────── │
+│ TRADER01        desk          TRADER            key-trader01-••••••••••••••••••••••••••••g6u1    │
+│ TRADER02        desk          TRADER            key-trader02-••••••••••••••••••••••••••••y09z    │
+│ OPS01           desk          ADMIN             key-ops01-••••••••••••••••••••••••••••oes2       │
+│ MM01            desk          MARKET_MAKER      key-mm01-••••••••••••••••••••••••••••1o3s        │
+│ —               dashboards    READ-ONLY         key-readonly-••••••••••••••••••••••••••••nrjd    │
+│ masked — run with -a/--all to reveal                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+### Adapting to the terminal
+
+The layout is computed from the terminal you actually have; there is no fixed
+column count. Panels are packed side by side where they fit, short panels are
+stacked beside tall ones so no gutter is left empty, and individual tables shed
+optional columns as they narrow. In round terms:
+
+| Terminal | What you get |
+|---|---|
+| below 72 columns or 18 rows | A plain summary: filename, counts, flags, and the port map. No boxes. |
+| 72–99 columns | Single column; wide tables drop their optional columns. |
+| 100–169 columns | Two columns, sometimes three where panels are narrow. |
+| 170 columns and up | Three columns; symbols reflow to four or five sub-tables. |
+
+At the default density only, the output is also trimmed to fit the window
+height: optional panels are dropped first, then the symbol list is shortened.
+Both trims say so, and name the flag that brings the content back. Passing `-m`
+or `-a` disables height trimming entirely — asking for more information is taken
+as accepting that you will scroll.
+
+### Options
+
+| Option | Meaning |
+|---|---|
+| `-f`, `--file YAML` | Config file to read. Default: `<DATA_DIR>/ref_data/engine_config.yaml`. |
+| `-m`, `--density [1\|2]` | Pack more in. Bare `-m` means `1`. Adds collars, circuit breakers, gateway tuning and combo seeds at `1`; engine tuning, indices, the reopening ladder and per-symbol override markers at `2`. |
+| `-a`, `--all` | Everything: implies `-m 2`, unmasks API keys, and lists unrecognised top-level keys. |
+| `--format {terminal,pdf}` | Output format. Default `terminal`. |
+| `-o`, `--output FILE` | Destination for `--format pdf`. Defaults to `engine-config-<stem>.pdf`. |
+| `--no-color` | Suppress ANSI colour. Also implied when stdout is not a TTY, or when `NO_COLOR` is set. |
+| `--ascii` | ASCII box drawing. Auto-enabled on non-UTF-8 terminals. |
+| `--width N`, `--height N` | Force render dimensions, for piping or scripted capture. |
+
+Density is a *layout* control and `--all` is a *disclosure* control, which is
+why they are separate flags: `-m 2` shows every setting but keeps keys masked,
+so it stays safe to run on a projector.
+
+Exit codes are `0` on success, `2` when the file is missing or unreadable, and
+`3` when the YAML does not parse. A parse failure prints the parser's message
+and points at `pm-cverifier` rather than attempting partial recovery.
+
+### PDF output
+
+`--format pdf` renders the same content to A4 landscape across several pages:
+an overview with the full port table and the session schedule, an access page
+with participants and credentials, a risk and market-making page, then as many
+symbol pages as the universe needs, and an appendix of tuning and indices. Every
+page repeats the four global enforcement flags in its header and carries
+`page N of M`, so a page printed on its own still says whether collars were on.
+
+```bash
+pm-config-show --format pdf -o handout.pdf              # keys masked
+pm-config-show --format pdf --all -o operations.pdf     # keys in full
+```
+
+!!! warning "A PDF made with `--all` contains live credentials"
+    Masking is per-run, not per-file. Prefer the masked form for anything you
+    hand out or print for a class.
+
+
 ## Current Schema
 
 The current parser recognizes these top-level keys:
@@ -1131,7 +1268,8 @@ The current parser recognizes these top-level keys:
 
 The nested sections below document every field currently parsed under these
 top-level keys. Unknown keys in a mapping are generally ignored by the loader,
-but they should not be relied on for runtime behavior.
+but they should not be relied on for runtime behavior — `pm-config-show -a`
+lists any it finds, which is the cheapest way to catch a mistyped section name.
 
 ## Which Process Reads What
 
@@ -1156,11 +1294,13 @@ of the file — the gateway-specific blocks (`market_data_gateway`,
 | `pm-index` | `index/config_loader.py` (wraps `engine/config_loader.py`) | `indices`, `symbols.<SYM>.outstanding_shares`, `symbols.<SYM>.last_buy_price` / `last_sell_price` | Index definitions (constituents, base value, publish interval) and the per-constituent share counts / reference prices needed to seed each index at startup |
 | `pm-scheduler` | `scheduler/main.py` | `schedule`, `country` | Session-phase transition times — re-reads the same block `pm-engine` reads, but as an independent process so the schedule can be driven or tested externally — plus the country used to skip weekends and bank holidays |
 
-!!! note "Validation tooling reads everything"
-    `pm-cverifier` is the exception: as a static linter it parses and
-    cross-validates the whole file, including sections no runtime process
-    consumes on its own. It isn't a "reader" in the operational sense above —
-    see [Verify Configs with `pm-cverifier`](#verify-configs-with-pm-cverifier).
+!!! note "Tooling reads everything"
+    `pm-cverifier` and `pm-config-show` are the exceptions: the linter parses
+    and cross-validates the whole file, and the viewer displays all of it,
+    including sections no runtime process consumes on its own. Neither is a
+    "reader" in the operational sense above — see
+    [Verify Configs with `pm-cverifier`](#verify-configs-with-pm-cverifier) and
+    [Inspect Configs with `pm-config-show`](#inspect-configs-with-pm-config-show).
 
 Two practical consequences follow from this split:
 
@@ -2665,6 +2805,10 @@ For the focused config parser test suite:
 ```bash
 poetry run pytest tests/test_config_loader.py tests/test_config_extensions.py
 ```
+
+These commands answer *does it load*. To see what a file that loads actually
+says — ports, keys, participants, symbols — use
+[`pm-config-show`](#inspect-configs-with-pm-config-show).
 
 
 ## Formal Specification

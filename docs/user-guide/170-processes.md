@@ -236,12 +236,71 @@ See [`pm-config-deploy`](#pm-config-deploy) for installing a configuration.
 | **pm-dc-spy**    | `pm-dc-spy [--gateway GW_ID] [--replay-of ID] [--format human\|json]` | Read-only drop-copy spy — connects to the engine's drop-copy `PUB` socket (:5557) and prints every fill event | Optional |
 
 
+## Port Reference
+
+Port numbers are scattered across the protocol, gateway, and configuration
+chapters (for example [Protocols Overview](210-protocols-overview.md) and
+[Examples](800-examples.md)). The table below is the single place that
+collects every default port for every long-running process in one view, split
+into the internal ZeroMQ bus (bound only on `127.0.0.1` by default, spoken
+only between EduMatcher's own processes) and the external TCP gateways
+(bound on `0.0.0.0` by default, spoken by outside clients). All ports are
+configurable in `engine_config.yaml`; the values below are the shipped
+defaults, cross-checked against `src/edumatcher/config.py` and each
+process's own `config.py`.
+
+**Core processes:**
+
+| Process | Internal ZMQ port(s) | External port(s) | Protocol | Purpose |
+|---|---|---|---|---|
+| `pm-engine` | `5555` PULL (bind) · `5556` PUB (bind) · `5557` PUB (bind) | – | ZeroMQ (PULL/PUB) | Matching engine. `5555` receives all inbound commands; `5556` broadcasts all market/session events; `5557` is the dedicated drop-copy fill feed. |
+| `pm-log-srv` | `5601` PUB (bind) · `5602` PULL (bind) | `5600` | LALF over TCP (collection) · LALF-PS over ZeroMQ (distribution) | Centralized log collector. `5600` accepts LALF log lines from every other `pm-*` process; `5601`/`5602` are the LALF-PS PUB/PULL pair that pushes live rows to log viewers/subscribers without polling `log.db`. |
+| `pm-audit` | connects out to `5556` | – | ZeroMQ (SUB) | Subscribes to every engine event and writes the full audit trail to disk. Binds no port of its own. |
+| `pm-clearing` | connects out to `5556` | – | ZeroMQ (SUB) | Subscribes to trade events for P&L and settlement. Binds no port of its own. |
+| `pm-scheduler` | connects out to `5555` | – | ZeroMQ (PUSH) | Drives session-phase transitions by pushing commands to the engine. Binds no port of its own. |
+| `pm-md-gwy` | connects out to `5556`, `5558` | `5570` | CALF over TCP | External market-data gateway. Consumes engine and index PUB feeds internally and republishes top/book/trade/state channels to external CALF clients on `5570`. |
+| `pm-ralf-gwy` | connects out to `5556` | `5580` | RALF over TCP | External post-trade dissemination gateway for clearing, drop-copy, and audit consumers (role-gated). |
+| `pm-dc-gwy` | connects out to `5557` | `5590` | DC1 over TCP | Relays the engine's `5557` drop-copy feed as DC1 text lines to plain-TCP clients that don't speak ZeroMQ. |
+| `pm-api-gwy` | connects out to `5555`, `5556` | `8080` (`desk` instance) · `8081` (`dashboards` instance) | HTTP/REST + WebSocket | REST/WebSocket gateway; translates HTTP/WS requests into the same ZMQ order flow used by `pm-alf-console`. Each named `api_gateways` instance in config gets its own port. |
+| `pm-alf-gwy` | connects out to `5555`, `5556`, `5557` | `5565` | ALF over TCP | External ALF order-entry gateway for bots/remote clients (same protocol as `pm-alf-console`, over TCP instead of stdin/stdout). |
+| `pm-balf-gwy` | connects out to `5555`, `5556` | `5560` | BALF (binary) over TCP | External binary order-entry gateway for low-latency programmatic clients. |
+| `pm-index` | `5558` PUB (bind) · `5559` PULL (bind); connects out to `5556` | – | ZeroMQ (PUB/PULL) | Real-time cap-weighted index calculation. `5558` broadcasts `index.update`; `5559` receives operator commands and history requests. No external protocol of its own — external consumers reach index data via `pm-md-gwy`/CALF. |
+
+**Internal-only utilities** (ZeroMQ clients; no listening port of their own):
+
+| Process | Internal ZMQ port(s) used | Protocol | Purpose |
+|---|---|---|---|
+| `pm-alf-console` | connects out to `5555`, `5556` | ZeroMQ (PUSH/SUB) | Interactive ALF order-entry terminal for a human trader; the same PUSH/SUB pattern as a gateway, without a TCP front end. |
+| `pm-viewer` | connects out to `5556` | ZeroMQ (SUB) | Live single/multi-symbol order book display. |
+| `pm-board` | connects out to `5555`, `5556` | ZeroMQ (PUSH/SUB) | Full-screen multi-symbol market board. |
+| `pm-ticker` | connects out to `5556` | ZeroMQ (SUB) | Scrolling market-data ticker (reads recent trades from `pm-stats`'s `stats.db` as well). |
+
+!!! note "Reading the table"
+    "Internal ZMQ port(s)" are ZeroMQ endpoints intended for EduMatcher's own
+    processes on the same host (or a trusted internal network) — by default
+    bound to `127.0.0.1`. "External port(s)" are TCP/HTTP listeners meant for
+    outside clients — by default bound to `0.0.0.0`. Every port shown is a
+    default; production or multi-host deployments should bind internal ports
+    to a private interface and firewall external ports as appropriate. See
+    [Configuration](010-configuration.md) for how to override any of these.
+
+!!! tip "The same table, for the config you actually deployed"
+    This table lists the shipped defaults. To see the ports *one particular
+    configuration* resolves to — including which were set explicitly and which
+    fell back to a default — run
+    [`pm-config-show`](#pm-config-show-config-viewer). It derives its port map
+    from `edumatcher/gateway_ports.py`, the same table `pm-cverifier` uses for
+    its `M018` collision check.
+
 **Setup and configuration tools:**
 
-| Process           | Command                            | Role                                                    | Required?             |
-|-------------------|------------------------------------|---------------------------------------------------------|-----------------------|
-| **pm-setup**      | `pm-setup`                         | Bootstrap working directory and runtime files           | Recommended first run |
-| **pm-config-gen** | `pm-config-gen [options]`          | Generate `engine_config.yaml` from CLI options          | Optional              |
+| Process            | Command                            | Role                                                    | Required?             |
+|--------------------|------------------------------------|---------------------------------------------------------|-----------------------|
+| **pm-setup**       | `pm-setup`                         | Bootstrap working directory and runtime files           | Recommended first run |
+| **pm-config-gen**  | `pm-config-gen [options]`          | Generate `engine_config.yaml` from CLI options          | Optional              |
+| **pm-cverifier**   | `pm-cverifier CONFIG_FILE`         | Validate a config across four layers                    | Recommended           |
+| **pm-config-deploy** | `pm-config-deploy SOURCE`        | Compile and install the config every process reads      | Required to run       |
+| **pm-config-show** | `pm-config-show [options]`         | Display the deployed config, or render it as a PDF      | Optional              |
 
 **Optional AI trader tools:**
 
@@ -267,31 +326,12 @@ See [`pm-config-deploy`](#pm-config-deploy) for installing a configuration.
          ```bash
          pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
          ```
-     3. Start the engine first:
-         ```bash
-         pm-engine --verbose
+     3. Use the operational control `pm-opctl-cli` to start the system in the correct order with:
          ```
-     4. Start `pm-stats` and `pm-audit` immediately after the engine:
-         ```bash
-         pm-stats
-         pm-audit --terminal
+         pm-opctl-cli start
          ```
-         Technically only `pm-engine` is required to match orders — every other
-         process, including these two, is an optional subscriber. In practice,
-         though, `pm-stats` and `pm-audit` are the *de facto* mandatory pair:
-         once a session starts, any trading, index, or book activity they
-         missed while offline is gone for good — there is no replay. Start
-         them right after the engine so nothing is lost, rather than as an
-         afterthought later in step 6.
-     5. Start one or more gateways:
-         ```bash
-         pm-alf-console --id TRADER01
-         pm-alf-console --id TRADER02
-         # or, for external / remote bots:
-         pm-alf-gwy
-         ```
-     6. Start remaining optional observers/tools as needed (`pm-board`,
-         `pm-viewer`, `pm-clearing`, `pm-ticker`, `pm-scheduler`, `pm-index`).
+         Then use `pm-opctl-cli lisgt` to lisgt status of each process
+     6. Start remaining optional observers/tools as needed (`pm-board`,`pm-viewer`, `pm-ticker`).
 
 
 
@@ -2022,6 +2062,87 @@ None. `pm-cverifier` reads the config file, prints its report, and exits.
 
 
 
+## pm-config-show — Config Viewer
+
+Prints the effective configuration as a terminal dashboard, or renders it as a
+multi-page A4 PDF, and exits. Where `pm-cverifier` answers *is this file
+correct*, `pm-config-show` answers *what does this file say* — including the
+port map, which cannot be read off the YAML at all because the engine and index
+sockets live in `config.py` and a gateway section without a `port:` key still
+binds on its runtime default.
+
+```bash
+pm-config-show
+pm-config-show -m 2
+pm-config-show --all
+pm-config-show -f my_config.yaml
+pm-config-show --format pdf -o exchange.pdf
+```
+
+**Startup options:**
+
+| Flag                     | Default                                    | Description                                                                     |
+|--------------------------|--------------------------------------------|----------------------------------------------------------------------------------|
+| `-f`, `--file <YAML>`    | `<DATA_DIR>/ref_data/engine_config.yaml`   | Config file to read                                                              |
+| `-m`, `--density [1\|2]` | `0` (bare `-m` means `1`)                  | Pack more information in; `1` adds risk and gateway detail, `2` adds every knob   |
+| `-a`, `--all`            | off                                        | Show everything: implies `-m 2`, unmasks API keys, lists unrecognised keys       |
+| `--format <FMT>`         | `terminal`                                 | Output format: `terminal` or `pdf`                                               |
+| `-o`, `--output <FILE>`  | `engine-config-<stem>.pdf`                 | Destination file for `--format pdf`                                              |
+| `--no-color`             | off                                        | Disable ANSI colour; also implied when stdout is not a TTY or `NO_COLOR` is set  |
+| `--ascii`                | off                                        | ASCII box drawing; auto-enabled on non-UTF-8 terminals                           |
+| `--width <N>`            | terminal width (`100` when piped)          | Force render width — for scripted capture and piping                             |
+| `--height <N>`           | terminal height                            | Force render height — affects default-density height trimming only               |
+| `--version`              | off                                        | Print version and exit                                                           |
+
+**Expected runtime input arguments:**
+
+None. `pm-config-show` reads the config file, prints its dashboard (or writes
+the PDF), and exits.
+
+**Exit codes:**
+
+- `0` — the configuration was displayed, or the PDF was written
+- `2` — the config file does not exist or cannot be read
+- `3` — the file is not valid YAML (the message points at `pm-cverifier`)
+
+With no `--file` it reads the deployed configuration from
+`<DATA_DIR>/ref_data/engine_config.yaml`, so what it shows is what the exchange
+was configured from. It is strictly **read-only**: it never writes to the
+configuration or the data directory, and `--output` is the only path it creates.
+
+The layout is computed from the terminal actually in use rather than a fixed
+column count — panels pack side by side where they fit, short panels stack
+beside tall ones, and tables shed optional columns as they narrow. Below 72
+columns or 18 rows it falls back to a plain summary of counts, flags, and the
+port map. At the default density the output is also trimmed to the window
+height, dropping optional panels and then shortening the symbol list; both
+trims say so and name the flag that restores the content. Passing `-m` or `-a`
+disables height trimming.
+
+Two details matter operationally:
+
+- **Ports.** Every listener appears in one table with its process, function,
+  bind address, and where the value came from — `fixed` (a `config.py`
+  constant), `env` (an environment override), `set` (explicit in the file), or
+  `default` (the section is present but omits `port:`). A port claimed twice is
+  flagged in red, the same condition `pm-cverifier` reports as `M018`.
+- **API keys.** Masked by default and revealed with `--all`. A key is never
+  wrapped or truncated at any width, and no styling is applied inside the
+  token, so a terminal double-click selects the whole thing. Masked and
+  revealed keys are the same length, so `--all` never moves the layout.
+
+Density is a *layout* control and `--all` is a *disclosure* control, which is
+why they are separate flags: `-m 2` shows every setting while keeping keys
+masked, so it stays safe to run on a projector. Note that a PDF produced with
+`--all` contains live credentials — masking is per-run, not per-file.
+
+For the panel-by-panel walkthrough and a worked example, see
+[Inspect Configs with `pm-config-show`](010-configuration.md#inspect-configs-with-pm-config-show).
+
+This tool is local inspection logic and does not participate in the ZeroMQ
+runtime message bus.
+
+
 ## pm-setup — Session Bootstrap Tool
 
 Bootstraps a runnable EduMatcher session directory with sensible defaults.
@@ -2382,7 +2503,7 @@ See [BALF TCP Gateway](230-balf-gateway.md) for operational usage and
 [BALF Protocol Reference](910-app-balf-protocol.md) for the wire-level contract.
 
 ```bash
-pm-balf-gwy [--bind 0.0.0.0] [--port 5566] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
+pm-balf-gwy [--bind 0.0.0.0] [--port 5560] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -2390,7 +2511,7 @@ pm-balf-gwy [--bind 0.0.0.0] [--port 5566] [--engine-host HOST] [--log-level LEV
 | Flag               | Default                 | Description                                                          |
 |--------------------|-------------------------|----------------------------------------------------------------------|
 | `--bind`           | from config / `0.0.0.0` | TCP bind address for BALF clients                                    |
-| `--port`           | from config / `5566`    | TCP listen port for BALF clients                                     |
+| `--port`           | from config / `5560`    | TCP listen port for BALF clients                                     |
 | `--engine-host`    | from config             | Override engine host for ZMQ ports `5555` / `5556`                  |
 | `--log-level`      | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                 |
@@ -2510,6 +2631,7 @@ normative wire specification.
 
 - [Running the Engine](040-running-the-exchange.md) — startup order, launch scripts, and verification
 - [Configuration](010-configuration.md) — how each process is configured via `engine_config.yaml`
+- [Inspect Configs (pm-config-show)](010-configuration.md#inspect-configs-with-pm-config-show) — read-only viewer for the deployed config and its port map
 - [Messages](270-message-reference.md) — the full ZeroMQ message catalog all processes share
 - [Persistence](180-persistence.md) — which process writes which data file
 - [Drop Copy](200-drop-copy.md) — the engine's built-in :5557 drop-copy feed

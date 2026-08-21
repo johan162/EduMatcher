@@ -251,13 +251,13 @@ pdf-docs: check-latex-engine ## Build all PDF documentation variants in parallel
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm $(DIST_DIR)/$(PROJECT)-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(EXCHANGE_INTRO_A4_PDF) $(EXCHANGE_INTRO_DARK_A4_PDF) $(EXCHANGE_INTRO_B5_PDF) $(EXCHANGE_INTRO_DARK_B5_PDF)
-	@zip -9 -j $(DIST_DIR)/$(PROJECT)-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)-*-$(VERSION).pdf
+	@zip -9 -j -q $(DIST_DIR)/$(PROJECT)-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)-*-$(VERSION).pdf
 	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 pdf-parts-a4: check-latex-engine ## Build each book part as a separate A4 PDF booklet
 	@rm -f $(PARTS_A4_DIST_DIR)/exchange-intro-part-*-$(VERSION).pdf 2>/dev/null || true
 	@$(MAKE) -j4 $(PART_1_PDF) $(PART_2_PDF) $(PART_3_PDF) $(PART_4_PDF)
-	@zip -9 -j $(DIST_DIR)/exchange-intro-parts-a4-bundle-$(VERSION).zip $(PARTS_A4_DIST_DIR)/exchange-intro-part-*-$(VERSION).pdf
+	@zip -9 -j -q $(DIST_DIR)/exchange-intro-parts-a4-bundle-$(VERSION).zip $(PARTS_A4_DIST_DIR)/exchange-intro-part-*-$(VERSION).pdf
 	@echo -e "$(GREEN)✓ Parts A4 bundle built: $(BRIGHTCYAN)\"exchange-intro-parts-a4-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 clean: ## Remove all generated files (PDFs, build artifacts, stamps)

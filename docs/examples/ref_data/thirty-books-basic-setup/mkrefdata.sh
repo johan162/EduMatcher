@@ -110,7 +110,28 @@ COMMON_ARGS=(
   --comment-default-config-fields
   "${SEED_ARGS[@]}"
   "${OUTSTANDING_ARGS[@]}"
+  --api-gateway-instance desk:TRADER01,TRADER02,MM01,OPS01:8080
+  --api-gateway-instance dashboards::8081
+  --api-gateway-readonly-key
 )
-"${CONFIG_GEN[@]}" "${COMMON_ARGS[@]}"
+"${CONFIG_GEN[@]}" "${COMMON_ARGS[@]}" \
+ --post-trade-gateway \
+  --post-trade-bind-address 127.0.0.1 \
+  --post-trade-port 5580 \
+  --post-trade-replay-retention-sec 3600 \
+  --post-trade-heartbeat-interval-sec 1 \
+  --post-trade-idle-timeout-sec 10 \
+  --post-trade-max-client-queue 5000 \
+  --post-trade-allowed-roles CLEARING DROP_COPY AUDIT \
+  --market-data-gateway \
+  --market-data-enabled \
+  --market-data-name md-gwy01 \
+  --market-data-bind-address 127.0.0.1 \
+  --market-data-port 5570 \
+  --market-data-heartbeat-interval-sec 1 \
+  --market-data-idle-timeout-sec 5 \
+  --market-data-replay-window-sec 30 \
+  --market-data-max-symbols-per-client 200 \
+  --market-data-max-client-queue 10000
 
 echo "Generated $(pwd)/engine_config.yaml"

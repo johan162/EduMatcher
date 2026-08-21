@@ -72,7 +72,9 @@ if optional, its absence leaves the feature disabled.
 
 Loaders are **permissive**: a key not defined in this specification is **ignored**
 and MUST NOT be relied upon for behaviour. Conforming producers SHOULD NOT emit
-unknown keys. `pm-cverifier` MAY warn on them.
+unknown keys. `pm-cverifier` MAY warn on them, and `pm-config-show --all` lists
+every unrecognised top-level key it finds — a mistyped section name is otherwise
+indistinguishable from an absent one.
 
 ### 1.6 Case normalisation
 
@@ -571,6 +573,13 @@ rejected at load.
 6. **Whole-file validation.** `pm-cverifier` validates every section — including
    blocks no runtime process consumes on its own — across four layers (YAML,
    schema, semantic, completeness). It is the reference conformance checker.
+7. **Whole-file presentation.** `pm-config-show` reads every section for
+   display only. It is read-only and non-normative: it neither validates nor
+   resolves defaults, and it MUST NOT be treated as a conformance signal — a
+   document it renders without complaint may still be rejected by a loader.
+   Where it reports an *effective* value the specification does define — most
+   notably the port a section binds when `port` is omitted (§6) — that value
+   MUST agree with this document.
 
 ---
 
@@ -598,6 +607,7 @@ block on every symbol.
 
 - [Configuration](010-configuration.md) — informative reference, generator, recipes
 - [Config Verifier (`pm-cverifier`)](020-config-verifier.md) — the reference validator
+- [Inspect Configs (`pm-config-show`)](010-configuration.md#inspect-configs-with-pm-config-show) — read-only viewer for a deployed document, including the effective port map
 - [Risk Controls](120-risk-controls.md) — collar and circuit-breaker behaviour
 - [Market Index (`pm-index`)](150-market-index.md) — index calculation using `indices`
 - [External Protocols Overview](210-protocols-overview.md) — the gateways that read the auxiliary blocks

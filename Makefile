@@ -365,6 +365,47 @@ clean-gh: ## Clean GitHub Actions artefacts (runs clean + removes .github/workfl
 	@echo -e "$(GREEN)✓ GitHub Actions artefacts cleaned$(NC)"
 
 # ============================================================================================
+# VM
+# ============================================================================================
+NODE_NAME := ems
+node: ## Launch the multipass VM (requires multipass)
+	@if ! multipass list | grep -q $(NODE_NAME); then \
+		echo -e "$(YELLOW)⚠ Multipass VM '$(NODE_NAME)' not found. Building it from scratch...$(NC)"; \
+		bash ./vm/mknode.sh --name $(NODE_NAME); \
+	else \
+		echo -e "$(BLUE)Multipass VM '$(NODE_NAME)' already exists. Starting it...$(NC)"; \
+		multipass start $(NODE_NAME); \
+	fi
+
+rebuild_node: ## Rebuild the multipass VM from scratch (requires multipass)
+	@if multipass list | grep -q $(NODE_NAME); then \
+		echo -e "$(BLUE)Multipass VM '$(NODE_NAME)' already exists. Deleting it...$(NC)"; \
+		multipass delete --purge $(NODE_NAME); \
+	fi
+	@echo -e "$(YELLOW)⚠ Building multipass VM '$(NODE_NAME)' from scratch...$(NC)"
+	@bash ./vm/mknode.sh --name $(NODE_NAME)
+
+DEVNODE_NAME := dev-ems
+devnode: ## Launch the multipass VM in dev mode (requires multipass)
+	@if ! multipass list | grep -q $(DEVNODE_NAME); then \
+		echo -e "$(YELLOW)⚠ Multipass VM '$(DEVNODE_NAME)' not found. Building it from scratch...$(NC)"; \
+		bash vm/mknode.sh --name $(DEVNODE_NAME); \
+	else \
+		echo -e "$(BLUE)Multipass VM '$(DEVNODE_NAME)' already exists. Starting it...$(NC)"; \
+		multipass start $(DEVNODE_NAME); \
+	fi
+
+rebuild_devnode: ## Rebuild the multipass VM in dev mode from scratch (requires multipass)
+	@if multipass list | grep -q $(DEVNODE_NAME); then \
+		echo -e "$(BLUE)Multipass VM '$(DEVNODE_NAME)' already exists. Deleting it...$(NC)"; \
+		multipass delete --purge $(DEVNODE_NAME); \
+	fi
+	@echo -e "$(YELLOW)⚠ Building multipass VM '$(DEVNODE_NAME)' from scratch...$(NC)"
+	@bash vm/mknode.sh --name $(DEVNODE_NAME) --dev
+
+
+
+# ============================================================================================
 # Git
 # ============================================================================================
 pull-all: ## Pull all local branches that exist on origin

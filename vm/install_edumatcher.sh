@@ -11,6 +11,7 @@ VENV_DIR="/opt/edumatcher/.venv"
 RUNTIME_USER="edumatcher"
 VERSION=""
 PYTHON_BIN=""
+UPDATE="false"
 
 usage() {
   cat <<'EOF'
@@ -22,6 +23,7 @@ Options:
               If omitted, installs latest available release.
   --dev       Optional. Install the local wheel file from /tmp/*.whl
               instead of downloading from PyPI.
+  --update    Optional. Update the existing installation with latest system updates.
   --help      Show this help text
 EOF
 }
@@ -40,6 +42,10 @@ while [[ $# -gt 0 ]]; do
       usage
       exit 0
       ;;
+    --update)
+      UPDATE="true"
+      shift
+      ;;
     *)
       echo "Unknown option: $1" >&2
       usage >&2
@@ -53,6 +59,8 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
+echo "Installing python packages..."
+
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
@@ -60,6 +68,10 @@ apt-get install -y --no-install-recommends \
   python3 \
   python3-venv \
   python3-pip
+
+if [[ "$UPDATE" == "true" ]]; then
+  apt-get upgrade -y
+fi
 
 for candidate in python3.13 python3.14 python3.15 python3; do
   if command -v "$candidate" >/dev/null 2>&1; then
@@ -80,9 +92,15 @@ if [[ -z "$PYTHON_BIN" ]]; then
   exit 1
 fi
 
+echo "Using Python interpreter: $PYTHON_BIN"
+echo "Adding user '$RUNTIME_USER'..."
+
 if ! id -u "$RUNTIME_USER" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$RUNTIME_USER"
 fi
+
+
+echo "Installing EduMatcher runtime version: ${VERSION:-latest}..."
 
 mkdir -p /opt/edumatcher
 "$PYTHON_BIN" -m venv "$VENV_DIR"
