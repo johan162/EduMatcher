@@ -1789,6 +1789,56 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#keeping-history-architecture-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keeping history - Architecture Overview
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Keeping history - Architecture Overview">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-structural-events-jsonl-append-only-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Structural Events (JSONL Append-Only Log)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-per-tick-level-history-sqlite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Per-Tick Level History (SQLite)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-current-index-state-json-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Current Index State (JSON File)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4756,6 +4806,41 @@ for quick one-off inspections or when <code>pm-index-cli</code> is not available
 <li>Check <code>data/indexes/&lt;ID&gt;_state.json</code> after a crash to confirm the divisor
    was persisted. If the file is missing or truncated, use <code>--reset</code>.</li>
 </ol>
+<h2 id="keeping-history-architecture-overview">Keeping history - Architecture Overview<a class="headerlink" href="#keeping-history-architecture-overview" title="Permanent link">&para;</a></h2>
+<p>Historic values of a market index gets a bit complex as along with the index vaues there is also the need 
+to track included symbols as well as corporate actions.</p>
+<p>There are <strong>three separate persistence layers</strong> for market index data:</p>
+<h3 id="1-structural-events-jsonl-append-only-log">1. <strong>Structural Events (JSONL Append-Only Log)</strong><a class="headerlink" href="#1-structural-events-jsonl-append-only-log" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>File</strong>: <code>history_file</code> (configured per index)</li>
+<li><strong>Manager</strong>: <code>IndexHistory</code> class in <code>history.py</code></li>
+<li><strong>Content</strong>: Structural/corporate-action events only</li>
+<li><code>INIT</code>: Index initialization</li>
+<li><code>CORP_ACTION</code>: Splits, dividends, share issuance</li>
+<li><code>DELIST</code>: Constituent removal</li>
+<li><code>ADD_CONSTITUENT</code>: New constituent addition</li>
+<li><code>REBALANCE</code>: Batch share-outstanding updates</li>
+<li><strong>Format</strong>: JSON Lines (one record per line)</li>
+<li><strong>Access</strong>: Read-only scan from oldest record to requested time range</li>
+</ul>
+<h3 id="2-per-tick-level-history-sqlite">2. <strong>Per-Tick Level History (SQLite)</strong><a class="headerlink" href="#2-per-tick-level-history-sqlite" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Tables</strong>: <code>index_level_snapshots</code> and <code>index_daily_stats</code></li>
+<li><strong>Manager</strong>: <code>pm-stats</code> process (NOT <code>pm-index</code>)</li>
+<li><strong>Content</strong>: Per-tick level updates, OHLC (Open/High/Low/Close) data</li>
+<li><strong>Note</strong>: This is the real home for level-update history</li>
+</ul>
+<h3 id="3-current-index-state-json-file">3. <strong>Current Index State (JSON File)</strong><a class="headerlink" href="#3-current-index-state-json-file" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>File</strong>: <code>state_file</code> (configured per index)</li>
+<li><strong>Content</strong>: Latest state snapshot</li>
+<li>Divisor value</li>
+<li>Last prices for each constituent</li>
+<li>Day OHLC summary</li>
+<li>Last calculated level</li>
+<li>Last update timestamp</li>
+<li><strong>Purpose</strong>: Restart recovery (load-on-startup)</li>
+</ul>
 
 
 
