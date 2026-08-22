@@ -68,7 +68,7 @@ remaining arguments, since a console script appears in ``ps`` as
 
 Commands
 --------
-``start [profile]``
+``start [profile]`` (alias ``up``)
     Start a profile (``default`` when omitted), skipping entries already
     running.
 ``list``
@@ -80,7 +80,7 @@ Commands
 ``health [-q]``
     Same checks as ``list``, but exits ``0`` only when every process is
     running. ``-q`` suppresses output for use in monitoring scripts.
-``stop``
+``stop`` (alias ``down``)
     Send ``SIGTERM`` only to processes recorded in the PID directory.
 ``kill``
     Emergency stop: ``pkill -15 -f -i -l pm-``, which signals every process
@@ -174,11 +174,7 @@ DEFAULT_PROCESSES: list[dict[str, Any]] = [
         "command": ["pm-ralf-gwy", "--verbose"],
         "tcp": "127.0.0.1:5580",
     },
-    {
-        "name": "index-srv",
-        "command": ["pm-index", "--verbose"],
-        "tcp": "127.0.0.1:5610",
-    },
+    {"name": "index-srv", "command": ["pm-index", "--verbose"]},
 ]
 
 MICRO_PROCESSES: list[dict[str, Any]] = [
@@ -753,12 +749,16 @@ def build_parser() -> argparse.ArgumentParser:
     add_version_argument(parser, "pm-opctl-cli")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
-    start = subparsers.add_parser("start", help="start a named process profile")
+    start = subparsers.add_parser(
+        "start", aliases=["up"], help="start a named process profile"
+    )
     start.add_argument("config_name", nargs="?", default="default")
     subparsers.add_parser(
         "init", help="create the built-in process profile configuration"
     )
-    subparsers.add_parser("stop", help="stop processes started by pm-opctl")
+    subparsers.add_parser(
+        "stop", aliases=["down"], help="stop processes started by pm-opctl"
+    )
     subparsers.add_parser(
         "kill",
         help="send SIGTERM to every process whose command line contains pm-",
@@ -801,9 +801,9 @@ def main() -> int:
     try:
         if args.command == "init":
             return create_config()
-        if args.command == "start":
+        if args.command in ("start", "up"):
             return start_profile(args.config_name or "default")
-        if args.command == "stop":
+        if args.command in ("stop", "down"):
             return stop_profile()
         if args.command == "kill":
             return kill_all_processes()
