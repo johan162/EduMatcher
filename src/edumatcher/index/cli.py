@@ -88,8 +88,28 @@ def _ts_to_str(ts: float) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _load_engine_config(config_path: str) -> Any:
-    """Load EngineConfig from *config_path*, exiting on failure."""
+def _load_engine_config(config_path: str | None) -> Any:
+    """Return the EngineConfig to query, exiting on failure.
+
+    With an explicit *config_path*, parses that YAML file directly. With
+    none, falls back to the canonical compiled config used by the running
+    exchange, so the common case ("what does the deployed exchange have
+    configured?") needs no flag.
+    """
+    if config_path is None:
+        from edumatcher.config import COMPILED_CONFIG_FILE
+        from edumatcher.config_artifact import load_compiled_config
+
+        compiled = load_compiled_config()
+        if compiled is None:
+            print(
+                f"[ERROR] No compiled configuration at {COMPILED_CONFIG_FILE} and "
+                "no --config given. Run pm-config-deploy, or pass --config PATH.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        return compiled.engine
+
     from edumatcher.engine.config_loader import load_engine_config
 
     try:
@@ -99,7 +119,7 @@ def _load_engine_config(config_path: str) -> Any:
         raise SystemExit(1) from exc
 
 
-def _config_index_map(config_path: str) -> dict[str, Any]:
+def _config_index_map(config_path: str | None) -> dict[str, Any]:
     """Return a map of index_id → IndexConfig from engine config."""
     cfg = _load_engine_config(config_path)
     return {idx.id: idx for idx in cfg.indices}
@@ -112,18 +132,22 @@ def _resolve_history_files(
 ) -> dict[str, Path]:
     """Return index_id → history Path, preferring config values."""
     from_config: dict[str, str] = {}
-    if config_path is not None:
-        try:
-            idx_map = _config_index_map(config_path)
-            for idx_id, idx_cfg in idx_map.items():
-                from_config[idx_id] = idx_cfg.history_file
-        except SystemExit:
+    try:
+        idx_map = _config_index_map(config_path)
+        for idx_id, idx_cfg in idx_map.items():
+            from_config[idx_id] = idx_cfg.history_file
+    except SystemExit:
+        if config_path is not None:
+            # An explicit --config path that failed to load is an operator
+            # mistake worth stopping for, not silently ignoring.
             raise
-        except Exception as exc:
-            print(
-                f"[WARNING] Could not read index paths from config: {exc}",
-                file=sys.stderr,
-            )
+        # No --config given and no compiled configuration deployed: fall
+        # back to --data-dir below, matching the pre-existing behaviour.
+    except Exception as exc:
+        print(
+            f"[WARNING] Could not read index paths from config: {exc}",
+            file=sys.stderr,
+        )
 
     result: dict[str, Path] = {}
     from edumatcher.config import resolve_data_path
@@ -146,18 +170,11 @@ def _resolve_index_ids(
     raw: list[str] = getattr(args, "index", None) or []
     if raw:
         return [i.upper() for i in raw]
-    if config_path is not None:
-        idx_map = _config_index_map(config_path)
-        if not idx_map:
-            print("[ERROR] No indices found in engine_config.yaml.", file=sys.stderr)
-            raise SystemExit(1)
-        return list(idx_map.keys())
-    print(
-        "[ERROR] Specify at least one --index ID, or pass --config to "
-        "auto-discover all configured indices.",
-        file=sys.stderr,
-    )
-    raise SystemExit(2)
+    idx_map = _config_index_map(config_path)
+    if not idx_map:
+        print("[ERROR] No indices found in engine config.", file=sys.stderr)
+        raise SystemExit(1)
+    return list(idx_map.keys())
 
 
 # ---------------------------------------------------------------------------
@@ -317,9 +334,9 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PATH",
         help=(
-            "Path to engine_config.yaml.\n"
-            "Used to auto-discover history file paths and index IDs.\n"
-            "Required for the 'indices' subcommand."
+            "Path to an engine_config.yaml to query instead of the\n"
+            "deployed exchange's compiled configuration.\n"
+            "Used to auto-discover history file paths and index IDs."
         ),
     )
     parser.add_argument(
@@ -355,7 +372,8 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="ID",
         help=(
             "Index ID to query (repeatable).\n"
-            "Defaults to all configured indices when --config is given."
+            "Defaults to all indices in --config, or the deployed exchange's\n"
+            "compiled configuration if --config is omitted."
         ),
     )
     events_p.add_argument(
@@ -382,7 +400,10 @@ def _build_parser() -> argparse.ArgumentParser:
     # --------------------------------------------------------------- indices
     sub.add_parser(
         "indices",
-        help="List indices configured in engine_config.yaml (requires --config).",
+        help=(
+            "List indices from --config, or the deployed exchange's compiled "
+            "configuration if --config is omitted."
+        ),
     )
 
     return parser
@@ -490,12 +511,6 @@ def _cmd_events(args: argparse.Namespace) -> None:
 
 
 def _cmd_indices(args: argparse.Namespace) -> None:
-    if args.config is None:
-        print(
-            "[ERROR] --config is required for the 'indices' subcommand.",
-            file=sys.stderr,
-        )
-        raise SystemExit(2)
     cfg = _load_engine_config(args.config)
     rows: list[dict[str, Any]] = [
         {

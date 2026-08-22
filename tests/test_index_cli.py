@@ -410,11 +410,21 @@ class TestResolveIndexIds:
         result = _resolve_index_ids(args, None)
         assert result == ["IDX1", "IDX2"]
 
-    def test_no_index_no_config_raises(self) -> None:
+    def test_no_index_no_config_falls_back_to_compiled_config(self) -> None:
+        """With neither --index nor --config, indices come from the deployed
+        exchange's compiled configuration."""
         args = Namespace(index=None)
-        with pytest.raises(SystemExit) as exc:
-            _resolve_index_ids(args, None)
-        assert exc.value.code == 2
+        fake_map = {"IDX1": MagicMock()}
+        with patch("edumatcher.index.cli._config_index_map", return_value=fake_map):
+            result = _resolve_index_ids(args, None)
+        assert result == ["IDX1"]
+
+    def test_no_index_no_config_and_nothing_compiled_raises(self) -> None:
+        args = Namespace(index=None)
+        with patch("edumatcher.index.cli._config_index_map", return_value={}):
+            with pytest.raises(SystemExit) as exc:
+                _resolve_index_ids(args, None)
+            assert exc.value.code == 1
 
     def test_config_with_empty_indices_raises(self) -> None:
         args = Namespace(index=None)
@@ -598,16 +608,43 @@ class TestCmdEvents:
 
 
 class TestCmdIndices:
-    def test_no_config_raises(self, tmp_path: Path) -> None:
+    def test_no_config_falls_back_to_compiled_config(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        """With no --config, 'indices' lists the deployed exchange's
+        compiled configuration instead of requiring the flag."""
+        mock_cfg = MagicMock()
+        idx = MagicMock()
+        idx.id = "IDX1"
+        idx.description = "Test index"
+        idx.history_file = "data/idx1.jsonl"
+        idx.state_file = "data/idx1_state.json"
+        idx.constituents = ["AAPL"]
+        mock_cfg.indices = [idx]
         args = Namespace(
             config=None,
             data_dir=str(tmp_path),
             format="table",
             no_header=False,
         )
-        with pytest.raises(SystemExit) as exc:
+        with patch("edumatcher.index.cli._load_engine_config", return_value=mock_cfg):
             _cmd_indices(args)
-        assert exc.value.code == 2
+        out = capsys.readouterr().out
+        assert "IDX1" in out
+
+    def test_no_config_and_nothing_compiled_raises(self, tmp_path: Path) -> None:
+        args = Namespace(
+            config=None,
+            data_dir=str(tmp_path),
+            format="table",
+            no_header=False,
+        )
+        with patch(
+            "edumatcher.config_artifact.load_compiled_config", return_value=None
+        ):
+            with pytest.raises(SystemExit) as exc:
+                _cmd_indices(args)
+            assert exc.value.code == 1
 
     def test_with_config_renders_indices(
         self, tmp_path: Path, capsys: pytest.CaptureFixture
