@@ -1,0 +1,6 @@
+# Runtime state and host-specific material — never committed.
+.env
+data/
+.ssh/
+.wheel/*
+!.wheel/.keep

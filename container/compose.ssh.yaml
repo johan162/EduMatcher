@@ -1,0 +1,11 @@
+# Overlay: run sshd in the container and publish it on SSH_PORT.
+# .ssh/authorized_keys is assembled from the host's public keys by
+# `make keys` (run automatically by `make up SSH=1`).
+services:
+  edumatcher:
+    environment:
+      EM_SSH: "1"
+    volumes:
+      - ./.ssh/authorized_keys:/run/host-authorized-keys:ro
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${SSH_PORT:-2222}:22"

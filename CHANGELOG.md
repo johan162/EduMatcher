@@ -1,3 +1,23 @@
+## [v0.20.3] - 2026-08-22
+
+Release Type: minor
+
+### 📋 Summary
+This release adds container deployment support and small operational improvements for running and inspecting EduMatcher systems. It also makes index startup more convenient and expands the history-handling documentation.
+
+### ✨ Additions
+- Added container deployment support for easily running an EduMatcher system
+- Added `up` and `down` aliases for the operational script's `start` and `stop` commands
+
+### 🚀 Improvements
+- Improved `pm-index-cli` startup to use the canonical engine configuration when no configuration is specified
+
+### 📚 Documentation
+- Added guidance on history handling to the index documentation
+
+### 🛠 Internal
+- Preserved the container `.wheel/` directory in Git for local deployment artifacts
+
 ## [v0.20.2] - 2026-08-21
 
 Release Type: minor

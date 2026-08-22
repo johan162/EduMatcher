@@ -1,0 +1,41 @@
+# One service by design: the engine binds its bus sockets to 127.0.0.1, so
+# every pm-* process must share a single network namespace. pm-opctl-cli is
+# the process manager inside that namespace, exactly as it is inside the
+# Multipass runtime VM.
+#
+# This file publishes the client-facing gateways only. The two overlays add
+# the optional surfaces:
+#   compose.zmq.yaml  — raw ZeroMQ bus ports (make up ZMQ=1)
+#   compose.ssh.yaml  — sshd on the host port (make up SSH=1)
+
+services:
+  edumatcher:
+    build:
+      context: .
+      args:
+        EDUMATCHER_VERSION: ${EDUMATCHER_VERSION:-}
+        WITH_SSH: ${WITH_SSH:-1}
+    image: ${IMAGE_NAME:-edumatcher}:${IMAGE_TAG:-local}
+    container_name: ${CONTAINER_NAME:-edumatcher}
+    hostname: edumatcher
+    restart: unless-stopped
+    # pm-opctl-cli stop has to walk the whole profile before PID 1 exits.
+    stop_grace_period: 30s
+    environment:
+      EM_CONFIG: ${EM_CONFIG:-three-basic}
+      EM_PROFILE: ${EM_PROFILE:-default}
+      TZ: ${TZ:-UTC}
+    volumes:
+      # The canonical data directory: ref_data/, audit.log, the SQLite
+      # databases, emo/ logs and PID files. Survives down/up; wiped by
+      # `make clean-data`.
+      - ./data:/data
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:5560:5560"   # pm-balf-gwy  — binary ALF
+      - "${BIND_ADDR:-127.0.0.1}:5565:5565"   # pm-alf-gwy   — ALF order entry
+      - "${BIND_ADDR:-127.0.0.1}:5570:5570"   # pm-md-gwy    — market data (MDLF)
+      - "${BIND_ADDR:-127.0.0.1}:5580:5580"   # pm-ralf-gwy  — post trade (RALF)
+      - "${BIND_ADDR:-127.0.0.1}:5590:5590"   # pm-dc-gwy    — drop copy (DCLF)
+      - "${BIND_ADDR:-127.0.0.1}:5600:5600"   # pm-log-srv   — log ingest (LALF)
+      - "${BIND_ADDR:-127.0.0.1}:8080:8080"   # pm-api-gwy   — REST, desk
+      - "${BIND_ADDR:-127.0.0.1}:8081:8081"   # pm-api-gwy   — REST, dashboards
