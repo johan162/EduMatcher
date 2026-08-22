@@ -1,0 +1,514 @@
+# EduMatcher in a container
+
+A complete EduMatcher exchange — every `pm-*` process, the reference data, the
+databases and the logs — inside one container that you use exactly like the
+Multipass VM: log in, run `pm-*` commands, attach interactive helpers to the
+bus. Unlike the VM it survives a laptop suspend and comes with the correct
+clock.
+
+```bash
+make build     # build the image (EduMatcher from PyPI)
+make up        # start the exchange
+make shell     # log in and look around
+make down      # stop it
+```
+
+---
+
+## Table of contents
+
+- [Why a container instead of the VM](#why-a-container-instead-of-the-vm)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Logging in](#logging-in)
+- [What is in the image](#what-is-in-the-image)
+- [Ports](#ports)
+- [Exposing the ZeroMQ bus](#exposing-the-zeromq-bus)
+- [SSH access](#ssh-access)
+- [The data directory](#the-data-directory)
+- [Choosing the configuration and the profile](#choosing-the-configuration-and-the-profile)
+- [Make targets](#make-targets)
+- [Configuration reference (`.env`)](#configuration-reference-env)
+- [Building from a development wheel](#building-from-a-development-wheel)
+- [Useful Docker / Podman commands](#useful-docker--podman-commands)
+- [Troubleshooting](#troubleshooting)
+- [Design notes](#design-notes)
+
+---
+
+## Why a container instead of the VM
+
+The Multipass runtime VM in [`../vm/`](../vm/) does the same job, but a VM is
+a full machine with a clock problt: after a host suspend the lock has drifted, 
+which an exchange with market calendars and scheduled auctions notices immediately.
+
+A container has neither problem. It shares the host kernel and therefore the
+host clock, there is no guest to resume, and if something does go wrong
+`make down && make up` is a few seconds rather than a rebuild. What you give
+up is kernel isolation, which an educational exchange does not need.
+
+The container is used as a *machine*, not as a microservice: one container,
+`pm-opctl-cli` as the process manager inside it, and you log in to work. That
+is deliberate — see [Design notes](#design-notes).
+
+## Requirements
+
+- Podman **or** Docker, with a compose implementation:
+  - Podman 4.7+ (`podman compose`) or `podman-compose`
+  - Docker with Compose v2 (`docker compose`) or `docker-compose`
+- GNU make
+- ~1.5 GB of disk for the build, ~300 MB for the finished image
+
+Podman is preferred automatically when both are installed. Override with:
+
+```bash
+make up CONTAINER_ENGINE=docker
+```
+
+Check what was detected:
+
+```bash
+make info
+```
+
+## Quick start
+
+```bash
+cd container
+make build
+make up
+make status          # one row per process, green when healthy
+make shell           # a root shell inside the exchange
+```
+
+Inside the shell everything behaves as it does in the VM:
+
+```bash
+pm-opctl-cli list
+pm-config-show
+pm-alf-console --id TRADER01 --verbose
+pm-viewer --symbol AAPL
+pm-board
+```
+
+From the **host**, the gateways are already reachable on localhost:
+
+```bash
+pm-calf-spy  --host 127.0.0.1 --port 5570      # market data (CALF)
+pm-ralf-spy  --host 127.0.0.1 --port 5580      # post trade (RALF)
+curl -s http://127.0.0.1:8080/api/v1/healthz   # desk REST API
+```
+
+Stop it again:
+
+```bash
+make down            # container gone, ./data kept
+```
+
+## Logging in
+
+Two ways in, both giving a root shell with `EDUMATCHER_DATA_DIR=/data` and
+every `pm-*` command on `PATH`:
+
+| | Command | Notes |
+|---|---|---|
+| **exec** (default) | `make shell` | Instant, nothing extra to run. Open as many terminals as you like — run it again in another window. |
+| **ssh** (opt-in) | `make up SSH=1` then `make ssh` | Feels exactly like the VM: works from any terminal without the container CLI, and `scp`/`rsync` work. See [SSH access](#ssh-access). |
+
+Interactive helpers (`pm-alf-console`, `pm-viewer`, `pm-board`,
+`pm-admin`) need a TTY, and both paths provide one.
+
+## What is in the image
+
+| | |
+|---|---|
+| Base | `python:3.13-slim-bookworm` |
+| EduMatcher | installed with `pip` into `/opt/edumatcher/.venv`, on `PATH` |
+| OS extras | `procps` (pm-opctl-cli uses `pgrep`/`ps`), `socat` (ZeroMQ relays), `tini` (PID 1), `tzdata`, `curl`, `openssh-server` |
+| Data | `/data`, bind-mounted from `./data` |
+| PID 1 | `entrypoint.sh` under `tini` |
+
+The build is two-stage: the venv is assembled in a builder stage and copied
+into a clean runtime stage, so pip caches and build leftovers never ship.
+
+On start, `entrypoint.sh`:
+
+1. creates `/data` and runs `pm-setup --config <EM_CONFIG>` (idempotent —
+   an already-deployed configuration is kept unless `EM_CONFIG` changed)
+2. starts `sshd`, if `SSH=1`
+3. starts the ZeroMQ relays, if `ZMQ=1`
+4. runs `pm-opctl-cli start <EM_PROFILE>`
+5. waits, and on `SIGTERM` runs `pm-opctl-cli stop` before exiting
+
+## Ports
+
+All published ports bind to `127.0.0.1` by default. Set `BIND_ADDR=0.0.0.0`
+in `.env` to reach the exchange from other machines on your network.
+
+**Always published** — the client-facing gateways:
+
+| Port | Process | Protocol | Purpose |
+|-----:|---------|----------|---------|
+| 5560 | `pm-balf-gwy` | TCP | Binary ALF order entry |
+| 5565 | `pm-alf-gwy` | TCP | ALF order entry |
+| 5570 | `pm-md-gwy` | TCP | Market data (CALF/MDLF) |
+| 5580 | `pm-ralf-gwy` | TCP | Post trade (RALF) |
+| 5590 | `pm-dc-gwy` | TCP | Drop copy (DCLF) |
+| 5600 | `pm-log-srv` | TCP | Log ingest (LALF) |
+| 8080 | `pm-api-gwy` | HTTP | REST API, `desk` instance |
+| 8081 | `pm-api-gwy` | HTTP | REST API, `dashboards` instance |
+
+**Published with `ZMQ=1`** — the raw message bus:
+
+| Port | Process | Socket | Purpose |
+|-----:|---------|--------|---------|
+| 5555 | `pm-engine` | ZMQ PULL | Order intake |
+| 5556 | `pm-engine` | ZMQ PUB | Event + book feed |
+| 5557 | `pm-engine` | ZMQ PUB | Drop-copy feed |
+| 5558 | `pm-index` | ZMQ PUB | Index values |
+| 5559 | `pm-index` | ZMQ PULL | Index commands |
+| 5601 | `pm-log-srv` | ZMQ PUB | LALF-PS broadcast |
+| 5602 | `pm-log-srv` | ZMQ PULL | LALF-PS control |
+
+**Published with `SSH=1`**: host port `2222` → container port `22`.
+
+`make ports` lists what is actually mapped on a running container.
+
+## Exposing the ZeroMQ bus
+
+The gateways bind `0.0.0.0` and need nothing special. The engine's three bus
+sockets are different: `edumatcher.config` hardcodes them to
+`tcp://127.0.0.1:5555-5557` with no override, so a published port would map to
+an address nothing listens on.
+
+`ZMQ=1` solves this without touching EduMatcher: the entrypoint starts three
+`socat` forwarders that listen on the *container's own* address and forward
+each connection to loopback. ZMTP is a plain TCP byte stream, so a
+per-connection relay is completely transparent to it — the handshake and every
+frame pass through unchanged. Binding the container IP rather than `0.0.0.0`
+is what lets the relay and the engine's own loopback listener share a port
+number.
+
+`pm-index` and `pm-log-srv` need no relay: the index honours
+`EDUMATCHER_INDEX_BIND_HOST` (set to `0.0.0.0` by the overlay) and the log
+server already binds `0.0.0.0`.
+
+```bash
+make up ZMQ=1
+
+# then, from the host:
+pm-dc-spy --host 127.0.0.1 --port 5557        # engine drop-copy feed
+```
+
+Keep it off unless you need it — every relayed port is one more way into a
+running exchange.
+
+## SSH access
+
+```bash
+make up SSH=1
+make ssh                     # or: ssh -p 2222 root@localhost
+```
+
+`make up SSH=1` runs `make keys` first, which collects every `~/.ssh/*.pub` on
+the host into `container/.ssh/authorized_keys`. That file is mounted read-only
+into the container and copied into place with the ownership and mode `sshd`
+insists on. No key material is baked into the image, and adding a key is a
+`make keys && make restart` away — no rebuild.
+
+The container's own host keys are generated once and kept in
+`data/ssh-hostkeys/`, so recreating the container does not trip your
+`known_hosts`.
+
+`scp` and `rsync` work as they would against any machine:
+
+```bash
+scp -P 2222 my-engine_config.yaml root@localhost:/data/ref_data/
+```
+
+To build a smaller image with no `openssh-server` at all, set `WITH_SSH=0` in
+`.env` and rebuild.
+
+## The data directory
+
+`./data` on the host is `/data` in the container, and it is the canonical
+EduMatcher data directory (`EDUMATCHER_DATA_DIR`), so everything the exchange
+persists is directly visible and editable from the host:
+
+```text
+data/
+├── ref_data/
+│   ├── engine_config.yaml     the authored configuration
+│   └── engine_config.json     the compiled artifact every process reads
+├── emo/                       pm-opctl-cli PID files and per-process logs
+│   ├── engine.log
+│   └── ...
+├── audit.log                  the audit trail
+├── clearing.db  stats.db  log.db
+├── gtc_orders.json  gtc_combos.json  book_stats.json
+└── ssh-hostkeys/              only when SSH=1 has been used
+```
+
+It survives `make down`. `make clean-data` deletes it after confirming.
+
+Follow one process's log from the host without entering the container:
+
+```bash
+make proc-logs P=engine
+tail -f data/emo/alf-gwy.log
+```
+
+Edit the configuration on the host and reload it:
+
+```bash
+vim data/ref_data/engine_config.yaml
+make config-deploy      # validates and recompiles engine_config.json
+make restart            # processes read the artifact at start
+```
+
+## Choosing the configuration and the profile
+
+Two settings decide what the exchange looks like. Both live in `.env` and can
+be overridden per command.
+
+**`EM_CONFIG`** — which bundled example configuration is deployed, named the
+way `pm-config-deploy --example` names them:
+
+```text
+one-basic     three-basic     ten-basic     thirty-basic
+one-nominal   three-nominal   ten-nominal   thirty-nominal
+one-complex   three-complex   ten-complex   thirty-complex
+```
+
+```bash
+make up CONFIG=ten-nominal
+```
+
+Changing it redeploys the configuration in `./data` on the next `make up`
+(the entrypoint remembers which example the directory was built from).
+
+**`EM_PROFILE`** — which `pm-opctl-cli` profile is started:
+
+| Profile | What runs |
+|---|---|
+| `default` | The full nominal stack: logging, audit, stats, clearing, engine, scheduler, all gateways, both API instances, index |
+| `mini` | A trading-capable subset |
+| `micro` | Centralized logging plus the engine |
+
+```bash
+make up PROFILE=micro
+```
+
+To change what a profile contains, generate the file and edit it on the host:
+
+```bash
+make shell
+pm-opctl-cli init        # writes /data/emo-config.yaml
+exit
+vim data/emo-config.yaml
+make restart
+```
+
+## Make targets
+
+| Target | Does |
+|---|---|
+| `make build` | Build the image. `VERSION=0.20.2` pins a PyPI release, `DEV=1` uses a local wheel |
+| `make up` | Start the exchange. `CONFIG=`, `PROFILE=`, `ZMQ=1`, `SSH=1` |
+| `make down` | Stop and remove the container; `./data` is kept |
+| `make restart` | Restart the container (re-runs the entrypoint) |
+| `make shell` | Interactive root shell in the container |
+| `make ssh` | Log in over ssh (needs `make up SSH=1`) |
+| `make keys` | Rebuild `.ssh/authorized_keys` from `~/.ssh/*.pub` |
+| `make status` | `pm-opctl-cli list` — process table with uptime and RSS |
+| `make health` | `pm-opctl-cli health` — exits 0 when every process is OK |
+| `make logs` | Follow the entrypoint output (startup, shutdown) |
+| `make proc-logs P=engine` | Follow one process log from `data/emo/` |
+| `make config-deploy` | Recompile `data/ref_data/engine_config.yaml` |
+| `make config-show` | Show the deployed configuration |
+| `make ports` | List the published ports |
+| `make info` | Show the detected engine, compose command and image name |
+| `make clean` | Remove the container and the image |
+| `make clean-data` | Delete `./data` (asks first) |
+
+Flags combine: `make up ZMQ=1 SSH=1 CONFIG=ten-complex PROFILE=mini`.
+
+## Configuration reference (`.env`)
+
+`.env` is created from `.env.example` on the first `make build`/`make up`. It
+is git-ignored, so it is the right place for host-specific choices.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `COMPOSE_PROJECT_NAME` | `edumatcher` | Compose project name |
+| `EDUMATCHER_VERSION` | *(empty)* | PyPI version to install; empty = latest |
+| `WITH_SSH` | `1` | Install `openssh-server` in the image |
+| `EM_CONFIG` | `three-basic` | Bundled example configuration to deploy |
+| `EM_PROFILE` | `default` | `pm-opctl-cli` profile to start |
+| `TZ` | `UTC` | Container timezone — match your trading calendar |
+| `BIND_ADDR` | `127.0.0.1` | Host interface the ports bind to |
+| `SSH_PORT` | `2222` | Host port forwarded to sshd |
+| `IMAGE_NAME` / `IMAGE_TAG` | `edumatcher` / `local` | Image naming |
+| `CONTAINER_NAME` | `edumatcher` | Container name |
+
+**Timezone matters.** The scheduler runs auctions against a market calendar.
+Leaving `TZ=UTC` is fine and predictable; setting `TZ=Europe/Stockholm` makes
+the container agree with your wall clock.
+
+## Building from a development wheel
+
+To containerize an unreleased build instead of a PyPI release:
+
+```bash
+make build DEV=1
+```
+
+That runs `poetry build --format wheel` in the repository root, copies the
+freshest `dist/*.whl` into `container/.wheel/`, and the Dockerfile installs it
+in preference to PyPI. A plain `make build` clears the drop-box, so the next
+build goes back to PyPI without any flag to remember.
+
+Pin a release instead:
+
+```bash
+make build VERSION=0.20.2
+```
+
+## Useful Docker / Podman commands
+
+Every command below works with `docker` or `podman` — substitute whichever you
+use. `make` covers the common cases; these are for when you want to poke at
+the machinery directly.
+
+**Looking around**
+
+```bash
+docker ps                                    # is it running, and healthy?
+docker stats edumatcher                      # live CPU/memory of the container
+docker top edumatcher                        # every pm-* process inside
+docker port edumatcher                       # the published port map
+docker inspect edumatcher | less             # everything, in JSON
+docker logs --tail 50 -f edumatcher          # entrypoint output
+docker image ls edumatcher                   # image size
+docker history edumatcher:local              # where those megabytes went
+```
+
+**Getting in and running things**
+
+```bash
+docker exec -it edumatcher bash              # a shell (this is `make shell`)
+docker exec -it edumatcher pm-opctl-cli list
+docker exec -it edumatcher pm-alf-console --id TRADER01 --verbose
+docker exec edumatcher pm-stats-cli health   # one-shot, no TTY
+docker exec -u root edumatcher ls -l /data
+```
+
+**Moving files**
+
+```bash
+docker cp edumatcher:/data/audit.log ./audit.log
+docker cp ./engine_config.yaml edumatcher:/data/ref_data/
+```
+
+(Or just use `./data` on the host — it is the same directory.)
+
+**Lifecycle**
+
+```bash
+docker compose up -d                         # = make up
+docker compose -f compose.yaml -f compose.zmq.yaml up -d     # = make up ZMQ=1
+docker compose down                          # = make down
+docker compose restart edumatcher
+docker compose build --no-cache              # rebuild ignoring layer cache
+docker compose config                        # the fully merged configuration
+docker restart edumatcher
+docker stop edumatcher && docker start edumatcher
+```
+
+**Podman specifics**
+
+```bash
+podman machine list                          # macOS/Windows: the podman VM
+podman machine start
+podman generate systemd --name edumatcher --new --files   # run it as a service
+podman unshare ls -l data/                   # inspect rootless-mapped files
+```
+
+**Cleaning up**
+
+```bash
+docker compose down --volumes                # also drops any named volumes
+docker rmi edumatcher:local
+docker system df                             # what is using disk
+docker system prune                          # reclaim it (careful)
+```
+
+## Troubleshooting
+
+**`make up` says no compose implementation.**
+Install Docker Compose v2 or `podman-compose`. `make info` shows what was
+detected; `CONTAINER_ENGINE=docker` forces an engine.
+
+**`docker ps` shows `unhealthy`.**
+The health check is a TCP connect to the engine on 5555. If it fails, the
+engine did not start: `make logs`, then `tail data/emo/engine.log`.
+
+**`make health` reports FAIL but everything works.**
+With the stock `default` profile, `index-srv` is probed on `127.0.0.1:5610`
+while `pm-index` actually binds 5558/5559, so that one row is always
+`not responding`. Everything else is a real signal. Fix it for your own setup
+with `pm-opctl-cli init` and correct the `tcp:` line in `data/emo-config.yaml`.
+
+**A port is already in use on the host.**
+Something else is on 5555–5602 or 8080/8081 — often a `pm-*` process you
+started outside the container. Stop it, or change the host side of the mapping
+in `compose.yaml`.
+
+**Host-side bus clients cannot connect on 5555–5557.**
+Those ports only exist with `make up ZMQ=1`. Confirm with `make ports`.
+
+**Configuration changes do not take effect.**
+Processes read the compiled artifact at start. After editing
+`data/ref_data/engine_config.yaml`, run `make config-deploy && make restart`.
+
+**Changing `EM_CONFIG` did nothing.**
+The entrypoint redeploys only when the name differs from the one recorded in
+`data/.container-config`. To force a clean slate: `make down && make clean-data
+&& make up`.
+
+**`make ssh` is refused.**
+`make up SSH=1` must have been used (`docker port edumatcher` should show
+`22/tcp`), `WITH_SSH` must not be `0`, and you need at least one key in
+`~/.ssh/*.pub`. `make logs` reports how many authorized keys it found.
+
+**`podman-compose` chokes on the overlay files.**
+Older versions merge multi-file setups poorly. Put the settings straight into
+`compose.yaml`, or upgrade to `podman compose` (Podman 4.7+).
+
+**Everything is wedged.**
+`make down && make up` recreates the container in seconds; `./data` is kept.
+`make clean-data` starts from an empty exchange.
+
+## Design notes
+
+**One container, many processes.** EduMatcher's engine binds its ZeroMQ bus
+sockets to `127.0.0.1`, so every `pm-*` process has to live in one network
+namespace. Splitting them into one container per process would mean patching
+those bind addresses and turning a teaching system into a distributed
+deployment exercise. One container that behaves like a machine is both simpler
+and closer to how the system is meant to be operated — with `pm-opctl-cli` as
+the process manager, exactly as in the VM.
+
+**Running as root.** The container runs as root, like a VM you `sudo` in. It
+keeps the bind-mounted `./data` free of UID-mapping puzzles across macOS,
+rootless Podman and rootful Docker. It is a sandboxed educational exchange,
+not a production venue; if you want a non-root runtime, add a `USER` to the
+Dockerfile and make sure the UID owning `./data` matches.
+
+**`tini` as PID 1.** `pm-opctl-cli` detaches its children into their own
+session, so PID 1 must reap orphans or the container slowly fills with
+zombies. `tini` does that and forwards `SIGTERM` to the entrypoint, which stops
+the profile cleanly before exiting.
+
+**`restart: unless-stopped`.** The exchange comes back after a host reboot or
+an engine crash, and stays down when you actually asked for it to be down.

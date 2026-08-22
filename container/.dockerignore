@@ -1,0 +1,6 @@
+# The build context is this directory; only the wheel drop-box and the
+# entrypoint need to reach the builder.
+*
+!.wheel
+!.wheel/**
+!entrypoint.sh
