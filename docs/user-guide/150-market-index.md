@@ -699,3 +699,40 @@ indices:
    using [`pm-index-admin-cli`](152-index-admin-cli.md).
 6. Check `data/indexes/<ID>_state.json` after a crash to confirm the divisor
    was persisted. If the file is missing or truncated, use `--reset`.
+
+
+
+## Keeping history - Architecture Overview
+
+Historic values of a market index gets a bit complex as along with the index vaues there is also the need 
+to track included symbols as well as corporate actions.
+ 
+There are **three separate persistence layers** for market index data:
+
+### 1. **Structural Events (JSONL Append-Only Log)**
+- **File**: `history_file` (configured per index)
+- **Manager**: `IndexHistory` class in `history.py`
+- **Content**: Structural/corporate-action events only
+  - `INIT`: Index initialization
+  - `CORP_ACTION`: Splits, dividends, share issuance
+  - `DELIST`: Constituent removal
+  - `ADD_CONSTITUENT`: New constituent addition
+  - `REBALANCE`: Batch share-outstanding updates
+- **Format**: JSON Lines (one record per line)
+- **Access**: Read-only scan from oldest record to requested time range
+
+### 2. **Per-Tick Level History (SQLite)**
+- **Tables**: `index_level_snapshots` and `index_daily_stats`
+- **Manager**: `pm-stats` process (NOT `pm-index`)
+- **Content**: Per-tick level updates, OHLC (Open/High/Low/Close) data
+- **Note**: This is the real home for level-update history
+
+### 3. **Current Index State (JSON File)**
+- **File**: `state_file` (configured per index)
+- **Content**: Latest state snapshot
+  - Divisor value
+  - Last prices for each constituent
+  - Day OHLC summary
+  - Last calculated level
+  - Last update timestamp
+- **Purpose**: Restart recovery (load-on-startup)
