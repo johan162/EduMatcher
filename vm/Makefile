@@ -19,6 +19,8 @@ NAME_FILE := $(SCRIPT_DIR)/.vm-name
 DEFAULT_NAME := ems
 NAME ?= $(DEFAULT_NAME)
 
+SNAPSHOT_NAME := clean
+
 # Every target but 'build' operates on the VM recorded in .vm-name, falling
 # back to NAME/DEFAULT_NAME so a fresh checkout still works before the first
 # build.
@@ -51,8 +53,11 @@ check:
 	@if ! command -v multipass >/dev/null 2>&1; then \
 		echo "ERROR: multipass not found on PATH." >&2; exit 1; fi
 
+exists:
+	@if ! multipass info "$(VM_NAME)" >/dev/null 2>&1; then \
+		echo "ERROR: VM '$(VM_NAME)' does not exist — run 'make build'" >&2; exit 1; fi
+
 info: check
-	@echo "vm:    $(VM_NAME)"
 	@multipass info "$(VM_NAME)" 2>/dev/null || echo "state: not created — run 'make build'"
 
 # --- Build -------------------------------------------------------------
@@ -71,7 +76,16 @@ build: check
 
 # --- Lifecycle -----------------------------------------------------------
 up: check
-	multipass start "$(VM_NAME)"
+	@if ! multipass info "$(VM_NAME)" >/dev/null 2>&1; then \
+		echo "VM does not exist. Will create it now (NAME=$(VM_NAME))"; \
+		${MAKE} build; \
+		echo "VM created. Starting it now."; \
+		multipass start "$(VM_NAME)"; \
+	else \
+		echo "VM exists. Starting it now."; \
+	    multipass start "$(VM_NAME)"; \
+	fi
+
 
 down: check
 	multipass stop "$(VM_NAME)"
@@ -101,3 +115,16 @@ health: check
 clean: check
 	-multipass delete --purge "$(VM_NAME)"
 	@rm -f "$(NAME_FILE)"
+
+# --- Restore snapshot -------------------------------------------------------------
+restore: check
+	@echo "Restoring snapshot '$(SNAPSHOT_NAME)' for VM '$(VM_NAME)'..."
+	@multipass info "$(VM_NAME)" >/dev/null 2>&1 || { echo "ERROR: VM '$(VM_NAME)' does not exist — run 'make build'" >&2; exit 1; }
+	@multipass info "$(VM_NAME)" | grep -q "Snapshots:" || { echo "ERROR: VM '$(VM_NAME)' has no snapshots — run 'make build SNAPSHOT=1'" >&2; exit 1; }
+	@echo "Stopping VM '$(VM_NAME)' before restoring snapshot..."
+	@multipass stop "$(VM_NAME)"
+	@echo "Restoring snapshot '$(SNAPSHOT_NAME)' for VM '$(VM_NAME)'..."
+	@multipass restore -d "$(VM_NAME).$(SNAPSHOT_NAME)"
+	@multipass start "$(VM_NAME)"
+
+# --- EOF -----------------------------------------------------------------
