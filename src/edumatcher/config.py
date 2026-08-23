@@ -37,12 +37,6 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # ZMQ endpoints
 # ---------------------------------------------------------------------------
-ENGINE_PULL_ADDR = "tcp://127.0.0.1:5555"  # engine receives orders here
-ENGINE_PUB_ADDR = "tcp://127.0.0.1:5556"  # engine publishes all events here
-DROP_COPY_PUB_ADDR = (
-    "tcp://127.0.0.1:5557"  # engine drop-copy feed (per-participant fills)
-)
-
 # Index process endpoints
 EDUMATCHER_INDEX_BIND_HOST = os.getenv("EDUMATCHER_INDEX_BIND_HOST", "127.0.0.1")
 EDUMATCHER_ENGINE_HOST = os.getenv("EDUMATCHER_ENGINE_HOST", "127.0.0.1")
@@ -55,6 +49,27 @@ INDEX_PULL_ADDR = f"tcp://{EDUMATCHER_INDEX_BIND_HOST}:{EDUMATCHER_INDEX_PULL_PO
 # Connect-side addresses for clients subscribing/sending to pm-index
 INDEX_PUB_CONNECT_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_INDEX_PUB_PORT}"
 INDEX_PULL_CONNECT_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_INDEX_PULL_PORT}"
+
+# Engine bus endpoints. EDUMATCHER_ENGINE_BIND_HOST controls where pm-engine
+# itself binds these three sockets (default 127.0.0.1, matching every
+# process's existing loopback-only behaviour); EDUMATCHER_ENGINE_HOST controls
+# where every other process — gateways, board, viewer, scheduler, and the
+# rest — connects to reach them, exactly mirroring the index pair above.
+# EDUMATCHER_ENGINE_HOST already exists for the index connect addresses and
+# defaults to 127.0.0.1, so nothing downstream changes value unless one or
+# both variables are set.
+EDUMATCHER_ENGINE_BIND_HOST = os.getenv("EDUMATCHER_ENGINE_BIND_HOST", "127.0.0.1")
+
+ENGINE_PULL_BIND_ADDR = f"tcp://{EDUMATCHER_ENGINE_BIND_HOST}:5555"
+ENGINE_PUB_BIND_ADDR = f"tcp://{EDUMATCHER_ENGINE_BIND_HOST}:5556"
+DROP_COPY_PUB_BIND_ADDR = f"tcp://{EDUMATCHER_ENGINE_BIND_HOST}:5557"
+
+# Connect-side addresses for clients sending to / subscribing from pm-engine
+ENGINE_PULL_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:5555"  # engine receives orders here
+ENGINE_PUB_ADDR = (
+    f"tcp://{EDUMATCHER_ENGINE_HOST}:5556"  # engine publishes all events here
+)
+DROP_COPY_PUB_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:5557"  # engine drop-copy feed (per-participant fills)
 
 # ---------------------------------------------------------------------------
 # Data directory resolution

@@ -33,8 +33,8 @@ import holidays
 import zmq
 
 from edumatcher.config import (
-    ENGINE_PULL_ADDR,
-    ENGINE_PUB_ADDR,
+    ENGINE_PULL_BIND_ADDR,
+    ENGINE_PUB_BIND_ADDR,
     GTC_ORDERS_FILE,
     GTC_COMBOS_FILE,
     BOOK_STATS_FILE,
@@ -533,8 +533,8 @@ class Engine:
             log.info(f"No config file at {path} — running without symbol restrictions.")
 
         try:
-            self.pull_sock = make_puller(ENGINE_PULL_ADDR)
-            self.pub_sock = make_publisher(ENGINE_PUB_ADDR)
+            self.pull_sock = make_puller(ENGINE_PULL_BIND_ADDR)
+            self.pub_sock = make_publisher(ENGINE_PUB_BIND_ADDR)
         except zmq.ZMQError as exc:
             log.error(
                 "FATAL: Cannot bind sockets — %s\n"
@@ -5297,7 +5297,9 @@ class Engine:
         poller = zmq.Poller()
         poller.register(self.pull_sock, zmq.POLLIN)
 
-        log.info(f"Listening on PULL={ENGINE_PULL_ADDR}  PUB={ENGINE_PUB_ADDR}")
+        log.info(
+            f"Listening on PULL={ENGINE_PULL_BIND_ADDR}  PUB={ENGINE_PUB_BIND_ADDR}"
+        )
 
         # Signal handlers only set the stop flag.  Calling _shutdown() directly
         # from a signal handler is unsafe: the handler can interrupt mid-message

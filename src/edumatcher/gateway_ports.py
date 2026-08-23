@@ -8,9 +8,8 @@ Two consumers need the same table and must never disagree about it:
     omitted, the runtime default that section will actually bind.
 
 ``config_show``
-    The port panel shows the same inventory to a human, including the fixed
-    engine sockets and the environment-overridable index sockets that appear
-    nowhere in ``engine_config.yaml``.
+    The port panel shows the same inventory to a human, including the engine
+    and index sockets that appear nowhere in ``engine_config.yaml``.
 
 Adding a gateway therefore means editing one table here, not two tables in
 two packages that drift apart the first time someone forgets the second one.
@@ -84,10 +83,11 @@ DEFAULT_API_GATEWAY_PORT = 8080
 # ---------------------------------------------------------------------------
 # Sockets bound outside the YAML entirely
 # ---------------------------------------------------------------------------
-# Mirrors the module-level constants in edumatcher/config.py.  These cannot be
-# changed without editing source (the engine trio) or exporting an environment
-# variable (the index pair), which is exactly why a viewer must show them:
-# they are invisible in engine_config.yaml.
+# Mirrors the module-level constants in edumatcher/config.py. Ports are fixed
+# source constants; the bind host for both the engine trio and the index pair
+# is overridable via EDUMATCHER_ENGINE_BIND_HOST / EDUMATCHER_INDEX_BIND_HOST.
+# Either way they are invisible in engine_config.yaml, which is exactly why a
+# viewer must show them.
 FIXED_LISTENERS: tuple[FixedListener, ...] = (
     FixedListener(5555, "ZMQ PULL", "pm-engine", "Order intake (CALF)", "fixed"),
     FixedListener(5556, "ZMQ PUB", "pm-engine", "Event + book feed", "fixed"),

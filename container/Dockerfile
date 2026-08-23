@@ -41,7 +41,6 @@ FROM python:${PYTHON_VERSION}-slim-bookworm
 ARG WITH_SSH=1
 
 # procps  — pm-opctl-cli uses pgrep/ps to adopt processes and report uptime/RSS
-# socat   — optional relays for the engine's loopback-bound ZeroMQ sockets
 # tini    — PID 1 that reaps the processes pm-opctl-cli detaches
 # tzdata  — the scheduler and market calendars need a real zoneinfo database
 RUN apt-get update && \
@@ -49,7 +48,6 @@ RUN apt-get update && \
         ca-certificates \
         curl \
         procps \
-        socat \
         tini \
         tzdata && \
     if [ "${WITH_SSH}" = "1" ]; then \

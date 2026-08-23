@@ -124,7 +124,7 @@ Interactive helpers (`pm-alf-console`, `pm-viewer`, `pm-board`,
 |---|---|
 | Base | `python:3.13-slim-bookworm` |
 | EduMatcher | installed with `pip` into `/opt/edumatcher/.venv`, on `PATH` |
-| OS extras | `procps` (pm-opctl-cli uses `pgrep`/`ps`), `socat` (ZeroMQ relays), `tini` (PID 1), `tzdata`, `curl`, `openssh-server` |
+| OS extras | `procps` (pm-opctl-cli uses `pgrep`/`ps`), `tini` (PID 1), `tzdata`, `curl`, `openssh-server` |
 | Data | `/data`, bind-mounted from `./data` |
 | PID 1 | `entrypoint.sh` under `tini` |
 
@@ -136,9 +136,8 @@ On start, `entrypoint.sh`:
 1. creates `/data` and runs `pm-setup --config <EM_CONFIG>` (idempotent —
    an already-deployed configuration is kept unless `EM_CONFIG` changed)
 2. starts `sshd`, if `SSH=1`
-3. starts the ZeroMQ relays, if `ZMQ=1`
-4. runs `pm-opctl-cli start <EM_PROFILE>`
-5. waits, and on `SIGTERM` runs `pm-opctl-cli stop` before exiting
+3. runs `pm-opctl-cli start <EM_PROFILE>`
+4. waits, and on `SIGTERM` runs `pm-opctl-cli stop` before exiting
 
 ## Ports
 
@@ -177,21 +176,11 @@ in `.env` to reach the exchange from other machines on your network.
 ## Exposing the ZeroMQ bus
 
 The gateways bind `0.0.0.0` and need nothing special. The engine's three bus
-sockets are different: `edumatcher.config` hardcodes them to
-`tcp://127.0.0.1:5555-5557` with no override, so a published port would map to
-an address nothing listens on.
-
-`ZMQ=1` solves this without touching EduMatcher: the entrypoint starts three
-`socat` forwarders that listen on the *container's own* address and forward
-each connection to loopback. ZMTP is a plain TCP byte stream, so a
-per-connection relay is completely transparent to it — the handshake and every
-frame pass through unchanged. Binding the container IP rather than `0.0.0.0`
-is what lets the relay and the engine's own loopback listener share a port
-number.
-
-`pm-index` and `pm-log-srv` need no relay: the index honours
-`EDUMATCHER_INDEX_BIND_HOST` (set to `0.0.0.0` by the overlay) and the log
-server already binds `0.0.0.0`.
+sockets and `pm-index`'s two default to `127.0.0.1` and need to be told
+otherwise: `ZMQ=1` sets `EDUMATCHER_ENGINE_BIND_HOST` and
+`EDUMATCHER_INDEX_BIND_HOST` to `0.0.0.0`, which is honoured directly by
+`edumatcher.config` — no relay process involved. `pm-log-srv` needs no
+override; it already binds `0.0.0.0` unconditionally.
 
 ```bash
 make up ZMQ=1
@@ -200,7 +189,7 @@ make up ZMQ=1
 pm-dc-spy --host 127.0.0.1 --port 5557        # engine drop-copy feed
 ```
 
-Keep it off unless you need it — every relayed port is one more way into a
+Keep it off unless you need it — every published port is one more way into a
 running exchange.
 
 ## SSH access
@@ -492,12 +481,14 @@ Older versions merge multi-file setups poorly. Put the settings straight into
 ## Design notes
 
 **One container, many processes.** EduMatcher's engine binds its ZeroMQ bus
-sockets to `127.0.0.1`, so every `pm-*` process has to live in one network
-namespace. Splitting them into one container per process would mean patching
-those bind addresses and turning a teaching system into a distributed
-deployment exercise. One container that behaves like a machine is both simpler
-and closer to how the system is meant to be operated — with `pm-opctl-cli` as
-the process manager, exactly as in the VM.
+sockets to `127.0.0.1` by default (overridable via `EDUMATCHER_ENGINE_BIND_HOST`,
+see [Exposing the ZeroMQ bus](#exposing-the-zeromq-bus)), so nothing forces
+every `pm-*` process into one network namespace anymore. This deployment still
+keeps them together: one container that behaves like a machine is simpler and
+closer to how the system is meant to be operated — with `pm-opctl-cli` as the
+process manager, exactly as in the VM — and splitting it up would turn a
+teaching system into a distributed deployment exercise for no benefit this
+setup needs.
 
 **Running as root.** The container runs as root, like a VM you `sudo` in. It
 keeps the bind-mounted `./data` free of UID-mapping puzzles across macOS,
