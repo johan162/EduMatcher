@@ -29,6 +29,10 @@ ifeq ($(VM_NAME),)
 VM_NAME := $(NAME)
 endif
 
+# Matches mknode.sh's own default: $HOME/.ssh/<vm-name>_ed25519[.pub].
+# Override with SSH_KEY=<path> if the VM was built with 'mknode.sh --ssh-key'.
+SSH_KEY ?= $(HOME)/.ssh/$(VM_NAME)_ed25519
+
 .PHONY: help check build up down restart shell ssh status health info clean
 
 help:
@@ -40,8 +44,8 @@ help:
 	@echo "  make up                 Start the VM"
 	@echo "  make down               Stop the VM"
 	@echo "  make restart            Restart the VM"
-	@echo "  make shell              Interactive shell inside the VM"
-	@echo "  make ssh                Log in over ssh as 'ubuntu'"
+	@echo "  make shell              Interactive shell inside the VM (multipass shell)"
+	@echo "  make ssh                Log in over ssh as 'ubuntu' (SSH_KEY=... to override the key)"
 	@echo "  make status             pm-opctl-cli list — one row per process"
 	@echo "  make health             pm-opctl-cli health — exit code 0 when all OK"
 	@echo "  make info               Show the VM name and multipass state"
@@ -98,11 +102,15 @@ shell: check
 	multipass shell "$(VM_NAME)"
 
 ssh: check
+	@if [ ! -f "$(SSH_KEY)" ]; then \
+		echo "ERROR: SSH private key not found: $(SSH_KEY)" >&2; \
+		echo "       Pass SSH_KEY=<path> if the VM was built with 'mknode.sh --ssh-key <path>'." >&2; \
+		exit 1; fi
 	@ip="$$(multipass info "$(VM_NAME)" | grep IPv4 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)"; \
 	if [ -z "$$ip" ]; then \
 		echo "ERROR: could not determine the IP of '$(VM_NAME)' — is it running? ('make up')" >&2; \
 		exit 1; fi; \
-	ssh -o StrictHostKeyChecking=accept-new "ubuntu@$$ip"
+	ssh -i "$(SSH_KEY)" -o StrictHostKeyChecking=accept-new "ubuntu@$$ip"
 
 # --- Observation -------------------------------------------------------------
 status: check
