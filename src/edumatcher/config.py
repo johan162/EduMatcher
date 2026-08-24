@@ -13,6 +13,7 @@ EDUMATCHER_DATA_DIR
       1. ``EDUMATCHER_DATA_DIR`` environment variable
       2. Source-tree default: ``<repo>/src/data/``  (when running from a clone)
       3. Installed default:   ``~/.local/share/edumatcher``
+      4. ``./data`` relative to the current working directory, if it exists
 
 The engine configuration file is deliberately *not* separately configurable —
 it always lives at ``<DATA_DIR>/ref_data/engine_config.yaml``. See
@@ -29,9 +30,29 @@ End-user mode (pipx / pip)
       2. Edit that ``engine_config.yaml``.
       3. Export ``EDUMATCHER_DATA_DIR`` if you want a location other than the
          default; every process follows it together.
+
+Host/container split
+    A display tool (pm-orders, pm-board, pm-ticker, pm-viewer) is often run
+    on the host while the exchange itself runs in a container, sharing a
+    volume for ``data/``. The container's own ``EDUMATCHER_DATA_DIR`` (or its
+    source-tree/installed default) is a container-local path that usually
+    doesn't exist on the host, even though the same data is reachable at some
+    other path via the shared volume. Priority tiers 1-3 above are tried
+    first and used as-is when they resolve to a directory that actually
+    exists — nothing changes for a normal single-machine run. Only when
+    NONE of them exist does tier 4 kick in: ``./data`` under the current
+    directory, on the theory that a host process is typically launched from
+    the repo/deploy root where the shared volume is mounted. If tier 4 also
+    comes up empty, the tier-1..3 result is kept (so every path stays a
+    valid, if missing, ``Path``) and a one-line warning is printed to
+    stderr — deliberately not through the ``log.warning()``/pm-log-srv
+    machinery other warnings use here, since that can be silently routed
+    away from the terminal the operator is actually watching, defeating the
+    point of a warning about a local path problem.
 """
 
 import os
+import sys
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -85,10 +106,42 @@ _IN_SOURCE_TREE: bool = _src_dir.name == "src"
 def _resolve_data_dir() -> Path:
     _env = os.environ.get("EDUMATCHER_DATA_DIR")
     if _env:
-        return Path(_env).expanduser().resolve()
-    if _IN_SOURCE_TREE:
-        return _src_dir / "data"
-    return Path("~/.local/share/edumatcher").expanduser()
+        _candidate = Path(_env).expanduser().resolve()
+        _source = "EDUMATCHER_DATA_DIR"
+    elif _IN_SOURCE_TREE:
+        _candidate = _src_dir / "data"
+        _source = "source-tree default"
+    else:
+        _candidate = Path("~/.local/share/edumatcher").expanduser()
+        _source = "installed default"
+
+    if _candidate.exists():
+        return _candidate
+
+    # None of the normal tiers point at a directory that actually exists on
+    # THIS host — e.g. a display tool run on the host side of a
+    # host/container split, where EDUMATCHER_DATA_DIR (if set at all) is a
+    # container-local path. Try the current working directory as a last
+    # resort before giving up, since that's typically where a host process
+    # sharing the container's data volume is launched from.
+    _cwd_candidate = Path.cwd() / "data"
+    if _cwd_candidate.exists():
+        print(
+            f"[edumatcher] WARNING: data directory from {_source} "
+            f"({_candidate}) not found; using ./data found in the current "
+            f"directory ({_cwd_candidate}) instead.",
+            file=sys.stderr,
+        )
+        return _cwd_candidate
+
+    print(
+        f"[edumatcher] WARNING: data directory from {_source} "
+        f"({_candidate}) not found, and no ./data in the current directory "
+        f"either. Using {_candidate} anyway — set EDUMATCHER_DATA_DIR to "
+        "the correct path if this is wrong.",
+        file=sys.stderr,
+    )
+    return _candidate
 
 
 DATA_DIR = _resolve_data_dir()

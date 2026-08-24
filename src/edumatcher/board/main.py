@@ -36,10 +36,12 @@ import argparse
 import json
 import logging
 import signal
+import sys
 import threading
 import time
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import zmq
@@ -99,7 +101,57 @@ _FLAT = "white"
 _DEFAULT_TICK_DECIMALS = 2
 
 
-def _load_tick_decimals() -> dict[str, int]:
+def _resolve_compiled_config_path(
+    warnings: list[str],
+) -> Path | None:
+    """Find engine_config.json, tolerating a host/container split.
+
+    ``COMPILED_CONFIG_FILE`` (imported from edumatcher.config) is the
+    normally-correct answer — it already follows ``EDUMATCHER_DATA_DIR``
+    when set. But pm-board is commonly run on a host that connects to an
+    exchange running in a container: the two share a data volume, yet the
+    *path* each side resolves for it can differ (a container-local
+    EDUMATCHER_DATA_DIR the host doesn't have, or none set on the host at
+    all). When the normally-resolved path doesn't exist, fall back to
+    ``./data/ref_data/engine_config.json`` under the current directory —
+    where a host process sharing that volume is typically launched from —
+    and warn either way so the operator knows which file (if any) is
+    actually feeding the price columns' precision.
+
+    Every warning is appended (not printed) to ``warnings`` — this runs at
+    import time, before logging is configured, so printing directly here
+    would only ever reach stderr. The caller prints immediately (so the
+    warning is visible right away, before the Live UI takes over the
+    terminal) and replays the same messages through the logger once
+    _configure_logging() has wired up the pm-log-srv client, so both the
+    operator's terminal and the central log get a record.
+
+    Returns ``None`` when neither candidate exists.
+    """
+    if COMPILED_CONFIG_FILE.exists():
+        return COMPILED_CONFIG_FILE
+
+    cwd_candidate = Path.cwd() / "data" / "ref_data" / "engine_config.json"
+    if cwd_candidate.exists():
+        warnings.append(
+            f"engine config not found at {COMPILED_CONFIG_FILE} (checked "
+            f"EDUMATCHER_DATA_DIR / the usual defaults); using "
+            f"{cwd_candidate} found in the current directory instead."
+        )
+        return cwd_candidate
+
+    warnings.append(
+        f"engine config not found at {COMPILED_CONFIG_FILE}, and no "
+        "./data/ref_data/engine_config.json in the current directory "
+        f"either. Prices will fall back to {_DEFAULT_TICK_DECIMALS} "
+        "decimals for every symbol until this is fixed — set "
+        "EDUMATCHER_DATA_DIR to the exchange's data directory, or run "
+        "pm-board from a directory containing ./data/ref_data/."
+    )
+    return None
+
+
+def _load_tick_decimals() -> tuple[dict[str, int], list[str]]:
     """Symbol -> tick_decimals, read from the compiled engine config.
 
     Mirrors pm-orders' loader of the same name: book.* and trade.executed
@@ -113,31 +165,51 @@ def _load_tick_decimals() -> dict[str, int]:
     schema/validation for far more than a display client needs.
 
     Missing file or malformed content is not fatal: symbols just fall back
-    to ``_DEFAULT_TICK_DECIMALS`` and prices still render.
+    to ``_DEFAULT_TICK_DECIMALS`` and prices still render. Returns the
+    decimals map alongside any warnings collected along the way — see
+    _resolve_compiled_config_path for why these aren't logged directly.
     """
+    warnings: list[str] = []
+    config_path = _resolve_compiled_config_path(warnings)
+    if config_path is None:
+        return {}, warnings  # already warned above — nothing left to try
     try:
-        with open(COMPILED_CONFIG_FILE, encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             compiled = json.load(f)
         symbols = compiled.get("engine", {}).get("symbols", {})
         return {
             sym.upper(): int(cfg["tick_decimals"])
             for sym, cfg in symbols.items()
             if isinstance(cfg, dict) and "tick_decimals" in cfg
-        }
+        }, warnings
     except Exception as exc:  # pragma: no cover - defensive
-        log.warning(
-            "could not read tick_decimals from %s: %s "
-            "(prices will fall back to %d decimals)",
-            COMPILED_CONFIG_FILE,
-            exc,
-            _DEFAULT_TICK_DECIMALS,
+        warnings.append(
+            f"could not read tick_decimals from {config_path}: {exc} "
+            f"(prices will fall back to {_DEFAULT_TICK_DECIMALS} decimals)"
         )
-        return {}
+        return {}, warnings
+
+
+def _log_startup_warnings(warnings: list[str]) -> None:
+    """Send collected startup warnings to the logger.
+
+    The stderr copy already happened immediately at import time (see below
+    _load_tick_decimals's call site), before logging was configured. Call
+    this once from main(), right after _configure_logging() has wired up
+    the pm-log-srv-backed handler, so the same messages also reach the
+    central log."""
+    for msg in warnings:
+        log.warning(msg)
 
 
 # Loaded once at import time — same convention as pm-orders. tick_decimals is
 # deployed configuration, not something that changes while pm-board runs.
-_TICK_DECIMALS: dict[str, int] = _load_tick_decimals()
+# The stderr copy of any warning happens immediately (print() doesn't need
+# logging configured); the log-server copy is deferred to main(), see
+# _startup_warnings below.
+_TICK_DECIMALS, _startup_warnings = _load_tick_decimals()
+for _msg in _startup_warnings:
+    print(f"[pm-board] WARNING: {_msg}", file=sys.stderr)
 
 
 def _format_price(value: Any, symbol: str | None) -> str:
@@ -703,6 +775,7 @@ def main() -> None:
     args = parser.parse_args()
     log_level = _configure_logging(args)
     log.info("starting pm-board with log level %s", logging.getLevelName(log_level))
+    _log_startup_warnings(_startup_warnings)
     MarketBoard(rows_per_page=args.rows, interval=args.interval).run()
 
 
