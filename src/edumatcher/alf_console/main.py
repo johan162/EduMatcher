@@ -473,7 +473,28 @@ class Gateway:
         # Give sockets time to connect and SUB filters to propagate.
         log.info("starting gateway authentication gateway_id=%s", self.gateway_id)
         time.sleep(0.1)
-        self.push_sock.send_multipart(make_gateway_connect_msg(self.gateway_id))
+        # push_sock is IMMEDIATE + non-blocking (see make_pusher): a ZMQ
+        # connect() is asynchronous, and this send can fire before the
+        # ZMTP handshake with the engine has completed, raising Again. The
+        # fixed sleep above covers same-host loopback but not a host that
+        # reaches the engine over a slower hop (e.g. connecting into a
+        # container from outside it), so retry a few times rather than
+        # failing on the first race.
+        connect_msg = make_gateway_connect_msg(self.gateway_id)
+        handshake_deadline = time.monotonic() + timeout_sec
+        while True:
+            try:
+                self.push_sock.send_multipart(connect_msg)
+                break
+            except zmq.Again:
+                if time.monotonic() >= handshake_deadline:
+                    log.error(
+                        "gateway authentication failed to reach engine "
+                        "gateway_id=%s (connection not established)",
+                        self.gateway_id,
+                    )
+                    return False
+                time.sleep(0.1)
 
         poller = zmq.Poller()
         poller.register(self.sub_sock, zmq.POLLIN)
