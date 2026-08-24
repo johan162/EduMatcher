@@ -165,6 +165,118 @@ def test_prune_removes_rows_older_than_threshold(
         check.close()
 
 
+def test_rewrite_before_shorthand_converts_dash_nnn_after_tail() -> None:
+    argv = ["--db", "x.db", "tail", "-50", "--process", "pm-a"]
+    assert log_cli_main._rewrite_before_shorthand(argv) == [
+        "--db",
+        "x.db",
+        "tail",
+        "--before",
+        "50",
+        "--process",
+        "pm-a",
+    ]
+
+
+def test_rewrite_before_shorthand_ignores_tokens_before_tail_subcommand() -> None:
+    # A "-50"-shaped token before the "tail" subcommand token must not be
+    # touched (e.g. it could be part of --db's value in a pathological case,
+    # or simply not related to tail at all).
+    argv = ["-50", "tail"]
+    assert log_cli_main._rewrite_before_shorthand(argv) == argv
+
+
+def test_rewrite_before_shorthand_rejects_zero_and_leading_zero() -> None:
+    argv = ["tail", "-0"]
+    assert log_cli_main._rewrite_before_shorthand(argv) == ["tail", "-0"]
+    argv2 = ["tail", "-007"]
+    assert log_cli_main._rewrite_before_shorthand(argv2) == ["tail", "-007"]
+
+
+def test_rewrite_before_shorthand_rejects_out_of_range_four_digits() -> None:
+    argv = ["tail", "-1000"]
+    assert log_cli_main._rewrite_before_shorthand(argv) == ["tail", "-1000"]
+
+
+def test_tail_before_shorthand_prints_backfill_then_stops(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    db = tmp_path / "log.db"
+    conn = _make_db(db)
+    try:
+        for i in range(5):
+            _seed_event(conn, process="pm-a", level="INFO", message=f"m{i}")
+    finally:
+        conn.close()
+
+    def _stop_after_first_sleep(_seconds: float) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(time, "sleep", _stop_after_first_sleep)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["pm-log-cli", "--db", str(db), "tail", "-3"],
+    )
+
+    log_cli_main.main()
+    out = capsys.readouterr().out
+    # Only the last 3 of the 5 seeded rows should appear in the backfill.
+    assert "m0" not in out
+    assert "m1" not in out
+    assert "m2" in out
+    assert "m3" in out
+    assert "m4" in out
+
+
+def test_tail_before_flag_long_form_also_works(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    db = tmp_path / "log.db"
+    conn = _make_db(db)
+    try:
+        for i in range(3):
+            _seed_event(conn, process="pm-a", level="INFO", message=f"m{i}")
+    finally:
+        conn.close()
+
+    def _stop(_seconds: float) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(time, "sleep", _stop)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["pm-log-cli", "--db", str(db), "tail", "--before", "2"],
+    )
+
+    log_cli_main.main()
+    out = capsys.readouterr().out
+    assert "m0" not in out
+    assert "m1" in out
+    assert "m2" in out
+
+
+def test_tail_before_out_of_range_via_long_flag_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    db = tmp_path / "log.db"
+    conn = _make_db(db)
+    conn.close()
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["pm-log-cli", "--db", str(db), "tail", "--before", "1000"],
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        log_cli_main.main()
+    assert excinfo.value.code == 2
+    err = capsys.readouterr().err
+    assert "--before/-NNN must be between 1 and 999" in err
+
+
 def test_query_missing_database_fails_with_actionable_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
