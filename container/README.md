@@ -7,7 +7,7 @@ bus. Unlike the VM it survives a laptop suspend and comes with the correct
 clock.
 
 ```bash
-make build     # build the image (EduMatcher from PyPI)
+make build     # build the image (from a freshly built local wheel)
 make up        # start the exchange
 make shell     # log in and look around
 make down      # stop it
@@ -302,7 +302,7 @@ make restart
 
 | Target | Does |
 |---|---|
-| `make build` | Build the image. `VERSION=0.20.2` pins a PyPI release, `DEV=1` uses a local wheel |
+| `make build` | Build the image from a freshly built local wheel. `PYPI=1` installs latest PyPI instead; `VERSION=0.20.2` pins a PyPI release |
 | `make up` | Start the exchange. `CONFIG=`, `PROFILE=`, `ZMQ=1`, `SSH=1` |
 | `make down` | Stop and remove the container; `./data` is kept |
 | `make restart` | Restart the container (re-runs the entrypoint) |
@@ -344,24 +344,34 @@ is git-ignored, so it is the right place for host-specific choices.
 Leaving `TZ=UTC` is fine and predictable; setting `TZ=Europe/Stockholm` makes
 the container agree with your wall clock.
 
-## Building from a development wheel
+## Building from PyPI instead of local source
 
-To containerize an unreleased build instead of a PyPI release:
+`make build` (no flags) is the default and builds from your local source
+checkout: it runs `poetry build --format wheel` in the repository root,
+copies the freshest `dist/*.whl` into `container/.wheel/`, and the
+Dockerfile installs it. Every plain rebuild picks up whatever you've
+changed locally, including uncommitted changes — there's no flag to
+remember for that to happen.
 
-```bash
-make build DEV=1
-```
-
-That runs `poetry build --format wheel` in the repository root, copies the
-freshest `dist/*.whl` into `container/.wheel/`, and the Dockerfile installs it
-in preference to PyPI. A plain `make build` clears the drop-box, so the next
-build goes back to PyPI without any flag to remember.
-
-Pin a release instead:
+To containerize a released build instead:
 
 ```bash
-make build VERSION=0.20.2
+make build PYPI=1        # latest PyPI release
+make build VERSION=0.20.2  # a specific pinned release
 ```
+
+Either form clears `container/.wheel/` first, so a stale local wheel never
+shadows the PyPI install. `VERSION=` alone (without `PYPI=1`) also goes to
+PyPI — pinning a version only makes sense against a release, so it implies
+`PYPI=1`.
+
+`DEV=1` is still accepted for anyone's existing muscle memory or scripts,
+but it's a no-op now — building from local source is already the default.
+
+**If a rebuilt container doesn't seem to reflect a source change**, this
+build-source selection is the first thing to check — confirm you didn't
+pass `PYPI=1`/`VERSION=` by accident (e.g. left over in your shell history)
+when you meant to build from local source.
 
 ## Useful Docker / Podman commands
 
@@ -459,6 +469,24 @@ Those ports only exist with `make up ZMQ=1`. Confirm with `make ports`.
 **Configuration changes do not take effect.**
 Processes read the compiled artifact at start. After editing
 `data/ref_data/engine_config.yaml`, run `make config-deploy && make restart`.
+
+**A source code change does not take effect after `make build`.**
+Confirm the build actually used local source and not a PyPI release —
+`PYPI=1` or `VERSION=` (even one left over from a previous invocation in
+your shell history) makes `make build` skip your local checkout entirely.
+The build log's first line says which path was taken
+(`building wheel from the repository checkout` vs. `building from PyPI`).
+A quick way to confirm the *installed* package matches your source: `make
+shell`, then `python3 -c "import edumatcher; print(edumatcher.__file__)"`
+and check whichever module you changed for the expected content, or look
+for an `ImportError` on a name you just added — that means the running
+container is still on an old release.
+
+**`make build` fails because `poetry` is not installed.**
+The default build path runs `poetry build --format wheel` in the repo
+root. If you don't have Poetry set up and just want a released version,
+use `make build PYPI=1` (or `VERSION=x.y.z`) instead — those don't need
+Poetry at all.
 
 **Changing `EM_CONFIG` did nothing.**
 The entrypoint redeploys only when the name differs from the one recorded in
