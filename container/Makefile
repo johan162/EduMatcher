@@ -199,9 +199,12 @@ config-show: check
 
 # --- Cleanup ---------------------------------------------------------------
 clean: check
-	-$(DC) down
-	-$(CONTAINER_ENGINE) rmi $(IMAGE_NAME):$(IMAGE_TAG)
+	-@$(DC) down 2>/dev/null || true
+	-@$(CONTAINER_ENGINE) rmi $(IMAGE_NAME):$(IMAGE_TAG) 2>/dev/null || true
 
 clean-data:
 	@read -p "Delete ./data and every trade, log and database in it? [y/N] " ans; \
 	if [ "$$ans" = "y" ]; then rm -rf data && echo "data/ removed"; else echo "kept"; fi
+
+clean-all: clean clean-data
+	@echo "Cleaned all."
