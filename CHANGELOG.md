@@ -1,3 +1,39 @@
+## [v0.20.4] - 2026-08-24
+
+Release Type: minor
+
+### 📋 Summary
+This release introduces stronger operator controls and visibility for order-book diagnostics, expands container/network deployment support, and improves operational tooling across engine-adjacent processes. It also brings broad documentation and test coverage updates for the new workflows.
+
+### ✨ Additions
+- Added price-level order composition support, including new ADMIN-facing command flows for inspecting per-order makeup at a symbol or specific price level
+- Added command-client and CLI support for the new order-inspection flows used by operator tooling
+- Added container network guidance and bind/connect deployment documentation for containerized exchange operation
+- Added generated and spec-level order message definitions needed for the new command and engine paths
+
+### 🚀 Improvements
+- Improved board, viewer, ticker, and orders process behavior around startup/runtime handling for more reliable operator visibility
+- Improved operational script behavior and CLI ergonomics in pm-emo and related utilities
+- Improved gateway port and configuration handling used by containerized and local workflows
+- Improved log CLI and command console behavior for day-to-day exchange operations
+
+### 🐛 Bug Fixes
+- Fixed command and engine handling gaps around order-level inspection and acknowledgement flow
+- Fixed runtime edge cases in board/order processing paths that could degrade live monitoring output
+- Fixed container setup and entrypoint handling issues affecting repeatable local startup
+
+### 📚 Documentation
+- Added and updated User Guide sections for exchange commands, process topology, and message-reference coverage of the new order-inspection behavior
+- Updated all process arguments to cover all available options in current release
+- Added developer container/network documentation and expanded VM/runtime guidance
+- Updated training and getting-started content to reflect the current container and operator workflows
+
+### 🛠 Internal
+- Added extensive tests for engine handlers, commands, orders runtime, log CLI, and UI/engine gap scenarios
+- Added dedicated tests for price-level order inspection and related command interfaces
+- Updated project metadata and dependency/config wiring needed by the new message and command surface
+
+
 ## [v0.20.3] - 2026-08-22
 
 Release Type: minor
