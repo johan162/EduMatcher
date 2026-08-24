@@ -57,7 +57,9 @@ from typing import Any
 
 import zmq
 from prompt_toolkit import PromptSession
+from prompt_toolkit.filters import completion_is_selected
 from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout as pt_patch_stdout
 
 from edumatcher.cli_version import add_version_argument
@@ -265,6 +267,32 @@ def _configure_logging(args: argparse.Namespace) -> int:
     )
     logging.basicConfig(level=level, format=_LOG_FORMAT, handlers=[handler])
     return int(level)
+
+
+def _completion_key_bindings() -> KeyBindings:
+    """Make Enter accept a highlighted completion instead of submitting.
+
+    prompt_toolkit's default Enter binding does both at once when a
+    completion menu is open: it applies the highlighted completion *and*
+    accepts the whole line, in the same keypress. For a command line built
+    up across several Tab-completions (SYM=, then SIDE=, then TYPE=, ...)
+    that means one Enter can fire an order before the line is finished.
+    This overrides Enter, while a completion is selected, to only close the
+    menu and insert the choice — a second, separate Enter is then needed to
+    submit, matching the behaviour of a normal shell completion menu.
+    """
+    bindings = KeyBindings()
+
+    @bindings.add("enter", filter=completion_is_selected)
+    def _accept_completion_not_line(event: Any) -> None:
+        buf = event.current_buffer
+        state = buf.complete_state
+        if state is not None and state.current_completion is not None:
+            buf.apply_completion(state.current_completion)
+        else:
+            buf.cancel_completion()
+
+    return bindings
 
 
 class Gateway:
@@ -1546,6 +1574,7 @@ class Gateway:
             complete_while_typing=False,  # only complete on Tab
             style=PROMPT_STYLE,
             mouse_support=False,
+            key_bindings=_completion_key_bindings(),
         )
         prompt_str = [("class:prompt", f"[{self.gateway_id}]> ")]
 
