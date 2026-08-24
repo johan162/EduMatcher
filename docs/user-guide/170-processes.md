@@ -340,7 +340,7 @@ process's own `config.py`.
 The heart of the system — receives orders, matches them, publishes events.
 
 ```bash
-pm-engine [-v|-vv] [--log-level LEVEL] [-q]
+pm-engine [-v|-vv] [--log-level LEVEL] [-q] [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
 **Startup options:**
@@ -350,6 +350,10 @@ pm-engine [-v|-vv] [--log-level LEVEL] [-q]
 | `--log-level`       | `WARNING`  | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`       |
 | `-v` / `--verbose`  | off        | Increase log verbosity (`-v` → `INFO`: startup/lifecycle messages; `-vv` → `DEBUG`: per-order/per-trade detail) |
 | `-q` / `--quiet`    | off        | Explicit `WARNING` (same as the default)                                |
+| `--log-target`      | `server`   | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`        | none       | Operational log file path — required when `--log-target file`          |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`         | —          | Print version and exit                                                  |
 
 See [Running the Engine → Logging levels](040-running-the-exchange.md#logging-levels)
 for the full flag reference and example output.
@@ -443,6 +447,10 @@ pm-alf-console --id <GW_ID>
 | `--log-level`     | No       | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`| No       | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
 | `-q` / `--quiet`  | No       | Reduce output to warnings/errors                      |
+| `--log-target`    | No       | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` (default `server`) |
+| `--log-file`      | No       | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | No | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable (default `30` from config) |
+| `--version`       | No       | Print version and exit                                |
 
 **Expected runtime input arguments:**
 
@@ -519,6 +527,10 @@ pm-alf-gwy [--bind 0.0.0.0] [--port 5565] [--engine-host HOST] [--log-level LEVE
 | `--log-level`     | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`| off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
 | `-q` / `--quiet`  | off                     | Reduce output to warnings/errors                      |
+| `--log-target`    | `server`                | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`      | none                    | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`       | —                       | Print version and exit                                |
 
 **Expected runtime input arguments:**
 
@@ -586,19 +598,27 @@ Live terminal view of a single symbol's order book. Draws a full-screen
 bordered box on the alternate terminal buffer that repaints cleanly on resize.
 
 ```bash
-pm-viewer --symbol AAPL [--depth N] [--db data/stats.db]
+pm-viewer --symbol AAPL [--depth N] [--db data/stats.db] \
+  [--text-color COLOR] [--zebra-lines] [--zebra-lines-color COLOR]
 ```
 
 **Startup options:**
 
-| Flag              | Default          | Description                                                             |
-|-------------------|------------------|-------------------------------------------------------------------------|
-| `--symbol` / `-s` | required         | Symbol to watch                                                         |
-| `--depth` / `-d`  | fit to terminal  | Max price levels to display per side (default: fills available height)  |
-| `--db`            | `data/stats.db`  | Stats SQLite DB — seeds session OHLC and previous-close at startup      |
-| `--log-level`     | `WARNING`        | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`     |
-| `-v` / `--verbose`| off              | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                     |
-| `-q` / `--quiet`  | off              | Reduce output to warnings/errors                                        |
+| Flag                   | Default          | Description                                                             |
+|------------------------|------------------|--------------------------------------------------------------------------|
+| `--symbol` / `-s`      | required         | Symbol to watch                                                         |
+| `--depth` / `-d`       | fit to terminal  | Max price levels to display per side (default: fills available height)  |
+| `--db`                 | `data/stats.db`  | Stats SQLite DB — seeds session OHLC and previous-close at startup      |
+| `--text-color`         | `white`          | Body text color for the order book tables — `#rrggbb` hex or a Rich color name |
+| `--zebra-lines`        | off              | Shade every second row of the Bids/Asks/Trades tables with a background tint |
+| `--zebra-lines-color`  | `grey19`         | Background tint used by `--zebra-lines` — `#rrggbb` hex or a Rich color name; has no effect unless `--zebra-lines` is given |
+| `--log-level`          | `WARNING`        | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`     |
+| `-v` / `--verbose`     | off              | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                     |
+| `-q` / `--quiet`       | off              | Reduce output to warnings/errors                                        |
+| `--log-target`         | `server`         | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`           | none             | Operational log file path — required when `--log-target file`          |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`            | —                | Print version and exit                                                  |
 
 **Expected runtime input arguments:**
 
@@ -615,6 +635,15 @@ None.
     Iceberg orders only show their `displayed_qty` (the visible peak) in the viewer.
     The hidden quantity is completely invisible — this is by design and demonstrates the
     privacy feature of iceberg orders.
+
+!!! tip "Colors on a dark terminal"
+    Body text in the Bids/Asks/Trades tables defaults to `white`; override it with
+    `--text-color` if that doesn't fit your terminal's theme (e.g. a light-background
+    profile). Alternating-row shading is off by default and opt-in via `--zebra-lines`,
+    which tints every second row with a background color (default `grey19`, a dark grey)
+    without changing that row's text color — customize it with `--zebra-lines-color`.
+    Both color options accept a `#rrggbb` hex code or any
+    [Rich color name](https://rich.readthedocs.io/en/stable/appendix/colors.html).
 
 Run multiple viewers simultaneously for different symbols:
 
@@ -644,16 +673,21 @@ pm-viewer --symbol TSLA
 Live cross-gateway view of all orders in the system.
 
 ```bash
-pm-orders [--gateway GW01]
+pm-orders [--gateway GW01] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
 
-| Flag               | Default | Description                |
-|--------------------|---------|----------------------------|
-| `--gateway` / `-g` | (all)   | Filter to a single gateway |
-
-No `--log-level`, `-v`, or `-q` flags — `pm-orders` has no configurable logging.
+| Flag               | Default   | Description                |
+|--------------------|-----------|----------------------------|
+| `--gateway` / `-g` | (all)     | Filter to a single gateway |
+| `--log-level`      | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off       | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet`   | off       | Reduce output to warnings/errors |
+| `--log-target`     | `server`  | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`       | none      | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`        | —         | Print version and exit     |
 
 **Expected runtime input arguments:**
 
@@ -696,6 +730,7 @@ pm-audit [--audit-log-file data/audit.log] [--terminal] [--buffer-size 100] [--f
 | `--log-target`        | `server`         | Where operational log records go: `server` (auto-detected), `stdout`, or `file` |
 | `--log-file`          | none             | Operational log file path — required when `--log-target file` |
 | `--log-failover-timeout` | 30 (from config) | Seconds to wait before falling back to a local log file if `pm-log-srv` becomes unreachable |
+| `--version`           | —                | Print version and exit                                        |
 
 **Expected runtime input arguments:**
 
@@ -766,6 +801,7 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 | `--format` | `table` | Output format: `table`, `json`, or `csv` |
 | `--no-header` | off | Suppress header row in CSV output |
 | `--use-index PATH` | auto-detected | Path to SQLite index file (auto-detected from `--log-dir` when not specified; ignored for commands that don't support it) |
+| `--version` | — | Print version and exit |
 
 **Subcommands:**
 
@@ -793,7 +829,8 @@ pm-audit-cli [--log-file data/audit.log] [--log-dir PATH] [--format table|json|c
 SQLite-backed clearing writer for P&L and position state.
 
 ```bash
-pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interval SEC] [--print-every N] [--retention-days N] [--timezone TZ] [--sql-trace] [--log-level LEVEL] [-v|-vv] [-q]
+pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interval SEC] [--print-every N] [--retention-days N] [--timezone TZ] [--sql-trace] [--log-level LEVEL] [-v|-vv] [-q] \
+  [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
 **Startup options:**
@@ -811,6 +848,10 @@ pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interva
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `--log-target` | `server` | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file` | none | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version` | — | Print version and exit |
 
 `pm-clearing-cli` global options include `--raw-output` to disable display
 normalization and print raw tick-unit values for price-derived fields.
@@ -864,6 +905,7 @@ output, and exits.
 | `--format` | `table` | Output format: `table`, `json`, or `csv` |
 | `--no-header` | off | Suppress header row in CSV output |
 | `--raw-output` | off | Disable tick-decimal normalization and emit raw tick-unit values |
+| `--version` | — | Print version and exit |
 
 **Subcommands:**
 
@@ -943,7 +985,8 @@ both trading statistics and index levels — `pm-index`'s own JSONL file only
 retains structural/corporate-action audit records, not level ticks.
 
 ```bash
-pm-stats [--db data/stats.db] [--snapshot-interval SEC] [--sql-trace] [--log-level LEVEL] [-v|-vv] [-q]
+pm-stats [--db data/stats.db] [--snapshot-interval SEC] [--timezone TZ] [--sql-trace] \
+  [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -952,10 +995,15 @@ pm-stats [--db data/stats.db] [--snapshot-interval SEC] [--sql-trace] [--log-lev
 |-----------------------|-----------------|-------------------------------------------------------------------------------------------------|
 | `--db`                | `data/stats.db` | SQLite database file path                                                                       |
 | `--snapshot-interval` | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol. Use a smaller value for finer intraday resolution, e.g. `60` for one-minute snapshots. |
+| `--timezone`          | `UTC`           | Exchange session timezone (IANA name, e.g. `Europe/Stockholm`) that defines the trading date used by `daily_stats`/`index_daily_stats` date columns. Must match `pm-clearing`'s `--timezone` or the two daily rollups will not reconcile. |
 | `--sql-trace`         | off             | Log executed SQLite SQL statements from the stats writer connection                             |
 | `--log-level`         | `WARNING`       | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                            |
 | `-v` / `--verbose`    | off             | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                             |
 | `-q` / `--quiet`      | off             | Reduce output to warnings/errors                                                                 |
+| `--log-target`        | `server`        | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file`    |
+| `--log-file`          | none            | Operational log file path — required when `--log-target file`                                   |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`           | —               | Print version and exit                                                                           |
 
 **Expected runtime input arguments:**
 
@@ -1115,7 +1163,7 @@ ORDER BY ts;
 `data/stats.db` without writing SQL manually.
 
 ```bash
-pm-stats-cli [--db data/stats.db] [--format table|json|csv] COMMAND [options]
+pm-stats-cli [--db data/stats.db] [--format table|json|csv] [--no-header] [--timezone TZ] COMMAND [options]
 ```
 
 Unlike `pm-stats`, this is not a subscriber process. It runs one query,
@@ -1128,21 +1176,29 @@ prints output, and exits.
 | `--db`        | `data/stats.db` | SQLite database file path                |
 | `--format`    | `table`         | Output format: `table`, `json`, or `csv` |
 | `--no-header` | off             | Suppress header row in `csv` output      |
+| `--timezone`  | DB-recorded timezone | Override the session timezone that `--date` resolves in; rarely needed, and a mismatched value triggers a warning since `--date` would then select a different trading day than `pm-stats` used |
+| `--version`   | —               | Print version and exit                   |
 
 **Subcommands:**
 
 | Subcommand         | Purpose                                                | Typical filters                                                   |
 |--------------------|---------------------------------------------------------|---------------------------------------------------------------------|
-| `daily`            | Daily OHLCV summary from `daily_stats`                 | `--date`, `--symbol`, `--limit`, `--wide`                          |
-| `snapshots`        | Intraday snapshots from `price_snapshots`               | `--symbol` (required), `--date`, `--from`, `--to`, `--limit`       |
-| `trades`           | Trade history from `trade_log`                          | `--symbol`, `--date`, `--from`, `--to`, `--limit`                  |
-| `order-events`     | Private order lifecycle events from the order_events table | `--gateway` (required), `--symbol`, `--event-type`, `--date`, `--from`, `--to`, `--limit` (default 500) |
+| `daily`            | Daily OHLCV summary from `daily_stats`                 | `--date`, `--symbol`, `--limit`, `--after`, `--wide`                |
+| `snapshots`        | Intraday snapshots from `price_snapshots`               | `--symbol` (required), `--date`, `--from`, `--to`, `--limit`, `--after` |
+| `trades`           | Trade history from `trade_log`                          | `--symbol`, `--date`, `--from`, `--to`, `--limit`, `--after`        |
+| `order-events`     | Private order lifecycle events from the order_events table | `--gateway` (required), `--symbol`, `--event-type`, `--date`, `--from`, `--to`, `--limit` (default 500), `--after` |
 | `order-lifecycle`  | All events for a single order ID                           | `--gateway` (required), `--order-id` (required)                    |
 | `symbols`          | Discover symbols available in stats data                | `--date`                                                            |
 | `dates`            | Discover trading dates available in `daily_stats`        | `--symbol`                                                          |
-| `index-daily`      | Daily index OHLC rollup from `index_daily_stats`        | `--date`, `--index-id`, `--limit`, `--wide`                        |
-| `index-snapshots`  | Every recorded index level tick from `index_level_snapshots` | `--index-id` (required), `--date`, `--from`, `--to`, `--limit` |
+| `index-daily`      | Daily index OHLC rollup from `index_daily_stats`        | `--date`, `--index-id`, `--limit`, `--after`, `--wide`              |
+| `index-snapshots`  | Every recorded index level tick from `index_level_snapshots` | `--index-id` (required), `--date`, `--from`, `--to`, `--limit`, `--after` |
 | `index-ids`        | Discover index IDs with recorded data                   | `--date`                                                            |
+| `instruments`      | Show instrument reference data (tick scale per symbol)  | `--symbol`                                                          |
+| `gaps`             | Show detected feed gaps (trades the recorder never received) | `--date`, `--from`, `--to`, `--limit` (default 500)            |
+| `health`           | Check the `pm-stats` process and stats DB read/write health | `-q`/`--quiet` (print nothing; exit `0` when healthy, `-1` otherwise) |
+
+`--after CURSOR` pages through results returned by a previous call to the same
+subcommand — pass the cursor value from that call's last row to fetch the next page.
 
 `index-daily`, `index-snapshots`, and `index-ids` query the level/EOD history
 that `pm-index`'s own JSONL file no longer stores — see
@@ -1194,7 +1250,8 @@ CLOSING_AUCTION → CLOSED) by sending `session.transition` messages to the
 engine at configured wall-clock times.
 
 ```bash
-pm-scheduler [--now] [--delay 3] [--daily] [--no-confirm] [--log-level LEVEL] [-v|-vv] [-q]
+pm-scheduler [--now] [--delay 3] [--daily] [--no-confirm] [--log-level LEVEL] [-v|-vv] [-q] \
+  [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
 **Startup options:**
@@ -1208,6 +1265,10 @@ pm-scheduler [--now] [--delay 3] [--daily] [--no-confirm] [--log-level LEVEL] [-
 | `--log-level`         | `WARNING`            | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                 |
 | `--verbose` / `-v`    | off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                 |
 | `-q` / `--quiet`      | off                  | Reduce output to warnings/errors                                                     |
+| `--log-target`        | `server`             | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`          | none                 | Operational log file path — required when `--log-target file`                      |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`           | —                    | Print version and exit                                                              |
 
 **Expected runtime input arguments:**
 
@@ -1235,7 +1296,8 @@ prices, OHLCV, and bid/ask spreads. The symbol line scrolls leftward like a
 classic ticker tape.
 
 ```bash
-pm-ticker [--db data/stats.db] [--db-interval 900]
+pm-ticker [--db data/stats.db] [--db-interval 900] [--timezone TZ] \
+  [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
 **Startup options:**
@@ -1244,9 +1306,14 @@ pm-ticker [--db data/stats.db] [--db-interval 900]
 |-----------------|-----------------|----------------------------------------------------|
 | `--db`          | `data/stats.db` | Path to the statistics SQLite database             |
 | `--db-interval` | 900             | Seconds between daily_stats DB re-queries (15 min) |
+| `--timezone`    | DB-recorded timezone | Exchange session timezone (IANA name) used to bucket data into a trading day |
 | `--log-level`   | `WARNING`       | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`| off           | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet`  | off           | Reduce output to warnings/errors                    |
+| `--log-target`  | `server`        | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`    | none            | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`     | —               | Print version and exit                              |
 
 **Expected runtime input arguments:**
 
@@ -1312,6 +1379,10 @@ pm-board [--rows 8] [--interval 10]
 | `--log-level`       | `WARNING`| Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`  | off     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet`    | off     | Reduce output to warnings/errors                    |
+| `--log-target`      | `server` | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`        | none    | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`         | —       | Print version and exit                              |
 
 **Expected runtime input arguments:**
 
@@ -1396,6 +1467,10 @@ pm-ai-trader --id AI01 [options]
 | `--log-level`       | `WARNING`     | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`  | off           | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
 | `-q` / `--quiet`    | off           | Reduce output to warnings/errors                    |
+| `--log-target`      | `server`      | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`        | none          | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`         | —             | Print version and exit                              |
 
 **Expected runtime input arguments:**
 
@@ -1454,6 +1529,10 @@ pm-ai-swarm [options]
 | `--log-level`       | `WARNING`            | Logging level for swarm launcher; also forwarded to child bots |
 | `-v` / `--verbose`  | off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`); forwarded to child bots |
 | `-q` / `--quiet`    | off                  | Reduce output to warnings/errors; forwarded to child bots |
+| `--log-target`      | `server`             | Where the launcher's own operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`        | none                 | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`         | —                    | Print version and exit                              |
 
 **Expected runtime input arguments:**
 
@@ -1500,6 +1579,10 @@ pm-mm-bot --symbol AAPL [options]
 | `--log-level`                    | `WARNING`              | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`               | off                    | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
 | `-q` / `--quiet`                 | off                    | Reduce output to warnings/errors                                |
+| `--log-target`                   | `server`               | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`                     | none                   | Operational log file path — required when `--log-target file`  |
+| `--log-failover-timeout`         | `30` (from config)     | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`                      | —                      | Print version and exit                                          |
 
 **Expected runtime input arguments:**
 
@@ -1589,7 +1672,8 @@ Runs the external machine-facing post-trade dissemination gateway that publishes
 RALF over TCP for clearing, drop-copy, and audit consumers.
 
 ```bash
-pm-ralf-gwy [--bind 0.0.0.0] [--port 5580] [--engine-pub tcp://127.0.0.1:5556] [--log-level LEVEL] [-v|-vv] [-q]
+pm-ralf-gwy [--bind 0.0.0.0] [--port 5580] [--engine-pub tcp://127.0.0.1:5556] [--log-level LEVEL] [-v|-vv] [-q] \
+  [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
 **Startup options:**
@@ -1602,6 +1686,10 @@ pm-ralf-gwy [--bind 0.0.0.0] [--port 5580] [--engine-pub tcp://127.0.0.1:5556] [
 | `--log-level`     | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`| off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
 | `-q` / `--quiet`  | off                     | Reduce output to warnings/errors                      |
+| `--log-target`    | `server`                | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`      | none                    | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`       | —                       | Print version and exit                             |
 
 **Expected runtime input arguments:**
 
@@ -1668,6 +1756,12 @@ dropping it as an idle client.
 | `--no-color` | off | Disable ANSI colour in output |
 | `--show-heartbeats` | off | Include `HB` heartbeat lines in output (hidden by default) |
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `--log-target` | `server` | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file` | none | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version` | — | Print version and exit |
 
 See [RALF Protocol Spy (pm-ralf-spy)](251-ralf-spy-cli.md) for full usage.
 
@@ -1685,7 +1779,8 @@ terminal. There is no authentication, entitlement model, or replay-by-sequence
 live fills for as long as it stays connected.
 
 ```bash
-pm-dc-gwy [--bind 0.0.0.0] [--port 5590] [--engine-dc-pub tcp://127.0.0.1:5557] [--log-level LEVEL] [-v|-vv] [-q]
+pm-dc-gwy [--bind 0.0.0.0] [--port 5590] [--engine-dc-pub tcp://127.0.0.1:5557] [--log-level LEVEL] [-v|-vv] [-q] \
+  [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
 **Startup options:**
@@ -1698,6 +1793,10 @@ pm-dc-gwy [--bind 0.0.0.0] [--port 5590] [--engine-dc-pub tcp://127.0.0.1:5557] 
 | `--log-level`     | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose`| off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
 | `-q` / `--quiet`  | off                     | Reduce output to warnings/errors                      |
+| `--log-target`    | `server`                | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`      | none                    | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`       | —                       | Print version and exit                             |
 
 **Expected runtime input arguments:**
 
@@ -1751,6 +1850,12 @@ of instances can run at once (e.g. one per terminal, each with a different
 | `--raw` | off | Print raw bytes instead of decoded fields |
 | `--no-color` | off | Disable ANSI colour in output |
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `--log-target` | `server` | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file` | none | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version` | — | Print version and exit |
 
 See [Drop-Copy Spy (pm-dc-spy)](202-dc-spy-cli.md) for full usage.
 
@@ -1763,7 +1868,7 @@ dedicated ZMQ PUB socket so `pm-md-gwy` can forward them to external subscribers
 over the CALF `INDEX` channel.
 
 ```bash
-pm-index [--reset] [--log-level LEVEL] [-v|-vv] [-q]
+pm-index [--reset] [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
 **Startup options:**
@@ -1774,6 +1879,10 @@ pm-index [--reset] [--log-level LEVEL] [-v|-vv] [-q]
 | `--log-level`     | `WARNING`            | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`   |
 | `-v` / `--verbose`| off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                   |
 | `-q` / `--quiet`  | off                  | Reduce output to warnings/errors                                       |
+| `--log-target`    | `server`             | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`      | none                 | Operational log file path — required when `--log-target file`        |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`       | —                    | Print version and exit                                                |
 
 **Expected runtime input arguments:**
 
@@ -1839,7 +1948,8 @@ interactive `pm-alf-console` terminal. Reads configuration from the `api_gateway
 section of `engine_config.yaml`.
 
 ```bash
-pm-api-gwy [--instance NAME] [options]
+pm-api-gwy [--instance NAME] [--host ADDR] [--port PORT] [--engine-host HOST] [--stats-db PATH] \
+  [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
 **Startup options:**
@@ -1851,7 +1961,13 @@ pm-api-gwy [--instance NAME] [options]
 | `--port PORT`        | config value                             | Override HTTP listen port                                                          |
 | `--engine-host HOST` | config value                             | Override engine host for ZMQ connections (cross-host deployments)                  |
 | `--stats-db PATH`    | config value                             | Path to `data/stats.db` for `/history/*` endpoints                                 |
-| `--log-level LEVEL`  | config value                             | `debug`, `info`, `warning`, or `error`                                             |
+| `--log-level LEVEL`  | `WARNING`                                 | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                |
+| `-v` / `--verbose`   | off                                       | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                |
+| `-q` / `--quiet`     | off                                       | Reduce output to warnings/errors                                                    |
+| `--log-target`       | `server`                                  | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`         | none                                      | Operational log file path — required when `--log-target file`                     |
+| `--log-failover-timeout` | `30` (from config)                    | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`          | —                                         | Print version and exit                                                             |
 
 **Expected runtime input arguments:**
 
@@ -1946,7 +2062,7 @@ An interactive REPL for sending operational commands to a running engine without
 needing a full gateway session.
 
 ```bash
-pm-admin --id <ADMIN_GW_ID>
+pm-admin --id <ADMIN_GW_ID> [--log-level LEVEL] [-v|-vv] [-q] [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
 **Startup options:**
@@ -1954,6 +2070,13 @@ pm-admin --id <ADMIN_GW_ID>
 | Flag   | Required | Description                                                           |
 |--------|----------|-----------------------------------------------------------------------|
 | `--id` | Yes      | ADMIN gateway ID configured in `engine_config.yaml` (e.g. `GW_ADMIN`) |
+| `--log-level` | No | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` (default `WARNING`) |
+| `-v` / `--verbose` | No | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet` | No | Reduce output to warnings/errors |
+| `--log-target` | No | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` (default `server`) |
+| `--log-file` | No | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | No | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable (default `30` from config) |
+| `--version` | No | Print version and exit |
 
 **Expected runtime input arguments:**
 
@@ -2007,6 +2130,7 @@ prints the result, and exits. Suitable for shell scripts and CI automation.
 | `--push <ADDR>`  | No       | Engine PULL address (default from config)     |
 | `--sub <ADDR>`   | No       | Engine PUB address (default from config)      |
 | `--timeout <MS>` | No       | Ack timeout in milliseconds (default: `3000`) |
+| `--version`      | No       | Print version and exit                        |
 
 **Expected runtime input arguments:**
 
@@ -2050,6 +2174,7 @@ pm-cverifier [--format text|json] [--level info|warn|error] [--no-color] [--stri
 | `--level`       | `info`   | Minimum severity to show: `info`, `warn`, or `error`                 |
 | `--no-color`    | off      | Disable ANSI colour in text output                                   |
 | `--strict`      | off      | Treat warnings as errors for CI exit-code purposes                   |
+| `--version`     | —        | Print version and exit                                               |
 
 **Expected runtime input arguments:**
 
@@ -2158,6 +2283,7 @@ pm-setup
 | `--data-dir <PATH>`    | `$EDUMATCHER_DATA_DIR` or `~/.local/share/edumatcher` | Data directory for persistent files           |
 | `--force`              | off                                                   | Replace an already-deployed config            |
 | `--no-config`          | off                                                   | Create the data dir only; deploy nothing      |
+| `--version`            | —                                                      | Print version and exit                        |
 
 **Expected runtime input arguments:**
 
@@ -2193,6 +2319,7 @@ pm-config-deploy --show
 | `SOURCE`   | —       | Authored `engine_config.yaml` to validate, compile and install |
 | `--check`  | off     | Validate and compile, but install nothing — for CI            |
 | `--show`   | off     | Print the deployed paths and exit                             |
+| `--version`| —       | Print version and exit                                        |
 
 **Expected runtime input arguments:**
 
@@ -2384,6 +2511,7 @@ pm-index-cli [--config engine_config.yaml] [--format table|json|csv] COMMAND [op
 | `--data-dir DIR`            | `data/indexes` | Directory containing history files; used when `--config` is absent or an index is not in config |
 | `--format table\|json\|csv` | `table`        | Output format                                                                                   |
 | `--no-header`               | off            | Suppress header row (CSV only)                                                                  |
+| `--version`                 | —              | Print version and exit                                                                          |
 
 **Expected runtime input arguments:**
 
@@ -2430,6 +2558,7 @@ pm-index-admin-cli --id <GW_ID> [--push ADDR] [--sub ADDR] [--timeout MS] [--dry
 | `--dry-run` | off | Print the outbound payload instead of sending it |
 | `-y` / `--yes` | off | Skip the confirmation prompt |
 | `--format` | `table` | Output format: `table` or `json` |
+| `--version` | — | Print version and exit |
 
 **Expected runtime input arguments:**
 
@@ -2503,7 +2632,8 @@ See [BALF TCP Gateway](230-balf-gateway.md) for operational usage and
 [BALF Protocol Reference](910-app-balf-protocol.md) for the wire-level contract.
 
 ```bash
-pm-balf-gwy [--bind 0.0.0.0] [--port 5560] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
+pm-balf-gwy [--bind 0.0.0.0] [--port 5560] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q] \
+  [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
 **Startup options:**
@@ -2516,6 +2646,10 @@ pm-balf-gwy [--bind 0.0.0.0] [--port 5560] [--engine-host HOST] [--log-level LEV
 | `--log-level`      | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                 |
 | `-q` / `--quiet`   | off                     | Reduce output to warnings/errors                                     |
+| `--log-target`     | `server`                | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`       | none                    | Operational log file path — required when `--log-target file`      |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`        | —                       | Print version and exit                                               |
 
 ## pm-md-gwy (CALF Market-Data Gateway)
 
@@ -2527,7 +2661,8 @@ CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:
 - `STATE` (session and halt/resume state)
 
 ```bash
-pm-md-gwy [--bind 0.0.0.0] [--port 5570] [--engine-pub tcp://127.0.0.1:5556] [--index-pub tcp://127.0.0.1:5558] [--log-level LEVEL] [-v|-vv] [-q]
+pm-md-gwy [--bind 0.0.0.0] [--port 5570] [--engine-pub tcp://127.0.0.1:5556] [--index-pub tcp://127.0.0.1:5558] [--log-level LEVEL] [-v|-vv] [-q] \
+  [--log-target TARGET] [--log-file PATH] [--log-failover-timeout SEC]
 ```
 
 **Startup options:**
@@ -2541,6 +2676,10 @@ pm-md-gwy [--bind 0.0.0.0] [--port 5570] [--engine-pub tcp://127.0.0.1:5556] [--
 | `--log-level`      | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                 |
 | `-q` / `--quiet`   | off                     | Reduce output to warnings/errors                                     |
+| `--log-target`     | `server`                | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file`       | none                    | Operational log file path — required when `--log-target file`      |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version`        | —                       | Print version and exit                                               |
 
 See [Market Data Feed (CALF)](240-calf-gateway.md) for operational usage and
 [CALF Protocol Reference](920-app-calf-protocol.md) for the wire-level contract.
@@ -2575,6 +2714,12 @@ dropping it as an idle client.
 | `--no-color` | off | Disable ANSI colour in output |
 | `--show-heartbeats` | off | Include `HB` heartbeat lines in output (hidden by default) |
 | `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `--log-target` | `server` | Where operational log records go: `server` (auto-detected `pm-log-srv`), `stdout`, or `file` |
+| `--log-file` | none | Operational log file path — required when `--log-target file` |
+| `--log-failover-timeout` | `30` (from config) | Grace window in seconds before falling back to a local log file once `pm-log-srv` becomes unreachable |
+| `--version` | — | Print version and exit |
 
 See [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) for full usage.
 
@@ -2597,7 +2742,8 @@ trading events, applied here to operational `logging`-module output.
 ```
 pm-log-srv [--host ADDR] [--port PORT] [--db PATH]
            [--retention-days N] [--max-message-bytes N]
-           [--log-level LEVEL] [-v|-vv] [-q]
+           [--pub-port PORT] [--pull-port PORT] [--no-pubsub] [--lease-sec N]
+           [--log-level LEVEL] [-v|-vv] [-q] [--log-target stdout|file] [--log-file PATH]
 ```
 
 | Flag | Default | Description |
@@ -2607,6 +2753,16 @@ pm-log-srv [--host ADDR] [--port PORT] [--db PATH]
 | `--db` | `data/log.db` | SQLite database path |
 | `--retention-days` | `30` | Prune `log_events` rows older than N days; `0` = unbounded |
 | `--max-message-bytes` | `65536` | Truncation ceiling per `LOG` payload (never dropped, only truncated) |
+| `--pub-port` | `5601` | LALF-PS ZeroMQ PUB bind port for log distribution |
+| `--pull-port` | `5602` | LALF-PS ZeroMQ PULL bind port for subscriber control |
+| `--no-pubsub` | off | Disable the LALF-PS interface entirely (bind no ZeroMQ sockets) |
+| `--lease-sec` | `30` | Subscription lease TTL in seconds; a subscriber that stops sending `log.renew` is reaped after this long |
+| `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `--log-target` | `stdout` | Where this process's own operational log records go: `stdout` or `file` — never `server`, since `pm-log-srv` must not depend on itself over the network |
+| `--log-file` | none | Operational log file path — required when `--log-target file` |
+| `--version` | — | Print version and exit |
 
 ## pm-log-cli — Log Server Query/Troubleshooting CLI
 

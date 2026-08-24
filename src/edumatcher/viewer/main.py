@@ -3,6 +3,8 @@ Order Book Viewer — live terminal display for a single symbol.
 
 Usage:
   poetry run pm-viewer --symbol AAPL [--depth N]
+  poetry run pm-viewer --symbol AAPL --zebra-lines
+  poetry run pm-viewer --symbol AAPL --text-color "#e0e0e0"
 
 Subscribes to book.<SYMBOL> and renders a full-screen, self-redrawing order
 book showing:
@@ -19,6 +21,19 @@ is measured against the session open.
 
 Iceberg orders show only displayed_qty — the hidden size is intentionally
 invisible, demonstrating the privacy feature of iceberg orders.
+
+Colors
+~~~~~~
+The BIDS/ASKS/TRADES tables used to alternate every other row's unstyled text
+onto ``grey11`` (a near-black foreground) via Rich's ``row_styles``, meant as
+a subtle background tint but landing as foreground on those cells — on a
+dark terminal that row became nearly unreadable. That row style is now used
+for a background tint only (``on <color>``), gated behind ``--zebra-lines``
+and off by default, and all previously-unstyled body text uses an explicit
+``--text-color`` (default ``white``) instead of inheriting whatever the row
+style happened to set. Colors accept any CSS/HTML-style value Rich
+understands: a ``#rrggbb`` hex code or a Rich color name (see
+https://rich.readthedocs.io/en/stable/appendix/colors.html).
 """
 
 from __future__ import annotations
@@ -37,6 +52,7 @@ from typing import Any
 
 import zmq
 from rich import box
+from rich.color import Color, ColorParseError
 from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
@@ -83,6 +99,29 @@ _BAR_WIDTH = 6  # width of the depth micro-bar column, in cells
 _UP = "green"
 _DOWN = "red"
 _FLAT = "grey70"
+
+# Body text color for previously-unstyled cells (price/direction columns keep
+# their own green/red/etc. styling regardless of this setting). Overridable
+# with --text-color to fit a terminal theme other than a plain dark one.
+_DEFAULT_TEXT_COLOR = "white"
+# Background tint for every second row when --zebra-lines is given. A muted
+# dark grey — visible on a dark terminal without competing with row text.
+_DEFAULT_ZEBRA_COLOR = "grey19"
+
+
+def _validate_color(option: str, value: str) -> str:
+    """Return *value* unchanged if Rich can parse it as a color, else exit.
+
+    Fails fast at startup with a clear message rather than deferring to a
+    Rich traceback the first time the color is actually used in a render.
+    """
+    try:
+        Color.parse(value)
+    except ColorParseError as exc:
+        raise SystemExit(
+            f"pm-viewer: invalid value for {option}: {value!r} ({exc})"
+        ) from exc
+    return value
 
 
 def request_snapshot_with_retry(
@@ -306,6 +345,8 @@ def _build_header(
     stats: _SessionStats,
     best_bid: float | None,
     best_ask: float | None,
+    *,
+    text_color: str = _DEFAULT_TEXT_COLOR,
 ) -> Group:
     last = snapshot.get("last_price")
     last_qty = snapshot.get("last_qty")
@@ -334,7 +375,7 @@ def _build_header(
         ((f"{pct:+.2f}%" if pct is not None else "—"), f"bold {trend}"),
         _sep(),
         _label("SIZE"),
-        (_fmt_int(last_qty), "white"),
+        (_fmt_int(last_qty), text_color),
         _sep(),
         _label("BID/ASK"),
         (_fmt_price(best_bid), _UP),
@@ -349,18 +390,18 @@ def _build_header(
 
     line2_left = Text.assemble(
         _label("O"),
-        (_fmt_price(stats.open), "white"),
+        (_fmt_price(stats.open), text_color),
         _label("  H"),
         (_fmt_price(stats.high), _UP),
         _label("  L"),
         (_fmt_price(stats.low), _DOWN),
         _label("  C"),
-        (_fmt_price(stats.close), "white"),
+        (_fmt_price(stats.close), text_color),
         _sep(),
         _label("PREV"),
         (
             _fmt_price(stats.prev_close) if stats.prev_close is not None else "n/a",
-            "white",
+            text_color,
         ),
         _sep(),
         _label("RANGE"),
@@ -375,7 +416,7 @@ def _build_header(
         ),
         _sep(),
         _label("VOL"),
-        (_fmt_int(stats.volume), "white"),
+        (_fmt_int(stats.volume), text_color),
     )
     line2_right = Text.assemble(
         _label("BASIS"),
@@ -390,6 +431,19 @@ def _build_header(
     )
 
 
+def _row_styles(*, zebra_lines: bool, zebra_color: str) -> list[str]:
+    """Alternating-row styles for a Table's ``row_styles``.
+
+    Every second row previously got a bare color name (``grey11``) here,
+    which Rich applies as a *foreground* on any cell without its own
+    explicit style — on a dark terminal that made those cells nearly
+    invisible. Restricting the style to ``on <color>`` makes it a background
+    tint instead, which is what alternating-row shading is supposed to be,
+    and it only appears at all when zebra striping is requested.
+    """
+    return ["", f"on {zebra_color}"] if zebra_lines else ["", ""]
+
+
 def _side_table(
     title: str,
     rows: list[dict[str, Any]],
@@ -397,6 +451,9 @@ def _side_table(
     capacity: int,
     *,
     is_bid: bool,
+    text_color: str = _DEFAULT_TEXT_COLOR,
+    zebra_lines: bool = False,
+    zebra_color: str = _DEFAULT_ZEBRA_COLOR,
 ) -> Table:
     tbl = Table(
         box=box.SIMPLE_HEAD,
@@ -406,19 +463,19 @@ def _side_table(
         title=f"[bold {color}]{title}[/]",
         title_justify="center",
         header_style=f"bold {color}",
-        row_styles=["", "grey11"],
+        row_styles=_row_styles(zebra_lines=zebra_lines, zebra_color=zebra_color),
     )
     max_qty = max((int(r.get("qty", 0) or 0) for r in rows[:capacity]), default=0)
 
     if is_bid:
         tbl.add_column("Depth", justify="right", width=_BAR_WIDTH, no_wrap=True)
         tbl.add_column("Price", justify="right", style=color, no_wrap=True)
-        tbl.add_column("Qty", justify="right", no_wrap=True)
-        tbl.add_column("Ord", justify="right", no_wrap=True)
+        tbl.add_column("Qty", justify="right", style=text_color, no_wrap=True)
+        tbl.add_column("Ord", justify="right", style=text_color, no_wrap=True)
     else:
         tbl.add_column("Price", justify="left", style=color, no_wrap=True)
-        tbl.add_column("Qty", justify="left", no_wrap=True)
-        tbl.add_column("Ord", justify="left", no_wrap=True)
+        tbl.add_column("Qty", justify="left", style=text_color, no_wrap=True)
+        tbl.add_column("Ord", justify="left", style=text_color, no_wrap=True)
         tbl.add_column("Depth", justify="left", width=_BAR_WIDTH, no_wrap=True)
 
     shown = rows[:capacity]
@@ -437,7 +494,13 @@ def _side_table(
     return tbl
 
 
-def _trades_table(recent: list[dict[str, Any]], capacity: int) -> Table:
+def _trades_table(
+    recent: list[dict[str, Any]],
+    capacity: int,
+    *,
+    zebra_lines: bool = False,
+    zebra_color: str = _DEFAULT_ZEBRA_COLOR,
+) -> Table:
     tbl = Table(
         box=box.SIMPLE_HEAD,
         expand=True,
@@ -446,7 +509,7 @@ def _trades_table(recent: list[dict[str, Any]], capacity: int) -> Table:
         title="[bold cyan]TRADES[/]",
         title_justify="center",
         header_style="bold cyan",
-        row_styles=["", "grey11"],
+        row_styles=_row_styles(zebra_lines=zebra_lines, zebra_color=zebra_color),
     )
     tbl.add_column("Time", no_wrap=True)
     tbl.add_column("Price", justify="right", no_wrap=True)
@@ -487,13 +550,18 @@ def _build_display(
     *,
     stats: _SessionStats | None = None,
     size: tuple[int, int] | None = None,
+    text_color: str = _DEFAULT_TEXT_COLOR,
+    zebra_lines: bool = False,
+    zebra_color: str = _DEFAULT_ZEBRA_COLOR,
 ) -> Panel:
     """Render the full-screen order book as a single :class:`rich.panel.Panel`.
 
     ``depth`` caps the number of price levels shown; when ``None`` the display
     grows to fill the terminal height. ``stats`` supplies the session OHLC/vol
     accumulated by the caller; when omitted a throwaway one is derived from the
-    current snapshot so the function stays pure enough for tests.
+    current snapshot so the function stays pure enough for tests. ``text_color``,
+    ``zebra_lines``, and ``zebra_color`` control the body text and alternating-row
+    styling — see the module docstring's Colors section.
     """
     height = size[1] if size is not None else console.size.height
 
@@ -511,10 +579,35 @@ def _build_display(
     if depth is not None and depth > 0:
         capacity = min(capacity, depth)
 
-    header = _build_header(snapshot, symbol, stats, best_bid, best_ask)
-    bid_tbl = _side_table("BIDS", bids, _UP, capacity, is_bid=True)
-    ask_tbl = _side_table("ASKS", asks, _DOWN, capacity, is_bid=False)
-    trades_tbl = _trades_table(snapshot.get("recent_trades", []) or [], capacity)
+    header = _build_header(
+        snapshot, symbol, stats, best_bid, best_ask, text_color=text_color
+    )
+    bid_tbl = _side_table(
+        "BIDS",
+        bids,
+        _UP,
+        capacity,
+        is_bid=True,
+        text_color=text_color,
+        zebra_lines=zebra_lines,
+        zebra_color=zebra_color,
+    )
+    ask_tbl = _side_table(
+        "ASKS",
+        asks,
+        _DOWN,
+        capacity,
+        is_bid=False,
+        text_color=text_color,
+        zebra_lines=zebra_lines,
+        zebra_color=zebra_color,
+    )
+    trades_tbl = _trades_table(
+        snapshot.get("recent_trades", []) or [],
+        capacity,
+        zebra_lines=zebra_lines,
+        zebra_color=zebra_color,
+    )
 
     # A fixed 3-column grid (rather than Columns) guarantees the three panels
     # stay side by side at equal width/height even on narrow terminals, where
@@ -560,6 +653,9 @@ def main() -> None:
     log_level = _configure_logging(args)
     log.info("starting pm-viewer with log level %s", logging.getLevelName(log_level))
     symbol = args.symbol.upper()
+
+    text_color = _validate_color("--text-color", args.text_color)
+    zebra_color = _validate_color("--zebra-lines-color", args.zebra_lines_color)
 
     debug_counts: defaultdict[str, int] = defaultdict(int)
     debug_last_summary = time.monotonic()
@@ -626,7 +722,15 @@ def main() -> None:
                     stats.update(payload)
                     _dbg_count("book_snapshots")
                 live.update(
-                    _build_display(latest_snapshot, symbol, args.depth, stats=stats)
+                    _build_display(
+                        latest_snapshot,
+                        symbol,
+                        args.depth,
+                        stats=stats,
+                        text_color=text_color,
+                        zebra_lines=args.zebra_lines,
+                        zebra_color=zebra_color,
+                    )
                 )
                 live.refresh()
                 _dbg_count("renders")
@@ -663,6 +767,33 @@ def _build_parser() -> argparse.ArgumentParser:
         default=str(STATS_DB_FILE),
         metavar="PATH",
         help=f"Statistics SQLite DB for seed OHLC (default: {STATS_DB_FILE})",
+    )
+    parser.add_argument(
+        "--text-color",
+        default=_DEFAULT_TEXT_COLOR,
+        metavar="COLOR",
+        help=(
+            "Body text color for the order book tables — a #rrggbb hex code "
+            f"or a Rich color name (default: {_DEFAULT_TEXT_COLOR})"
+        ),
+    )
+    parser.add_argument(
+        "--zebra-lines",
+        action="store_true",
+        help=(
+            "Shade every second row of the BIDS/ASKS/TRADES tables with a "
+            "background tint for readability (default: off)"
+        ),
+    )
+    parser.add_argument(
+        "--zebra-lines-color",
+        default=_DEFAULT_ZEBRA_COLOR,
+        metavar="COLOR",
+        help=(
+            "Background tint used by --zebra-lines — a #rrggbb hex code or a "
+            f"Rich color name (default: {_DEFAULT_ZEBRA_COLOR}, a dark grey). "
+            "Has no effect unless --zebra-lines is given."
+        ),
     )
     parser.add_argument(
         "--log-level",
